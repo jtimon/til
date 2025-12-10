@@ -3727,23 +3727,16 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         return Err("ccodegen: FCall with no params".to_string());
     }
 
-    // Check for type-qualified call: first param is Identifier with nested params (method name)
-    // For chained access like self._len.eq(...), we need to find the deepest method name
-    let (func_name, type_receiver) = match &expr.params[0].node_type {
-        NodeType::Identifier(name) => {
-            if expr.params[0].params.is_empty() {
-                // Regular function call
-                (name.clone(), None)
-            } else {
-                // Type-qualified call: use helper to extract method from potentially chained access
-                if let Some((method_name, _depth)) = extract_type_method_and_depth(&expr.params[0]) {
-                    (method_name, Some(&expr.params[0]))
-                } else {
-                    return Err("ccodegen: type-qualified method name not Identifier".to_string());
-                }
-            }
-        },
-        _ => return Err("ccodegen: FCall first param not Identifier".to_string()),
+    // Get function name (handles both nested identifiers and precomp'd "Type.method" strings)
+    let func_name = match get_func_name_string(&expr.params[0]) {
+        Some(name) => name,
+        None => return Err("ccodegen: FCall first param not Identifier".to_string()),
+    };
+
+    // For builtins, we need the original name without underscore conversion
+    let orig_func_name = match &expr.params[0].node_type {
+        NodeType::Identifier(name) if expr.params[0].params.is_empty() => name.clone(),
+        _ => func_name.replace('_', "."),  // Convert back for lookup
     };
 
     let indent_str = "    ".repeat(indent);
@@ -3759,7 +3752,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     };
 
     // Hardcoded builtins (compile-time intrinsics that can't be implemented in TIL)
-    match func_name.as_str() {
+    match orig_func_name.as_str() {
         // loc() - just emit empty string for now
         "loc" => {
             if context.scope_stack.lookup_struct("Str").is_some() {
@@ -3881,18 +3874,19 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // Check for type-qualified call on FCall result: func_name(fcall_result, args...)
             // This happens for chained method calls like delimiter.len().eq(0)
             // Parser produces: FCall { params: [Identifier("eq"), FCall { ... }, LLiteral(0)] }
-            if type_receiver.is_none() && expr.params.len() >= 2 {
+            // Only check this for simple func names (no nested identifiers)
+            if expr.params[0].params.is_empty() && expr.params.len() >= 2 {
                 if let NodeType::FCall = &expr.params[1].node_type {
                     // The second param is an FCall result - use get_value_type to get its return type
                     if let Ok(fcall_ret_type) = get_value_type(context, &expr.params[1]) {
                         if let ValueType::TCustom(type_name) = &fcall_ret_type {
-                            let candidate = format!("{}.{}", type_name, func_name);
+                            let candidate = format!("{}.{}", type_name, orig_func_name);
                             if context.scope_stack.lookup_func(&candidate).is_some() {
                                 // Emit as Type_method(fcall_result, args...)
                                 output.push_str(TIL_PREFIX);
                                 output.push_str(type_name);
                                 output.push_str("_");
-                                output.push_str(&func_name);
+                                output.push_str(&orig_func_name);
                                 output.push_str("(");
                                 // First arg is the fcall result
                                 emit_expr(&expr.params[1], output, 0, ctx, context)?;
@@ -3912,69 +3906,15 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 }
             }
 
-            // Check if this is a type-qualified call (Type.func(...))
-            // After precomp, instance calls like i.inc() are normalized to I64.inc(i) which
-            // goes through PATH C below. This path handles explicit Type.method() in source.
-            if let Some(receiver) = type_receiver {
-                if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-                    // For Type.method(), receiver_name is the type name (e.g., "I64")
-                    // Look up the mangled function name
-                    let mangled = format!("{}.{}", receiver_name, func_name);
-                    if context.scope_stack.lookup_func(&mangled).is_some() {
-                        // Emit: til_Type_method(args...)
-                        output.push_str(TIL_PREFIX);
-                        output.push_str(receiver_name);
-                        output.push_str("_");
-                        output.push_str(&func_name);
-                        output.push_str("(");
-
-                        // Get param info for mut handling
-                        let param_info: Vec<(Option<ValueType>, bool)> =
-                            if let Some(fd) = lookup_func_by_name(context, &mangled) {
-                                fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect()
-                            } else {
-                                Vec::new()
-                            };
-
-                        // Emit arguments (skip first param which is the Type.method identifier)
-                        let mut first_arg = true;
-                        for (i, arg) in expr.params.iter().skip(1).enumerate() {
-                            if !first_arg {
-                                output.push_str(", ");
-                            }
-                            first_arg = false;
-                            // Check if arg is a type identifier - emit as string literal
-                            if let Some(type_name) = get_type_arg_name(arg, context) {
-                                output.push_str("\"");
-                                output.push_str(&type_name);
-                                output.push_str("\"");
-                            } else if !param_info.is_empty() {
-                                let (param_type, is_mut) = param_info.get(i)
-                                    .map(|(t, m)| (t.as_ref(), *m))
-                                    .unwrap_or((None, false));
-                                emit_arg_with_param_type(arg, i, &hoisted, param_type, is_mut, output, ctx, context)?;
-                            } else {
-                                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
-                            }
-                        }
-                        output.push_str(")");
-                        if indent > 0 {
-                            output.push_str(";\n");
-                        }
-                        return Ok(());
-                    }
-                }
-            }
-
             // Check for struct construction: TypeName() -> (til_TypeName){}
-            // Struct names are PascalCase, no nested identifiers, no args
-            // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
+            // Struct names are PascalCase, no nested identifiers (no underscore in func_name), no args
             if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
-                && expr.params[0].params.is_empty()  // No nested params (not Type.Variant)
-                && expr.params.len() == 1            // No constructor args
+                && !func_name.contains('_')  // No underscore means not Type_method
+                && expr.params.len() == 1    // No constructor args
             {
                 output.push_str("(");
-                output.push_str(&til_func_name(&func_name));
+                output.push_str(TIL_PREFIX);
+                output.push_str(&func_name);
                 output.push_str("){}");
                 if indent > 0 {
                     output.push_str(";\n");
@@ -3982,16 +3922,12 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 return Ok(());
             }
 
-            // Regular function call (not type-qualified)
-            // After precomp, instance method calls like i.inc() are normalized to I64.inc(i),
-            // which go through the type_receiver path above. This path is only for
-            // truly non-qualified calls like add(a, b), memcpy(...), etc.
-            let output_name = til_func_name(&func_name);
-
+            // Regular function call
+            // func_name already has underscores from get_func_name_string
             // Detect and construct variadic array if needed (only at statement level)
             // At expression level (indent == 0), variadic calls are not supported directly
             let variadic_arr_var: Option<String> = if indent > 0 {
-                if let Some((elem_type, regular_count)) = ctx.func_variadic_args.get(&func_name).map(|(_, e, r)| (e.clone(), *r)) {
+                if let Some((elem_type, regular_count)) = ctx.func_variadic_args.get(&orig_func_name).map(|(_, e, r)| (e.clone(), *r)) {
                     let variadic_args: Vec<_> = expr.params.iter().skip(1 + regular_count).collect();
                     Some(hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?)
                 } else {
@@ -4001,11 +3937,12 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 None
             };
 
-            output.push_str(&output_name);
+            output.push_str(TIL_PREFIX);
+            output.push_str(&func_name);
             output.push_str("(");
 
             // Check if this is a variadic function call
-            if let Some((_variadic_name, _elem_type, regular_count)) = ctx.func_variadic_args.get(&func_name).cloned() {
+            if let Some((_variadic_name, _elem_type, regular_count)) = ctx.func_variadic_args.get(&orig_func_name).cloned() {
                 // Emit regular args first (skip first param which is function name)
                 let args: Vec<_> = expr.params.iter().skip(1).collect();
                 for (i, arg) in args.iter().take(regular_count).enumerate() {
@@ -4025,10 +3962,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 }
             } else {
                 // Regular non-variadic function call
-                // After precomp, Type.method(args) calls have func_name containing a dot (e.g., "I64.inc")
+                // func_name contains underscore if it's Type_method (from get_func_name_string)
                 // We need to handle mut params for these.
-                let param_info: Vec<(Option<ValueType>, bool)> = if func_name.contains('.') {
-                    if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                let lookup_name = func_name.replacen('_', ".", 1);
+                let param_info: Vec<(Option<ValueType>, bool)> = if func_name.contains('_') {
+                    if let Some(fd) = lookup_func_by_name(context, &lookup_name) {
                         fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect()
                     } else {
                         Vec::new()

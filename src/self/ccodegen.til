@@ -5165,33 +5165,26 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     expr.params.get(0, first)
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-    mut func_name := ""
-    mut has_type_receiver := false
-    mut type_receiver_name := ""
-
-    switch first.node_type {
-    case NodeType.Identifier(name):
-        if gt(first.params.len(), 0) {
-            // Type-qualified: Type.method() - method is the LAST param (AST is flat)
-            mut type_depth := first.params.len()
-            mut method_idx := sub(type_depth, 1)
-            mut method_expr := Expr()
-            first.params.get(method_idx, method_expr)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            switch method_expr.node_type {
-            case NodeType.Identifier(method_name):
-                func_name = method_name
-                has_type_receiver = true
-                type_receiver_name = name
-            case:
-                throw "ccodegen: type-qualified method name not Identifier"
-            }
-        } else {
-            func_name = name
-        }
-    case:
+    // Get function name (handles both nested identifiers and precomp'd "Type.method" strings)
+    mut func_name_result := get_func_name_string(first)
+    if not(func_name_result.found) {
         throw "ccodegen: FCall first param not Identifier"
     }
+    mut func_name := func_name_result.name
+
+    // For builtins, we need the original name without underscore conversion
+    mut orig_func_name := ""
+    switch first.node_type {
+    case NodeType.Identifier(name):
+        if first.params.len().eq(0) {
+            orig_func_name = name
+        } else {
+            orig_func_name = func_name.replace("_", ".")
+        }
+    case:
+        orig_func_name = func_name.replace("_", ".")
+    }
+    catch (err: AllocError) { throw err.msg }
 
     // NOTE: Old variadic param method handling (args.len(), args.get()) removed
     // Variadic params are now til_Array* so standard Array methods work
@@ -5208,7 +5201,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     // Check for type-qualified call on FCall result: func_name(fcall_result, args...)
     // This happens for chained method calls like delimiter.len().eq(0)
     // Parser produces: FCall { params: [Identifier("eq"), FCall { ... }, LLiteral(0)] }
-    if not(has_type_receiver).and(gteq(params_len, 2)) {
+    // Only check this for simple func names (no nested identifiers)
+    if first.params.len().eq(0).and(gteq(params_len, 2)) {
         mut second_param := Expr()
         expr.params.get(1, second_param)
         switch second_param.node_type {
@@ -5217,7 +5211,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             mut fcall_ret_type := get_value_type(context, second_param)
             switch fcall_ret_type {
             case ValueType.TCustom(type_name):
-                mut candidate := format(type_name, ".", func_name)
+                mut candidate := format(type_name, ".", orig_func_name)
                 // Try to lookup the function - if found, emit as Type_method
                 mut func_info := context.scope_stack.lookup_func(candidate)
                 // If we get here, the function was found (otherwise KeyNotFoundError)
@@ -5225,7 +5219,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 result = concat(result, TIL_PREFIX)
                 result = concat(result, type_name)
                 result = concat(result, "_")
-                result = concat(result, func_name)
+                result = concat(result, orig_func_name)
                 result = concat(result, "(")
                 // First arg is the fcall result
                 result = emit_expr(second_param, result, 0, ctx, context)
@@ -5255,13 +5249,13 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     }
 
     // Hardcoded builtins (compile-time intrinsics that can't be implemented in TIL)
-    if func_name.eq("loc") {
+    if orig_func_name.eq("loc") {
         if has_str(context) {
             return format(output, TIL_PREFIX, "Str_from_literal(\"\")")
         } else {
             return concat(output, "\"\"")
         }
-    } else if func_name.eq("size_of") {
+    } else if orig_func_name.eq("size_of") {
         // size_of(T) - runtime type size lookup via til_size_of function
         // Can be called with a literal type name (size_of(Str)) or a Type variable (size_of(T))
         if lt(params_len, 2) {
@@ -5314,7 +5308,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return result
-    } else if func_name.eq("to_ptr") {
+    } else if orig_func_name.eq("to_ptr") {
         // to_ptr(var) - get address of variable
         // For Dynamic params (already void*), just cast without taking address
         if lt(params_len, 2) {
@@ -5361,103 +5355,31 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         return result
     } else {
         // User-defined function call
-        // Check if this is a type-qualified call (Type.func(...))
-        if has_type_receiver {
-            switch first.node_type {
-            case NodeType.Identifier(receiver_name):
-                mut first_char := receiver_name.get_substr(0, 1)
-                if first_char.is_uppercase() {
-                    // Check if this is an enum value (no arguments) vs function/constructor call
-                    mut has_args := gt(params_len, 1)
-
-                    if not(has_args) {
-                        // Simple enum value: Type.Variant -> Type_Variant
-                        result = concat(result, receiver_name)
-                        result = concat(result, "_")
-                        result = concat(result, func_name)
-                        if gt(indent, 0) {
-                            result = concat(result, ";\n")
-                        }
-                        return result
-                    }
-
-                    // Type-qualified call with args: Type.func(args...) -> til_Type_func(args...)
-                    // For enum constructors with payloads: Type.Variant(val) -> til_Type_make_Variant(val)
-                    // Enum variants are capitalized, function names are lowercase
-                    result = concat(result, TIL_PREFIX)
-                    result = concat(result, receiver_name)
-                    result = concat(result, "_")
-                    mut func_first_char := func_name.get_substr(0, 1)
-                    if func_first_char.is_uppercase() {
-                        // Enum constructor with payload
-                        result = concat(result, "make_")
-                    }
-                    result = concat(result, func_name)
-                    result = concat(result, "(")
-
-                    // Get param info for mut handling
-                    mut mangled := format(receiver_name, ".", func_name)
-                    mut param_info := Vec.new(Declaration)
-                    mut lookup_result := lookup_func_by_name(context, mangled)
-                    if lookup_result.found {
-                        param_info = lookup_result.func_def.args
-                    }
-
-                    mut i := 1
-                    while lt(i, params_len) {
-                        if gt(i, 1) {
-                            result = concat(result, ", ")
-                        }
-                        mut arg := Expr()
-                        expr.params.get(i, arg)
-                        // Check if we should add & for mut param
-                        mut arg_idx := sub(i, 1)
-                        mut should_add_ampersand := false
-                        if gt(param_info.len(), 0) {
-                            if lt(arg_idx, param_info.len()) {
-                                mut param_decl := Declaration()
-                                param_info.get(arg_idx, param_decl)
-                                if param_decl.is_mut {
-                                    // Check if arg is a simple identifier
-                                    switch arg.node_type {
-                                    case NodeType.Identifier(arg_name):
-                                        if eq(arg.params.len(), 0) {
-                                            should_add_ampersand = true
-                                        }
-                                    case:
-                                    }
-                                }
-                            }
-                        }
-                        if should_add_ampersand {
-                            result = concat(result, "&")
-                        }
-                        result = emit_expr(arg, result, 0, ctx, context)
-                        i = add(i, 1)
-                    }
-                    result = concat(result, ")")
-                    if gt(indent, 0) {
-                        result = concat(result, ";\n")
-                    }
-                    return result
-                }
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                catch (err: AllocError) { throw err.msg }
-            case:
-                throw "ccodegen: expected identifier for type-qualified receiver"
+        // Check for struct construction: TypeName() -> (til_TypeName){}
+        // Struct names are PascalCase, no underscore in func_name (meaning not Type_method), no args
+        mut first_char := func_name.get_substr(0, 1)
+        if first_char.is_uppercase().and(not(func_name.contains("_"))).and(params_len.eq(1)) {
+            result = concat(result, "(")
+            result = concat(result, TIL_PREFIX)
+            result = concat(result, func_name)
+            result = concat(result, "){}")
+            if gt(indent, 0) {
+                result = concat(result, ";\n")
             }
+            return result
         }
-        // Regular function call (not type-qualified)
-        // After precomp, instance method calls like i.inc() are normalized to I64.inc(i),
-        // which go through the type_receiver path above. This path is only for
-        // truly non-qualified calls like add(a, b), memcpy(...), etc.
-        result = concat(result, til_func_name(func_name))
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+        // Regular function call
+        // func_name already has underscores from get_func_name_string
+        result = concat(result, TIL_PREFIX)
+        result = concat(result, func_name)
         result = concat(result, "(")
 
         // Check if this is a variadic function
         mut variadic_info := VariadicParamInfo()
         mut is_variadic := false
-        ctx.func_variadic_args.get(func_name, variadic_info)
+        ctx.func_variadic_args.get(orig_func_name, variadic_info)
         is_variadic = true
         catch (err: KeyNotFoundError) {
             is_variadic = false
@@ -5510,11 +5432,12 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             }
         } else {
             // Non-variadic: emit args normally
-            // After precomp, Type.method(args) calls have func_name containing a dot (e.g., "I64.inc")
+            // func_name contains underscore if it's Type_method (from get_func_name_string)
             // We need to handle mut params for these.
+            mut lookup_name := orig_func_name
             mut param_info := Vec.new(Declaration)
-            if func_name.contains(".") {
-                mut lookup_result := lookup_func_by_name(context, func_name)
+            if func_name.contains("_") {
+                mut lookup_result := lookup_func_by_name(context, lookup_name)
                 if lookup_result.found {
                     param_info = lookup_result.func_def.args
                 }
