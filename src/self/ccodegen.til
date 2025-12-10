@@ -70,6 +70,49 @@ til_func_name := func(name: Str) returns Str {
     return concat(TIL_PREFIX, name.replace(".", "_"))
 }
 
+// Result type for get_func_name_string
+FuncNameResult := struct {
+    mut found: Bool = false
+    mut name: Str = ""
+}
+
+// Get function name from FCall's first param, handling both AST patterns:
+// - Identifier("func") with params = [] -> "func"
+// - Identifier("I64.inc") with params = [] -> "I64_inc" (from precomp)
+// - Identifier("Vec") with params = [Identifier("new")] -> "Vec_new" (from parser)
+// Returns the C-ready name with underscores (not dots)
+// TODO: remove once used in emit_fcall simplification
+get_func_name_string := func(first_param: Expr) returns FuncNameResult {
+    mut result := FuncNameResult()
+    switch first_param.node_type {
+    case NodeType.Identifier(name):
+        if first_param.params.len().eq(0) {
+            result.found = true
+            result.name = name.replace(".", "_")
+        } else {
+            mut parts := name
+            mut i := 0
+            while lt(i, first_param.params.len()) {
+                mut p := Expr()
+                first_param.params.get(i, p)
+                switch p.node_type {
+                case NodeType.Identifier(part):
+                    parts = parts.concat("_").concat(part)
+                case:
+                }
+                i = add(i, 1)
+            }
+            result.found = true
+            result.name = parts
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) { }
+    catch (err: AllocError) { }
+    return result
+}
+
 // Result type for get_type_arg_name
 TypeArgResult := struct {
     mut found: Bool = false

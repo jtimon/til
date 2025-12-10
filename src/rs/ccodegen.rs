@@ -68,6 +68,30 @@ fn til_func_name(name: &str) -> String {
     format!("{}{}", TIL_PREFIX, name.replace('.', "_"))
 }
 
+// Get function name from FCall's first param, handling both AST patterns:
+// - Identifier("func") with params = [] -> "func"
+// - Identifier("I64.inc") with params = [] -> "I64_inc" (from precomp)
+// - Identifier("Vec") with params = [Identifier("new")] -> "Vec_new" (from parser)
+// Returns the C-ready name with underscores (not dots)
+#[allow(dead_code)] // TODO: remove once used in emit_fcall simplification
+fn get_func_name_string(first_param: &Expr) -> Option<String> {
+    if let NodeType::Identifier(name) = &first_param.node_type {
+        if first_param.params.is_empty() {
+            Some(name.replace('.', "_"))
+        } else {
+            let mut parts = vec![name.clone()];
+            for p in &first_param.params {
+                if let NodeType::Identifier(part) = &p.node_type {
+                    parts.push(part.clone());
+                }
+            }
+            Some(parts.join("_"))
+        }
+    } else {
+        None
+    }
+}
+
 /// Check if an expression is a type identifier (a Type parameter at call site)
 /// Returns the type name if it is, so it can be emitted as a string literal
 /// Matches interpreter.rs behavior (line 1703-1713)
