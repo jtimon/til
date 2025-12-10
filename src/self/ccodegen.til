@@ -19,6 +19,20 @@ VariadicParamInfo := struct {
     mut regular_count: I64 = 0
 }
 
+// Info about a catch label for local throw/catch
+CatchLabelInfo := struct {
+    mut label: Str = ""
+    mut temp_var: Str = ""
+}
+
+// Full catch label info entry including the catch block
+CatchLabelInfoEntry := struct {
+    mut type_name: Str = ""
+    mut label: Str = ""
+    mut temp_var: Str = ""
+    mut catch_block: Expr = Expr()
+}
+
 // Codegen context for tracking function info during code generation
 CodegenContext := struct {
     // Map function name -> variadic arg info (Map<Str, VariadicParamInfo>)
@@ -40,6 +54,10 @@ CodegenContext := struct {
     // Used to track deeply nested variadic/throwing calls that have been hoisted
     // Key is "line:col" string, value is temp var name (Str)
     mut hoisted_exprs: Map = Map.new(Str, Str)
+    // Map of locally-caught error types to (catch label, temp variable name)
+    // Used for throw statements and throwing calls when there's an outer catch block
+    // Key is error type name, value is struct with label and temp_var
+    mut local_catch_labels: Map = Map.new(Str, CatchLabelInfo)
 }
 
 // Helper to check if Str struct is defined in context
@@ -2606,15 +2624,15 @@ emit_body := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
 }
 
 // Pre-scan function body to collect function-level catch blocks
-// These are catch blocks at the end of the function (after all regular statements)
+// Collect ALL catch blocks - we'll register them all for local throw handling
+// The emit_throwing_call handles immediate catch chains for function calls,
+// but we need labels for throw statements that jump to these catches
 // Returns a Vec<Expr> of catch blocks
 prescan_func_level_catches := proc(stmts: Vec) returns Vec throws AllocError {
     mut catches := Vec.new(Expr)
-    mut i := stmts.len()
 
-    // Scan backwards from end to find catch blocks at function level
-    while gt(i, 0) {
-        i = sub(i, 1)
+    // Collect ALL catch blocks
+    for i in 0..stmts.len() {
         mut stmt := Expr()
         stmts.get(i, stmt)
         catch (err: IndexOutOfBoundsError) { return catches }
@@ -2622,11 +2640,8 @@ prescan_func_level_catches := proc(stmts: Vec) returns Vec throws AllocError {
         switch stmt.node_type {
         case NodeType.Catch:
             catches.push(stmt)
-        case NodeType.Return:
-            // Return statements can be interleaved with catches at function end
         case:
-            // Stop scanning when we hit a non-catch, non-return statement
-            return catches
+            // Continue scanning
         }
     }
 
@@ -2639,9 +2654,75 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
     mut result := output
     mut i := 0
 
+    // Generate indentation string
+    mut indent_str := ""
+    mut ind := 0
+    while lt(ind, indent) {
+        indent_str = indent_str.concat("    ")
+        ind = add(ind, 1)
+    }
+
     // Pre-scan for function-level catches (at the end of the block)
     mut func_level_catches := prescan_func_level_catches(stmts)
     catch (err: AllocError) { throw err.msg }
+
+    // Register function-level catches in ctx.local_catch_labels for throw statements
+    // Generate unique labels for each catch block
+    // Only register the FIRST catch for each error type (later ones will be unreachable for explicit throws)
+    mut catch_suffix := next_mangled()
+    mut catch_label_info := Vec.new(CatchLabelInfoEntry)  // (type_name, label, temp_var, catch_block)
+    mut registered_types := Vec.new(Str)
+    mut ci := 0
+    while lt(ci, func_level_catches.len()) {
+        mut catch_block := Expr()
+        func_level_catches.get(ci, catch_block)
+        if gteq(catch_block.params.len(), 3) {
+            mut err_type_expr := Expr()
+            catch_block.params.get(1, err_type_expr)
+            switch err_type_expr.node_type {
+            case NodeType.Identifier(err_type_name):
+                // Only register the first catch for each type
+                mut already_registered := false
+                mut ri := 0
+                while lt(ri, registered_types.len()) {
+                    mut rt := ""
+                    registered_types.get(ri, rt)
+                    if rt.eq(err_type_name) {
+                        already_registered = true
+                    }
+                    ri = add(ri, 1)
+                }
+                if not(already_registered) {
+                    registered_types.push(err_type_name)
+                    mut label := format("_catch_", err_type_name, "_", catch_suffix)
+                    mut temp_var := format("_thrown_", err_type_name, "_", catch_suffix)
+                    mut info := CatchLabelInfo()
+                    info.label = label
+                    info.temp_var = temp_var
+                    ctx.local_catch_labels.set(err_type_name, info)
+                    mut entry := CatchLabelInfoEntry()
+                    entry.type_name = err_type_name
+                    entry.label = label
+                    entry.temp_var = temp_var
+                    entry.catch_block = catch_block
+                    catch_label_info.push(entry)
+
+                    // Declare temp variable to store thrown error value
+                    result = result.concat(indent_str)
+                    result = result.concat(til_name(err_type_name))
+                    result = result.concat(" ")
+                    result = result.concat(temp_var)
+                    result = result.concat(";\n")
+                }
+            case:
+                // Not an identifier, skip
+            }
+        }
+        ci = add(ci, 1)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
 
     while lt(i, stmts.len()) {
         mut stmt := Expr()
@@ -2772,15 +2853,29 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                                     }
                                 }
                             } else {
-                                // No catches - typer should have caught this if we're in non-throwing context
-                                // Just use propagate (will silently succeed on error if we're not throwing)
-                                if has_decl {
-                                    result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
-                                } else {
-                                    if has_assign {
-                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
+                                if gt(ctx.local_catch_labels.len(), 0) {
+                                    // No catches in THIS block, but there are outer catches registered
+                                    // Emit throwing call that jumps to catch labels on error
+                                    if has_decl {
+                                        result = emit_throwing_call_with_goto(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
                                     } else {
-                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
+                                        if has_assign {
+                                            result = emit_throwing_call_with_goto(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
+                                        } else {
+                                            result = emit_throwing_call_with_goto(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
+                                        }
+                                    }
+                                } else {
+                                    // No catches - typer should have caught this if we're in non-throwing context
+                                    // Just use propagate (will silently succeed on error if we're not throwing)
+                                    if has_decl {
+                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
+                                    } else {
+                                        if has_assign {
+                                            result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
+                                        } else {
+                                            result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
+                                        }
                                     }
                                 }
                             }
@@ -2804,6 +2899,80 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
+
+    // Emit function-level catch blocks with labels
+    // These are jumped to by explicit throw statements
+    // Each catch is wrapped in a block {} to allow same error var name with different types
+    if gt(catch_label_info.len(), 0) {
+        // Jump over catch blocks in normal execution
+        mut end_catches_label := format("_end_catches_", catch_suffix)
+        result = result.concat(indent_str)
+        result = result.concat("goto ")
+        result = result.concat(end_catches_label)
+        result = result.concat(";\n")
+
+        mut cli := 0
+        while lt(cli, catch_label_info.len()) {
+            mut entry := CatchLabelInfoEntry()
+            catch_label_info.get(cli, entry)
+
+            // Emit label with a block scope to avoid C variable redefinition errors
+            result = result.concat(entry.label)
+            result = result.concat(": {\n")
+
+            // Bind error variable from the temp storage
+            if gt(entry.catch_block.params.len(), 0) {
+                mut err_var_expr := Expr()
+                entry.catch_block.params.get(0, err_var_expr)
+                switch err_var_expr.node_type {
+                case NodeType.Identifier(err_var_name):
+                    result = result.concat(indent_str)
+                    result = result.concat(til_name(entry.type_name))
+                    result = result.concat(" ")
+                    result = result.concat(til_name(err_var_name))
+                    result = result.concat(" = ")
+                    result = result.concat(entry.temp_var)
+                    result = result.concat(";\n")
+
+                    // Add error variable to scope for type resolution in catch body
+                    context.scope_stack.declare_symbol(err_var_name, SymbolInfo.new(ValueType.TCustom(entry.type_name), false, false, false))
+                case:
+                    // Skip non-identifier
+                }
+            }
+
+            // Emit catch body
+            if gteq(entry.catch_block.params.len(), 3) {
+                mut catch_body := Expr()
+                entry.catch_block.params.get(2, catch_body)
+                result = emit_expr(catch_body, result, indent, ctx, context)
+            }
+
+            // Close the block
+            result = result.concat(indent_str)
+            result = result.concat("}\n")
+
+            cli = add(cli, 1)
+        }
+
+        // End of catch blocks label
+        result = result.concat(end_catches_label)
+        result = result.concat(":;\n")
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
+    // Clean up local_catch_labels for this block
+    mut clean_i := 0
+    while lt(clean_i, catch_label_info.len()) {
+        mut entry := CatchLabelInfoEntry()
+        catch_label_info.get(clean_i, entry)
+        ctx.local_catch_labels.remove(entry.type_name)
+        clean_i = add(clean_i, 1)
+    }
+    catch (err: IndexOutOfBoundsError) { /* ignore */ }
+
     return result
 }
 
@@ -3617,8 +3786,412 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     return result
 }
 
+// Emit a throwing function call that uses goto for error handling
+// Used when there are outer catch blocks registered in ctx.local_catch_labels
+emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: Str, assign_name: Str, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+    mut result := output
+
+    // Generate indentation string
+    mut indent_str := ""
+    mut ind := 0
+    while lt(ind, indent) {
+        indent_str = indent_str.concat("    ")
+        ind = add(ind, 1)
+    }
+
+    // Get function name
+    mut func_name := get_fcall_func_name(fcall)
+    if eq(func_name.len(), 0) {
+        throw "emit_throwing_call_with_goto: could not get function name"
+    }
+
+    // Generate unique temp name for this call
+    mut temp_suffix := next_mangled()
+
+    // Determine if we need a return value temp variable
+    mut needs_ret := false
+    if gt(decl_name.len(), 0) { needs_ret = true }
+    if gt(assign_name.len(), 0) { needs_ret = true }
+
+    // Calculate param_types early for Dynamic hoisting
+    mut param_types := Vec.new(ValueType)
+    mut func_def_lookup := context.scope_stack.lookup_func(func_name)
+    mut arg_i := 0
+    while lt(arg_i, sub(fcall.params.len(), 1)) {
+        if lt(arg_i, func_def_lookup.args.len()) {
+            mut arg_decl := Declaration()
+            func_def_lookup.args.get(arg_i, arg_decl)
+            param_types.push(arg_decl.value_type)
+        } else {
+            param_types.push(ValueType.TCustom(""))
+        }
+        arg_i = add(arg_i, 1)
+    }
+    catch (err: KeyNotFoundError) { }
+    catch (err: IndexOutOfBoundsError) { }
+    catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in param_types" }
+
+    // Calculate param_is_mut for pointer passing
+    mut param_is_mut := Vec.new(Bool)
+    func_def_lookup = context.scope_stack.lookup_func(func_name)
+    arg_i = 0
+    while lt(arg_i, sub(fcall.params.len(), 1)) {
+        if lt(arg_i, func_def_lookup.args.len()) {
+            mut arg_decl := Declaration()
+            func_def_lookup.args.get(arg_i, arg_decl)
+            param_is_mut.push(arg_decl.is_mut)
+        } else {
+            param_is_mut.push(false)
+        }
+        arg_i = add(arg_i, 1)
+    }
+    catch (err: KeyNotFoundError) { }
+    catch (err: IndexOutOfBoundsError) { }
+    catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in param_is_mut" }
+
+    // Hoist any throwing function calls in arguments BEFORE emitting this call
+    mut hoisted := Vec.new(HoistedArg)
+    if gt(fcall.params.len(), 1) {
+        hoisted = hoist_throwing_args(fcall.params, result, indent, ctx, context)
+    }
+    catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in hoist_throwing_args" }
+
+    // Hoist non-lvalue args (string literals, function calls) when param type is Dynamic
+    if gt(fcall.params.len(), 1) {
+        mut dynamic_hoisted := hoist_for_dynamic_params(fcall.params, param_types, hoisted, result, indent, ctx, context)
+        mut dh_idx := 0
+        while lt(dh_idx, dynamic_hoisted.len()) {
+            mut dh := HoistedArg()
+            dynamic_hoisted.get(dh_idx, dh)
+            hoisted.push(dh)
+            dh_idx = add(dh_idx, 1)
+        }
+    }
+    catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in hoist_for_dynamic_params" }
+
+    // Look up the actual return type from scope_stack
+    mut ret_type := "int"
+    if needs_ret {
+        mut fd := context.scope_stack.lookup_func(func_name)
+        if gt(fd.return_types.len(), 0) {
+            mut first_ret := ValueType.TCustom("")
+            fd.return_types.get(0, first_ret)
+            ret_type = til_type_to_c(first_ret)
+        }
+        catch (err: KeyNotFoundError) { /* use default int */ }
+        catch (err: IndexOutOfBoundsError) { /* use default int */ }
+    }
+
+    // Declare temp for return value if needed
+    if needs_ret {
+        result = result.concat(indent_str)
+        result = result.concat(ret_type)
+        result = result.concat(" _ret_")
+        result = result.concat(temp_suffix)
+        result = result.concat(";\n")
+    }
+
+    // For declarations: declare the variable BEFORE
+    if gt(decl_name.len(), 0) {
+        result = result.concat(indent_str)
+        result = result.concat(ret_type)
+        result = result.concat(" ")
+        result = result.concat(til_name(decl_name))
+        result = result.concat(";\n")
+        // Add to scope_stack for type resolution
+        mut fd := context.scope_stack.lookup_func(func_name)
+        if gt(fd.return_types.len(), 0) {
+            mut first_type := ValueType.TCustom("")
+            fd.return_types.get(0, first_type)
+            context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+        }
+        catch (err: KeyNotFoundError) { }
+        catch (err: IndexOutOfBoundsError) { }
+    }
+
+    // Declare error structs for each throw type of the called function
+    mut i := 0
+    while lt(i, throw_types.len()) {
+        mut throw_type := ValueType.TCustom("")
+        throw_types.get(i, throw_type)
+        switch throw_type {
+        case ValueType.TCustom(type_name):
+            result = result.concat(indent_str)
+            result = result.concat(til_name(type_name))
+            result = result.concat(" _err")
+            result = result.concat(i.to_str())
+            result = result.concat("_")
+            result = result.concat(temp_suffix)
+            result = result.concat(" = {};\n")
+        case:
+            result = result.concat(indent_str)
+            result = result.concat("int _err")
+            result = result.concat(i.to_str())
+            result = result.concat("_")
+            result = result.concat(temp_suffix)
+            result = result.concat(" = 0;\n")
+        }
+        i = add(i, 1)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+    // Check if this is a variadic function call and construct array BEFORE the call
+    mut variadic_info := detect_variadic_fcall(fcall, ctx)
+    mut variadic_arr_var := ""
+    if variadic_info.is_variadic {
+        mut variadic_args := Vec.new(Expr)
+        mut va_idx := add(1, variadic_info.regular_count)
+        while lt(va_idx, fcall.params.len()) {
+            mut va_arg := Expr()
+            fcall.params.get(va_idx, va_arg)
+            variadic_args.push(va_arg)
+            va_idx = add(va_idx, 1)
+        }
+        variadic_arr_var = hoist_variadic_args(variadic_info.elem_type, variadic_args, hoisted, variadic_info.regular_count, result, indent, ctx, context)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in variadic handling" }
+
+    // Generate the function call with output parameters
+    result = result.concat(indent_str)
+    result = result.concat("int _status_")
+    result = result.concat(temp_suffix)
+    result = result.concat(" = ")
+    result = result.concat(til_func_name(func_name))
+    result = result.concat("(")
+
+    // First: return value pointer (if function returns something)
+    mut param_count := 0
+    if needs_ret {
+        result = result.concat("&_ret_")
+        result = result.concat(temp_suffix)
+        param_count = add(param_count, 1)
+    }
+
+    // Then: error pointers
+    i = 0
+    while lt(i, throw_types.len()) {
+        if gt(param_count, 0) {
+            result = result.concat(", ")
+        }
+        result = result.concat("&_err")
+        result = result.concat(i.to_str())
+        result = result.concat("_")
+        result = result.concat(temp_suffix)
+        param_count = add(param_count, 1)
+        i = add(i, 1)
+    }
+
+    // Emit arguments - handle variadic separately from regular args
+    if variadic_info.is_variadic {
+        // Variadic call: emit regular args first, then variadic array pointer
+        arg_i = 1
+        while lt(arg_i, add(1, variadic_info.regular_count)) {
+            if gt(param_count, 0) {
+                result = result.concat(", ")
+            }
+            mut arg := Expr()
+            fcall.params.get(arg_i, arg)
+            mut arg_idx := sub(arg_i, 1)
+
+            // Check if this arg was hoisted
+            mut found_hoisted := false
+            mut hoisted_temp := ""
+            mut h_idx := 0
+            while lt(h_idx, hoisted.len()) {
+                mut h := HoistedArg()
+                hoisted.get(h_idx, h)
+                if eq(h.index, arg_idx) {
+                    found_hoisted = true
+                    hoisted_temp = h.temp_var
+                }
+                h_idx = add(h_idx, 1)
+            }
+
+            // Get param type for this argument
+            mut is_dynamic_param := false
+            if lt(arg_idx, param_types.len()) {
+                mut pt := ValueType.TCustom("")
+                param_types.get(arg_idx, pt)
+                switch pt {
+                case ValueType.TCustom(type_name):
+                    if type_name.eq("Dynamic") {
+                        is_dynamic_param = true
+                    }
+                case:
+                }
+            }
+
+            if found_hoisted {
+                if is_dynamic_param {
+                    result = result.concat("&")
+                }
+                result = result.concat(hoisted_temp)
+            } else {
+                result = emit_expr(arg, result, 0, ctx, context)
+            }
+            param_count = add(param_count, 1)
+            arg_i = add(arg_i, 1)
+        }
+
+        // Emit variadic array pointer
+        if gt(variadic_arr_var.len(), 0) {
+            if gt(param_count, 0) {
+                result = result.concat(", ")
+            }
+            result = result.concat("&")
+            result = result.concat(variadic_arr_var)
+        }
+    } else {
+        // Non-variadic: emit all args directly
+        mut args_started := false
+        i = 1
+        while lt(i, fcall.params.len()) {
+            if args_started {
+                result = result.concat(", ")
+            } else {
+                if gt(param_count, 0) {
+                    result = result.concat(", ")
+                }
+            }
+            mut arg := Expr()
+            fcall.params.get(i, arg)
+            mut arg_idx := sub(i, 1)
+
+            // Check if this arg was hoisted
+            mut found_hoisted := false
+            mut hoisted_temp := ""
+            mut h_idx := 0
+            while lt(h_idx, hoisted.len()) {
+                mut h := HoistedArg()
+                hoisted.get(h_idx, h)
+                if eq(h.index, arg_idx) {
+                    found_hoisted = true
+                    hoisted_temp = h.temp_var
+                }
+                h_idx = add(h_idx, 1)
+            }
+
+            // Get param type for this argument
+            mut is_dynamic_param := false
+            if lt(arg_idx, param_types.len()) {
+                mut pt := ValueType.TCustom("")
+                param_types.get(arg_idx, pt)
+                switch pt {
+                case ValueType.TCustom(type_name):
+                    if type_name.eq("Dynamic") {
+                        is_dynamic_param = true
+                    }
+                case:
+                }
+            }
+
+            if found_hoisted {
+                if is_dynamic_param {
+                    result = result.concat("&")
+                }
+                result = result.concat(hoisted_temp)
+            } else {
+                // Check if arg is a type identifier - emit as string literal
+                mut type_arg := get_type_arg_name(arg, context)
+                if type_arg.found {
+                    result = result.concat("\"")
+                    result = result.concat(type_arg.type_name)
+                    result = result.concat("\"")
+                } else {
+                    // Check if param is Dynamic and arg is simple identifier
+                    if is_dynamic_param {
+                        switch arg.node_type {
+                        case NodeType.Identifier(name):
+                            if eq(arg.params.len(), 0) {
+                                // Simple variable - emit &var
+                                result = result.concat("&")
+                                result = result.concat(til_name(name))
+                            } else {
+                                // Not simple - emit as is
+                                result = emit_expr(arg, result, 0, ctx, context)
+                            }
+                        case:
+                            result = emit_expr(arg, result, 0, ctx, context)
+                        }
+                    } else {
+                        result = emit_expr(arg, result, 0, ctx, context)
+                    }
+                }
+            }
+            args_started = true
+            param_count = add(param_count, 1)
+            i = add(i, 1)
+        }
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+    result = result.concat(");\n")
+
+    // Generate goto for each error type that has a registered catch label
+    mut called_idx := 0
+    while lt(called_idx, throw_types.len()) {
+        mut called_throw_type := ValueType.TCustom("")
+        throw_types.get(called_idx, called_throw_type)
+        switch called_throw_type {
+        case ValueType.TCustom(called_type_name):
+            // Check if this type has a registered catch label
+            mut has_label := false
+            mut label := ""
+            mut temp_var := ""
+            mut info := CatchLabelInfo()
+            ctx.local_catch_labels.get(called_type_name, info)
+            has_label = true
+            label = info.label
+            temp_var = info.temp_var
+            catch (err: KeyNotFoundError) { }
+
+            if has_label {
+                result = result.concat(indent_str)
+                result = result.concat("if (_status_")
+                result = result.concat(temp_suffix)
+                result = result.concat(" == ")
+                result = result.concat(add(called_idx, 1).to_str())
+                result = result.concat(") { ")
+                result = result.concat(temp_var)
+                result = result.concat(" = _err")
+                result = result.concat(called_idx.to_str())
+                result = result.concat("_")
+                result = result.concat(temp_suffix)
+                result = result.concat("; goto ")
+                result = result.concat(label)
+                result = result.concat("; }\n")
+            }
+        case:
+            // Non-custom throw type
+        }
+        called_idx = add(called_idx, 1)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+    // Success case: assign return value to target variable if needed
+    if gt(decl_name.len(), 0) {
+        result = result.concat(indent_str)
+        result = result.concat(til_name(decl_name))
+        result = result.concat(" = _ret_")
+        result = result.concat(temp_suffix)
+        result = result.concat(";\n")
+    } else {
+        if gt(assign_name.len(), 0) {
+            result = result.concat(indent_str)
+            result = result.concat(til_name(assign_name))
+            result = result.concat(" = _ret_")
+            result = result.concat(temp_suffix)
+            result = result.concat(";\n")
+        }
+    }
+
+    return result
+}
+
 // Emit a throw statement
 // For throwing functions: *_errN = value; return N;
+// For local catches: temp_var = value; goto label;
 emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // Throw: params[0] = the value to throw (typically a struct constructor like DivideByZero())
     if eq(expr.params.len(), 0) {
@@ -3701,6 +4274,44 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         throw "ccodegen: throw expression must be a constructor, function call, identifier, or literal"
     }
 
+    // Generate indentation string
+    mut indent_str := ""
+    mut ind := 0
+    while lt(ind, indent) {
+        indent_str = indent_str.concat("    ")
+        ind = add(ind, 1)
+    }
+
+    mut result := output
+
+    // Check if this type is locally caught (has a catch block at function level)
+    mut has_local_catch := false
+    mut local_label := ""
+    mut local_temp_var := ""
+    mut info := CatchLabelInfo()
+    ctx.local_catch_labels.get(thrown_type_name, info)
+    has_local_catch = true
+    local_label = info.label
+    local_temp_var = info.temp_var
+    catch (err: KeyNotFoundError) { }
+
+    if has_local_catch {
+        // Store the error value in temp variable
+        result = result.concat(indent_str)
+        result = result.concat(local_temp_var)
+        result = result.concat(" = ")
+        result = emit_expr(thrown_expr, result, 0, ctx, context)
+        result = result.concat(";\n")
+
+        // Jump to the catch block
+        result = result.concat(indent_str)
+        result = result.concat("goto ")
+        result = result.concat(local_label)
+        result = result.concat(";\n")
+
+        return result
+    }
+
     // Find the index of this type in current_throw_types
     // Note: Str is represented as TCustom("Str") in the type system
     mut error_index := sub(0, 1)  // -1 = not found
@@ -3723,26 +4334,14 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         throw format("ccodegen: thrown type '", thrown_type_name, "' not found in function's throw types")
     }
 
-    mut result := output
-
     // Store the error value in the appropriate error pointer
     // Note: error params are 1-based (_err1, _err2, etc.)
-    mut ind := 0
-    while lt(ind, indent) {
-        result = result.concat("    ")
-        ind = add(ind, 1)
-    }
-    result = format(result, "*_err", add(error_index, 1).to_str(), " = ")
+    result = format(result, indent_str, "*_err", add(error_index, 1).to_str(), " = ")
     result = emit_expr(thrown_expr, result, 0, ctx, context)
     result = result.concat(";\n")
 
     // Return the error index (1-based, since 0 = success)
-    ind = 0
-    while lt(ind, indent) {
-        result = result.concat("    ")
-        ind = add(ind, 1)
-    }
-    result = format(result, "return ", add(error_index, 1).to_str(), ";\n")
+    result = format(result, indent_str, "return ", add(error_index, 1).to_str(), ";\n")
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }

@@ -32,6 +32,9 @@ struct CodegenContext {
     // Map of hoisted expression addresses to their temp variable names
     // Used to track deeply nested variadic/throwing calls that have been hoisted
     hoisted_exprs: HashMap<usize, String>,
+    // Map of locally-caught error types to (catch label, temp variable name)
+    // For explicit throw statements that have a local catch block
+    local_catch_labels: HashMap<String, (String, String)>,
 }
 
 impl CodegenContext {
@@ -45,6 +48,7 @@ impl CodegenContext {
             current_variadic_params: HashMap::new(),
             known_types: Vec::new(),
             hoisted_exprs: HashMap::new(),
+            local_catch_labels: HashMap::new(),
         }
     }
 }
@@ -2163,6 +2167,37 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
     // Pre-scan for function-level catches (at the end of the block)
     let func_level_catches = prescan_func_level_catches(stmts);
 
+    // Register function-level catches in ctx.local_catch_labels for throw statements
+    // Generate unique labels for each catch block
+    // Only register the FIRST catch for each error type (later ones will be unreachable for explicit throws)
+    let catch_suffix = next_mangled();
+    let mut catch_label_info: Vec<(String, String, String, &Expr)> = Vec::new(); // (type_name, label, temp_var, catch_block)
+    let indent_str = "    ".repeat(indent);
+    let mut registered_types: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for catch_block in &func_level_catches {
+        if catch_block.params.len() >= 3 {
+            if let NodeType::Identifier(err_type_name) = &catch_block.params[1].node_type {
+                // Only register the first catch for each type
+                if registered_types.contains(err_type_name) {
+                    continue;
+                }
+                registered_types.insert(err_type_name.clone());
+
+                let label = format!("_catch_{}_{}", err_type_name, catch_suffix);
+                let temp_var = format!("_thrown_{}_{}", err_type_name, catch_suffix);
+                ctx.local_catch_labels.insert(err_type_name.clone(), (label.clone(), temp_var.clone()));
+                catch_label_info.push((err_type_name.clone(), label, temp_var.clone(), *catch_block));
+
+                // Declare temp variable to store thrown error value
+                output.push_str(&indent_str);
+                output.push_str(&til_name(err_type_name));
+                output.push_str(" ");
+                output.push_str(&temp_var);
+                output.push_str(";\n");
+            }
+        }
+    }
+
     while i < stmts.len() {
         let stmt = &stmts[i];
 
@@ -2233,6 +2268,12 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                         emit_throwing_call(fcall, &throw_types, &func_level_catches, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
                         i += 1;
                         continue;
+                    } else if !ctx.local_catch_labels.is_empty() {
+                        // No catches in THIS block, but there are outer catches registered
+                        // Emit throwing call that jumps to catch labels on error
+                        emit_throwing_call_with_goto(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
+                        i += 1;
+                        continue;
                     } else {
                         // No catches - typer should have caught this if we're in non-throwing context
                         // Just use propagate (will silently succeed on error if we're not throwing)
@@ -2248,6 +2289,63 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         emit_expr(stmt, output, indent, ctx, context)?;
         i += 1;
     }
+
+    // Emit function-level catch blocks with labels
+    // These are jumped to by explicit throw statements
+    // Each catch is wrapped in a block {} to allow same error var name with different types
+    if !catch_label_info.is_empty() {
+        // Jump over catch blocks in normal execution
+        let end_catches_label = format!("_end_catches_{}", catch_suffix);
+        output.push_str(&indent_str);
+        output.push_str("goto ");
+        output.push_str(&end_catches_label);
+        output.push_str(";\n");
+
+        for (type_name, label, temp_var, catch_block) in &catch_label_info {
+            // Emit label with a block scope to avoid C variable redefinition errors
+            output.push_str(label);
+            output.push_str(": {\n");
+
+            // Bind error variable from the temp storage
+            if let NodeType::Identifier(err_var_name) = &catch_block.params[0].node_type {
+                output.push_str(&indent_str);
+                output.push_str(&til_name(type_name));
+                output.push_str(" ");
+                output.push_str(&til_name(err_var_name));
+                output.push_str(" = ");
+                output.push_str(temp_var);
+                output.push_str(";\n");
+
+                // Add error variable to scope for type resolution in catch body
+                context.scope_stack.declare_symbol(
+                    err_var_name.clone(),
+                    SymbolInfo {
+                        value_type: crate::rs::parser::ValueType::TCustom(type_name.clone()),
+                        is_mut: false,
+                        is_copy: false,
+                        is_own: false,
+                    }
+                );
+            }
+
+            // Emit catch body
+            emit_expr(&catch_block.params[2], output, indent, ctx, context)?;
+
+            // Close the block
+            output.push_str(&indent_str);
+            output.push_str("}\n");
+        }
+
+        // End of catch blocks label
+        output.push_str(&end_catches_label);
+        output.push_str(":;\n");
+    }
+
+    // Clean up local_catch_labels for this block
+    for (type_name, _, _, _) in &catch_label_info {
+        ctx.local_catch_labels.remove(type_name);
+    }
+
     Ok(())
 }
 
@@ -2260,24 +2358,17 @@ fn get_fcall_func_name(expr: &Expr) -> Option<String> {
     get_func_name_string(expr.params.first()?)
 }
 
-/// Pre-scan function body to collect function-level catch blocks
-/// These are catch blocks that aren't immediately after a throwing call but at the end of the function
-/// Returns a map of error type name -> catch block expressions
+/// Pre-scan function body to collect all catch blocks
+/// Returns all catch blocks found in the statements
 fn prescan_func_level_catches<'a>(stmts: &'a [Expr]) -> Vec<&'a Expr> {
     let mut catches = Vec::new();
-    let mut i = stmts.len();
 
-    // Scan backwards from end to find catch blocks at the function level
-    while i > 0 {
-        i -= 1;
-        if let NodeType::Catch = stmts[i].node_type {
-            catches.push(&stmts[i]);
-        } else if let NodeType::Return = stmts[i].node_type {
-            // Return statements can be interleaved with catches at function end
-            continue;
-        } else {
-            // Stop scanning when we hit a non-catch, non-return statement
-            break;
+    // Collect ALL catch blocks - we'll register them all for local throw handling
+    // The emit_throwing_call handles immediate catch chains for function calls,
+    // but we need labels for throw statements that jump to these catches
+    for stmt in stmts.iter() {
+        if let NodeType::Catch = stmt.node_type {
+            catches.push(stmt);
         }
     }
 
@@ -2728,6 +2819,213 @@ fn emit_throwing_call_propagate(
                 output.push_str(&temp_suffix);
                 output.push_str("; return ");
                 output.push_str(&(cur_idx + 1).to_string());
+                output.push_str("; }\n");
+            }
+        }
+    }
+
+    // Success case: assign return value to target variable if needed
+    if let Some(var_name) = decl_name {
+        output.push_str(&indent_str);
+        output.push_str(&til_name(var_name));
+        output.push_str(" = _ret_");
+        output.push_str(&temp_suffix);
+        output.push_str(";\n");
+    } else if let Some(var_name) = assign_name {
+        output.push_str(&indent_str);
+        output.push_str(&til_name(var_name));
+        output.push_str(" = _ret_");
+        output.push_str(&temp_suffix);
+        output.push_str(";\n");
+    }
+
+    Ok(())
+}
+
+/// Emit a throwing function call that uses goto for error handling
+/// Used when there are outer catch blocks registered in ctx.local_catch_labels
+fn emit_throwing_call_with_goto(
+    fcall: &Expr,
+    throw_types: &[crate::rs::parser::ValueType],
+    decl_name: Option<&str>,
+    assign_name: Option<&str>,
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<(), String> {
+    let indent_str = "    ".repeat(indent);
+
+    // Get function name
+    let func_name = get_fcall_func_name(fcall)
+        .ok_or_else(|| "emit_throwing_call_with_goto: could not get function name".to_string())?;
+
+    // Generate unique temp names for this call
+    let temp_suffix = next_mangled();
+
+    // Determine if we need a return value temp variable
+    let needs_ret = decl_name.is_some() || assign_name.is_some();
+
+    // Calculate param_types and param_is_mut
+    let param_types: Vec<Option<ValueType>> = {
+        let func_def = lookup_func_by_name(context, &func_name);
+        fcall.params.iter().skip(1).enumerate()
+            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
+            .collect()
+    };
+    let param_is_mut: Vec<bool> = {
+        let func_def = lookup_func_by_name(context, &func_name);
+        fcall.params.iter().skip(1).enumerate()
+            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
+            .collect()
+    };
+
+    // Hoist any throwing function calls in arguments BEFORE emitting this call
+    let mut hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
+        let args = &fcall.params[1..];
+        let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
+        hoisted_vec.into_iter().collect()
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    // Hoist non-lvalue args when param type is Dynamic
+    if fcall.params.len() > 1 {
+        let args = &fcall.params[1..];
+        let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &hoisted, output, indent, ctx, context)?;
+        for (idx, temp_var) in dynamic_hoisted {
+            hoisted.insert(idx, temp_var);
+        }
+    }
+
+    // Look up the actual return type
+    let ret_type = if needs_ret {
+        lookup_func_by_name(context, &func_name)
+            .and_then(|fd| fd.return_types.first())
+            .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
+            .unwrap_or("int".to_string())
+    } else {
+        "int".to_string()
+    };
+
+    // Declare temp for return value if needed
+    if needs_ret {
+        output.push_str(&indent_str);
+        output.push_str(&ret_type);
+        output.push_str(" _ret_");
+        output.push_str(&temp_suffix);
+        output.push_str(";\n");
+    }
+
+    // For declarations: declare the variable BEFORE
+    if let Some(var_name) = decl_name {
+        output.push_str(&indent_str);
+        output.push_str(&ret_type);
+        output.push_str(" ");
+        output.push_str(&til_name(var_name));
+        output.push_str(";\n");
+        ctx.declared_vars.insert(til_name(var_name));
+        if let Some(fd) = lookup_func_by_name(context, &func_name) {
+            if let Some(first_type) = fd.return_types.first() {
+                context.scope_stack.declare_symbol(
+                    var_name.to_string(),
+                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
+                );
+            }
+        }
+    }
+
+    // Declare error structs for each throw type of the called function
+    for (idx, throw_type) in throw_types.iter().enumerate() {
+        if let crate::rs::parser::ValueType::TCustom(type_name) = throw_type {
+            output.push_str(&indent_str);
+            output.push_str(&til_name(type_name));
+            output.push_str(" _err");
+            output.push_str(&idx.to_string());
+            output.push_str("_");
+            output.push_str(&temp_suffix);
+            output.push_str(" = {};\n");
+        }
+    }
+
+    // Check for variadic function call
+    let variadic_info = detect_variadic_fcall(fcall, ctx);
+    let variadic_arr_var: Option<String> = if let Some((elem_type, regular_count)) = variadic_info.clone() {
+        let variadic_args: Vec<_> = fcall.params.iter().skip(1 + regular_count).collect();
+        Some(hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?)
+    } else {
+        None
+    };
+
+    // Generate the function call with output parameters
+    output.push_str(&indent_str);
+    output.push_str("int _status_");
+    output.push_str(&temp_suffix);
+    output.push_str(" = ");
+    output.push_str(&til_func_name(&func_name));
+    output.push_str("(");
+
+    // First: return value pointer (if function returns something)
+    if needs_ret {
+        output.push_str("&_ret_");
+        output.push_str(&temp_suffix);
+    }
+
+    // Then: error pointers
+    for idx in 0..throw_types.len() {
+        if needs_ret || idx > 0 {
+            output.push_str(", ");
+        }
+        output.push_str("&_err");
+        output.push_str(&idx.to_string());
+        output.push_str("_");
+        output.push_str(&temp_suffix);
+    }
+
+    // Emit arguments
+    let mut args_started = false;
+    let regular_arg_count = variadic_info.as_ref().map(|(_, c)| *c).unwrap_or(usize::MAX);
+    for (arg_idx, arg) in fcall.params.iter().skip(1).enumerate() {
+        if arg_idx >= regular_arg_count {
+            break;
+        }
+        if needs_ret || !throw_types.is_empty() || args_started {
+            output.push_str(", ");
+        }
+        let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
+        let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
+        emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
+        args_started = true;
+    }
+
+    // Add variadic array if present
+    if let Some(arr_var) = &variadic_arr_var {
+        if needs_ret || !throw_types.is_empty() || args_started {
+            output.push_str(", ");
+        }
+        output.push_str("&");
+        output.push_str(arr_var);
+    }
+
+    output.push_str(");\n");
+
+    // Generate goto for each error type that has a registered catch label
+    for (called_idx, throw_type) in throw_types.iter().enumerate() {
+        if let crate::rs::parser::ValueType::TCustom(called_type_name) = throw_type {
+            if let Some((label, temp_var)) = ctx.local_catch_labels.get(called_type_name) {
+                output.push_str(&indent_str);
+                output.push_str("if (_status_");
+                output.push_str(&temp_suffix);
+                output.push_str(" == ");
+                output.push_str(&(called_idx + 1).to_string());
+                output.push_str(") { ");
+                output.push_str(temp_var);
+                output.push_str(" = _err");
+                output.push_str(&called_idx.to_string());
+                output.push_str("_");
+                output.push_str(&temp_suffix);
+                output.push_str("; goto ");
+                output.push_str(label);
                 output.push_str("; }\n");
             }
         }
@@ -3272,6 +3570,42 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         },
         _ => return Err(format!("ccodegen: throw expression must be a constructor, got {:?}", thrown_expr.node_type)),
     };
+
+    // Check if this type is locally caught (has a catch block at function level)
+    if let Some((label, temp_var)) = ctx.local_catch_labels.get(&thrown_type_name).cloned() {
+        // Hoist any throwing function calls in the thrown expression
+        let hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall = &thrown_expr.node_type {
+            if thrown_expr.params.len() > 1 {
+                let args = &thrown_expr.params[1..];
+                let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
+                hoisted_vec.into_iter().collect()
+            } else {
+                std::collections::HashMap::new()
+            }
+        } else {
+            std::collections::HashMap::new()
+        };
+
+        // Store the error value in temp variable
+        output.push_str(&indent_str);
+        output.push_str(&temp_var);
+        output.push_str(" = ");
+
+        // Emit the thrown expression
+        if let NodeType::FCall = &thrown_expr.node_type {
+            emit_fcall_with_hoisted(thrown_expr, &hoisted, output, ctx, context)?;
+        } else {
+            emit_expr(thrown_expr, output, 0, ctx, context)?;
+        }
+        output.push_str(";\n");
+
+        // Jump to the catch block
+        output.push_str(&indent_str);
+        output.push_str("goto ");
+        output.push_str(&label);
+        output.push_str(";\n");
+        return Ok(());
+    }
 
     // Find the index of this type in current_throw_types
     // Note: Str is represented as TCustom("Str") in the type system

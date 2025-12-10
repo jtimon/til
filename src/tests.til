@@ -247,6 +247,7 @@ main := proc(args: ..Str) {
     rs_common.push("src/test/function_pointers.til")
     rs_common.push("src/test/loops.til")
     rs_common.push("src/test/pointers.til")
+    rs_common.push("src/test/strings.til")
     rs_common.push("src/test/structs.til")
     rs_common.push("src/test/temp.til")
 
@@ -282,7 +283,6 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/run_cmd.til")
     rs_interpreted.push("src/test/scope_isolation.til")
     rs_interpreted.push("src/test/sets.til")
-    rs_interpreted.push("src/test/strings.til")
     rs_interpreted.push("src/test/test_lexer.til")
     rs_interpreted.push("src/test/test_parser.til")
     rs_interpreted.push("src/test/u8.til")
