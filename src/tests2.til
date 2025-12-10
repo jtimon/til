@@ -1,6 +1,6 @@
 mode test
 
-// tests2.til - Additional test suite
-// This file runs alongside tests.til for expanded test coverage
+// tests2.til - New test suite (under development)
+// This will eventually fully replace tests.til
 
 runfile("src/test/hello/hello_script.til")
