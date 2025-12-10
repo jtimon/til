@@ -50,6 +50,17 @@ runfile("src/test/func_purity.til")
 runfile("src/test/u8.til")
 runfile("src/test/ufcs.til")
 runfile("src/test/variadic.til")
+// runfile("src/test/clone.til") // TODO Not sure why this one is commented, uncomment
+// runfile("src/test/cross_file_forward.til") // TODO Not sure why this one is commented, uncomment
+// runfile("src/test/enums_payload.til") // TODO Not sure why this one is commented, uncomment
+// runfile("src/test/enums_simple.til") // TODO Not sure why this one is commented, uncomment
+// runfile("src/test/loops.til") // TODO Not sure why this one is commented, uncomment
+// runfile("src/test/return_value_usage.til") // TODO Not sure why this one is commented, uncomment
+// runfile("src/test/run_cmd.til") // TODO Not sure why this one is commented, uncomment
+// runfile("src/test/sets.til") // TODO Not sure why this one is commented, uncomment
+// runfile("src/test/switch_simple.til") // TODO Not sure why this one is commented, uncomment
+// runfile("src/test/throw_simple.til") // TODO Not sure why this one is commented, uncomment
+// runfile("src/test/throw_test2.til") // TODO Not sure why this one is commented, uncomment
 
 // next level:
 
