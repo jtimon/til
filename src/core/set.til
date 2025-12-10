@@ -140,6 +140,15 @@ Set := struct {
         return self._size
     }
 
+    /** Get element at index (for iteration) */
+    get := proc(self: Set, index: I64, mut out: Dynamic) throws IndexOutOfBoundsError {
+        if index.lt(0).or(not(index.lt(self._size))) {
+            throw IndexOutOfBoundsError(format("Set.get: index ", I64.to_str(index), " out of bounds (size: ", I64.to_str(self._size), ")"))
+        }
+        mut src_ptr := add(self.elements.ptr, mul(index, self.elem_type_size))
+        memcpy(to_ptr(out), src_ptr, self.elem_type_size)
+    }
+
     /** Get total size in bytes */
     size := func(self: Set) returns I64 {
         return mul(self._size, self.elem_type_size)
