@@ -9,7 +9,7 @@ test_self_hosting := proc() throws Str, AllocError, IndexOutOfBoundsError, I64_O
 
     // Create lexer
     println("Step 1: Creating lexer...")
-    mut lexer := Lexer.new("src/test/hello/hello_script.til")
+    mut lexer := Lexer.new("src/examples/hello_script.til")
 
     // Create test mode
     println("Step 2: Creating mode_def...")
@@ -80,7 +80,7 @@ test_self_hosting := proc() throws Str, AllocError, IndexOutOfBoundsError, I64_O
 
     // Create context
     println("Step 5: Creating context...")
-    mut context := init_context(mode_def, "src/test/hello/hello_script.til")
+    mut context := init_context(mode_def, "src/examples/hello_script.til")
     println("Step 5 complete")
 
     // Evaluate

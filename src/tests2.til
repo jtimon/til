@@ -14,10 +14,10 @@ test_rs := proc(path: Str, expected: Str) {
 mut RS_COMMON := Vec.new(Str)
 mut RS_COMMON_EXPECTED := Vec.new(Str)
 
-RS_COMMON.push("src/test/hello/hello_script.til")
-RS_COMMON_EXPECTED.push("Building file 'src/test/hello/hello_script.til'
-Wrote C output to 'src/test/hello/hello_script.c'
-Compiled executable to 'src/test/hello/bin/hello_script'
+RS_COMMON.push("src/examples/hello_script.til")
+RS_COMMON_EXPECTED.push("Building file 'src/examples/hello_script.til'
+Wrote C output to 'src/examples/hello_script.c'
+Compiled executable to 'src/examples/bin/hello_script'
 Hello World!
 ")
 

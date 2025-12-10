@@ -6,14 +6,14 @@ runfile("src/test/temporary_tests.til")
 
 println("\nSome versions of 'hello world' in different basic modes:\n")
 
-runfile("src/test/hello/hello_cli.til")
-runfile("src/test/hello/hello_lib.til")
-runfile("src/test/hello/hello_pure.til")
+runfile("src/examples/hello_cli.til")
+runfile("src/examples/hello_lib.til")
+runfile("src/examples/hello_pure.til")
 // test a part of posix compatibility, it doesn't require the mode to be script, it can be compiled too, like roc
 // Ideally we should benchmark against at least bash, python, roc, Rust, C and HolyC for this kind of mode, both interpreted and compiled
-runfile("src/test/hello/hello_script_shebang.til")
-// runfile("src/test/hello/hello_script_safe.til") // TODO this is much harder than it sounds
-runfile("src/test/hello/hello_test.til")
+runfile("src/examples/hello_script_shebang.til")
+// runfile("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds
+runfile("src/examples/hello_test.til")
 
 println("\nSome basic tests/examples:\n")
 

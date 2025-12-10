@@ -14,17 +14,17 @@ println("[PASS] til.til type-checks\n")
 // NOTE: Disabled - not infinite loop, but extremely slow due to interpreter-on-interpreter overhead
 // The self-hosted lexer processes ~80 chars/sec, core.til is ~80k chars = ~16+ minutes just to lex
 // println("Testing self-hosted interpreter with empty.til...")
-// runfile("src/til.til", "src/test/hello/empty.til")
+// runfile("src/til.til", "src/examples/empty.til")
 // println("[PASS] empty.til passed\n")
 
 // TODO Test with simple println call
 // println("Testing self-hosted interpreter with hello_script.til...")
-// runfile("src/til.til", "src/test/hello/hello_script.til")
+// runfile("src/til.til", "src/examples/hello_script.til")
 // println("[PASS] hello_script.til passed\n")
 
 // TODO: Test with declarations and more complex code once parser/evaluator are more complete
 // println("Testing self-hosted interpreter with add_test.til...")
-// runfile("src/til.til", "src/test/hello/add_test.til")
+// runfile("src/til.til", "src/examples/add_test.til")
 // println("[PASS] add_test.til passed\n")
 
 // TODO Phase 4: Add more comprehensive tests once basic interpreter works

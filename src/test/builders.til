@@ -12,10 +12,10 @@ test_rs_ccodegen()
 
 // Test 2: Rust codegen via rstil command - hello_script.til
 test_rs_ccodegen_hello := proc() {
-    output := run_cmd("./bin/rstil", "run", "src/test/hello/hello_script.til")
-    expected := "Building file 'src/test/hello/hello_script.til'
-Wrote C output to 'src/test/hello/hello_script.c'
-Compiled executable to 'src/test/hello/bin/hello_script'
+    output := run_cmd("./bin/rstil", "run", "src/examples/hello_script.til")
+    expected := "Building file 'src/examples/hello_script.til'
+Wrote C output to 'src/examples/hello_script.c'
+Compiled executable to 'src/examples/bin/hello_script'
 Hello World!
 "
     assert_eq_str(loc(), expected, output)

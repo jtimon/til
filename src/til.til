@@ -137,7 +137,7 @@ main := proc(args: ..Str) {
         }
     } else {
         // TEMP: Testing self-hosted compiler on hello_script.til
-        interpret_file_or_exit("src/test/hello/hello_script.til")
+        interpret_file_or_exit("src/examples/hello_script.til")
         catch (err: Str) {
             println("Error during file execution: ", err)
             exit(1)
