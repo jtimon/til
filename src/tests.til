@@ -271,6 +271,7 @@ main := proc(args: ..Str) {
     rs_common.push("src/test/constfold.til")
     rs_common.push("src/test/c_mem.til")
     rs_common.push("src/test/flow.til")
+    rs_common.push("src/test/fibonacci.til")
 
     mut rs_compiled := Vec.new(Str)
     rs_compiled.push("src/test/enums_simple.til")
@@ -292,7 +293,6 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/editor_mode_test.til") // TODO FIX: static string init, variadic format call
     rs_interpreted.push("src/test/enums.til") // TODO FIX: incomplete enum types, static string init, enum_to_str not found
     rs_interpreted.push("src/test/errors.til") // TODO FIX: throwing func called in non-throwing context (safe_div needs error handling)
-    rs_interpreted.push("src/test/fibonacci.til") // TODO FIX: UFCS .eq() emitted as til_eq instead of til_I64_eq
     rs_interpreted.push("src/test/forward_declarations.til") // TODO FIX: enum constructors emitted as function calls not struct init
     rs_interpreted.push("src/test/intro.til") // TODO FIX: static string init, variadic calls without args need empty array
     rs_interpreted.push("src/test/lists.til") // TODO FIX: error constructors need _new suffix, field access on non-pointer

@@ -292,6 +292,21 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     sym.is_own = decl.is_own
     context.scope_stack.declare_symbol(decl.name, sym)
 
+    // Also register function definitions so UFCS can resolve their return types
+    switch value_type {
+    case ValueType.TFunction:
+        if new_params.len().gt(0) {
+            mut first_param := Expr()
+            new_params.get(0, first_param)
+            switch first_param.node_type {
+            case NodeType.FuncDef(func_def):
+                context.scope_stack.declare_func(decl.name, func_def)
+            case:
+            }
+        }
+    case:
+    }
+
     catch (err: IndexOutOfBoundsError) {
         throw format("precomp_declaration: ", err.msg)
     }

@@ -186,11 +186,20 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
 
     // Register the declared variable in scope
     context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
-        value_type,
+        value_type: value_type.clone(),
         is_mut: decl.is_mut,
         is_copy: decl.is_copy,
         is_own: decl.is_own,
     });
+
+    // Also register function definitions so UFCS can resolve their return types
+    if let ValueType::TFunction(_) = &value_type {
+        if !new_params.is_empty() {
+            if let NodeType::FuncDef(func_def) = &new_params[0].node_type {
+                context.scope_stack.declare_func(decl.name.clone(), func_def.clone());
+            }
+        }
+    }
 
     Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
 }
