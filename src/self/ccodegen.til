@@ -3585,21 +3585,24 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
 
     // For declarations: declare the variable BEFORE the if block so it's visible after
+    // Skip for underscore _ which is just a discard
     if gt(decl_name.len(), 0) {
-        result = result.concat(indent_str)
-        result = result.concat(ret_type)
-        result = result.concat(" ")
-        result = result.concat(decl_name)
-        result = result.concat(";\n")
-        // Add to scope_stack for type resolution
-        mut fd := context.scope_stack.lookup_func(func_name)
-        if gt(fd.return_types.len(), 0) {
-            mut first_type := ValueType.TCustom("")
-            fd.return_types.get(0, first_type)
-            context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+        if not(decl_name.eq("_")) {
+            result = result.concat(indent_str)
+            result = result.concat(ret_type)
+            result = result.concat(" ")
+            result = result.concat(decl_name)
+            result = result.concat(";\n")
+            // Add to scope_stack for type resolution
+            mut fd := context.scope_stack.lookup_func(func_name)
+            if gt(fd.return_types.len(), 0) {
+                mut first_type := ValueType.TCustom("")
+                fd.return_types.get(0, first_type)
+                context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+            }
+            catch (err: KeyNotFoundError) { }
+            catch (err: IndexOutOfBoundsError) { }
         }
-        catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
     }
 
     // Declare error structs for each throw type
@@ -3824,19 +3827,22 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     result = result.concat(" == 0) {\n")
 
     // Success case: assign return value to target variable
+    // Skip for underscore _ which is just a discard
     if gt(decl_name.len(), 0) {
-        // Declaration: assign to newly declared variable (declared before if block)
-        mut inner_indent := ""
-        ind = 0
-        while lt(ind, add(indent, 1)) {
-            inner_indent = inner_indent.concat("    ")
-            ind = add(ind, 1)
+        if not(decl_name.eq("_")) {
+            // Declaration: assign to newly declared variable (declared before if block)
+            mut inner_indent := ""
+            ind = 0
+            while lt(ind, add(indent, 1)) {
+                inner_indent = inner_indent.concat("    ")
+                ind = add(ind, 1)
+            }
+            result = result.concat(inner_indent)
+            result = result.concat(decl_name)
+            result = result.concat(" = _ret_")
+            result = result.concat(temp_suffix)
+            result = result.concat(";\n")
         }
-        result = result.concat(inner_indent)
-        result = result.concat(decl_name)
-        result = result.concat(" = _ret_")
-        result = result.concat(temp_suffix)
-        result = result.concat(";\n")
     } else {
         if gt(assign_name.len(), 0) {
             // Assignment: assign to existing variable
@@ -4065,21 +4071,24 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // For declarations: declare the variable BEFORE the if block so it's visible after
+    // Skip for underscore _ which is just a discard
     if gt(decl_name.len(), 0) {
-        result = result.concat(indent_str)
-        result = result.concat(ret_type)
-        result = result.concat(" ")
-        result = result.concat(decl_name)
-        result = result.concat(";\n")
-        // Add to scope_stack for type resolution
-        mut fd := context.scope_stack.lookup_func(func_name)
-        if gt(fd.return_types.len(), 0) {
-            mut first_type := ValueType.TCustom("")
-            fd.return_types.get(0, first_type)
-            context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+        if not(decl_name.eq("_")) {
+            result = result.concat(indent_str)
+            result = result.concat(ret_type)
+            result = result.concat(" ")
+            result = result.concat(decl_name)
+            result = result.concat(";\n")
+            // Add to scope_stack for type resolution
+            mut fd := context.scope_stack.lookup_func(func_name)
+            if gt(fd.return_types.len(), 0) {
+                mut first_type := ValueType.TCustom("")
+                fd.return_types.get(0, first_type)
+                context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+            }
+            catch (err: KeyNotFoundError) { }
+            catch (err: IndexOutOfBoundsError) { }
         }
-        catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
     }
 
     // Declare error structs for each throw type of the called function
@@ -4337,12 +4346,15 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Success case: assign return value to target variable if needed
+    // Skip for underscore _ which is just a discard
     if gt(decl_name.len(), 0) {
-        result = result.concat(indent_str)
-        result = result.concat(decl_name)
-        result = result.concat(" = _ret_")
-        result = result.concat(temp_suffix)
-        result = result.concat(";\n")
+        if not(decl_name.eq("_")) {
+            result = result.concat(indent_str)
+            result = result.concat(decl_name)
+            result = result.concat(" = _ret_")
+            result = result.concat(temp_suffix)
+            result = result.concat(";\n")
+        }
     } else {
         if gt(assign_name.len(), 0) {
             result = result.concat(indent_str)
@@ -4470,21 +4482,24 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // For declarations: declare the variable BEFORE
+    // Skip for underscore _ which is just a discard
     if gt(decl_name.len(), 0) {
-        result = result.concat(indent_str)
-        result = result.concat(ret_type)
-        result = result.concat(" ")
-        result = result.concat(til_name(decl_name))
-        result = result.concat(";\n")
-        // Add to scope_stack for type resolution
-        mut fd := context.scope_stack.lookup_func(func_name)
-        if gt(fd.return_types.len(), 0) {
-            mut first_type := ValueType.TCustom("")
-            fd.return_types.get(0, first_type)
-            context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+        if not(decl_name.eq("_")) {
+            result = result.concat(indent_str)
+            result = result.concat(ret_type)
+            result = result.concat(" ")
+            result = result.concat(til_name(decl_name))
+            result = result.concat(";\n")
+            // Add to scope_stack for type resolution
+            mut fd := context.scope_stack.lookup_func(func_name)
+            if gt(fd.return_types.len(), 0) {
+                mut first_type := ValueType.TCustom("")
+                fd.return_types.get(0, first_type)
+                context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+            }
+            catch (err: KeyNotFoundError) { }
+            catch (err: IndexOutOfBoundsError) { }
         }
-        catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
     }
 
     // Declare error structs for each throw type of the called function
@@ -4734,12 +4749,15 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Success case: assign return value to target variable if needed
+    // Skip for underscore _ which is just a discard
     if gt(decl_name.len(), 0) {
-        result = result.concat(indent_str)
-        result = result.concat(til_name(decl_name))
-        result = result.concat(" = _ret_")
-        result = result.concat(temp_suffix)
-        result = result.concat(";\n")
+        if not(decl_name.eq("_")) {
+            result = result.concat(indent_str)
+            result = result.concat(til_name(decl_name))
+            result = result.concat(" = _ret_")
+            result = result.concat(temp_suffix)
+            result = result.concat(";\n")
+        }
     } else {
         if gt(assign_name.len(), 0) {
             result = result.concat(indent_str)
@@ -5228,6 +5246,29 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         case:
             // Continue with normal declaration
         }
+    }
+
+    // For underscore declarations, just emit the expression (discard result)
+    // This avoids C redeclaration errors and matches the semantics of discarding
+    if name.eq("_") {
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            result = emit_expr(first, result, indent, ctx, context)
+            // emit_expr at statement level (indent > 0) adds ";\n" for FCall
+            // For other expressions, we may need to add it
+            mut ends_with_semicolon := false
+            if gteq(result.len(), 2) {
+                mut last_two := result.get_substr(sub(result.len(), 2), result.len())
+                ends_with_semicolon = last_two.eq(";\n")
+            }
+            if not(ends_with_semicolon) {
+                result = result.concat(";\n")
+            }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            catch (err: AllocError) { throw "emit_declaration: AllocError in underscore check" }
+        }
+        return result
     }
 
     // Check if this is a struct construction (TypeName())

@@ -397,7 +397,7 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/lists.til") // TODO FIX: AllocError() needs struct init not func call, throwing func in catch
     rs_interpreted.push("src/test/maps.til") // TODO FIX: Dynamic param expects void* but Str passed
     rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: nested func forward decl has const, definition has pointer
-    rs_interpreted.push("src/test/sets.til") // TODO FIX: underscore _ redeclared in same scope
+    rs_interpreted.push("src/test/sets.til") // TODO FIX: nested field access on self.elements->ptr/len, or() with no args, struct init vs func call
     rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: throwing func (format) in catch block needs temp var
     rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload has incomplete type, throwing func in catch
     rs_interpreted.push("src/test/ufcs.til") // TODO FIX: throwing functions in struct initializers (get_substr, Vec.new)

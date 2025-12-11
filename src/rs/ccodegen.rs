@@ -2844,20 +2844,23 @@ fn emit_throwing_call(
     }
 
     // For declarations: declare the variable BEFORE the if block so it's visible after
+    // Skip for underscore _ which is just a discard
     if let Some(var_name) = decl_name {
-        output.push_str(&indent_str);
-        output.push_str(&ret_type);
-        output.push_str(" ");
-        output.push_str(&til_name(var_name));
-        output.push_str(";\n");
-        ctx.declared_vars.insert(til_name(var_name));
-        // Add to scope_stack for type resolution
-        if let Some(fd) = lookup_func_by_name(context, &func_name) {
-            if let Some(first_type) = fd.return_types.first() {
-                context.scope_stack.declare_symbol(
-                    var_name.to_string(),
-                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
-                );
+        if var_name != "_" {
+            output.push_str(&indent_str);
+            output.push_str(&ret_type);
+            output.push_str(" ");
+            output.push_str(&til_name(var_name));
+            output.push_str(";\n");
+            ctx.declared_vars.insert(til_name(var_name));
+            // Add to scope_stack for type resolution
+            if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                if let Some(first_type) = fd.return_types.first() {
+                    context.scope_stack.declare_symbol(
+                        var_name.to_string(),
+                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
+                    );
+                }
             }
         }
     }
@@ -2955,14 +2958,17 @@ fn emit_throwing_call(
     output.push_str(" == 0) {\n");
 
     // Success case: assign return value to target variable
+    // Skip for underscore _ which is just a discard
     if let Some(var_name) = decl_name {
-        // Declaration: assign to newly declared variable (declared before if block)
-        let inner_indent = "    ".repeat(indent + 1);
-        output.push_str(&inner_indent);
-        output.push_str(&til_name(var_name));
-        output.push_str(" = _ret_");
-        output.push_str(&temp_suffix.to_string());
-        output.push_str(";\n");
+        if var_name != "_" {
+            // Declaration: assign to newly declared variable (declared before if block)
+            let inner_indent = "    ".repeat(indent + 1);
+            output.push_str(&inner_indent);
+            output.push_str(&til_name(var_name));
+            output.push_str(" = _ret_");
+            output.push_str(&temp_suffix.to_string());
+            output.push_str(";\n");
+        }
     } else if let Some(var_name) = assign_name {
         // Assignment: assign to existing variable
         let inner_indent = "    ".repeat(indent + 1);
@@ -3113,20 +3119,23 @@ fn emit_throwing_call_propagate(
     }
 
     // For declarations: declare the variable BEFORE the if block so it's visible after
+    // Skip for underscore _ which is just a discard
     if let Some(var_name) = decl_name {
-        output.push_str(&indent_str);
-        output.push_str(&ret_type);
-        output.push_str(" ");
-        output.push_str(&til_name(var_name));
-        output.push_str(";\n");
-        ctx.declared_vars.insert(til_name(var_name));
-        // Add to scope_stack for type resolution
-        if let Some(fd) = lookup_func_by_name(context, &func_name) {
-            if let Some(first_type) = fd.return_types.first() {
-                context.scope_stack.declare_symbol(
-                    var_name.to_string(),
-                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
-                );
+        if var_name != "_" {
+            output.push_str(&indent_str);
+            output.push_str(&ret_type);
+            output.push_str(" ");
+            output.push_str(&til_name(var_name));
+            output.push_str(";\n");
+            ctx.declared_vars.insert(til_name(var_name));
+            // Add to scope_stack for type resolution
+            if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                if let Some(first_type) = fd.return_types.first() {
+                    context.scope_stack.declare_symbol(
+                        var_name.to_string(),
+                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
+                    );
+                }
             }
         }
     }
@@ -3248,12 +3257,15 @@ fn emit_throwing_call_propagate(
     }
 
     // Success case: assign return value to target variable if needed
+    // Skip for underscore _ which is just a discard
     if let Some(var_name) = decl_name {
-        output.push_str(&indent_str);
-        output.push_str(&til_name(var_name));
-        output.push_str(" = _ret_");
-        output.push_str(&temp_suffix);
-        output.push_str(";\n");
+        if var_name != "_" {
+            output.push_str(&indent_str);
+            output.push_str(&til_name(var_name));
+            output.push_str(" = _ret_");
+            output.push_str(&temp_suffix);
+            output.push_str(";\n");
+        }
     } else if let Some(var_name) = assign_name {
         output.push_str(&indent_str);
         output.push_str(&til_name(var_name));
@@ -3455,12 +3467,15 @@ fn emit_throwing_call_with_goto(
     }
 
     // Success case: assign return value to target variable if needed
+    // Skip for underscore _ which is just a discard
     if let Some(var_name) = decl_name {
-        output.push_str(&indent_str);
-        output.push_str(&til_name(var_name));
-        output.push_str(" = _ret_");
-        output.push_str(&temp_suffix);
-        output.push_str(";\n");
+        if var_name != "_" {
+            output.push_str(&indent_str);
+            output.push_str(&til_name(var_name));
+            output.push_str(" = _ret_");
+            output.push_str(&temp_suffix);
+            output.push_str(";\n");
+        }
     } else if let Some(var_name) = assign_name {
         output.push_str(&indent_str);
         output.push_str(&til_name(var_name));
@@ -3575,6 +3590,22 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     }
 
     let indent_str = "    ".repeat(indent);
+
+    // For underscore declarations, just emit the expression (discard result)
+    // This avoids C redeclaration errors and matches the semantics of discarding
+    if decl.name == "_" {
+        if !expr.params.is_empty() {
+            output.push_str(&indent_str);
+            emit_expr(&expr.params[0], output, indent, ctx, context)?;
+            // emit_expr at statement level (indent > 0) adds ";\n" for FCall
+            // For other expressions, we may need to add it
+            if !output.ends_with(";\n") {
+                output.push_str(";\n");
+            }
+        }
+        return Ok(());
+    }
+
     let name = &decl.name;
     let is_mut = decl.is_mut;
 
