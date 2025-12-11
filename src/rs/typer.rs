@@ -502,6 +502,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                     is_mut: false,
                     is_copy: false,
                     is_own: false,
+                    is_comptime_const: false,
                 });
             },
             ValueType::TCustom(ref custom_type_name) => {
@@ -517,13 +518,13 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 match &custom_symbol.value_type {
                     ValueType::TType(TTypeDef::TStructDef) => {
                         // Valid: struct type
-                        context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
+                        context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own, is_comptime_const: false });
                         // Register struct fields for type checking
                         context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
                     },
                     ValueType::TType(TTypeDef::TEnumDef) => {
                         // Valid: enum type
-                        context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
+                        context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own, is_comptime_const: false });
                     },
                     _ => {
                         // Invalid: not a type, it's a value or something else
@@ -532,7 +533,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 }
             },
             _ => {
-                context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
+                context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own, is_comptime_const: false });
             },
         }
     }
@@ -727,6 +728,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         is_mut: false,
                         is_copy: false,
                         is_own: false,
+                        is_comptime_const: false,
                     });
 
                     // Register struct fields so err.msg etc. can be accessed during type-checking
@@ -742,6 +744,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                     is_mut: false,
                                     is_copy: false,
                                     is_own: false,
+                                    is_comptime_const: false,
                                 },
                             );
                         }
@@ -863,6 +866,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                         is_mut: false,
                                         is_copy: false,
                                         is_own: false,
+                                        is_comptime_const: false,
                                     }
                                 );
                                 errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_types, return_found));
@@ -896,6 +900,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                     is_mut: decl.is_mut,
                                     is_copy: decl.is_copy,
                                     is_own: decl.is_own,
+                                    is_comptime_const: false,
                                 }
                             );
                         }
@@ -1090,6 +1095,7 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
         is_mut: false,
         is_copy: false,
         is_own: false,
+        is_comptime_const: false,
     });
 
     // Map struct fields so err.msg etc. can be accessed during type-checking
@@ -1105,6 +1111,7 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                     is_mut: false,  // Error variables are not mutable in catch blocks
                     is_copy: false,
                     is_own: false,
+                    is_comptime_const: false,
                 },
             );
         }
@@ -1145,7 +1152,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
             };
         }
         // TODO move to init_context() ? inner contexts are not persisted in init_context
-        context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
+        context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
         match value_type {
             ValueType::TCustom(custom_type) => {
                 if custom_type == INFER_TYPE {
@@ -1355,7 +1362,8 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                             value_type: payload_type,
                             is_mut: false,
                             is_copy: false,
-                        is_own: false,
+                            is_own: false,
+                            is_comptime_const: false,
                         }
                     );
                     // Switch case body statements discard return values

@@ -71,6 +71,17 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
     switch e.node_type {
     case NodeType.LLiteral:
         return true
+    case NodeType.Identifier(name):
+        // Check if this is a simple identifier (no field access chain)
+        if e.params.len().gt(0) {
+            return false  // Field access chains not supported
+        }
+        // Look up the symbol and check if it's a comptime const
+        mut symbol := context.scope_stack.lookup_symbol(name)
+        catch (err: KeyNotFoundError) {
+            return false
+        }
+        return symbol.is_comptime_const
     case NodeType.FCall:
         f_name := get_func_name_in_call(e)
         catch (err: Str) {
@@ -90,8 +101,11 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         if func_def.is_proc() {
             return false
         }
-        // Functions that can throw are allowed - if they actually throw,
-        // we'll report the error in eval_comptime
+        // Functions that can throw are NOT comptime-evaluable because
+        // if they throw, we can't fold them to a literal
+        if func_def.throw_types.len().gt(0) {
+            return false
+        }
         // All arguments must be comptime-evaluable
         mut i := 1
         while i.lt(e.params.len()) {
@@ -107,7 +121,6 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         }
         return true
     case:
-        // Future: handle constant identifiers (true, false, user constants)
         return false
     }
 }
@@ -295,27 +308,91 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case:
     }
 
+    // REM: Declarations currently always require an initialization value,
+    // so new_params should never be empty.
+    if new_params.len().eq(0) {
+        throw e.lang_error(context.path, "precomp", "Declaration without initializer")
+    }
+
+    // Determine if this is a compile-time constant
+    // Must be truly immutable (not mut, copy, or own) and have a comptime-evaluable value.
+    // Also, only I64 and U8 types are currently supported for comptime storage in arena.
+    // Str, structs, enums require infrastructure not available during precomp.
+    mut is_supported_type := false
+    switch value_type {
+    case ValueType.TCustom(type_name):
+        if type_name.eq("I64").or(type_name.eq("U8")) {
+            is_supported_type = true
+        }
+    case:
+    }
+    mut first_param := Expr()
+    new_params.get(0, first_param)
+    mut is_comptime_const := is_supported_type
+        .and(not(decl.is_mut))
+        .and(not(decl.is_copy))
+        .and(not(decl.is_own))
+        .and(is_comptime_evaluable(context, first_param))
+
     // Register the declared variable in scope
     mut sym := SymbolInfo()
     sym.value_type = value_type
     sym.is_mut = decl.is_mut
     sym.is_copy = decl.is_copy
     sym.is_own = decl.is_own
+    sym.is_comptime_const = is_comptime_const
     context.scope_stack.declare_symbol(decl.name, sym)
 
     // Also register function definitions so UFCS can resolve their return types
     switch value_type {
     case ValueType.TFunction:
         if new_params.len().gt(0) {
-            mut first_param := Expr()
-            new_params.get(0, first_param)
-            switch first_param.node_type {
+            mut fp := Expr()
+            new_params.get(0, fp)
+            switch fp.node_type {
             case NodeType.FuncDef(func_def):
                 context.scope_stack.declare_func(decl.name, func_def)
             case:
             }
         }
     case:
+    }
+
+    // For struct definitions, register them in scope (needed for type lookups)
+    // Note: We don't call create_default_instance here because it evaluates
+    // struct defaults which can pollute context.path and affect loc() calls.
+    // Struct templates will be created later during interpreter/ccodegen phases.
+    switch value_type {
+    case ValueType.TType(TTypeDef.TStructDef):
+        mut fp := Expr()
+        new_params.get(0, fp)
+        switch fp.node_type {
+        case NodeType.StructDef(struct_def):
+            context.scope_stack.declare_struct(decl.name, struct_def)
+        case:
+        }
+    case:
+    }
+
+    // For non-mut declarations with comptime-evaluable values, store in arena
+    // so that later eval_expr calls can look them up during constant folding.
+    // Note: Only I64 and U8 are supported for now. Str requires the Str template
+    // which isn't set up during precomp. Structs/enums need more infrastructure.
+    if is_comptime_const {
+        mut inner_e := Expr()
+        new_params.get(0, inner_e)
+        switch value_type {
+        case ValueType.TCustom(custom_type_name):
+            if custom_type_name.eq("I64").or(custom_type_name.eq("U8")) {
+                result := eval_expr(context, inner_e)
+                if not(result.is_throw) {
+                    Arena.insert_primitive(context, decl.name, value_type, result.value, e)
+                }
+            }
+            // Str, structs, enums - not yet supported for comptime storage
+            // They would require templates/infrastructure not available in precomp
+        case:
+        }
     }
 
     catch (err: IndexOutOfBoundsError) {

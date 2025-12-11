@@ -20,6 +20,7 @@ pub struct SymbolInfo {
     pub is_mut: bool,
     pub is_copy: bool,
     pub is_own: bool,
+    pub is_comptime_const: bool,  // true if value was comptime-evaluable at declaration
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -917,7 +918,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     FunctionType::FTMacro => {
                         match &inner_e.node_type {
                             NodeType::FuncDef(func_def) => {
-                                context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
+                                context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
                                 context.scope_stack.declare_func(decl.name.to_string(), func_def.clone());
                             },
                             _ => {
@@ -936,7 +937,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     }
                     match &inner_e.node_type {
                         NodeType::EnumDef(enum_def) => {
-                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
+                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
                             context.scope_stack.declare_enum(decl.name.to_string(), enum_def.clone());
                         },
                         _ => {
@@ -967,7 +968,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                                 }
                             }
                             // Register the struct itself
-                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
+                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
                             context.scope_stack.declare_struct(decl.name.to_string(), struct_def.clone());
                             // Register associated funcs and constants (non-mut members only)
                             for member_decl in &struct_def.members {
@@ -977,7 +978,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                                         let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
                                         let full_name = format!("{}.{}", decl.name, member_decl.name); // Note: using '.' not '::'
                                         // Register in symbols
-                                        context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own });
+                                        context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own, is_comptime_const: false });
                                         // If it's a function, also register in funcs
                                         if let NodeType::FuncDef(func_def) = &member_expr.node_type {
                                             context.scope_stack.declare_func(full_name, func_def.clone());
@@ -994,7 +995,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 }
 
                 ValueType::TMulti(_) | ValueType::TCustom(_) => {
-                    context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
+                    context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
                 },
             }
         }
@@ -1113,6 +1114,7 @@ impl Context {
                         is_mut,
                         is_copy: false,
                         is_own: false,
+                        is_comptime_const: false,
                     },
                 );
 
@@ -1169,6 +1171,7 @@ impl Context {
                     is_mut: decl.is_mut,
                     is_copy: false,
                     is_own: false,
+                    is_comptime_const: false,
                 },
             );
 

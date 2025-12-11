@@ -82,7 +82,7 @@ void til_test_simple_add(void);
 void til_test_nested_arithmetic(void);
 void til_test_deeply_nested(void);
 void til_test_string_concat(void);
-void til_test_no_fold_variable(void);
+void til_test_fold_variable(void);
 void til_test_loc_folded_correctly(void);
 til_IndexOutOfBoundsError til_IndexOutOfBoundsError_new(const til_Str til_msg);
 til_AllocError til_AllocError_new(const til_Str til_msg);
@@ -1243,10 +1243,10 @@ void til_test_string_concat(void) {
     til_test(((til_Str){(til_I64)"src/test/constfold.til:30:10:", 29}), til_Str_eq(til_result, ((til_Str){(til_I64)"hello world", 11})), ((til_Str){(til_I64)"concat works at runtime", 23}));
 }
 
-void til_test_no_fold_variable(void) {
+void til_test_fold_variable(void) {
     const til_I64 til_x = 5;
-    const til_I64 til_result = til_add(til_x, 3);
-    til_test(((til_Str){(til_I64)"src/test/constfold.til:39:10:", 29}), til_I64_eq(til_result, 8), ((til_Str){(til_I64)"add(x, 3) should still work at runtime", 38}));
+    const til_I64 til_result = 8;
+    til_test(((til_Str){(til_I64)"src/test/constfold.til:39:10:", 29}), til_I64_eq(til_result, 8), ((til_Str){(til_I64)"add(x, 3) should fold to 8", 26}));
 }
 
 void til_test_loc_folded_correctly(void) {
@@ -2732,7 +2732,7 @@ int main() {
     til_test_nested_arithmetic();
     til_test_deeply_nested();
     til_test_string_concat();
-    til_test_no_fold_variable();
+    til_test_fold_variable();
     til_test_loc_folded_correctly();
     return 0;
 }

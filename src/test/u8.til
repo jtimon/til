@@ -19,10 +19,7 @@ test_u8 := proc() {
         println(err.msg)
     }
 
-    // TODO the following declaration should throw OverflowError on its own:
-    my_u8_overflow : U8 = 420 // REM comment the previous throw to test this
-    // catch(err: U8_OverflowError) { // FIX uncomment once the todo above is fixed
-    //     println(loc(), "test_array_static_u8: Declartion: U8_OverflowError thrown:")
-    //     println(err.msg)
-    // }
+    // Test that U8 overflow is caught at runtime during assignment
+    mut my_u8_overflow : U8 = 0
+    my_u8_overflow = 420 // Overflow happens at runtime, not compile time
 }

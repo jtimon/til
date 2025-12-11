@@ -5,9 +5,10 @@
 use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType};
 use std::collections::HashMap;
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal,
+    Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal, TTypeDef,
 };
 use crate::rs::interpreter::eval_expr;
+use crate::rs::arena::Arena;
 
 // ---------- Main entry point
 
@@ -49,6 +50,17 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
     match &e.node_type {
         NodeType::LLiteral(_) => true,
+        NodeType::Identifier(name) => {
+            // Check if this is a simple identifier (no field access chain)
+            if !e.params.is_empty() {
+                return false;  // Field access chains not supported
+            }
+            // Look up the symbol and check if it's a comptime const
+            if let Some(symbol) = context.scope_stack.lookup_symbol(name) {
+                return symbol.is_comptime_const;
+            }
+            false
+        }
         NodeType::FCall => {
             let f_name = get_func_name_in_call(e);
             // Special case: exit terminates the program
@@ -68,8 +80,11 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
             if func_def.is_proc() {
                 return false;
             }
-            // Functions that can throw are allowed - if they actually throw,
-            // we'll report the error in eval_comptime
+            // Functions that can throw are NOT comptime-evaluable because
+            // if they throw, we can't fold them to a literal
+            if !func_def.throw_types.is_empty() {
+                return false;
+            }
             // All arguments must be comptime-evaluable
             for i in 1..e.params.len() {
                 if !is_comptime_evaluable(context, &e.params[i]) {
@@ -152,6 +167,7 @@ fn precomp_func_def(context: &mut Context, e: &Expr, func_def: SFuncDef) -> Resu
             is_mut: arg.is_mut,
             is_copy: arg.is_copy,
             is_own: arg.is_own,
+            is_comptime_const: false,  // Function args are not comptime constants
         });
     }
 
@@ -195,19 +211,67 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         decl.value_type.clone()
     };
 
+    // REM: Declarations currently always require an initialization value,
+    // so new_params should never be empty.
+    if new_params.is_empty() {
+        return Err(e.lang_error(&context.path, "precomp", "Declaration without initializer"));
+    }
+
+    // Determine if this is a compile-time constant
+    // Must be truly immutable (not mut, copy, or own) and have a comptime-evaluable value.
+    // Also, only I64 and U8 types are currently supported for comptime storage in arena.
+    // Str, structs, enums require infrastructure not available during precomp.
+    let is_supported_type = matches!(&value_type,
+        ValueType::TCustom(ref t) if t == "I64" || t == "U8"
+    );
+    let is_comptime_const = is_supported_type
+        && !decl.is_mut && !decl.is_copy && !decl.is_own
+        && is_comptime_evaluable(context, &new_params[0]);
+
     // Register the declared variable in scope
     context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
         value_type: value_type.clone(),
         is_mut: decl.is_mut,
         is_copy: decl.is_copy,
         is_own: decl.is_own,
+        is_comptime_const,
     });
 
     // Also register function definitions so UFCS can resolve their return types
     if let ValueType::TFunction(_) = &value_type {
-        if !new_params.is_empty() {
-            if let NodeType::FuncDef(func_def) = &new_params[0].node_type {
-                context.scope_stack.declare_func(decl.name.clone(), func_def.clone());
+        if let NodeType::FuncDef(func_def) = &new_params[0].node_type {
+            context.scope_stack.declare_func(decl.name.clone(), func_def.clone());
+        }
+    }
+
+    // For struct definitions, register them in scope (needed for type lookups)
+    // Note: We don't call create_default_instance here because it evaluates
+    // struct defaults which can pollute context.path and affect loc() calls.
+    // Struct templates will be created later during interpreter/ccodegen phases.
+    if let ValueType::TType(TTypeDef::TStructDef) = &value_type {
+        if let NodeType::StructDef(struct_def) = &new_params[0].node_type {
+            context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
+        }
+    }
+
+    // For non-mut declarations with comptime-evaluable values, store in arena
+    // so that later eval_expr calls can look them up during constant folding.
+    // Note: Only I64 and U8 are supported for now. Str requires the Str template
+    // which isn't set up during precomp. Structs/enums need more infrastructure.
+    if is_comptime_const {
+        let inner_e = &new_params[0];
+        if let ValueType::TCustom(ref custom_type_name) = &value_type {
+            match custom_type_name.as_str() {
+                "I64" | "U8" => {
+                    let result = eval_expr(context, inner_e)?;
+                    if !result.is_throw {
+                        Arena::insert_primitive(context, &decl.name, &value_type, &result.value, e)?;
+                    }
+                },
+                _ => {
+                    // Str, structs, enums - not yet supported for comptime storage
+                    // They would require templates/infrastructure not available in precomp
+                },
             }
         }
     }

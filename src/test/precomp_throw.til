@@ -1,24 +1,26 @@
 mode script
 
-// Test that exceptions thrown during precomputation are reported
-// This test is expected to FAIL with a precomp error
+// Test that exceptions thrown by functions that CAN throw are deferred to runtime
+// Functions that can throw are NOT folded at compile time.
 
 // A pure function that always throws when called with n > 0
 always_throws := func(n: I64) returns I64 throws Str {
     if gt(n, 0) {
-        throw "intentional precomp error"
+        throw "intentional error at runtime"
     }
     return 0
 }
 
-// This triggers precomputation because it's a pure func with literal args
-// The function throws, so we expect a precomp error
+// This used to trigger precomputation, but now functions that can throw
+// are NOT folded at compile time (they're evaluated at runtime instead).
+// So this call happens at runtime and the throw is caught below.
 x := always_throws(5)
 
 catch (err: Str) {
-    // This catch is here to satisfy the type checker, but we never reach it
-    // because the error happens at compile time (precomp phase)
-    println("runtime catch: ", err)
+    // This catch IS reached because the error happens at runtime
+    println("caught at runtime: ", err)
+    exit(0)  // Test passes - we caught the error at runtime
 }
 
 println("should not reach here")
+exit(1)

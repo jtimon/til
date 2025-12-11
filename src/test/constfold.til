@@ -31,14 +31,14 @@ test_string_concat := proc() {
 }
 test_string_concat()
 
-// Test 5: Mixed - this should NOT be folded because x is a variable
-// TODO: Support folding with const variables (not just literals)
-test_no_fold_variable := proc() {
+// Test 5: Folding through immutable variables
+// Immutable variables (non-mut) with comptime-evaluable values are folded
+test_fold_variable := proc() {
     x := 5
-    result := add(x, 3)  // x is not a literal, so no folding
-    test(loc(), result.eq(8), "add(x, 3) should still work at runtime")
+    result := add(x, 3)  // x is immutable with literal value, so this folds to 8
+    test(loc(), result.eq(8), "add(x, 3) should fold to 8")
 }
-test_no_fold_variable()
+test_fold_variable()
 
 // Test 6: loc() is folded to the correct source location at compile time
 test_loc_folded_correctly := proc() {

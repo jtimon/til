@@ -2146,6 +2146,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
             is_mut: arg.is_mut,
             is_copy: arg.is_copy,
             is_own: arg.is_own,
+            is_comptime_const: false,
         });
     }
     context.scope_stack.frames.push(function_frame);
@@ -2394,6 +2395,7 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                         is_mut: arg.is_mut,
                         is_copy: arg.is_copy,
                         is_own: arg.is_own,
+                        is_comptime_const: false,
                     });
                 }
                 context.scope_stack.frames.push(function_frame);
@@ -2715,6 +2717,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                         is_mut: false,
                         is_copy: false,
                         is_own: false,
+                        is_comptime_const: false,
                     }
                 );
             }
@@ -2853,7 +2856,7 @@ fn emit_variadic_call(
             if let Some(first_type) = fd.return_types.first() {
                 context.scope_stack.declare_symbol(
                     var_name.to_string(),
-                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
+                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
                 );
             }
         }
@@ -3041,7 +3044,7 @@ fn emit_throwing_call(
                 if let Some(first_type) = fd.return_types.first() {
                     context.scope_stack.declare_symbol(
                         var_name.to_string(),
-                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
+                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
                     );
                 }
             }
@@ -3207,6 +3210,7 @@ fn emit_throwing_call(
                                 is_mut: false,
                                 is_copy: false,
                                 is_own: false,
+                                is_comptime_const: false,
                             }
                         );
                     }
@@ -3316,7 +3320,7 @@ fn emit_throwing_call_propagate(
                 if let Some(first_type) = fd.return_types.first() {
                     context.scope_stack.declare_symbol(
                         var_name.to_string(),
-                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
+                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
                     );
                 }
             }
@@ -3547,7 +3551,7 @@ fn emit_throwing_call_with_goto(
             if let Some(first_type) = fd.return_types.first() {
                 context.scope_stack.declare_symbol(
                     var_name.to_string(),
-                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
+                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
                 );
             }
         }
@@ -3740,6 +3744,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                         is_mut: arg.is_mut,
                         is_copy: arg.is_copy,
                         is_own: arg.is_own,
+                        is_comptime_const: false,
                     });
                 }
                 context.scope_stack.frames.push(function_frame);
@@ -3835,7 +3840,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     // Add to scope_stack so get_value_type can find it
     context.scope_stack.declare_symbol(
         name.clone(),
-        SymbolInfo { value_type: var_type, is_mut: decl.is_mut, is_copy: false, is_own: false }
+        SymbolInfo { value_type: var_type, is_mut: decl.is_mut, is_copy: false, is_own: false, is_comptime_const: false }
     );
 
     // Check if variable already declared in this function (avoid C redefinition errors)

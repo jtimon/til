@@ -243,6 +243,7 @@ impl Arena {
                         is_mut,
                         is_copy: false,
                         is_own: false,
+                        is_comptime_const: false,
                     });
 
                     Arena::g().memory.copy_within(src_offset..src_offset + field_size, dest_offset);
@@ -359,6 +360,7 @@ impl Arena {
                                         is_mut: true,
                                         is_copy: false,
                                         is_own: false,
+                                        is_comptime_const: false,
                                     };
                                     // Must declare symbol BEFORE recursive call (needed for is_mut lookup)
                                     ctx.scope_stack.declare_symbol(combined_name.clone(), nested_symbol.clone());
@@ -409,6 +411,7 @@ impl Arena {
                 is_mut,
                 is_copy: false,
                 is_own: false,
+                is_comptime_const: false,
             }});
             }
         }
@@ -464,6 +467,7 @@ impl Arena {
                     is_mut,
                     is_copy: false,
                     is_own: false,
+                    is_comptime_const: false,
                 }});
 
                 // Handle nested structs recursively
@@ -476,6 +480,7 @@ impl Arena {
                                 is_mut: true,
                                 is_copy: false,
                                 is_own: false,
+                                is_comptime_const: false,
                             });
                             let nested = Arena::generate_struct_mappings(ctx, &combined_name, type_name, field_abs_offset, e)?;
                             result.arena_mappings.extend(nested.arena_mappings);
@@ -996,6 +1001,7 @@ impl Arena {
                         is_mut: false,
                         is_copy: false,
                         is_own: false,
+                        is_comptime_const: false,
                     });
                     Self::insert_string_into_frame(ctx, frame, &temp_id, val, e)?;
                     let str_offset = frame.arena_index.get(&temp_id).copied()
@@ -1034,6 +1040,7 @@ impl Arena {
             is_mut: false,
             is_copy: false,
             is_own: false,
+            is_comptime_const: false,
         });
         Self::insert_string_into_frame(ctx, frame, &temp_type_name_id, &elem_type.to_string(), e)?;
         let temp_str_offset = frame.arena_index.get(&temp_type_name_id).copied()

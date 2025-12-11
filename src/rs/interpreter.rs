@@ -255,7 +255,7 @@ fn eval_struct_defaults(ctx: &mut Context, struct_type: &str, e: &Expr) -> Resul
 
 /// Create a default instance template for a struct type.
 /// Called eagerly when struct declarations are evaluated.
-fn create_default_instance(ctx: &mut Context, struct_type: &str, e: &Expr) -> Result<usize, String> {
+pub fn create_default_instance(ctx: &mut Context, struct_type: &str, e: &Expr) -> Result<usize, String> {
     // Check if template already exists (e.g., from a previous import)
     if let Some(&offset) = Arena::g().default_instances.get(struct_type) {
         return Ok(offset);
@@ -270,6 +270,7 @@ fn create_default_instance(ctx: &mut Context, struct_type: &str, e: &Expr) -> Re
         is_mut: true,
         is_copy: false,
         is_own: false,
+        is_comptime_const: false,
     });
 
     // Evaluate defaults and create template
@@ -289,7 +290,7 @@ fn create_default_instance(ctx: &mut Context, struct_type: &str, e: &Expr) -> Re
 
 /// Insert a struct instance using cached template.
 /// Template is guaranteed to exist - created eagerly on eval_declaration.
-fn insert_struct_instance(ctx: &mut Context, id: &str, type_name: &str, e: &Expr) -> Result<(), String> {
+pub fn insert_struct_instance(ctx: &mut Context, id: &str, type_name: &str, e: &Expr) -> Result<(), String> {
     let template_offset = Arena::g().default_instances.get(type_name).copied()
         .ok_or_else(|| e.lang_error(&ctx.path, "insert_struct_instance",
             &format!("template for '{}' not found", type_name)))?;
@@ -435,7 +436,8 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 value_type: ValueType::TCustom("I64".to_string()),
                                                 is_mut: false,
                                                 is_copy: false,
-                                            is_own: false,
+                                                is_own: false,
+                                                is_comptime_const: false,
                                             }
                                         );
 
@@ -464,7 +466,8 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false,
                                                 is_copy: false,
-                                            is_own: false,
+                                                is_own: false,
+                                                is_comptime_const: false,
                                             }
                                         );
 
@@ -499,7 +502,8 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                         value_type: payload_type.clone(),
                                                         is_mut: false,
                                                         is_copy: false,
-                                                    is_own: false,
+                                                        is_own: false,
+                                                        is_comptime_const: false,
                                                     }
                                                 );
 
@@ -578,7 +582,8 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                         value_type: payload_type.clone(),
                                                         is_mut: false,
                                                         is_copy: false,
-                                                    is_own: false,
+                                                        is_own: false,
+                                                        is_comptime_const: false,
                                                     }
                                                 );
 
@@ -781,7 +786,8 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false,
                                                 is_copy: false,
-                                            is_own: false,
+                                                is_own: false,
+                                                is_comptime_const: false,
                                             });
 
                                             Arena::insert_string(context, &temp_var_name, &string_value.to_string(), e)?;
@@ -798,7 +804,8 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false, // Temporary string is immutable
                                                 is_copy: false,
-                                            is_own: false,
+                                                is_own: false,
+                                                is_comptime_const: false,
                                             });
 
                                             Arena::insert_string(context, &temp_var_name, &string_value.to_string(), e)?;
@@ -814,7 +821,8 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 value_type: ValueType::TCustom("I64".to_string()),
                                                 is_mut: false,
                                                 is_copy: false,
-                                            is_own: false,
+                                                is_own: false,
+                                                is_comptime_const: false,
                                             });
 
                                             Arena::insert_i64(context, &temp_var_name, &i64_value.to_string(), e)?;
@@ -855,7 +863,8 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 value_type: ValueType::TCustom(struct_type_name.clone()),
                                                 is_mut: false,
                                                 is_copy: false,
-                                            is_own: false,
+                                                is_own: false,
+                                                is_comptime_const: false,
                                             });
 
                                             // The result is the enum variant name (e.g., "InnerEnum.ValueA")
@@ -974,7 +983,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
             match &inner_e.node_type {
                 NodeType::EnumDef(enum_def) => {
                     context.scope_stack.declare_enum(declaration.name.clone(), enum_def.clone());
-                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
                     return Ok(EvalResult::new(""));
                 },
                 _ => return Err(e.lang_error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}', expected enum definition.",
@@ -985,7 +994,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
             match &inner_e.node_type {
                 NodeType::StructDef(struct_def) => {
                     context.scope_stack.declare_struct(declaration.name.to_string(), struct_def.clone());
-                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
                     for member_decl in &struct_def.members {
                         if !member_decl.is_mut {
                             let combined_name = format!("{}.{}", declaration.name, member_decl.name);
@@ -1052,7 +1061,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             }
 
                             context.scope_stack.declare_symbol(combined_name.to_string(),
-                                                   SymbolInfo{value_type: member_decl.value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own });
+                                                   SymbolInfo{value_type: member_decl.value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own, is_comptime_const: false });
                         }
                     }
                     // Eagerly create default instance template for this struct type
@@ -1067,7 +1076,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
             match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
                     context.scope_stack.declare_func(declaration.name.to_string(), func_def.clone());
-                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
                     return Ok(EvalResult::new(""))
                 },
 
@@ -1084,12 +1093,12 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
-                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
                     Arena::insert_primitive(context, &declaration.name, &value_type, &expr_result_str, e)?;
                     return Ok(EvalResult::new(""))
                 },
                 _ => {
-                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own, is_comptime_const: false });
                     let custom_symbol = match context.scope_stack.lookup_symbol(custom_type_name) {
                         Some(sym) => sym,
                         None => return Err(e.lang_error(&context.path, "eval", &format!("Symbol '{}' not found in context", custom_type_name))),
@@ -1494,7 +1503,8 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                 value_type: ValueType::TCustom(thrown_type.clone()),
                                 is_mut: false,
                                 is_copy: false,
-                            is_own: false,
+                                is_own: false,
+                                is_comptime_const: false,
                             });
 
                             // Map instance fields for the error variable
@@ -1560,7 +1570,8 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                                 value_type: field_decl.value_type.clone(),
                                                 is_mut: false,
                                                 is_copy: false,
-                                            is_own: false,
+                                                is_own: false,
+                                                is_comptime_const: false,
                                             },
                                         );
 
@@ -1669,7 +1680,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
     for arg in &func_def.args {
         if !params_consumed {
-        function_frame.symbols.insert(arg.name.to_string(), SymbolInfo {value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
+        function_frame.symbols.insert(arg.name.to_string(), SymbolInfo {value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own, is_comptime_const: false });
         match &arg.value_type {
             ValueType::TMulti(ref multi_value_type) => {
                 let variadic_args = &e.params[param_index..];
@@ -1691,6 +1702,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     is_mut: arg.is_mut,
                     is_copy: arg.is_copy,
                     is_own: arg.is_own,
+                    is_comptime_const: false,
                 });
                 Arena::insert_array_into_frame(context, &mut function_frame, &arg.name, &multi_value_type, &values, e)?;
 
@@ -1712,7 +1724,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     value_type: ValueType::TCustom("Str".to_string()),
                                     is_mut: false,
                                     is_copy: false,
-                                is_own: false,
+                                    is_own: false,
+                                    is_comptime_const: false,
                                 });
                                 Arena::insert_string_into_frame(context, &mut function_frame, &arg.name, id_name, e)?;
                                 param_index += 1;
@@ -1873,6 +1886,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 is_mut: arg.is_mut,
                                 is_copy: arg.is_copy,
                                 is_own: arg.is_own,
+                                is_comptime_const: false,
                             };
                             function_frame.symbols.insert(arg.name.clone(), param_symbol);
                             function_frame.arena_index.insert(arg.name.clone(), offset);
@@ -2014,6 +2028,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                 is_mut: arg.is_mut,
                                                 is_copy: arg.is_copy,
                                                 is_own: arg.is_own,
+                                                is_comptime_const: false,
                                             });
 
                                             // Share the offset (pass-by-reference)
@@ -2398,6 +2413,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     is_mut: true,
                                     is_copy: false,
                                     is_own: false,
+                                    is_comptime_const: false,
                                 });
 
                                 // Share the base offset in caller's frame
