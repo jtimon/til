@@ -318,6 +318,7 @@ main := proc(args: ..Str) {
     rs_common.push("src/test/flow.til")
     rs_common.push("src/test/fibonacci.til")
     rs_common.push("src/test/run_cmd.til")
+    rs_common.push("src/test/variadic.til")
 
     mut rs_compiled := Vec.new(Str)
     rs_compiled.push("src/test/enums_simple.til")
@@ -334,24 +335,23 @@ main := proc(args: ..Str) {
     mut rs_interpreted := Vec.new(Str)
 
     rs_interpreted.push("src/examples/hello_pure.til") // TODO FIX: mode pure forbids procs but core.til has procs
-    rs_interpreted.push("src/test/args.til") // TODO FIX: mut param not passed as pointer, format variadic args
+    rs_interpreted.push("src/test/args.til") // TODO FIX: format() variadic arg passed as Str instead of Array
     rs_interpreted.push("src/test/memcmp_str_interpreted.til")
-    rs_interpreted.push("src/test/editor_mode_test.til") // TODO FIX: static string init, variadic format call
-    rs_interpreted.push("src/test/enums.til") // TODO FIX: incomplete enum types, static string init, enum_to_str not found
-    rs_interpreted.push("src/test/errors.til") // TODO FIX: throwing func called in non-throwing context (safe_div needs error handling)
+    rs_interpreted.push("src/test/editor_mode_test.til") // TODO FIX: static string init not constant, format() variadic
+    rs_interpreted.push("src/test/enums.til") // TODO FIX: enum payload field has incomplete type
+    rs_interpreted.push("src/test/errors.til") // TODO FIX: throwing func result used directly (needs temp var for error handling)
     rs_interpreted.push("src/test/forward_declarations.til") // TODO FIX: enum constructors emitted as function calls not struct init
-    rs_interpreted.push("src/test/intro.til") // TODO FIX: static string init, variadic calls without args need empty array
-    rs_interpreted.push("src/test/lists.til") // TODO FIX: error constructors need _new suffix, field access on non-pointer
-    rs_interpreted.push("src/test/maps.til") // TODO FIX: Dynamic param type mismatch (Str passed to Dynamic), field access on non-pointer
+    rs_interpreted.push("src/test/intro.til") // TODO FIX: static string init not constant
+    rs_interpreted.push("src/test/lists.til") // TODO FIX: error constructor AllocError() needs _new suffix or struct init
+    rs_interpreted.push("src/test/maps.til") // TODO FIX: Dynamic param expects void* but Str passed
     rs_interpreted.push("src/test/mut_test.til") // TODO FIX: mut param not passed as pointer
-    rs_interpreted.push("src/test/namespaces.til") // TODO FIX: static string init at global scope needs constant initializer
-    rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: nested func mut param declaration mismatch (const vs pointer)
-    rs_interpreted.push("src/test/sets.til") // TODO FIX: underscore redeclaration (C doesn't allow multiple _ decls in same scope)
-    rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: static string init, pointer type mismatch, format variadic
-    rs_interpreted.push("src/test/test_parser.til") // TODO FIX: incomplete enum types, static string init
-    rs_interpreted.push("src/test/ufcs.til") // TODO FIX: undeclared vars (my_true), variadic calls without args
-    rs_interpreted.push("src/test/variadic.til") // TODO FIX: variadic calls without args need empty array
-    rs_interpreted.push("src/test/vecs.til") // TODO FIX: bounds check differs (compiled doesn't throw IndexOutOfBoundsError)
+    rs_interpreted.push("src/test/namespaces.til") // TODO FIX: static string init not constant
+    rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: nested func forward decl has const, definition has pointer
+    rs_interpreted.push("src/test/sets.til") // TODO FIX: underscore _ redeclared in same scope
+    rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: static string init not constant, Vec passed as Vec**
+    rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload has incomplete type, static string init
+    rs_interpreted.push("src/test/ufcs.til") // TODO FIX: my_true undeclared (const bool not emitted)
+    rs_interpreted.push("src/test/vecs.til") // TODO FIX: compiled doesn't throw IndexOutOfBoundsError on bad index
 
     // rs_interpreted.push("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds
     // rs_interpreted.push("src/test/undefined.til")
@@ -364,8 +364,8 @@ main := proc(args: ..Str) {
     // next level:
     // eval.til moved to rs_common
     // flow.til moved to rs_common (const folding fixed switch case expressions)
-    rs_interpreted.push("src/test/introspections.til") // TODO FIX: error constructors need _new suffix, field access on non-pointer
-    rs_interpreted.push("src/test/modes.til") // TODO FIX: static string init, pointer type mismatch, format variadic
+    rs_interpreted.push("src/test/introspections.til") // TODO FIX: error constructor AllocError() needs _new suffix or struct init
+    rs_interpreted.push("src/test/modes.til") // TODO FIX: static string init not constant, Vec passed as Vec**
     rs_interpreted.push("src/test/todo.til") // permanent TODO, design notes for future features
 
     // Self-hosting interpreter tests
