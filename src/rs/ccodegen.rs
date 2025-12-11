@@ -2488,11 +2488,16 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
             // For mut params (which are pointers in C), use -> for field access
             let is_mut_param = ctx.current_mut_params.contains(name);
             if is_mut_param && !expr.params.is_empty() {
-                // Mut param with field access: (*til_self).field or til_self->field
+                // Mut param with field access: til_self->field1.field2.field3
+                // First field uses -> (self is a pointer), rest use . (struct values)
                 output.push_str(&til_name(name));
-                for param in &expr.params {
+                for (i, param) in expr.params.iter().enumerate() {
                     if let NodeType::Identifier(field) = &param.node_type {
-                        output.push_str("->");
+                        if i == 0 {
+                            output.push_str("->");
+                        } else {
+                            output.push_str(".");
+                        }
                         output.push_str(field);
                     }
                 }

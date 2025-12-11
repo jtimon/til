@@ -667,13 +667,13 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/enums.til") // TODO FIX: enum payload field has incomplete type
     rs_interpreted.push("src/test/errors.til") // compiles but runtime assertion fails (loc() path differs)
     rs_interpreted.push("src/test/forward_declarations.til") // TODO FIX: enum constructors emitted as function calls not struct init
-    rs_interpreted.push("src/test/lists.til") // TODO FIX: Vec field (self->type_names) needs pointer not value
-    rs_interpreted.push("src/test/maps.til") // TODO FIX: Dynamic param expects void* but Str passed
+    rs_interpreted.push("src/test/lists.til") // TODO FIX: Vec field (self->type_names) needs pointer not value for Vec_push call
+    rs_interpreted.push("src/test/maps.til") // TODO FIX: Dynamic param expects void* but Str passed to Map_position
     rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: eval ERROR Missing arena index for return value 'false'
-    rs_interpreted.push("src/test/sets.til") // TODO FIX: nested field access on self.elements->ptr/len, or() with no args, struct init vs func call
-    rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: Str range comparisons (<=), variadic and() with no args
-    rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload incomplete type, Str range comparisons, and() with no args
-    rs_interpreted.push("src/test/ufcs.til") // TODO FIX: throwing functions in struct initializers (get_substr, Vec.new)
+    rs_interpreted.push("src/test/sets.til") // TODO FIX: or() with no args
+    rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: Str range comparisons (<=)
+    rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload incomplete type (Declaration), Str range comparisons (<=)
+    rs_interpreted.push("src/test/ufcs.til") // TODO FIX: throwing functions in struct initializers (Vec.new in struct init)
     rs_interpreted.push("src/test/vecs.til") // TODO FIX: compiles but fails at runtime - compiled doesn't throw IndexOutOfBoundsError on bad index
     // precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     rs_interpreted.push("src/test/precomp_throw.til")

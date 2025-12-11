@@ -3012,7 +3012,8 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
         // For mut params (which are pointers in C), use -> for field access
         mut is_mut_param := ctx.current_mut_params.contains(name)
         if is_mut_param.and(gt(expr.params.len(), 0)) {
-            // Mut param with field access: til_self->field
+            // Mut param with field access: til_self->field1.field2.field3
+            // First field uses -> (self is a pointer), rest use . (struct values)
             mut result := concat(output, til_name(name))
             mut i := 0
             while lt(i, expr.params.len()) {
@@ -3020,7 +3021,11 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
                 expr.params.get(i, param)
                 switch param.node_type {
                 case NodeType.Identifier(field):
-                    result = result.concat("->")
+                    if i.eq(0) {
+                        result = result.concat("->")
+                    } else {
+                        result = result.concat(".")
+                    }
                     result = result.concat(field)
                 case:
                     // Not a field access
