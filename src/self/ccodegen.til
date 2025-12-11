@@ -41,8 +41,8 @@ CodegenContext := struct {
     mut current_throw_types: Vec = Vec.new(ValueType)
     // Currently generating function's return types (if any)
     mut current_return_types: Vec = Vec.new(ValueType)
-    // Set of declared variable names in current function (to avoid redefinition) - Vec<Str>
-    mut declared_vars: Vec = Vec.new(Str)
+    // Set of declared variable names in current function (to avoid redefinition)
+    mut declared_vars: Set = Set.new(Str)
     // Set of mut param names in current function - for using -> instead of . for field access
     mut current_mut_params: Vec = Vec.new(Str)
     // Map of variadic param names to their element type (e.g., "args" -> "til_Bool")
@@ -176,11 +176,9 @@ get_type_arg_name := func(expr: Expr, context: Context) returns TypeArgResult {
     return result
 }
 
-// Add a variable to declared_vars (if not already present)
+// Add a variable to declared_vars
 add_var_declared := proc(mut ctx: CodegenContext, name: Str) throws AllocError {
-    if not(ctx.declared_vars.contains(name)) {
-        ctx.declared_vars.push(name)
-    }
+    _ := ctx.declared_vars.insert(name)
 }
 
 // Result type for receiver type lookup
@@ -1505,7 +1503,7 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             catch (err: DuplicatedKeyError) { }  // Ignore duplicates
 
                             // Clear declared_vars for new function scope
-                            ctx.declared_vars = Vec.new(Str)
+                            ctx.declared_vars = Set.new(Str)
                             catch (err: AllocError) { throw err.msg }
 
                             // Use emit_func_signature with mangled name
@@ -1991,7 +1989,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 ctx.current_variadic_params = Map.new(Str, Str)
 
                 // Clear declared_vars for new function scope
-                ctx.declared_vars = Vec.new(Str)
+                ctx.declared_vars = Set.new(Str)
                 // Check for variadic parameter and track mut params
                 mut arg_idx := 0
                 while lt(arg_idx, func_def.args.len()) {
@@ -3260,9 +3258,9 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
         mut is_mut := false
         if lookup_result.found {
             if lt(pi, lookup_result.func_def.args.len()) {
-                mut arg_info := FuncArg()
-                lookup_result.func_def.args.get(pi, arg_info)
-                is_mut = arg_info.is_mut
+                mut arg_decl := Declaration()
+                lookup_result.func_def.args.get(pi, arg_decl)
+                is_mut = arg_decl.is_mut
             }
         }
         param_is_mut.push(is_mut)
@@ -3281,11 +3279,11 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             ai = add(ai, 1)
         }
         mut hoisted_vec := hoist_throwing_args(args, result, indent, ctx, context)
-        result = hoisted_vec.output
+        // Convert Vec<HoistedArg> to Map<I64, Str>
         mut hi := 0
-        while lt(hi, hoisted_vec.hoisted.len()) {
+        while lt(hi, hoisted_vec.len()) {
             mut entry := HoistedArg()
-            hoisted_vec.hoisted.get(hi, entry)
+            hoisted_vec.get(hi, entry)
             hoisted.set(entry.index, entry.temp_var)
             hi = add(hi, 1)
         }
@@ -3300,9 +3298,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
         variadic_args.push(arg)
         vai = add(vai, 1)
     }
-    mut variadic_result := hoist_variadic_args(elem_type, variadic_args, hoisted, regular_count, result, indent, ctx, context)
-    result = variadic_result.output
-    mut variadic_arr_var := variadic_result.arr_var
+    mut variadic_arr_var := hoist_variadic_args(elem_type, variadic_args, hoisted, regular_count, result, indent, ctx, context)
 
     // Determine return type if we need to declare a variable
     mut ret_type := "int"
@@ -3361,7 +3357,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
             }
         }
-        ctx.declared_vars.set(til_name(decl_name), true)
+        _ := ctx.declared_vars.insert(til_name(decl_name))
     } else {
         if gt(assign_name.len(), 0) {
             // Assignment
@@ -3433,7 +3429,6 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
-    catch (err: KeyNotFoundError) { /* ignore */ }
 
     return result
 }
@@ -3534,9 +3529,17 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     catch (err: AllocError) { throw "emit_throwing_call: AllocError in param_is_mut" }
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
-    mut hoisted := Vec.new(HoistedArg)
+    mut hoisted := Map.new(I64, Str)
     if gt(fcall.params.len(), 1) {
-        hoisted = hoist_throwing_args(fcall.params, result, indent, ctx, context)
+        mut hoisted_vec := hoist_throwing_args(fcall.params, result, indent, ctx, context)
+        // Convert Vec<HoistedArg> to Map<I64, Str>
+        mut hvi := 0
+        while lt(hvi, hoisted_vec.len()) {
+            mut entry := HoistedArg()
+            hoisted_vec.get(hvi, entry)
+            hoisted.set(entry.index, entry.temp_var)
+            hvi = add(hvi, 1)
+        }
     }
     catch (err: AllocError) { throw "emit_throwing_call: AllocError in hoist_throwing_args" }
 
@@ -3548,7 +3551,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         while lt(dh_idx, dynamic_hoisted.len()) {
             mut dh := HoistedArg()
             dynamic_hoisted.get(dh_idx, dh)
-            hoisted.push(dh)
+            hoisted.set(dh.index, dh.temp_var)
             dh_idx = add(dh_idx, 1)
         }
     }
@@ -3678,19 +3681,12 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             fcall.params.get(i, arg)
             mut arg_idx := sub(i, 1)
 
-            // Check if this arg was hoisted
+            // Check if this arg was hoisted (Map lookup)
             mut found_hoisted := false
             mut hoisted_temp := ""
-            mut h_idx := 0
-            while lt(h_idx, hoisted.len()) {
-                mut h := HoistedArg()
-                hoisted.get(h_idx, h)
-                if eq(h.index, arg_idx) {
-                    found_hoisted = true
-                    hoisted_temp = h.temp_var
-                }
-                h_idx = add(h_idx, 1)
-            }
+            hoisted.get(arg_idx, hoisted_temp)
+            found_hoisted = true
+            catch (err: KeyNotFoundError) { }
 
             // Get param type and mutability for this argument
             mut is_dynamic_param := false
@@ -3749,19 +3745,12 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             fcall.params.get(i, arg)
             mut arg_idx := sub(i, 1)
 
-            // Check if this arg was hoisted
+            // Check if this arg was hoisted (Map lookup)
             mut found_hoisted := false
             mut hoisted_temp := ""
-            mut h_idx := 0
-            while lt(h_idx, hoisted.len()) {
-                mut h := HoistedArg()
-                hoisted.get(h_idx, h)
-                if eq(h.index, arg_idx) {
-                    found_hoisted = true
-                    hoisted_temp = h.temp_var
-                }
-                h_idx = add(h_idx, 1)
-            }
+            hoisted.get(arg_idx, hoisted_temp)
+            found_hoisted = true
+            catch (err: KeyNotFoundError) { }
 
             // Get param type for this argument
             mut is_dynamic_param := false
@@ -4017,9 +4006,17 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in param_is_mut" }
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
-    mut hoisted := Vec.new(HoistedArg)
+    mut hoisted := Map.new(I64, Str)
     if gt(fcall.params.len(), 1) {
-        hoisted = hoist_throwing_args(fcall.params, result, indent, ctx, context)
+        mut hoisted_vec := hoist_throwing_args(fcall.params, result, indent, ctx, context)
+        // Convert Vec<HoistedArg> to Map<I64, Str>
+        mut hvi := 0
+        while lt(hvi, hoisted_vec.len()) {
+            mut entry := HoistedArg()
+            hoisted_vec.get(hvi, entry)
+            hoisted.set(entry.index, entry.temp_var)
+            hvi = add(hvi, 1)
+        }
     }
     catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in hoist_throwing_args" }
 
@@ -4031,7 +4028,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         while lt(dh_idx, dynamic_hoisted.len()) {
             mut dh := HoistedArg()
             dynamic_hoisted.get(dh_idx, dh)
-            hoisted.push(dh)
+            hoisted.set(dh.index, dh.temp_var)
             dh_idx = add(dh_idx, 1)
         }
     }
@@ -4163,19 +4160,12 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             fcall.params.get(arg_i, arg)
             mut arg_idx := sub(arg_i, 1)
 
-            // Check if this arg was hoisted
+            // Check if this arg was hoisted (Map lookup)
             mut found_hoisted := false
             mut hoisted_temp := ""
-            mut h_idx := 0
-            while lt(h_idx, hoisted.len()) {
-                mut h := HoistedArg()
-                hoisted.get(h_idx, h)
-                if eq(h.index, arg_idx) {
-                    found_hoisted = true
-                    hoisted_temp = h.temp_var
-                }
-                h_idx = add(h_idx, 1)
-            }
+            hoisted.get(arg_idx, hoisted_temp)
+            found_hoisted = true
+            catch (err: KeyNotFoundError) { }
 
             // Get param type for this argument
             mut is_dynamic_param := false
@@ -4227,19 +4217,12 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             fcall.params.get(i, arg)
             mut arg_idx := sub(i, 1)
 
-            // Check if this arg was hoisted
+            // Check if this arg was hoisted (Map lookup)
             mut found_hoisted := false
             mut hoisted_temp := ""
-            mut h_idx := 0
-            while lt(h_idx, hoisted.len()) {
-                mut h := HoistedArg()
-                hoisted.get(h_idx, h)
-                if eq(h.index, arg_idx) {
-                    found_hoisted = true
-                    hoisted_temp = h.temp_var
-                }
-                h_idx = add(h_idx, 1)
-            }
+            hoisted.get(arg_idx, hoisted_temp)
+            found_hoisted = true
+            catch (err: KeyNotFoundError) { }
 
             // Get param type for this argument
             mut is_dynamic_param := false
@@ -4429,9 +4412,17 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in param_is_mut" }
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
-    mut hoisted := Vec.new(HoistedArg)
+    mut hoisted := Map.new(I64, Str)
     if gt(fcall.params.len(), 1) {
-        hoisted = hoist_throwing_args(fcall.params, result, indent, ctx, context)
+        mut hoisted_vec := hoist_throwing_args(fcall.params, result, indent, ctx, context)
+        // Convert Vec<HoistedArg> to Map<I64, Str>
+        mut hvi := 0
+        while lt(hvi, hoisted_vec.len()) {
+            mut entry := HoistedArg()
+            hoisted_vec.get(hvi, entry)
+            hoisted.set(entry.index, entry.temp_var)
+            hvi = add(hvi, 1)
+        }
     }
     catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in hoist_throwing_args" }
 
@@ -4442,7 +4433,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         while lt(dh_idx, dynamic_hoisted.len()) {
             mut dh := HoistedArg()
             dynamic_hoisted.get(dh_idx, dh)
-            hoisted.push(dh)
+            hoisted.set(dh.index, dh.temp_var)
             dh_idx = add(dh_idx, 1)
         }
     }
@@ -4573,19 +4564,12 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             fcall.params.get(arg_i, arg)
             mut arg_idx := sub(arg_i, 1)
 
-            // Check if this arg was hoisted
+            // Check if this arg was hoisted (Map lookup)
             mut found_hoisted := false
             mut hoisted_temp := ""
-            mut h_idx := 0
-            while lt(h_idx, hoisted.len()) {
-                mut h := HoistedArg()
-                hoisted.get(h_idx, h)
-                if eq(h.index, arg_idx) {
-                    found_hoisted = true
-                    hoisted_temp = h.temp_var
-                }
-                h_idx = add(h_idx, 1)
-            }
+            hoisted.get(arg_idx, hoisted_temp)
+            found_hoisted = true
+            catch (err: KeyNotFoundError) { }
 
             // Get param type for this argument
             mut is_dynamic_param := false
@@ -4637,19 +4621,12 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             fcall.params.get(i, arg)
             mut arg_idx := sub(i, 1)
 
-            // Check if this arg was hoisted
+            // Check if this arg was hoisted (Map lookup)
             mut found_hoisted := false
             mut hoisted_temp := ""
-            mut h_idx := 0
-            while lt(h_idx, hoisted.len()) {
-                mut h := HoistedArg()
-                hoisted.get(h_idx, h)
-                if eq(h.index, arg_idx) {
-                    found_hoisted = true
-                    hoisted_temp = h.temp_var
-                }
-                h_idx = add(h_idx, 1)
-            }
+            hoisted.get(arg_idx, hoisted_temp)
+            found_hoisted = true
+            catch (err: KeyNotFoundError) { }
 
             // Get param type for this argument
             mut is_dynamic_param := false
@@ -5183,7 +5160,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 ctx.current_function_name = mangled_name
                 ctx.current_mut_params = Vec.new(Str)
                 ctx.current_variadic_params = Map.new(Str, Str)
-                ctx.declared_vars = Vec.new(Str)
+                ctx.declared_vars = Set.new(Str)
 
                 // Track mut params and variadic params
                 mut arg_idx := 0
@@ -5524,7 +5501,16 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 if variadic_info.is_variadic {
                     // Variadic call in return - need to hoist it
                     // First, hoist any nested throwing/variadic calls in the arguments
-                    mut hoisted := hoist_throwing_args(return_expr.params, result, indent, ctx, context)
+                    mut hoisted_vec := hoist_throwing_args(return_expr.params, result, indent, ctx, context)
+                    // Convert Vec<HoistedArg> to Map<I64, Str>
+                    mut hoisted := Map.new(I64, Str)
+                    mut hvi := 0
+                    while lt(hvi, hoisted_vec.len()) {
+                        mut entry := HoistedArg()
+                        hoisted_vec.get(hvi, entry)
+                        hoisted.set(entry.index, entry.temp_var)
+                        hvi = add(hvi, 1)
+                    }
                     catch (err: AllocError) { throw "emit_return: AllocError in hoist_throwing_args" }
 
                     mut variadic_args := Vec.new(Expr)
@@ -5615,7 +5601,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
 // Emit a throwing function call's name and arguments for hoisting
 // If variadic_arr_var is non-empty, use that pre-constructed array instead of building one
-emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_suffix: Str, throw_types: Vec, nested_hoisted: Vec, variadic_arr_var: Str, mut output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_suffix: Str, throw_types: Vec, nested_hoisted: Map, variadic_arr_var: Str, mut output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     if lt(expr.params.len(), 1) {
         throw "emit_fcall_name_and_args_for_throwing: FCall with no params"
     }
@@ -5785,20 +5771,15 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
     mut i := 1
     while lt(i, expr.params.len()) {
         output = output.concat(", ")
-        // Check if this arg was hoisted
+        // Check if this arg was hoisted (Map lookup)
+        mut hoisted_var := ""
         mut found_hoisted := false
-        mut j := 0
-        while lt(j, nested_hoisted.len()) {
-            mut hoisted_arg := HoistedArg()
-            nested_hoisted.get(j, hoisted_arg)
-            if eq(hoisted_arg.index, arg_idx) {
-                output = output.concat(hoisted_arg.temp_var)
-                found_hoisted = true
-            }
-            j = add(j, 1)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-        }
-        if not(found_hoisted) {
+        nested_hoisted.get(arg_idx, hoisted_var)
+        found_hoisted = true
+        catch (err: KeyNotFoundError) { }
+        if found_hoisted {
+            output = output.concat(hoisted_var)
+        } else {
             mut arg := Expr()
             expr.params.get(i, arg)
             output = emit_expr(arg, output, 0, ctx, context)
@@ -5837,9 +5818,17 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
         // Handle throwing calls (may also be variadic)
         if throwing_info.is_throwing {
             // RECURSIVELY hoist any throwing calls in this call's arguments first
-            mut nested_hoisted := Vec.new(HoistedArg)
+            mut nested_hoisted := Map.new(I64, Str)
             if gt(arg.params.len(), 1) {
-                nested_hoisted = hoist_throwing_args(arg.params, output, indent, ctx, context)
+                mut nested_vec := hoist_throwing_args(arg.params, output, indent, ctx, context)
+                // Convert Vec<HoistedArg> to Map<I64, Str>
+                mut nhi := 0
+                while lt(nhi, nested_vec.len()) {
+                    mut entry := HoistedArg()
+                    nested_vec.get(nhi, entry)
+                    nested_hoisted.set(entry.index, entry.temp_var)
+                    nhi = add(nhi, 1)
+                }
             }
 
             mut temp_var := next_mangled()
@@ -5977,9 +5966,17 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
         // Handle non-throwing variadic calls
         else if variadic_info.is_variadic {
             // RECURSIVELY hoist any throwing/variadic calls in this call's arguments first
-            mut nested_hoisted := Vec.new(HoistedArg)
+            mut nested_hoisted := Map.new(I64, Str)
             if gt(arg.params.len(), 1) {
-                nested_hoisted = hoist_throwing_args(arg.params, output, indent, ctx, context)
+                mut nested_vec := hoist_throwing_args(arg.params, output, indent, ctx, context)
+                // Convert Vec<HoistedArg> to Map<I64, Str>
+                mut nhi := 0
+                while lt(nhi, nested_vec.len()) {
+                    mut entry := HoistedArg()
+                    nested_vec.get(nhi, entry)
+                    nested_hoisted.set(entry.index, entry.temp_var)
+                    nhi = add(nhi, 1)
+                }
             }
 
             mut temp_var := next_mangled()
@@ -6036,19 +6033,15 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                     output = output.concat(", ")
                 }
                 first = false
-                // Check if this arg was hoisted
+                // Check if this arg was hoisted (Map lookup)
                 mut found_hoisted := false
-                mut hi := 0
-                while lt(hi, nested_hoisted.len()) {
-                    mut h := HoistedArg()
-                    nested_hoisted.get(hi, h)
-                    if eq(h.index, ri) {
-                        output = output.concat(h.temp_var)
-                        found_hoisted = true
-                    }
-                    hi = add(hi, 1)
-                }
-                if not(found_hoisted) {
+                mut hoisted_temp := ""
+                nested_hoisted.get(ri, hoisted_temp)
+                found_hoisted = true
+                catch (err: KeyNotFoundError) { }
+                if found_hoisted {
+                    output = output.concat(hoisted_temp)
+                } else {
                     mut param := Expr()
                     arg.params.get(add(ri, 1), param)
                     output = emit_expr(param, output, 0, ctx, context)
@@ -6106,7 +6099,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
 // Hoist non-lvalue args (string literals, function calls) when the param type is Dynamic
 // Returns additional hoisted args to merge with throwing hoists
-hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str, AllocError {
+hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: Map, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str, AllocError {
     mut hoisted := Vec.new(HoistedArg)
     mut indent_str := ""
     mut ind := 0
@@ -6120,17 +6113,12 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: V
         mut arg := Expr()
         args.get(idx, arg)
 
-        // Skip if already hoisted by throwing args hoister
+        // Skip if already hoisted by throwing args hoister (Map lookup)
         mut already := false
-        mut j := 0
-        while lt(j, already_hoisted.len()) {
-            mut h := HoistedArg()
-            already_hoisted.get(j, h)
-            if eq(h.index, idx) {
-                already = true
-            }
-            j = add(j, 1)
-        }
+        mut tmp := ""
+        already_hoisted.get(idx, tmp)
+        already = true
+        catch (err: KeyNotFoundError) { }
 
         if not(already) {
             // Check if param type is Dynamic
@@ -6235,7 +6223,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: V
 
 // Hoist variadic arguments into a til_Array
 // Returns the array variable name
-hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted: Vec, regular_count: I64, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str, AllocError {
+hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted: Map, regular_count: I64, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str, AllocError {
     mut indent_str := ""
     mut ind := 0
     while lt(ind, indent) {
@@ -6276,20 +6264,12 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         variadic_args.get(i, arg)
         mut hoisted_idx := add(regular_count, i)
 
-        // Check if already hoisted
+        // Check if already hoisted (Map lookup)
         mut found_hoisted := false
         mut temp := ""
-        mut j := 0
-        while lt(j, already_hoisted.len()) {
-            mut h := HoistedArg()
-            already_hoisted.get(j, h)
-            if eq(h.index, hoisted_idx) {
-                found_hoisted = true
-                temp = h.temp_var
-            }
-            j = add(j, 1)
-        }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        already_hoisted.get(hoisted_idx, temp)
+        found_hoisted = true
+        catch (err: KeyNotFoundError) { }
 
         if found_hoisted {
             arg_temps.push(temp)
@@ -6707,7 +6687,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 vi = add(vi, 1)
             }
             // Use empty hoisted map since we're not hoisting args here
-            mut empty_hoisted := Vec.new(HoistedArg)
+            mut empty_hoisted := Map.new(I64, Str)
             variadic_arr_var = hoist_variadic_args(variadic_info.elem_type, variadic_args, empty_hoisted, variadic_info.regular_count, result, indent, ctx, context)
             has_variadic_arr = true
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -6827,7 +6807,7 @@ emit_identifier_without_nested := proc(expr: Expr, output: Str) returns Str thro
 // Helper to emit a Str compound literal: ((til_Str){(til_I64)"...", len})
 // This is valid in both constant initializers and expressions (unlike til_Str_from_literal)
 emit_str_literal := proc(s: Str, output: Str) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
-    return format(output, "((", TIL_PREFIX, "Str){(", TIL_PREFIX, "I64)\"", s, "\", ", I64_to_str(s.len()), "})")
+    return format(output, "((", TIL_PREFIX, "Str){(", TIL_PREFIX, "I64)\"", s, "\", ", s.len().to_str(), "})")
 }
 
 emit_literal := proc(lit: Literal, output: Str, context: Context) returns Str throws Str {
