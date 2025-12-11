@@ -3870,7 +3870,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     let already_declared = ctx.declared_vars.contains(name);
 
     if let Some(type_name) = struct_type {
-        // Struct variable declaration with default values
+        // Struct variable declaration with values (defaults or named args)
         output.push_str(&indent_str);
         if !already_declared {
             if !is_mut {
@@ -3882,6 +3882,18 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         }
         output.push_str(&til_name(name));
 
+        // Build map of named arg values from struct literal
+        let mut named_values: std::collections::HashMap<String, &Expr> = std::collections::HashMap::new();
+        if !expr.params.is_empty() {
+            for arg in expr.params[0].params.iter().skip(1) {
+                if let NodeType::NamedArg(field_name) = &arg.node_type {
+                    if let Some(value_expr) = arg.params.first() {
+                        named_values.insert(field_name.clone(), value_expr);
+                    }
+                }
+            }
+        }
+
         // Look up struct definition to get default values
         // Clone to avoid borrow issues with emit_expr
         let struct_def_opt = context.scope_stack.lookup_struct(&type_name).cloned();
@@ -3889,11 +3901,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             if struct_def.members.is_empty() {
                 // Empty struct - use empty initializer
                 output.push_str(" = {};\n");
-            } else if struct_def.default_values.is_empty() {
-                // No defaults - zero initialize
+            } else if struct_def.default_values.is_empty() && named_values.is_empty() {
+                // No defaults and no named args - zero initialize
                 output.push_str(" = {0};\n");
             } else {
-                // Has default values - emit designated initializer
+                // Has default values or named args - emit designated initializer
                 output.push_str(" = {");
                 let mut first = true;
                 for member in &struct_def.members {
@@ -3909,7 +3921,10 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     output.push_str(".");
                     output.push_str(&member.name);
                     output.push_str(" = ");
-                    if let Some(default_expr) = struct_def.default_values.get(&member.name) {
+                    // Use named arg value if provided, otherwise use default
+                    if let Some(value_expr) = named_values.get(&member.name) {
+                        emit_expr(value_expr, output, 0, ctx, context)?;
+                    } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
                         emit_expr(default_expr, output, 0, ctx, context)?;
                     } else {
                         // No default - use zero
@@ -3986,18 +4001,23 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     Ok(())
 }
 
-// Check if an expression is a struct construction call (TypeName())
+// Check if an expression is a struct construction call (TypeName() or TypeName(x=1, y=2))
 // Returns the type name if it is, None otherwise
+// Note: This function doesn't have access to Context, so it uses a heuristic.
+// The caller should verify with lookup_struct when needed.
 fn get_struct_construction_type(expr: &Expr) -> Option<String> {
     if let NodeType::FCall = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::Identifier(name) = &expr.params[0].node_type {
-                // If it's a PascalCase identifier with no nested params and no other args, assume struct
-                // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
+                // Check if it's a PascalCase identifier with no nested params
+                // and either no args or only named args (struct literal)
                 if name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
-                    && expr.params.len() == 1
                     && expr.params[0].params.is_empty() {
-                    return Some(name.clone());
+                    let only_named_args = expr.params.len() == 1 ||
+                        expr.params.iter().skip(1).all(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
+                    if only_named_args {
+                        return Some(name.clone());
+                    }
                 }
             }
         }
@@ -4512,11 +4532,12 @@ fn emit_fcall_with_hoisted(
         None => return Err("emit_fcall_with_hoisted: FCall first param not Identifier".to_string()),
     };
 
-    // Check for struct construction: TypeName() -> (til_TypeName){defaults...}
-    // Struct names are PascalCase, no nested identifiers, no args
+    // Check for struct construction: TypeName() or TypeName(x=10, y=20)
+    // Struct names are PascalCase, no nested identifiers
+    let has_named_args = expr.params.iter().skip(1).any(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
     if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
         && !func_name.contains('_')  // Not a Type_method call
-        && expr.params.len() == 1    // No constructor args
+        && (expr.params.len() == 1 || has_named_args)  // No args OR only named args (struct literal)
     {
         output.push_str("(");
         output.push_str(TIL_PREFIX);
@@ -4529,6 +4550,16 @@ fn emit_fcall_with_hoisted(
             if struct_def.members.is_empty() || struct_def.default_values.is_empty() {
                 output.push_str("{}");
             } else {
+                // Build map of named arg values
+                let mut named_values: std::collections::HashMap<String, &Expr> = std::collections::HashMap::new();
+                for arg in expr.params.iter().skip(1) {
+                    if let NodeType::NamedArg(field_name) = &arg.node_type {
+                        if let Some(value_expr) = arg.params.first() {
+                            named_values.insert(field_name.clone(), value_expr);
+                        }
+                    }
+                }
+
                 output.push_str("{");
                 let mut first = true;
                 for member in &struct_def.members {
@@ -4542,7 +4573,10 @@ fn emit_fcall_with_hoisted(
                     output.push_str(".");
                     output.push_str(&member.name);
                     output.push_str(" = ");
-                    if let Some(default_expr) = struct_def.default_values.get(&member.name) {
+                    // Use named arg value if provided, otherwise use default
+                    if let Some(value_expr) = named_values.get(&member.name) {
+                        emit_expr(value_expr, output, 0, ctx, context)?;
+                    } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
                         emit_expr(default_expr, output, 0, ctx, context)?;
                     } else {
                         output.push_str("0");
@@ -4968,6 +5002,58 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     }
 
     // Named args are already reordered by precomp, so no reordering needed here
+
+    // Check for struct literal: TypeName(field=value, ...) -> (til_TypeName){.field = value, ...}
+    // Uses lookup_struct to properly identify struct types (like interpreter.rs)
+    let has_named_args = expr.params.iter().skip(1).any(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
+    if has_named_args {
+        if let Some(struct_def) = context.scope_stack.lookup_struct(&func_name).cloned() {
+            // Emit C compound literal: (til_TypeName){.field1 = val1, .field2 = val2, ...}
+            output.push_str("(");
+            output.push_str(TIL_PREFIX);
+            output.push_str(&func_name);
+            output.push_str(")");
+
+            // Build map of named arg values
+            let mut named_values: std::collections::HashMap<String, &Expr> = std::collections::HashMap::new();
+            for arg in expr.params.iter().skip(1) {
+                if let NodeType::NamedArg(field_name) = &arg.node_type {
+                    if let Some(value_expr) = arg.params.first() {
+                        named_values.insert(field_name.clone(), value_expr);
+                    }
+                }
+            }
+
+            if struct_def.members.is_empty() || struct_def.default_values.is_empty() {
+                output.push_str("{}");
+            } else {
+                output.push_str("{");
+                let mut first = true;
+                for member in &struct_def.members {
+                    if !member.is_mut {
+                        continue;
+                    }
+                    if !first {
+                        output.push_str(", ");
+                    }
+                    first = false;
+                    output.push_str(".");
+                    output.push_str(&member.name);
+                    output.push_str(" = ");
+                    // Use named arg value if provided, otherwise use default
+                    if let Some(value_expr) = named_values.get(&member.name) {
+                        emit_expr(value_expr, output, 0, ctx, context)?;
+                    } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
+                        emit_expr(default_expr, output, 0, ctx, context)?;
+                    } else {
+                        output.push_str("0");
+                    }
+                }
+                output.push_str("}");
+            }
+            return Ok(());
+        }
+    }
 
     let indent_str = "    ".repeat(indent);
 

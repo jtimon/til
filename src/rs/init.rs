@@ -348,11 +348,16 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 let after_dot = match id_expr.params.get(0) {
                     Some(_after_dot) => _after_dot,
                     None => {
-                        // Default constructor: MyStruct() - no arguments allowed
+                        // Constructor: MyStruct() or MyStruct(field=value, ...)
+                        // Check that all args are NamedArg (struct literals require named args)
                         if e.params.len() > 1 {
-                            return Err(e.todo_error(&context.path, "type", &format!(
-                                "Cannot call struct '{}' with arguments. The only supported constructor is the default constructor '{}()'. \
-                                Define a custom constructor like '{}.new(...)' if you need to pass arguments.", f_name, f_name, f_name)));
+                            for arg in e.params.iter().skip(1) {
+                                if !matches!(&arg.node_type, NodeType::NamedArg(_)) {
+                                    return Err(arg.error(&context.path, "type", &format!(
+                                        "Struct literal '{}' requires named arguments (e.g., {}(x=10, y=20)). Positional arguments are not allowed.",
+                                        f_name, f_name)));
+                                }
+                            }
                         }
                         return Ok(ValueType::TCustom(f_name.clone()));
                     },

@@ -553,32 +553,136 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
     // Check if this is a struct instantiation
     mut is_struct := false
-    _ := context.scope_stack.lookup_struct(name)
+    mut struct_def := SStructDef()
+    struct_def = context.scope_stack.lookup_struct(name)
     is_struct = true
     catch (err: KeyNotFoundError) {
         // is_struct stays false - struct not found
     }
     if is_struct {
-        // TODO allow instantiations with arguments
         id_expr := e.get(0)
         if id_expr.params.len().eq(0) {
-            mut id_name := ""
-            switch id_expr.node_type {
-            case NodeType.Identifier(s):
-                id_name = s
-            case:
-                throw e.todo_error(context.path, "eval", "Expected identifier name for struct instantiation")
+            // Clone struct members to avoid issues
+            struct_members := struct_def.members.clone()
+
+            // Check if this is a struct literal (has named args) or default constructor
+            mut has_named_args := false
+            mut i := 1
+            while i.lt(e.params.len()) {
+                mut arg := Expr()
+                e.params.get(i, arg)
+                switch arg.node_type {
+                case NodeType.NamedArg(_):
+                    has_named_args = true
+                case:
+                }
+                i = i.add(1)
             }
-            insert_struct_instance(context, id_name, name, e)
-            mut result_val := id_name
-            if id_name.eq("U8") {
-                result_val = "0"
-            } else if id_name.eq("I64") {
-                result_val = "0"
-            } else if id_name.eq("Str") {
-                result_val = ""
+
+            if has_named_args {
+                // Struct literal: Vec2(x=10, y=20)
+                // Create a temp instance, set field values, return temp name
+                temp_id := arena.temp_id_counter
+                arena.temp_id_counter = arena.temp_id_counter.add(1)
+                temp_name := format(RETURN_INSTANCE_NAME, I64.to_str(temp_id))
+
+                // Declare the temp symbol
+                context.scope_stack.declare_symbol(temp_name.clone(), SymbolInfo.new(ValueType.TCustom(name.clone()), true, false, false))
+
+                // Create struct instance with default values
+                insert_struct_instance(context, temp_name.clone(), name, e)
+
+                // Process named arguments to override field values
+                mut j := 1
+                while j.lt(e.params.len()) {
+                    mut arg := Expr()
+                    e.params.get(j, arg)
+                    mut field_name := ""
+                    mut is_named_arg := false
+                    switch arg.node_type {
+                    case NodeType.NamedArg(fname):
+                        field_name = fname
+                        is_named_arg = true
+                    case:
+                        // Not a named arg, skip
+                    }
+
+                    if is_named_arg {
+                        // Find the field type in the struct definition
+                        mut field_type := ValueType.TCustom("")
+                        mut found_field := false
+                        mut k := 0
+                        while k.lt(struct_members.len()) {
+                            mut member := Declaration()
+                            struct_members.get(k, member)
+                            if member.name.eq(field_name) {
+                                field_type = member.value_type
+                                found_field = true
+                            }
+                            k = k.add(1)
+                        }
+                        if not(found_field) {
+                            throw arg.error(context.path, "eval", format("Field '", field_name, "' not found in struct '", name, "'"))
+                        }
+
+                        // Evaluate the value expression
+                        value_expr := arg.get(0)
+                        value_result := eval_expr(context, value_expr)
+                        if value_result.is_throw {
+                            return value_result
+                        }
+
+                        // Set the field value based on its type
+                        field_id := format(temp_name, ".", field_name)
+                        switch field_type {
+                        case ValueType.TCustom(type_name):
+                            if type_name.eq("I64") {
+                                Arena.insert_i64(context, field_id.clone(), value_result.value.clone(), arg)
+                            } else if type_name.eq("U8") {
+                                Arena.insert_u8(context, field_id.clone(), value_result.value.clone(), arg)
+                            } else if type_name.eq("Str") {
+                                Arena.insert_string(context, field_id.clone(), value_result.value.clone(), arg)
+                            } else {
+                                // Could be enum or nested struct
+                                custom_symbol := context.scope_stack.lookup_symbol(type_name.clone())
+                                switch custom_symbol.value_type {
+                                case ValueType.TType(TTypeDef.TEnumDef):
+                                    _ := Arena.insert_enum(context, field_id.clone(), type_name.clone(), value_result.value.clone(), arg)
+                                case ValueType.TType(TTypeDef.TStructDef):
+                                    Arena.copy_fields(context, type_name.clone(), value_result.value.clone(), field_id.clone(), arg)
+                                case:
+                                    throw arg.error(context.path, "eval", format("Unsupported field type '", type_name, "' for field '", field_name, "'"))
+                                }
+                            }
+                        case:
+                            throw arg.error(context.path, "eval", format("Unsupported field type for field '", field_name, "'"))
+                        }
+                    } // end if is_named_arg
+
+                    j = j.add(1)
+                }
+
+                return EvalResult.new(temp_name)
+            } else {
+                // Default constructor: Vec2()
+                mut id_name := ""
+                switch id_expr.node_type {
+                case NodeType.Identifier(s):
+                    id_name = s
+                case:
+                    throw e.todo_error(context.path, "eval", "Expected identifier name for struct instantiation")
+                }
+                insert_struct_instance(context, id_name, name, e)
+                mut result_val := id_name
+                if id_name.eq("U8") {
+                    result_val = "0"
+                } else if id_name.eq("I64") {
+                    result_val = "0"
+                } else if id_name.eq("Str") {
+                    result_val = ""
+                }
+                return EvalResult.new(result_val)
             }
-            return EvalResult.new(result_val)
         }
     }
 

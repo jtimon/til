@@ -708,20 +708,102 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
         None => return Err(e.lang_error(&context.path, "eval", "eval_func_proc_call: Expected FCall with at least one param for the Identifier")),
     };
 
-    if context.scope_stack.lookup_struct(name).is_some() {
-        // TODO allow instantiations with arguments
+    if let Some(struct_def) = context.scope_stack.lookup_struct(name) {
         let id_expr = e.get(0)?;
         if id_expr.params.len() == 0 {
-            let id_name = match &id_expr.node_type {
-                NodeType::Identifier(s) => s,
-                _ => return Err(e.todo_error(&context.path, "eval", "Expected identifier name for struct instantiation")),
-            };
-            insert_struct_instance(context, &id_name, &name, e)?;
-            return Ok(EvalResult::new(match id_name.as_str() {
-                "U8" | "I64" => "0",
-                "Str" => "",
-                _ => id_name,
-            }))
+            // Clone struct members to avoid borrow issues
+            let struct_members = struct_def.members.clone();
+
+            // Check if this is a struct literal (has named args) or default constructor
+            let has_named_args = e.params.iter().skip(1).any(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
+
+            if has_named_args {
+                // Struct literal: Vec2(x=10, y=20)
+                // Create a temp instance, set field values, return temp name
+                let temp_id = Arena::g().temp_id_counter;
+                Arena::g().temp_id_counter += 1;
+                let temp_name = format!("{}{}", RETURN_INSTANCE_NAME, temp_id);
+
+                // Declare the temp symbol
+                context.scope_stack.declare_symbol(temp_name.to_string(), SymbolInfo {
+                    value_type: ValueType::TCustom(name.to_string()),
+                    is_mut: true,
+                    is_copy: false,
+                    is_own: false,
+                    is_comptime_const: false,
+                });
+
+                // Create struct instance with default values
+                insert_struct_instance(context, &temp_name, &name, e)?;
+
+                // Process named arguments to override field values
+                for arg in e.params.iter().skip(1) {
+                    if let NodeType::NamedArg(field_name) = &arg.node_type {
+                        // Find the field type in the struct definition
+                        let field_decl = struct_members.iter()
+                            .find(|f| f.name == *field_name)
+                            .ok_or_else(|| arg.error(&context.path, "eval",
+                                &format!("Field '{}' not found in struct '{}'", field_name, name)))?;
+                        let field_type = field_decl.value_type.clone();
+
+                        // Evaluate the value expression
+                        let value_expr = arg.get(0)?;
+                        let value_result = eval_expr(context, value_expr)?;
+                        if value_result.is_throw {
+                            return Ok(value_result);
+                        }
+
+                        // Set the field value based on its type
+                        let field_id = format!("{}.{}", temp_name, field_name);
+                        match &field_type {
+                            ValueType::TCustom(type_name) => {
+                                match type_name.as_str() {
+                                    "I64" | "U8" | "Str" => {
+                                        Arena::insert_primitive(context, &field_id, &field_type, &value_result.value, arg)?;
+                                    },
+                                    _ => {
+                                        // Could be enum or nested struct
+                                        let custom_symbol = context.scope_stack.lookup_symbol(&type_name)
+                                            .ok_or_else(|| arg.error(&context.path, "eval",
+                                                &format!("Unknown type '{}' for field '{}'", type_name, field_name)))?;
+                                        let custom_value_type = custom_symbol.value_type.clone();
+                                        match &custom_value_type {
+                                            ValueType::TType(TTypeDef::TEnumDef) => {
+                                                Arena::insert_enum(context, &field_id, &type_name, &value_result.value, arg)?;
+                                            },
+                                            ValueType::TType(TTypeDef::TStructDef) => {
+                                                Arena::copy_fields(context, &type_name, &value_result.value, &field_id, arg)?;
+                                            },
+                                            _ => {
+                                                return Err(arg.error(&context.path, "eval",
+                                                    &format!("Unsupported field type '{}' for field '{}'", type_name, field_name)));
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            _ => {
+                                return Err(arg.error(&context.path, "eval",
+                                    &format!("Unsupported field type for field '{}'", field_name)));
+                            }
+                        }
+                    }
+                }
+
+                return Ok(EvalResult::new(&temp_name));
+            } else {
+                // Default constructor: Vec2()
+                let id_name = match &id_expr.node_type {
+                    NodeType::Identifier(s) => s,
+                    _ => return Err(e.todo_error(&context.path, "eval", "Expected identifier name for struct instantiation")),
+                };
+                insert_struct_instance(context, &id_name, &name, e)?;
+                return Ok(EvalResult::new(match id_name.as_str() {
+                    "U8" | "I64" => "0",
+                    "Str" => "",
+                    _ => id_name,
+                }))
+            }
         }
     }
 

@@ -642,13 +642,24 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
 
         // Check if there's a member access after the struct name
         if id_expr.params.len().eq(0) {
-            // Default constructor: MyStruct() - no arguments allowed
+            // Constructor: MyStruct() or MyStruct(field=value, ...)
+            // Check that all args are NamedArg (struct literals require named args)
             if e.params.len().gt(1) {
-                throw e.todo_error(context.path, "type", format(
-                    "Cannot call struct '", f_name, "' with arguments. The only supported constructor is the default constructor '", f_name, "()'. ",
-                    "Define a custom constructor like '", f_name, ".new(...)' if you need to pass arguments."))
+                mut arg_idx := 1
+                while arg_idx.lt(e.params.len()) {
+                    mut arg := Expr()
+                    e.params.get(arg_idx, arg)
+                    switch arg.node_type {
+                    case NodeType.NamedArg(_):
+                        // OK - named arg is allowed
+                    case:
+                        throw arg.error(context.path, "type", format(
+                            "Struct literal '", f_name, "' requires named arguments (e.g., ", f_name, "(x=10, y=20)). Positional arguments are not allowed."))
+                    }
+                    arg_idx = arg_idx.add(1)
+                }
             }
-            // Just "StructName()" - constructor call
+            // Just "StructName()" or "StructName(field=value, ...)" - constructor call
             return ValueType.TCustom(f_name)
         }
 

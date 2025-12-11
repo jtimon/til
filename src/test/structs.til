@@ -307,3 +307,41 @@ test_associated_function_names := proc() {
     assert_eq(loc(), 52, TestAssociatedFunctions.add_with_instance_middle(5, obj, 5))
 }
 test_associated_function_names()
+
+// === Struct Literals Tests ===
+// Struct instantiation with named field values
+
+test_struct_literals := proc() {
+    // Default constructor (already works)
+    p1 := Vec2()
+    assert_eq(loc(), 0, p1.x)
+    assert_eq(loc(), 0, p1.y)
+
+    // Struct literal with all fields
+    p2 := Vec2(x=10, y=20)
+    assert_eq(loc(), 10, p2.x)
+    assert_eq(loc(), 20, p2.y)
+
+    // Partial struct literal (uses defaults for omitted fields)
+    p3 := Vec2(y=5)
+    assert_eq(loc(), 0, p3.x)
+    assert_eq(loc(), 5, p3.y)
+
+    // Struct literal with fields in different order
+    p4 := Vec2(y=100, x=50)
+    assert_eq(loc(), 50, p4.x)
+    assert_eq(loc(), 100, p4.y)
+
+    // Vec3 with partial fields
+    v3 := Vec3(z=42)
+    assert_eq(loc(), 0, v3.x)
+    assert_eq(loc(), 0, v3.y)
+    assert_eq(loc(), 42, v3.z)
+
+    // All fields for Vec3
+    v3b := Vec3(x=1, y=2, z=3)
+    assert_eq(loc(), 1, v3b.x)
+    assert_eq(loc(), 2, v3b.y)
+    assert_eq(loc(), 3, v3b.z)
+}
+test_struct_literals()
