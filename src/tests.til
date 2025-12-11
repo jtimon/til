@@ -4,7 +4,7 @@ import("std.sys")
 import("std.io")
 import("modes.test")
 
-// tests2.til - TIL test runner
+// tests.til - TIL test runner
 // Runs compiled tests and compares output against .out files
 
 // .out file format:
@@ -13,9 +13,14 @@ import("modes.test")
 // output:
 // <actual output>
 
-// Path transform: src/examples/foo.til -> src/examples/foo.out
-get_out_path := func(src_path: Str) returns Str throws AllocError {
-    return src_path.replace(".til", ".out")
+// Path transform: src/examples/foo.til -> src/examples/foo.interpreted.out or foo.compiled.out
+// test_mode: "compiled" -> .compiled.out, anything else -> .interpreted.out
+get_out_path := func(src_path: Str, test_mode: Str) returns Str throws AllocError {
+    base := src_path.replace(".til", "")
+    if test_mode.eq("compiled") {
+        return base.concat(".compiled.out")
+    }
+    return base.concat(".interpreted.out")
 }
 
 // Format output with args, exit code, and output
@@ -83,23 +88,29 @@ parse_expected := proc(content: Str, mut args_str: Str, mut exit_code: I64, mut 
 
 run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
     mut errors_found := false
+    println("=== rs_common (", rs_common.len().to_str(), " tests) ===")
     for i in 0..rs_common.len() {
         mut path := ""
         rs_common.get(i, path)
+        println("[", i.to_str(), "/", rs_common.len().to_str(), "] ", path)
         if test_rs_common(path) {
             errors_found = true
         }
     }
+    println("=== rs_compiled (", rs_compiled.len().to_str(), " tests) ===")
     for i in 0..rs_compiled.len() {
         mut path := ""
         rs_compiled.get(i, path)
+        println("[", i.to_str(), "/", rs_compiled.len().to_str(), "] ", path)
         if test_rs_compiled(path) {
             errors_found = true
         }
     }
+    println("=== rs_interpreted (", rs_interpreted.len().to_str(), " tests)")
     for i in 0..rs_interpreted.len() {
         mut path := ""
         rs_interpreted.get(i, path)
+        println("[", i.to_str(), "/", rs_interpreted.len().to_str(), "] ", path)
         if test_rs_interpreted(path) {
             errors_found = true
         }
@@ -131,13 +142,18 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec)
             regen_test(path)
         }
     } else {
-        // regen specific files - check which list they're in
+        // regen specific files - check which lists they're in
         for i in 0..files.len() {
             mut path := ""
             files.get(i, path)
+            // File can be in multiple lists, regen all applicable
+            if rs_common.contains(path) {
+                regen_test(path)
+            }
             if rs_compiled.contains(path) {
                 regen_test_compiled(path)
-            } else {
+            }
+            if rs_interpreted.contains(path) {
                 regen_test(path)
             }
         }
@@ -146,12 +162,17 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec)
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-ensure_out_file := proc(path: Str, out_path: Str) {
+ensure_out_file := proc(path: Str, out_path: Str, test_mode: Str) {
     mut ls_result := ""
     _ := ls_result.run_cmd("ls", out_path)
     if not(ls_result.contains(".out")) {
         mut output := ""
-        exit_code := output.run_cmd("./bin/rstil", "interpret", path)
+        mut exit_code := 0
+        if test_mode.eq("compiled") {
+            exit_code = output.run_cmd("./bin/rstil", "run", path)
+        } else {
+            exit_code = output.run_cmd("./bin/rstil", "interpret", path)
+        }
         formatted := format_expected("", exit_code, output)
         _ := writefile(out_path, formatted)
         println("Created: ", out_path)
@@ -159,8 +180,8 @@ ensure_out_file := proc(path: Str, out_path: Str) {
 }
 
 test_rs_interpreted := proc(path: Str) returns Bool {
-    out_path := get_out_path(path)
-    ensure_out_file(path, out_path)
+    out_path := get_out_path(path, "interpreted")
+    ensure_out_file(path, out_path, "interpreted")
 
     // Read expected file and parse args, exit code, and output
     expected_content := readfile(out_path)
@@ -207,8 +228,8 @@ test_rs_interpreted := proc(path: Str) returns Bool {
 }
 
 test_rs_compiled := proc(path: Str) returns Bool {
-    out_path := get_out_path(path)
-    ensure_out_file(path, out_path)
+    out_path := get_out_path(path, "compiled")
+    ensure_out_file(path, out_path, "compiled")
 
     // Read expected file and parse args, exit code, and output
     expected_content := readfile(out_path)
@@ -255,16 +276,81 @@ test_rs_compiled := proc(path: Str) returns Bool {
 }
 
 test_rs_common := proc(path: Str) returns Bool {
-    mut errors_found := test_rs_interpreted(path)
-    if test_rs_compiled(path) {
-        errors_found = true
+    // rs_common tests use .interpreted.out for BOTH modes (same expected output)
+    out_path := get_out_path(path, "interpreted")
+    ensure_out_file(path, out_path, "interpreted")
+
+    // Read expected file once and use for both modes
+    expected_content := readfile(out_path)
+    mut args_str := ""
+    mut expected_exit_code := 0
+    mut expected_output := ""
+    parse_expected(expected_content, args_str, expected_exit_code, expected_output)
+
+    mut errors_found := false
+
+    // Test interpreted mode
+    mut interp_output := ""
+    mut interp_exit_code := 0
+    if args_str.eq("") {
+        interp_exit_code = interp_output.run_cmd("./bin/rstil", "interpret", path)
+    } else {
+        cmd := concat(concat(concat("./bin/rstil interpret ", path), " "), args_str)
+        interp_exit_code = interp_output.run_cmd("bash", "-c", cmd)
     }
+
+    if not(interp_exit_code.eq(expected_exit_code)) {
+        println("FAIL (interpret exit code): ", path)
+        println("  expected: ", expected_exit_code.to_str())
+        println("  actual: ", interp_exit_code.to_str())
+        errors_found = true
+    } else {
+        _ := writefile(path.replace(".til", ".interpret.out"), interp_output)
+        _ := writefile(path.replace(".til", ".expected.out"), expected_output)
+        mut interp_diff := ""
+        _ := interp_diff.run_cmd("diff", path.replace(".til", ".expected.out"), path.replace(".til", ".interpret.out"))
+        if not(interp_diff.eq("")) {
+            println("FAIL (interpret output): ", path)
+            println(interp_diff)
+            errors_found = true
+        }
+    }
+
+    // Test compiled mode
+    mut run_output := ""
+    mut run_exit_code := 0
+    if args_str.eq("") {
+        run_exit_code = run_output.run_cmd("./bin/rstil", "run", path)
+    } else {
+        cmd := concat(concat(concat("./bin/rstil run ", path), " "), args_str)
+        run_exit_code = run_output.run_cmd("bash", "-c", cmd)
+    }
+
+    if not(run_exit_code.eq(expected_exit_code)) {
+        println("FAIL (run exit code): ", path)
+        println("  expected: ", expected_exit_code.to_str())
+        println("  actual: ", run_exit_code.to_str())
+        errors_found = true
+    } else {
+        _ := writefile(path.replace(".til", ".run.out"), run_output)
+        mut run_diff := ""
+        _ := run_diff.run_cmd("diff", path.replace(".til", ".expected.out"), path.replace(".til", ".run.out"))
+        if not(run_diff.eq("")) {
+            println("FAIL (run output): ", path)
+            println(run_diff)
+            errors_found = true
+        }
+    }
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: Str) { panic(loc(), err) }
 
     return errors_found
 }
 
 regen_test := proc(path: Str) {
-    out_path := get_out_path(path)
+    out_path := get_out_path(path, "interpreted")
     // Read existing args if .out file exists, otherwise use empty args
     mut args_str := ""
     mut existing := readfile(out_path)
@@ -294,8 +380,8 @@ regen_test := proc(path: Str) {
 }
 
 regen_test_compiled := proc(path: Str) {
-    out_path := get_out_path(path)
-    // Read existing args if .out file exists, otherwise use empty args
+    out_path := get_out_path(path, "compiled")
+    // Read existing args from .compiled.out - it must exist for rs_compiled tests
     mut args_str := ""
     mut existing := readfile(out_path)
     if existing.len().gt(0) {
@@ -303,9 +389,6 @@ regen_test_compiled := proc(path: Str) {
         mut dummy_output := ""
         parse_expected(existing, args_str, dummy_exit, dummy_output)
     }
-
-    // Catch errors from readfile or parse_expected - use empty args
-    catch (err: Str) { args_str = "" }
 
     mut output := ""
     mut exit_code := 0
@@ -321,19 +404,20 @@ regen_test_compiled := proc(path: Str) {
 
     catch (err: AllocError) { panic(loc(), err.msg) }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: Str) { panic(loc(), err) }
 }
 
 usage := proc() {
-    println("tests2 - TIL test runner")
+    println("tests - TIL test runner")
     println("")
     println("Usage:")
-    println("  tests2              Run all tests (default)")
-    println("  tests2 test         Run all tests")
-    println("  tests2 regen        Regenerate all .out files")
-    println("  tests2 regen <path> Regenerate specific .out file")
+    println("  tests              Run all tests (default)")
+    println("  tests test         Run all tests")
+    println("  tests regen        Regenerate all .out files")
+    println("  tests regen <path> Regenerate specific .out file")
     println("")
     println("Example:")
-    println("  tests2 regen src/examples/hello_script.til")
+    println("  tests regen src/examples/hello_script.til")
 }
 
 main := proc(args: ..Str) {
@@ -375,9 +459,10 @@ main := proc(args: ..Str) {
     rs_compiled.push("src/test/enums_simple.til")
     rs_compiled.push("src/test/throw_simple.til")
     rs_compiled.push("src/test/memcmp_str_compiled.til")
-    // REM: precomp_throw_compiled.til is equivalent to precomp_throw.til (in rs_interpreted)
-    // REM: Separate files needed because interpret/run produce different .out files
-    rs_compiled.push("src/test/precomp_throw_compiled.til")
+    // precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
+    rs_compiled.push("src/test/precomp_throw.til")
+    // TODO: til.til can be unified to rs_common once til.til compiles without C errors
+    // rs_compiled.push("src/til.til")  // disabled: compiling til.til takes too long (3.5MB C output)
     // TODO FIX: enum constructors called as functions instead of struct init
     // rs_compiled.push("src/test/enums_payload.til")
     // TODO FIX: switch_simple.til - same issue plus:
@@ -402,8 +487,7 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload has incomplete type, throwing func in catch
     rs_interpreted.push("src/test/ufcs.til") // TODO FIX: throwing functions in struct initializers (get_substr, Vec.new)
     rs_interpreted.push("src/test/vecs.til") // TODO FIX: compiles but fails at runtime - compiled doesn't throw IndexOutOfBoundsError on bad index
-    // REM: precomp_throw.til is equivalent to precomp_throw_compiled.til (in rs_compiled)
-    // REM: Separate files needed because interpret/run produce different .out files
+    // precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     rs_interpreted.push("src/test/precomp_throw.til")
 
     // rs_interpreted.push("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds
@@ -424,6 +508,7 @@ main := proc(args: ..Str) {
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
     rs_interpreted.push("src/self/interpreter.til") // TODO FIX: symbols already declared (double import?)
+    // TODO: til.til can be unified to rs_common once til.til compiles without C errors
     rs_interpreted.push("src/til.til") // Type-check til.til by running with "help" argument (args in .out file)
     // rs_interpreted.push("src/test/builders.til") // TODO FIX: compilation times out (too large or infinite loop)
 
