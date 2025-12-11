@@ -535,7 +535,8 @@ regen_test := proc(entry: Str) {
     out_path := get_out_path(path, "interpreted", variant)
     // Read existing args if .out file exists, otherwise use empty args
     mut args_str := ""
-    mut existing := readfile(out_path)
+    mut existing := ""
+    existing = readfile(out_path)
     if existing.len().gt(0) {
         mut dummy_exit := 0
         mut dummy_output := ""
