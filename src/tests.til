@@ -667,7 +667,7 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/enums.til") // TODO FIX: enum payload field has incomplete type
     rs_interpreted.push("src/test/errors.til") // compiles but runtime assertion fails (loc() path differs)
     rs_interpreted.push("src/test/forward_declarations.til") // TODO FIX: enum constructors emitted as function calls not struct init
-    rs_interpreted.push("src/test/lists.til") // TODO FIX: AllocError() needs struct init not func call, throwing func in catch
+    rs_interpreted.push("src/test/lists.til") // TODO FIX: Vec field (self->type_names) needs pointer not value
     rs_interpreted.push("src/test/maps.til") // TODO FIX: Dynamic param expects void* but Str passed
     rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: eval ERROR Missing arena index for return value 'false'
     rs_interpreted.push("src/test/sets.til") // TODO FIX: nested field access on self.elements->ptr/len, or() with no args, struct init vs func call
@@ -688,7 +688,7 @@ main := proc(args: ..Str) {
     // next level:
     // eval.til moved to rs_common
     // flow.til moved to rs_common (const folding fixed switch case expressions)
-    rs_interpreted.push("src/test/introspections.til") // TODO FIX: AllocError() needs struct init not func call, Vec field needs pointer
+    rs_interpreted.push("src/test/introspections.til") // TODO FIX: Vec field (self->type_names) needs pointer not value
     rs_interpreted.push("src/test/modes.til") // TODO FIX: Str range comparisons (<=), variadic and() with no args
     rs_interpreted.push("src/test/todo.til") // permanent TODO, design notes for future features
 

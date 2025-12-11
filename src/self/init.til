@@ -642,6 +642,12 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
 
         // Check if there's a member access after the struct name
         if id_expr.params.len().eq(0) {
+            // Default constructor: MyStruct() - no arguments allowed
+            if e.params.len().gt(1) {
+                throw e.todo_error(context.path, "type", format(
+                    "Cannot call struct '", f_name, "' with arguments. The only supported constructor is the default constructor '", f_name, "()'. ",
+                    "Define a custom constructor like '", f_name, ".new(...)' if you need to pass arguments."))
+            }
             // Just "StructName()" - constructor call
             return ValueType.TCustom(f_name)
         }

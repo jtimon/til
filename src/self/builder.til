@@ -193,12 +193,12 @@ build := proc(path: Str) returns Str throws Str {
         mut import_str := ""
         context.mode_def.imports.get(mode_import_idx, import_str)
 
-        mut import_func_name_expr := Expr(NodeType.Identifier("import"), Vec.new(Expr), 0, 0)
-        mut import_path_expr := Expr(NodeType.LLiteral(Literal.Str(import_str)), Vec.new(Expr), 0, 0)
+        mut import_func_name_expr := Expr.new_explicit(NodeType.Identifier("import"), Vec.new(Expr), 0, 0)
+        mut import_path_expr := Expr.new_explicit(NodeType.LLiteral(Literal.Str(import_str)), Vec.new(Expr), 0, 0)
         mut import_params := Vec.new(Expr)
         import_params.push(import_func_name_expr)
         import_params.push(import_path_expr)
-        mut import_fcall_expr := Expr(NodeType.FCall, import_params, 0, 0)
+        mut import_fcall_expr := Expr.new_explicit(NodeType.FCall, import_params, 0, 0)
 
         // Mode imports need init and typer phases (no eval for builder)
         init_import_declarations(context, import_fcall_expr, import_str)
@@ -294,7 +294,7 @@ build := proc(path: Str) returns Str throws Str {
     // Add main file contents (skip imports)
     merge_dep_params(main_ast, all_params)
 
-    mut merged_ast := Expr(NodeType.Body, all_params, main_ast.line, main_ast.col)
+    mut merged_ast := Expr.new_explicit(NodeType.Body, all_params, main_ast.line, main_ast.col)
 
     // Precomputation phase: Transform UFCS calls into regular function calls
     merged_ast = precomp_expr(context, merged_ast)

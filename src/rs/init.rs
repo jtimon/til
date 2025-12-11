@@ -348,6 +348,12 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 let after_dot = match id_expr.params.get(0) {
                     Some(_after_dot) => _after_dot,
                     None => {
+                        // Default constructor: MyStruct() - no arguments allowed
+                        if e.params.len() > 1 {
+                            return Err(e.todo_error(&context.path, "type", &format!(
+                                "Cannot call struct '{}' with arguments. The only supported constructor is the default constructor '{}()'. \
+                                Define a custom constructor like '{}.new(...)' if you need to pass arguments.", f_name, f_name, f_name)));
+                        }
                         return Ok(ValueType::TCustom(f_name.clone()));
                     },
                 };
