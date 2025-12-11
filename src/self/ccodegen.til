@@ -2509,9 +2509,16 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
         expr.params.get(2, else_part)
         switch else_part.node_type {
         case NodeType.If:
-            // else-if: emit inline
-            result = result.concat(" else ")
-            result = emit_if(else_part, result, indent, ctx, context)
+            // Always wrap else-if in braces to ensure hoisted temp vars
+            // from nested if conditions have proper scope
+            result = result.concat(" else {\n")
+            result = emit_if(else_part, result, add(indent, 1), ctx, context)
+            i = 0
+            while lt(i, indent) {
+                result = result.concat("    ")
+                i = add(i, 1)
+            }
+            result = result.concat("}\n")
         case:
             // else block
             result = result.concat(" else {\n")
@@ -2679,6 +2686,10 @@ parse_pattern_variant_name := func(variant_name: Str) returns VariantInfo {
 emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // Switch: params[0] = switch expression
     // params[1..] = alternating (case_pattern, body) pairs
+    // We emit if/else chains instead of C switch because:
+    // 1. C switch only works with integer types, not Str
+    // 2. Avoids GCC-specific case range extension
+    // 3. More portable and easier to handle all TIL switch patterns
     if eq(expr.params.len(), 0) {
         throw "ccodegen: Switch requires expression"
     }
@@ -2693,16 +2704,9 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         ind = add(ind, 1)
     }
 
-    mut case_indent := ""
-    ind = 0
-    while lt(ind, add(indent, 1)) {
-        case_indent = case_indent.concat("    ")
-        ind = add(ind, 1)
-    }
-
     mut body_indent := ""
     ind = 0
-    while lt(ind, add(indent, 2)) {
+    while lt(ind, add(indent, 1)) {
         body_indent = body_indent.concat("    ")
         ind = add(ind, 1)
     }
@@ -2718,10 +2722,18 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     catch (err: KeyNotFoundError) { throw "emit_switch: KeyNotFoundError in hoist_throwing_expr" }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-    // Determine if this is an enum switch or a primitive switch
-    // by scanning case patterns for Range or Pattern types
+    // Determine the type of the switch expression for proper comparison
+    switch_type := infer_type_from_expr(switch_expr, context)
+    mut is_str_switch := false
+    switch switch_type {
+    case ValueType.TCustom(type_name):
+        is_str_switch = type_name.eq("Str")
+    case:
+    }
+
+    // Determine if this is an enum switch and if it has payloads
     mut is_enum_switch := false
-    mut has_ranges := false
+    mut enum_has_payloads_flag := false
     mut scan_i := 1
     while lt(scan_i, expr.params.len()) {
         mut case_pattern := Expr()
@@ -2729,182 +2741,210 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         catch (err: IndexOutOfBoundsError) { throw err.msg }
 
         switch case_pattern.node_type {
-        case NodeType.Range:
-            has_ranges = true
         case NodeType.Pattern(pattern_info):
             is_enum_switch = true
         case NodeType.Identifier(name):
-            // Check if it has nested params (Type.Variant pattern like Color.Unknown)
             if gt(case_pattern.params.len(), 0) {
                 is_enum_switch = true
             } else if name.contains(".") {
-                // Or check if it looks like an enum variant (contains a dot)
                 is_enum_switch = true
             }
         case:
-            // DefaultCase and other patterns (literals) don't change detection
-            is_enum_switch = is_enum_switch
         }
         scan_i = add(scan_i, 2)
     }
-
-    // Emit: switch (expr) { or switch (expr.tag) {
-    // NOTE: Simple enums don't need .tag, payloaded enums do
-    // TODO: Implement infer_type_from_expr and enum_has_payloads in TIL to properly detect
-    // For now, we only add .tag if the case uses Pattern (payload extraction)
-    mut has_payload_patterns := false
-    mut check_i := 1
-    while lt(check_i, expr.params.len()) {
-        mut check_pattern := Expr()
-        expr.params.get(check_i, check_pattern)
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        switch check_pattern.node_type {
-        case NodeType.Pattern(pattern_info):
-            has_payload_patterns = true
-        case:
-            has_payload_patterns = has_payload_patterns
-        }
-        check_i = add(check_i, 2)
-    }
-
-    result = result.concat(indent_str)
-    result = result.concat("switch (")
-    result = emit_expr(switch_expr, result, 0, ctx, context)
     if is_enum_switch {
-        if not(has_ranges) {
-            if has_payload_patterns {
-                result = result.concat(".tag")
-            }
+        switch switch_type {
+        case ValueType.TCustom(enum_name):
+            mut enum_def := context.scope_stack.lookup_enum(enum_name)
+            enum_has_payloads_flag = enum_has_payloads(enum_def)
+            catch (err: KeyNotFoundError) { /* not an enum or not found */ }
+        case:
         }
     }
-    result = result.concat(") {\n")
 
-    // Process case patterns and bodies in pairs
+    // Store switch expression in a temp variable to avoid re-evaluation
+    switch_var := next_mangled()
+    result = result.concat(indent_str)
+    result = result.concat("__auto_type ")
+    result = result.concat(switch_var)
+    result = result.concat(" = ")
+    result = emit_expr(switch_expr, result, 0, ctx, context)
+    result = result.concat(";\n")
+
+    // Collect cases, separating default case
+    // We use two lists: case patterns and case bodies, plus a separate default_body
+    mut case_patterns := Vec.new(Expr)
+    catch (err: AllocError) { throw err.msg }
+    mut case_bodies := Vec.new(Expr)
+    catch (err: AllocError) { throw err.msg }
+    mut default_body := Expr()
+    mut has_default := false
+
     mut i := 1
     while lt(i, expr.params.len()) {
         mut case_pattern := Expr()
         expr.params.get(i, case_pattern)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-        mut has_body := lt(add(i, 1), expr.params.len())
+        mut case_body := Expr()
+        if lt(add(i, 1), expr.params.len()) {
+            expr.params.get(add(i, 1), case_body)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+        }
 
         switch case_pattern.node_type {
         case NodeType.DefaultCase:
-            // default: { ... break; }
-            result = result.concat(case_indent)
-            result = result.concat("default: {\n")
-            if has_body {
-                mut case_body := Expr()
-                expr.params.get(add(i, 1), case_body)
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_body(case_body, result, add(indent, 2), ctx, context)
-            }
-            result = result.concat(body_indent)
-            result = result.concat("break;\n")
-            result = result.concat(case_indent)
-            result = result.concat("}\n")
-        case NodeType.Pattern(pattern_info):
-            // case til_Type_Variant: { PayloadType binding = expr.payload.Variant; ... break; }
-            mut info := parse_pattern_variant_name(pattern_info.variant_name)
+            default_body = case_body
+            has_default = true
+        case:
+            case_patterns.push(case_pattern)
+            catch (err: AllocError) { throw err.msg }
+            case_bodies.push(case_body)
+            catch (err: AllocError) { throw err.msg }
+        }
+        i = add(i, 2)
+    }
 
-            result = result.concat(case_indent)
-            result = result.concat("case til_")
+    // Emit if/else if chain for non-default cases
+    mut case_idx := 0
+    while lt(case_idx, case_patterns.len()) {
+        mut case_pattern := Expr()
+        case_patterns.get(case_idx, case_pattern)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+        mut case_body := Expr()
+        case_bodies.get(case_idx, case_body)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+        result = result.concat(indent_str)
+        if eq(case_idx, 0) {
+            result = result.concat("if (")
+        } else {
+            result = result.concat("} else if (")
+        }
+
+        // Emit the condition based on pattern type
+        switch case_pattern.node_type {
+        case NodeType.Pattern(pattern_info):
+            // Enum pattern with payload binding: compare tag
+            info := parse_pattern_variant_name(pattern_info.variant_name)
+            result = result.concat(switch_var)
+            result = result.concat(".tag == til_")
             result = result.concat(info.type_name)
             result = result.concat("_")
             result = result.concat(info.variant_name)
-            result = result.concat(": {\n")
+            result = result.concat(") {\n")
 
-            // Emit payload extraction: PayloadType binding_var = expr.payload.VariantName;
+            // Extract payload into binding variable
             result = result.concat(body_indent)
             result = result.concat("__auto_type ")
             result = result.concat(pattern_info.binding_var)
             result = result.concat(" = ")
-            result = emit_expr(switch_expr, result, 0, ctx, context)
+            result = result.concat(switch_var)
             result = result.concat(".payload.")
             result = result.concat(info.variant_name)
             result = result.concat(";\n")
-
-            if has_body {
-                mut case_body := Expr()
-                expr.params.get(add(i, 1), case_body)
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_body(case_body, result, add(indent, 2), ctx, context)
-            }
-            result = result.concat(body_indent)
-            result = result.concat("break;\n")
-            result = result.concat(case_indent)
-            result = result.concat("}\n")
         case NodeType.Range:
-            // Range case: case low ... high: { ... break; }
-            // Uses GCC extension for case ranges
+            // Range: low <= val && val <= high
             if lt(case_pattern.params.len(), 2) {
                 throw "ccodegen: Range requires start and end values"
             }
-
             mut range_start := Expr()
             case_pattern.params.get(0, range_start)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-
             mut range_end := Expr()
             case_pattern.params.get(1, range_end)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-            result = result.concat(case_indent)
-            result = result.concat("case ")
             result = emit_expr(range_start, result, 0, ctx, context)
-            result = result.concat(" ... ")
+            result = result.concat(" <= ")
+            result = result.concat(switch_var)
+            result = result.concat(" && ")
+            result = result.concat(switch_var)
+            result = result.concat(" <= ")
             result = emit_expr(range_end, result, 0, ctx, context)
-            result = result.concat(": {\n")
-
-            if has_body {
-                mut case_body := Expr()
-                expr.params.get(add(i, 1), case_body)
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_body(case_body, result, add(indent, 2), ctx, context)
-            }
-            result = result.concat(body_indent)
-            result = result.concat("break;\n")
-            result = result.concat(case_indent)
-            result = result.concat("}\n")
-        case:
-            // Check if it's an enum variant pattern (Type.Variant) or a regular expression case
-            mut info := get_case_variant_info(case_pattern)
-
-            result = result.concat(case_indent)
-            result = result.concat("case ")
-
+            result = result.concat(") {\n")
+        case NodeType.Identifier(name):
+            info := get_case_variant_info(case_pattern)
             if gt(info.variant_name.len(), 0) {
-                // Enum variant pattern: Type.Variant -> case til_Type_Variant:
+                // Enum variant without payload
+                result = result.concat(switch_var)
+                if enum_has_payloads_flag {
+                    result = result.concat(".tag")
+                }
+                result = result.concat(" == ")
                 if gt(info.type_name.len(), 0) {
                     result = result.concat("til_")
                     result = result.concat(info.type_name)
                     result = result.concat("_")
                 }
                 result = result.concat(info.variant_name)
+            } else if is_str_switch {
+                // String comparison
+                result = result.concat("til_Str_eq(")
+                result = result.concat(switch_var)
+                result = result.concat(", ")
+                result = emit_expr(case_pattern, result, 0, ctx, context)
+                result = result.concat(").data")
             } else {
-                // Regular expression case (e.g., add(40, 2) or a literal)
-                // Emit the expression value directly
+                // Regular value comparison
+                result = result.concat(switch_var)
+                result = result.concat(" == ")
                 result = emit_expr(case_pattern, result, 0, ctx, context)
             }
-            result = result.concat(": {\n")
-
-            if has_body {
-                mut case_body := Expr()
-                expr.params.get(add(i, 1), case_body)
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_body(case_body, result, add(indent, 2), ctx, context)
+            result = result.concat(") {\n")
+        case NodeType.LLiteral(lit):
+            if is_str_switch {
+                // String literal comparison
+                result = result.concat("til_Str_eq(")
+                result = result.concat(switch_var)
+                result = result.concat(", ")
+                result = emit_expr(case_pattern, result, 0, ctx, context)
+                result = result.concat(").data")
+            } else {
+                // Regular literal comparison
+                result = result.concat(switch_var)
+                result = result.concat(" == ")
+                result = emit_expr(case_pattern, result, 0, ctx, context)
             }
-            result = result.concat(body_indent)
-            result = result.concat("break;\n")
-            result = result.concat(case_indent)
-            result = result.concat("}\n")
+            result = result.concat(") {\n")
+        case:
+            // Generic case: emit equality comparison
+            if is_str_switch {
+                result = result.concat("til_Str_eq(")
+                result = result.concat(switch_var)
+                result = result.concat(", ")
+                result = emit_expr(case_pattern, result, 0, ctx, context)
+                result = result.concat(").data")
+            } else {
+                result = result.concat(switch_var)
+                result = result.concat(" == ")
+                result = emit_expr(case_pattern, result, 0, ctx, context)
+            }
+            result = result.concat(") {\n")
         }
 
-        i = add(i, 2)  // Move to next case pattern
+        // Emit case body
+        result = emit_body(case_body, result, add(indent, 1), ctx, context)
+
+        case_idx = add(case_idx, 1)
     }
 
-    result = result.concat(indent_str)
-    result = result.concat("}\n")
+    // Emit default case as final else (if present)
+    if has_default {
+        if gt(case_patterns.len(), 0) {
+            result = result.concat(indent_str)
+            result = result.concat("} else {\n")
+        }
+        result = emit_body(default_body, result, add(indent, 1), ctx, context)
+    }
+
+    // Close the if/else chain
+    if or(gt(case_patterns.len(), 0), has_default) {
+        result = result.concat(indent_str)
+        result = result.concat("}\n")
+    }
 
     return result
 }
