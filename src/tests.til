@@ -665,14 +665,14 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/args.til") // TODO FIX: mut Str* assignment, nested field access on mut param
     rs_interpreted.push("src/test/memcmp_str_interpreted.til")
     rs_interpreted.push("src/test/enums.til") // TODO FIX: enum payload field has incomplete type
-    rs_interpreted.push("src/test/errors.til") // TODO FIX: throwing func result used directly in expression (needs temp var)
+    rs_interpreted.push("src/test/errors.til") // compiles but runtime assertion fails (loc() path differs)
     rs_interpreted.push("src/test/forward_declarations.til") // TODO FIX: enum constructors emitted as function calls not struct init
     rs_interpreted.push("src/test/lists.til") // TODO FIX: AllocError() needs struct init not func call, throwing func in catch
     rs_interpreted.push("src/test/maps.til") // TODO FIX: Dynamic param expects void* but Str passed
-    rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: nested func forward decl has const, definition has pointer
+    rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: eval ERROR Missing arena index for return value 'false'
     rs_interpreted.push("src/test/sets.til") // TODO FIX: nested field access on self.elements->ptr/len, or() with no args, struct init vs func call
-    rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: throwing func (format) in catch block needs temp var
-    rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload has incomplete type, throwing func in catch
+    rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: Str range comparisons (<=), variadic and() with no args
+    rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload incomplete type, Str range comparisons, and() with no args
     rs_interpreted.push("src/test/ufcs.til") // TODO FIX: throwing functions in struct initializers (get_substr, Vec.new)
     rs_interpreted.push("src/test/vecs.til") // TODO FIX: compiles but fails at runtime - compiled doesn't throw IndexOutOfBoundsError on bad index
     // precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
@@ -688,15 +688,15 @@ main := proc(args: ..Str) {
     // next level:
     // eval.til moved to rs_common
     // flow.til moved to rs_common (const folding fixed switch case expressions)
-    rs_interpreted.push("src/test/introspections.til") // TODO FIX: AllocError() needs struct init not func call, throwing func in catch
-    rs_interpreted.push("src/test/modes.til") // TODO FIX: throwing func (format) in catch block needs temp var
+    rs_interpreted.push("src/test/introspections.til") // TODO FIX: AllocError() needs struct init not func call, Vec field needs pointer
+    rs_interpreted.push("src/test/modes.til") // TODO FIX: Str range comparisons (<=), variadic and() with no args
     rs_interpreted.push("src/test/todo.til") // permanent TODO, design notes for future features
 
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
     rs_interpreted.push("src/self/interpreter.til") // TODO FIX: symbols already declared (double import?)
     // TODO: til.til can be unified to rs_common once til.til compiles without C errors
-    rs_interpreted.push("src/til.til") // Type-check til.til by running with "help" argument (args in .out file)
+    rs_interpreted.push("src/til.til") // TODO FIX: enum payload incomplete type, Str range comparisons, and() with no args
     rs_interpreted.push("src/til.til:version") // Test version command
     // rs_interpreted.push("src/test/builders.til") // TODO FIX: compilation times out (too large or infinite loop)
 
