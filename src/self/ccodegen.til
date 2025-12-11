@@ -1030,7 +1030,9 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, 
                             result = result.concat("const ")
                         }
                         result = format(result, TIL_PREFIX, "Str ")
-                        result = format(result.concat(decl.name), " = ", TIL_PREFIX, "Str_from_literal(\"", s, "\");\n")
+                        result = result.concat(decl.name).concat(" = ")
+                        result = emit_str_literal(s, result)
+                        result = result.concat(";\n")
                     } else {
                         result = result.concat("const char* ").concat(decl.name).concat(" = \"").concat(s).concat("\";\n")
                     }
@@ -1681,13 +1683,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     output = format(output, "static inline ", TIL_PREFIX, "I64 u8_to_i64(", TIL_PREFIX, "U8 v) { return (", TIL_PREFIX, "I64)v; }\n")
     output = format(output, "static inline ", TIL_PREFIX, "U8 i64_to_u8(", TIL_PREFIX, "I64 v) { return (", TIL_PREFIX, "U8)v; }\n")
     if has_str(context) {
-        output = output.concat("// Str helper: create Str from C string literal\n")
-        output = format(output, "static inline ", TIL_PREFIX, "Str ", TIL_PREFIX, "Str_from_literal(const char* lit) {\n")
-        output = format(output, "    ", TIL_PREFIX, "Str s;\n")
-        output = format(output, "    s.c_string = (", TIL_PREFIX, "I64)lit;\n")
-        output = output.concat("    s.cap = strlen(lit);\n")
-        output = output.concat("    return s;\n")
-        output = output.concat("}\n")
         output = output.concat("// single_print: print a string without newline\n")
         output = format(output, "static inline void single_print(", TIL_PREFIX, "Str s) { printf(\"%s\", (char*)s.c_string); }\n")
     } else {
@@ -6438,7 +6433,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     // Hardcoded builtins (compile-time intrinsics that can't be implemented in TIL)
     if orig_func_name.eq("loc") {
         if has_str(context) {
-            return format(output, TIL_PREFIX, "Str_from_literal(\"\")")
+            return emit_str_literal("", output)
         } else {
             return concat(output, "\"\"")
         }
@@ -6452,7 +6447,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         expr.params.get(1, arg)
         result = result.concat(TIL_PREFIX)
         result = result.concat("size_of(")
-        // If it's a literal type name, wrap it in Str_from_literal
+        // If it's a literal type name, emit compound literal
         // If it's a variable, the variable already holds a Type (which is const char*)
         switch arg.node_type {
         case NodeType.Identifier(type_name):
@@ -6469,25 +6464,20 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             }
             catch (err: KeyNotFoundError) { }
             if is_type_var {
-                // Type variable - already a const char*, wrap in Str
-                result = result.concat(TIL_PREFIX)
-                result = result.concat("Str_from_literal(")
-                result = result.concat(TIL_PREFIX)
-                result = result.concat(type_name)
-                result = result.concat(")")
+                // Type variable - already a const char*, wrap in Str struct literal
+                // Note: Type is const char*, so we construct Str at runtime
+                result = format(result, "((", TIL_PREFIX, "Str){(", TIL_PREFIX, "I64)", TIL_PREFIX, type_name, ", strlen(", TIL_PREFIX, type_name, ")})")
             } else {
-                // Literal type name - create Str from the name
-                result = result.concat(TIL_PREFIX)
-                result = result.concat("Str_from_literal(\"")
-                result = result.concat(type_name)
-                result = result.concat("\")")
+                // Literal type name - create Str compound literal
+                result = emit_str_literal(type_name, result)
             }
         case:
-            // Not an identifier - emit as expression and hope it's a Type
-            result = result.concat(TIL_PREFIX)
-            result = result.concat("Str_from_literal(")
+            // Not an identifier - emit as expression (should be Type/const char*)
+            result = format(result, "((", TIL_PREFIX, "Str){(", TIL_PREFIX, "I64)")
             result = emit_expr(arg, result, 0, ctx, context)
-            result = result.concat(")")
+            result = result.concat(", strlen(")
+            result = emit_expr(arg, result, 0, ctx, context)
+            result = result.concat(")})")
         }
         result = result.concat(")")
         if gt(indent, 0) {
@@ -6748,12 +6738,18 @@ emit_identifier_without_nested := proc(expr: Expr, output: Str) returns Str thro
     }
 }
 
+// Helper to emit a Str compound literal: ((til_Str){(til_I64)"...", len})
+// This is valid in both constant initializers and expressions (unlike til_Str_from_literal)
+emit_str_literal := proc(s: Str, output: Str) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
+    return format(output, "((", TIL_PREFIX, "Str){(", TIL_PREFIX, "I64)\"", s, "\", ", I64_to_str(s.len()), "})")
+}
+
 emit_literal := proc(lit: Literal, output: Str, context: Context) returns Str throws Str {
     mut result := ""
     switch lit {
     case Literal.Str(s):
         if has_str(context) {
-            result = format(output, TIL_PREFIX, "Str_from_literal(\"", s, "\")")
+            result = emit_str_literal(s, output)
         } else {
             result = format(output, "\"", s, "\"")
         }

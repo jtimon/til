@@ -11,15 +11,6 @@
 #define true ((til_Bool){1})
 #define false ((til_Bool){0})
 
-// Str helper: create Str from C string literal
-static inline til_Str til_Str_from_literal(const char* lit)
-{
-    til_Str s;
-    s.c_string = (til_I64)lit;
-    s.cap = strlen(lit);
-    return s;
-}
-
 // single_print: print a string without newline
 static inline void til_single_print(til_Str s)
 {

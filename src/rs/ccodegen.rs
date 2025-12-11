@@ -4604,8 +4604,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         // loc() - just emit empty string for now
         "loc" => {
             if context.scope_stack.lookup_struct("Str").is_some() {
-                output.push_str(TIL_PREFIX);
-                output.push_str("Str_from_literal(\"\")");
+                emit_str_literal("", output);
             } else {
                 output.push_str("\"\"");
             }
@@ -4622,18 +4621,14 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // Get the type name from the argument
             if let NodeType::Identifier(type_name) = &expr.params[1].node_type {
                 if context.scope_stack.lookup_struct("Str").is_some() {
-                    output.push_str(TIL_PREFIX);
-                    output.push_str("Str_from_literal(\"");
-                    output.push_str(type_name);
-                    output.push_str("\")");
+                    emit_str_literal(type_name, output);
                 } else {
                     output.push_str("\"");
                     output.push_str(type_name);
                     output.push_str("\"");
                 }
             } else {
-                output.push_str(TIL_PREFIX);
-                output.push_str("Str_from_literal(\"unknown\")");
+                emit_str_literal("unknown", output);
             }
             Ok(())
         },
@@ -4645,7 +4640,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             }
             output.push_str(TIL_PREFIX);
             output.push_str("size_of(");
-            // If it's a literal type name, wrap it in Str_from_literal
+            // If it's a literal type name, emit compound literal
             // If it's a variable, the variable already holds a Type (which is const char*)
             if let NodeType::Identifier(type_name) = &expr.params[1].node_type {
                 // Check if this is a Type variable or a literal type name
@@ -4656,25 +4651,21 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     false
                 };
                 if is_type_var {
-                    // Type variable - already a const char*, wrap in Str
-                    output.push_str(TIL_PREFIX);
-                    output.push_str("Str_from_literal(");
-                    output.push_str(TIL_PREFIX);
-                    output.push_str(type_name);
-                    output.push_str(")");
+                    // Type variable - already a const char*, wrap in Str struct literal
+                    // Note: Type is const char*, so we construct Str at runtime
+                    output.push_str(&format!("(({}Str){{({}I64){}{}, strlen({}{})}})",
+                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, type_name, TIL_PREFIX, type_name));
                 } else {
-                    // Literal type name - create Str from the name
-                    output.push_str(TIL_PREFIX);
-                    output.push_str("Str_from_literal(\"");
-                    output.push_str(type_name);
-                    output.push_str("\")");
+                    // Literal type name - create Str compound literal
+                    emit_str_literal(type_name, output);
                 }
             } else {
-                // Not an identifier - emit as expression and hope it's a Type
-                output.push_str(TIL_PREFIX);
-                output.push_str("Str_from_literal(");
+                // Not an identifier - emit as expression (should be Type/const char*)
+                output.push_str(&format!("(({}Str){{({}I64)", TIL_PREFIX, TIL_PREFIX));
                 emit_expr(&expr.params[1], output, 0, ctx, context)?;
-                output.push_str(")");
+                output.push_str(", strlen(");
+                emit_expr(&expr.params[1], output, 0, ctx, context)?;
+                output.push_str(")})");
             }
             output.push_str(")");
             Ok(())
@@ -4897,30 +4888,43 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     }
 }
 
+// Helper to emit a Str compound literal: ((til_Str){(til_I64)"...", len})
+// This is valid in both constant initializers and expressions (unlike til_Str_from_literal)
+fn emit_str_literal(s: &str, output: &mut String) {
+    output.push_str(&format!("(({}Str){{({}I64)\"", TIL_PREFIX, TIL_PREFIX));
+    // Escape special characters for C string literals
+    for c in s.chars() {
+        match c {
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            '\\' => output.push_str("\\\\"),
+            '"' => output.push_str("\\\""),
+            _ => output.push(c),
+        }
+    }
+    output.push_str(&format!("\", {}}})", s.len()));
+}
+
 fn emit_literal(lit: &Literal, output: &mut String, context: &Context) -> Result<(), String> {
     match lit {
         Literal::Str(s) => {
             let has_str = context.scope_stack.lookup_struct("Str").is_some();
             if has_str {
-                output.push_str(TIL_PREFIX);
-                output.push_str("Str_from_literal(\"");
+                emit_str_literal(s, output);
             } else {
                 output.push('"');
-            }
-            // Escape special characters for C string literals
-            for c in s.chars() {
-                match c {
-                    '\n' => output.push_str("\\n"),
-                    '\r' => output.push_str("\\r"),
-                    '\t' => output.push_str("\\t"),
-                    '\\' => output.push_str("\\\\"),
-                    '"' => output.push_str("\\\""),
-                    _ => output.push(c),
+                // Escape special characters for C string literals
+                for c in s.chars() {
+                    match c {
+                        '\n' => output.push_str("\\n"),
+                        '\r' => output.push_str("\\r"),
+                        '\t' => output.push_str("\\t"),
+                        '\\' => output.push_str("\\\\"),
+                        '"' => output.push_str("\\\""),
+                        _ => output.push(c),
+                    }
                 }
-            }
-            if has_str {
-                output.push_str("\")");
-            } else {
                 output.push('"');
             }
             Ok(())
