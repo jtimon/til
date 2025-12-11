@@ -319,16 +319,31 @@ validate_conditional_params := proc(path: Str, e: Expr, stmt_type: Str, min: I64
 validate_func_arg_count := func(path: Str, e: Expr, f_name: Str, func_def: SFuncDef) returns Str throws Str {
     provided_args := e.params.len().sub(1)
 
-    // Check zero-arg functions
-    if func_def.args.len().eq(0).and(provided_args.gt(0)) {
-        return e.error(path, "type", format("Function/procedure '", f_name, "' expects 0 args, but ", I64.to_str(provided_args), " were provided."))
+    // Count required args (those without default values)
+    mut required_args := 0
+    mut i := 0
+    while i.lt(func_def.args.len()) {
+        mut arg_decl := Declaration()
+        func_def.args.get(i, arg_decl)
+        if NULL.eq(arg_decl.default_value.data) {
+            required_args = required_args.add(1)
+        }
+        i = i.add(1)
+        catch (err: IndexOutOfBoundsError) {
+            throw format("validate_func_arg_count: ", err.msg)
+        }
     }
 
     has_multi_arg := func_proc_has_multi_arg(func_def)
 
-    // Check exact count for non-variadic functions
-    if not(has_multi_arg).and(not(func_def.args.len().eq(provided_args))) {
-        return e.error(path, "type", format("Function/procedure '", f_name, "' expects ", I64.to_str(func_def.args.len()), " args, but ", I64.to_str(provided_args), " were provided."))
+    // Check arg count for non-variadic functions
+    if not(has_multi_arg) {
+        if provided_args.lt(required_args) {
+            return e.error(path, "type", format("Function/procedure '", f_name, "' expects at least ", I64.to_str(required_args), " args, but ", I64.to_str(provided_args), " were provided."))
+        }
+        if provided_args.gt(func_def.args.len()) {
+            return e.error(path, "type", format("Function/procedure '", f_name, "' expects at most ", I64.to_str(func_def.args.len()), " args, but ", I64.to_str(provided_args), " were provided."))
+        }
     }
 
     // Check minimum count for variadic functions

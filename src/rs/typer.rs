@@ -237,10 +237,20 @@ fn validate_func_arg_count(path: &str, e: &Expr, f_name: &str, func_def: &SFuncD
 
     let has_multi_arg = func_proc_has_multi_arg(&func_def);
 
-    // Check exact count for non-variadic functions
-    if !has_multi_arg && func_def.args.len() != provided_args {
-        return Some(e.error(path, "type", &format!("Function/procedure '{}' expects {} args, but {} were provided.",
-                                             f_name, func_def.args.len(), provided_args)));
+    // Count required args (those without default values)
+    let required_args = func_def.args.iter().filter(|a| a.default_value.is_none()).count();
+
+    // Check arg count for non-variadic functions
+    // Must provide at least required args, and at most total args
+    if !has_multi_arg {
+        if provided_args < required_args {
+            return Some(e.error(path, "type", &format!("Function/procedure '{}' expects at least {} args, but {} were provided.",
+                                                 f_name, required_args, provided_args)));
+        }
+        if provided_args > func_def.args.len() {
+            return Some(e.error(path, "type", &format!("Function/procedure '{}' expects at most {} args, but {} were provided.",
+                                                 f_name, func_def.args.len(), provided_args)));
+        }
     }
 
     // Check minimum count for variadic functions

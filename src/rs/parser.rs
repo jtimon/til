@@ -18,6 +18,7 @@ pub struct Declaration {
     pub is_mut: bool,
     pub is_copy: bool,
     pub is_own: bool,
+    pub default_value: Option<Box<Expr>>,  // For optional function arguments
 }
 
 // TODO: PatternInfo is a workaround for homogeneity with TIL's lack of tuple syntax
@@ -448,28 +449,39 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                     expect_colon = true;
                     expect_name = false;
                 } else {
-                    if is_variadic {
-                        args.push(Declaration {
-                            name: arg_name.to_string(),
-                            value_type: ValueType::TMulti(t.token_str.clone()),
-                            is_mut: is_mut,
-                            is_copy: is_copy,
-                            is_own: is_own,
-                        });
+                    let arg_type = if is_variadic {
                         is_variadic = false;
+                        ValueType::TMulti(t.token_str.clone())
                     } else {
-                        args.push(Declaration {
-                            name: arg_name.to_string(),
-                            value_type: str_to_value_type(&t.token_str),
-                            is_mut: is_mut,
-                            is_copy: is_copy,
-                            is_own: is_own,
-                        });
-                    }
+                        str_to_value_type(&t.token_str)
+                    };
+                    lexer.advance(1)?;
+                    t = lexer.peek();
+
+                    // Check for optional default value: `= expr`
+                    let default_value = if t.token_type == TokenType::Equal {
+                        lexer.advance(1)?;  // consume '='
+                        let default_expr = parse_primary(lexer)?;
+                        Some(Box::new(default_expr))
+                    } else {
+                        None
+                    };
+
+                    args.push(Declaration {
+                        name: arg_name.to_string(),
+                        value_type: arg_type,
+                        is_mut: is_mut,
+                        is_copy: is_copy,
+                        is_own: is_own,
+                        default_value: default_value,
+                    });
                     expect_comma = true;
                     is_mut = false;
                     is_copy = false;
                     is_own = false;
+                    // Don't advance again - we already did above or parse_expression did
+                    t = lexer.peek();
+                    continue;
                 }
                 lexer.advance(1)?;
                 t = lexer.peek();
@@ -1109,6 +1121,7 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
         is_mut: true,
         is_copy: false,
         is_own: false,
+        default_value: None,
     };
     let decl_expr = Expr::new_parse(NodeType::Declaration(decl), initial_token.clone(), vec![start_expr.clone()]);
 
@@ -1310,7 +1323,7 @@ fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_ty
     let mut params : Vec<Expr> = Vec::new();
     params.push(parse_primary(lexer)?);
 
-    let decl = Declaration{name: decl_name.to_string(), value_type: str_to_value_type(explicit_type), is_mut: is_mut, is_copy: is_copy, is_own: false};
+    let decl = Declaration{name: decl_name.to_string(), value_type: str_to_value_type(explicit_type), is_mut: is_mut, is_copy: is_copy, is_own: false, default_value: None};
 
     return Ok(Expr::new_parse(NodeType::Declaration(decl), lexer.get_token(initial_current)?.clone(), params))
 }

@@ -19,3 +19,67 @@ test_named_args_basic := proc() {
     assert_eq(loc(), 7, minus(10, b=3))
 }
 test_named_args_basic()
+
+// === Optional Arguments Tests ===
+
+// Function with one optional argument
+greet := func(name: Str, greeting: Str = "Hello") returns Str {
+    result := format(greeting, ", ", name, "!")
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: I64_OverflowError) { panic(loc(), err.msg) }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    return result
+}
+
+// Function with all optional arguments
+make_point := func(x: I64 = 0, y: I64 = 0) returns I64 {
+    return add(x, y)  // Just return sum for testing
+}
+
+// Function with mixed required and optional
+compute := func(a: I64, b: I64, c: I64 = 10) returns I64 {
+    return add(add(a, b), c)
+}
+
+test_optional_args_basic := proc() {
+    // Use default value
+    assert_eq_str(loc(), "Hello, World!", greet("World"))
+
+    // Override default with positional
+    assert_eq_str(loc(), "Hi, World!", greet("World", "Hi"))
+
+    // Override default with named arg
+    assert_eq_str(loc(), "Hey, World!", greet("World", greeting="Hey"))
+}
+
+test_optional_args_all_optional := proc() {
+    // All defaults
+    assert_eq(loc(), 0, make_point())
+
+    // Override first
+    assert_eq(loc(), 5, make_point(5))
+
+    // Override second with named
+    assert_eq(loc(), 7, make_point(y=7))
+
+    // Override both
+    assert_eq(loc(), 15, make_point(5, 10))
+
+    // Override both with named, reversed
+    assert_eq(loc(), 15, make_point(y=10, x=5))
+}
+
+test_optional_args_mixed := proc() {
+    // Required args only, use default for c
+    assert_eq(loc(), 13, compute(1, 2))  // 1 + 2 + 10
+
+    // All args positional
+    assert_eq(loc(), 6, compute(1, 2, 3))  // 1 + 2 + 3
+
+    // Override c with named
+    assert_eq(loc(), 23, compute(1, 2, c=20))  // 1 + 2 + 20
+}
+
+test_optional_args_basic()
+test_optional_args_all_optional()
+test_optional_args_mixed()

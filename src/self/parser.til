@@ -1,6 +1,7 @@
 mode lib
 
 import("core.vec")
+import("core.ptr")
 import("std.list")
 import("std.map")
 import("self.lexer")
@@ -24,6 +25,7 @@ Declaration := struct {
     mut is_mut: Bool = false
     mut is_copy: Bool = false
     mut is_own: Bool = false
+    mut default_value: Ptr = Ptr()  // Ptr to Expr, NULL = None (for optional function arguments)
 
     clone := func(self: Declaration) returns Declaration throws AllocError {
         mut result := Declaration()
@@ -32,6 +34,12 @@ Declaration := struct {
         result.is_mut = self.is_mut
         result.is_copy = self.is_copy
         result.is_own = self.is_own
+        // Clone default_value if present
+        if not(NULL.eq(self.default_value.data)) {
+            mut default_expr := Expr()
+            memcpy(to_ptr(default_expr), self.default_value.data, size_of(Expr))
+            result.default_value.data = to_ptr(default_expr.clone())
+        }
         return result
     }
 }
@@ -581,6 +589,8 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                 arg_name = t.token_str
                 expect_colon = true
                 expect_name = false
+                lexer.advance(1)
+                t = lexer.peek()
             } else {
                 mut decl := Declaration()
                 decl.name = arg_name
@@ -593,14 +603,25 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                 decl.is_mut = is_mut
                 decl.is_copy = is_copy
                 decl.is_own = is_own
+                lexer.advance(1)
+                t = lexer.peek()
+                // Check for optional default value: `= expr`
+                tt3 := t.token_type
+                switch tt3 {
+                case TokenType.Equal:
+                    lexer.advance(1)  // consume '='
+                    mut default_expr := parse_primary(lexer)
+                    decl.default_value.data = to_ptr(default_expr)
+                case:
+                    // No default value
+                }
                 args.push(decl)
                 expect_comma = true
                 is_mut = false
                 is_copy = false
                 is_own = false
+                t = lexer.peek()
             }
-            lexer.advance(1)
-            t = lexer.peek()
         case TokenType.Mut:
             if not(expect_name) {
                 throw t.error(lexer.path, "Unexpected 'mut' in argument list.")

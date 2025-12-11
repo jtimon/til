@@ -14,11 +14,16 @@ import("self.interpreter")
 /// This runs during precomp so both interpreter and builder share the work.
 reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str {
     // params[0] is the function identifier, params[1..] are the arguments
-    if e.params.len().lteq(1) {
-        return e.clone() // No arguments to reorder
+    // Calculate call_args_len (number of arguments, not counting function identifier)
+    mut call_args_len := 0
+    if e.params.len().gt(1) {
+        call_args_len = e.params.len().sub(1)
     }
 
-    // Check if there are any named args - if not, return unchanged
+    // Check if function is variadic - named args and default filling not supported
+    is_variadic := func_proc_has_multi_arg(func_def)
+
+    // Check if there are any named args
     mut has_named_args := false
     mut i := 1
     while i.lt(e.params.len()) {
@@ -30,14 +35,22 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
         }
         i = i.add(1)
     }
-    if not(has_named_args) {
-        return e.clone()
+
+    // Named args are not supported for variadic functions
+    if and(has_named_args, is_variadic) {
+        throw e.error(context.path, "precomp", "Named arguments are not supported for variadic functions")
     }
 
-    // Check if function is variadic - named args not supported for variadic functions
-    is_variadic := func_proc_has_multi_arg(func_def)
-    if is_variadic {
-        throw e.error(context.path, "precomp", "Named arguments are not supported for variadic functions")
+    // Check if we need to fill in default values (fewer args than params)
+    // Don't apply to variadic functions
+    mut needs_defaults := false
+    if and(not(is_variadic), call_args_len.lt(func_def.args.len())) {
+        needs_defaults = true
+    }
+
+    // If no named args and no defaults needed, return unchanged
+    if and(not(has_named_args), not(needs_defaults)) {
+        return e.clone()
     }
 
     mut result := Vec.new(Expr)
@@ -142,10 +155,16 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
             final_args.get(i, arg)
             result.push(arg)
         } else {
-            // TODO: For optional args, fill in defaults here
+            // Check if this parameter has a default value
             mut arg_decl := Declaration()
             func_def.args.get(i, arg_decl)
-            throw e.error(context.path, "precomp", format("Missing argument for parameter '", arg_decl.name, "'"))
+            if not(NULL.eq(arg_decl.default_value.data)) {
+                mut default_expr := Expr()
+                memcpy(to_ptr(default_expr), arg_decl.default_value.data, size_of(Expr))
+                result.push(default_expr.clone())
+            } else {
+                throw e.error(context.path, "precomp", format("Missing argument for parameter '", arg_decl.name, "'"))
+            }
         }
         i = i.add(1)
     }

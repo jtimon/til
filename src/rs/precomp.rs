@@ -18,22 +18,30 @@ use crate::rs::arena::Arena;
 /// This runs during precomp so both interpreter and builder share the work.
 fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Result<Expr, String> {
     // params[0] is the function identifier, params[1..] are the arguments
-    if e.params.len() <= 1 {
-        return Ok(e.clone()); // No arguments to reorder
-    }
+    let call_args = if e.params.len() <= 1 {
+        &[][..] // No arguments
+    } else {
+        &e.params[1..]
+    };
 
-    let call_args = &e.params[1..];
-
-    // Check if there are any named args - if not, return unchanged
-    let has_named_args = call_args.iter().any(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
-    if !has_named_args {
-        return Ok(e.clone());
-    }
-
-    // Check if function is variadic - named args not supported for variadic functions
+    // Check if function is variadic - named args and default filling not supported
     let is_variadic = func_proc_has_multi_arg(func_def);
-    if is_variadic {
+
+    // Check if there are any named args
+    let has_named_args = call_args.iter().any(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
+
+    // Named args are not supported for variadic functions
+    if has_named_args && is_variadic {
         return Err(e.error(&context.path, "precomp", "Named arguments are not supported for variadic functions"));
+    }
+
+    // Check if we need to fill in default values (fewer args than params)
+    // Don't apply to variadic functions
+    let needs_defaults = !is_variadic && call_args.len() < func_def.args.len();
+
+    // If no named args and no defaults needed, return unchanged
+    if !has_named_args && !needs_defaults {
+        return Ok(e.clone());
     }
 
     let mut result = vec![e.params[0].clone()]; // Keep function identifier
@@ -96,8 +104,12 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
         match maybe_arg {
             Some(arg) => result.push(arg),
             None => {
-                // TODO: For optional args, fill in defaults here
-                return Err(e.error(&context.path, "precomp", &format!("Missing argument for parameter '{}'", func_def.args[i].name)));
+                // Check if this parameter has a default value
+                if let Some(default_expr) = &func_def.args[i].default_value {
+                    result.push((**default_expr).clone());
+                } else {
+                    return Err(e.error(&context.path, "precomp", &format!("Missing argument for parameter '{}'", func_def.args[i].name)));
+                }
             }
         }
     }
