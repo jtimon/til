@@ -2868,6 +2868,15 @@ fn emit_throwing_call(
         }
     }
 
+    // Check if this is a variadic function call and construct array BEFORE the call
+    let variadic_info = detect_variadic_fcall(fcall, ctx);
+    let variadic_arr_var: Option<String> = if let Some((elem_type, regular_count)) = variadic_info.clone() {
+        let variadic_args: Vec<_> = fcall.params.iter().skip(1 + regular_count).collect();
+        Some(hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?)
+    } else {
+        None
+    };
+
     // Generate the function call with output parameters
     output.push_str(&indent_str);
     output.push_str("int _status_");
@@ -2893,17 +2902,39 @@ fn emit_throwing_call(
         output.push_str(&temp_suffix.to_string());
     }
 
-    // Emit arguments
-    let mut args_started = false;
-    for (arg_idx, arg) in fcall.params.iter().skip(1).enumerate() {
-        if needs_ret || !throw_types.is_empty() || args_started {
-            output.push_str(", ");
+    // Emit arguments - handle variadic separately from regular args
+    if let Some((_, regular_count)) = variadic_info {
+        // Variadic call: emit regular args first, then variadic array pointer
+        for (arg_idx, arg) in fcall.params.iter().skip(1).take(regular_count).enumerate() {
+            if needs_ret || !throw_types.is_empty() || arg_idx > 0 {
+                output.push_str(", ");
+            }
+            let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
+            let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
+            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
         }
-        // Get parameter type and mutability for this argument
-        let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-        let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
-        emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
-        args_started = true;
+
+        // Emit variadic array pointer
+        if let Some(ref arr_var) = variadic_arr_var {
+            if needs_ret || !throw_types.is_empty() || regular_count > 0 {
+                output.push_str(", ");
+            }
+            output.push_str("&");
+            output.push_str(arr_var);
+        }
+    } else {
+        // Non-variadic: emit all args directly
+        let mut args_started = false;
+        for (arg_idx, arg) in fcall.params.iter().skip(1).enumerate() {
+            if needs_ret || !throw_types.is_empty() || args_started {
+                output.push_str(", ");
+            }
+            // Get parameter type and mutability for this argument
+            let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
+            let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
+            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
+            args_started = true;
+        }
     }
 
     output.push_str(");\n");

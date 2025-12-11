@@ -3619,6 +3619,23 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
+    // Check if this is a variadic function call and construct array BEFORE the call
+    mut variadic_info := detect_variadic_fcall(fcall, ctx)
+    mut variadic_arr_var := ""
+    if variadic_info.is_variadic {
+        mut variadic_args := Vec.new(Expr)
+        mut va_idx := add(1, variadic_info.regular_count)
+        while lt(va_idx, fcall.params.len()) {
+            mut va_arg := Expr()
+            fcall.params.get(va_idx, va_arg)
+            variadic_args.push(va_arg)
+            va_idx = add(va_idx, 1)
+        }
+        variadic_arr_var = hoist_variadic_args(variadic_info.elem_type, variadic_args, hoisted, variadic_info.regular_count, result, indent, ctx, context)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw "emit_throwing_call: AllocError in variadic handling" }
+
     // Generate the function call with output parameters
     result = result.concat(indent_str)
     result = result.concat("int _status_")
@@ -3649,87 +3666,155 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         i = add(i, 1)
     }
 
-    // Emit arguments
-    mut args_started := false
-    // param_types and hoisted already calculated above
-    i = 1
-    while lt(i, fcall.params.len()) {
-        if args_started {
-            result = result.concat(", ")
-        } else {
+    // Emit arguments - handle variadic separately from regular args
+    if variadic_info.is_variadic {
+        // Variadic call: emit regular args first, then variadic array pointer
+        i = 1
+        while lt(i, add(1, variadic_info.regular_count)) {
             if gt(param_count, 0) {
                 result = result.concat(", ")
             }
-        }
-        mut arg := Expr()
-        fcall.params.get(i, arg)
-        mut arg_idx := sub(i, 1)
+            mut arg := Expr()
+            fcall.params.get(i, arg)
+            mut arg_idx := sub(i, 1)
 
-        // Check if this arg was hoisted
-        mut found_hoisted := false
-        mut hoisted_temp := ""
-        mut h_idx := 0
-        while lt(h_idx, hoisted.len()) {
-            mut h := HoistedArg()
-            hoisted.get(h_idx, h)
-            if eq(h.index, arg_idx) {
-                found_hoisted = true
-                hoisted_temp = h.temp_var
-            }
-            h_idx = add(h_idx, 1)
-        }
-
-        // Get param type for this argument
-        mut is_dynamic_param := false
-        if lt(arg_idx, param_types.len()) {
-            mut pt := ValueType.TCustom("")
-            param_types.get(arg_idx, pt)
-            switch pt {
-            case ValueType.TCustom(type_name):
-                if type_name.eq("Dynamic") {
-                    is_dynamic_param = true
+            // Check if this arg was hoisted
+            mut found_hoisted := false
+            mut hoisted_temp := ""
+            mut h_idx := 0
+            while lt(h_idx, hoisted.len()) {
+                mut h := HoistedArg()
+                hoisted.get(h_idx, h)
+                if eq(h.index, arg_idx) {
+                    found_hoisted = true
+                    hoisted_temp = h.temp_var
                 }
-            case:
+                h_idx = add(h_idx, 1)
             }
+
+            // Get param type and mutability for this argument
+            mut is_dynamic_param := false
+            mut is_mut := false
+            if lt(arg_idx, param_types.len()) {
+                mut pt := ValueType.TCustom("")
+                param_types.get(arg_idx, pt)
+                switch pt {
+                case ValueType.TCustom(type_name):
+                    if type_name.eq("Dynamic") {
+                        is_dynamic_param = true
+                    }
+                case:
+                }
+            }
+            if lt(arg_idx, param_is_mut.len()) {
+                param_is_mut.get(arg_idx, is_mut)
+            }
+
+            if found_hoisted {
+                result = result.concat(hoisted_temp)
+            } else if is_dynamic_param {
+                result = result.concat("(til_Dynamic*)&")
+                result = emit_expr(arg, result, 0, ctx, context)
+            } else if is_mut {
+                result = result.concat("&")
+                result = emit_expr(arg, result, 0, ctx, context)
+            } else {
+                result = emit_expr(arg, result, 0, ctx, context)
+            }
+            param_count = add(param_count, 1)
+            i = add(i, 1)
         }
 
-        if found_hoisted {
-            // Hoisted temp var is an lvalue - add & if param is Dynamic
-            if is_dynamic_param {
-                result = result.concat("&")
+        // Emit variadic array pointer
+        if gt(variadic_arr_var.len(), 0) {
+            if gt(param_count, 0) {
+                result = result.concat(", ")
             }
-            result = result.concat(hoisted_temp)
-        } else {
-            // Check if arg is a type identifier - emit as string literal
-            mut type_arg := get_type_arg_name(arg, context)
-            if type_arg.found {
-                result = result.concat("\"")
-                result = result.concat(type_arg.type_name)
-                result = result.concat("\"")
+            result = result.concat("&")
+            result = result.concat(variadic_arr_var)
+        }
+    } else {
+        // Non-variadic: emit all args directly
+        mut args_started := false
+        i = 1
+        while lt(i, fcall.params.len()) {
+            if args_started {
+                result = result.concat(", ")
             } else {
-                // Check if param is Dynamic and arg is simple identifier
+                if gt(param_count, 0) {
+                    result = result.concat(", ")
+                }
+            }
+            mut arg := Expr()
+            fcall.params.get(i, arg)
+            mut arg_idx := sub(i, 1)
+
+            // Check if this arg was hoisted
+            mut found_hoisted := false
+            mut hoisted_temp := ""
+            mut h_idx := 0
+            while lt(h_idx, hoisted.len()) {
+                mut h := HoistedArg()
+                hoisted.get(h_idx, h)
+                if eq(h.index, arg_idx) {
+                    found_hoisted = true
+                    hoisted_temp = h.temp_var
+                }
+                h_idx = add(h_idx, 1)
+            }
+
+            // Get param type for this argument
+            mut is_dynamic_param := false
+            if lt(arg_idx, param_types.len()) {
+                mut pt := ValueType.TCustom("")
+                param_types.get(arg_idx, pt)
+                switch pt {
+                case ValueType.TCustom(type_name):
+                    if type_name.eq("Dynamic") {
+                        is_dynamic_param = true
+                    }
+                case:
+                }
+            }
+
+            if found_hoisted {
+                // Hoisted temp var is an lvalue - add & if param is Dynamic
                 if is_dynamic_param {
-                    switch arg.node_type {
-                    case NodeType.Identifier(name):
-                        if eq(arg.params.len(), 0) {
-                            // Simple variable - emit &var
-                            result = result.concat("&")
-                            result = result.concat(til_name(name))
-                        } else {
-                            // Not simple - emit as is
+                    result = result.concat("&")
+                }
+                result = result.concat(hoisted_temp)
+            } else {
+                // Check if arg is a type identifier - emit as string literal
+                mut type_arg := get_type_arg_name(arg, context)
+                if type_arg.found {
+                    result = result.concat("\"")
+                    result = result.concat(type_arg.type_name)
+                    result = result.concat("\"")
+                } else {
+                    // Check if param is Dynamic and arg is simple identifier
+                    if is_dynamic_param {
+                        switch arg.node_type {
+                        case NodeType.Identifier(name):
+                            if eq(arg.params.len(), 0) {
+                                // Simple variable - emit &var
+                                result = result.concat("&")
+                                result = result.concat(til_name(name))
+                            } else {
+                                // Not simple - emit as is
+                                result = emit_expr(arg, result, 0, ctx, context)
+                            }
+                        case:
                             result = emit_expr(arg, result, 0, ctx, context)
                         }
-                    case:
+                    } else {
                         result = emit_expr(arg, result, 0, ctx, context)
                     }
-                } else {
-                    result = emit_expr(arg, result, 0, ctx, context)
                 }
             }
+            args_started = true
+            param_count = add(param_count, 1)
+            i = add(i, 1)
         }
-        args_started = true
-        param_count = add(param_count, 1)
-        i = add(i, 1)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
