@@ -817,8 +817,17 @@ fn detect_variadic_fcall(
 
     // Get function name with dots (for lookup in variadic map)
     let func_name = get_func_name_string(&expr.params[0])?;
-    // Convert underscores back to dots for lookup
-    let orig_func_name = func_name.replace('_', ".");
+    // For simple identifiers (after precomp), use the name directly
+    // For nested identifiers (Type.method), convert underscores back to dots
+    let orig_func_name = if expr.params[0].params.is_empty() {
+        if let NodeType::Identifier(name) = &expr.params[0].node_type {
+            name.clone()
+        } else {
+            func_name.replace('_', ".")
+        }
+    } else {
+        func_name.replace('_', ".")
+    };
 
     ctx.func_variadic_args.get(&orig_func_name)
         .map(|(_, elem_type, regular_count)| (elem_type.clone(), *regular_count))
@@ -1299,19 +1308,25 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // Main function
     output.push_str("int main() {\n");
 
+    // Clear hoisted_exprs to avoid cross-contamination from function passes
+    ctx.hoisted_exprs.clear();
+
     // Pass 5: emit non-struct, non-function, non-enum, non-constant statements
+    // Collect them into a Vec and use emit_stmts for proper variadic/throwing call handling
     if let NodeType::Body = &ast.node_type {
-        for child in &ast.params {
-            // Skip true/false declarations - they're now #defines
-            if let NodeType::Declaration(decl) = &child.node_type {
-                if decl.name == "true" || decl.name == "false" {
-                    continue;
+        let main_stmts: Vec<Expr> = ast.params.iter()
+            .filter(|child| {
+                // Skip true/false declarations - they're now #defines
+                if let NodeType::Declaration(decl) = &child.node_type {
+                    if decl.name == "true" || decl.name == "false" {
+                        return false;
+                    }
                 }
-            }
-            if !is_func_declaration(child) && !is_struct_declaration(child) && !is_enum_declaration(child) && !is_constant_declaration(child) {
-                emit_expr(child, &mut output, 1, &mut ctx, context)?;
-            }
-        }
+                !is_func_declaration(child) && !is_struct_declaration(child) && !is_enum_declaration(child) && !is_constant_declaration(child)
+            })
+            .cloned()
+            .collect();
+        emit_stmts(&main_stmts, &mut output, 1, &mut ctx, context)?;
     }
 
     // Call til_main() for modes that require a main proc (like cli)
@@ -2431,6 +2446,25 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
             }
         }
 
+        // Check for non-throwing variadic calls in declarations/assignments
+        // These need special handling because variadic array must be constructed first
+        if let Some(fcall) = maybe_fcall {
+            if let Some((elem_type, regular_count)) = detect_variadic_fcall(fcall, ctx) {
+                // Check that this is NOT a throwing function (those are handled above)
+                let func_name = get_fcall_func_name(fcall);
+                let is_throwing = func_name.as_ref()
+                    .and_then(|name| lookup_func_by_name(context, name))
+                    .map(|fd| !fd.throw_types.is_empty())
+                    .unwrap_or(false);
+
+                if !is_throwing {
+                    emit_variadic_call(fcall, &elem_type, regular_count, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
+                    i += 1;
+                    continue;
+                }
+            }
+        }
+
         // Regular statement handling
         emit_expr(stmt, output, indent, ctx, context)?;
         i += 1;
@@ -2519,6 +2553,190 @@ fn prescan_func_level_catches<'a>(stmts: &'a [Expr]) -> Vec<&'a Expr> {
     }
 
     catches
+}
+
+/// Emit a non-throwing variadic function call at statement level
+/// Handles constructing the variadic array and cleaning it up after the call
+fn emit_variadic_call(
+    fcall: &Expr,
+    elem_type: &str,
+    regular_count: usize,
+    decl_name: Option<&str>,
+    assign_name: Option<&str>,
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<(), String> {
+    let indent_str = "    ".repeat(indent);
+
+    // Get function name
+    let func_name = get_fcall_func_name(fcall)
+        .ok_or_else(|| "emit_variadic_call: could not get function name".to_string())?;
+
+    // Calculate param info for mut param handling
+    let param_is_mut: Vec<bool> = {
+        let func_def = lookup_func_by_name(context, &func_name);
+        fcall.params.iter().skip(1).enumerate()
+            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
+            .collect()
+    };
+
+    // Hoist any throwing function calls in arguments BEFORE constructing variadic array
+    let hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
+        let args = &fcall.params[1..];
+        let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
+        hoisted_vec.into_iter().collect()
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    // Construct variadic array
+    let variadic_args: Vec<_> = fcall.params.iter().skip(1 + regular_count).collect();
+    let variadic_arr_var = hoist_variadic_args(elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?;
+
+    // Determine return type if we need to declare a variable
+    let ret_type = if decl_name.is_some() || assign_name.is_some() {
+        lookup_func_by_name(context, &func_name)
+            .and_then(|fd| fd.return_types.first())
+            .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
+            .unwrap_or("int".to_string())
+    } else {
+        "int".to_string()
+    };
+
+    // For declarations: declare the variable
+    if let Some(var_name) = decl_name {
+        output.push_str(&indent_str);
+        output.push_str(&ret_type);
+        output.push_str(" ");
+        output.push_str(&til_name(var_name));
+        output.push_str(" = ");
+
+        // Emit function call
+        output.push_str(TIL_PREFIX);
+        output.push_str(&func_name.replace('.', "_"));
+        output.push_str("(");
+
+        // Emit regular args first
+        let args: Vec<_> = fcall.params.iter().skip(1).collect();
+        for (i, arg) in args.iter().take(regular_count).enumerate() {
+            if i > 0 {
+                output.push_str(", ");
+            }
+            let is_mut = param_is_mut.get(i).copied().unwrap_or(false);
+            emit_arg_with_mut(arg, i, &hoisted, is_mut, output, ctx, context)?;
+        }
+
+        // Emit variadic array pointer
+        if regular_count > 0 {
+            output.push_str(", ");
+        }
+        output.push_str("&");
+        output.push_str(&variadic_arr_var);
+
+        output.push_str(");\n");
+
+        // Add variable to scope
+        if let Some(fd) = lookup_func_by_name(context, &func_name) {
+            if let Some(first_type) = fd.return_types.first() {
+                context.scope_stack.declare_symbol(
+                    var_name.to_string(),
+                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
+                );
+            }
+        }
+        ctx.declared_vars.insert(til_name(var_name));
+    } else if let Some(var_name) = assign_name {
+        // Assignment
+        output.push_str(&indent_str);
+        output.push_str(&til_name(var_name));
+        output.push_str(" = ");
+
+        // Emit function call
+        output.push_str(TIL_PREFIX);
+        output.push_str(&func_name.replace('.', "_"));
+        output.push_str("(");
+
+        // Emit regular args first
+        let args: Vec<_> = fcall.params.iter().skip(1).collect();
+        for (i, arg) in args.iter().take(regular_count).enumerate() {
+            if i > 0 {
+                output.push_str(", ");
+            }
+            let is_mut = param_is_mut.get(i).copied().unwrap_or(false);
+            emit_arg_with_mut(arg, i, &hoisted, is_mut, output, ctx, context)?;
+        }
+
+        // Emit variadic array pointer
+        if regular_count > 0 {
+            output.push_str(", ");
+        }
+        output.push_str("&");
+        output.push_str(&variadic_arr_var);
+
+        output.push_str(");\n");
+    } else {
+        // Standalone variadic call (no return value used)
+        output.push_str(&indent_str);
+        output.push_str(TIL_PREFIX);
+        output.push_str(&func_name.replace('.', "_"));
+        output.push_str("(");
+
+        // Emit regular args first
+        let args: Vec<_> = fcall.params.iter().skip(1).collect();
+        for (i, arg) in args.iter().take(regular_count).enumerate() {
+            if i > 0 {
+                output.push_str(", ");
+            }
+            let is_mut = param_is_mut.get(i).copied().unwrap_or(false);
+            emit_arg_with_mut(arg, i, &hoisted, is_mut, output, ctx, context)?;
+        }
+
+        // Emit variadic array pointer
+        if regular_count > 0 {
+            output.push_str(", ");
+        }
+        output.push_str("&");
+        output.push_str(&variadic_arr_var);
+
+        output.push_str(");\n");
+    }
+
+    // Clean up variadic array
+    output.push_str(&indent_str);
+    output.push_str(TIL_PREFIX);
+    output.push_str("Array_delete(&");
+    output.push_str(&variadic_arr_var);
+    output.push_str(");\n");
+
+    Ok(())
+}
+
+/// Helper to emit an argument with mut parameter handling
+fn emit_arg_with_mut(
+    arg: &Expr,
+    idx: usize,
+    hoisted: &std::collections::HashMap<usize, String>,
+    is_mut: bool,
+    output: &mut String,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<(), String> {
+    if let Some(temp_var) = hoisted.get(&idx) {
+        // Use hoisted temp var
+        if is_mut {
+            output.push_str("&");
+        }
+        output.push_str(temp_var);
+    } else if is_mut {
+        // Mut param - emit as pointer
+        output.push_str("&");
+        emit_expr(arg, output, 0, ctx, context)?;
+    } else {
+        emit_expr(arg, output, 0, ctx, context)?;
+    }
+    Ok(())
 }
 
 /// Emit a call to a throwing function with catch handling

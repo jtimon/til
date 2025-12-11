@@ -278,8 +278,19 @@ detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext) returns VariadicF
     if not(func_name_result.found) {
         return result
     }
-    // Convert underscores back to dots for lookup
-    mut orig_func_name := func_name_result.name.replace("_", ".")
+    // For simple identifiers (after precomp), use the name directly
+    // For nested identifiers (Type.method), convert underscores back to dots
+    mut orig_func_name := ""
+    if eq(first.params.len(), 0) {
+        switch first.node_type {
+        case NodeType.Identifier(name):
+            orig_func_name = name
+        case:
+            orig_func_name = func_name_result.name.replace("_", ".")
+        }
+    } else {
+        orig_func_name = func_name_result.name.replace("_", ".")
+    }
 
     // Look up in func_variadic_args
     mut variadic_info := VariadicParamInfo()
@@ -1831,9 +1842,14 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // Main function
     output = output.concat("int main() {\n")
 
+    // Clear hoisted_exprs to avoid cross-contamination from function passes
+    ctx.hoisted_exprs = Map.new(Str, Str)
+
     // Pass 5: emit non-struct, non-function, non-enum, non-constant statements
+    // Collect them into a Vec and use emit_stmts for proper variadic/throwing call handling
     switch ast.node_type {
     case NodeType.Body:
+        mut main_stmts := Vec.new(Expr)
         mut i := 0
         mut params_len := ast.params.len()
         while lt(i, params_len) {
@@ -1852,7 +1868,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
                     if not(is_struct_declaration(child)) {
                         if not(is_enum_declaration(child)) {
                             if not(is_constant_declaration(child)) {
-                                output = emit_expr(child, output, 1, ctx, context)
+                                main_stmts.push(child)
                             }
                         }
                     }
@@ -1860,6 +1876,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             }
             i = add(i, 1)
         }
+        output = emit_stmts(main_stmts, output, 1, ctx, context)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, emit directly
@@ -3094,8 +3111,23 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                         i = add(i, 1)
                     }
                 } else {
-                    // Not a throwing function, emit regular statement
-                    result = emit_expr(stmt, result, indent, ctx, context)
+                    // Not a throwing function - check for variadic call
+                    mut variadic_info := detect_variadic_fcall(maybe_fcall, ctx)
+                    if variadic_info.is_variadic {
+                        // Emit variadic call with proper array construction
+                        if has_decl {
+                            result = emit_variadic_call(maybe_fcall, variadic_info.elem_type, variadic_info.regular_count, maybe_decl_name, "", result, indent, ctx, context)
+                        } else {
+                            if has_assign {
+                                result = emit_variadic_call(maybe_fcall, variadic_info.elem_type, variadic_info.regular_count, "", maybe_assign_name, result, indent, ctx, context)
+                            } else {
+                                result = emit_variadic_call(maybe_fcall, variadic_info.elem_type, variadic_info.regular_count, "", "", result, indent, ctx, context)
+                            }
+                        }
+                    } else {
+                        // Regular non-throwing, non-variadic statement
+                        result = emit_expr(stmt, result, indent, ctx, context)
+                    }
                     i = add(i, 1)
                 }
             } else {
@@ -3183,6 +3215,243 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
         clean_i = add(clean_i, 1)
     }
     catch (err: IndexOutOfBoundsError) { /* ignore */ }
+
+    return result
+}
+
+/// Emit a non-throwing variadic function call at statement level
+/// Handles constructing the variadic array and cleaning it up after the call
+emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_name: Str, assign_name: Str, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+    mut result := output
+
+    // Generate indentation string
+    mut indent_str := ""
+    mut ind := 0
+    while lt(ind, indent) {
+        indent_str = indent_str.concat("    ")
+        ind = add(ind, 1)
+    }
+
+    // Get function name
+    mut func_name := get_fcall_func_name(fcall)
+    if eq(func_name.len(), 0) {
+        throw "emit_variadic_call: could not get function name"
+    }
+
+    // Calculate param info for mut param handling
+    mut param_is_mut := Vec.new(Bool)
+    mut lookup_result := lookup_func_by_name(context, func_name)
+    mut pi := 0
+    while lt(pi, sub(fcall.params.len(), 1)) {
+        mut is_mut := false
+        if lookup_result.found {
+            if lt(pi, lookup_result.func_def.args.len()) {
+                mut arg_info := FuncArg()
+                lookup_result.func_def.args.get(pi, arg_info)
+                is_mut = arg_info.is_mut
+            }
+        }
+        param_is_mut.push(is_mut)
+        pi = add(pi, 1)
+    }
+
+    // Hoist any throwing function calls in arguments BEFORE constructing variadic array
+    mut hoisted := Map.new(I64, Str)
+    if gt(fcall.params.len(), 1) {
+        mut args := Vec.new(Expr)
+        mut ai := 1
+        while lt(ai, fcall.params.len()) {
+            mut arg := Expr()
+            fcall.params.get(ai, arg)
+            args.push(arg)
+            ai = add(ai, 1)
+        }
+        mut hoisted_vec := hoist_throwing_args(args, result, indent, ctx, context)
+        result = hoisted_vec.output
+        mut hi := 0
+        while lt(hi, hoisted_vec.hoisted.len()) {
+            mut entry := HoistedArg()
+            hoisted_vec.hoisted.get(hi, entry)
+            hoisted.set(entry.index, entry.temp_var)
+            hi = add(hi, 1)
+        }
+    }
+
+    // Construct variadic array
+    mut variadic_args := Vec.new(Expr)
+    mut vai := add(1, regular_count)
+    while lt(vai, fcall.params.len()) {
+        mut arg := Expr()
+        fcall.params.get(vai, arg)
+        variadic_args.push(arg)
+        vai = add(vai, 1)
+    }
+    mut variadic_result := hoist_variadic_args(elem_type, variadic_args, hoisted, regular_count, result, indent, ctx, context)
+    result = variadic_result.output
+    mut variadic_arr_var := variadic_result.arr_var
+
+    // Determine return type if we need to declare a variable
+    mut ret_type := "int"
+    if or(gt(decl_name.len(), 0), gt(assign_name.len(), 0)) {
+        if lookup_result.found {
+            if gt(lookup_result.func_def.return_types.len(), 0) {
+                mut first_ret := ValueType.TCustom("")
+                lookup_result.func_def.return_types.get(0, first_ret)
+                mut c_type := til_type_to_c(first_ret)
+                if gt(c_type.len(), 0) {
+                    ret_type = c_type
+                }
+            }
+        }
+    }
+
+    // For declarations: declare the variable
+    if gt(decl_name.len(), 0) {
+        result = result.concat(indent_str)
+        result = result.concat(ret_type)
+        result = result.concat(" ")
+        result = result.concat(til_name(decl_name))
+        result = result.concat(" = ")
+
+        // Emit function call
+        result = result.concat(TIL_PREFIX)
+        result = result.concat(func_name.replace(".", "_"))
+        result = result.concat("(")
+
+        // Emit regular args first
+        mut rai := 0
+        while lt(rai, regular_count) {
+            if gt(rai, 0) {
+                result = result.concat(", ")
+            }
+            mut is_mut := false
+            param_is_mut.get(rai, is_mut)
+            catch (err: IndexOutOfBoundsError) { }
+            result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, is_mut, result, ctx, context)
+            rai = add(rai, 1)
+        }
+
+        // Emit variadic array pointer
+        if gt(regular_count, 0) {
+            result = result.concat(", ")
+        }
+        result = result.concat("&")
+        result = result.concat(variadic_arr_var)
+        result = result.concat(");\n")
+
+        // Add variable to scope
+        if lookup_result.found {
+            if gt(lookup_result.func_def.return_types.len(), 0) {
+                mut first_type := ValueType.TCustom("")
+                lookup_result.func_def.return_types.get(0, first_type)
+                context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+            }
+        }
+        ctx.declared_vars.set(til_name(decl_name), true)
+    } else {
+        if gt(assign_name.len(), 0) {
+            // Assignment
+            result = result.concat(indent_str)
+            result = result.concat(til_name(assign_name))
+            result = result.concat(" = ")
+
+            // Emit function call
+            result = result.concat(TIL_PREFIX)
+            result = result.concat(func_name.replace(".", "_"))
+            result = result.concat("(")
+
+            // Emit regular args first
+            mut rai := 0
+            while lt(rai, regular_count) {
+                if gt(rai, 0) {
+                    result = result.concat(", ")
+                }
+                mut is_mut := false
+                param_is_mut.get(rai, is_mut)
+                catch (err: IndexOutOfBoundsError) { }
+                result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, is_mut, result, ctx, context)
+                rai = add(rai, 1)
+            }
+
+            // Emit variadic array pointer
+            if gt(regular_count, 0) {
+                result = result.concat(", ")
+            }
+            result = result.concat("&")
+            result = result.concat(variadic_arr_var)
+            result = result.concat(");\n")
+        } else {
+            // Standalone variadic call (no return value used)
+            result = result.concat(indent_str)
+            result = result.concat(TIL_PREFIX)
+            result = result.concat(func_name.replace(".", "_"))
+            result = result.concat("(")
+
+            // Emit regular args first
+            mut rai := 0
+            while lt(rai, regular_count) {
+                if gt(rai, 0) {
+                    result = result.concat(", ")
+                }
+                mut is_mut := false
+                param_is_mut.get(rai, is_mut)
+                catch (err: IndexOutOfBoundsError) { }
+                result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, is_mut, result, ctx, context)
+                rai = add(rai, 1)
+            }
+
+            // Emit variadic array pointer
+            if gt(regular_count, 0) {
+                result = result.concat(", ")
+            }
+            result = result.concat("&")
+            result = result.concat(variadic_arr_var)
+            result = result.concat(");\n")
+        }
+    }
+
+    // Clean up variadic array
+    result = result.concat(indent_str)
+    result = result.concat(TIL_PREFIX)
+    result = result.concat("Array_delete(&")
+    result = result.concat(variadic_arr_var)
+    result = result.concat(");\n")
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: KeyNotFoundError) { /* ignore */ }
+
+    return result
+}
+
+/// Helper to emit an argument with mut parameter handling
+emit_arg_with_mut := proc(fcall: Expr, arg_idx: I64, hoisted: Map, is_mut: Bool, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+    mut result := output
+
+    // Check if this arg was hoisted
+    mut hoisted_var := ""
+    mut was_hoisted := false
+    hoisted.get(sub(arg_idx, 1), hoisted_var)
+    was_hoisted = true
+    catch (err: KeyNotFoundError) { }
+
+    if was_hoisted {
+        // Use hoisted temp var
+        if is_mut {
+            result = result.concat("&")
+        }
+        result = result.concat(hoisted_var)
+    } else {
+        // Emit the argument expression
+        mut arg := Expr()
+        fcall.params.get(arg_idx, arg)
+        if is_mut {
+            result = result.concat("&")
+        }
+        result = emit_expr(arg, result, 0, ctx, context)
+    }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     return result
 }

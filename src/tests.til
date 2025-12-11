@@ -272,6 +272,7 @@ main := proc(args: ..Str) {
     rs_common.push("src/test/c_mem.til")
     rs_common.push("src/test/flow.til")
     rs_common.push("src/test/fibonacci.til")
+    rs_common.push("src/test/run_cmd.til")
 
     mut rs_compiled := Vec.new(Str)
     rs_compiled.push("src/test/enums_simple.til")
@@ -299,7 +300,6 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/maps.til") // TODO FIX: Dynamic param type mismatch (Str passed to Dynamic), field access on non-pointer
     rs_interpreted.push("src/test/mut_test.til") // TODO FIX: mut param not passed as pointer
     rs_interpreted.push("src/test/namespaces.til") // TODO FIX: static string init at global scope needs constant initializer
-    rs_interpreted.push("src/test/run_cmd.til") // TODO FIX: UFCS run_cmd wrong return type, variadic ext function
     rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: nested func mut param declaration mismatch (const vs pointer)
     rs_interpreted.push("src/test/sets.til") // TODO FIX: underscore redeclaration (C doesn't allow multiple _ decls in same scope)
     rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: static string init, pointer type mismatch, format variadic

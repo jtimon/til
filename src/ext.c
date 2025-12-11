@@ -183,18 +183,48 @@ static inline til_I64 til_writefile(til_Str path, til_Str contents)
     return (til_I64)written;
 }
 
-// run_cmd: run shell command and return stdout
-static inline til_Str til_run_cmd(til_Str cmd)
+// run_cmd: run command with arguments, capture output and return exit code
+// Signature: run_cmd(mut output_str: Str, args: ..Str) returns I64
+// First element of args array is the command, rest are arguments
+static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
 {
     static char buf[65536];
-    FILE* f = popen((const char*)cmd.c_string, "r");
-    if (!f) {
-        buf[0] = '\0';
-        til_Str s;
-        s.c_string = (til_I64)buf;
-        s.cap = 0;
-        return s;
+    buf[0] = '\0';
+
+    if (args->_len == 0) {
+        output_str->c_string = (til_I64)buf;
+        output_str->cap = 0;
+        return -1;
     }
+
+    // Build command string: "cmd arg1 arg2 ..."
+    // For simplicity, we'll just concatenate with spaces (no shell escaping)
+    char cmd_buf[8192];
+    cmd_buf[0] = '\0';
+    size_t cmd_len = 0;
+
+    for (til_I64 i = 0; i < args->_len; i++) {
+        til_Str* arg = (til_Str*)((char*)args->ptr + i * sizeof(til_Str));
+        if (i > 0) {
+            if (cmd_len < sizeof(cmd_buf) - 1) {
+                cmd_buf[cmd_len++] = ' ';
+            }
+        }
+        size_t arg_len = arg->cap;
+        if (cmd_len + arg_len < sizeof(cmd_buf) - 1) {
+            memcpy(cmd_buf + cmd_len, (const char*)arg->c_string, arg_len);
+            cmd_len += arg_len;
+        }
+    }
+    cmd_buf[cmd_len] = '\0';
+
+    FILE* f = popen(cmd_buf, "r");
+    if (!f) {
+        output_str->c_string = (til_I64)buf;
+        output_str->cap = 0;
+        return -1;
+    }
+
     size_t total = 0;
     while (total < sizeof(buf) - 1) {
         size_t n = fread(buf + total, 1, sizeof(buf) - 1 - total, f);
@@ -202,11 +232,12 @@ static inline til_Str til_run_cmd(til_Str cmd)
         total += n;
     }
     buf[total] = '\0';
-    pclose(f);
-    til_Str s;
-    s.c_string = (til_I64)buf;
-    s.cap = total;
-    return s;
+    int status = pclose(f);
+    int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+
+    output_str->c_string = (til_I64)buf;
+    output_str->cap = total;
+    return (til_I64)exit_code;
 }
 
 #endif /* TIL_EXT_C */
