@@ -309,6 +309,189 @@ fn check_throwing_fcall(expr: &Expr, _ctx: &CodegenContext, context: &Context) -
     None
 }
 
+/// Hoist a single expression if it's a throwing call, or recursively hoist throwing calls within it.
+/// Returns Some(temp_var_name) if the expression itself was hoisted, None otherwise.
+/// The hoisted_exprs map in ctx is updated with any sub-expressions that were hoisted.
+fn hoist_throwing_expr(
+    expr: &Expr,
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<Option<String>, String> {
+    let indent_str = "    ".repeat(indent);
+
+    // Check if this expression itself is a throwing call
+    if let Some((_func_name, throw_types, return_type)) = check_throwing_fcall(expr, ctx, context) {
+        // First, recursively hoist any throwing calls in this call's arguments
+        let nested_hoisted: std::collections::HashMap<usize, String> = if expr.params.len() > 1 {
+            let nested_args = &expr.params[1..];
+            let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
+            nested_vec.into_iter().collect()
+        } else {
+            std::collections::HashMap::new()
+        };
+
+        let temp_var = next_mangled();
+
+        // Determine the C type for the temp variable
+        let c_type = if let Some(ret_type) = &return_type {
+            til_type_to_c(ret_type).unwrap_or_else(|| "int".to_string())
+        } else {
+            "int".to_string()
+        };
+
+        // Declare temp variable
+        output.push_str(&indent_str);
+        output.push_str(&c_type);
+        output.push_str(" ");
+        output.push_str(&temp_var);
+        output.push_str(";\n");
+
+        // Declare error variables for each throw type
+        let temp_suffix = next_mangled();
+        for (err_idx, throw_type) in throw_types.iter().enumerate() {
+            if let ValueType::TCustom(type_name) = throw_type {
+                output.push_str(&indent_str);
+                output.push_str(&til_name(type_name));
+                output.push_str(" _err");
+                output.push_str(&err_idx.to_string());
+                output.push_str("_");
+                output.push_str(&temp_suffix);
+                output.push_str(";\n");
+            }
+        }
+
+        // Detect and construct variadic array if needed
+        let variadic_info = detect_variadic_fcall(expr, ctx);
+        let variadic_arr_var: Option<String> = if let Some((elem_type, regular_count)) = variadic_info.clone() {
+            let variadic_args: Vec<_> = expr.params.iter().skip(1 + regular_count).collect();
+            if !variadic_args.is_empty() {
+                Some(hoist_variadic_args(&elem_type, &variadic_args, &nested_hoisted, regular_count, output, indent, ctx, context)?)
+            } else {
+                Some(hoist_variadic_args(&elem_type, &[], &nested_hoisted, regular_count, output, indent, ctx, context)?)
+            }
+        } else {
+            None
+        };
+
+        // Emit the function call with output pointers
+        output.push_str(&indent_str);
+        output.push_str("int _status_");
+        output.push_str(&temp_suffix);
+        output.push_str(" = ");
+
+        // Emit the function name and args (using nested hoisted temps)
+        emit_fcall_name_and_args_for_throwing(expr, &temp_var, &temp_suffix, &throw_types, &nested_hoisted, variadic_arr_var.as_deref(), output, ctx, context)?;
+
+        output.push_str(";\n");
+
+        // Emit error checking - propagate or goto based on context
+        // Check if there are local catch labels for these error types
+        let mut has_local_catch = false;
+        for throw_type in &throw_types {
+            if let ValueType::TCustom(type_name) = throw_type {
+                if ctx.local_catch_labels.contains_key(type_name) {
+                    has_local_catch = true;
+                    break;
+                }
+            }
+        }
+
+        if has_local_catch {
+            // Use goto for local catches
+            for (err_idx, throw_type) in throw_types.iter().enumerate() {
+                if let ValueType::TCustom(type_name) = throw_type {
+                    if let Some((label, catch_temp_var)) = ctx.local_catch_labels.get(type_name) {
+                        output.push_str(&indent_str);
+                        output.push_str("if (_status_");
+                        output.push_str(&temp_suffix);
+                        output.push_str(" == ");
+                        output.push_str(&(err_idx + 1).to_string());
+                        output.push_str(") { ");
+                        output.push_str(catch_temp_var);
+                        output.push_str(" = _err");
+                        output.push_str(&err_idx.to_string());
+                        output.push_str("_");
+                        output.push_str(&temp_suffix);
+                        output.push_str("; goto ");
+                        output.push_str(label);
+                        output.push_str("; }\n");
+                    }
+                }
+            }
+        } else {
+            // Propagate errors
+            output.push_str(&indent_str);
+            output.push_str("if (_status_");
+            output.push_str(&temp_suffix);
+            output.push_str(" != 0) {\n");
+
+            for (err_idx, throw_type) in throw_types.iter().enumerate() {
+                if let ValueType::TCustom(type_name) = throw_type {
+                    for (curr_idx, curr_throw) in ctx.current_throw_types.iter().enumerate() {
+                        if let ValueType::TCustom(curr_type_name) = curr_throw {
+                            if curr_type_name == type_name {
+                                output.push_str(&indent_str);
+                                output.push_str("    if (_status_");
+                                output.push_str(&temp_suffix);
+                                output.push_str(" == ");
+                                output.push_str(&(err_idx + 1).to_string());
+                                output.push_str(") { *_err");
+                                output.push_str(&(curr_idx + 1).to_string());
+                                output.push_str(" = _err");
+                                output.push_str(&err_idx.to_string());
+                                output.push_str("_");
+                                output.push_str(&temp_suffix);
+                                output.push_str("; return ");
+                                output.push_str(&(curr_idx + 1).to_string());
+                                output.push_str("; }\n");
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            output.push_str(&indent_str);
+            output.push_str("}\n");
+        }
+
+        // Emit Array.delete if variadic array was constructed
+        if let Some(arr_var) = &variadic_arr_var {
+            output.push_str(&indent_str);
+            output.push_str(TIL_PREFIX);
+            output.push_str("Array_delete(&");
+            output.push_str(arr_var);
+            output.push_str(");\n");
+        }
+
+        // Record in hoisted_exprs map using expression address
+        let expr_addr = expr as *const Expr as usize;
+        ctx.hoisted_exprs.insert(expr_addr, temp_var.clone());
+
+        return Ok(Some(temp_var));
+    }
+
+    // Not a throwing call - recursively check sub-expressions
+    // For FCall, check all arguments
+    if let NodeType::FCall = &expr.node_type {
+        if expr.params.len() > 1 {
+            for arg in &expr.params[1..] {
+                hoist_throwing_expr(arg, output, indent, ctx, context)?;
+            }
+        }
+    }
+    // For other expression types with sub-expressions, recurse into them
+    else {
+        for param in &expr.params {
+            hoist_throwing_expr(param, output, indent, ctx, context)?;
+        }
+    }
+
+    Ok(None)
+}
+
 /// Hoist throwing function calls from arguments (recursively)
 /// Returns a vector of (arg_index, temp_var_name) for arguments that were hoisted
 fn hoist_throwing_args(
@@ -3591,6 +3774,12 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
     let indent_str = "    ".repeat(indent);
 
+    // Hoist any throwing function calls in the RHS expression before emitting the declaration
+    // This ensures throwing calls are properly handled with error checking
+    if !expr.params.is_empty() {
+        hoist_throwing_expr(&expr.params[0], output, indent, ctx, context)?;
+    }
+
     // For underscore declarations, just emit the expression (discard result)
     // This avoids C redeclaration errors and matches the semantics of discarding
     if decl.name == "_" {
@@ -3908,6 +4097,9 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
                 }
             }
         }
+
+        // Hoist any throwing function calls nested in the RHS expression
+        hoist_throwing_expr(rhs_expr, output, indent, ctx, context)?;
     }
 
     // Regular assignment
@@ -3962,6 +4154,9 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     }
                 }
             }
+
+            // Hoist any throwing function calls nested in the return expression
+            hoist_throwing_expr(return_expr, output, indent, ctx, context)?;
 
             // Regular return value - just emit it
             output.push_str(&indent_str);
@@ -4034,6 +4229,11 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
             }
         }
 
+        // Hoist any throwing function calls nested in the return expression
+        if !expr.params.is_empty() {
+            hoist_throwing_expr(&expr.params[0], output, indent, ctx, context)?;
+        }
+
         // Regular non-variadic return
         output.push_str(&indent_str);
         output.push_str("return");
@@ -4054,6 +4254,69 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     let indent_str = "    ".repeat(indent);
     let thrown_expr = &expr.params[0];
+
+    // Check if the thrown expression itself is a throwing function call (e.g., throw format(...))
+    // If so, we need to hoist it first to ensure proper error handling
+    if let Some(hoisted_temp) = hoist_throwing_expr(thrown_expr, output, indent, ctx, context)? {
+        // The thrown expression was hoisted to a temp variable
+        // Now we just need to throw the temp variable value
+        // Get the type of the hoisted value
+        let thrown_type_name = if let Some(func_name) = get_fcall_func_name(thrown_expr) {
+            if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                if let Some(ret_type) = fd.return_types.first() {
+                    if let crate::rs::parser::ValueType::TCustom(type_name) = ret_type {
+                        type_name.clone()
+                    } else {
+                        crate::rs::parser::value_type_to_str(ret_type)
+                    }
+                } else {
+                    return Err("ccodegen: throwing function has no return type".to_string());
+                }
+            } else {
+                return Err("ccodegen: could not find throwing function definition".to_string());
+            }
+        } else {
+            return Err("ccodegen: could not get throwing function name".to_string());
+        };
+
+        // Check if this type is locally caught
+        if let Some((label, temp_var)) = ctx.local_catch_labels.get(&thrown_type_name).cloned() {
+            output.push_str(&indent_str);
+            output.push_str(&temp_var);
+            output.push_str(" = ");
+            output.push_str(&hoisted_temp);
+            output.push_str(";\n");
+            output.push_str(&indent_str);
+            output.push_str("goto ");
+            output.push_str(&label);
+            output.push_str(";\n");
+            return Ok(());
+        }
+
+        // Find the index of this type in current_throw_types
+        let error_index = ctx.current_throw_types.iter().position(|vt| {
+            match vt {
+                crate::rs::parser::ValueType::TCustom(name) => name == &thrown_type_name,
+                _ => false,
+            }
+        });
+
+        match error_index {
+            Some(idx) => {
+                output.push_str(&indent_str);
+                output.push_str(&format!("*_err{} = ", idx + 1));
+                output.push_str(&hoisted_temp);
+                output.push_str(";\n");
+                output.push_str(&indent_str);
+                output.push_str(&format!("return {};\n", idx + 1));
+                return Ok(());
+            }
+            None => return Err(format!(
+                "ccodegen: thrown type '{}' not found in function's throw types: {:?}",
+                thrown_type_name, ctx.current_throw_types
+            )),
+        }
+    }
 
     // Get the thrown type name from the expression
     // For FCall, we need to determine if it's:
@@ -4310,6 +4573,9 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
         return Err("ccodegen: If requires condition and body".to_string());
     }
 
+    // Hoist any throwing function calls in the condition
+    hoist_throwing_expr(&expr.params[0], output, indent, ctx, context)?;
+
     let indent_str = "    ".repeat(indent);
     output.push_str(&indent_str);
     output.push_str("if (");
@@ -4448,6 +4714,9 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
 
     // Get the switch expression - we need to reference it for payload extraction
     let switch_expr = &expr.params[0];
+
+    // Hoist any throwing function calls in the switch expression
+    hoist_throwing_expr(switch_expr, output, indent, ctx, context)?;
 
     // Determine if this is an enum switch or a primitive switch
     // by scanning case patterns for Range or Pattern types

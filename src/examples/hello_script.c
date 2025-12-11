@@ -462,204 +462,406 @@ int til_get_substr(til_Str* _ret, til_IndexOutOfBoundsError* _err1, til_AllocErr
             if (_status__tmp69 == 3) { *_err2 = _err2__tmp69; return 2; }
         }
         til_Array_delete(&_tmp70);
-        *_err1 = til_IndexOutOfBoundsError_new(_tmp68);
+        til_Str _tmp75;
+        til_I64_OverflowError _err0__tmp76;
+        til_IndexOutOfBoundsError _err1__tmp76;
+        til_AllocError _err2__tmp76;
+        til_Array _tmp77;
+        til_AllocError _err_alloc__tmp78;
+        til_IndexOutOfBoundsError _err_idx__tmp78;
+        til_Str _tmp79 = ((til_Str){(til_I64)"get_substr: start index ", 24});
+        til_Str _tmp80 = til_I64_to_str(til_start);
+        til_Str _tmp81 = ((til_Str){(til_I64)" cannot be negative", 19});
+        int _arr_status__tmp78 = til_Array_new(&_tmp77, &_err_alloc__tmp78, "Str", 3);
+        if (_arr_status__tmp78 != 0) {
+            *_err2 = _err_alloc__tmp78; return 2;
+        }
+        _arr_status__tmp78 = til_Array_set(&_err_idx__tmp78, &_tmp77, 0, &_tmp79);
+        if (_arr_status__tmp78 != 0) {
+            *_err1 = _err_idx__tmp78; return 1;
+        }
+        _arr_status__tmp78 = til_Array_set(&_err_idx__tmp78, &_tmp77, 1, &_tmp80);
+        if (_arr_status__tmp78 != 0) {
+            *_err1 = _err_idx__tmp78; return 1;
+        }
+        _arr_status__tmp78 = til_Array_set(&_err_idx__tmp78, &_tmp77, 2, &_tmp81);
+        if (_arr_status__tmp78 != 0) {
+            *_err1 = _err_idx__tmp78; return 1;
+        }
+        int _status__tmp76 = til_format(&_tmp75, &_err0__tmp76, &_err1__tmp76, &_err2__tmp76, ((til_Str){(til_I64)"src/examples/hello_script.til:357:48:", 37}), &_tmp77);
+        if (_status__tmp76 != 0) {
+            if (_status__tmp76 == 2) { *_err1 = _err1__tmp76; return 1; }
+            if (_status__tmp76 == 3) { *_err2 = _err2__tmp76; return 2; }
+        }
+        til_Array_delete(&_tmp77);
+        *_err1 = til_IndexOutOfBoundsError_new(_tmp75);
         return 1;
     }
     if (til_lt(til_end, 0).data) {
-        til_Str _tmp76;
-        til_I64_OverflowError _err0__tmp77;
-        til_IndexOutOfBoundsError _err1__tmp77;
-        til_AllocError _err2__tmp77;
-        til_Array _tmp78;
-        til_AllocError _err_alloc__tmp79;
-        til_IndexOutOfBoundsError _err_idx__tmp79;
-        til_Str _tmp80 = ((til_Str){(til_I64)"get_substr: end index ", 22});
-        til_Str _tmp81 = til_I64_to_str(til_end);
-        til_Str _tmp82 = ((til_Str){(til_I64)" cannot be negative", 19});
-        int _arr_status__tmp79 = til_Array_new(&_tmp78, &_err_alloc__tmp79, "Str", 3);
-        if (_arr_status__tmp79 != 0) {
-            *_err2 = _err_alloc__tmp79; return 2;
+        til_Str _tmp83;
+        til_I64_OverflowError _err0__tmp84;
+        til_IndexOutOfBoundsError _err1__tmp84;
+        til_AllocError _err2__tmp84;
+        til_Array _tmp85;
+        til_AllocError _err_alloc__tmp86;
+        til_IndexOutOfBoundsError _err_idx__tmp86;
+        til_Str _tmp87 = ((til_Str){(til_I64)"get_substr: end index ", 22});
+        til_Str _tmp88 = til_I64_to_str(til_end);
+        til_Str _tmp89 = ((til_Str){(til_I64)" cannot be negative", 19});
+        int _arr_status__tmp86 = til_Array_new(&_tmp85, &_err_alloc__tmp86, "Str", 3);
+        if (_arr_status__tmp86 != 0) {
+            *_err2 = _err_alloc__tmp86; return 2;
         }
-        _arr_status__tmp79 = til_Array_set(&_err_idx__tmp79, &_tmp78, 0, &_tmp80);
-        if (_arr_status__tmp79 != 0) {
-            *_err1 = _err_idx__tmp79; return 1;
+        _arr_status__tmp86 = til_Array_set(&_err_idx__tmp86, &_tmp85, 0, &_tmp87);
+        if (_arr_status__tmp86 != 0) {
+            *_err1 = _err_idx__tmp86; return 1;
         }
-        _arr_status__tmp79 = til_Array_set(&_err_idx__tmp79, &_tmp78, 1, &_tmp81);
-        if (_arr_status__tmp79 != 0) {
-            *_err1 = _err_idx__tmp79; return 1;
+        _arr_status__tmp86 = til_Array_set(&_err_idx__tmp86, &_tmp85, 1, &_tmp88);
+        if (_arr_status__tmp86 != 0) {
+            *_err1 = _err_idx__tmp86; return 1;
         }
-        _arr_status__tmp79 = til_Array_set(&_err_idx__tmp79, &_tmp78, 2, &_tmp82);
-        if (_arr_status__tmp79 != 0) {
-            *_err1 = _err_idx__tmp79; return 1;
+        _arr_status__tmp86 = til_Array_set(&_err_idx__tmp86, &_tmp85, 2, &_tmp89);
+        if (_arr_status__tmp86 != 0) {
+            *_err1 = _err_idx__tmp86; return 1;
         }
-        int _status__tmp77 = til_format(&_tmp76, &_err0__tmp77, &_err1__tmp77, &_err2__tmp77, ((til_Str){(til_I64)"src/examples/hello_script.til:360:48:", 37}), &_tmp78);
-        if (_status__tmp77 != 0) {
-            if (_status__tmp77 == 2) { *_err1 = _err1__tmp77; return 1; }
-            if (_status__tmp77 == 3) { *_err2 = _err2__tmp77; return 2; }
+        int _status__tmp84 = til_format(&_tmp83, &_err0__tmp84, &_err1__tmp84, &_err2__tmp84, ((til_Str){(til_I64)"src/examples/hello_script.til:360:48:", 37}), &_tmp85);
+        if (_status__tmp84 != 0) {
+            if (_status__tmp84 == 2) { *_err1 = _err1__tmp84; return 1; }
+            if (_status__tmp84 == 3) { *_err2 = _err2__tmp84; return 2; }
         }
-        til_Array_delete(&_tmp78);
-        *_err1 = til_IndexOutOfBoundsError_new(_tmp76);
+        til_Array_delete(&_tmp85);
+        til_Str _tmp90;
+        til_I64_OverflowError _err0__tmp91;
+        til_IndexOutOfBoundsError _err1__tmp91;
+        til_AllocError _err2__tmp91;
+        til_Array _tmp92;
+        til_AllocError _err_alloc__tmp93;
+        til_IndexOutOfBoundsError _err_idx__tmp93;
+        til_Str _tmp94 = ((til_Str){(til_I64)"get_substr: end index ", 22});
+        til_Str _tmp95 = til_I64_to_str(til_end);
+        til_Str _tmp96 = ((til_Str){(til_I64)" cannot be negative", 19});
+        int _arr_status__tmp93 = til_Array_new(&_tmp92, &_err_alloc__tmp93, "Str", 3);
+        if (_arr_status__tmp93 != 0) {
+            *_err2 = _err_alloc__tmp93; return 2;
+        }
+        _arr_status__tmp93 = til_Array_set(&_err_idx__tmp93, &_tmp92, 0, &_tmp94);
+        if (_arr_status__tmp93 != 0) {
+            *_err1 = _err_idx__tmp93; return 1;
+        }
+        _arr_status__tmp93 = til_Array_set(&_err_idx__tmp93, &_tmp92, 1, &_tmp95);
+        if (_arr_status__tmp93 != 0) {
+            *_err1 = _err_idx__tmp93; return 1;
+        }
+        _arr_status__tmp93 = til_Array_set(&_err_idx__tmp93, &_tmp92, 2, &_tmp96);
+        if (_arr_status__tmp93 != 0) {
+            *_err1 = _err_idx__tmp93; return 1;
+        }
+        int _status__tmp91 = til_format(&_tmp90, &_err0__tmp91, &_err1__tmp91, &_err2__tmp91, ((til_Str){(til_I64)"src/examples/hello_script.til:360:48:", 37}), &_tmp92);
+        if (_status__tmp91 != 0) {
+            if (_status__tmp91 == 2) { *_err1 = _err1__tmp91; return 1; }
+            if (_status__tmp91 == 3) { *_err2 = _err2__tmp91; return 2; }
+        }
+        til_Array_delete(&_tmp92);
+        *_err1 = til_IndexOutOfBoundsError_new(_tmp90);
         return 1;
     }
     if (til_gt(til_start, til_end).data) {
-        til_Str _tmp84;
-        til_I64_OverflowError _err0__tmp85;
-        til_IndexOutOfBoundsError _err1__tmp85;
-        til_AllocError _err2__tmp85;
-        til_Array _tmp86;
-        til_AllocError _err_alloc__tmp87;
-        til_IndexOutOfBoundsError _err_idx__tmp87;
-        til_Str _tmp88 = ((til_Str){(til_I64)"get_substr: start index ", 24});
-        til_Str _tmp89 = til_I64_to_str(til_start);
-        til_Str _tmp90 = ((til_Str){(til_I64)" is greater than end index ", 27});
-        til_Str _tmp91 = til_I64_to_str(til_end);
-        int _arr_status__tmp87 = til_Array_new(&_tmp86, &_err_alloc__tmp87, "Str", 4);
-        if (_arr_status__tmp87 != 0) {
-            *_err2 = _err_alloc__tmp87; return 2;
+        til_Str _tmp98;
+        til_I64_OverflowError _err0__tmp99;
+        til_IndexOutOfBoundsError _err1__tmp99;
+        til_AllocError _err2__tmp99;
+        til_Array _tmp100;
+        til_AllocError _err_alloc__tmp101;
+        til_IndexOutOfBoundsError _err_idx__tmp101;
+        til_Str _tmp102 = ((til_Str){(til_I64)"get_substr: start index ", 24});
+        til_Str _tmp103 = til_I64_to_str(til_start);
+        til_Str _tmp104 = ((til_Str){(til_I64)" is greater than end index ", 27});
+        til_Str _tmp105 = til_I64_to_str(til_end);
+        int _arr_status__tmp101 = til_Array_new(&_tmp100, &_err_alloc__tmp101, "Str", 4);
+        if (_arr_status__tmp101 != 0) {
+            *_err2 = _err_alloc__tmp101; return 2;
         }
-        _arr_status__tmp87 = til_Array_set(&_err_idx__tmp87, &_tmp86, 0, &_tmp88);
-        if (_arr_status__tmp87 != 0) {
-            *_err1 = _err_idx__tmp87; return 1;
+        _arr_status__tmp101 = til_Array_set(&_err_idx__tmp101, &_tmp100, 0, &_tmp102);
+        if (_arr_status__tmp101 != 0) {
+            *_err1 = _err_idx__tmp101; return 1;
         }
-        _arr_status__tmp87 = til_Array_set(&_err_idx__tmp87, &_tmp86, 1, &_tmp89);
-        if (_arr_status__tmp87 != 0) {
-            *_err1 = _err_idx__tmp87; return 1;
+        _arr_status__tmp101 = til_Array_set(&_err_idx__tmp101, &_tmp100, 1, &_tmp103);
+        if (_arr_status__tmp101 != 0) {
+            *_err1 = _err_idx__tmp101; return 1;
         }
-        _arr_status__tmp87 = til_Array_set(&_err_idx__tmp87, &_tmp86, 2, &_tmp90);
-        if (_arr_status__tmp87 != 0) {
-            *_err1 = _err_idx__tmp87; return 1;
+        _arr_status__tmp101 = til_Array_set(&_err_idx__tmp101, &_tmp100, 2, &_tmp104);
+        if (_arr_status__tmp101 != 0) {
+            *_err1 = _err_idx__tmp101; return 1;
         }
-        _arr_status__tmp87 = til_Array_set(&_err_idx__tmp87, &_tmp86, 3, &_tmp91);
-        if (_arr_status__tmp87 != 0) {
-            *_err1 = _err_idx__tmp87; return 1;
+        _arr_status__tmp101 = til_Array_set(&_err_idx__tmp101, &_tmp100, 3, &_tmp105);
+        if (_arr_status__tmp101 != 0) {
+            *_err1 = _err_idx__tmp101; return 1;
         }
-        int _status__tmp85 = til_format(&_tmp84, &_err0__tmp85, &_err1__tmp85, &_err2__tmp85, ((til_Str){(til_I64)"src/examples/hello_script.til:363:48:", 37}), &_tmp86);
-        if (_status__tmp85 != 0) {
-            if (_status__tmp85 == 2) { *_err1 = _err1__tmp85; return 1; }
-            if (_status__tmp85 == 3) { *_err2 = _err2__tmp85; return 2; }
+        int _status__tmp99 = til_format(&_tmp98, &_err0__tmp99, &_err1__tmp99, &_err2__tmp99, ((til_Str){(til_I64)"src/examples/hello_script.til:363:48:", 37}), &_tmp100);
+        if (_status__tmp99 != 0) {
+            if (_status__tmp99 == 2) { *_err1 = _err1__tmp99; return 1; }
+            if (_status__tmp99 == 3) { *_err2 = _err2__tmp99; return 2; }
         }
-        til_Array_delete(&_tmp86);
-        *_err1 = til_IndexOutOfBoundsError_new(_tmp84);
+        til_Array_delete(&_tmp100);
+        til_Str _tmp106;
+        til_I64_OverflowError _err0__tmp107;
+        til_IndexOutOfBoundsError _err1__tmp107;
+        til_AllocError _err2__tmp107;
+        til_Array _tmp108;
+        til_AllocError _err_alloc__tmp109;
+        til_IndexOutOfBoundsError _err_idx__tmp109;
+        til_Str _tmp110 = ((til_Str){(til_I64)"get_substr: start index ", 24});
+        til_Str _tmp111 = til_I64_to_str(til_start);
+        til_Str _tmp112 = ((til_Str){(til_I64)" is greater than end index ", 27});
+        til_Str _tmp113 = til_I64_to_str(til_end);
+        int _arr_status__tmp109 = til_Array_new(&_tmp108, &_err_alloc__tmp109, "Str", 4);
+        if (_arr_status__tmp109 != 0) {
+            *_err2 = _err_alloc__tmp109; return 2;
+        }
+        _arr_status__tmp109 = til_Array_set(&_err_idx__tmp109, &_tmp108, 0, &_tmp110);
+        if (_arr_status__tmp109 != 0) {
+            *_err1 = _err_idx__tmp109; return 1;
+        }
+        _arr_status__tmp109 = til_Array_set(&_err_idx__tmp109, &_tmp108, 1, &_tmp111);
+        if (_arr_status__tmp109 != 0) {
+            *_err1 = _err_idx__tmp109; return 1;
+        }
+        _arr_status__tmp109 = til_Array_set(&_err_idx__tmp109, &_tmp108, 2, &_tmp112);
+        if (_arr_status__tmp109 != 0) {
+            *_err1 = _err_idx__tmp109; return 1;
+        }
+        _arr_status__tmp109 = til_Array_set(&_err_idx__tmp109, &_tmp108, 3, &_tmp113);
+        if (_arr_status__tmp109 != 0) {
+            *_err1 = _err_idx__tmp109; return 1;
+        }
+        int _status__tmp107 = til_format(&_tmp106, &_err0__tmp107, &_err1__tmp107, &_err2__tmp107, ((til_Str){(til_I64)"src/examples/hello_script.til:363:48:", 37}), &_tmp108);
+        if (_status__tmp107 != 0) {
+            if (_status__tmp107 == 2) { *_err1 = _err1__tmp107; return 1; }
+            if (_status__tmp107 == 3) { *_err2 = _err2__tmp107; return 2; }
+        }
+        til_Array_delete(&_tmp108);
+        *_err1 = til_IndexOutOfBoundsError_new(_tmp106);
         return 1;
     }
     if (til_gt(til_end, til_Str_len(til_s)).data) {
-        til_Str _tmp93;
-        til_I64_OverflowError _err0__tmp94;
-        til_IndexOutOfBoundsError _err1__tmp94;
-        til_AllocError _err2__tmp94;
-        til_Array _tmp95;
-        til_AllocError _err_alloc__tmp96;
-        til_IndexOutOfBoundsError _err_idx__tmp96;
-        til_Str _tmp97 = ((til_Str){(til_I64)"get_substr: end index ", 22});
-        til_Str _tmp98 = til_I64_to_str(til_end);
-        til_Str _tmp99 = ((til_Str){(til_I64)" is greater than string length ", 31});
-        til_Str _tmp100 = til_I64_to_str(til_Str_len(til_s));
-        int _arr_status__tmp96 = til_Array_new(&_tmp95, &_err_alloc__tmp96, "Str", 4);
-        if (_arr_status__tmp96 != 0) {
-            *_err2 = _err_alloc__tmp96; return 2;
+        til_Str _tmp115;
+        til_I64_OverflowError _err0__tmp116;
+        til_IndexOutOfBoundsError _err1__tmp116;
+        til_AllocError _err2__tmp116;
+        til_Array _tmp117;
+        til_AllocError _err_alloc__tmp118;
+        til_IndexOutOfBoundsError _err_idx__tmp118;
+        til_Str _tmp119 = ((til_Str){(til_I64)"get_substr: end index ", 22});
+        til_Str _tmp120 = til_I64_to_str(til_end);
+        til_Str _tmp121 = ((til_Str){(til_I64)" is greater than string length ", 31});
+        til_Str _tmp122 = til_I64_to_str(til_Str_len(til_s));
+        int _arr_status__tmp118 = til_Array_new(&_tmp117, &_err_alloc__tmp118, "Str", 4);
+        if (_arr_status__tmp118 != 0) {
+            *_err2 = _err_alloc__tmp118; return 2;
         }
-        _arr_status__tmp96 = til_Array_set(&_err_idx__tmp96, &_tmp95, 0, &_tmp97);
-        if (_arr_status__tmp96 != 0) {
-            *_err1 = _err_idx__tmp96; return 1;
+        _arr_status__tmp118 = til_Array_set(&_err_idx__tmp118, &_tmp117, 0, &_tmp119);
+        if (_arr_status__tmp118 != 0) {
+            *_err1 = _err_idx__tmp118; return 1;
         }
-        _arr_status__tmp96 = til_Array_set(&_err_idx__tmp96, &_tmp95, 1, &_tmp98);
-        if (_arr_status__tmp96 != 0) {
-            *_err1 = _err_idx__tmp96; return 1;
+        _arr_status__tmp118 = til_Array_set(&_err_idx__tmp118, &_tmp117, 1, &_tmp120);
+        if (_arr_status__tmp118 != 0) {
+            *_err1 = _err_idx__tmp118; return 1;
         }
-        _arr_status__tmp96 = til_Array_set(&_err_idx__tmp96, &_tmp95, 2, &_tmp99);
-        if (_arr_status__tmp96 != 0) {
-            *_err1 = _err_idx__tmp96; return 1;
+        _arr_status__tmp118 = til_Array_set(&_err_idx__tmp118, &_tmp117, 2, &_tmp121);
+        if (_arr_status__tmp118 != 0) {
+            *_err1 = _err_idx__tmp118; return 1;
         }
-        _arr_status__tmp96 = til_Array_set(&_err_idx__tmp96, &_tmp95, 3, &_tmp100);
-        if (_arr_status__tmp96 != 0) {
-            *_err1 = _err_idx__tmp96; return 1;
+        _arr_status__tmp118 = til_Array_set(&_err_idx__tmp118, &_tmp117, 3, &_tmp122);
+        if (_arr_status__tmp118 != 0) {
+            *_err1 = _err_idx__tmp118; return 1;
         }
-        int _status__tmp94 = til_format(&_tmp93, &_err0__tmp94, &_err1__tmp94, &_err2__tmp94, ((til_Str){(til_I64)"src/examples/hello_script.til:366:48:", 37}), &_tmp95);
-        if (_status__tmp94 != 0) {
-            if (_status__tmp94 == 2) { *_err1 = _err1__tmp94; return 1; }
-            if (_status__tmp94 == 3) { *_err2 = _err2__tmp94; return 2; }
+        int _status__tmp116 = til_format(&_tmp115, &_err0__tmp116, &_err1__tmp116, &_err2__tmp116, ((til_Str){(til_I64)"src/examples/hello_script.til:366:48:", 37}), &_tmp117);
+        if (_status__tmp116 != 0) {
+            if (_status__tmp116 == 2) { *_err1 = _err1__tmp116; return 1; }
+            if (_status__tmp116 == 3) { *_err2 = _err2__tmp116; return 2; }
         }
-        til_Array_delete(&_tmp95);
-        *_err1 = til_IndexOutOfBoundsError_new(_tmp93);
+        til_Array_delete(&_tmp117);
+        til_Str _tmp123;
+        til_I64_OverflowError _err0__tmp124;
+        til_IndexOutOfBoundsError _err1__tmp124;
+        til_AllocError _err2__tmp124;
+        til_Array _tmp125;
+        til_AllocError _err_alloc__tmp126;
+        til_IndexOutOfBoundsError _err_idx__tmp126;
+        til_Str _tmp127 = ((til_Str){(til_I64)"get_substr: end index ", 22});
+        til_Str _tmp128 = til_I64_to_str(til_end);
+        til_Str _tmp129 = ((til_Str){(til_I64)" is greater than string length ", 31});
+        til_Str _tmp130 = til_I64_to_str(til_Str_len(til_s));
+        int _arr_status__tmp126 = til_Array_new(&_tmp125, &_err_alloc__tmp126, "Str", 4);
+        if (_arr_status__tmp126 != 0) {
+            *_err2 = _err_alloc__tmp126; return 2;
+        }
+        _arr_status__tmp126 = til_Array_set(&_err_idx__tmp126, &_tmp125, 0, &_tmp127);
+        if (_arr_status__tmp126 != 0) {
+            *_err1 = _err_idx__tmp126; return 1;
+        }
+        _arr_status__tmp126 = til_Array_set(&_err_idx__tmp126, &_tmp125, 1, &_tmp128);
+        if (_arr_status__tmp126 != 0) {
+            *_err1 = _err_idx__tmp126; return 1;
+        }
+        _arr_status__tmp126 = til_Array_set(&_err_idx__tmp126, &_tmp125, 2, &_tmp129);
+        if (_arr_status__tmp126 != 0) {
+            *_err1 = _err_idx__tmp126; return 1;
+        }
+        _arr_status__tmp126 = til_Array_set(&_err_idx__tmp126, &_tmp125, 3, &_tmp130);
+        if (_arr_status__tmp126 != 0) {
+            *_err1 = _err_idx__tmp126; return 1;
+        }
+        int _status__tmp124 = til_format(&_tmp123, &_err0__tmp124, &_err1__tmp124, &_err2__tmp124, ((til_Str){(til_I64)"src/examples/hello_script.til:366:48:", 37}), &_tmp125);
+        if (_status__tmp124 != 0) {
+            if (_status__tmp124 == 2) { *_err1 = _err1__tmp124; return 1; }
+            if (_status__tmp124 == 3) { *_err2 = _err2__tmp124; return 2; }
+        }
+        til_Array_delete(&_tmp125);
+        *_err1 = til_IndexOutOfBoundsError_new(_tmp123);
         return 1;
     }
     if (til_I64_eq(til_start, til_end).data) {
-        til_Str _tmp102;
-        til_I64_OverflowError _err0__tmp103;
-        til_IndexOutOfBoundsError _err1__tmp103;
-        til_AllocError _err2__tmp103;
-        til_Array _tmp104;
-        til_AllocError _err_alloc__tmp105;
-        til_IndexOutOfBoundsError _err_idx__tmp105;
-        til_Str _tmp106 = ((til_Str){(til_I64)"get_substr: start and end are the same (", 40});
-        til_Str _tmp107 = til_I64_to_str(til_start);
-        til_Str _tmp108 = ((til_Str){(til_I64)"), no substring", 15});
-        int _arr_status__tmp105 = til_Array_new(&_tmp104, &_err_alloc__tmp105, "Str", 3);
-        if (_arr_status__tmp105 != 0) {
-            *_err2 = _err_alloc__tmp105; return 2;
+        til_Str _tmp132;
+        til_I64_OverflowError _err0__tmp133;
+        til_IndexOutOfBoundsError _err1__tmp133;
+        til_AllocError _err2__tmp133;
+        til_Array _tmp134;
+        til_AllocError _err_alloc__tmp135;
+        til_IndexOutOfBoundsError _err_idx__tmp135;
+        til_Str _tmp136 = ((til_Str){(til_I64)"get_substr: start and end are the same (", 40});
+        til_Str _tmp137 = til_I64_to_str(til_start);
+        til_Str _tmp138 = ((til_Str){(til_I64)"), no substring", 15});
+        int _arr_status__tmp135 = til_Array_new(&_tmp134, &_err_alloc__tmp135, "Str", 3);
+        if (_arr_status__tmp135 != 0) {
+            *_err2 = _err_alloc__tmp135; return 2;
         }
-        _arr_status__tmp105 = til_Array_set(&_err_idx__tmp105, &_tmp104, 0, &_tmp106);
-        if (_arr_status__tmp105 != 0) {
-            *_err1 = _err_idx__tmp105; return 1;
+        _arr_status__tmp135 = til_Array_set(&_err_idx__tmp135, &_tmp134, 0, &_tmp136);
+        if (_arr_status__tmp135 != 0) {
+            *_err1 = _err_idx__tmp135; return 1;
         }
-        _arr_status__tmp105 = til_Array_set(&_err_idx__tmp105, &_tmp104, 1, &_tmp107);
-        if (_arr_status__tmp105 != 0) {
-            *_err1 = _err_idx__tmp105; return 1;
+        _arr_status__tmp135 = til_Array_set(&_err_idx__tmp135, &_tmp134, 1, &_tmp137);
+        if (_arr_status__tmp135 != 0) {
+            *_err1 = _err_idx__tmp135; return 1;
         }
-        _arr_status__tmp105 = til_Array_set(&_err_idx__tmp105, &_tmp104, 2, &_tmp108);
-        if (_arr_status__tmp105 != 0) {
-            *_err1 = _err_idx__tmp105; return 1;
+        _arr_status__tmp135 = til_Array_set(&_err_idx__tmp135, &_tmp134, 2, &_tmp138);
+        if (_arr_status__tmp135 != 0) {
+            *_err1 = _err_idx__tmp135; return 1;
         }
-        int _status__tmp103 = til_format(&_tmp102, &_err0__tmp103, &_err1__tmp103, &_err2__tmp103, ((til_Str){(til_I64)"src/examples/hello_script.til:369:48:", 37}), &_tmp104);
-        if (_status__tmp103 != 0) {
-            if (_status__tmp103 == 2) { *_err1 = _err1__tmp103; return 1; }
-            if (_status__tmp103 == 3) { *_err2 = _err2__tmp103; return 2; }
+        int _status__tmp133 = til_format(&_tmp132, &_err0__tmp133, &_err1__tmp133, &_err2__tmp133, ((til_Str){(til_I64)"src/examples/hello_script.til:369:48:", 37}), &_tmp134);
+        if (_status__tmp133 != 0) {
+            if (_status__tmp133 == 2) { *_err1 = _err1__tmp133; return 1; }
+            if (_status__tmp133 == 3) { *_err2 = _err2__tmp133; return 2; }
         }
-        til_Array_delete(&_tmp104);
-        *_err1 = til_IndexOutOfBoundsError_new(_tmp102);
+        til_Array_delete(&_tmp134);
+        til_Str _tmp139;
+        til_I64_OverflowError _err0__tmp140;
+        til_IndexOutOfBoundsError _err1__tmp140;
+        til_AllocError _err2__tmp140;
+        til_Array _tmp141;
+        til_AllocError _err_alloc__tmp142;
+        til_IndexOutOfBoundsError _err_idx__tmp142;
+        til_Str _tmp143 = ((til_Str){(til_I64)"get_substr: start and end are the same (", 40});
+        til_Str _tmp144 = til_I64_to_str(til_start);
+        til_Str _tmp145 = ((til_Str){(til_I64)"), no substring", 15});
+        int _arr_status__tmp142 = til_Array_new(&_tmp141, &_err_alloc__tmp142, "Str", 3);
+        if (_arr_status__tmp142 != 0) {
+            *_err2 = _err_alloc__tmp142; return 2;
+        }
+        _arr_status__tmp142 = til_Array_set(&_err_idx__tmp142, &_tmp141, 0, &_tmp143);
+        if (_arr_status__tmp142 != 0) {
+            *_err1 = _err_idx__tmp142; return 1;
+        }
+        _arr_status__tmp142 = til_Array_set(&_err_idx__tmp142, &_tmp141, 1, &_tmp144);
+        if (_arr_status__tmp142 != 0) {
+            *_err1 = _err_idx__tmp142; return 1;
+        }
+        _arr_status__tmp142 = til_Array_set(&_err_idx__tmp142, &_tmp141, 2, &_tmp145);
+        if (_arr_status__tmp142 != 0) {
+            *_err1 = _err_idx__tmp142; return 1;
+        }
+        int _status__tmp140 = til_format(&_tmp139, &_err0__tmp140, &_err1__tmp140, &_err2__tmp140, ((til_Str){(til_I64)"src/examples/hello_script.til:369:48:", 37}), &_tmp141);
+        if (_status__tmp140 != 0) {
+            if (_status__tmp140 == 2) { *_err1 = _err1__tmp140; return 1; }
+            if (_status__tmp140 == 3) { *_err2 = _err2__tmp140; return 2; }
+        }
+        til_Array_delete(&_tmp141);
+        *_err1 = til_IndexOutOfBoundsError_new(_tmp139);
         return 1;
     }
     til_Str til_substr = {.c_string = 0, .cap = 0};
     til_substr.cap = til_sub(til_end, til_start);
-    til_I64 _ret__tmp109;
-    til_AllocError _err0__tmp109 = {};
-    int _status__tmp109 = til_malloc(&_ret__tmp109, &_err0__tmp109, til_substr.cap);
-    if (_status__tmp109 == 1) { *_err2 = _err0__tmp109; return 2; }
-    til_substr.c_string = _ret__tmp109;
+    til_I64 _ret__tmp146;
+    til_AllocError _err0__tmp146 = {};
+    int _status__tmp146 = til_malloc(&_ret__tmp146, &_err0__tmp146, til_substr.cap);
+    if (_status__tmp146 == 1) { *_err2 = _err0__tmp146; return 2; }
+    til_substr.c_string = _ret__tmp146;
     if (til_I64_eq(til_NULL, til_substr.c_string).data) {
-        til_Str _tmp111;
-        til_I64_OverflowError _err0__tmp112;
-        til_IndexOutOfBoundsError _err1__tmp112;
-        til_AllocError _err2__tmp112;
-        til_Array _tmp113;
-        til_AllocError _err_alloc__tmp114;
-        til_IndexOutOfBoundsError _err_idx__tmp114;
-        til_Str _tmp115 = ((til_Str){(til_I64)"Str.get_substr: failed to allocate ", 35});
-        til_Str _tmp116 = til_I64_to_str(til_substr.cap);
-        til_Str _tmp117 = ((til_Str){(til_I64)" bytes", 6});
-        int _arr_status__tmp114 = til_Array_new(&_tmp113, &_err_alloc__tmp114, "Str", 3);
-        if (_arr_status__tmp114 != 0) {
-            *_err2 = _err_alloc__tmp114; return 2;
+        til_Str _tmp148;
+        til_I64_OverflowError _err0__tmp149;
+        til_IndexOutOfBoundsError _err1__tmp149;
+        til_AllocError _err2__tmp149;
+        til_Array _tmp150;
+        til_AllocError _err_alloc__tmp151;
+        til_IndexOutOfBoundsError _err_idx__tmp151;
+        til_Str _tmp152 = ((til_Str){(til_I64)"Str.get_substr: failed to allocate ", 35});
+        til_Str _tmp153 = til_I64_to_str(til_substr.cap);
+        til_Str _tmp154 = ((til_Str){(til_I64)" bytes", 6});
+        int _arr_status__tmp151 = til_Array_new(&_tmp150, &_err_alloc__tmp151, "Str", 3);
+        if (_arr_status__tmp151 != 0) {
+            *_err2 = _err_alloc__tmp151; return 2;
         }
-        _arr_status__tmp114 = til_Array_set(&_err_idx__tmp114, &_tmp113, 0, &_tmp115);
-        if (_arr_status__tmp114 != 0) {
-            *_err1 = _err_idx__tmp114; return 1;
+        _arr_status__tmp151 = til_Array_set(&_err_idx__tmp151, &_tmp150, 0, &_tmp152);
+        if (_arr_status__tmp151 != 0) {
+            *_err1 = _err_idx__tmp151; return 1;
         }
-        _arr_status__tmp114 = til_Array_set(&_err_idx__tmp114, &_tmp113, 1, &_tmp116);
-        if (_arr_status__tmp114 != 0) {
-            *_err1 = _err_idx__tmp114; return 1;
+        _arr_status__tmp151 = til_Array_set(&_err_idx__tmp151, &_tmp150, 1, &_tmp153);
+        if (_arr_status__tmp151 != 0) {
+            *_err1 = _err_idx__tmp151; return 1;
         }
-        _arr_status__tmp114 = til_Array_set(&_err_idx__tmp114, &_tmp113, 2, &_tmp117);
-        if (_arr_status__tmp114 != 0) {
-            *_err1 = _err_idx__tmp114; return 1;
+        _arr_status__tmp151 = til_Array_set(&_err_idx__tmp151, &_tmp150, 2, &_tmp154);
+        if (_arr_status__tmp151 != 0) {
+            *_err1 = _err_idx__tmp151; return 1;
         }
-        int _status__tmp112 = til_format(&_tmp111, &_err0__tmp112, &_err1__tmp112, &_err2__tmp112, ((til_Str){(til_I64)"src/examples/hello_script.til:376:37:", 37}), &_tmp113);
-        if (_status__tmp112 != 0) {
-            if (_status__tmp112 == 2) { *_err1 = _err1__tmp112; return 1; }
-            if (_status__tmp112 == 3) { *_err2 = _err2__tmp112; return 2; }
+        int _status__tmp149 = til_format(&_tmp148, &_err0__tmp149, &_err1__tmp149, &_err2__tmp149, ((til_Str){(til_I64)"src/examples/hello_script.til:376:37:", 37}), &_tmp150);
+        if (_status__tmp149 != 0) {
+            if (_status__tmp149 == 2) { *_err1 = _err1__tmp149; return 1; }
+            if (_status__tmp149 == 3) { *_err2 = _err2__tmp149; return 2; }
         }
-        til_Array_delete(&_tmp113);
-        *_err2 = til_AllocError_new(_tmp111);
+        til_Array_delete(&_tmp150);
+        til_Str _tmp155;
+        til_I64_OverflowError _err0__tmp156;
+        til_IndexOutOfBoundsError _err1__tmp156;
+        til_AllocError _err2__tmp156;
+        til_Array _tmp157;
+        til_AllocError _err_alloc__tmp158;
+        til_IndexOutOfBoundsError _err_idx__tmp158;
+        til_Str _tmp159 = ((til_Str){(til_I64)"Str.get_substr: failed to allocate ", 35});
+        til_Str _tmp160 = til_I64_to_str(til_substr.cap);
+        til_Str _tmp161 = ((til_Str){(til_I64)" bytes", 6});
+        int _arr_status__tmp158 = til_Array_new(&_tmp157, &_err_alloc__tmp158, "Str", 3);
+        if (_arr_status__tmp158 != 0) {
+            *_err2 = _err_alloc__tmp158; return 2;
+        }
+        _arr_status__tmp158 = til_Array_set(&_err_idx__tmp158, &_tmp157, 0, &_tmp159);
+        if (_arr_status__tmp158 != 0) {
+            *_err1 = _err_idx__tmp158; return 1;
+        }
+        _arr_status__tmp158 = til_Array_set(&_err_idx__tmp158, &_tmp157, 1, &_tmp160);
+        if (_arr_status__tmp158 != 0) {
+            *_err1 = _err_idx__tmp158; return 1;
+        }
+        _arr_status__tmp158 = til_Array_set(&_err_idx__tmp158, &_tmp157, 2, &_tmp161);
+        if (_arr_status__tmp158 != 0) {
+            *_err1 = _err_idx__tmp158; return 1;
+        }
+        int _status__tmp156 = til_format(&_tmp155, &_err0__tmp156, &_err1__tmp156, &_err2__tmp156, ((til_Str){(til_I64)"src/examples/hello_script.til:376:37:", 37}), &_tmp157);
+        if (_status__tmp156 != 0) {
+            if (_status__tmp156 == 2) { *_err1 = _err1__tmp156; return 1; }
+            if (_status__tmp156 == 3) { *_err2 = _err2__tmp156; return 2; }
+        }
+        til_Array_delete(&_tmp157);
+        *_err2 = til_AllocError_new(_tmp155);
         return 2;
     }
     til_memcpy(til_substr.c_string, til_add(til_s.c_string, til_start), til_substr.cap);
@@ -668,13 +870,13 @@ int til_get_substr(til_Str* _ret, til_IndexOutOfBoundsError* _err1, til_AllocErr
 }
 
 int til_get_char(til_Str* _ret, til_IndexOutOfBoundsError* _err1, til_AllocError* _err2, const til_Str til_s, const til_I64 til_pos) {
-    til_Str _ret__tmp119;
-    til_IndexOutOfBoundsError _err0__tmp119 = {};
-    til_AllocError _err1__tmp119 = {};
-    int _status__tmp119 = til_get_substr(&_ret__tmp119, &_err0__tmp119, &_err1__tmp119, til_s, til_pos, til_add(til_pos, 1));
-    if (_status__tmp119 == 1) { *_err1 = _err0__tmp119; return 1; }
-    if (_status__tmp119 == 2) { *_err2 = _err1__tmp119; return 2; }
-    *_ret = _ret__tmp119;
+    til_Str _ret__tmp163;
+    til_IndexOutOfBoundsError _err0__tmp163 = {};
+    til_AllocError _err1__tmp163 = {};
+    int _status__tmp163 = til_get_substr(&_ret__tmp163, &_err0__tmp163, &_err1__tmp163, til_s, til_pos, til_add(til_pos, 1));
+    if (_status__tmp163 == 1) { *_err1 = _err0__tmp163; return 1; }
+    if (_status__tmp163 == 2) { *_err2 = _err1__tmp163; return 2; }
+    *_ret = _ret__tmp163;
     return 0;
 }
 
@@ -697,77 +899,77 @@ til_Bool til_starts_with(const til_Str til_s, const til_Str til_prefix) {
 }
 
 til_Str til_concat(const til_Str til_a, const til_Str til_b) {
-    til_AllocError _thrown_AllocError__tmp124;
+    til_AllocError _thrown_AllocError__tmp168;
     til_Str til_result = {.c_string = 0, .cap = 0};
     til_result.cap = til_add(til_a.cap, til_b.cap);
     if (til_lt(til_result.cap, til_a.cap).data) {
-        til_Array _tmp126;
-        til_AllocError _err_alloc__tmp127;
-        til_IndexOutOfBoundsError _err_idx__tmp127;
-        til_Str _tmp128 = ((til_Str){(til_I64)"concat: integer overflow", 24});
-        int _arr_status__tmp127 = til_Array_new(&_tmp126, &_err_alloc__tmp127, "Str", 1);
-        if (_arr_status__tmp127 != 0) {
+        til_Array _tmp170;
+        til_AllocError _err_alloc__tmp171;
+        til_IndexOutOfBoundsError _err_idx__tmp171;
+        til_Str _tmp172 = ((til_Str){(til_I64)"concat: integer overflow", 24});
+        int _arr_status__tmp171 = til_Array_new(&_tmp170, &_err_alloc__tmp171, "Str", 1);
+        if (_arr_status__tmp171 != 0) {
         }
-        _arr_status__tmp127 = til_Array_set(&_err_idx__tmp127, &_tmp126, 0, &_tmp128);
-        if (_arr_status__tmp127 != 0) {
+        _arr_status__tmp171 = til_Array_set(&_err_idx__tmp171, &_tmp170, 0, &_tmp172);
+        if (_arr_status__tmp171 != 0) {
         }
-        til_panic(((til_Str){(til_I64)"src/examples/hello_script.til:416:15:", 37}), &_tmp126);
-        til_Array_delete(&_tmp126);
+        til_panic(((til_Str){(til_I64)"src/examples/hello_script.til:416:15:", 37}), &_tmp170);
+        til_Array_delete(&_tmp170);
     }
-    til_I64 _ret__tmp129;
-    til_AllocError _err0__tmp129 = {};
-    int _status__tmp129 = til_malloc(&_ret__tmp129, &_err0__tmp129, til_result.cap);
-    if (_status__tmp129 == 0) {
-        til_result.c_string = _ret__tmp129;
-    } else if (_status__tmp129 == 1) {
-        til_AllocError til_err = _err0__tmp129;
-        til_Array _tmp131;
-        til_AllocError _err_alloc__tmp132;
-        til_IndexOutOfBoundsError _err_idx__tmp132;
-        til_Str _tmp133 = til_err.msg;
-        int _arr_status__tmp132 = til_Array_new(&_tmp131, &_err_alloc__tmp132, "Str", 1);
-        if (_arr_status__tmp132 != 0) {
+    til_I64 _ret__tmp173;
+    til_AllocError _err0__tmp173 = {};
+    int _status__tmp173 = til_malloc(&_ret__tmp173, &_err0__tmp173, til_result.cap);
+    if (_status__tmp173 == 0) {
+        til_result.c_string = _ret__tmp173;
+    } else if (_status__tmp173 == 1) {
+        til_AllocError til_err = _err0__tmp173;
+        til_Array _tmp175;
+        til_AllocError _err_alloc__tmp176;
+        til_IndexOutOfBoundsError _err_idx__tmp176;
+        til_Str _tmp177 = til_err.msg;
+        int _arr_status__tmp176 = til_Array_new(&_tmp175, &_err_alloc__tmp176, "Str", 1);
+        if (_arr_status__tmp176 != 0) {
         }
-        _arr_status__tmp132 = til_Array_set(&_err_idx__tmp132, &_tmp131, 0, &_tmp133);
-        if (_arr_status__tmp132 != 0) {
+        _arr_status__tmp176 = til_Array_set(&_err_idx__tmp176, &_tmp175, 0, &_tmp177);
+        if (_arr_status__tmp176 != 0) {
         }
-        til_panic(((til_Str){(til_I64)"src/examples/hello_script.til:428:15:", 37}), &_tmp131);
-        til_Array_delete(&_tmp131);
+        til_panic(((til_Str){(til_I64)"src/examples/hello_script.til:428:15:", 37}), &_tmp175);
+        til_Array_delete(&_tmp175);
     }
     if (til_I64_eq(til_NULL, til_result.c_string).data) {
-        til_Array _tmp135;
-        til_AllocError _err_alloc__tmp136;
-        til_IndexOutOfBoundsError _err_idx__tmp136;
-        til_Str _tmp137 = ((til_Str){(til_I64)"concat: malloc failed", 21});
-        int _arr_status__tmp136 = til_Array_new(&_tmp135, &_err_alloc__tmp136, "Str", 1);
-        if (_arr_status__tmp136 != 0) {
+        til_Array _tmp179;
+        til_AllocError _err_alloc__tmp180;
+        til_IndexOutOfBoundsError _err_idx__tmp180;
+        til_Str _tmp181 = ((til_Str){(til_I64)"concat: malloc failed", 21});
+        int _arr_status__tmp180 = til_Array_new(&_tmp179, &_err_alloc__tmp180, "Str", 1);
+        if (_arr_status__tmp180 != 0) {
         }
-        _arr_status__tmp136 = til_Array_set(&_err_idx__tmp136, &_tmp135, 0, &_tmp137);
-        if (_arr_status__tmp136 != 0) {
+        _arr_status__tmp180 = til_Array_set(&_err_idx__tmp180, &_tmp179, 0, &_tmp181);
+        if (_arr_status__tmp180 != 0) {
         }
-        til_panic(((til_Str){(til_I64)"src/examples/hello_script.til:421:15:", 37}), &_tmp135);
-        til_Array_delete(&_tmp135);
+        til_panic(((til_Str){(til_I64)"src/examples/hello_script.til:421:15:", 37}), &_tmp179);
+        til_Array_delete(&_tmp179);
     }
     til_memcpy(til_result.c_string, til_a.c_string, til_a.cap);
     til_memcpy(til_add(til_result.c_string, til_a.cap), til_b.c_string, til_b.cap);
     return til_result;
-    goto _end_catches__tmp124;
-_catch_AllocError__tmp124: {
-    til_AllocError til_err = _thrown_AllocError__tmp124;
-    til_Array _tmp139;
-    til_AllocError _err_alloc__tmp140;
-    til_IndexOutOfBoundsError _err_idx__tmp140;
-    til_Str _tmp141 = til_err.msg;
-    int _arr_status__tmp140 = til_Array_new(&_tmp139, &_err_alloc__tmp140, "Str", 1);
-    if (_arr_status__tmp140 != 0) {
+    goto _end_catches__tmp168;
+_catch_AllocError__tmp168: {
+    til_AllocError til_err = _thrown_AllocError__tmp168;
+    til_Array _tmp183;
+    til_AllocError _err_alloc__tmp184;
+    til_IndexOutOfBoundsError _err_idx__tmp184;
+    til_Str _tmp185 = til_err.msg;
+    int _arr_status__tmp184 = til_Array_new(&_tmp183, &_err_alloc__tmp184, "Str", 1);
+    if (_arr_status__tmp184 != 0) {
     }
-    _arr_status__tmp140 = til_Array_set(&_err_idx__tmp140, &_tmp139, 0, &_tmp141);
-    if (_arr_status__tmp140 != 0) {
+    _arr_status__tmp184 = til_Array_set(&_err_idx__tmp184, &_tmp183, 0, &_tmp185);
+    if (_arr_status__tmp184 != 0) {
     }
-    til_panic(((til_Str){(til_I64)"src/examples/hello_script.til:428:15:", 37}), &_tmp139);
-    til_Array_delete(&_tmp139);
+    til_panic(((til_Str){(til_I64)"src/examples/hello_script.til:428:15:", 37}), &_tmp183);
+    til_Array_delete(&_tmp183);
     }
-_end_catches__tmp124:;
+_end_catches__tmp168:;
 }
 
 int til_format(til_Str* _ret, til_I64_OverflowError* _err1, til_IndexOutOfBoundsError* _err2, til_AllocError* _err3, const til_Str til_prefix, til_Array* til_args) {
@@ -776,79 +978,135 @@ int til_format(til_Str* _ret, til_I64_OverflowError* _err1, til_IndexOutOfBounds
     til_I64 til_i = 0;
     while (til_lt(til_i, til_Array_len((*til_args))).data) {
         til_Str til_arg = ((til_Str){(til_I64)"", 0});
-        til_IndexOutOfBoundsError _err0__tmp145 = {};
-        int _status__tmp145 = til_Array_get(&_err0__tmp145, (*til_args), til_i, (til_Dynamic*)&til_arg);
-        if (_status__tmp145 == 1) { *_err2 = _err0__tmp145; return 2; }
+        til_IndexOutOfBoundsError _err0__tmp189 = {};
+        int _status__tmp189 = til_Array_get(&_err0__tmp189, (*til_args), til_i, (til_Dynamic*)&til_arg);
+        if (_status__tmp189 == 1) { *_err2 = _err0__tmp189; return 2; }
         til_result.cap = til_add(til_result.cap, til_arg.cap);
         if (til_lt(til_result.cap, til_arg.cap).data) {
-            til_Str _tmp147;
-            til_I64_OverflowError _err0__tmp148;
-            til_IndexOutOfBoundsError _err1__tmp148;
-            til_AllocError _err2__tmp148;
-            til_Array _tmp149;
-            til_AllocError _err_alloc__tmp150;
-            til_IndexOutOfBoundsError _err_idx__tmp150;
-            til_Str _tmp151 = ((til_Str){(til_I64)"format: integer overflow while summing cap for arg ", 51});
-            til_Str _tmp152 = til_I64_to_str(til_i);
-            int _arr_status__tmp150 = til_Array_new(&_tmp149, &_err_alloc__tmp150, "Str", 2);
-            if (_arr_status__tmp150 != 0) {
-                *_err3 = _err_alloc__tmp150; return 3;
+            til_Str _tmp191;
+            til_I64_OverflowError _err0__tmp192;
+            til_IndexOutOfBoundsError _err1__tmp192;
+            til_AllocError _err2__tmp192;
+            til_Array _tmp193;
+            til_AllocError _err_alloc__tmp194;
+            til_IndexOutOfBoundsError _err_idx__tmp194;
+            til_Str _tmp195 = ((til_Str){(til_I64)"format: integer overflow while summing cap for arg ", 51});
+            til_Str _tmp196 = til_I64_to_str(til_i);
+            int _arr_status__tmp194 = til_Array_new(&_tmp193, &_err_alloc__tmp194, "Str", 2);
+            if (_arr_status__tmp194 != 0) {
+                *_err3 = _err_alloc__tmp194; return 3;
             }
-            _arr_status__tmp150 = til_Array_set(&_err_idx__tmp150, &_tmp149, 0, &_tmp151);
-            if (_arr_status__tmp150 != 0) {
-                *_err2 = _err_idx__tmp150; return 2;
+            _arr_status__tmp194 = til_Array_set(&_err_idx__tmp194, &_tmp193, 0, &_tmp195);
+            if (_arr_status__tmp194 != 0) {
+                *_err2 = _err_idx__tmp194; return 2;
             }
-            _arr_status__tmp150 = til_Array_set(&_err_idx__tmp150, &_tmp149, 1, &_tmp152);
-            if (_arr_status__tmp150 != 0) {
-                *_err2 = _err_idx__tmp150; return 2;
+            _arr_status__tmp194 = til_Array_set(&_err_idx__tmp194, &_tmp193, 1, &_tmp196);
+            if (_arr_status__tmp194 != 0) {
+                *_err2 = _err_idx__tmp194; return 2;
             }
-            int _status__tmp148 = til_format(&_tmp147, &_err0__tmp148, &_err1__tmp148, &_err2__tmp148, ((til_Str){(til_I64)"src/examples/hello_script.til:444:48:", 37}), &_tmp149);
-            if (_status__tmp148 != 0) {
-                if (_status__tmp148 == 1) { *_err1 = _err0__tmp148; return 1; }
-                if (_status__tmp148 == 2) { *_err2 = _err1__tmp148; return 2; }
-                if (_status__tmp148 == 3) { *_err3 = _err2__tmp148; return 3; }
+            int _status__tmp192 = til_format(&_tmp191, &_err0__tmp192, &_err1__tmp192, &_err2__tmp192, ((til_Str){(til_I64)"src/examples/hello_script.til:444:48:", 37}), &_tmp193);
+            if (_status__tmp192 != 0) {
+                if (_status__tmp192 == 1) { *_err1 = _err0__tmp192; return 1; }
+                if (_status__tmp192 == 2) { *_err2 = _err1__tmp192; return 2; }
+                if (_status__tmp192 == 3) { *_err3 = _err2__tmp192; return 3; }
             }
-            til_Array_delete(&_tmp149);
-            *_err1 = til_I64_OverflowError_new(_tmp147);
+            til_Array_delete(&_tmp193);
+            til_Str _tmp197;
+            til_I64_OverflowError _err0__tmp198;
+            til_IndexOutOfBoundsError _err1__tmp198;
+            til_AllocError _err2__tmp198;
+            til_Array _tmp199;
+            til_AllocError _err_alloc__tmp200;
+            til_IndexOutOfBoundsError _err_idx__tmp200;
+            til_Str _tmp201 = ((til_Str){(til_I64)"format: integer overflow while summing cap for arg ", 51});
+            til_Str _tmp202 = til_I64_to_str(til_i);
+            int _arr_status__tmp200 = til_Array_new(&_tmp199, &_err_alloc__tmp200, "Str", 2);
+            if (_arr_status__tmp200 != 0) {
+                *_err3 = _err_alloc__tmp200; return 3;
+            }
+            _arr_status__tmp200 = til_Array_set(&_err_idx__tmp200, &_tmp199, 0, &_tmp201);
+            if (_arr_status__tmp200 != 0) {
+                *_err2 = _err_idx__tmp200; return 2;
+            }
+            _arr_status__tmp200 = til_Array_set(&_err_idx__tmp200, &_tmp199, 1, &_tmp202);
+            if (_arr_status__tmp200 != 0) {
+                *_err2 = _err_idx__tmp200; return 2;
+            }
+            int _status__tmp198 = til_format(&_tmp197, &_err0__tmp198, &_err1__tmp198, &_err2__tmp198, ((til_Str){(til_I64)"src/examples/hello_script.til:444:48:", 37}), &_tmp199);
+            if (_status__tmp198 != 0) {
+                if (_status__tmp198 == 1) { *_err1 = _err0__tmp198; return 1; }
+                if (_status__tmp198 == 2) { *_err2 = _err1__tmp198; return 2; }
+                if (_status__tmp198 == 3) { *_err3 = _err2__tmp198; return 3; }
+            }
+            til_Array_delete(&_tmp199);
+            *_err1 = til_I64_OverflowError_new(_tmp197);
             return 1;
         }
         til_I64_inc(&til_i);
     }
-    til_I64 _ret__tmp153;
-    til_AllocError _err0__tmp153 = {};
-    int _status__tmp153 = til_malloc(&_ret__tmp153, &_err0__tmp153, til_result.cap);
-    if (_status__tmp153 == 1) { *_err3 = _err0__tmp153; return 3; }
-    til_result.c_string = _ret__tmp153;
+    til_I64 _ret__tmp203;
+    til_AllocError _err0__tmp203 = {};
+    int _status__tmp203 = til_malloc(&_ret__tmp203, &_err0__tmp203, til_result.cap);
+    if (_status__tmp203 == 1) { *_err3 = _err0__tmp203; return 3; }
+    til_result.c_string = _ret__tmp203;
     if (til_I64_eq(til_NULL, til_result.c_string).data) {
-        til_Str _tmp155;
-        til_I64_OverflowError _err0__tmp156;
-        til_IndexOutOfBoundsError _err1__tmp156;
-        til_AllocError _err2__tmp156;
-        til_Array _tmp157;
-        til_AllocError _err_alloc__tmp158;
-        til_IndexOutOfBoundsError _err_idx__tmp158;
-        til_Str _tmp159 = ((til_Str){(til_I64)"format: malloc failed for cap = ", 32});
-        til_Str _tmp160 = til_I64_to_str(til_result.cap);
-        int _arr_status__tmp158 = til_Array_new(&_tmp157, &_err_alloc__tmp158, "Str", 2);
-        if (_arr_status__tmp158 != 0) {
-            *_err3 = _err_alloc__tmp158; return 3;
+        til_Str _tmp205;
+        til_I64_OverflowError _err0__tmp206;
+        til_IndexOutOfBoundsError _err1__tmp206;
+        til_AllocError _err2__tmp206;
+        til_Array _tmp207;
+        til_AllocError _err_alloc__tmp208;
+        til_IndexOutOfBoundsError _err_idx__tmp208;
+        til_Str _tmp209 = ((til_Str){(til_I64)"format: malloc failed for cap = ", 32});
+        til_Str _tmp210 = til_I64_to_str(til_result.cap);
+        int _arr_status__tmp208 = til_Array_new(&_tmp207, &_err_alloc__tmp208, "Str", 2);
+        if (_arr_status__tmp208 != 0) {
+            *_err3 = _err_alloc__tmp208; return 3;
         }
-        _arr_status__tmp158 = til_Array_set(&_err_idx__tmp158, &_tmp157, 0, &_tmp159);
-        if (_arr_status__tmp158 != 0) {
-            *_err2 = _err_idx__tmp158; return 2;
+        _arr_status__tmp208 = til_Array_set(&_err_idx__tmp208, &_tmp207, 0, &_tmp209);
+        if (_arr_status__tmp208 != 0) {
+            *_err2 = _err_idx__tmp208; return 2;
         }
-        _arr_status__tmp158 = til_Array_set(&_err_idx__tmp158, &_tmp157, 1, &_tmp160);
-        if (_arr_status__tmp158 != 0) {
-            *_err2 = _err_idx__tmp158; return 2;
+        _arr_status__tmp208 = til_Array_set(&_err_idx__tmp208, &_tmp207, 1, &_tmp210);
+        if (_arr_status__tmp208 != 0) {
+            *_err2 = _err_idx__tmp208; return 2;
         }
-        int _status__tmp156 = til_format(&_tmp155, &_err0__tmp156, &_err1__tmp156, &_err2__tmp156, ((til_Str){(til_I64)"src/examples/hello_script.til:450:37:", 37}), &_tmp157);
-        if (_status__tmp156 != 0) {
-            if (_status__tmp156 == 1) { *_err1 = _err0__tmp156; return 1; }
-            if (_status__tmp156 == 2) { *_err2 = _err1__tmp156; return 2; }
-            if (_status__tmp156 == 3) { *_err3 = _err2__tmp156; return 3; }
+        int _status__tmp206 = til_format(&_tmp205, &_err0__tmp206, &_err1__tmp206, &_err2__tmp206, ((til_Str){(til_I64)"src/examples/hello_script.til:450:37:", 37}), &_tmp207);
+        if (_status__tmp206 != 0) {
+            if (_status__tmp206 == 1) { *_err1 = _err0__tmp206; return 1; }
+            if (_status__tmp206 == 2) { *_err2 = _err1__tmp206; return 2; }
+            if (_status__tmp206 == 3) { *_err3 = _err2__tmp206; return 3; }
         }
-        til_Array_delete(&_tmp157);
-        *_err3 = til_AllocError_new(_tmp155);
+        til_Array_delete(&_tmp207);
+        til_Str _tmp211;
+        til_I64_OverflowError _err0__tmp212;
+        til_IndexOutOfBoundsError _err1__tmp212;
+        til_AllocError _err2__tmp212;
+        til_Array _tmp213;
+        til_AllocError _err_alloc__tmp214;
+        til_IndexOutOfBoundsError _err_idx__tmp214;
+        til_Str _tmp215 = ((til_Str){(til_I64)"format: malloc failed for cap = ", 32});
+        til_Str _tmp216 = til_I64_to_str(til_result.cap);
+        int _arr_status__tmp214 = til_Array_new(&_tmp213, &_err_alloc__tmp214, "Str", 2);
+        if (_arr_status__tmp214 != 0) {
+            *_err3 = _err_alloc__tmp214; return 3;
+        }
+        _arr_status__tmp214 = til_Array_set(&_err_idx__tmp214, &_tmp213, 0, &_tmp215);
+        if (_arr_status__tmp214 != 0) {
+            *_err2 = _err_idx__tmp214; return 2;
+        }
+        _arr_status__tmp214 = til_Array_set(&_err_idx__tmp214, &_tmp213, 1, &_tmp216);
+        if (_arr_status__tmp214 != 0) {
+            *_err2 = _err_idx__tmp214; return 2;
+        }
+        int _status__tmp212 = til_format(&_tmp211, &_err0__tmp212, &_err1__tmp212, &_err2__tmp212, ((til_Str){(til_I64)"src/examples/hello_script.til:450:37:", 37}), &_tmp213);
+        if (_status__tmp212 != 0) {
+            if (_status__tmp212 == 1) { *_err1 = _err0__tmp212; return 1; }
+            if (_status__tmp212 == 2) { *_err2 = _err1__tmp212; return 2; }
+            if (_status__tmp212 == 3) { *_err3 = _err2__tmp212; return 3; }
+        }
+        til_Array_delete(&_tmp213);
+        *_err3 = til_AllocError_new(_tmp211);
         return 3;
     }
     til_I64 til_offset = 0;
@@ -857,9 +1115,9 @@ int til_format(til_Str* _ret, til_I64_OverflowError* _err1, til_IndexOutOfBounds
     til_i = 0;
     while (til_lt(til_i, til_Array_len((*til_args))).data) {
         til_Str til_s = ((til_Str){(til_I64)"", 0});
-        til_IndexOutOfBoundsError _err0__tmp163 = {};
-        int _status__tmp163 = til_Array_get(&_err0__tmp163, (*til_args), til_i, (til_Dynamic*)&til_s);
-        if (_status__tmp163 == 1) { *_err2 = _err0__tmp163; return 2; }
+        til_IndexOutOfBoundsError _err0__tmp219 = {};
+        int _status__tmp219 = til_Array_get(&_err0__tmp219, (*til_args), til_i, (til_Dynamic*)&til_s);
+        if (_status__tmp219 == 1) { *_err2 = _err0__tmp219; return 2; }
         til_memcpy(til_add(til_result.c_string, til_offset), til_s.c_string, til_s.cap);
         til_offset = til_add(til_offset, til_s.cap);
         til_I64_inc(&til_i);
@@ -893,17 +1151,17 @@ int til_Array_new(til_Array* _ret, til_AllocError* _err1, const til_Type til_T, 
     til_arr.type_name = ((til_Str){(til_I64)"T", 1});
     til_arr.type_size = til_size_of(((til_Str){(til_I64)til_T, strlen(til_T)}));
     const til_I64 til_size_bytes = til_mul(til_capacity, til_arr.type_size);
-    til_I64 _ret__tmp169;
-    til_AllocError _err0__tmp169 = {};
-    int _status__tmp169 = til_malloc(&_ret__tmp169, &_err0__tmp169, til_size_bytes);
-    if (_status__tmp169 == 1) { *_err1 = _err0__tmp169; return 1; }
-    til_arr.ptr = _ret__tmp169;
-    til_U8 _tmp170;
-    til_U8_OverflowError _err0__tmp171;
-    int _status__tmp171 = til_U8_from_i64(&_tmp170, &_err0__tmp171, 0);
-    if (_status__tmp171 != 0) {
+    til_I64 _ret__tmp225;
+    til_AllocError _err0__tmp225 = {};
+    int _status__tmp225 = til_malloc(&_ret__tmp225, &_err0__tmp225, til_size_bytes);
+    if (_status__tmp225 == 1) { *_err1 = _err0__tmp225; return 1; }
+    til_arr.ptr = _ret__tmp225;
+    til_U8 _tmp226;
+    til_U8_OverflowError _err0__tmp227;
+    int _status__tmp227 = til_U8_from_i64(&_tmp226, &_err0__tmp227, 0);
+    if (_status__tmp227 != 0) {
     }
-    til_memset(til_arr.ptr, _tmp170, til_size_bytes);
+    til_memset(til_arr.ptr, _tmp226, til_size_bytes);
     til_arr._len = til_capacity;
     *_ret = til_arr;
     return 0;
@@ -911,27 +1169,47 @@ int til_Array_new(til_Array* _ret, til_AllocError* _err1, const til_Type til_T, 
 
 int til_Array_get(til_IndexOutOfBoundsError* _err1, const til_Array til_self, const til_I64 til_index, til_Dynamic* til_T) {
     if (til_gteq(til_index, til_self._len).data) {
-        til_Str _tmp174;
-        til_I64_OverflowError _err0__tmp175;
-        til_IndexOutOfBoundsError _err1__tmp175;
-        til_AllocError _err2__tmp175;
-        til_Array _tmp176;
-        til_AllocError _err_alloc__tmp177;
-        til_IndexOutOfBoundsError _err_idx__tmp177;
-        til_Str _tmp178 = ((til_Str){(til_I64)"Array.get: index out of bounds", 30});
-        int _arr_status__tmp177 = til_Array_new(&_tmp176, &_err_alloc__tmp177, "Str", 1);
-        if (_arr_status__tmp177 != 0) {
+        til_Str _tmp230;
+        til_I64_OverflowError _err0__tmp231;
+        til_IndexOutOfBoundsError _err1__tmp231;
+        til_AllocError _err2__tmp231;
+        til_Array _tmp232;
+        til_AllocError _err_alloc__tmp233;
+        til_IndexOutOfBoundsError _err_idx__tmp233;
+        til_Str _tmp234 = ((til_Str){(til_I64)"Array.get: index out of bounds", 30});
+        int _arr_status__tmp233 = til_Array_new(&_tmp232, &_err_alloc__tmp233, "Str", 1);
+        if (_arr_status__tmp233 != 0) {
         }
-        _arr_status__tmp177 = til_Array_set(&_err_idx__tmp177, &_tmp176, 0, &_tmp178);
-        if (_arr_status__tmp177 != 0) {
-            *_err1 = _err_idx__tmp177; return 1;
+        _arr_status__tmp233 = til_Array_set(&_err_idx__tmp233, &_tmp232, 0, &_tmp234);
+        if (_arr_status__tmp233 != 0) {
+            *_err1 = _err_idx__tmp233; return 1;
         }
-        int _status__tmp175 = til_format(&_tmp174, &_err0__tmp175, &_err1__tmp175, &_err2__tmp175, ((til_Str){(til_I64)"src/examples/hello_script.til:41:52:", 36}), &_tmp176);
-        if (_status__tmp175 != 0) {
-            if (_status__tmp175 == 2) { *_err1 = _err1__tmp175; return 1; }
+        int _status__tmp231 = til_format(&_tmp230, &_err0__tmp231, &_err1__tmp231, &_err2__tmp231, ((til_Str){(til_I64)"src/examples/hello_script.til:41:52:", 36}), &_tmp232);
+        if (_status__tmp231 != 0) {
+            if (_status__tmp231 == 2) { *_err1 = _err1__tmp231; return 1; }
         }
-        til_Array_delete(&_tmp176);
-        *_err1 = til_IndexOutOfBoundsError_new(_tmp174);
+        til_Array_delete(&_tmp232);
+        til_Str _tmp235;
+        til_I64_OverflowError _err0__tmp236;
+        til_IndexOutOfBoundsError _err1__tmp236;
+        til_AllocError _err2__tmp236;
+        til_Array _tmp237;
+        til_AllocError _err_alloc__tmp238;
+        til_IndexOutOfBoundsError _err_idx__tmp238;
+        til_Str _tmp239 = ((til_Str){(til_I64)"Array.get: index out of bounds", 30});
+        int _arr_status__tmp238 = til_Array_new(&_tmp237, &_err_alloc__tmp238, "Str", 1);
+        if (_arr_status__tmp238 != 0) {
+        }
+        _arr_status__tmp238 = til_Array_set(&_err_idx__tmp238, &_tmp237, 0, &_tmp239);
+        if (_arr_status__tmp238 != 0) {
+            *_err1 = _err_idx__tmp238; return 1;
+        }
+        int _status__tmp236 = til_format(&_tmp235, &_err0__tmp236, &_err1__tmp236, &_err2__tmp236, ((til_Str){(til_I64)"src/examples/hello_script.til:41:52:", 36}), &_tmp237);
+        if (_status__tmp236 != 0) {
+            if (_status__tmp236 == 2) { *_err1 = _err1__tmp236; return 1; }
+        }
+        til_Array_delete(&_tmp237);
+        *_err1 = til_IndexOutOfBoundsError_new(_tmp235);
         return 1;
     }
     const til_I64 til_src = til_add(til_self.ptr, til_mul(til_index, til_self.type_size));
@@ -942,27 +1220,47 @@ int til_Array_get(til_IndexOutOfBoundsError* _err1, const til_Array til_self, co
 
 int til_Array_set(til_IndexOutOfBoundsError* _err1, til_Array* til_self, const til_I64 til_index, const til_Dynamic til_value) {
     if (til_gteq(til_index, til_self->_len).data) {
-        til_Str _tmp181;
-        til_I64_OverflowError _err0__tmp182;
-        til_IndexOutOfBoundsError _err1__tmp182;
-        til_AllocError _err2__tmp182;
-        til_Array _tmp183;
-        til_AllocError _err_alloc__tmp184;
-        til_IndexOutOfBoundsError _err_idx__tmp184;
-        til_Str _tmp185 = ((til_Str){(til_I64)"Array.set: index out of bounds", 30});
-        int _arr_status__tmp184 = til_Array_new(&_tmp183, &_err_alloc__tmp184, "Str", 1);
-        if (_arr_status__tmp184 != 0) {
+        til_Str _tmp242;
+        til_I64_OverflowError _err0__tmp243;
+        til_IndexOutOfBoundsError _err1__tmp243;
+        til_AllocError _err2__tmp243;
+        til_Array _tmp244;
+        til_AllocError _err_alloc__tmp245;
+        til_IndexOutOfBoundsError _err_idx__tmp245;
+        til_Str _tmp246 = ((til_Str){(til_I64)"Array.set: index out of bounds", 30});
+        int _arr_status__tmp245 = til_Array_new(&_tmp244, &_err_alloc__tmp245, "Str", 1);
+        if (_arr_status__tmp245 != 0) {
         }
-        _arr_status__tmp184 = til_Array_set(&_err_idx__tmp184, &_tmp183, 0, &_tmp185);
-        if (_arr_status__tmp184 != 0) {
-            *_err1 = _err_idx__tmp184; return 1;
+        _arr_status__tmp245 = til_Array_set(&_err_idx__tmp245, &_tmp244, 0, &_tmp246);
+        if (_arr_status__tmp245 != 0) {
+            *_err1 = _err_idx__tmp245; return 1;
         }
-        int _status__tmp182 = til_format(&_tmp181, &_err0__tmp182, &_err1__tmp182, &_err2__tmp182, ((til_Str){(til_I64)"src/examples/hello_script.til:56:52:", 36}), &_tmp183);
-        if (_status__tmp182 != 0) {
-            if (_status__tmp182 == 2) { *_err1 = _err1__tmp182; return 1; }
+        int _status__tmp243 = til_format(&_tmp242, &_err0__tmp243, &_err1__tmp243, &_err2__tmp243, ((til_Str){(til_I64)"src/examples/hello_script.til:56:52:", 36}), &_tmp244);
+        if (_status__tmp243 != 0) {
+            if (_status__tmp243 == 2) { *_err1 = _err1__tmp243; return 1; }
         }
-        til_Array_delete(&_tmp183);
-        *_err1 = til_IndexOutOfBoundsError_new(_tmp181);
+        til_Array_delete(&_tmp244);
+        til_Str _tmp247;
+        til_I64_OverflowError _err0__tmp248;
+        til_IndexOutOfBoundsError _err1__tmp248;
+        til_AllocError _err2__tmp248;
+        til_Array _tmp249;
+        til_AllocError _err_alloc__tmp250;
+        til_IndexOutOfBoundsError _err_idx__tmp250;
+        til_Str _tmp251 = ((til_Str){(til_I64)"Array.set: index out of bounds", 30});
+        int _arr_status__tmp250 = til_Array_new(&_tmp249, &_err_alloc__tmp250, "Str", 1);
+        if (_arr_status__tmp250 != 0) {
+        }
+        _arr_status__tmp250 = til_Array_set(&_err_idx__tmp250, &_tmp249, 0, &_tmp251);
+        if (_arr_status__tmp250 != 0) {
+            *_err1 = _err_idx__tmp250; return 1;
+        }
+        int _status__tmp248 = til_format(&_tmp247, &_err0__tmp248, &_err1__tmp248, &_err2__tmp248, ((til_Str){(til_I64)"src/examples/hello_script.til:56:52:", 36}), &_tmp249);
+        if (_status__tmp248 != 0) {
+            if (_status__tmp248 == 2) { *_err1 = _err1__tmp248; return 1; }
+        }
+        til_Array_delete(&_tmp249);
+        *_err1 = til_IndexOutOfBoundsError_new(_tmp247);
         return 1;
     }
     til_I64 til_dest = til_add(til_self->ptr, til_mul(til_index, til_self->type_size));
@@ -982,41 +1280,69 @@ int til_Array_clone(til_Array* _ret, til_AllocError* _err1, const til_Array til_
     til_cloned.type_size = til_self.type_size;
     til_cloned._len = til_self._len;
     til_I64 til_total_bytes = til_mul(til_self._len, til_self.type_size);
-    til_I64 _ret__tmp188;
-    til_AllocError _err0__tmp188 = {};
-    int _status__tmp188 = til_malloc(&_ret__tmp188, &_err0__tmp188, til_total_bytes);
-    if (_status__tmp188 == 1) { *_err1 = _err0__tmp188; return 1; }
-    til_cloned.ptr = _ret__tmp188;
+    til_I64 _ret__tmp254;
+    til_AllocError _err0__tmp254 = {};
+    int _status__tmp254 = til_malloc(&_ret__tmp254, &_err0__tmp254, til_total_bytes);
+    if (_status__tmp254 == 1) { *_err1 = _err0__tmp254; return 1; }
+    til_cloned.ptr = _ret__tmp254;
     if (til_I64_eq(til_NULL, til_cloned.ptr).data) {
-        til_Str _tmp190;
-        til_I64_OverflowError _err0__tmp191;
-        til_IndexOutOfBoundsError _err1__tmp191;
-        til_AllocError _err2__tmp191;
-        til_Array _tmp192;
-        til_AllocError _err_alloc__tmp193;
-        til_IndexOutOfBoundsError _err_idx__tmp193;
-        til_Str _tmp194 = ((til_Str){(til_I64)"Array.clone: malloc failed for ", 31});
-        til_Str _tmp195 = til_I64_to_str(til_total_bytes);
-        til_Str _tmp196 = ((til_Str){(til_I64)" bytes", 6});
-        int _arr_status__tmp193 = til_Array_new(&_tmp192, &_err_alloc__tmp193, "Str", 3);
-        if (_arr_status__tmp193 != 0) {
-            *_err1 = _err_alloc__tmp193; return 1;
+        til_Str _tmp256;
+        til_I64_OverflowError _err0__tmp257;
+        til_IndexOutOfBoundsError _err1__tmp257;
+        til_AllocError _err2__tmp257;
+        til_Array _tmp258;
+        til_AllocError _err_alloc__tmp259;
+        til_IndexOutOfBoundsError _err_idx__tmp259;
+        til_Str _tmp260 = ((til_Str){(til_I64)"Array.clone: malloc failed for ", 31});
+        til_Str _tmp261 = til_I64_to_str(til_total_bytes);
+        til_Str _tmp262 = ((til_Str){(til_I64)" bytes", 6});
+        int _arr_status__tmp259 = til_Array_new(&_tmp258, &_err_alloc__tmp259, "Str", 3);
+        if (_arr_status__tmp259 != 0) {
+            *_err1 = _err_alloc__tmp259; return 1;
         }
-        _arr_status__tmp193 = til_Array_set(&_err_idx__tmp193, &_tmp192, 0, &_tmp194);
-        if (_arr_status__tmp193 != 0) {
+        _arr_status__tmp259 = til_Array_set(&_err_idx__tmp259, &_tmp258, 0, &_tmp260);
+        if (_arr_status__tmp259 != 0) {
         }
-        _arr_status__tmp193 = til_Array_set(&_err_idx__tmp193, &_tmp192, 1, &_tmp195);
-        if (_arr_status__tmp193 != 0) {
+        _arr_status__tmp259 = til_Array_set(&_err_idx__tmp259, &_tmp258, 1, &_tmp261);
+        if (_arr_status__tmp259 != 0) {
         }
-        _arr_status__tmp193 = til_Array_set(&_err_idx__tmp193, &_tmp192, 2, &_tmp196);
-        if (_arr_status__tmp193 != 0) {
+        _arr_status__tmp259 = til_Array_set(&_err_idx__tmp259, &_tmp258, 2, &_tmp262);
+        if (_arr_status__tmp259 != 0) {
         }
-        int _status__tmp191 = til_format(&_tmp190, &_err0__tmp191, &_err1__tmp191, &_err2__tmp191, ((til_Str){(til_I64)"src/examples/hello_script.til:83:41:", 36}), &_tmp192);
-        if (_status__tmp191 != 0) {
-            if (_status__tmp191 == 3) { *_err1 = _err2__tmp191; return 1; }
+        int _status__tmp257 = til_format(&_tmp256, &_err0__tmp257, &_err1__tmp257, &_err2__tmp257, ((til_Str){(til_I64)"src/examples/hello_script.til:83:41:", 36}), &_tmp258);
+        if (_status__tmp257 != 0) {
+            if (_status__tmp257 == 3) { *_err1 = _err2__tmp257; return 1; }
         }
-        til_Array_delete(&_tmp192);
-        *_err1 = til_AllocError_new(_tmp190);
+        til_Array_delete(&_tmp258);
+        til_Str _tmp263;
+        til_I64_OverflowError _err0__tmp264;
+        til_IndexOutOfBoundsError _err1__tmp264;
+        til_AllocError _err2__tmp264;
+        til_Array _tmp265;
+        til_AllocError _err_alloc__tmp266;
+        til_IndexOutOfBoundsError _err_idx__tmp266;
+        til_Str _tmp267 = ((til_Str){(til_I64)"Array.clone: malloc failed for ", 31});
+        til_Str _tmp268 = til_I64_to_str(til_total_bytes);
+        til_Str _tmp269 = ((til_Str){(til_I64)" bytes", 6});
+        int _arr_status__tmp266 = til_Array_new(&_tmp265, &_err_alloc__tmp266, "Str", 3);
+        if (_arr_status__tmp266 != 0) {
+            *_err1 = _err_alloc__tmp266; return 1;
+        }
+        _arr_status__tmp266 = til_Array_set(&_err_idx__tmp266, &_tmp265, 0, &_tmp267);
+        if (_arr_status__tmp266 != 0) {
+        }
+        _arr_status__tmp266 = til_Array_set(&_err_idx__tmp266, &_tmp265, 1, &_tmp268);
+        if (_arr_status__tmp266 != 0) {
+        }
+        _arr_status__tmp266 = til_Array_set(&_err_idx__tmp266, &_tmp265, 2, &_tmp269);
+        if (_arr_status__tmp266 != 0) {
+        }
+        int _status__tmp264 = til_format(&_tmp263, &_err0__tmp264, &_err1__tmp264, &_err2__tmp264, ((til_Str){(til_I64)"src/examples/hello_script.til:83:41:", 36}), &_tmp265);
+        if (_status__tmp264 != 0) {
+            if (_status__tmp264 == 3) { *_err1 = _err2__tmp264; return 1; }
+        }
+        til_Array_delete(&_tmp265);
+        *_err1 = til_AllocError_new(_tmp263);
         return 1;
     }
     til_memcpy(til_cloned.ptr, til_self.ptr, til_total_bytes);
@@ -1025,24 +1351,24 @@ int til_Array_clone(til_Array* _ret, til_AllocError* _err1, const til_Array til_
 }
 
 til_Bool til_Array_contains(const til_Array til_self, const til_Str til_value) {
-    til_IndexOutOfBoundsError _thrown_IndexOutOfBoundsError__tmp197;
+    til_IndexOutOfBoundsError _thrown_IndexOutOfBoundsError__tmp270;
     til_I64 til_i = 0;
     while (til_lt(til_i, til_self._len).data) {
         til_Str til_elem = ((til_Str){(til_I64)"", 0});
-        til_IndexOutOfBoundsError _err0__tmp199 = {};
-        int _status__tmp199 = til_Array_get(&_err0__tmp199, til_self, til_i, (til_Dynamic*)&til_elem);
-        if (_status__tmp199 == 1) { _thrown_IndexOutOfBoundsError__tmp197 = _err0__tmp199; goto _catch_IndexOutOfBoundsError__tmp197; }
+        til_IndexOutOfBoundsError _err0__tmp272 = {};
+        int _status__tmp272 = til_Array_get(&_err0__tmp272, til_self, til_i, (til_Dynamic*)&til_elem);
+        if (_status__tmp272 == 1) { _thrown_IndexOutOfBoundsError__tmp270 = _err0__tmp272; goto _catch_IndexOutOfBoundsError__tmp270; }
         if (til_Str_eq(til_elem, til_value).data) {
             return true;
         }
         til_i = til_add(til_i, 1);
     }
     return false;
-    goto _end_catches__tmp197;
-_catch_IndexOutOfBoundsError__tmp197: {
-    til_IndexOutOfBoundsError til_err = _thrown_IndexOutOfBoundsError__tmp197;
+    goto _end_catches__tmp270;
+_catch_IndexOutOfBoundsError__tmp270: {
+    til_IndexOutOfBoundsError til_err = _thrown_IndexOutOfBoundsError__tmp270;
     }
-_end_catches__tmp197:;
+_end_catches__tmp270:;
 }
 
 til_I64 til_Bool_len(const til_Bool til_self) {
@@ -1050,55 +1376,55 @@ til_I64 til_Bool_len(const til_Bool til_self) {
 }
 
 til_Bool til_Bool_eq(const til_Bool til_a, const til_Bool til_b) {
-    til_Bool _tmp204;
-    til_Array _tmp205;
-    til_AllocError _err_alloc__tmp206;
-    til_IndexOutOfBoundsError _err_idx__tmp206;
-    til_Bool _tmp207 = til_a;
-    til_Bool _tmp208 = til_b;
-    int _arr_status__tmp206 = til_Array_new(&_tmp205, &_err_alloc__tmp206, "Bool", 2);
-    if (_arr_status__tmp206 != 0) {
+    til_Bool _tmp277;
+    til_Array _tmp278;
+    til_AllocError _err_alloc__tmp279;
+    til_IndexOutOfBoundsError _err_idx__tmp279;
+    til_Bool _tmp280 = til_a;
+    til_Bool _tmp281 = til_b;
+    int _arr_status__tmp279 = til_Array_new(&_tmp278, &_err_alloc__tmp279, "Bool", 2);
+    if (_arr_status__tmp279 != 0) {
     }
-    _arr_status__tmp206 = til_Array_set(&_err_idx__tmp206, &_tmp205, 0, &_tmp207);
-    if (_arr_status__tmp206 != 0) {
+    _arr_status__tmp279 = til_Array_set(&_err_idx__tmp279, &_tmp278, 0, &_tmp280);
+    if (_arr_status__tmp279 != 0) {
     }
-    _arr_status__tmp206 = til_Array_set(&_err_idx__tmp206, &_tmp205, 1, &_tmp208);
-    if (_arr_status__tmp206 != 0) {
+    _arr_status__tmp279 = til_Array_set(&_err_idx__tmp279, &_tmp278, 1, &_tmp281);
+    if (_arr_status__tmp279 != 0) {
     }
-    _tmp204 = til_and(&_tmp205);
-    til_Array_delete(&_tmp205);
-    til_Bool _tmp209;
-    til_Array _tmp210;
-    til_AllocError _err_alloc__tmp211;
-    til_IndexOutOfBoundsError _err_idx__tmp211;
-    til_Bool _tmp212 = til_not(til_b);
-    til_Bool _tmp213 = til_not(til_a);
-    int _arr_status__tmp211 = til_Array_new(&_tmp210, &_err_alloc__tmp211, "Bool", 2);
-    if (_arr_status__tmp211 != 0) {
+    _tmp277 = til_and(&_tmp278);
+    til_Array_delete(&_tmp278);
+    til_Bool _tmp282;
+    til_Array _tmp283;
+    til_AllocError _err_alloc__tmp284;
+    til_IndexOutOfBoundsError _err_idx__tmp284;
+    til_Bool _tmp285 = til_not(til_b);
+    til_Bool _tmp286 = til_not(til_a);
+    int _arr_status__tmp284 = til_Array_new(&_tmp283, &_err_alloc__tmp284, "Bool", 2);
+    if (_arr_status__tmp284 != 0) {
     }
-    _arr_status__tmp211 = til_Array_set(&_err_idx__tmp211, &_tmp210, 0, &_tmp212);
-    if (_arr_status__tmp211 != 0) {
+    _arr_status__tmp284 = til_Array_set(&_err_idx__tmp284, &_tmp283, 0, &_tmp285);
+    if (_arr_status__tmp284 != 0) {
     }
-    _arr_status__tmp211 = til_Array_set(&_err_idx__tmp211, &_tmp210, 1, &_tmp213);
-    if (_arr_status__tmp211 != 0) {
+    _arr_status__tmp284 = til_Array_set(&_err_idx__tmp284, &_tmp283, 1, &_tmp286);
+    if (_arr_status__tmp284 != 0) {
     }
-    _tmp209 = til_and(&_tmp210);
-    til_Array_delete(&_tmp210);
-    til_Array _tmp214;
-    til_AllocError _err_alloc__tmp215;
-    til_IndexOutOfBoundsError _err_idx__tmp215;
-    int _arr_status__tmp215 = til_Array_new(&_tmp214, &_err_alloc__tmp215, "Bool", 2);
-    if (_arr_status__tmp215 != 0) {
+    _tmp282 = til_and(&_tmp283);
+    til_Array_delete(&_tmp283);
+    til_Array _tmp287;
+    til_AllocError _err_alloc__tmp288;
+    til_IndexOutOfBoundsError _err_idx__tmp288;
+    int _arr_status__tmp288 = til_Array_new(&_tmp287, &_err_alloc__tmp288, "Bool", 2);
+    if (_arr_status__tmp288 != 0) {
     }
-    _arr_status__tmp215 = til_Array_set(&_err_idx__tmp215, &_tmp214, 0, &_tmp204);
-    if (_arr_status__tmp215 != 0) {
+    _arr_status__tmp288 = til_Array_set(&_err_idx__tmp288, &_tmp287, 0, &_tmp277);
+    if (_arr_status__tmp288 != 0) {
     }
-    _arr_status__tmp215 = til_Array_set(&_err_idx__tmp215, &_tmp214, 1, &_tmp209);
-    if (_arr_status__tmp215 != 0) {
+    _arr_status__tmp288 = til_Array_set(&_err_idx__tmp288, &_tmp287, 1, &_tmp282);
+    if (_arr_status__tmp288 != 0) {
     }
-    til_Bool _tmp216 = til_or(&_tmp214);
-    til_Array_delete(&_tmp214);
-    return _tmp216;
+    til_Bool _tmp289 = til_or(&_tmp287);
+    til_Array_delete(&_tmp287);
+    return _tmp289;
 }
 
 til_Str til_Bool_to_str(const til_Bool til_self) {
@@ -1190,11 +1516,11 @@ int til_Vec_new(til_Vec* _ret, til_AllocError* _err1, const til_Type til_T) {
     til_vec.type_name = ((til_Str){(til_I64)"T", 1});
     til_vec.type_size = til_size_of(((til_Str){(til_I64)til_T, strlen(til_T)}));
     const til_I64 til_size_bytes = til_mul(til_Vec_INIT_CAP, til_vec.type_size);
-    til_I64 _ret__tmp240;
-    til_AllocError _err0__tmp240 = {};
-    int _status__tmp240 = til_malloc(&_ret__tmp240, &_err0__tmp240, til_size_bytes);
-    if (_status__tmp240 == 1) { *_err1 = _err0__tmp240; return 1; }
-    til_vec.ptr = _ret__tmp240;
+    til_I64 _ret__tmp313;
+    til_AllocError _err0__tmp313 = {};
+    int _status__tmp313 = til_malloc(&_ret__tmp313, &_err0__tmp313, til_size_bytes);
+    if (_status__tmp313 == 1) { *_err1 = _err0__tmp313; return 1; }
+    til_vec.ptr = _ret__tmp313;
     til_vec._len = 0;
     til_vec.cap = til_Vec_INIT_CAP;
     *_ret = til_vec;
@@ -1206,11 +1532,11 @@ int til_Vec_new_from_type_info(til_Vec* _ret, til_AllocError* _err1, const til_S
     til_vec.type_name = til_type_name;
     til_vec.type_size = til_type_size;
     const til_I64 til_size_bytes = til_mul(til_Vec_INIT_CAP, til_vec.type_size);
-    til_I64 _ret__tmp242;
-    til_AllocError _err0__tmp242 = {};
-    int _status__tmp242 = til_malloc(&_ret__tmp242, &_err0__tmp242, til_size_bytes);
-    if (_status__tmp242 == 1) { *_err1 = _err0__tmp242; return 1; }
-    til_vec.ptr = _ret__tmp242;
+    til_I64 _ret__tmp315;
+    til_AllocError _err0__tmp315 = {};
+    int _status__tmp315 = til_malloc(&_ret__tmp315, &_err0__tmp315, til_size_bytes);
+    if (_status__tmp315 == 1) { *_err1 = _err0__tmp315; return 1; }
+    til_vec.ptr = _ret__tmp315;
     til_vec._len = 0;
     til_vec.cap = til_Vec_INIT_CAP;
     *_ret = til_vec;
@@ -1221,26 +1547,26 @@ int til_Vec_push(til_AllocError* _err1, til_Vec* til_self, const til_Dynamic til
     if (til_I64_eq(til_self->_len, til_self->cap).data) {
         const til_I64 til_new_cap = til_mul(til_self->cap, 2);
         if (til_gt(til_new_cap, til_Vec_MAX_CAP).data) {
-            til_Array _tmp246;
-            til_AllocError _err_alloc__tmp247;
-            til_IndexOutOfBoundsError _err_idx__tmp247;
-            til_Str _tmp248 = ((til_Str){(til_I64)"Vec.push: capacity exceeded Vec.MAX_CAP", 39});
-            int _arr_status__tmp247 = til_Array_new(&_tmp246, &_err_alloc__tmp247, "Str", 1);
-            if (_arr_status__tmp247 != 0) {
-                *_err1 = _err_alloc__tmp247; return 1;
+            til_Array _tmp319;
+            til_AllocError _err_alloc__tmp320;
+            til_IndexOutOfBoundsError _err_idx__tmp320;
+            til_Str _tmp321 = ((til_Str){(til_I64)"Vec.push: capacity exceeded Vec.MAX_CAP", 39});
+            int _arr_status__tmp320 = til_Array_new(&_tmp319, &_err_alloc__tmp320, "Str", 1);
+            if (_arr_status__tmp320 != 0) {
+                *_err1 = _err_alloc__tmp320; return 1;
             }
-            _arr_status__tmp247 = til_Array_set(&_err_idx__tmp247, &_tmp246, 0, &_tmp248);
-            if (_arr_status__tmp247 != 0) {
+            _arr_status__tmp320 = til_Array_set(&_err_idx__tmp320, &_tmp319, 0, &_tmp321);
+            if (_arr_status__tmp320 != 0) {
             }
-            til_panic(((til_Str){(til_I64)"src/examples/hello_script.til:63:23:", 36}), &_tmp246);
-            til_Array_delete(&_tmp246);
+            til_panic(((til_Str){(til_I64)"src/examples/hello_script.til:63:23:", 36}), &_tmp319);
+            til_Array_delete(&_tmp319);
         }
-        til_I64 _ret__tmp249;
+        til_I64 _ret__tmp322;
         til_I64 til_new_ptr;
-        til_AllocError _err0__tmp249 = {};
-        int _status__tmp249 = til_malloc(&_ret__tmp249, &_err0__tmp249, til_mul(til_new_cap, til_self->type_size));
-        if (_status__tmp249 == 1) { *_err1 = _err0__tmp249; return 1; }
-        til_new_ptr = _ret__tmp249;
+        til_AllocError _err0__tmp322 = {};
+        int _status__tmp322 = til_malloc(&_ret__tmp322, &_err0__tmp322, til_mul(til_new_cap, til_self->type_size));
+        if (_status__tmp322 == 1) { *_err1 = _err0__tmp322; return 1; }
+        til_new_ptr = _ret__tmp322;
         til_memcpy(til_new_ptr, til_self->ptr, til_mul(til_self->_len, til_self->type_size));
         til_free(til_self->ptr);
         til_self->ptr = til_new_ptr;
@@ -1254,27 +1580,47 @@ int til_Vec_push(til_AllocError* _err1, til_Vec* til_self, const til_Dynamic til
 
 int til_Vec_get(til_IndexOutOfBoundsError* _err1, const til_Vec til_self, const til_I64 til_index, til_Dynamic* til_T) {
     if (til_gteq(til_index, til_self._len).data) {
-        til_Str _tmp252;
-        til_I64_OverflowError _err0__tmp253;
-        til_IndexOutOfBoundsError _err1__tmp253;
-        til_AllocError _err2__tmp253;
-        til_Array _tmp254;
-        til_AllocError _err_alloc__tmp255;
-        til_IndexOutOfBoundsError _err_idx__tmp255;
-        til_Str _tmp256 = ((til_Str){(til_I64)"Vec.get: index out of bounds", 28});
-        int _arr_status__tmp255 = til_Array_new(&_tmp254, &_err_alloc__tmp255, "Str", 1);
-        if (_arr_status__tmp255 != 0) {
+        til_Str _tmp325;
+        til_I64_OverflowError _err0__tmp326;
+        til_IndexOutOfBoundsError _err1__tmp326;
+        til_AllocError _err2__tmp326;
+        til_Array _tmp327;
+        til_AllocError _err_alloc__tmp328;
+        til_IndexOutOfBoundsError _err_idx__tmp328;
+        til_Str _tmp329 = ((til_Str){(til_I64)"Vec.get: index out of bounds", 28});
+        int _arr_status__tmp328 = til_Array_new(&_tmp327, &_err_alloc__tmp328, "Str", 1);
+        if (_arr_status__tmp328 != 0) {
         }
-        _arr_status__tmp255 = til_Array_set(&_err_idx__tmp255, &_tmp254, 0, &_tmp256);
-        if (_arr_status__tmp255 != 0) {
-            *_err1 = _err_idx__tmp255; return 1;
+        _arr_status__tmp328 = til_Array_set(&_err_idx__tmp328, &_tmp327, 0, &_tmp329);
+        if (_arr_status__tmp328 != 0) {
+            *_err1 = _err_idx__tmp328; return 1;
         }
-        int _status__tmp253 = til_format(&_tmp252, &_err0__tmp253, &_err1__tmp253, &_err2__tmp253, ((til_Str){(til_I64)"src/examples/hello_script.til:81:52:", 36}), &_tmp254);
-        if (_status__tmp253 != 0) {
-            if (_status__tmp253 == 2) { *_err1 = _err1__tmp253; return 1; }
+        int _status__tmp326 = til_format(&_tmp325, &_err0__tmp326, &_err1__tmp326, &_err2__tmp326, ((til_Str){(til_I64)"src/examples/hello_script.til:81:52:", 36}), &_tmp327);
+        if (_status__tmp326 != 0) {
+            if (_status__tmp326 == 2) { *_err1 = _err1__tmp326; return 1; }
         }
-        til_Array_delete(&_tmp254);
-        *_err1 = til_IndexOutOfBoundsError_new(_tmp252);
+        til_Array_delete(&_tmp327);
+        til_Str _tmp330;
+        til_I64_OverflowError _err0__tmp331;
+        til_IndexOutOfBoundsError _err1__tmp331;
+        til_AllocError _err2__tmp331;
+        til_Array _tmp332;
+        til_AllocError _err_alloc__tmp333;
+        til_IndexOutOfBoundsError _err_idx__tmp333;
+        til_Str _tmp334 = ((til_Str){(til_I64)"Vec.get: index out of bounds", 28});
+        int _arr_status__tmp333 = til_Array_new(&_tmp332, &_err_alloc__tmp333, "Str", 1);
+        if (_arr_status__tmp333 != 0) {
+        }
+        _arr_status__tmp333 = til_Array_set(&_err_idx__tmp333, &_tmp332, 0, &_tmp334);
+        if (_arr_status__tmp333 != 0) {
+            *_err1 = _err_idx__tmp333; return 1;
+        }
+        int _status__tmp331 = til_format(&_tmp330, &_err0__tmp331, &_err1__tmp331, &_err2__tmp331, ((til_Str){(til_I64)"src/examples/hello_script.til:81:52:", 36}), &_tmp332);
+        if (_status__tmp331 != 0) {
+            if (_status__tmp331 == 2) { *_err1 = _err1__tmp331; return 1; }
+        }
+        til_Array_delete(&_tmp332);
+        *_err1 = til_IndexOutOfBoundsError_new(_tmp330);
         return 1;
     }
     const til_I64 til_src = til_add(til_self.ptr, til_mul(til_index, til_self.type_size));
@@ -1285,27 +1631,47 @@ int til_Vec_get(til_IndexOutOfBoundsError* _err1, const til_Vec til_self, const 
 
 int til_Vec_set(til_IndexOutOfBoundsError* _err1, til_Vec* til_self, const til_I64 til_index, const til_Dynamic til_value) {
     if (til_gteq(til_index, til_self->_len).data) {
-        til_Str _tmp259;
-        til_I64_OverflowError _err0__tmp260;
-        til_IndexOutOfBoundsError _err1__tmp260;
-        til_AllocError _err2__tmp260;
-        til_Array _tmp261;
-        til_AllocError _err_alloc__tmp262;
-        til_IndexOutOfBoundsError _err_idx__tmp262;
-        til_Str _tmp263 = ((til_Str){(til_I64)"Vec.set: index out of bounds", 28});
-        int _arr_status__tmp262 = til_Array_new(&_tmp261, &_err_alloc__tmp262, "Str", 1);
-        if (_arr_status__tmp262 != 0) {
+        til_Str _tmp337;
+        til_I64_OverflowError _err0__tmp338;
+        til_IndexOutOfBoundsError _err1__tmp338;
+        til_AllocError _err2__tmp338;
+        til_Array _tmp339;
+        til_AllocError _err_alloc__tmp340;
+        til_IndexOutOfBoundsError _err_idx__tmp340;
+        til_Str _tmp341 = ((til_Str){(til_I64)"Vec.set: index out of bounds", 28});
+        int _arr_status__tmp340 = til_Array_new(&_tmp339, &_err_alloc__tmp340, "Str", 1);
+        if (_arr_status__tmp340 != 0) {
         }
-        _arr_status__tmp262 = til_Array_set(&_err_idx__tmp262, &_tmp261, 0, &_tmp263);
-        if (_arr_status__tmp262 != 0) {
-            *_err1 = _err_idx__tmp262; return 1;
+        _arr_status__tmp340 = til_Array_set(&_err_idx__tmp340, &_tmp339, 0, &_tmp341);
+        if (_arr_status__tmp340 != 0) {
+            *_err1 = _err_idx__tmp340; return 1;
         }
-        int _status__tmp260 = til_format(&_tmp259, &_err0__tmp260, &_err1__tmp260, &_err2__tmp260, ((til_Str){(til_I64)"src/examples/hello_script.til:96:52:", 36}), &_tmp261);
-        if (_status__tmp260 != 0) {
-            if (_status__tmp260 == 2) { *_err1 = _err1__tmp260; return 1; }
+        int _status__tmp338 = til_format(&_tmp337, &_err0__tmp338, &_err1__tmp338, &_err2__tmp338, ((til_Str){(til_I64)"src/examples/hello_script.til:96:52:", 36}), &_tmp339);
+        if (_status__tmp338 != 0) {
+            if (_status__tmp338 == 2) { *_err1 = _err1__tmp338; return 1; }
         }
-        til_Array_delete(&_tmp261);
-        *_err1 = til_IndexOutOfBoundsError_new(_tmp259);
+        til_Array_delete(&_tmp339);
+        til_Str _tmp342;
+        til_I64_OverflowError _err0__tmp343;
+        til_IndexOutOfBoundsError _err1__tmp343;
+        til_AllocError _err2__tmp343;
+        til_Array _tmp344;
+        til_AllocError _err_alloc__tmp345;
+        til_IndexOutOfBoundsError _err_idx__tmp345;
+        til_Str _tmp346 = ((til_Str){(til_I64)"Vec.set: index out of bounds", 28});
+        int _arr_status__tmp345 = til_Array_new(&_tmp344, &_err_alloc__tmp345, "Str", 1);
+        if (_arr_status__tmp345 != 0) {
+        }
+        _arr_status__tmp345 = til_Array_set(&_err_idx__tmp345, &_tmp344, 0, &_tmp346);
+        if (_arr_status__tmp345 != 0) {
+            *_err1 = _err_idx__tmp345; return 1;
+        }
+        int _status__tmp343 = til_format(&_tmp342, &_err0__tmp343, &_err1__tmp343, &_err2__tmp343, ((til_Str){(til_I64)"src/examples/hello_script.til:96:52:", 36}), &_tmp344);
+        if (_status__tmp343 != 0) {
+            if (_status__tmp343 == 2) { *_err1 = _err1__tmp343; return 1; }
+        }
+        til_Array_delete(&_tmp344);
+        *_err1 = til_IndexOutOfBoundsError_new(_tmp342);
         return 1;
     }
     til_I64 til_dest = til_add(til_self->ptr, til_mul(til_index, til_self->type_size));
@@ -1315,33 +1681,53 @@ int til_Vec_set(til_IndexOutOfBoundsError* _err1, til_Vec* til_self, const til_I
 
 int til_Vec_pop(til_IndexOutOfBoundsError* _err1, til_Vec* til_self, til_Dynamic* til_dest) {
     if (til_I64_eq(til_self->_len, 0).data) {
-        til_Str _tmp266;
-        til_I64_OverflowError _err0__tmp267;
-        til_IndexOutOfBoundsError _err1__tmp267;
-        til_AllocError _err2__tmp267;
-        til_Array _tmp268;
-        til_AllocError _err_alloc__tmp269;
-        til_IndexOutOfBoundsError _err_idx__tmp269;
-        til_Str _tmp270 = ((til_Str){(til_I64)"Vec.pop: cannot pop from empty Vec", 34});
-        int _arr_status__tmp269 = til_Array_new(&_tmp268, &_err_alloc__tmp269, "Str", 1);
-        if (_arr_status__tmp269 != 0) {
+        til_Str _tmp349;
+        til_I64_OverflowError _err0__tmp350;
+        til_IndexOutOfBoundsError _err1__tmp350;
+        til_AllocError _err2__tmp350;
+        til_Array _tmp351;
+        til_AllocError _err_alloc__tmp352;
+        til_IndexOutOfBoundsError _err_idx__tmp352;
+        til_Str _tmp353 = ((til_Str){(til_I64)"Vec.pop: cannot pop from empty Vec", 34});
+        int _arr_status__tmp352 = til_Array_new(&_tmp351, &_err_alloc__tmp352, "Str", 1);
+        if (_arr_status__tmp352 != 0) {
         }
-        _arr_status__tmp269 = til_Array_set(&_err_idx__tmp269, &_tmp268, 0, &_tmp270);
-        if (_arr_status__tmp269 != 0) {
-            *_err1 = _err_idx__tmp269; return 1;
+        _arr_status__tmp352 = til_Array_set(&_err_idx__tmp352, &_tmp351, 0, &_tmp353);
+        if (_arr_status__tmp352 != 0) {
+            *_err1 = _err_idx__tmp352; return 1;
         }
-        int _status__tmp267 = til_format(&_tmp266, &_err0__tmp267, &_err1__tmp267, &_err2__tmp267, ((til_Str){(til_I64)"src/examples/hello_script.til:110:52:", 37}), &_tmp268);
-        if (_status__tmp267 != 0) {
-            if (_status__tmp267 == 2) { *_err1 = _err1__tmp267; return 1; }
+        int _status__tmp350 = til_format(&_tmp349, &_err0__tmp350, &_err1__tmp350, &_err2__tmp350, ((til_Str){(til_I64)"src/examples/hello_script.til:110:52:", 37}), &_tmp351);
+        if (_status__tmp350 != 0) {
+            if (_status__tmp350 == 2) { *_err1 = _err1__tmp350; return 1; }
         }
-        til_Array_delete(&_tmp268);
-        *_err1 = til_IndexOutOfBoundsError_new(_tmp266);
+        til_Array_delete(&_tmp351);
+        til_Str _tmp354;
+        til_I64_OverflowError _err0__tmp355;
+        til_IndexOutOfBoundsError _err1__tmp355;
+        til_AllocError _err2__tmp355;
+        til_Array _tmp356;
+        til_AllocError _err_alloc__tmp357;
+        til_IndexOutOfBoundsError _err_idx__tmp357;
+        til_Str _tmp358 = ((til_Str){(til_I64)"Vec.pop: cannot pop from empty Vec", 34});
+        int _arr_status__tmp357 = til_Array_new(&_tmp356, &_err_alloc__tmp357, "Str", 1);
+        if (_arr_status__tmp357 != 0) {
+        }
+        _arr_status__tmp357 = til_Array_set(&_err_idx__tmp357, &_tmp356, 0, &_tmp358);
+        if (_arr_status__tmp357 != 0) {
+            *_err1 = _err_idx__tmp357; return 1;
+        }
+        int _status__tmp355 = til_format(&_tmp354, &_err0__tmp355, &_err1__tmp355, &_err2__tmp355, ((til_Str){(til_I64)"src/examples/hello_script.til:110:52:", 37}), &_tmp356);
+        if (_status__tmp355 != 0) {
+            if (_status__tmp355 == 2) { *_err1 = _err1__tmp355; return 1; }
+        }
+        til_Array_delete(&_tmp356);
+        *_err1 = til_IndexOutOfBoundsError_new(_tmp354);
         return 1;
     }
     til_I64 til_last_index = til_sub(til_self->_len, 1);
-    til_IndexOutOfBoundsError _err0__tmp271 = {};
-    int _status__tmp271 = til_Vec_get(&_err0__tmp271, (*til_self), til_last_index, (til_Dynamic*)&til_dest);
-    if (_status__tmp271 == 1) { *_err1 = _err0__tmp271; return 1; }
+    til_IndexOutOfBoundsError _err0__tmp359 = {};
+    int _status__tmp359 = til_Vec_get(&_err0__tmp359, (*til_self), til_last_index, (til_Dynamic*)&til_dest);
+    if (_status__tmp359 == 1) { *_err1 = _err0__tmp359; return 1; }
     til_self->_len = til_last_index;
     return 0;
 }
@@ -1360,41 +1746,69 @@ int til_Vec_clone(til_Vec* _ret, til_AllocError* _err1, const til_Vec til_self) 
     til_cloned._len = til_self._len;
     til_cloned.cap = til_self.cap;
     til_I64 til_total_bytes = til_mul(til_self.cap, til_self.type_size);
-    til_I64 _ret__tmp274;
-    til_AllocError _err0__tmp274 = {};
-    int _status__tmp274 = til_malloc(&_ret__tmp274, &_err0__tmp274, til_total_bytes);
-    if (_status__tmp274 == 1) { *_err1 = _err0__tmp274; return 1; }
-    til_cloned.ptr = _ret__tmp274;
+    til_I64 _ret__tmp362;
+    til_AllocError _err0__tmp362 = {};
+    int _status__tmp362 = til_malloc(&_ret__tmp362, &_err0__tmp362, til_total_bytes);
+    if (_status__tmp362 == 1) { *_err1 = _err0__tmp362; return 1; }
+    til_cloned.ptr = _ret__tmp362;
     if (til_I64_eq(til_NULL, til_cloned.ptr).data) {
-        til_Str _tmp276;
-        til_I64_OverflowError _err0__tmp277;
-        til_IndexOutOfBoundsError _err1__tmp277;
-        til_AllocError _err2__tmp277;
-        til_Array _tmp278;
-        til_AllocError _err_alloc__tmp279;
-        til_IndexOutOfBoundsError _err_idx__tmp279;
-        til_Str _tmp280 = ((til_Str){(til_I64)"Vec.clone: malloc failed for ", 29});
-        til_Str _tmp281 = til_I64_to_str(til_total_bytes);
-        til_Str _tmp282 = ((til_Str){(til_I64)" bytes", 6});
-        int _arr_status__tmp279 = til_Array_new(&_tmp278, &_err_alloc__tmp279, "Str", 3);
-        if (_arr_status__tmp279 != 0) {
-            *_err1 = _err_alloc__tmp279; return 1;
+        til_Str _tmp364;
+        til_I64_OverflowError _err0__tmp365;
+        til_IndexOutOfBoundsError _err1__tmp365;
+        til_AllocError _err2__tmp365;
+        til_Array _tmp366;
+        til_AllocError _err_alloc__tmp367;
+        til_IndexOutOfBoundsError _err_idx__tmp367;
+        til_Str _tmp368 = ((til_Str){(til_I64)"Vec.clone: malloc failed for ", 29});
+        til_Str _tmp369 = til_I64_to_str(til_total_bytes);
+        til_Str _tmp370 = ((til_Str){(til_I64)" bytes", 6});
+        int _arr_status__tmp367 = til_Array_new(&_tmp366, &_err_alloc__tmp367, "Str", 3);
+        if (_arr_status__tmp367 != 0) {
+            *_err1 = _err_alloc__tmp367; return 1;
         }
-        _arr_status__tmp279 = til_Array_set(&_err_idx__tmp279, &_tmp278, 0, &_tmp280);
-        if (_arr_status__tmp279 != 0) {
+        _arr_status__tmp367 = til_Array_set(&_err_idx__tmp367, &_tmp366, 0, &_tmp368);
+        if (_arr_status__tmp367 != 0) {
         }
-        _arr_status__tmp279 = til_Array_set(&_err_idx__tmp279, &_tmp278, 1, &_tmp281);
-        if (_arr_status__tmp279 != 0) {
+        _arr_status__tmp367 = til_Array_set(&_err_idx__tmp367, &_tmp366, 1, &_tmp369);
+        if (_arr_status__tmp367 != 0) {
         }
-        _arr_status__tmp279 = til_Array_set(&_err_idx__tmp279, &_tmp278, 2, &_tmp282);
-        if (_arr_status__tmp279 != 0) {
+        _arr_status__tmp367 = til_Array_set(&_err_idx__tmp367, &_tmp366, 2, &_tmp370);
+        if (_arr_status__tmp367 != 0) {
         }
-        int _status__tmp277 = til_format(&_tmp276, &_err0__tmp277, &_err1__tmp277, &_err2__tmp277, ((til_Str){(til_I64)"src/examples/hello_script.til:139:41:", 37}), &_tmp278);
-        if (_status__tmp277 != 0) {
-            if (_status__tmp277 == 3) { *_err1 = _err2__tmp277; return 1; }
+        int _status__tmp365 = til_format(&_tmp364, &_err0__tmp365, &_err1__tmp365, &_err2__tmp365, ((til_Str){(til_I64)"src/examples/hello_script.til:139:41:", 37}), &_tmp366);
+        if (_status__tmp365 != 0) {
+            if (_status__tmp365 == 3) { *_err1 = _err2__tmp365; return 1; }
         }
-        til_Array_delete(&_tmp278);
-        *_err1 = til_AllocError_new(_tmp276);
+        til_Array_delete(&_tmp366);
+        til_Str _tmp371;
+        til_I64_OverflowError _err0__tmp372;
+        til_IndexOutOfBoundsError _err1__tmp372;
+        til_AllocError _err2__tmp372;
+        til_Array _tmp373;
+        til_AllocError _err_alloc__tmp374;
+        til_IndexOutOfBoundsError _err_idx__tmp374;
+        til_Str _tmp375 = ((til_Str){(til_I64)"Vec.clone: malloc failed for ", 29});
+        til_Str _tmp376 = til_I64_to_str(til_total_bytes);
+        til_Str _tmp377 = ((til_Str){(til_I64)" bytes", 6});
+        int _arr_status__tmp374 = til_Array_new(&_tmp373, &_err_alloc__tmp374, "Str", 3);
+        if (_arr_status__tmp374 != 0) {
+            *_err1 = _err_alloc__tmp374; return 1;
+        }
+        _arr_status__tmp374 = til_Array_set(&_err_idx__tmp374, &_tmp373, 0, &_tmp375);
+        if (_arr_status__tmp374 != 0) {
+        }
+        _arr_status__tmp374 = til_Array_set(&_err_idx__tmp374, &_tmp373, 1, &_tmp376);
+        if (_arr_status__tmp374 != 0) {
+        }
+        _arr_status__tmp374 = til_Array_set(&_err_idx__tmp374, &_tmp373, 2, &_tmp377);
+        if (_arr_status__tmp374 != 0) {
+        }
+        int _status__tmp372 = til_format(&_tmp371, &_err0__tmp372, &_err1__tmp372, &_err2__tmp372, ((til_Str){(til_I64)"src/examples/hello_script.til:139:41:", 37}), &_tmp373);
+        if (_status__tmp372 != 0) {
+            if (_status__tmp372 == 3) { *_err1 = _err2__tmp372; return 1; }
+        }
+        til_Array_delete(&_tmp373);
+        *_err1 = til_AllocError_new(_tmp371);
         return 1;
     }
     til_I64 til_used_bytes = til_mul(til_self._len, til_self.type_size);
@@ -1410,26 +1824,26 @@ int til_Vec_extend(til_AllocError* _err1, til_Vec* til_self, const til_Vec til_o
         if (til_I64_eq(til_self->_len, til_self->cap).data) {
             const til_I64 til_new_cap = til_mul(til_self->cap, 2);
             if (til_gt(til_new_cap, til_Vec_MAX_CAP).data) {
-                til_Array _tmp287;
-                til_AllocError _err_alloc__tmp288;
-                til_IndexOutOfBoundsError _err_idx__tmp288;
-                til_Str _tmp289 = ((til_Str){(til_I64)"Vec.extend: capacity exceeded Vec.MAX_CAP", 41});
-                int _arr_status__tmp288 = til_Array_new(&_tmp287, &_err_alloc__tmp288, "Str", 1);
-                if (_arr_status__tmp288 != 0) {
-                    *_err1 = _err_alloc__tmp288; return 1;
+                til_Array _tmp382;
+                til_AllocError _err_alloc__tmp383;
+                til_IndexOutOfBoundsError _err_idx__tmp383;
+                til_Str _tmp384 = ((til_Str){(til_I64)"Vec.extend: capacity exceeded Vec.MAX_CAP", 41});
+                int _arr_status__tmp383 = til_Array_new(&_tmp382, &_err_alloc__tmp383, "Str", 1);
+                if (_arr_status__tmp383 != 0) {
+                    *_err1 = _err_alloc__tmp383; return 1;
                 }
-                _arr_status__tmp288 = til_Array_set(&_err_idx__tmp288, &_tmp287, 0, &_tmp289);
-                if (_arr_status__tmp288 != 0) {
+                _arr_status__tmp383 = til_Array_set(&_err_idx__tmp383, &_tmp382, 0, &_tmp384);
+                if (_arr_status__tmp383 != 0) {
                 }
-                til_panic(((til_Str){(til_I64)"src/examples/hello_script.til:158:27:", 37}), &_tmp287);
-                til_Array_delete(&_tmp287);
+                til_panic(((til_Str){(til_I64)"src/examples/hello_script.til:158:27:", 37}), &_tmp382);
+                til_Array_delete(&_tmp382);
             }
-            til_I64 _ret__tmp290;
+            til_I64 _ret__tmp385;
             til_I64 til_new_ptr;
-            til_AllocError _err0__tmp290 = {};
-            int _status__tmp290 = til_malloc(&_ret__tmp290, &_err0__tmp290, til_mul(til_new_cap, til_self->type_size));
-            if (_status__tmp290 == 1) { *_err1 = _err0__tmp290; return 1; }
-            til_new_ptr = _ret__tmp290;
+            til_AllocError _err0__tmp385 = {};
+            int _status__tmp385 = til_malloc(&_ret__tmp385, &_err0__tmp385, til_mul(til_new_cap, til_self->type_size));
+            if (_status__tmp385 == 1) { *_err1 = _err0__tmp385; return 1; }
+            til_new_ptr = _ret__tmp385;
             til_memcpy(til_new_ptr, til_self->ptr, til_mul(til_self->_len, til_self->type_size));
             til_free(til_self->ptr);
             til_self->ptr = til_new_ptr;
@@ -1467,27 +1881,47 @@ til_Bool til_Vec_contains(const til_Vec til_self, const til_Dynamic til_value) {
 
 int til_Vec_remove(til_IndexOutOfBoundsError* _err1, til_Vec* til_self, const til_I64 til_index) {
     if (til_gteq(til_index, til_self->_len).data) {
-        til_Str _tmp299;
-        til_I64_OverflowError _err0__tmp300;
-        til_IndexOutOfBoundsError _err1__tmp300;
-        til_AllocError _err2__tmp300;
-        til_Array _tmp301;
-        til_AllocError _err_alloc__tmp302;
-        til_IndexOutOfBoundsError _err_idx__tmp302;
-        til_Str _tmp303 = ((til_Str){(til_I64)"Vec.remove: index out of bounds", 31});
-        int _arr_status__tmp302 = til_Array_new(&_tmp301, &_err_alloc__tmp302, "Str", 1);
-        if (_arr_status__tmp302 != 0) {
+        til_Str _tmp394;
+        til_I64_OverflowError _err0__tmp395;
+        til_IndexOutOfBoundsError _err1__tmp395;
+        til_AllocError _err2__tmp395;
+        til_Array _tmp396;
+        til_AllocError _err_alloc__tmp397;
+        til_IndexOutOfBoundsError _err_idx__tmp397;
+        til_Str _tmp398 = ((til_Str){(til_I64)"Vec.remove: index out of bounds", 31});
+        int _arr_status__tmp397 = til_Array_new(&_tmp396, &_err_alloc__tmp397, "Str", 1);
+        if (_arr_status__tmp397 != 0) {
         }
-        _arr_status__tmp302 = til_Array_set(&_err_idx__tmp302, &_tmp301, 0, &_tmp303);
-        if (_arr_status__tmp302 != 0) {
-            *_err1 = _err_idx__tmp302; return 1;
+        _arr_status__tmp397 = til_Array_set(&_err_idx__tmp397, &_tmp396, 0, &_tmp398);
+        if (_arr_status__tmp397 != 0) {
+            *_err1 = _err_idx__tmp397; return 1;
         }
-        int _status__tmp300 = til_format(&_tmp299, &_err0__tmp300, &_err1__tmp300, &_err2__tmp300, ((til_Str){(til_I64)"src/examples/hello_script.til:202:52:", 37}), &_tmp301);
-        if (_status__tmp300 != 0) {
-            if (_status__tmp300 == 2) { *_err1 = _err1__tmp300; return 1; }
+        int _status__tmp395 = til_format(&_tmp394, &_err0__tmp395, &_err1__tmp395, &_err2__tmp395, ((til_Str){(til_I64)"src/examples/hello_script.til:202:52:", 37}), &_tmp396);
+        if (_status__tmp395 != 0) {
+            if (_status__tmp395 == 2) { *_err1 = _err1__tmp395; return 1; }
         }
-        til_Array_delete(&_tmp301);
-        *_err1 = til_IndexOutOfBoundsError_new(_tmp299);
+        til_Array_delete(&_tmp396);
+        til_Str _tmp399;
+        til_I64_OverflowError _err0__tmp400;
+        til_IndexOutOfBoundsError _err1__tmp400;
+        til_AllocError _err2__tmp400;
+        til_Array _tmp401;
+        til_AllocError _err_alloc__tmp402;
+        til_IndexOutOfBoundsError _err_idx__tmp402;
+        til_Str _tmp403 = ((til_Str){(til_I64)"Vec.remove: index out of bounds", 31});
+        int _arr_status__tmp402 = til_Array_new(&_tmp401, &_err_alloc__tmp402, "Str", 1);
+        if (_arr_status__tmp402 != 0) {
+        }
+        _arr_status__tmp402 = til_Array_set(&_err_idx__tmp402, &_tmp401, 0, &_tmp403);
+        if (_arr_status__tmp402 != 0) {
+            *_err1 = _err_idx__tmp402; return 1;
+        }
+        int _status__tmp400 = til_format(&_tmp399, &_err0__tmp400, &_err1__tmp400, &_err2__tmp400, ((til_Str){(til_I64)"src/examples/hello_script.til:202:52:", 37}), &_tmp401);
+        if (_status__tmp400 != 0) {
+            if (_status__tmp400 == 2) { *_err1 = _err1__tmp400; return 1; }
+        }
+        til_Array_delete(&_tmp401);
+        *_err1 = til_IndexOutOfBoundsError_new(_tmp399);
         return 1;
     }
     til_I64 til_i = til_index;
@@ -1530,41 +1964,69 @@ til_I64 til_Str_to_i64(const til_Str til_self) {
 int til_Str_clone(til_Str* _ret, til_AllocError* _err1, const til_Str til_self) {
     til_Str til_cloned = {.c_string = 0, .cap = 0};
     til_cloned.cap = til_self.cap;
-    til_I64 _ret__tmp313;
-    til_AllocError _err0__tmp313 = {};
-    int _status__tmp313 = til_malloc(&_ret__tmp313, &_err0__tmp313, til_cloned.cap);
-    if (_status__tmp313 == 1) { *_err1 = _err0__tmp313; return 1; }
-    til_cloned.c_string = _ret__tmp313;
+    til_I64 _ret__tmp413;
+    til_AllocError _err0__tmp413 = {};
+    int _status__tmp413 = til_malloc(&_ret__tmp413, &_err0__tmp413, til_cloned.cap);
+    if (_status__tmp413 == 1) { *_err1 = _err0__tmp413; return 1; }
+    til_cloned.c_string = _ret__tmp413;
     if (til_I64_eq(til_NULL, til_cloned.c_string).data) {
-        til_Str _tmp315;
-        til_I64_OverflowError _err0__tmp316;
-        til_IndexOutOfBoundsError _err1__tmp316;
-        til_AllocError _err2__tmp316;
-        til_Array _tmp317;
-        til_AllocError _err_alloc__tmp318;
-        til_IndexOutOfBoundsError _err_idx__tmp318;
-        til_Str _tmp319 = ((til_Str){(til_I64)"Str.clone: malloc failed for ", 29});
-        til_Str _tmp320 = til_I64_to_str(til_cloned.cap);
-        til_Str _tmp321 = ((til_Str){(til_I64)" bytes", 6});
-        int _arr_status__tmp318 = til_Array_new(&_tmp317, &_err_alloc__tmp318, "Str", 3);
-        if (_arr_status__tmp318 != 0) {
-            *_err1 = _err_alloc__tmp318; return 1;
+        til_Str _tmp415;
+        til_I64_OverflowError _err0__tmp416;
+        til_IndexOutOfBoundsError _err1__tmp416;
+        til_AllocError _err2__tmp416;
+        til_Array _tmp417;
+        til_AllocError _err_alloc__tmp418;
+        til_IndexOutOfBoundsError _err_idx__tmp418;
+        til_Str _tmp419 = ((til_Str){(til_I64)"Str.clone: malloc failed for ", 29});
+        til_Str _tmp420 = til_I64_to_str(til_cloned.cap);
+        til_Str _tmp421 = ((til_Str){(til_I64)" bytes", 6});
+        int _arr_status__tmp418 = til_Array_new(&_tmp417, &_err_alloc__tmp418, "Str", 3);
+        if (_arr_status__tmp418 != 0) {
+            *_err1 = _err_alloc__tmp418; return 1;
         }
-        _arr_status__tmp318 = til_Array_set(&_err_idx__tmp318, &_tmp317, 0, &_tmp319);
-        if (_arr_status__tmp318 != 0) {
+        _arr_status__tmp418 = til_Array_set(&_err_idx__tmp418, &_tmp417, 0, &_tmp419);
+        if (_arr_status__tmp418 != 0) {
         }
-        _arr_status__tmp318 = til_Array_set(&_err_idx__tmp318, &_tmp317, 1, &_tmp320);
-        if (_arr_status__tmp318 != 0) {
+        _arr_status__tmp418 = til_Array_set(&_err_idx__tmp418, &_tmp417, 1, &_tmp420);
+        if (_arr_status__tmp418 != 0) {
         }
-        _arr_status__tmp318 = til_Array_set(&_err_idx__tmp318, &_tmp317, 2, &_tmp321);
-        if (_arr_status__tmp318 != 0) {
+        _arr_status__tmp418 = til_Array_set(&_err_idx__tmp418, &_tmp417, 2, &_tmp421);
+        if (_arr_status__tmp418 != 0) {
         }
-        int _status__tmp316 = til_format(&_tmp315, &_err0__tmp316, &_err1__tmp316, &_err2__tmp316, ((til_Str){(til_I64)"src/examples/hello_script.til:46:41:", 36}), &_tmp317);
-        if (_status__tmp316 != 0) {
-            if (_status__tmp316 == 3) { *_err1 = _err2__tmp316; return 1; }
+        int _status__tmp416 = til_format(&_tmp415, &_err0__tmp416, &_err1__tmp416, &_err2__tmp416, ((til_Str){(til_I64)"src/examples/hello_script.til:46:41:", 36}), &_tmp417);
+        if (_status__tmp416 != 0) {
+            if (_status__tmp416 == 3) { *_err1 = _err2__tmp416; return 1; }
         }
-        til_Array_delete(&_tmp317);
-        *_err1 = til_AllocError_new(_tmp315);
+        til_Array_delete(&_tmp417);
+        til_Str _tmp422;
+        til_I64_OverflowError _err0__tmp423;
+        til_IndexOutOfBoundsError _err1__tmp423;
+        til_AllocError _err2__tmp423;
+        til_Array _tmp424;
+        til_AllocError _err_alloc__tmp425;
+        til_IndexOutOfBoundsError _err_idx__tmp425;
+        til_Str _tmp426 = ((til_Str){(til_I64)"Str.clone: malloc failed for ", 29});
+        til_Str _tmp427 = til_I64_to_str(til_cloned.cap);
+        til_Str _tmp428 = ((til_Str){(til_I64)" bytes", 6});
+        int _arr_status__tmp425 = til_Array_new(&_tmp424, &_err_alloc__tmp425, "Str", 3);
+        if (_arr_status__tmp425 != 0) {
+            *_err1 = _err_alloc__tmp425; return 1;
+        }
+        _arr_status__tmp425 = til_Array_set(&_err_idx__tmp425, &_tmp424, 0, &_tmp426);
+        if (_arr_status__tmp425 != 0) {
+        }
+        _arr_status__tmp425 = til_Array_set(&_err_idx__tmp425, &_tmp424, 1, &_tmp427);
+        if (_arr_status__tmp425 != 0) {
+        }
+        _arr_status__tmp425 = til_Array_set(&_err_idx__tmp425, &_tmp424, 2, &_tmp428);
+        if (_arr_status__tmp425 != 0) {
+        }
+        int _status__tmp423 = til_format(&_tmp422, &_err0__tmp423, &_err1__tmp423, &_err2__tmp423, ((til_Str){(til_I64)"src/examples/hello_script.til:46:41:", 36}), &_tmp424);
+        if (_status__tmp423 != 0) {
+            if (_status__tmp423 == 3) { *_err1 = _err2__tmp423; return 1; }
+        }
+        til_Array_delete(&_tmp424);
+        *_err1 = til_AllocError_new(_tmp422);
         return 1;
     }
     til_memcpy(til_cloned.c_string, til_self.c_string, til_self.cap);
@@ -1690,11 +2152,11 @@ til_I64 til_Str_rfind(const til_Str til_self, const til_Str til_needle) {
 
 int til_Str_replace(til_Str* _ret, til_AllocError* _err1, const til_Str til_self, const til_Str til_from, const til_Str til_to) {
     if (til_I64_eq(til_Str_len(til_from), 0).data) {
-        til_Str _ret__tmp358;
-        til_AllocError _err0__tmp358 = {};
-        int _status__tmp358 = til_Str_clone(&_ret__tmp358, &_err0__tmp358, til_self);
-        if (_status__tmp358 == 1) { *_err1 = _err0__tmp358; return 1; }
-        *_ret = _ret__tmp358;
+        til_Str _ret__tmp465;
+        til_AllocError _err0__tmp465 = {};
+        int _status__tmp465 = til_Str_clone(&_ret__tmp465, &_err0__tmp465, til_self);
+        if (_status__tmp465 == 1) { *_err1 = _err0__tmp465; return 1; }
+        *_ret = _ret__tmp465;
         return 0;
     }
     til_I64 til_count = 0;
@@ -1720,51 +2182,79 @@ int til_Str_replace(til_Str* _ret, til_AllocError* _err1, const til_Str til_self
         }
     }
     if (til_I64_eq(til_count, 0).data) {
-        til_Str _ret__tmp366;
-        til_AllocError _err0__tmp366 = {};
-        int _status__tmp366 = til_Str_clone(&_ret__tmp366, &_err0__tmp366, til_self);
-        if (_status__tmp366 == 1) { *_err1 = _err0__tmp366; return 1; }
-        *_ret = _ret__tmp366;
+        til_Str _ret__tmp473;
+        til_AllocError _err0__tmp473 = {};
+        int _status__tmp473 = til_Str_clone(&_ret__tmp473, &_err0__tmp473, til_self);
+        if (_status__tmp473 == 1) { *_err1 = _err0__tmp473; return 1; }
+        *_ret = _ret__tmp473;
         return 0;
     }
     til_I64 til_new_len = til_add(til_sub(til_Str_len(til_self), til_mul(til_count, til_Str_len(til_from))), til_mul(til_count, til_Str_len(til_to)));
     til_Str til_result = {.c_string = 0, .cap = 0};
     til_result.cap = til_new_len;
-    til_I64 _ret__tmp367;
-    til_AllocError _err0__tmp367 = {};
-    int _status__tmp367 = til_malloc(&_ret__tmp367, &_err0__tmp367, til_new_len);
-    if (_status__tmp367 == 1) { *_err1 = _err0__tmp367; return 1; }
-    til_result.c_string = _ret__tmp367;
+    til_I64 _ret__tmp474;
+    til_AllocError _err0__tmp474 = {};
+    int _status__tmp474 = til_malloc(&_ret__tmp474, &_err0__tmp474, til_new_len);
+    if (_status__tmp474 == 1) { *_err1 = _err0__tmp474; return 1; }
+    til_result.c_string = _ret__tmp474;
     if (til_I64_eq(til_NULL, til_result.c_string).data) {
-        til_Str _tmp369;
-        til_I64_OverflowError _err0__tmp370;
-        til_IndexOutOfBoundsError _err1__tmp370;
-        til_AllocError _err2__tmp370;
-        til_Array _tmp371;
-        til_AllocError _err_alloc__tmp372;
-        til_IndexOutOfBoundsError _err_idx__tmp372;
-        til_Str _tmp373 = ((til_Str){(til_I64)"Str.replace: malloc failed for ", 31});
-        til_Str _tmp374 = til_I64_to_str(til_new_len);
-        til_Str _tmp375 = ((til_Str){(til_I64)" bytes", 6});
-        int _arr_status__tmp372 = til_Array_new(&_tmp371, &_err_alloc__tmp372, "Str", 3);
-        if (_arr_status__tmp372 != 0) {
-            *_err1 = _err_alloc__tmp372; return 1;
+        til_Str _tmp476;
+        til_I64_OverflowError _err0__tmp477;
+        til_IndexOutOfBoundsError _err1__tmp477;
+        til_AllocError _err2__tmp477;
+        til_Array _tmp478;
+        til_AllocError _err_alloc__tmp479;
+        til_IndexOutOfBoundsError _err_idx__tmp479;
+        til_Str _tmp480 = ((til_Str){(til_I64)"Str.replace: malloc failed for ", 31});
+        til_Str _tmp481 = til_I64_to_str(til_new_len);
+        til_Str _tmp482 = ((til_Str){(til_I64)" bytes", 6});
+        int _arr_status__tmp479 = til_Array_new(&_tmp478, &_err_alloc__tmp479, "Str", 3);
+        if (_arr_status__tmp479 != 0) {
+            *_err1 = _err_alloc__tmp479; return 1;
         }
-        _arr_status__tmp372 = til_Array_set(&_err_idx__tmp372, &_tmp371, 0, &_tmp373);
-        if (_arr_status__tmp372 != 0) {
+        _arr_status__tmp479 = til_Array_set(&_err_idx__tmp479, &_tmp478, 0, &_tmp480);
+        if (_arr_status__tmp479 != 0) {
         }
-        _arr_status__tmp372 = til_Array_set(&_err_idx__tmp372, &_tmp371, 1, &_tmp374);
-        if (_arr_status__tmp372 != 0) {
+        _arr_status__tmp479 = til_Array_set(&_err_idx__tmp479, &_tmp478, 1, &_tmp481);
+        if (_arr_status__tmp479 != 0) {
         }
-        _arr_status__tmp372 = til_Array_set(&_err_idx__tmp372, &_tmp371, 2, &_tmp375);
-        if (_arr_status__tmp372 != 0) {
+        _arr_status__tmp479 = til_Array_set(&_err_idx__tmp479, &_tmp478, 2, &_tmp482);
+        if (_arr_status__tmp479 != 0) {
         }
-        int _status__tmp370 = til_format(&_tmp369, &_err0__tmp370, &_err1__tmp370, &_err2__tmp370, ((til_Str){(til_I64)"src/examples/hello_script.til:213:41:", 37}), &_tmp371);
-        if (_status__tmp370 != 0) {
-            if (_status__tmp370 == 3) { *_err1 = _err2__tmp370; return 1; }
+        int _status__tmp477 = til_format(&_tmp476, &_err0__tmp477, &_err1__tmp477, &_err2__tmp477, ((til_Str){(til_I64)"src/examples/hello_script.til:213:41:", 37}), &_tmp478);
+        if (_status__tmp477 != 0) {
+            if (_status__tmp477 == 3) { *_err1 = _err2__tmp477; return 1; }
         }
-        til_Array_delete(&_tmp371);
-        *_err1 = til_AllocError_new(_tmp369);
+        til_Array_delete(&_tmp478);
+        til_Str _tmp483;
+        til_I64_OverflowError _err0__tmp484;
+        til_IndexOutOfBoundsError _err1__tmp484;
+        til_AllocError _err2__tmp484;
+        til_Array _tmp485;
+        til_AllocError _err_alloc__tmp486;
+        til_IndexOutOfBoundsError _err_idx__tmp486;
+        til_Str _tmp487 = ((til_Str){(til_I64)"Str.replace: malloc failed for ", 31});
+        til_Str _tmp488 = til_I64_to_str(til_new_len);
+        til_Str _tmp489 = ((til_Str){(til_I64)" bytes", 6});
+        int _arr_status__tmp486 = til_Array_new(&_tmp485, &_err_alloc__tmp486, "Str", 3);
+        if (_arr_status__tmp486 != 0) {
+            *_err1 = _err_alloc__tmp486; return 1;
+        }
+        _arr_status__tmp486 = til_Array_set(&_err_idx__tmp486, &_tmp485, 0, &_tmp487);
+        if (_arr_status__tmp486 != 0) {
+        }
+        _arr_status__tmp486 = til_Array_set(&_err_idx__tmp486, &_tmp485, 1, &_tmp488);
+        if (_arr_status__tmp486 != 0) {
+        }
+        _arr_status__tmp486 = til_Array_set(&_err_idx__tmp486, &_tmp485, 2, &_tmp489);
+        if (_arr_status__tmp486 != 0) {
+        }
+        int _status__tmp484 = til_format(&_tmp483, &_err0__tmp484, &_err1__tmp484, &_err2__tmp484, ((til_Str){(til_I64)"src/examples/hello_script.til:213:41:", 37}), &_tmp485);
+        if (_status__tmp484 != 0) {
+            if (_status__tmp484 == 3) { *_err1 = _err2__tmp484; return 1; }
+        }
+        til_Array_delete(&_tmp485);
+        *_err1 = til_AllocError_new(_tmp483);
         return 1;
     }
     til_I64 til_src_idx = 0;
@@ -1815,87 +2305,87 @@ til_U8 til_Str_char_at(const til_Str til_self, const til_I64 til_index) {
 }
 
 int til_Str_replacen(til_Str* _ret, til_AllocError* _err1, const til_Str til_self, const til_Str til_from, const til_Str til_to, const til_I64 til_n) {
-    til_IndexOutOfBoundsError _thrown_IndexOutOfBoundsError__tmp387;
+    til_IndexOutOfBoundsError _thrown_IndexOutOfBoundsError__tmp501;
     if (til_I64_eq(til_Str_len(til_from), 0).data) {
-        til_Str _ret__tmp389;
-        til_AllocError _err0__tmp389 = {};
-        int _status__tmp389 = til_Str_clone(&_ret__tmp389, &_err0__tmp389, til_self);
-        if (_status__tmp389 == 1) { *_err1 = _err0__tmp389; return 1; }
-        *_ret = _ret__tmp389;
+        til_Str _ret__tmp503;
+        til_AllocError _err0__tmp503 = {};
+        int _status__tmp503 = til_Str_clone(&_ret__tmp503, &_err0__tmp503, til_self);
+        if (_status__tmp503 == 1) { *_err1 = _err0__tmp503; return 1; }
+        *_ret = _ret__tmp503;
         return 0;
     }
     if (til_I64_eq(til_n, 0).data) {
-        til_Str _ret__tmp391;
-        til_AllocError _err0__tmp391 = {};
-        int _status__tmp391 = til_Str_clone(&_ret__tmp391, &_err0__tmp391, til_self);
-        if (_status__tmp391 == 1) { *_err1 = _err0__tmp391; return 1; }
-        *_ret = _ret__tmp391;
+        til_Str _ret__tmp505;
+        til_AllocError _err0__tmp505 = {};
+        int _status__tmp505 = til_Str_clone(&_ret__tmp505, &_err0__tmp505, til_self);
+        if (_status__tmp505 == 1) { *_err1 = _err0__tmp505; return 1; }
+        *_ret = _ret__tmp505;
         return 0;
     }
     til_I64 til_idx = til_Str_find(til_self, til_from);
     if (til_lt(til_idx, 0).data) {
-        til_Str _ret__tmp393;
-        til_AllocError _err0__tmp393 = {};
-        int _status__tmp393 = til_Str_clone(&_ret__tmp393, &_err0__tmp393, til_self);
-        if (_status__tmp393 == 1) { *_err1 = _err0__tmp393; return 1; }
-        *_ret = _ret__tmp393;
+        til_Str _ret__tmp507;
+        til_AllocError _err0__tmp507 = {};
+        int _status__tmp507 = til_Str_clone(&_ret__tmp507, &_err0__tmp507, til_self);
+        if (_status__tmp507 == 1) { *_err1 = _err0__tmp507; return 1; }
+        *_ret = _ret__tmp507;
         return 0;
     }
-    til_Str _ret__tmp394;
+    til_Str _ret__tmp508;
     til_Str til_prefix;
-    til_IndexOutOfBoundsError _err0__tmp394 = {};
-    til_AllocError _err1__tmp394 = {};
-    int _status__tmp394 = til_get_substr(&_ret__tmp394, &_err0__tmp394, &_err1__tmp394, til_self, 0, til_idx);
-    if (_status__tmp394 == 2) { *_err1 = _err1__tmp394; return 1; }
-    til_prefix = _ret__tmp394;
-    til_Str _ret__tmp395;
+    til_IndexOutOfBoundsError _err0__tmp508 = {};
+    til_AllocError _err1__tmp508 = {};
+    int _status__tmp508 = til_get_substr(&_ret__tmp508, &_err0__tmp508, &_err1__tmp508, til_self, 0, til_idx);
+    if (_status__tmp508 == 2) { *_err1 = _err1__tmp508; return 1; }
+    til_prefix = _ret__tmp508;
+    til_Str _ret__tmp509;
     til_Str til_suffix;
-    til_IndexOutOfBoundsError _err0__tmp395 = {};
-    til_AllocError _err1__tmp395 = {};
-    int _status__tmp395 = til_get_substr(&_ret__tmp395, &_err0__tmp395, &_err1__tmp395, til_self, til_add(til_idx, til_Str_len(til_from)), til_Str_len(til_self));
-    if (_status__tmp395 == 2) { *_err1 = _err1__tmp395; return 1; }
-    til_suffix = _ret__tmp395;
+    til_IndexOutOfBoundsError _err0__tmp509 = {};
+    til_AllocError _err1__tmp509 = {};
+    int _status__tmp509 = til_get_substr(&_ret__tmp509, &_err0__tmp509, &_err1__tmp509, til_self, til_add(til_idx, til_Str_len(til_from)), til_Str_len(til_self));
+    if (_status__tmp509 == 2) { *_err1 = _err1__tmp509; return 1; }
+    til_suffix = _ret__tmp509;
     til_Str til_result = til_concat(til_concat(til_prefix, til_to), til_suffix);
     if (til_gt(til_n, 1).data) {
-        til_Str _ret__tmp397;
+        til_Str _ret__tmp511;
         til_Str til_rest;
-        til_AllocError _err0__tmp397 = {};
-        int _status__tmp397 = til_Str_replacen(&_ret__tmp397, &_err0__tmp397, til_suffix, til_from, til_to, til_sub(til_n, 1));
-        if (_status__tmp397 == 1) { *_err1 = _err0__tmp397; return 1; }
-        til_rest = _ret__tmp397;
+        til_AllocError _err0__tmp511 = {};
+        int _status__tmp511 = til_Str_replacen(&_ret__tmp511, &_err0__tmp511, til_suffix, til_from, til_to, til_sub(til_n, 1));
+        if (_status__tmp511 == 1) { *_err1 = _err0__tmp511; return 1; }
+        til_rest = _ret__tmp511;
         til_result = til_concat(til_concat(til_prefix, til_to), til_rest);
     }
     *_ret = til_result;
     return 0;
-    goto _end_catches__tmp387;
-_catch_IndexOutOfBoundsError__tmp387: {
-    til_IndexOutOfBoundsError til_err = _thrown_IndexOutOfBoundsError__tmp387;
-    til_Str _ret__tmp399;
-    til_AllocError _err0__tmp399 = {};
-    int _status__tmp399 = til_Str_clone(&_ret__tmp399, &_err0__tmp399, til_self);
-    if (_status__tmp399 == 1) { *_err1 = _err0__tmp399; return 1; }
-    til_result = _ret__tmp399;
+    goto _end_catches__tmp501;
+_catch_IndexOutOfBoundsError__tmp501: {
+    til_IndexOutOfBoundsError til_err = _thrown_IndexOutOfBoundsError__tmp501;
+    til_Str _ret__tmp513;
+    til_AllocError _err0__tmp513 = {};
+    int _status__tmp513 = til_Str_clone(&_ret__tmp513, &_err0__tmp513, til_self);
+    if (_status__tmp513 == 1) { *_err1 = _err0__tmp513; return 1; }
+    til_result = _ret__tmp513;
     }
-_end_catches__tmp387:;
+_end_catches__tmp501:;
 }
 
 int til_Str_split(til_Vec* _ret, til_AllocError* _err1, til_IndexOutOfBoundsError* _err2, const til_Str til_self, const til_Str til_delimiter) {
-    til_Vec _ret__tmp401;
+    til_Vec _ret__tmp515;
     til_Vec til_parts;
-    til_AllocError _err0__tmp401 = {};
-    int _status__tmp401 = til_Vec_new(&_ret__tmp401, &_err0__tmp401, "Str");
-    if (_status__tmp401 == 1) { *_err1 = _err0__tmp401; return 1; }
-    til_parts = _ret__tmp401;
+    til_AllocError _err0__tmp515 = {};
+    int _status__tmp515 = til_Vec_new(&_ret__tmp515, &_err0__tmp515, "Str");
+    if (_status__tmp515 == 1) { *_err1 = _err0__tmp515; return 1; }
+    til_parts = _ret__tmp515;
     if (til_I64_eq(til_Str_len(til_delimiter), 0).data) {
-        til_Str _tmp404;
-        til_AllocError _err0__tmp405;
-        int _status__tmp405 = til_Str_clone(&_tmp404, &_err0__tmp405, til_self);
-        if (_status__tmp405 != 0) {
-            if (_status__tmp405 == 1) { *_err1 = _err0__tmp405; return 1; }
+        til_Str _tmp518;
+        til_AllocError _err0__tmp519;
+        int _status__tmp519 = til_Str_clone(&_tmp518, &_err0__tmp519, til_self);
+        if (_status__tmp519 != 0) {
+            if (_status__tmp519 == 1) { *_err1 = _err0__tmp519; return 1; }
         }
-        til_AllocError _err0__tmp403 = {};
-        int _status__tmp403 = til_Vec_push(&_err0__tmp403, &til_parts, &_tmp404);
-        if (_status__tmp403 == 1) { *_err1 = _err0__tmp403; return 1; }
+        til_AllocError _err0__tmp517 = {};
+        int _status__tmp517 = til_Vec_push(&_err0__tmp517, &til_parts, &_tmp518);
+        if (_status__tmp517 == 1) { *_err1 = _err0__tmp517; return 1; }
         *_ret = til_parts;
         return 0;
     }
@@ -1916,22 +2406,22 @@ int til_Str_split(til_Vec* _ret, til_AllocError* _err1, til_IndexOutOfBoundsErro
         }
         if (til_matches.data) {
             if (til_gt(til_pos, til_start).data) {
-                til_Str _ret__tmp412;
+                til_Str _ret__tmp526;
                 til_Str til_part;
-                til_IndexOutOfBoundsError _err0__tmp412 = {};
-                til_AllocError _err1__tmp412 = {};
-                int _status__tmp412 = til_get_substr(&_ret__tmp412, &_err0__tmp412, &_err1__tmp412, til_self, til_start, til_pos);
-                if (_status__tmp412 == 1) { *_err2 = _err0__tmp412; return 2; }
-                if (_status__tmp412 == 2) { *_err1 = _err1__tmp412; return 1; }
-                til_part = _ret__tmp412;
-                til_AllocError _err0__tmp413 = {};
-                int _status__tmp413 = til_Vec_push(&_err0__tmp413, &til_parts, (til_Dynamic*)&til_part);
-                if (_status__tmp413 == 1) { *_err1 = _err0__tmp413; return 1; }
+                til_IndexOutOfBoundsError _err0__tmp526 = {};
+                til_AllocError _err1__tmp526 = {};
+                int _status__tmp526 = til_get_substr(&_ret__tmp526, &_err0__tmp526, &_err1__tmp526, til_self, til_start, til_pos);
+                if (_status__tmp526 == 1) { *_err2 = _err0__tmp526; return 2; }
+                if (_status__tmp526 == 2) { *_err1 = _err1__tmp526; return 1; }
+                til_part = _ret__tmp526;
+                til_AllocError _err0__tmp527 = {};
+                int _status__tmp527 = til_Vec_push(&_err0__tmp527, &til_parts, (til_Dynamic*)&til_part);
+                if (_status__tmp527 == 1) { *_err1 = _err0__tmp527; return 1; }
             } else {
-                til_Str _tmp416 = ((til_Str){(til_I64)"", 0});
-                til_AllocError _err0__tmp415 = {};
-                int _status__tmp415 = til_Vec_push(&_err0__tmp415, &til_parts, &_tmp416);
-                if (_status__tmp415 == 1) { *_err1 = _err0__tmp415; return 1; }
+                til_Str _tmp530 = ((til_Str){(til_I64)"", 0});
+                til_AllocError _err0__tmp529 = {};
+                int _status__tmp529 = til_Vec_push(&_err0__tmp529, &til_parts, &_tmp530);
+                if (_status__tmp529 == 1) { *_err1 = _err0__tmp529; return 1; }
             }
             til_start = til_add(til_pos, til_Str_len(til_delimiter));
             til_pos = til_start;
@@ -1940,23 +2430,23 @@ int til_Str_split(til_Vec* _ret, til_AllocError* _err1, til_IndexOutOfBoundsErro
         }
     }
     if (til_lt(til_start, til_Str_len(til_self)).data) {
-        til_Str _ret__tmp419;
+        til_Str _ret__tmp533;
         til_Str til_part;
-        til_IndexOutOfBoundsError _err0__tmp419 = {};
-        til_AllocError _err1__tmp419 = {};
-        int _status__tmp419 = til_get_substr(&_ret__tmp419, &_err0__tmp419, &_err1__tmp419, til_self, til_start, til_Str_len(til_self));
-        if (_status__tmp419 == 1) { *_err2 = _err0__tmp419; return 2; }
-        if (_status__tmp419 == 2) { *_err1 = _err1__tmp419; return 1; }
-        til_part = _ret__tmp419;
-        til_AllocError _err0__tmp420 = {};
-        int _status__tmp420 = til_Vec_push(&_err0__tmp420, &til_parts, (til_Dynamic*)&til_part);
-        if (_status__tmp420 == 1) { *_err1 = _err0__tmp420; return 1; }
+        til_IndexOutOfBoundsError _err0__tmp533 = {};
+        til_AllocError _err1__tmp533 = {};
+        int _status__tmp533 = til_get_substr(&_ret__tmp533, &_err0__tmp533, &_err1__tmp533, til_self, til_start, til_Str_len(til_self));
+        if (_status__tmp533 == 1) { *_err2 = _err0__tmp533; return 2; }
+        if (_status__tmp533 == 2) { *_err1 = _err1__tmp533; return 1; }
+        til_part = _ret__tmp533;
+        til_AllocError _err0__tmp534 = {};
+        int _status__tmp534 = til_Vec_push(&_err0__tmp534, &til_parts, (til_Dynamic*)&til_part);
+        if (_status__tmp534 == 1) { *_err1 = _err0__tmp534; return 1; }
     } else {
         if (til_I64_eq(til_start, til_Str_len(til_self)).data) {
-            til_Str _tmp424 = ((til_Str){(til_I64)"", 0});
-            til_AllocError _err0__tmp423 = {};
-            int _status__tmp423 = til_Vec_push(&_err0__tmp423, &til_parts, &_tmp424);
-            if (_status__tmp423 == 1) { *_err1 = _err0__tmp423; return 1; }
+            til_Str _tmp538 = ((til_Str){(til_I64)"", 0});
+            til_AllocError _err0__tmp537 = {};
+            int _status__tmp537 = til_Vec_push(&_err0__tmp537, &til_parts, &_tmp538);
+            if (_status__tmp537 == 1) { *_err1 = _err0__tmp537; return 1; }
         }
     }
     *_ret = til_parts;
@@ -1990,61 +2480,101 @@ til_I64 til_U8_to_i64(const til_U8 til_self) {
 }
 
 int til_U8_u8_add(til_U8* _ret, til_U8_OverflowError* _err1, const til_U8 til_a, const til_U8 til_b) {
-    til_U8 _ret__tmp432;
-    til_U8_OverflowError _err0__tmp432 = {};
-    int _status__tmp432 = til_U8_from_i64(&_ret__tmp432, &_err0__tmp432, til_add(til_U8_to_i64(til_a), til_U8_to_i64(til_b)));
-    if (_status__tmp432 == 1) { *_err1 = _err0__tmp432; return 1; }
-    *_ret = _ret__tmp432;
+    til_U8 _ret__tmp546;
+    til_U8_OverflowError _err0__tmp546 = {};
+    int _status__tmp546 = til_U8_from_i64(&_ret__tmp546, &_err0__tmp546, til_add(til_U8_to_i64(til_a), til_U8_to_i64(til_b)));
+    if (_status__tmp546 == 1) { *_err1 = _err0__tmp546; return 1; }
+    *_ret = _ret__tmp546;
     return 0;
 }
 
 int til_U8_from_i64(til_U8* _ret, til_U8_OverflowError* _err1, const til_I64 til_self) {
     if (til_lt(til_self, 0).data) {
-        til_Str _tmp435;
-        til_I64_OverflowError _err0__tmp436;
-        til_IndexOutOfBoundsError _err1__tmp436;
-        til_AllocError _err2__tmp436;
-        til_Array _tmp437;
-        til_AllocError _err_alloc__tmp438;
-        til_IndexOutOfBoundsError _err_idx__tmp438;
-        til_Str _tmp439 = ((til_Str){(til_I64)"Negative values cannot be cast into 'U8'", 40});
-        int _arr_status__tmp438 = til_Array_new(&_tmp437, &_err_alloc__tmp438, "Str", 1);
-        if (_arr_status__tmp438 != 0) {
+        til_Str _tmp549;
+        til_I64_OverflowError _err0__tmp550;
+        til_IndexOutOfBoundsError _err1__tmp550;
+        til_AllocError _err2__tmp550;
+        til_Array _tmp551;
+        til_AllocError _err_alloc__tmp552;
+        til_IndexOutOfBoundsError _err_idx__tmp552;
+        til_Str _tmp553 = ((til_Str){(til_I64)"Negative values cannot be cast into 'U8'", 40});
+        int _arr_status__tmp552 = til_Array_new(&_tmp551, &_err_alloc__tmp552, "Str", 1);
+        if (_arr_status__tmp552 != 0) {
         }
-        _arr_status__tmp438 = til_Array_set(&_err_idx__tmp438, &_tmp437, 0, &_tmp439);
-        if (_arr_status__tmp438 != 0) {
+        _arr_status__tmp552 = til_Array_set(&_err_idx__tmp552, &_tmp551, 0, &_tmp553);
+        if (_arr_status__tmp552 != 0) {
         }
-        int _status__tmp436 = til_format(&_tmp435, &_err0__tmp436, &_err1__tmp436, &_err2__tmp436, ((til_Str){(til_I64)"src/examples/hello_script.til:56:47:", 36}), &_tmp437);
-        if (_status__tmp436 != 0) {
+        int _status__tmp550 = til_format(&_tmp549, &_err0__tmp550, &_err1__tmp550, &_err2__tmp550, ((til_Str){(til_I64)"src/examples/hello_script.til:56:47:", 36}), &_tmp551);
+        if (_status__tmp550 != 0) {
         }
-        til_Array_delete(&_tmp437);
-        *_err1 = til_U8_OverflowError_new(_tmp435);
+        til_Array_delete(&_tmp551);
+        til_Str _tmp554;
+        til_I64_OverflowError _err0__tmp555;
+        til_IndexOutOfBoundsError _err1__tmp555;
+        til_AllocError _err2__tmp555;
+        til_Array _tmp556;
+        til_AllocError _err_alloc__tmp557;
+        til_IndexOutOfBoundsError _err_idx__tmp557;
+        til_Str _tmp558 = ((til_Str){(til_I64)"Negative values cannot be cast into 'U8'", 40});
+        int _arr_status__tmp557 = til_Array_new(&_tmp556, &_err_alloc__tmp557, "Str", 1);
+        if (_arr_status__tmp557 != 0) {
+        }
+        _arr_status__tmp557 = til_Array_set(&_err_idx__tmp557, &_tmp556, 0, &_tmp558);
+        if (_arr_status__tmp557 != 0) {
+        }
+        int _status__tmp555 = til_format(&_tmp554, &_err0__tmp555, &_err1__tmp555, &_err2__tmp555, ((til_Str){(til_I64)"src/examples/hello_script.til:56:47:", 36}), &_tmp556);
+        if (_status__tmp555 != 0) {
+        }
+        til_Array_delete(&_tmp556);
+        *_err1 = til_U8_OverflowError_new(_tmp554);
         return 1;
     }
     if (til_gt(til_self, til_MAX_U8).data) {
-        til_Str _tmp441;
-        til_I64_OverflowError _err0__tmp442;
-        til_IndexOutOfBoundsError _err1__tmp442;
-        til_AllocError _err2__tmp442;
-        til_Array _tmp443;
-        til_AllocError _err_alloc__tmp444;
-        til_IndexOutOfBoundsError _err_idx__tmp444;
-        til_Str _tmp445 = ((til_Str){(til_I64)"U8: cannot be casted from an I64 greater than: ", 47});
-        til_Str _tmp446 = til_I64_to_str(til_MAX_U8);
-        int _arr_status__tmp444 = til_Array_new(&_tmp443, &_err_alloc__tmp444, "Str", 2);
-        if (_arr_status__tmp444 != 0) {
+        til_Str _tmp560;
+        til_I64_OverflowError _err0__tmp561;
+        til_IndexOutOfBoundsError _err1__tmp561;
+        til_AllocError _err2__tmp561;
+        til_Array _tmp562;
+        til_AllocError _err_alloc__tmp563;
+        til_IndexOutOfBoundsError _err_idx__tmp563;
+        til_Str _tmp564 = ((til_Str){(til_I64)"U8: cannot be casted from an I64 greater than: ", 47});
+        til_Str _tmp565 = til_I64_to_str(til_MAX_U8);
+        int _arr_status__tmp563 = til_Array_new(&_tmp562, &_err_alloc__tmp563, "Str", 2);
+        if (_arr_status__tmp563 != 0) {
         }
-        _arr_status__tmp444 = til_Array_set(&_err_idx__tmp444, &_tmp443, 0, &_tmp445);
-        if (_arr_status__tmp444 != 0) {
+        _arr_status__tmp563 = til_Array_set(&_err_idx__tmp563, &_tmp562, 0, &_tmp564);
+        if (_arr_status__tmp563 != 0) {
         }
-        _arr_status__tmp444 = til_Array_set(&_err_idx__tmp444, &_tmp443, 1, &_tmp446);
-        if (_arr_status__tmp444 != 0) {
+        _arr_status__tmp563 = til_Array_set(&_err_idx__tmp563, &_tmp562, 1, &_tmp565);
+        if (_arr_status__tmp563 != 0) {
         }
-        int _status__tmp442 = til_format(&_tmp441, &_err0__tmp442, &_err1__tmp442, &_err2__tmp442, ((til_Str){(til_I64)"src/examples/hello_script.til:59:47:", 36}), &_tmp443);
-        if (_status__tmp442 != 0) {
+        int _status__tmp561 = til_format(&_tmp560, &_err0__tmp561, &_err1__tmp561, &_err2__tmp561, ((til_Str){(til_I64)"src/examples/hello_script.til:59:47:", 36}), &_tmp562);
+        if (_status__tmp561 != 0) {
         }
-        til_Array_delete(&_tmp443);
-        *_err1 = til_U8_OverflowError_new(_tmp441);
+        til_Array_delete(&_tmp562);
+        til_Str _tmp566;
+        til_I64_OverflowError _err0__tmp567;
+        til_IndexOutOfBoundsError _err1__tmp567;
+        til_AllocError _err2__tmp567;
+        til_Array _tmp568;
+        til_AllocError _err_alloc__tmp569;
+        til_IndexOutOfBoundsError _err_idx__tmp569;
+        til_Str _tmp570 = ((til_Str){(til_I64)"U8: cannot be casted from an I64 greater than: ", 47});
+        til_Str _tmp571 = til_I64_to_str(til_MAX_U8);
+        int _arr_status__tmp569 = til_Array_new(&_tmp568, &_err_alloc__tmp569, "Str", 2);
+        if (_arr_status__tmp569 != 0) {
+        }
+        _arr_status__tmp569 = til_Array_set(&_err_idx__tmp569, &_tmp568, 0, &_tmp570);
+        if (_arr_status__tmp569 != 0) {
+        }
+        _arr_status__tmp569 = til_Array_set(&_err_idx__tmp569, &_tmp568, 1, &_tmp571);
+        if (_arr_status__tmp569 != 0) {
+        }
+        int _status__tmp567 = til_format(&_tmp566, &_err0__tmp567, &_err1__tmp567, &_err2__tmp567, ((til_Str){(til_I64)"src/examples/hello_script.til:59:47:", 36}), &_tmp568);
+        if (_status__tmp567 != 0) {
+        }
+        til_Array_delete(&_tmp568);
+        *_err1 = til_U8_OverflowError_new(_tmp566);
         return 1;
     }
     *_ret = til_i64_to_u8(til_self);
@@ -2056,11 +2586,11 @@ til_Str til_U8_to_str(const til_U8 til_self) {
 }
 
 int til_U8_from_str(til_U8* _ret, til_U8_OverflowError* _err1, const til_Str til_s) {
-    til_U8 _ret__tmp449;
-    til_U8_OverflowError _err0__tmp449 = {};
-    int _status__tmp449 = til_U8_from_i64(&_ret__tmp449, &_err0__tmp449, til_I64_from_str(til_s));
-    if (_status__tmp449 == 1) { *_err1 = _err0__tmp449; return 1; }
-    *_ret = _ret__tmp449;
+    til_U8 _ret__tmp574;
+    til_U8_OverflowError _err0__tmp574 = {};
+    int _status__tmp574 = til_U8_from_i64(&_ret__tmp574, &_err0__tmp574, til_I64_from_str(til_s));
+    if (_status__tmp574 == 1) { *_err1 = _err0__tmp574; return 1; }
+    *_ret = _ret__tmp574;
     return 0;
 }
 
@@ -2069,17 +2599,17 @@ til_I64 til_U8_size(void) {
 }
 
 int main() {
-    til_Array _tmp452;
-    til_AllocError _err_alloc__tmp453;
-    til_IndexOutOfBoundsError _err_idx__tmp453;
-    til_Str _tmp454 = ((til_Str){(til_I64)"Hello World!", 12});
-    int _arr_status__tmp453 = til_Array_new(&_tmp452, &_err_alloc__tmp453, "Str", 1);
-    if (_arr_status__tmp453 != 0) {
+    til_Array _tmp577;
+    til_AllocError _err_alloc__tmp578;
+    til_IndexOutOfBoundsError _err_idx__tmp578;
+    til_Str _tmp579 = ((til_Str){(til_I64)"Hello World!", 12});
+    int _arr_status__tmp578 = til_Array_new(&_tmp577, &_err_alloc__tmp578, "Str", 1);
+    if (_arr_status__tmp578 != 0) {
     }
-    _arr_status__tmp453 = til_Array_set(&_err_idx__tmp453, &_tmp452, 0, &_tmp454);
-    if (_arr_status__tmp453 != 0) {
+    _arr_status__tmp578 = til_Array_set(&_err_idx__tmp578, &_tmp577, 0, &_tmp579);
+    if (_arr_status__tmp578 != 0) {
     }
-    til_println(&_tmp452);
-    til_Array_delete(&_tmp452);
+    til_println(&_tmp577);
+    til_Array_delete(&_tmp577);
     return 0;
 }

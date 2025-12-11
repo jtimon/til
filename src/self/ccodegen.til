@@ -381,6 +381,170 @@ check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) 
     return result
 }
 
+// Hoist a single expression if it's a throwing call, or recursively hoist throwing calls within it.
+// Returns the output string with hoisted code prepended.
+hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str, AllocError, IndexOutOfBoundsError, KeyNotFoundError {
+    mut result := output
+    mut indent_str := ""
+    mut ind := 0
+    while lt(ind, indent) {
+        indent_str = indent_str.concat("    ")
+        ind = add(ind, 1)
+    }
+
+    // Check if this expression itself is a throwing call
+    mut throwing_info := check_throwing_fcall(expr, ctx, context)
+    if throwing_info.is_throwing {
+        // First, recursively hoist any throwing calls in this call's arguments
+        if gt(expr.params.len(), 1) {
+            mut arg_idx := 1
+            while lt(arg_idx, expr.params.len()) {
+                mut arg := Expr()
+                expr.params.get(arg_idx, arg)
+                mut arg_info := check_throwing_fcall(arg, ctx, context)
+                if arg_info.is_throwing {
+                    // Recursively hoist this argument
+                    result = hoist_throwing_expr(arg, result, indent, ctx, context)
+                }
+                arg_idx = add(arg_idx, 1)
+            }
+        }
+
+        mut temp_var := next_mangled()
+
+        // Determine the C type for the temp variable
+        mut c_type := "int"
+        if throwing_info.has_return_type {
+            c_type = til_type_to_c(throwing_info.return_type)
+        }
+
+        // Declare temp variable
+        result = result.concat(indent_str).concat(c_type).concat(" ").concat(temp_var).concat(";\n")
+
+        // Declare error variables for each throw type
+        mut temp_suffix := next_mangled()
+        mut err_idx := 0
+        while lt(err_idx, throwing_info.throw_types.len()) {
+            mut throw_type := ValueType.TCustom("")
+            throwing_info.throw_types.get(err_idx, throw_type)
+            switch throw_type {
+            case ValueType.TCustom(type_name):
+                result = result.concat(indent_str).concat(til_name(type_name)).concat(" _err").concat(err_idx.to_str()).concat("_").concat(temp_suffix).concat(";\n")
+            case:
+            }
+            err_idx = add(err_idx, 1)
+        }
+
+        // Emit the function call with output pointers
+        result = result.concat(indent_str).concat("int _status_").concat(temp_suffix).concat(" = ")
+
+        // Emit the function name and args
+        mut nested_hoisted := Map.new(I64, Str)
+        result = emit_fcall_name_and_args_for_throwing(expr, temp_var, temp_suffix, throwing_info.throw_types, nested_hoisted, "", result, ctx, context)
+
+        result = result.concat(";\n")
+
+        // Emit error checking - propagate or goto based on context
+        // Check if there are local catch labels for these error types
+        mut has_local_catch := false
+        err_idx = 0
+        while lt(err_idx, throwing_info.throw_types.len()) {
+            mut throw_type := ValueType.TCustom("")
+            throwing_info.throw_types.get(err_idx, throw_type)
+            switch throw_type {
+            case ValueType.TCustom(type_name):
+                if Map.contains_key(ctx.local_catch_labels, type_name) {
+                    has_local_catch = true
+                }
+            case:
+            }
+            err_idx = add(err_idx, 1)
+        }
+
+        if has_local_catch {
+            // Use goto for local catches
+            err_idx = 0
+            while lt(err_idx, throwing_info.throw_types.len()) {
+                mut throw_type := ValueType.TCustom("")
+                throwing_info.throw_types.get(err_idx, throw_type)
+                switch throw_type {
+                case ValueType.TCustom(type_name):
+                    if Map.contains_key(ctx.local_catch_labels, type_name) {
+                        mut catch_info := CatchLabelInfo()
+                        Map.get(ctx.local_catch_labels, type_name, catch_info)
+                        result = result.concat(indent_str).concat("if (_status_").concat(temp_suffix).concat(" == ").concat(add(err_idx, 1).to_str()).concat(") { ")
+                        result = result.concat(catch_info.temp_var).concat(" = _err").concat(err_idx.to_str()).concat("_").concat(temp_suffix)
+                        result = result.concat("; goto ").concat(catch_info.label).concat("; }\n")
+                    }
+                case:
+                }
+                err_idx = add(err_idx, 1)
+            }
+        } else {
+            // Propagate errors
+            result = result.concat(indent_str).concat("if (_status_").concat(temp_suffix).concat(" != 0) {\n")
+
+            err_idx = 0
+            while lt(err_idx, throwing_info.throw_types.len()) {
+                mut throw_type := ValueType.TCustom("")
+                throwing_info.throw_types.get(err_idx, throw_type)
+                switch throw_type {
+                case ValueType.TCustom(type_name):
+                    mut curr_idx := 0
+                    while lt(curr_idx, ctx.current_throw_types.len()) {
+                        mut curr_throw := ValueType.TCustom("")
+                        ctx.current_throw_types.get(curr_idx, curr_throw)
+                        switch curr_throw {
+                        case ValueType.TCustom(curr_type_name):
+                            if curr_type_name.eq(type_name) {
+                                result = result.concat(indent_str).concat("    if (_status_").concat(temp_suffix).concat(" == ").concat(add(err_idx, 1).to_str())
+                                result = result.concat(") { *_err").concat(add(curr_idx, 1).to_str()).concat(" = _err").concat(err_idx.to_str()).concat("_").concat(temp_suffix)
+                                result = result.concat("; return ").concat(add(curr_idx, 1).to_str()).concat("; }\n")
+                            }
+                        case:
+                        }
+                        curr_idx = add(curr_idx, 1)
+                    }
+                case:
+                }
+                err_idx = add(err_idx, 1)
+            }
+
+            result = result.concat(indent_str).concat("}\n")
+        }
+
+        // Store temp var in hoisted_exprs for caller to use
+        mut hoisted_key := ctx.hoisted_exprs.len()
+        Map.set(ctx.hoisted_exprs, hoisted_key, temp_var)
+
+        return result
+    }
+
+    // Not a throwing call - recursively check sub-expressions
+    switch expr.node_type {
+    case NodeType.FCall:
+        if gt(expr.params.len(), 1) {
+            mut arg_idx := 1
+            while lt(arg_idx, expr.params.len()) {
+                mut arg := Expr()
+                expr.params.get(arg_idx, arg)
+                result = hoist_throwing_expr(arg, result, indent, ctx, context)
+                arg_idx = add(arg_idx, 1)
+            }
+        }
+    case:
+        mut param_idx := 0
+        while lt(param_idx, expr.params.len()) {
+            mut param := Expr()
+            expr.params.get(param_idx, param)
+            result = hoist_throwing_expr(param, result, indent, ctx, context)
+            param_idx = add(param_idx, 1)
+        }
+    }
+
+    return result
+}
+
 // Collect function info (throw types and return types) from AST into context
 // Handles both top-level functions and struct methods
 collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
@@ -2291,15 +2455,22 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
     }
 
     mut result := output
+
+    // Hoist any throwing function calls in the condition
+    mut cond := Expr()
+    expr.params.get(0, cond)
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    result = hoist_throwing_expr(cond, result, indent, ctx, context)
+    catch (err: AllocError) { throw "emit_if: AllocError in hoist_throwing_expr" }
+    catch (err: KeyNotFoundError) { throw "emit_if: KeyNotFoundError in hoist_throwing_expr" }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
     mut i := 0
     while lt(i, indent) {
         result = result.concat("    ")
         i = add(i, 1)
     }
     result = result.concat("if (")
-
-    mut cond := Expr()
-    expr.params.get(0, cond)
     result = emit_expr(cond, result, 0, ctx, context)
     // Bool is a struct with .data field - extract for C truthiness
     mut cond_type := get_value_type(context, cond)
@@ -2539,6 +2710,12 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     // Get the switch expression
     mut switch_expr := Expr()
     expr.params.get(0, switch_expr)
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+    // Hoist any throwing function calls in the switch expression
+    result = hoist_throwing_expr(switch_expr, result, indent, ctx, context)
+    catch (err: AllocError) { throw "emit_switch: AllocError in hoist_throwing_expr" }
+    catch (err: KeyNotFoundError) { throw "emit_switch: KeyNotFoundError in hoist_throwing_expr" }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Determine if this is an enum switch or a primitive switch
@@ -4783,6 +4960,21 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     mut thrown_expr := Expr()
     expr.params.get(0, thrown_expr)
 
+    // Check if the thrown expression itself is a throwing function call (e.g., throw format(...))
+    // If so, we need to hoist it first to ensure proper error handling
+    mut hoisted_key := ctx.hoisted_exprs.len()
+    mut result := output
+    result = hoist_throwing_expr(thrown_expr, result, indent, ctx, context)
+    catch (err: AllocError) { throw "emit_throw: AllocError in hoist_throwing_expr" }
+    catch (err: KeyNotFoundError) { throw "emit_throw: KeyNotFoundError in hoist_throwing_expr" }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    mut hoisted_temp := ""
+    mut was_hoisted := gt(ctx.hoisted_exprs.len(), hoisted_key)
+    if was_hoisted {
+        // The thrown expression was hoisted to a temp variable
+        Map.get(ctx.hoisted_exprs, hoisted_key, hoisted_temp)
+    }
+
     // Get the thrown type name from the expression
     // For FCall, we need to determine if it's:
     // 1. A constructor like DivideByZero() - use the type name
@@ -4882,7 +5074,11 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         result = result.concat(indent_str)
         result = result.concat(local_temp_var)
         result = result.concat(" = ")
-        result = emit_expr(thrown_expr, result, 0, ctx, context)
+        if was_hoisted {
+            result = result.concat(hoisted_temp)
+        } else {
+            result = emit_expr(thrown_expr, result, 0, ctx, context)
+        }
         result = result.concat(";\n")
 
         // Jump to the catch block
@@ -4919,7 +5115,11 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     // Store the error value in the appropriate error pointer
     // Note: error params are 1-based (_err1, _err2, etc.)
     result = format(result, indent_str, "*_err", add(error_index, 1).to_str(), " = ")
-    result = emit_expr(thrown_expr, result, 0, ctx, context)
+    if was_hoisted {
+        result = result.concat(hoisted_temp)
+    } else {
+        result = emit_expr(thrown_expr, result, 0, ctx, context)
+    }
     result = result.concat(";\n")
 
     // Return the error index (1-based, since 0 = success)
@@ -5248,6 +5448,18 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         }
     }
 
+    // Hoist any throwing function calls in the RHS expression before emitting the declaration
+    // This ensures throwing calls are properly handled with error checking
+    if gt(expr.params.len(), 0) {
+        mut first := Expr()
+        expr.params.get(0, first)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        result = hoist_throwing_expr(first, result, indent, ctx, context)
+        catch (err: AllocError) { throw "emit_declaration: AllocError in hoist_throwing_expr" }
+        catch (err: KeyNotFoundError) { throw "emit_declaration: KeyNotFoundError in hoist_throwing_expr" }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    }
+
     // For underscore declarations, just emit the expression (discard result)
     // This avoids C redeclaration errors and matches the semantics of discarding
     if name.eq("_") {
@@ -5433,6 +5645,18 @@ emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64, m
 
 emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
+
+    // Hoist any throwing function calls nested in the RHS expression
+    if gt(expr.params.len(), 0) {
+        mut rhs_expr := Expr()
+        expr.params.get(0, rhs_expr)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        result = hoist_throwing_expr(rhs_expr, result, indent, ctx, context)
+        catch (err: AllocError) { throw "emit_assignment: AllocError in hoist_throwing_expr" }
+        catch (err: KeyNotFoundError) { throw "emit_assignment: KeyNotFoundError in hoist_throwing_expr" }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    }
+
     mut ind := 0
     while lt(ind, indent) {
         result = result.concat("    ")
@@ -5526,6 +5750,12 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             }
 
             if not(handled_throw) {
+                // Hoist any throwing function calls nested in the return expression
+                result = hoist_throwing_expr(return_expr, result, indent, ctx, context)
+                catch (err: AllocError) { throw "emit_return: AllocError in hoist_throwing_expr" }
+                catch (err: KeyNotFoundError) { throw "emit_return: KeyNotFoundError in hoist_throwing_expr" }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+
                 // Regular return value - just emit it
                 result = result.concat("*_ret = ")
                 result = emit_expr(return_expr, result, 0, ctx, context)
@@ -5631,6 +5861,17 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 }
             case:
             }
+        }
+
+        // Hoist any throwing function calls nested in the return expression
+        if gt(expr.params.len(), 0) {
+            mut return_expr := Expr()
+            expr.params.get(0, return_expr)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            result = hoist_throwing_expr(return_expr, result, indent, ctx, context)
+            catch (err: AllocError) { throw "emit_return: AllocError in hoist_throwing_expr (non-throwing)" }
+            catch (err: KeyNotFoundError) { throw "emit_return: KeyNotFoundError in hoist_throwing_expr (non-throwing)" }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
 
         // Regular non-variadic return
