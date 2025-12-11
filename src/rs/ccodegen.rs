@@ -1194,6 +1194,23 @@ fn emit_arg_with_param_type(
                     output.push_str(&til_name(name));
                 }
                 return Ok(());
+            } else {
+                // Field access like self.type_names - need &(self->field) or &(var.field)
+                // Check if base is a mut param (pointer) or regular variable
+                let base_is_pointer = ctx.current_mut_params.contains(name);
+                output.push_str("&");
+                output.push_str(&til_name(name));
+                for (i, param) in arg.params.iter().enumerate() {
+                    if let NodeType::Identifier(field) = &param.node_type {
+                        if base_is_pointer && i == 0 {
+                            output.push_str("->");
+                        } else {
+                            output.push_str(".");
+                        }
+                        output.push_str(field);
+                    }
+                }
+                return Ok(());
             }
         }
         // For non-identifier args, emit as-is

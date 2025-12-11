@@ -664,17 +664,17 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/examples/hello_pure.til") // TODO FIX: mode pure forbids procs but core.til has procs
     rs_interpreted.push("src/test/args.til") // TODO FIX: mut Str* assignment, nested field access on mut param
     rs_interpreted.push("src/test/memcmp_str_interpreted.til")
-    rs_interpreted.push("src/test/enums.til") // TODO FIX: enum payload field has incomplete type
-    rs_interpreted.push("src/test/errors.til") // compiles but runtime assertion fails (loc() path differs)
-    rs_interpreted.push("src/test/forward_declarations.til") // TODO FIX: enum constructors emitted as function calls not struct init
-    rs_interpreted.push("src/test/lists.til") // TODO FIX: Vec field (self->type_names) needs pointer not value for Vec_push call
-    rs_interpreted.push("src/test/maps.til") // TODO FIX: Dynamic param expects void* but Str passed to Map_position
-    rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: eval ERROR Missing arena index for return value 'false'
-    rs_interpreted.push("src/test/sets.til") // TODO FIX: or() with no args
-    rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: Str range comparisons (<=)
-    rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload incomplete type (Declaration), Str range comparisons (<=)
-    rs_interpreted.push("src/test/ufcs.til") // TODO FIX: throwing functions in struct initializers (Vec.new in struct init)
-    rs_interpreted.push("src/test/vecs.til") // TODO FIX: compiles but fails at runtime - compiled doesn't throw IndexOutOfBoundsError on bad index
+    rs_interpreted.push("src/test/enums.til") // TODO FIX: enum payload incomplete type (Entity, GameState), enum_to_str undefined
+    rs_interpreted.push("src/test/errors.til") // compiles but runtime: loc() path differs (src/core vs src/test)
+    rs_interpreted.push("src/test/forward_declarations.til") // TODO FIX: enum variant constructors called as functions not struct init
+    rs_interpreted.push("src/test/lists.til") // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
+    rs_interpreted.push("src/test/maps.til") // TODO FIX: Str passed to Dynamic param (Map_position expects void*)
+    rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: interpreter bug "Missing arena index for return value 'false'"
+    rs_interpreted.push("src/test/sets.til") // TODO FIX: or() called with no args
+    rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: Str range comparisons (<=) not supported in C
+    rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload incomplete type (Declaration), Str range comparisons
+    rs_interpreted.push("src/test/ufcs.til") // TODO FIX: throwing func (Vec.new) in struct initializer expression
+    rs_interpreted.push("src/test/vecs.til") // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
     // precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     rs_interpreted.push("src/test/precomp_throw.til")
 

@@ -2296,6 +2296,29 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                     result = result.concat("&").concat(til_name(name))
                 }
                 return result
+            } else {
+                // Field access like self.type_names - need &(self->field) or &(var.field)
+                // Check if base is a mut param (pointer) or regular variable
+                mut base_is_pointer := ctx.current_mut_params.contains(name)
+                result = result.concat("&").concat(til_name(name))
+                mut i := 0
+                while lt(i, arg.params.len()) {
+                    mut param := Expr()
+                    arg.params.get(i, param)
+                    switch param.node_type {
+                    case NodeType.Identifier(field):
+                        if base_is_pointer.and(i.eq(0)) {
+                            result = result.concat("->")
+                        } else {
+                            result = result.concat(".")
+                        }
+                        result = result.concat(field)
+                    case:
+                    }
+                    i = add(i, 1)
+                }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                return result
             }
         case:
         }
