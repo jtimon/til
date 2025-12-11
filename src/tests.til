@@ -7,74 +7,77 @@ import("modes.test")
 // tests2.til - TIL test runner
 // Runs compiled tests and compares output against .out files
 
-// .out file format: _TIL_TESTS_{exit_code}_TIL_TESTS_\n{output}
-MARKER_PREFIX := "_TIL_TESTS_"
-MARKER_SUFFIX := "_TIL_TESTS_"
+// .out file format:
+// args: <args>
+// expected_status: <exit_code>
+// output:
+// <actual output>
 
 // Path transform: src/examples/foo.til -> src/examples/foo.out
 get_out_path := func(src_path: Str) returns Str throws AllocError {
     return src_path.replace(".til", ".out")
 }
 
-// Parse test entry: "path arg1 arg2" -> (path, "arg1 arg2")
-// Returns the path, fills args_str with space-separated arguments
-parse_test_entry := proc(entry: Str, mut args_str: Str) returns Str throws AllocError, IndexOutOfBoundsError {
-    parts := entry.split(" ")
-    if parts.len().eq(0) {
-        return entry
-    }
-    mut path := ""
-    parts.get(0, path)
-    // Join remaining parts with spaces
-    mut first := true
-    for i in 1..parts.len() {
-        mut arg := ""
-        parts.get(i, arg)
-        if first {
-            args_str = arg
-            first = false
-        } else {
-            args_str = concat(concat(args_str, " "), arg)
-        }
-    }
-    return path
+// Format output with args, exit code, and output
+format_expected := func(args_str: Str, exit_code: I64, output: Str) returns Str {
+    mut result := "args: "
+    result = result.concat(args_str).concat("\n")
+    result = result.concat("expected_status: ").concat(exit_code.to_str()).concat("\n")
+    result = result.concat("output:\n")
+    result = result.concat(output)
+    return result
 }
 
-// Format output with exit code marker
-format_expected := func(exit_code: I64, output: Str) returns Str {
-    return concat(concat(concat(concat(MARKER_PREFIX, exit_code.to_str()), MARKER_SUFFIX), "\n"), output)
-}
+// Parse expected file: extract args, exit code, and output
+parse_expected := proc(content: Str, mut args_str: Str, mut exit_code: I64, mut output: Str) throws AllocError, IndexOutOfBoundsError, Str {
+    // Format:
+    // args: <args>
+    // expected_status: <exit_code>
+    // output:
+    // <actual output>
 
-// Parse expected file: extract exit code and output
-parse_expected := proc(content: Str, mut exit_code: I64, mut output: Str) throws AllocError, IndexOutOfBoundsError, Str {
-    // Format: _TIL_TESTS_{code}_TIL_TESTS_\n{output}
-    prefix_len := MARKER_PREFIX.len()
-
-    // Check that content starts with the marker prefix
-    if lt(content.len(), prefix_len) {
-        throw "Invalid .out file format: missing marker prefix. Use 'rstil interpret src/tests.til regen' to regenerate."
+    lines := content.split("\n")
+    if lt(lines.len(), 3) {
+        throw "Invalid .out file format: need at least 3 lines. Use 'rstil interpret src/tests.til regen' to regenerate."
     }
 
-    // Search for suffix AFTER the prefix (skip first marker)
-    rest_after_prefix := get_substr(content, prefix_len, content.len())
-    suffix_pos_in_rest := rest_after_prefix.find(MARKER_SUFFIX)
-
-    if lt(suffix_pos_in_rest, 0) {
-        throw "Invalid .out file format: missing marker suffix. Use 'rstil interpret src/tests.til regen' to regenerate."
+    // Parse args line
+    mut args_line := ""
+    lines.get(0, args_line)
+    if not(args_line.starts_with("args: ")) {
+        throw "Invalid .out file format: first line must start with 'args: '. Use 'rstil interpret src/tests.til regen' to regenerate."
     }
-
-    // suffix_start is position in original string
-    suffix_start := prefix_len.add(suffix_pos_in_rest)
-
-    code_str := get_substr(content, prefix_len, suffix_start)
-    exit_code = code_str.to_i64()
-
-    // Find newline after marker and get rest as output
-    output_start := suffix_start.add(MARKER_SUFFIX.len()).add(1)
-    if output_start.gteq(content.len()) {
-        output = ""
+    if args_line.len().gt(6) {
+        args_str = get_substr(args_line, 6, args_line.len())
     } else {
-        output = get_substr(content, output_start, content.len())
+        args_str = ""
+    }
+
+    // Parse expected_status line
+    mut status_line := ""
+    lines.get(1, status_line)
+    if not(status_line.starts_with("expected_status: ")) {
+        throw "Invalid .out file format: second line must start with 'expected_status: '. Use 'rstil interpret src/tests.til regen' to regenerate."
+    }
+    status_str := get_substr(status_line, 17, status_line.len())
+    exit_code = status_str.to_i64()
+
+    // Parse output line marker
+    mut output_line := ""
+    lines.get(2, output_line)
+    if not(output_line.eq("output:")) {
+        throw "Invalid .out file format: third line must be 'output:'. Use 'rstil interpret src/tests.til regen' to regenerate."
+    }
+
+    // Join remaining lines as output
+    output = ""
+    for i in 3..lines.len() {
+        mut line := ""
+        lines.get(i, line)
+        if i.gt(3) {
+            output = output.concat("\n")
+        }
+        output = output.concat(line)
     }
 }
 
@@ -95,17 +98,14 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
         }
     }
     for i in 0..rs_interpreted.len() {
-        mut entry := ""
-        rs_interpreted.get(i, entry)
-        mut args_str := ""
-        path := parse_test_entry(entry, args_str)
-        if test_rs_interpreted_with_args(path, args_str) {
+        mut path := ""
+        rs_interpreted.get(i, path)
+        if test_rs_interpreted(path) {
             errors_found = true
         }
     }
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: AllocError) { panic(loc(), err.msg) }
 
     if errors_found {
         panic(loc(), "tests failed")
@@ -146,34 +146,28 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec)
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-ensure_out_file := proc(path: Str, out_path: Str, args_str: Str) {
+ensure_out_file := proc(path: Str, out_path: Str) {
     mut ls_result := ""
     _ := ls_result.run_cmd("ls", out_path)
     if not(ls_result.contains(".out")) {
         mut output := ""
-        mut exit_code := 0
-        if args_str.eq("") {
-            exit_code = output.run_cmd("./bin/rstil", "interpret", path)
-        } else {
-            // Use bash -c to pass arguments
-            cmd := concat(concat(concat("./bin/rstil interpret ", path), " "), args_str)
-            exit_code = output.run_cmd("bash", "-c", cmd)
-        }
-        formatted := format_expected(exit_code, output)
+        exit_code := output.run_cmd("./bin/rstil", "interpret", path)
+        formatted := format_expected("", exit_code, output)
         _ := writefile(out_path, formatted)
         println("Created: ", out_path)
     }
 }
 
-test_rs_interpreted_with_args := proc(path: Str, args_str: Str) returns Bool {
+test_rs_interpreted := proc(path: Str) returns Bool {
     out_path := get_out_path(path)
-    ensure_out_file(path, out_path, args_str)
+    ensure_out_file(path, out_path)
 
-    // Read expected file and parse exit code + output
+    // Read expected file and parse args, exit code, and output
     expected_content := readfile(out_path)
+    mut args_str := ""
     mut expected_exit_code := 0
     mut expected_output := ""
-    parse_expected(expected_content, expected_exit_code, expected_output)
+    parse_expected(expected_content, args_str, expected_exit_code, expected_output)
 
     // Run interpreter and capture exit code + output
     mut interp_output := ""
@@ -212,23 +206,27 @@ test_rs_interpreted_with_args := proc(path: Str, args_str: Str) returns Bool {
     return false
 }
 
-test_rs_interpreted := proc(path: Str) returns Bool {
-    return test_rs_interpreted_with_args(path, "")
-}
-
 test_rs_compiled := proc(path: Str) returns Bool {
     out_path := get_out_path(path)
-    ensure_out_file(path, out_path, "")
+    ensure_out_file(path, out_path)
 
-    // Read expected file and parse exit code + output
+    // Read expected file and parse args, exit code, and output
     expected_content := readfile(out_path)
+    mut args_str := ""
     mut expected_exit_code := 0
     mut expected_output := ""
-    parse_expected(expected_content, expected_exit_code, expected_output)
+    parse_expected(expected_content, args_str, expected_exit_code, expected_output)
 
     // Run compiled and capture exit code + output
     mut run_output := ""
-    actual_exit_code := run_output.run_cmd("./bin/rstil", "run", path)
+    mut actual_exit_code := 0
+    if args_str.eq("") {
+        actual_exit_code = run_output.run_cmd("./bin/rstil", "run", path)
+    } else {
+        // Use bash -c to pass arguments
+        cmd := concat(concat(concat("./bin/rstil run ", path), " "), args_str)
+        actual_exit_code = run_output.run_cmd("bash", "-c", cmd)
+    }
 
     // Check exit code
     if not(actual_exit_code.eq(expected_exit_code)) {
@@ -266,25 +264,63 @@ test_rs_common := proc(path: Str) returns Bool {
 }
 
 regen_test := proc(path: Str) {
-    mut output := ""
-    exit_code := output.run_cmd("./bin/rstil", "interpret", path)
     out_path := get_out_path(path)
-    formatted := format_expected(exit_code, output)
+    // Read existing args if .out file exists, otherwise use empty args
+    mut args_str := ""
+    mut existing := readfile(out_path)
+    if existing.len().gt(0) {
+        mut dummy_exit := 0
+        mut dummy_output := ""
+        parse_expected(existing, args_str, dummy_exit, dummy_output)
+    }
+
+    // Catch errors from readfile or parse_expected - use empty args
+    catch (err: Str) { args_str = "" }
+
+    mut output := ""
+    mut exit_code := 0
+    if args_str.eq("") {
+        exit_code = output.run_cmd("./bin/rstil", "interpret", path)
+    } else {
+        cmd := concat(concat(concat("./bin/rstil interpret ", path), " "), args_str)
+        exit_code = output.run_cmd("bash", "-c", cmd)
+    }
+    formatted := format_expected(args_str, exit_code, output)
     _ := writefile(out_path, formatted)
     println("Regenerated: ", out_path)
 
     catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 regen_test_compiled := proc(path: Str) {
-    mut output := ""
-    exit_code := output.run_cmd("./bin/rstil", "run", path)
     out_path := get_out_path(path)
-    formatted := format_expected(exit_code, output)
+    // Read existing args if .out file exists, otherwise use empty args
+    mut args_str := ""
+    mut existing := readfile(out_path)
+    if existing.len().gt(0) {
+        mut dummy_exit := 0
+        mut dummy_output := ""
+        parse_expected(existing, args_str, dummy_exit, dummy_output)
+    }
+
+    // Catch errors from readfile or parse_expected - use empty args
+    catch (err: Str) { args_str = "" }
+
+    mut output := ""
+    mut exit_code := 0
+    if args_str.eq("") {
+        exit_code = output.run_cmd("./bin/rstil", "run", path)
+    } else {
+        cmd := concat(concat(concat("./bin/rstil run ", path), " "), args_str)
+        exit_code = output.run_cmd("bash", "-c", cmd)
+    }
+    formatted := format_expected(args_str, exit_code, output)
     _ := writefile(out_path, formatted)
     println("Regenerated (compiled): ", out_path)
 
     catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 usage := proc() {
@@ -388,7 +424,7 @@ main := proc(args: ..Str) {
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
     rs_interpreted.push("src/self/interpreter.til") // TODO FIX: symbols already declared (double import?)
-    rs_interpreted.push("src/til.til help") // Type-check til.til by running with "help" argument
+    rs_interpreted.push("src/til.til") // Type-check til.til by running with "help" argument (args in .out file)
     // rs_interpreted.push("src/test/builders.til") // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
