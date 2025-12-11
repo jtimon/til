@@ -1004,7 +1004,7 @@ fn emit_arg_with_param_type(
                 return Ok(());
             }
         }
-        // For non-identifier args, emit as-is (may cause compile error, but that's a user error)
+        // For non-identifier args, emit as-is
         emit_expr(arg, output, 0, ctx, context)?;
         return Ok(());
     }
@@ -4864,17 +4864,13 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 }
             } else {
                 // Regular non-variadic function call
-                // func_name contains underscore if it's Type_method (from get_func_name_string)
-                // We need to handle mut params for these.
-                let lookup_name = func_name.replacen('_', ".", 1);
-                let param_info: Vec<(Option<ValueType>, bool)> = if func_name.contains('_') {
-                    if let Some(fd) = lookup_func_by_name(context, &lookup_name) {
-                        fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect()
-                    } else {
-                        Vec::new()
-                    }
+                // Look up function to get parameter info (is_mut flags)
+                // Use orig_func_name which is the canonical name for scope lookup
+                // For ext_func, don't pass mut params by reference (mut is just documentation)
+                let (param_info, is_ext_func): (Vec<(Option<ValueType>, bool)>, bool) = if let Some(fd) = lookup_func_by_name(context, &orig_func_name) {
+                    (fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect(), fd.is_ext())
                 } else {
-                    Vec::new()
+                    (Vec::new(), false)
                 };
 
                 let mut first_arg = true;
@@ -4892,7 +4888,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         let (param_type, is_mut) = param_info.get(i)
                             .map(|(t, m)| (t.as_ref(), *m))
                             .unwrap_or((None, false));
-                        emit_arg_with_param_type(arg, i, &hoisted, param_type, is_mut, output, ctx, context)?;
+                        // For ext_func, don't treat mut as pass-by-reference
+                        let effective_is_mut = is_mut && !is_ext_func;
+                        emit_arg_with_param_type(arg, i, &hoisted, param_type, effective_is_mut, output, ctx, context)?;
                     } else {
                         emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
                     }

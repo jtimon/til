@@ -6739,15 +6739,15 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             }
         } else {
             // Non-variadic: emit args normally
-            // func_name contains underscore if it's Type_method (from get_func_name_string)
-            // We need to handle mut params for these.
-            mut lookup_name := orig_func_name
+            // Look up function to get parameter info (is_mut flags)
+            // Use orig_func_name which is the canonical name for scope lookup
+            // For ext_func, don't pass mut params by reference (mut is just documentation)
             mut param_info := Vec.new(Declaration)
-            if func_name.contains("_") {
-                mut lookup_result := lookup_func_by_name(context, lookup_name)
-                if lookup_result.found {
-                    param_info = lookup_result.func_def.args
-                }
+            mut is_ext_func := false
+            mut lookup_result := lookup_func_by_name(context, orig_func_name)
+            if lookup_result.found {
+                param_info = lookup_result.func_def.args
+                is_ext_func = lookup_result.func_def.is_ext
             }
             catch (err: AllocError) { throw err.msg }
 
@@ -6759,9 +6759,10 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 mut arg := Expr()
                 expr.params.get(i, arg)
                 // Check if we should add & for mut param
+                // For ext_func, don't treat mut as pass-by-reference
                 mut arg_idx := sub(i, 1)
                 mut should_add_ampersand := false
-                if gt(param_info.len(), 0) {
+                if gt(param_info.len(), 0).and(not(is_ext_func)) {
                     if lt(arg_idx, param_info.len()) {
                         mut param_decl := Declaration()
                         param_info.get(arg_idx, param_decl)
