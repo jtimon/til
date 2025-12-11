@@ -46,13 +46,22 @@ format_expected := func(exit_code: I64, output: Str) returns Str {
 }
 
 // Parse expected file: extract exit code and output
-parse_expected := proc(content: Str, mut exit_code: I64, mut output: Str) throws AllocError, IndexOutOfBoundsError {
+parse_expected := proc(content: Str, mut exit_code: I64, mut output: Str) throws AllocError, IndexOutOfBoundsError, Str {
     // Format: _TIL_TESTS_{code}_TIL_TESTS_\n{output}
     prefix_len := MARKER_PREFIX.len()
+
+    // Check that content starts with the marker prefix
+    if lt(content.len(), prefix_len) {
+        throw "Invalid .out file format: missing marker prefix. Use 'rstil interpret src/tests.til regen' to regenerate."
+    }
 
     // Search for suffix AFTER the prefix (skip first marker)
     rest_after_prefix := get_substr(content, prefix_len, content.len())
     suffix_pos_in_rest := rest_after_prefix.find(MARKER_SUFFIX)
+
+    if lt(suffix_pos_in_rest, 0) {
+        throw "Invalid .out file format: missing marker suffix. Use 'rstil interpret src/tests.til regen' to regenerate."
+    }
 
     // suffix_start is position in original string
     suffix_start := prefix_len.add(suffix_pos_in_rest)
@@ -198,6 +207,7 @@ test_rs_interpreted_with_args := proc(path: Str, args_str: Str) returns Bool {
 
     catch (err: AllocError) { panic(loc(), err.msg) }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: Str) { panic(loc(), err) }
 
     return false
 }
@@ -241,6 +251,7 @@ test_rs_compiled := proc(path: Str) returns Bool {
 
     catch (err: AllocError) { panic(loc(), err.msg) }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: Str) { panic(loc(), err) }
 
     return false
 }
@@ -326,6 +337,9 @@ main := proc(args: ..Str) {
     rs_compiled.push("src/test/enums_simple.til")
     rs_compiled.push("src/test/throw_simple.til")
     rs_compiled.push("src/test/memcmp_str_compiled.til")
+    // REM: precomp_throw_compiled.til is equivalent to precomp_throw.til (in rs_interpreted)
+    // REM: Separate files needed because interpret/run produce different .out files
+    rs_compiled.push("src/test/precomp_throw_compiled.til")
     // TODO FIX: enum constructors called as functions instead of struct init
     // rs_compiled.push("src/test/enums_payload.til")
     // TODO FIX: switch_simple.til - same issue plus:
@@ -352,6 +366,9 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload has incomplete type, Vec passed as Vec**
     rs_interpreted.push("src/test/ufcs.til") // TODO FIX: throwing functions in struct initializers (get_substr, Vec.new)
     rs_interpreted.push("src/test/vecs.til") // TODO FIX: compiled doesn't throw IndexOutOfBoundsError on bad index
+    // REM: precomp_throw.til is equivalent to precomp_throw_compiled.til (in rs_compiled)
+    // REM: Separate files needed because interpret/run produce different .out files
+    rs_interpreted.push("src/test/precomp_throw.til")
 
     // rs_interpreted.push("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds
     // rs_interpreted.push("src/test/undefined.til")

@@ -55,6 +55,11 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
             if f_name == "exit" {
                 return false;
             }
+            // TODO: Properly detect ext_funcs and functions with side effects.
+            // For now, hardcode malloc exclusion since it's an ext_func with side effects.
+            if f_name == "malloc" {
+                return false;
+            }
             let func_def = match context.scope_stack.lookup_func(&f_name) {
                 Some(f) => f,
                 None => return false, // Unknown function (struct constructor, etc.)
@@ -63,10 +68,8 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
             if func_def.is_proc() {
                 return false;
             }
-            // Functions that can throw cannot be evaluated at compile time
-            if !func_def.throw_types.is_empty() {
-                return false;
-            }
+            // Functions that can throw are allowed - if they actually throw,
+            // we'll report the error in eval_comptime
             // All arguments must be comptime-evaluable
             for i in 1..e.params.len() {
                 if !is_comptime_evaluable(context, &e.params[i]) {
@@ -83,6 +86,14 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
 /// Evaluate a comptime-evaluable expression and convert result back to AST literal.
 fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     let result = eval_expr(context, e)?;
+
+    // Check if the function threw an exception during evaluation
+    if result.is_throw {
+        let thrown_type = result.thrown_type.as_deref().unwrap_or("unknown");
+        return Err(e.error(&context.path, "precomp",
+            &format!("Exception '{}' thrown during precomputation: {}", thrown_type, result.value)));
+    }
+
     // EvalResult.value is a String representation of the value
     // Convert back to LLiteral based on the result type
     let value_type = get_value_type(context, e)?;
@@ -245,10 +256,16 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         if context.scope_stack.lookup_func(&combined_name).is_some() {
             // Try compile-time constant folding for pure functions with literal args
             if is_comptime_evaluable(context, &e) {
-                if let Ok(folded) = eval_comptime(context, &e) {
-                    return Ok(folded);
+                match eval_comptime(context, &e) {
+                    Ok(folded) => return Ok(folded),
+                    Err(err) if err.contains("thrown during precomputation") => {
+                        // Exception thrown during compile-time evaluation - propagate error
+                        return Err(err);
+                    }
+                    Err(_) => {
+                        // Other errors (e.g., can't convert result type) - fall through
+                    }
                 }
-                // If folding fails, fall through to return original expression
             }
             return Ok(e);
         }

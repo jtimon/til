@@ -78,6 +78,9 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         }
         // Special case: exit terminates the program
         if f_name.eq("exit") { return false }
+        // TODO: Properly detect ext_funcs and functions with side effects.
+        // For now, hardcode malloc exclusion since it's an ext_func with side effects.
+        if f_name.eq("malloc") { return false }
 
         mut func_def := context.scope_stack.lookup_func(f_name)
         catch (err: KeyNotFoundError) {
@@ -87,10 +90,8 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         if func_def.is_proc() {
             return false
         }
-        // Functions that can throw cannot be evaluated at compile time
-        if func_def.throw_types.len().gt(0) {
-            return false
-        }
+        // Functions that can throw are allowed - if they actually throw,
+        // we'll report the error in eval_comptime
         // All arguments must be comptime-evaluable
         mut i := 1
         while i.lt(e.params.len()) {
@@ -114,6 +115,16 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
 /// Evaluate a comptime-evaluable expression and convert result back to AST literal.
 eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
     result := eval_expr(context, e)
+
+    // Check if the function threw an exception during evaluation
+    if result.is_throw {
+        mut thrown_type := result.thrown_type
+        if thrown_type.eq("") {
+            thrown_type = "unknown"
+        }
+        throw e.error(context.path, "precomp", format("Exception '", thrown_type, "' thrown during precomputation: ", result.value))
+    }
+
     // EvalResult.value is a String representation of the value
     // Convert back to LLiteral based on the result type
     value_type := get_value_type(context, e)
@@ -395,7 +406,11 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
             if is_comptime_evaluable(context, e) {
                 mut folded := eval_comptime(context, e)
                 catch (err: Str) {
-                    // If folding fails, fall through to return original expression
+                    // Exception thrown during compile-time evaluation - propagate error
+                    if err.find("thrown during precomputation").gteq(0) {
+                        throw err
+                    }
+                    // Other errors (e.g., can't convert result type) - fall through
                     return e
                 }
                 return folded

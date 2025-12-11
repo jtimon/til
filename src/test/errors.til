@@ -211,7 +211,8 @@ test_catch_error_with_str_field := proc() {
 test_catch_error_with_str_field()
 
 // Test rethrowing error field as different type
-trigger_out_of_bounds := func() returns I64 throws Str, AllocError {
+// Note: takes dummy arg to prevent compile-time evaluation (precomp)
+trigger_out_of_bounds := func(dummy: I64) returns I64 throws Str, AllocError {
     mut arr := Array.new(I64, 2)
     mut val := 0
     arr.get(10, val)  // Intentionally out of bounds
@@ -226,8 +227,9 @@ trigger_out_of_bounds := func() returns I64 throws Str, AllocError {
 test_rethrow_error_field := proc() {
     mut caught := false
     mut error_msg := ""
+    mut dummy := 0  // Use variable to prevent compile-time evaluation
 
-    _ := trigger_out_of_bounds()
+    _ := trigger_out_of_bounds(dummy)
 
     catch (err: Str) {
         caught = true
@@ -243,7 +245,8 @@ test_rethrow_error_field := proc() {
 test_rethrow_error_field()
 
 // Test assigning error field to variable then throwing (Bug #29 regression)
-trigger_out_of_bounds_assign := func() returns I64 throws Str, AllocError {
+// Note: takes dummy arg to prevent compile-time evaluation (precomp)
+trigger_out_of_bounds_assign := func(dummy: I64) returns I64 throws Str, AllocError {
     mut arr := Array.new(I64, 2)
     mut val := 0
     arr.get(10, val)
@@ -259,8 +262,9 @@ trigger_out_of_bounds_assign := func() returns I64 throws Str, AllocError {
 test_rethrow_error_field_via_assign := proc() {
     mut caught := false
     mut error_msg := ""
+    mut dummy := 0  // Use variable to prevent compile-time evaluation
 
-    _ := trigger_out_of_bounds_assign()
+    _ := trigger_out_of_bounds_assign(dummy)
 
     catch (err: Str) {
         caught = true
