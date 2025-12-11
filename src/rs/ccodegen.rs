@@ -1374,6 +1374,8 @@ fn is_constant_declaration(expr: &Expr) -> bool {
             match &expr.params[0].node_type {
                 // Literal values are constants
                 NodeType::LLiteral(_) => return true,
+                // Bool identifiers (true/false) are constants
+                NodeType::Identifier(name) if name == "true" || name == "false" => return true,
                 // Skip struct, enum, and function definitions
                 NodeType::StructDef(_) | NodeType::EnumDef(_) | NodeType::FuncDef(_) => return false,
                 _ => return false,
@@ -1387,6 +1389,7 @@ fn is_constant_declaration(expr: &Expr) -> bool {
 fn emit_constant_declaration(expr: &Expr, output: &mut String, context: &Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
+            // Handle literal constants (numbers, strings)
             if let NodeType::LLiteral(lit) = &expr.params[0].node_type {
                 let has_str = context.scope_stack.lookup_struct("Str").is_some();
                 let c_type = match lit {
@@ -1404,6 +1407,24 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, context: &Context
                 output.push_str(" = ");
                 emit_literal(lit, output, context)?;
                 output.push_str(";\n");
+            }
+            // Handle Bool constants (true/false identifiers)
+            else if let NodeType::Identifier(name) = &expr.params[0].node_type {
+                if name == "true" || name == "false" {
+                    if !decl.is_mut {
+                        output.push_str("const ");
+                    }
+                    output.push_str(&format!("{}Bool ", TIL_PREFIX));
+                    output.push_str(&til_name(&decl.name));
+                    output.push_str(" = ");
+                    // Use struct literal instead of macro (valid constant initializer)
+                    if name == "true" {
+                        output.push_str(&format!("(({}Bool){{1}})", TIL_PREFIX));
+                    } else {
+                        output.push_str(&format!("(({}Bool){{0}})", TIL_PREFIX));
+                    }
+                    output.push_str(";\n");
+                }
             }
         }
     }

@@ -350,7 +350,7 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/sets.til") // TODO FIX: underscore _ redeclared in same scope
     rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: static string init not constant, Vec passed as Vec**
     rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload has incomplete type, static string init
-    rs_interpreted.push("src/test/ufcs.til") // TODO FIX: my_true undeclared (const bool not emitted)
+    rs_interpreted.push("src/test/ufcs.til") // TODO FIX: throwing functions in struct initializers (get_substr, Vec.new)
     rs_interpreted.push("src/test/vecs.til") // TODO FIX: compiled doesn't throw IndexOutOfBoundsError on bad index
 
     // rs_interpreted.push("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds

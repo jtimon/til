@@ -983,6 +983,12 @@ is_constant_declaration := func(expr: Expr) returns Bool {
             switch first.node_type {
             case NodeType.LLiteral(lit):
                 return true
+            // Bool identifiers (true/false) are constants
+            case NodeType.Identifier(name):
+                if name.eq("true").or(name.eq("false")) {
+                    return true
+                }
+                return false
             case NodeType.StructDef(struct_def):
                 return false
             case NodeType.EnumDef(enum_def):
@@ -1009,6 +1015,7 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, 
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             switch first.node_type {
+            // Handle literal constants (numbers, strings)
             case NodeType.LLiteral(lit):
                 switch lit {
                 case Literal.Number(n):
@@ -1030,6 +1037,20 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, 
                 case:
                     // Skip list literals for now
                     result = result
+                }
+            // Handle Bool constants (true/false identifiers)
+            case NodeType.Identifier(name):
+                if name.eq("true").or(name.eq("false")) {
+                    if not(decl.is_mut) {
+                        result = result.concat("const ")
+                    }
+                    result = format(result, TIL_PREFIX, "Bool ", TIL_PREFIX, decl.name, " = ")
+                    // Use struct literal instead of macro (valid constant initializer)
+                    if name.eq("true") {
+                        result = format(result, "((", TIL_PREFIX, "Bool){1});\n")
+                    } else {
+                        result = format(result, "((", TIL_PREFIX, "Bool){0});\n")
+                    }
                 }
             case:
                 result = result
