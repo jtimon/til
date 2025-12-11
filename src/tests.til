@@ -641,6 +641,7 @@ main := proc(args: ..Str) {
     rs_common.push("src/test/namespaces.til")
     rs_common.push("src/test/editor_mode_test.til")
     rs_common.push("src/test/mut_test.til")
+    rs_common.push("src/test/return_value_usage.til")
 
     mut rs_compiled := Vec.new(Str)
     rs_compiled.push("src/test/enums_simple.til")
@@ -679,11 +680,10 @@ main := proc(args: ..Str) {
 
     // rs_interpreted.push("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds
     // rs_interpreted.push("src/test/undefined.til")
-    // rs_interpreted.push("src/test/clone.til") // TODO Not sure why this one is commented, uncomment
-    // rs_interpreted.push("src/test/cross_file_forward.til") // TODO Not sure why this one is commented, uncomment
-    // rs_interpreted.push("src/test/enums_payload.til") // TODO Not sure why this one is commented, uncomment
-    // rs_interpreted.push("src/test/return_value_usage.til") // TODO Not sure why this one is commented, uncomment
-    // rs_interpreted.push("src/test/switch_simple.til") // TODO Not sure why this one is commented, uncomment
+    // rs_interpreted.push("src/test/clone.til") // TODO FIX: I64_OverflowError has no method 'clone'
+    // rs_interpreted.push("src/test/cross_file_forward.til") // TODO FIX: Vec field access needs pointer, not value
+    // rs_interpreted.push("src/test/enums_payload.til") // TODO FIX: enum constructors emitted as function calls not struct init
+    // rs_interpreted.push("src/test/switch_simple.til") // TODO FIX: enum constructors as func calls, case payload var undeclared
 
     // next level:
     // eval.til moved to rs_common
