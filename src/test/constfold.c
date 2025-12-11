@@ -5,8 +5,6 @@
 typedef unsigned char til_U8;
 typedef long long til_I64;
 typedef struct til_Bool { til_U8 data; } til_Bool;
-#define true ((til_Bool){1})
-#define false ((til_Bool){0})
 typedef void* til_Dynamic;
 typedef const char* til_Type;
 

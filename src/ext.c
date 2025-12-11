@@ -7,6 +7,10 @@
 #ifndef TIL_EXT_C
 #define TIL_EXT_C
 
+// Bool constants
+#define true ((til_Bool){1})
+#define false ((til_Bool){0})
+
 // Str helper: create Str from C string literal
 static inline til_Str til_Str_from_literal(const char* lit)
 {

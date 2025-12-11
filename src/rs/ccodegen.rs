@@ -1035,8 +1035,6 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     output.push_str(&format!("typedef unsigned char {}U8;\n", TIL_PREFIX));
     output.push_str(&format!("typedef long long {}I64;\n", TIL_PREFIX));
     output.push_str(&format!("typedef struct {}Bool {{ {}U8 data; }} {}Bool;\n", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
-    output.push_str(&format!("#define true (({}Bool){{1}})\n", TIL_PREFIX));
-    output.push_str(&format!("#define false (({}Bool){{0}})\n", TIL_PREFIX));
     // Dynamic and Type are special placeholder types
     output.push_str(&format!("typedef void* {}Dynamic;\n", TIL_PREFIX));
     output.push_str(&format!("typedef const char* {}Type;\n\n", TIL_PREFIX));

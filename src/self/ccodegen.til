@@ -1536,8 +1536,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     output = format(output, "typedef unsigned char ", TIL_PREFIX, "U8;\n")
     output = format(output, "typedef long long ", TIL_PREFIX, "I64;\n")
     output = format(output, "typedef struct ", TIL_PREFIX, "Bool { ", TIL_PREFIX, "U8 data; } ", TIL_PREFIX, "Bool;\n")
-    output = format(output, "#define true ((", TIL_PREFIX, "Bool){1})\n")
-    output = format(output, "#define false ((", TIL_PREFIX, "Bool){0})\n")
     // Dynamic and Type are special placeholder types
     output = format(output, "typedef void* ", TIL_PREFIX, "Dynamic;\n")
     output = format(output, "typedef const char* ", TIL_PREFIX, "Type;\n\n")
