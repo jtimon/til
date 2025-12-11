@@ -719,6 +719,15 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
             }
         },
 
+        NodeType::NamedArg(_) => {
+            // Named argument - return the type of the value expression
+            if !e.params.is_empty() {
+                get_value_type(context, &e.params[0])
+            } else {
+                Err(e.error(&context.path, "type", "NamedArg must have a value expression"))
+            }
+        },
+
         node_type => return Err(e.error(&context.path, "type", &format!("get_value_type() not implemented for {:?} yet.", node_type))),
     }
 }

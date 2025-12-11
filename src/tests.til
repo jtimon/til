@@ -643,6 +643,7 @@ main := proc(args: ..Str) {
     rs_common.push("src/test/editor_mode_test.til")
     rs_common.push("src/test/mut_test.til")
     rs_common.push("src/test/return_value_usage.til")
+    rs_common.push("src/test/optional_args.til")
 
     mut rs_compiled := Vec.new(Str)
     rs_compiled.push("src/test/enums_simple.til")

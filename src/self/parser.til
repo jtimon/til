@@ -159,6 +159,7 @@ NodeType := enum {
     DefaultCase,
     Range,
     Pattern: PatternInfo,  // Pattern matching for switch case with payload extraction
+    NamedArg: Str,  // Named argument in function call: name=value
 }
 
 Expr := struct {
@@ -386,7 +387,7 @@ parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str, Index
     return e
 }
 
-parse_list := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_args := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     mut rightparent_found := false
     mut params := Vec.new(Expr)
     initial_current := lexer.current
@@ -413,13 +414,38 @@ parse_list := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsEr
             }
             expect_comma = true
             prim := parse_primary(lexer)
-            params.push(prim)
+            // Check for named argument: identifier = value
+            next_t := lexer.peek()
+            mut is_named_arg := false
+            switch next_t.token_type {
+            case TokenType.Equal:
+                is_named_arg = true
+            case:
+            }
+            if is_named_arg {
+                switch prim.node_type {
+                case NodeType.Identifier(arg_name):
+                    if prim.params.len().gt(0) {
+                        throw next_t.error(lexer.path, "Named argument name cannot be a dotted identifier")
+                    }
+                    _ := lexer.advance(1) // consume '='
+                    value := parse_primary(lexer)
+                    mut named_arg_params := Vec.new(Expr)
+                    named_arg_params.push(value)
+                    named_arg := Expr.new_explicit(NodeType.NamedArg(arg_name), named_arg_params, prim.line, prim.col)
+                    params.push(named_arg)
+                case:
+                    throw next_t.error(lexer.path, "Named argument requires a simple identifier before '='")
+                }
+            } else {
+                params.push(prim)
+            }
             list_t = lexer.peek()
         }
     }
 
     catch (err: AllocError) {
-        throw concat("parse_list: ", err.msg)
+        throw concat("parse_args: ", err.msg)
     }
 
     switch list_t.token_type {
@@ -957,7 +983,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
     ntt := next_t.token_type
     switch ntt {
     case TokenType.LeftParen:
-        arg_list := parse_list(lexer)
+        arg_list := parse_args(lexer)
         mut fcall_params := Vec.new(Expr)
         fcall_params.push(e)
         mut i := 0
@@ -1007,7 +1033,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
             if continue_loop {
 
                 // Parse the argument list
-                method_args := parse_list(lexer)
+                method_args := parse_args(lexer)
 
                 // Create a new FCall with the method name as identifier and previous result as first arg
                 // This represents: method_name(result, args...)
@@ -1172,7 +1198,7 @@ parse_primary := func(mut lexer: Lexer) returns Expr throws Str {
     case TokenType.Struct:
         result = parse_struct_definition(lexer)
     case TokenType.LeftParen:
-        result = parse_list(lexer)
+        result = parse_args(lexer)
     case TokenType.Identifier:
         result = parse_primary_identifier(lexer)
     case:

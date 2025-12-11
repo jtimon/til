@@ -203,6 +203,12 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
         }
 
         NodeType::LLiteral(_) | NodeType::DefaultCase | NodeType::Pattern(_) => {},
+        NodeType::NamedArg(_) => {
+            // Named args - type check the value expression
+            for p in &e.params {
+                errors.extend(check_types_with_context(context, p, expr_context));
+            }
+        },
     }
 
     return errors
@@ -1796,6 +1802,13 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         NodeType::DefaultCase => return false,
         NodeType::Pattern(_) => return false,
         NodeType::Identifier(_) => return false,
+        NodeType::NamedArg(_) => {
+            // Named args should be handled in FCall - check the value expr
+            if !e.params.is_empty() {
+                return is_expr_calling_procs(context, &e.params[0])
+            }
+            return false
+        },
         NodeType::Range => {
             for se in &e.params {
                 if is_expr_calling_procs(&context, &se) {

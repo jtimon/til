@@ -2548,6 +2548,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::DefaultCase => Err("ccodegen: DefaultCase should be handled inside emit_switch".to_string()),
         NodeType::Range => Err("ccodegen: Range not yet supported".to_string()),
         NodeType::Pattern(_) => Err("ccodegen: Pattern should be handled inside emit_switch".to_string()),
+        NodeType::NamedArg(_) => Err(expr.error(&context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")),
     }
 }
 
@@ -4965,6 +4966,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     if let Some(mangled_name) = ctx.nested_func_names.get(&orig_func_name) {
         func_name = mangled_name.clone();
     }
+
+    // Named args are already reordered by precomp, so no reordering needed here
 
     let indent_str = "    ".repeat(indent);
 

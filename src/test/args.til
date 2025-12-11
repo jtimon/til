@@ -643,3 +643,21 @@ test_mixed_own := proc() {
     assert_eq(loc(), 20, b)  // b was modified through mut
 }
 test_mixed_own()
+
+// === Step 1: Named Arguments ===
+
+test_named_args_basic := proc() {
+    // Helper function
+    minus := func(a: I64, b: I64) returns I64 { return sub(a, b) }
+
+    // Positional (existing behavior)
+    assert_eq(loc(), 7, minus(10, 3))
+
+    // Named args
+    assert_eq(loc(), 7, minus(a=10, b=3))
+    assert_eq(loc(), 7, minus(b=3, a=10))
+
+    // Mixed positional and named
+    assert_eq(loc(), 7, minus(10, b=3))
+}
+test_named_args_basic()

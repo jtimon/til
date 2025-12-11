@@ -1093,6 +1093,12 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
         # If no dot, assume the whole thing is the enum type (shouldn't happen in practice)
         return ValueType.TCustom(variant_name)
 
+    case NodeType.NamedArg(_):
+        if e.params.len().gt(0) {
+            return get_value_type(context, e.get(0))
+        }
+        throw e.error(context.path, "type", "NamedArg must have a value expression")
+
     case:
         throw e.error(context.path, "type", format("get_value_type() not implemented for '", enum_to_str(e.node_type), "' yet."))
     }

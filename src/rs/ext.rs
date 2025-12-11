@@ -558,8 +558,8 @@ pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, Stri
     let source = match fs::read_to_string(&path) {
         Ok(file) => file,
         Err(error) => match error.kind() {
-            ErrorKind::NotFound => return Err(e.error(&context.path, "eval", &format!("File '{}' not found.", path))),
-            other_error => return Err(e.error(&context.path, "eval", &format!("Problem reading file '{}': {}", path, other_error))),
+            ErrorKind::NotFound => return Ok(EvalResult::new_throw(&format!("File '{}' not found.", path), ValueType::TCustom("Str".to_string()))),
+            other_error => return Ok(EvalResult::new_throw(&format!("Problem reading file '{}': {}", path, other_error), ValueType::TCustom("Str".to_string()))),
         },
     };
 

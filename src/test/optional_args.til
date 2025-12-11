@@ -1,0 +1,21 @@
+mode test
+
+// === Named Arguments Tests ===
+
+// Helper function for testing
+minus := func(a: I64, b: I64) returns I64 { return sub(a, b) }
+
+test_named_args_basic := proc() {
+    // Positional (existing behavior)
+    assert_eq(loc(), 7, minus(10, 3))
+
+    // Named args - all named
+    assert_eq(loc(), 7, minus(a=10, b=3))
+
+    // Named args - reversed order
+    assert_eq(loc(), 7, minus(b=3, a=10))
+
+    // Mixed positional and named
+    assert_eq(loc(), 7, minus(10, b=3))
+}
+test_named_args_basic()

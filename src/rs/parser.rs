@@ -107,6 +107,7 @@ pub enum NodeType {
     Identifier(String),
     Declaration(Declaration),
     Assignment(String),
+    NamedArg(String), // Named argument in function call: name=value
     FuncDef(SFuncDef),
     EnumDef(SEnumDef),
     StructDef(SStructDef),
@@ -260,7 +261,7 @@ fn parse_literal(lexer: &mut Lexer, t: &Token) -> Result<Expr, String> {
     Ok(e)
 }
 
-fn parse_list(lexer: &mut Lexer) -> Result<Expr, String> {
+fn parse_args(lexer: &mut Lexer) -> Result<Expr, String> {
     let mut rightparent_found = false;
     let mut params : Vec<Expr> = Vec::new();
     let initial_current = lexer.current;
@@ -293,7 +294,30 @@ fn parse_list(lexer: &mut Lexer) -> Result<Expr, String> {
                     Ok(to_ret) => to_ret,
                     Err(err_str) => return Err(err_str),
                 };
-                params.push(prim);
+                // Check for named argument: identifier = value
+                let next_t = lexer.peek();
+                if next_t.token_type == TokenType::Equal {
+                    // This is a named argument
+                    if let NodeType::Identifier(arg_name) = &prim.node_type {
+                        if !prim.params.is_empty() {
+                            return Err(next_t.error(&lexer.path, "Named argument name cannot be a dotted identifier"));
+                        }
+                        let arg_name = arg_name.clone();
+                        lexer.advance(1)?; // consume '='
+                        let value = parse_primary(lexer)?;
+                        let named_arg = Expr::new_explicit(
+                            NodeType::NamedArg(arg_name),
+                            vec![value],
+                            prim.line,
+                            prim.col,
+                        );
+                        params.push(named_arg);
+                    } else {
+                        return Err(next_t.error(&lexer.path, "Named argument requires a simple identifier before '='"));
+                    }
+                } else {
+                    params.push(prim);
+                }
                 list_t = lexer.peek();
             },
         }
@@ -748,7 +772,7 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
     lexer.advance(1)?;
 
     if TokenType::LeftParen == next_t.token_type {
-        let arg_list = match parse_list(lexer) {
+        let arg_list = match parse_args(lexer) {
             Ok(a_list) => a_list,
             Err(err_str) => return Err(err_str),
         };
@@ -784,7 +808,7 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
             }
 
             // Parse the argument list
-            let method_args = match parse_list(lexer) {
+            let method_args = match parse_args(lexer) {
                 Ok(a_list) => a_list,
                 Err(err_str) => return Err(err_str),
             };
@@ -904,7 +928,7 @@ fn parse_primary(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::ProcExt => return parse_func_proc_definition(lexer, FunctionType::FTProcExt, false),
         TokenType::Enum => return enum_definition(lexer),
         TokenType::Struct => return parse_struct_definition(lexer),
-        TokenType::LeftParen => return parse_list(lexer),
+        TokenType::LeftParen => return parse_args(lexer),
         TokenType::Identifier => return parse_primary_identifier(lexer),
         _ => return Err(t.error(&lexer.path, &format!("Expected primary expression, found '{:?}'.", t.token_type))),
     }

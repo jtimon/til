@@ -3,12 +3,107 @@
 // This phase runs after typer, before interpreter/builder.
 
 use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType};
+use crate::rs::typer::func_proc_has_multi_arg;
 use std::collections::HashMap;
 use crate::rs::parser::{
     Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal, TTypeDef,
 };
 use crate::rs::interpreter::eval_expr;
 use crate::rs::arena::Arena;
+
+// ---------- Named argument reordering
+
+/// Reorder named arguments to match function parameter order.
+/// Transforms: func(b=3, a=10) -> func(10, 3) (for func(a, b))
+/// This runs during precomp so both interpreter and builder share the work.
+fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Result<Expr, String> {
+    // params[0] is the function identifier, params[1..] are the arguments
+    if e.params.len() <= 1 {
+        return Ok(e.clone()); // No arguments to reorder
+    }
+
+    let call_args = &e.params[1..];
+
+    // Check if there are any named args - if not, return unchanged
+    let has_named_args = call_args.iter().any(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
+    if !has_named_args {
+        return Ok(e.clone());
+    }
+
+    // Check if function is variadic - named args not supported for variadic functions
+    let is_variadic = func_proc_has_multi_arg(func_def);
+    if is_variadic {
+        return Err(e.error(&context.path, "precomp", "Named arguments are not supported for variadic functions"));
+    }
+
+    let mut result = vec![e.params[0].clone()]; // Keep function identifier
+
+    // Count positional args (before first named arg)
+    let mut positional_count = 0;
+    for arg in call_args {
+        if let NodeType::NamedArg(_) = &arg.node_type {
+            break;
+        }
+        positional_count += 1;
+    }
+
+    // Check that all named args come after positional args
+    let mut seen_named = false;
+    for arg in call_args {
+        if let NodeType::NamedArg(_) = &arg.node_type {
+            seen_named = true;
+        } else if seen_named {
+            return Err(e.error(&context.path, "precomp", "Positional arguments cannot appear after named arguments"));
+        }
+    }
+
+    // Build result: first positional args, then fill in from named args
+    let mut final_args: Vec<Option<Expr>> = vec![None; func_def.args.len()];
+
+    // Place positional arguments
+    for (i, arg) in call_args.iter().take(positional_count).enumerate() {
+        if i >= func_def.args.len() {
+            return Err(e.error(&context.path, "precomp", &format!("Too many positional arguments: expected at most {}", func_def.args.len())));
+        }
+        final_args[i] = Some(arg.clone());
+    }
+
+    // Place named arguments
+    for arg in call_args.iter().skip(positional_count) {
+        if let NodeType::NamedArg(arg_name) = &arg.node_type {
+            // Find the parameter index by name
+            let param_idx = func_def.args.iter().position(|p| &p.name == arg_name);
+            match param_idx {
+                Some(idx) => {
+                    if final_args[idx].is_some() {
+                        return Err(arg.error(&context.path, "precomp", &format!("Argument '{}' specified multiple times", arg_name)));
+                    }
+                    // Extract the value from the NamedArg
+                    if arg.params.is_empty() {
+                        return Err(arg.error(&context.path, "precomp", &format!("Named argument '{}' has no value", arg_name)));
+                    }
+                    final_args[idx] = Some(arg.params[0].clone());
+                },
+                None => {
+                    return Err(arg.error(&context.path, "precomp", &format!("Unknown parameter name '{}'", arg_name)));
+                }
+            }
+        }
+    }
+
+    // Check all required args are present and build final result
+    for (i, maybe_arg) in final_args.into_iter().enumerate() {
+        match maybe_arg {
+            Some(arg) => result.push(arg),
+            None => {
+                // TODO: For optional args, fill in defaults here
+                return Err(e.error(&context.path, "precomp", &format!("Missing argument for parameter '{}'", func_def.args[i].name)));
+            }
+        }
+    }
+
+    Ok(Expr::new_clone(NodeType::FCall, e, result))
+}
 
 // ---------- Main entry point
 
@@ -40,6 +135,14 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::Identifier(_) => precomp_params(context, e),
         // Leaf nodes - no transformation needed
         NodeType::LLiteral(_) | NodeType::DefaultCase | NodeType::Pattern(_) => Ok(e.clone()),
+        // Named arguments - transform the value expression
+        NodeType::NamedArg(name) => {
+            let mut new_params = Vec::new();
+            for p in &e.params {
+                new_params.push(precomp_expr(context, p)?);
+            }
+            Ok(Expr::new_clone(NodeType::NamedArg(name.clone()), e, new_params))
+        },
     }
 }
 
@@ -317,7 +420,10 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         }
 
         // Case 2: Already a regular function call - check if it exists
-        if context.scope_stack.lookup_func(&combined_name).is_some() {
+        if let Some(func_def) = context.scope_stack.lookup_func(&combined_name) {
+            // Reorder named arguments to positional order before constant folding
+            let e = reorder_named_args(context, &e, &func_def)?;
+
             // Try compile-time constant folding for pure functions with literal args
             if is_comptime_evaluable(context, &e) {
                 match eval_comptime(context, &e) {

@@ -276,6 +276,14 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
         // Nothing to check
     case NodeType.Pattern(_):
         // Nothing to check
+    case NodeType.NamedArg(_):
+        // Check the value expression
+        mut i := 0
+        while i.lt(e.params.len()) {
+            mut p := e.get(i)
+            errors.extend(check_types_with_context(context, p, ExprContext.ValueUsed))
+            i = i.add(1)
+        }
     case:
         // Other node types not handled
     }
@@ -2516,6 +2524,18 @@ is_expr_calling_procs := func(context: Context, e: Expr) returns Bool throws Str
         return false
 
     case NodeType.Pattern(pattern_info):
+        return false
+
+    case NodeType.NamedArg(_):
+        // Check the value expression
+        mut i := 0
+        while i.lt(e.params.len()) {
+            mut se := e.get(i)
+            if is_expr_calling_procs(context, se) {
+                return true
+            }
+            i = i.add(1)
+        }
         return false
 
     case NodeType.Identifier(id_str):

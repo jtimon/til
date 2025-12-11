@@ -3109,6 +3109,8 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
         throw "ccodegen: Range not yet supported"
     case NodeType.Pattern(p):
         throw "ccodegen: Pattern should be handled inside emit_switch"
+    case NodeType.NamedArg(_):
+        throw expr.error(context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")
     }
 }
 

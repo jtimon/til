@@ -7,6 +7,161 @@ import("self.interpreter")
 // and performs compile-time constant folding for pure functions.
 // This phase runs after typer, before interpreter/builder.
 
+// ---------- Named argument reordering
+
+/// Reorder named arguments to match function parameter order.
+/// Transforms: func(b=3, a=10) -> func(10, 3) (for func(a, b))
+/// This runs during precomp so both interpreter and builder share the work.
+reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str {
+    // params[0] is the function identifier, params[1..] are the arguments
+    if e.params.len().lteq(1) {
+        return e.clone() // No arguments to reorder
+    }
+
+    // Check if there are any named args - if not, return unchanged
+    mut has_named_args := false
+    mut i := 1
+    while i.lt(e.params.len()) {
+        mut arg := e.get(i)
+        switch arg.node_type {
+        case NodeType.NamedArg(_):
+            has_named_args = true
+        case:
+        }
+        i = i.add(1)
+    }
+    if not(has_named_args) {
+        return e.clone()
+    }
+
+    // Check if function is variadic - named args not supported for variadic functions
+    is_variadic := func_proc_has_multi_arg(func_def)
+    if is_variadic {
+        throw e.error(context.path, "precomp", "Named arguments are not supported for variadic functions")
+    }
+
+    mut result := Vec.new(Expr)
+    result.push(e.get(0)) // Keep function identifier
+
+    // Count positional args (before first named arg)
+    mut positional_count := 0
+    i = 1
+    while i.lt(e.params.len()) {
+        mut arg := e.get(i)
+        switch arg.node_type {
+        case NodeType.NamedArg(_):
+            i = e.params.len() // break
+        case:
+            positional_count = positional_count.add(1)
+            i = i.add(1)
+        }
+    }
+
+    // Check that all named args come after positional args
+    mut seen_named := false
+    i = 1
+    while i.lt(e.params.len()) {
+        mut arg := e.get(i)
+        switch arg.node_type {
+        case NodeType.NamedArg(_):
+            seen_named = true
+        case:
+            if seen_named {
+                throw e.error(context.path, "precomp", "Positional arguments cannot appear after named arguments")
+            }
+        }
+        i = i.add(1)
+    }
+
+    // Build result: first positional args, then fill in from named args
+    // Use a Vec of Option-like values (empty string = None, otherwise = Some)
+    mut final_args := Vec.new(Expr)
+    mut final_args_set := Vec.new(Bool)
+    i = 0
+    while i.lt(func_def.args.len()) {
+        final_args.push(Expr())
+        final_args_set.push(false)
+        i = i.add(1)
+    }
+
+    // Place positional arguments
+    i = 0
+    while i.lt(positional_count) {
+        if i.gteq(func_def.args.len()) {
+            throw e.error(context.path, "precomp", format("Too many positional arguments: expected at most ", func_def.args.len().to_str()))
+        }
+        final_args.set(i, e.get(i.add(1)))
+        final_args_set.set(i, true)
+        i = i.add(1)
+    }
+
+    // Place named arguments
+    i = positional_count.add(1)
+    while i.lt(e.params.len()) {
+        mut arg := e.get(i)
+        switch arg.node_type {
+        case NodeType.NamedArg(arg_name):
+            // Find the parameter index by name
+            mut param_idx := sub(0, 1)
+            mut j := 0
+            while j.lt(func_def.args.len()) {
+                mut arg_decl := Declaration()
+                func_def.args.get(j, arg_decl)
+                if arg_decl.name.eq(arg_name) {
+                    param_idx = j
+                    j = func_def.args.len() // break
+                } else {
+                    j = j.add(1)
+                }
+            }
+            if param_idx.lt(0) {
+                throw arg.error(context.path, "precomp", format("Unknown parameter name '", arg_name, "'"))
+            }
+            mut already_set := false
+            final_args_set.get(param_idx, already_set)
+            if already_set {
+                throw arg.error(context.path, "precomp", format("Argument '", arg_name, "' specified multiple times"))
+            }
+            if arg.params.len().eq(0) {
+                throw arg.error(context.path, "precomp", format("Named argument '", arg_name, "' has no value"))
+            }
+            final_args.set(param_idx, arg.get(0))
+            final_args_set.set(param_idx, true)
+        case:
+        }
+        i = i.add(1)
+    }
+
+    // Check all required args are present and build final result
+    i = 0
+    while i.lt(final_args.len()) {
+        mut is_set := false
+        final_args_set.get(i, is_set)
+        if is_set {
+            mut arg := Expr()
+            final_args.get(i, arg)
+            result.push(arg)
+        } else {
+            // TODO: For optional args, fill in defaults here
+            mut arg_decl := Declaration()
+            func_def.args.get(i, arg_decl)
+            throw e.error(context.path, "precomp", format("Missing argument for parameter '", arg_decl.name, "'"))
+        }
+        i = i.add(1)
+    }
+
+    final_result := Expr.new_clone(NodeType.FCall, e, result)
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("reorder_named_args: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw format("reorder_named_args: ", err.msg)
+    }
+
+    return final_result
+}
+
 // ---------- Main entry point
 
 /// Precomputation phase: Transform UFCS calls into regular function calls.
@@ -58,6 +213,19 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         return e.clone()
     case NodeType.Pattern:
         return e.clone()
+    // Named arguments - transform the value expression
+    case NodeType.NamedArg(name):
+        mut new_params := Vec.new(Expr)
+        mut i := 0
+        while i.lt(e.params.len()) {
+            mut p := e.get(i)
+            new_params.push(precomp_expr(context, p))
+            i = i.add(1)
+        }
+        catch (err: AllocError) {
+            throw format("precomp_expr NamedArg: ", err.msg)
+        }
+        return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
     case:
         return e.clone()
     }
@@ -473,26 +641,29 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
         // Case 2: Already a regular function call - check if it exists
         mut func_found := false
-        mut dummy2 := context.scope_stack.lookup_func(combined_name)
+        mut func_def := context.scope_stack.lookup_func(combined_name)
         func_found = true
         catch (err: KeyNotFoundError) {
             // Not found
         }
         if func_found {
+            // Reorder named arguments to positional order before constant folding
+            reordered := reorder_named_args(context, e, func_def)
+
             // Try compile-time constant folding for pure functions with literal args
-            if is_comptime_evaluable(context, e) {
-                mut folded := eval_comptime(context, e)
+            if is_comptime_evaluable(context, reordered) {
+                mut folded := eval_comptime(context, reordered)
                 catch (err: Str) {
                     // Exception thrown during compile-time evaluation - propagate error
                     if err.find("thrown during precomputation").gteq(0) {
                         throw err
                     }
                     // Other errors (e.g., can't convert result type) - fall through
-                    return e
+                    return reordered
                 }
                 return folded
             }
-            return e
+            return reordered
         }
 
         // Case 3: Struct/enum constructor - no transformation needed

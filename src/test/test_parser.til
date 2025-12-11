@@ -224,9 +224,9 @@ test_parse_declaration := proc() {
 
 }
 
-test_parse_list := proc() {
+test_parse_args := proc() {
     mut lexer := Lexer.new_from_src("(42, 43)")
-    list := parse_list(lexer)
+    list := parse_args(lexer)
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
@@ -256,7 +256,7 @@ test_str_to_value_type()
 test_is_literal()
 test_parse_mode()
 test_parse_literal()
-test_parse_list()
+test_parse_args()
 test_parse_declaration()
 test_parse_statement_identifier()
 test_parse_primary_identifier_fcall()
