@@ -117,14 +117,34 @@ format_time := func(ms: I64) returns Str {
     return secs.to_str().concat(".").concat(millis_str).concat("s")
 }
 
+// Parse "src/til.til:version" -> (path="src/til.til", variant="version")
+// Parse "src/til.til" -> (path="src/til.til", variant="")
+parse_test_entry := proc(entry: Str, mut path: Str, mut variant: Str) throws AllocError, IndexOutOfBoundsError {
+    colon_pos := entry.find(":")
+    if colon_pos.gt(sub(0, 1)) {
+        path = get_substr(entry, 0, colon_pos)
+        variant = get_substr(entry, colon_pos.add(1), entry.len())
+    } else {
+        path = entry
+        variant = ""
+    }
+}
+
 // Path transform: src/examples/foo.til -> src/examples/foo.interpreted.out or foo.compiled.out
 // test_mode: "compiled" -> .compiled.out, anything else -> .interpreted.out
-get_out_path := func(src_path: Str, test_mode: Str) returns Str throws AllocError {
+// variant: "" for default, "version" for .version.out, etc.
+get_out_path := func(src_path: Str, test_mode: Str, variant: Str) returns Str throws AllocError {
     base := src_path.replace(".til", "")
+    mut suffix := ""
     if test_mode.eq("compiled") {
-        return base.concat(".compiled.out")
+        suffix = ".compiled"
+    } else {
+        suffix = ".interpreted"
     }
-    return base.concat(".interpreted.out")
+    if not(variant.eq("")) {
+        suffix = suffix.concat(".").concat(variant)
+    }
+    return base.concat(suffix).concat(".out")
 }
 
 // Format output with args, exit code, and output
@@ -199,11 +219,11 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
     println("=== rs_common (", rs_common.len().to_str(), " tests) ===")
     benchmark_content = benchmark_content.concat("* rs_common\n")
     for i in 0..rs_common.len() {
-        mut path := ""
-        rs_common.get(i, path)
+        mut entry := ""
+        rs_common.get(i, entry)
         mut interp_ms := 0
         mut compile_ms := 0
-        if test_rs_common(path, interp_ms, compile_ms) {
+        if test_rs_common(entry, interp_ms, compile_ms) {
             errors_found = true
         }
         total_interpret_ms = total_interpret_ms.add(interp_ms)
@@ -217,36 +237,36 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
                 faster = " (faster compiled)"
             }
         }
-        println("[", i.to_str(), "/", rs_common.len().to_str(), "] ", path, " (interpreted: ", format_time(interp_ms), ", compiled: ", format_time(compile_ms), ")", faster)
-        benchmark_content = benchmark_content.concat("- ").concat(path).concat(" :: interpreted: ").concat(format_time(interp_ms)).concat(", compiled: ").concat(format_time(compile_ms)).concat(faster).concat("\n")
+        println("[", i.to_str(), "/", rs_common.len().to_str(), "] ", entry, " (interpreted: ", format_time(interp_ms), ", compiled: ", format_time(compile_ms), ")", faster)
+        benchmark_content = benchmark_content.concat("- ").concat(entry).concat(" :: interpreted: ").concat(format_time(interp_ms)).concat(", compiled: ").concat(format_time(compile_ms)).concat(faster).concat("\n")
     }
 
     println("=== rs_compiled (", rs_compiled.len().to_str(), " tests) ===")
     benchmark_content = benchmark_content.concat("\n* rs_compiled\n")
     for i in 0..rs_compiled.len() {
-        mut path := ""
-        rs_compiled.get(i, path)
+        mut entry := ""
+        rs_compiled.get(i, entry)
         mut time_ms := 0
-        if test_rs_compiled(path, time_ms) {
+        if test_rs_compiled(entry, time_ms) {
             errors_found = true
         }
         total_compile_ms = total_compile_ms.add(time_ms)
-        println("[", i.to_str(), "/", rs_compiled.len().to_str(), "] ", path, " (compiled: ", format_time(time_ms), ")")
-        benchmark_content = benchmark_content.concat("- ").concat(path).concat(" :: compiled: ").concat(format_time(time_ms)).concat("\n")
+        println("[", i.to_str(), "/", rs_compiled.len().to_str(), "] ", entry, " (compiled: ", format_time(time_ms), ")")
+        benchmark_content = benchmark_content.concat("- ").concat(entry).concat(" :: compiled: ").concat(format_time(time_ms)).concat("\n")
     }
 
     println("=== rs_interpreted (", rs_interpreted.len().to_str(), " tests) ===")
     benchmark_content = benchmark_content.concat("\n* rs_interpreted\n")
     for i in 0..rs_interpreted.len() {
-        mut path := ""
-        rs_interpreted.get(i, path)
+        mut entry := ""
+        rs_interpreted.get(i, entry)
         mut time_ms := 0
-        if test_rs_interpreted(path, time_ms) {
+        if test_rs_interpreted(entry, time_ms) {
             errors_found = true
         }
         total_interpret_ms = total_interpret_ms.add(time_ms)
-        println("[", i.to_str(), "/", rs_interpreted.len().to_str(), "] ", path, " (interpreted: ", format_time(time_ms), ")")
-        benchmark_content = benchmark_content.concat("- ").concat(path).concat(" :: interpreted: ").concat(format_time(time_ms)).concat("\n")
+        println("[", i.to_str(), "/", rs_interpreted.len().to_str(), "] ", entry, " (interpreted: ", format_time(time_ms), ")")
+        benchmark_content = benchmark_content.concat("- ").concat(entry).concat(" :: interpreted: ").concat(format_time(time_ms)).concat("\n")
     }
 
     // Print and write totals
@@ -275,34 +295,34 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec)
     if files.len().eq(0) {
         // regen all
         for i in 0..rs_common.len() {
-            mut path := ""
-            rs_common.get(i, path)
-            regen_test(path)
+            mut entry := ""
+            rs_common.get(i, entry)
+            regen_test(entry)
         }
         for i in 0..rs_compiled.len() {
-            mut path := ""
-            rs_compiled.get(i, path)
-            regen_test_compiled(path)
+            mut entry := ""
+            rs_compiled.get(i, entry)
+            regen_test_compiled(entry)
         }
         for i in 0..rs_interpreted.len() {
-            mut path := ""
-            rs_interpreted.get(i, path)
-            regen_test(path)
+            mut entry := ""
+            rs_interpreted.get(i, entry)
+            regen_test(entry)
         }
     } else {
-        // regen specific files - check which lists they're in
+        // regen specific entries - check which lists they're in
         for i in 0..files.len() {
-            mut path := ""
-            files.get(i, path)
-            // File can be in multiple lists, regen all applicable
-            if rs_common.contains(path) {
-                regen_test(path)
+            mut entry := ""
+            files.get(i, entry)
+            // Entry can be in multiple lists, regen all applicable
+            if rs_common.contains(entry) {
+                regen_test(entry)
             }
-            if rs_compiled.contains(path) {
-                regen_test_compiled(path)
+            if rs_compiled.contains(entry) {
+                regen_test_compiled(entry)
             }
-            if rs_interpreted.contains(path) {
-                regen_test(path)
+            if rs_interpreted.contains(entry) {
+                regen_test(entry)
             }
         }
     }
@@ -327,8 +347,11 @@ ensure_out_file := proc(path: Str, out_path: Str, test_mode: Str) {
     }
 }
 
-test_rs_interpreted := proc(path: Str, mut time_ms: I64) returns Bool {
-    out_path := get_out_path(path, "interpreted")
+test_rs_interpreted := proc(entry: Str, mut time_ms: I64) returns Bool {
+    mut path := ""
+    mut variant := ""
+    parse_test_entry(entry, path, variant)
+    out_path := get_out_path(path, "interpreted", variant)
     ensure_out_file(path, out_path, "interpreted")
 
     // Read expected file and parse args, exit code, and output
@@ -375,8 +398,11 @@ test_rs_interpreted := proc(path: Str, mut time_ms: I64) returns Bool {
     return false
 }
 
-test_rs_compiled := proc(path: Str, mut time_ms: I64) returns Bool {
-    out_path := get_out_path(path, "compiled")
+test_rs_compiled := proc(entry: Str, mut time_ms: I64) returns Bool {
+    mut path := ""
+    mut variant := ""
+    parse_test_entry(entry, path, variant)
+    out_path := get_out_path(path, "compiled", variant)
     ensure_out_file(path, out_path, "compiled")
 
     // Read expected file and parse args, exit code, and output
@@ -423,9 +449,12 @@ test_rs_compiled := proc(path: Str, mut time_ms: I64) returns Bool {
     return false
 }
 
-test_rs_common := proc(path: Str, mut interpret_ms: I64, mut compile_ms: I64) returns Bool {
+test_rs_common := proc(entry: Str, mut interpret_ms: I64, mut compile_ms: I64) returns Bool {
+    mut path := ""
+    mut variant := ""
+    parse_test_entry(entry, path, variant)
     // rs_common tests use .interpreted.out for BOTH modes (same expected output)
-    out_path := get_out_path(path, "interpreted")
+    out_path := get_out_path(path, "interpreted", variant)
     ensure_out_file(path, out_path, "interpreted")
 
     // Read expected file once and use for both modes
@@ -499,8 +528,11 @@ test_rs_common := proc(path: Str, mut interpret_ms: I64, mut compile_ms: I64) re
     return errors_found
 }
 
-regen_test := proc(path: Str) {
-    out_path := get_out_path(path, "interpreted")
+regen_test := proc(entry: Str) {
+    mut path := ""
+    mut variant := ""
+    parse_test_entry(entry, path, variant)
+    out_path := get_out_path(path, "interpreted", variant)
     // Read existing args if .out file exists, otherwise use empty args
     mut args_str := ""
     mut existing := readfile(out_path)
@@ -529,8 +561,11 @@ regen_test := proc(path: Str) {
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-regen_test_compiled := proc(path: Str) {
-    out_path := get_out_path(path, "compiled")
+regen_test_compiled := proc(entry: Str) {
+    mut path := ""
+    mut variant := ""
+    parse_test_entry(entry, path, variant)
+    out_path := get_out_path(path, "compiled", variant)
     // Read existing args from .compiled.out - it must exist for rs_compiled tests
     mut args_str := ""
     mut existing := readfile(out_path)
@@ -561,13 +596,15 @@ usage := proc() {
     println("tests - TIL test runner")
     println("")
     println("Usage:")
-    println("  tests              Run all tests (default)")
-    println("  tests test         Run all tests")
-    println("  tests regen        Regenerate all .out files")
-    println("  tests regen <path> Regenerate specific .out file")
+    println("  tests                    Run all tests (default)")
+    println("  tests test               Run all tests")
+    println("  tests regen              Regenerate all .out files")
+    println("  tests regen <path>       Regenerate specific .out file")
+    println("  tests regen <path>:<var> Regenerate specific variant")
     println("")
-    println("Example:")
+    println("Examples:")
     println("  tests regen src/examples/hello_script.til")
+    println("  tests regen src/til.til:version")
 }
 
 main := proc(args: ..Str) {
@@ -660,6 +697,7 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/self/interpreter.til") // TODO FIX: symbols already declared (double import?)
     // TODO: til.til can be unified to rs_common once til.til compiles without C errors
     rs_interpreted.push("src/til.til") // Type-check til.til by running with "help" argument (args in .out file)
+    rs_interpreted.push("src/til.til:version") // Test version command
     // rs_interpreted.push("src/test/builders.til") // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
