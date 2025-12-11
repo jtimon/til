@@ -4796,6 +4796,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 // Nested function - hoist it to top level with mangled name
                 mut mangled_name := ctx.current_function_name.concat("_").concat(name)
 
+                // Register function definition so get_value_type can resolve return types
+                context.scope_stack.declare_func(name, func_def)
+
                 // Generate the function definition with mangled name
                 mut func_output := ""
 

@@ -300,7 +300,7 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/mut_test.til") // TODO FIX: mut param not passed as pointer
     rs_interpreted.push("src/test/namespaces.til") // TODO FIX: static string init at global scope needs constant initializer
     rs_interpreted.push("src/test/run_cmd.til") // TODO FIX: UFCS run_cmd wrong return type, variadic ext function
-    rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: UFCS .eq() emitted as til_result_eq instead of method call
+    rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: nested func mut param declaration mismatch (const vs pointer)
     rs_interpreted.push("src/test/sets.til") // TODO FIX: underscore redeclaration (C doesn't allow multiple _ decls in same scope)
     rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: static string init, pointer type mismatch, format variadic
     rs_interpreted.push("src/test/test_parser.til") // TODO FIX: incomplete enum types, static string init

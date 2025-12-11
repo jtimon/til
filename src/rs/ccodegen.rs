@@ -3211,6 +3211,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 // Register the name mapping so function calls can find it
                 ctx.nested_func_names.insert(decl.name.clone(), mangled_name.clone());
 
+                // Register function definition so get_value_type can resolve return types
+                context.scope_stack.declare_func(decl.name.clone(), func_def.clone());
+
                 // Generate the hoisted function prototype
                 let mut proto_output = String::new();
                 emit_func_signature(&til_name(&mangled_name), func_def, &mut proto_output);
