@@ -389,17 +389,17 @@ main := proc(args: ..Str) {
     mut rs_interpreted := Vec.new(Str)
 
     rs_interpreted.push("src/examples/hello_pure.til") // TODO FIX: mode pure forbids procs but core.til has procs
-    rs_interpreted.push("src/test/args.til") // TODO FIX: mut Str* assignment, Vec** passed to Vec*, nested field access on mut param
+    rs_interpreted.push("src/test/args.til") // TODO FIX: mut Str* assignment, nested field access on mut param
     rs_interpreted.push("src/test/memcmp_str_interpreted.til")
     rs_interpreted.push("src/test/enums.til") // TODO FIX: enum payload field has incomplete type
-    rs_interpreted.push("src/test/errors.til") // TODO FIX: throwing func result used directly (needs temp var for error handling)
+    rs_interpreted.push("src/test/errors.til") // TODO FIX: throwing func result used directly in expression (needs temp var)
     rs_interpreted.push("src/test/forward_declarations.til") // TODO FIX: enum constructors emitted as function calls not struct init
-    rs_interpreted.push("src/test/lists.til") // TODO FIX: AllocError() needs struct init, Vec passed as Vec not Vec*
+    rs_interpreted.push("src/test/lists.til") // TODO FIX: AllocError() needs struct init not func call, throwing func in catch
     rs_interpreted.push("src/test/maps.til") // TODO FIX: Dynamic param expects void* but Str passed
     rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: nested func forward decl has const, definition has pointer
     rs_interpreted.push("src/test/sets.til") // TODO FIX: underscore _ redeclared in same scope
-    rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: Vec passed as Vec**
-    rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload has incomplete type, Vec passed as Vec**
+    rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: throwing func (format) in catch block needs temp var
+    rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload has incomplete type, throwing func in catch
     rs_interpreted.push("src/test/ufcs.til") // TODO FIX: throwing functions in struct initializers (get_substr, Vec.new)
     rs_interpreted.push("src/test/vecs.til") // TODO FIX: compiles but fails at runtime - compiled doesn't throw IndexOutOfBoundsError on bad index
     // REM: precomp_throw.til is equivalent to precomp_throw_compiled.til (in rs_compiled)
@@ -417,8 +417,8 @@ main := proc(args: ..Str) {
     // next level:
     // eval.til moved to rs_common
     // flow.til moved to rs_common (const folding fixed switch case expressions)
-    rs_interpreted.push("src/test/introspections.til") // TODO FIX: AllocError() needs struct init, Vec passed as Vec not Vec*
-    rs_interpreted.push("src/test/modes.til") // TODO FIX: Vec passed as Vec**
+    rs_interpreted.push("src/test/introspections.til") // TODO FIX: AllocError() needs struct init not func call, throwing func in catch
+    rs_interpreted.push("src/test/modes.til") // TODO FIX: throwing func (format) in catch block needs temp var
     rs_interpreted.push("src/test/todo.til") // permanent TODO, design notes for future features
 
     // Self-hosting interpreter tests

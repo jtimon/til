@@ -998,9 +998,18 @@ fn emit_arg_with_param_type(
     if param_is_mut {
         if let NodeType::Identifier(name) = &arg.node_type {
             if arg.params.is_empty() {
-                // Simple variable - emit &var
-                output.push_str("&");
-                output.push_str(&til_name(name));
+                // Check if this identifier is already a mut param (already a pointer)
+                // or a variadic param (also a pointer) - don't add & again
+                let is_already_pointer = ctx.current_mut_params.contains(name)
+                    || ctx.current_variadic_params.contains_key(name);
+                if is_already_pointer {
+                    // Already a pointer - just emit the name
+                    output.push_str(&til_name(name));
+                } else {
+                    // Simple variable - emit &var
+                    output.push_str("&");
+                    output.push_str(&til_name(name));
+                }
                 return Ok(());
             }
         }

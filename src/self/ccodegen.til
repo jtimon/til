@@ -2121,8 +2121,16 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
         switch arg.node_type {
         case NodeType.Identifier(name):
             if arg.params.len().eq(0) {
-                // Simple variable - emit &var
-                result = result.concat("&").concat(til_name(name))
+                // Check if this identifier is already a mut param (already a pointer)
+                // or a variadic param (also a pointer) - don't add & again
+                mut is_already_pointer := ctx.current_mut_params.contains(name).or(Map.contains_key(ctx.current_variadic_params, name))
+                if is_already_pointer {
+                    // Already a pointer - just emit the name
+                    result = result.concat(til_name(name))
+                } else {
+                    // Simple variable - emit &var
+                    result = result.concat("&").concat(til_name(name))
+                }
                 return result
             }
         case:
