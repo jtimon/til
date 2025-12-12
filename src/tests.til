@@ -584,19 +584,19 @@ main := proc(args: ..Str) {
 
     mut rs_interpreted := Vec.new(TestEntry)
 
-    rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: read-only parameter assignment, mut Str* assignment
-    rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: gcc: enum constructors emitted as function calls, incomplete enum types, til_bbb undeclared
-    rs_interpreted.push(TestEntry(path="src/test/forward_declarations.til")) // TODO FIX: gcc: enum constructors emitted as function calls
+    rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: incompatible types (til_Str* = til_Str), read-only parameter assignment
+    rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: gcc: field has incomplete type (enum payload type order)
+    rs_interpreted.push(TestEntry(path="src/test/forward_declarations.til")) // TODO FIX: gcc: called object is not a function (enum constructor as func call)
     rs_interpreted.push(TestEntry(path="src/test/introspections.til")) // TODO FIX: gcc: undefined reference to Introspection_has_const/has_field
     rs_interpreted.push(TestEntry(path="src/test/lists.til")) // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
-    rs_interpreted.push(TestEntry(path="src/test/maps.til")) // TODO FIX: gcc: Str passed to Dynamic param (Map_position expects void*)
+    rs_interpreted.push(TestEntry(path="src/test/maps.til")) // TODO FIX: gcc: incompatible type for argument (Str passed to Dynamic/void* param)
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/modes.til")) // TODO FIX: ccodegen: top-level const from func call (dummy_token := make_dummy_token())
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     rs_interpreted.push(TestEntry(path="src/test/scope_isolation.til")) // TODO FIX: eval: Missing arena index for return value 'false'
-    rs_interpreted.push(TestEntry(path="src/test/sets.til")) // TODO FIX: gcc: or() called with no args
-    rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: Str range comparisons (<=), and()/or() no args, Vec.new in struct init
-    rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: Str range comparisons, and()/or() no args, enum incomplete types
+    rs_interpreted.push(TestEntry(path="src/test/sets.til")) // TODO FIX: gcc: too few arguments to function til_or()
+    rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: invalid operands to binary <= (Str range comparisons)
+    rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: field has incomplete type, invalid operands to binary <= (Str comparisons)
     rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: scavenger: no body found for 's.len' (builtin method not in scope)
     rs_interpreted.push(TestEntry(path="src/test/vecs.til")) // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
 
@@ -609,9 +609,9 @@ main := proc(args: ..Str) {
 
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
-    rs_interpreted.push(TestEntry(path="src/self/interpreter.til")) // TODO FIX: type: symbols already declared (double import?)
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: type: symbols already declared (double import?)
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="version")) // TODO FIX: type: symbols already declared (double import?)
+    rs_interpreted.push(TestEntry(path="src/self/interpreter.til")) // TODO FIX: type: symbols already declared (double import of same file)
+    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: type: symbols already declared (double import of same file)
+    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="version")) // TODO FIX: type: symbols already declared (double import of same file)
     // rs_interpreted.push(TestEntry(path="src/test/builders.til")) // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
