@@ -1594,6 +1594,23 @@ fn is_constant_declaration(expr: &Expr) -> bool {
     false
 }
 
+// Check if an expression is a function call that uses out-params (i.e., the function throws)
+// Such calls cannot be used inline in struct initializers - they need separate statements
+fn is_throwing_fcall(expr: &Expr, context: &Context) -> bool {
+    if let NodeType::FCall = &expr.node_type {
+        if let Some(first_param) = expr.params.first() {
+            if let Some(func_name) = get_func_name_string(first_param) {
+                // Convert underscore to dot for lookup (e.g., "Vec_new" -> "Vec.new")
+                let lookup_name = func_name.replacen('_', ".", 1);
+                if let Some(func_def) = context.scope_stack.lookup_func(&lookup_name) {
+                    return !func_def.throw_types.is_empty();
+                }
+            }
+        }
+    }
+    false
+}
+
 // Emit a top-level constant declaration at file scope
 fn emit_constant_declaration(expr: &Expr, output: &mut String, context: &Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
@@ -3871,16 +3888,6 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
     if let Some(type_name) = struct_type {
         // Struct variable declaration with values (defaults or named args)
-        output.push_str(&indent_str);
-        if !already_declared {
-            if !is_mut {
-                output.push_str("const ");
-            }
-            output.push_str(&til_name(&type_name));
-            output.push_str(" ");
-            ctx.declared_vars.insert(name.clone());
-        }
-        output.push_str(&til_name(name));
 
         // Build map of named arg values from struct literal
         let mut named_values: std::collections::HashMap<String, &Expr> = std::collections::HashMap::new();
@@ -3900,12 +3907,79 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         if let Some(struct_def) = struct_def_opt {
             if struct_def.members.is_empty() {
                 // Empty struct - use empty initializer
+                output.push_str(&indent_str);
+                if !already_declared {
+                    if !is_mut {
+                        output.push_str("const ");
+                    }
+                    output.push_str(&til_name(&type_name));
+                    output.push_str(" ");
+                    ctx.declared_vars.insert(name.clone());
+                }
+                output.push_str(&til_name(name));
                 output.push_str(" = {};\n");
             } else if struct_def.default_values.is_empty() && named_values.is_empty() {
                 // No defaults and no named args - zero initialize
+                output.push_str(&indent_str);
+                if !already_declared {
+                    if !is_mut {
+                        output.push_str("const ");
+                    }
+                    output.push_str(&til_name(&type_name));
+                    output.push_str(" ");
+                    ctx.declared_vars.insert(name.clone());
+                }
+                output.push_str(&til_name(name));
                 output.push_str(" = {0};\n");
             } else {
                 // Has default values or named args - emit designated initializer
+                // First check if any default value is a throwing function call
+                let mut throwing_defaults: Vec<(&String, &Expr)> = Vec::new();
+                for member in &struct_def.members {
+                    if !member.is_mut {
+                        continue;
+                    }
+                    if named_values.contains_key(&member.name) {
+                        continue; // Named arg overrides default
+                    }
+                    if let Some(default_expr) = struct_def.default_values.get(&member.name) {
+                        if is_throwing_fcall(default_expr, context) {
+                            throwing_defaults.push((&member.name, default_expr));
+                        }
+                    }
+                }
+
+                // If we have throwing defaults, emit them as separate statements first
+                for (member_name, default_expr) in &throwing_defaults {
+                    // Get the function's throw types
+                    let throw_types = if let Some(first_param) = default_expr.params.first() {
+                        if let Some(fcall_func_name) = get_func_name_string(first_param) {
+                            let lookup_name = fcall_func_name.replacen('_', ".", 1);
+                            context.scope_stack.lookup_func(&lookup_name)
+                                .map(|fd| fd.throw_types.clone())
+                                .unwrap_or_default()
+                        } else {
+                            Vec::new()
+                        }
+                    } else {
+                        Vec::new()
+                    };
+
+                    let temp_name = format!("_default_{}", member_name);
+                    // Emit the function call with out-param using emit_throwing_call_propagate
+                    emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
+                }
+
+                output.push_str(&indent_str);
+                if !already_declared {
+                    if !is_mut {
+                        output.push_str("const ");
+                    }
+                    output.push_str(&til_name(&type_name));
+                    output.push_str(" ");
+                    ctx.declared_vars.insert(name.clone());
+                }
+                output.push_str(&til_name(name));
                 output.push_str(" = {");
                 let mut first = true;
                 for member in &struct_def.members {
@@ -3925,7 +3999,13 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     if let Some(value_expr) = named_values.get(&member.name) {
                         emit_expr(value_expr, output, 0, ctx, context)?;
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
-                        emit_expr(default_expr, output, 0, ctx, context)?;
+                        // Check if this was a throwing default - use temp var instead
+                        if is_throwing_fcall(default_expr, context) {
+                            output.push_str("_default_");
+                            output.push_str(&member.name);
+                        } else {
+                            emit_expr(default_expr, output, 0, ctx, context)?;
+                        }
                     } else {
                         // No default - use zero
                         output.push_str("0");
@@ -3935,6 +4015,16 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             }
         } else {
             // Struct not found - fall back to zero init
+            output.push_str(&indent_str);
+            if !already_declared {
+                if !is_mut {
+                    output.push_str("const ");
+                }
+                output.push_str(&til_name(&type_name));
+                output.push_str(" ");
+                ctx.declared_vars.insert(name.clone());
+            }
+            output.push_str(&til_name(name));
             output.push_str(" = {0};\n");
         }
     } else if let Some(type_name) = enum_type {
@@ -4560,6 +4650,46 @@ fn emit_fcall_with_hoisted(
                     }
                 }
 
+                // Check if any default value is a throwing function call
+                // Such calls need out-params and can't be inlined in struct initializers
+                let mut throwing_defaults: Vec<(&String, &Expr)> = Vec::new();
+                for member in &struct_def.members {
+                    if !member.is_mut {
+                        continue;
+                    }
+                    if named_values.contains_key(&member.name) {
+                        continue; // Named arg overrides default
+                    }
+                    if let Some(default_expr) = struct_def.default_values.get(&member.name) {
+                        if is_throwing_fcall(default_expr, context) {
+                            throwing_defaults.push((&member.name, default_expr));
+                        }
+                    }
+                }
+
+                // If we have throwing defaults, emit them as separate statements first
+                // This only works when we're in a statement context (not inline expression)
+                // For now, emit temp variables before the struct literal
+                for (member_name, default_expr) in &throwing_defaults {
+                    // Get the function's throw types
+                    let throw_types = if let Some(first_param) = default_expr.params.first() {
+                        if let Some(fcall_func_name) = get_func_name_string(first_param) {
+                            let lookup_name = fcall_func_name.replacen('_', ".", 1);
+                            context.scope_stack.lookup_func(&lookup_name)
+                                .map(|fd| fd.throw_types.clone())
+                                .unwrap_or_default()
+                        } else {
+                            Vec::new()
+                        }
+                    } else {
+                        Vec::new()
+                    };
+
+                    let temp_name = format!("_default_{}", member_name);
+                    // Emit the function call with out-param using emit_throwing_call_propagate
+                    emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, 0, ctx, context)?;
+                }
+
                 output.push_str("{");
                 let mut first = true;
                 for member in &struct_def.members {
@@ -4577,7 +4707,13 @@ fn emit_fcall_with_hoisted(
                     if let Some(value_expr) = named_values.get(&member.name) {
                         emit_expr(value_expr, output, 0, ctx, context)?;
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
-                        emit_expr(default_expr, output, 0, ctx, context)?;
+                        // Check if this was a throwing default - use temp var instead
+                        if is_throwing_fcall(default_expr, context) {
+                            output.push_str("_default_");
+                            output.push_str(&member.name);
+                        } else {
+                            emit_expr(default_expr, output, 0, ctx, context)?;
+                        }
                     } else {
                         output.push_str("0");
                     }
@@ -5227,18 +5363,55 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 && !func_name.contains('_')  // No underscore means not Type_method
                 && expr.params.len() == 1    // No constructor args
             {
-                output.push_str("(");
-                output.push_str(TIL_PREFIX);
-                output.push_str(&func_name);
-                output.push_str(")");
-
                 // Look up struct definition to get default values
                 let struct_def_opt = context.scope_stack.lookup_struct(&func_name).cloned();
                 if let Some(struct_def) = struct_def_opt {
                     if struct_def.members.is_empty() || struct_def.default_values.is_empty() {
-                        output.push_str("{}");
+                        output.push_str("(");
+                        output.push_str(TIL_PREFIX);
+                        output.push_str(&func_name);
+                        output.push_str("){}");
                     } else {
-                        output.push_str("{");
+                        // Check if any default value is a throwing function call
+                        // Such calls need out-params and can't be inlined in struct initializers
+                        let mut throwing_defaults: Vec<(&String, &Expr)> = Vec::new();
+                        for member in &struct_def.members {
+                            if !member.is_mut {
+                                continue;
+                            }
+                            if let Some(default_expr) = struct_def.default_values.get(&member.name) {
+                                if is_throwing_fcall(default_expr, context) {
+                                    throwing_defaults.push((&member.name, default_expr));
+                                }
+                            }
+                        }
+
+                        // If we have throwing defaults, emit them as separate statements first
+                        for (member_name, default_expr) in &throwing_defaults {
+                            // Get the function's throw types
+                            let throw_types = if let Some(first_param) = default_expr.params.first() {
+                                if let Some(fcall_func_name) = get_func_name_string(first_param) {
+                                    let lookup_name = fcall_func_name.replacen('_', ".", 1);
+                                    context.scope_stack.lookup_func(&lookup_name)
+                                        .map(|fd| fd.throw_types.clone())
+                                        .unwrap_or_default()
+                                } else {
+                                    Vec::new()
+                                }
+                            } else {
+                                Vec::new()
+                            };
+
+                            let temp_name = format!("_default_{}", member_name);
+                            // Emit the function call with out-param using emit_throwing_call_propagate
+                            emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
+                        }
+
+                        output.push_str(&indent_str);
+                        output.push_str("(");
+                        output.push_str(TIL_PREFIX);
+                        output.push_str(&func_name);
+                        output.push_str("){");
                         let mut first = true;
                         for member in &struct_def.members {
                             if !member.is_mut {
@@ -5252,7 +5425,13 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                             output.push_str(&member.name);
                             output.push_str(" = ");
                             if let Some(default_expr) = struct_def.default_values.get(&member.name) {
-                                emit_expr(default_expr, output, 0, ctx, context)?;
+                                // Check if this was a throwing default - use temp var instead
+                                if is_throwing_fcall(default_expr, context) {
+                                    output.push_str("_default_");
+                                    output.push_str(&member.name);
+                                } else {
+                                    emit_expr(default_expr, output, 0, ctx, context)?;
+                                }
                             } else {
                                 output.push_str("0");
                             }
@@ -5260,7 +5439,10 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         output.push_str("}");
                     }
                 } else {
-                    output.push_str("{}");
+                    output.push_str("(");
+                    output.push_str(TIL_PREFIX);
+                    output.push_str(&func_name);
+                    output.push_str("){}");
                 }
 
                 if indent > 0 {

@@ -591,7 +591,7 @@ main := proc(args: ..Str) {
     rs_interpreted.push(TestEntry(path="src/test/lists.til")) // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
     rs_interpreted.push(TestEntry(path="src/test/maps.til")) // TODO FIX: gcc: Str passed to Dynamic param (Map_position expects void*)
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
-    rs_interpreted.push(TestEntry(path="src/test/modes.til")) // TODO FIX: gcc: Vec.new in struct initializer, dummy_token undeclared
+    rs_interpreted.push(TestEntry(path="src/test/modes.til")) // TODO FIX: ccodegen: top-level const from func call (dummy_token := make_dummy_token())
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     rs_interpreted.push(TestEntry(path="src/test/scope_isolation.til")) // TODO FIX: eval: Missing arena index for return value 'false'
     rs_interpreted.push(TestEntry(path="src/test/sets.til")) // TODO FIX: gcc: or() called with no args

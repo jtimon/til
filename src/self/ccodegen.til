@@ -181,6 +181,32 @@ add_var_declared := proc(mut ctx: CodegenContext, name: Str) throws AllocError {
     _ := ctx.declared_vars.insert(name)
 }
 
+// Check if an expression is a function call that uses out-params (i.e., the function throws)
+// Such calls cannot be used inline in struct initializers - they need separate statements
+is_throwing_fcall := func(expr: Expr, context: Context) returns Bool {
+    switch expr.node_type {
+    case NodeType.FCall:
+        if gt(expr.params.len(), 0) {
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
+            mut func_name_result := get_func_name_string(first_param)
+            if func_name_result.found {
+                // Convert underscore to dot for lookup (e.g., "Vec_new" -> "Vec.new")
+                mut lookup_name := func_name_result.name.replacen("_", ".", 1)
+                mut func_lookup := lookup_func_by_name(context, lookup_name)
+                if func_lookup.found {
+                    return gt(func_lookup.func_def.throw_types.len(), 0)
+                }
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) { }
+    catch (err: AllocError) { }
+    return false
+}
+
 // Result type for receiver type lookup
 ReceiverTypeResult := struct {
     mut found: Bool = false
@@ -6958,11 +6984,6 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         // Struct names are PascalCase, no underscore in func_name (meaning not Type_method), no args
         mut first_char := func_name.get_substr(0, 1)
         if first_char.is_uppercase().and(not(func_name.contains("_"))).and(params_len.eq(1)) {
-            result = result.concat("(")
-            result = result.concat(TIL_PREFIX)
-            result = result.concat(func_name)
-            result = result.concat(")")
-
             // Look up struct definition to get default values
             mut struct_found := false
             mut struct_def := context.scope_stack.lookup_struct(func_name)
@@ -6971,11 +6992,46 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
             if struct_found {
                 if struct_def.members.len().eq(0).or(struct_def.default_values.len().eq(0)) {
-                    result = result.concat("{}")
+                    result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat("){}")
                 } else {
-                    result = result.concat("{")
-                    mut is_first := true
+                    // Check if any default value is a throwing function call
+                    // Such calls need out-params and can't be inlined in struct initializers
+                    mut throwing_defaults := Map.new(Str, Str)  // member_name -> temp_var
                     mut member_idx := 0
+                    while lt(member_idx, struct_def.members.len()) {
+                        mut member := Declaration()
+                        struct_def.members.get(member_idx, member)
+                        catch (err: IndexOutOfBoundsError) { throw err.msg }
+                        if member.is_mut {
+                            mut default_expr := Expr()
+                            struct_def.default_values.get(member.name, default_expr)
+                            if is_throwing_fcall(default_expr, context) {
+                                // Emit the throwing call as a separate statement
+                                result = hoist_throwing_expr(default_expr, result, indent, ctx, context)
+                                // Get the temp var that was just generated (it's in hoisted_exprs)
+                                mut expr_key := default_expr.line.to_str().concat(":").concat(default_expr.col.to_str())
+                                mut temp_var := ""
+                                ctx.hoisted_exprs.get(expr_key, temp_var)
+                                throwing_defaults.set(member.name, temp_var)
+                                catch (err: KeyNotFoundError) { }
+                            }
+                            catch (err: KeyNotFoundError) { }
+                        }
+                        member_idx = add(member_idx, 1)
+                    }
+
+                    // Now emit the struct initializer
+                    // Need to add indentation if we emitted throwing calls
+                    if gt(throwing_defaults.len(), 0) {
+                        mut ind := 0
+                        while lt(ind, indent) {
+                            result = result.concat("    ")
+                            ind = add(ind, 1)
+                        }
+                    }
+                    result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat("){")
+                    mut is_first := true
+                    member_idx = 0
                     while lt(member_idx, struct_def.members.len()) {
                         mut member := Declaration()
                         struct_def.members.get(member_idx, member)
@@ -6988,23 +7044,31 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                             }
                             is_first = false
                             result = result.concat(".").concat(member.name).concat(" = ")
-                            mut default_found := false
-                            mut default_expr := Expr()
-                            struct_def.default_values.get(member.name, default_expr)
-                            default_found = true
-                            catch (err: KeyNotFoundError) { }
-                            if default_found {
-                                result = emit_expr(default_expr, result, 0, ctx, context)
+                            // Check if this was a throwing default - use temp var instead
+                            mut temp_var := ""
+                            throwing_defaults.get(member.name, temp_var)
+                            if gt(temp_var.len(), 0) {
+                                result = result.concat(temp_var)
                             } else {
-                                result = result.concat("0")
+                                mut default_found := false
+                                mut default_expr := Expr()
+                                struct_def.default_values.get(member.name, default_expr)
+                                default_found = true
+                                catch (err: KeyNotFoundError) { }
+                                if default_found {
+                                    result = emit_expr(default_expr, result, 0, ctx, context)
+                                } else {
+                                    result = result.concat("0")
+                                }
                             }
+                            catch (err: KeyNotFoundError) { }
                             member_idx = add(member_idx, 1)
                         }
                     }
                     result = result.concat("}")
                 }
             } else {
-                result = result.concat("{}")
+                result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat("){}")
             }
 
             if gt(indent, 0) {
