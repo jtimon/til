@@ -631,39 +631,37 @@ main := proc(args: ..Str) {
     rs_common.push("src/test/arrays.til")
     rs_common.push("src/test/boolean.til")
     rs_common.push("src/test/branchless.til")
+    rs_common.push("src/test/c_mem.til")
     rs_common.push("src/test/circular_test.til")
     rs_common.push("src/test/comparisons.til")
+    rs_common.push("src/test/constfold.til")
+    rs_common.push("src/test/editor_mode_test.til")
+    rs_common.push("src/test/eval.til")
     rs_common.push("src/test/exit.til")
+    rs_common.push("src/test/fibonacci.til")
+    rs_common.push("src/test/flow.til")
+    rs_common.push("src/test/func_purity.til")
     rs_common.push("src/test/function_pointers.til")
+    rs_common.push("src/test/intro.til")
     rs_common.push("src/test/loops.til")
+    rs_common.push("src/test/mut_test.til")
+    rs_common.push("src/test/namespaces.til")
+    rs_common.push("src/test/optional_args.til")
     rs_common.push("src/test/pointers.til")
+    rs_common.push("src/test/return_value_usage.til")
+    rs_common.push("src/test/run_cmd.til")
     rs_common.push("src/test/strings.til")
     rs_common.push("src/test/structs.til")
     rs_common.push("src/test/temp.til")
     rs_common.push("src/test/u8.til")
-    rs_common.push("src/test/eval.til")
-    rs_common.push("src/test/func_purity.til")
-    rs_common.push("src/test/constfold.til")
-    rs_common.push("src/test/c_mem.til")
-    rs_common.push("src/test/flow.til")
-    rs_common.push("src/test/fibonacci.til")
-    rs_common.push("src/test/run_cmd.til")
     rs_common.push("src/test/variadic.til")
-    rs_common.push("src/test/intro.til")
-    rs_common.push("src/test/namespaces.til")
-    rs_common.push("src/test/editor_mode_test.til")
-    rs_common.push("src/test/mut_test.til")
-    rs_common.push("src/test/return_value_usage.til")
-    rs_common.push("src/test/optional_args.til")
 
     mut rs_compiled := Vec.new(Str)
     rs_compiled.push("src/test/enums_simple.til")
-    rs_compiled.push("src/test/throw_simple.til")
     rs_compiled.push("src/test/memcmp_str_compiled.til")
-    // precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
-    rs_compiled.push("src/test/precomp_throw.til")
-    // TODO: til.til can be unified to rs_common once til.til compiles without C errors
-    // rs_compiled.push("src/til.til")  // disabled: compiling til.til takes too long (3.5MB C output)
+    rs_compiled.push("src/test/precomp_throw.til") // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
+    rs_compiled.push("src/test/throw_simple.til")
+    // rs_compiled.push("src/til.til") // TODO: til.til can be unified to rs_common once til.til compiles without C errors
     // TODO FIX: enum constructors called as functions instead of struct init
     // rs_compiled.push("src/test/enums_payload.til")
     // TODO FIX: switch_simple.til - same issue plus:
@@ -676,20 +674,22 @@ main := proc(args: ..Str) {
 
     rs_interpreted.push("src/examples/hello_pure.til") // TODO FIX: mode pure forbids procs but core.til has procs
     rs_interpreted.push("src/test/args.til") // TODO FIX: mut Str* assignment, nested field access on mut param
-    rs_interpreted.push("src/test/memcmp_str_interpreted.til")
     rs_interpreted.push("src/test/enums.til") // TODO FIX: enum payload incomplete type (Entity, GameState), enum_to_str undefined
     rs_interpreted.push("src/test/errors.til") // compiles but runtime: loc() path differs (src/core vs src/test)
     rs_interpreted.push("src/test/forward_declarations.til") // TODO FIX: enum variant constructors called as functions not struct init
+    rs_interpreted.push("src/test/introspections.til") // TODO FIX: Vec field (self->type_names) needs pointer not value
     rs_interpreted.push("src/test/lists.til") // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
     rs_interpreted.push("src/test/maps.til") // TODO FIX: Str passed to Dynamic param (Map_position expects void*)
+    rs_interpreted.push("src/test/memcmp_str_interpreted.til")
+    rs_interpreted.push("src/test/modes.til") // TODO FIX: Str range comparisons (<=), variadic and() with no args
+    rs_interpreted.push("src/test/precomp_throw.til") // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: interpreter bug "Missing arena index for return value 'false'"
     rs_interpreted.push("src/test/sets.til") // TODO FIX: or() called with no args
     rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: Str range comparisons (<=) not supported in C
     rs_interpreted.push("src/test/test_parser.til") // TODO FIX: enum payload incomplete type (Declaration), Str range comparisons
+    rs_interpreted.push("src/test/todo.til") // permanent TODO, design notes for future features
     rs_interpreted.push("src/test/ufcs.til") // TODO FIX: throwing func (Vec.new) in struct initializer expression
     rs_interpreted.push("src/test/vecs.til") // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
-    // precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
-    rs_interpreted.push("src/test/precomp_throw.til")
 
     // rs_interpreted.push("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds
     // rs_interpreted.push("src/test/undefined.til")
@@ -698,18 +698,10 @@ main := proc(args: ..Str) {
     // rs_interpreted.push("src/test/enums_payload.til") // TODO FIX: enum constructors emitted as function calls not struct init
     // rs_interpreted.push("src/test/switch_simple.til") // TODO FIX: enum constructors as func calls, case payload var undeclared
 
-    // next level:
-    // eval.til moved to rs_common
-    // flow.til moved to rs_common (const folding fixed switch case expressions)
-    rs_interpreted.push("src/test/introspections.til") // TODO FIX: Vec field (self->type_names) needs pointer not value
-    rs_interpreted.push("src/test/modes.til") // TODO FIX: Str range comparisons (<=), variadic and() with no args
-    rs_interpreted.push("src/test/todo.til") // permanent TODO, design notes for future features
-
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
     rs_interpreted.push("src/self/interpreter.til") // TODO FIX: symbols already declared (double import?)
-    // TODO: til.til can be unified to rs_common once til.til compiles without C errors
-    rs_interpreted.push("src/til.til") // TODO FIX: enum payload incomplete type, Str range comparisons, and() with no args
+    rs_interpreted.push("src/til.til") // TODO: til.til can be unified to rs_common once til.til compiles without C errors FIX: enum payload incomplete type, Str range comparisons, and() with no args
     rs_interpreted.push("src/til.til:version") // Test version command
     // rs_interpreted.push("src/test/builders.til") // TODO FIX: compilation times out (too large or infinite loop)
 
