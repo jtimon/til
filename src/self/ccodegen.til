@@ -3274,7 +3274,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             // Extract payload into binding variable
             result = result.concat(body_indent)
             result = result.concat("__auto_type ")
-            result = result.concat(pattern_info.binding_var)
+            result = result.concat(til_name(pattern_info.binding_var))
             result = result.concat(" = ")
             result = result.concat(switch_var)
             result = result.concat(".payload.")
@@ -3360,8 +3360,53 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             result = result.concat(") {\n")
         }
 
-        // Emit case body
-        result = emit_body(case_body, result, add(indent, 1), ctx, context)
+        // Emit case body - with scope for pattern bindings
+        switch case_pattern.node_type {
+        case NodeType.Pattern(pattern_info):
+            // For pattern bindings, we need to declare the binding variable in scope
+            // so that get_value_type can find it during body emission
+            info := parse_pattern_variant_name(pattern_info.variant_name)
+
+            // Look up the payload type from the enum definition
+            mut payload_type := ValueType.TCustom("")
+            mut have_payload_type := false
+            switch switch_type {
+            case ValueType.TCustom(enum_name):
+                mut found_enum := false
+                enum_def := context.scope_stack.lookup_enum(enum_name)
+                found_enum = true
+                catch (err: KeyNotFoundError) { }
+                if found_enum {
+                    // Found the enum, look up the variant's payload type (Ptr to ValueType, NULL = None)
+                    mut payload_ptr := Ptr()
+                    enum_def.enum_map.get(info.variant_name, payload_ptr)
+                    catch (err: KeyNotFoundError) { }
+                    // Check if payload exists (not NULL)
+                    if not(NULL.eq(payload_ptr.data)) {
+                        memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
+                        have_payload_type = true
+                    }
+                }
+            case:
+            }
+
+            if have_payload_type {
+                // Push a new scope and declare the binding variable
+                context.scope_stack.push(ScopeType.Block)
+                sym_info := SymbolInfo(
+                    symbol_type = SymbolType.Variable,
+                    value_type = payload_type,
+                    is_mutable = false,
+                )
+                context.scope_stack.declare_symbol(pattern_info.binding_var, sym_info)
+                result = emit_body(case_body, result, add(indent, 1), ctx, context)
+                _ := context.scope_stack.pop()
+            } else {
+                result = emit_body(case_body, result, add(indent, 1), ctx, context)
+            }
+        case:
+            result = emit_body(case_body, result, add(indent, 1), ctx, context)
+        }
 
         case_idx = add(case_idx, 1)
     }
@@ -3380,6 +3425,8 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         result = result.concat(indent_str)
         result = result.concat("}\n")
     }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     return result
 }
@@ -7496,8 +7543,44 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
         // Regular function call
         // func_name already has underscores from get_func_name_string
+
+        // Check if this is an enum variant constructor (Type_Variant)
+        // Need to emit til_Type_make_Variant instead of til_Type_Variant
+        mut is_enum_constructor := false
+        mut enum_type_name := ""
+        mut enum_variant_name := ""
+        if func_name.contains("_") {
+            // Check if Type_Variant where Type is an enum and Variant is a variant
+            parts := func_name.split("_")
+            if parts.len().gteq(2) {
+                mut type_name := ""
+                parts.get(0, type_name)
+                mut variant_name := ""
+                parts.get(1, variant_name)
+                mut found_enum := false
+                enum_def := context.scope_stack.lookup_enum(type_name)
+                found_enum = true
+                catch (err: KeyNotFoundError) { }
+                if found_enum {
+                    // Check if this variant exists in the enum
+                    if enum_def.enum_map.contains_key(variant_name) {
+                        is_enum_constructor = true
+                        enum_type_name = type_name
+                        enum_variant_name = variant_name
+                    }
+                }
+            }
+        }
+
         result = result.concat(TIL_PREFIX)
-        result = result.concat(func_name)
+        if is_enum_constructor {
+            // Emit til_Type_make_Variant
+            result = result.concat(enum_type_name)
+            result = result.concat("_make_")
+            result = result.concat(enum_variant_name)
+        } else {
+            result = result.concat(func_name)
+        }
         result = result.concat("(")
 
         // Check if this is a variadic function
@@ -7626,6 +7709,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         return result
     }
 
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
 }

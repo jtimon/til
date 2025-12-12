@@ -827,6 +827,22 @@ fn hoist_for_dynamic_params(
             NodeType::LLiteral(Literal::Str(_)) => format!("{}Str", TIL_PREFIX),
             NodeType::LLiteral(Literal::Number(_)) => "int64_t".to_string(),
             NodeType::LLiteral(Literal::List(_)) => "int64_t".to_string(), // TODO: proper list type
+            NodeType::Identifier(type_name) if !arg.params.is_empty() => {
+                // Type-qualified identifier like ExampleEnum.A (enum constructor)
+                // Check if this is an enum constructor
+                if let Some(NodeType::Identifier(variant_name)) = arg.params.first().map(|p| &p.node_type) {
+                    if context.scope_stack.lookup_enum(type_name)
+                        .map(|e| e.enum_map.contains_key(variant_name))
+                        .unwrap_or(false) {
+                        // Enum constructor returns the enum type
+                        til_name(type_name)
+                    } else {
+                        "int64_t".to_string()
+                    }
+                } else {
+                    "int64_t".to_string()
+                }
+            }
             NodeType::FCall => {
                 // For function calls, try to determine return type
                 if let Some((_func_name, _throw_types, return_type)) = check_throwing_fcall(arg, ctx, context) {
@@ -840,6 +856,22 @@ fn hoist_for_dynamic_params(
                     if let Some(fd) = lookup_func_by_name(context, &func_name) {
                         if let Some(ret_type) = fd.return_types.first() {
                             til_type_to_c(ret_type).unwrap_or_else(|| "int64_t".to_string())
+                        } else {
+                            "int64_t".to_string()
+                        }
+                    } else if func_name.contains('_') {
+                        // Check if this is an enum constructor (Type_Variant)
+                        let parts: Vec<&str> = func_name.splitn(2, '_').collect();
+                        if parts.len() == 2 {
+                            let type_name = parts[0];
+                            if context.scope_stack.lookup_enum(type_name)
+                                .map(|e| e.enum_map.contains_key(parts[1]))
+                                .unwrap_or(false) {
+                                // Enum constructor returns the enum type
+                                til_name(type_name)
+                            } else {
+                                "int64_t".to_string()
+                            }
                         } else {
                             "int64_t".to_string()
                         }
@@ -5016,7 +5048,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 // Extract payload into binding variable
                 output.push_str(&body_indent);
                 output.push_str("__auto_type ");
-                output.push_str(&pattern_info.binding_var);
+                output.push_str(&til_name(&pattern_info.binding_var));
                 output.push_str(" = ");
                 output.push_str(&switch_var);
                 output.push_str(".payload.");
@@ -5101,8 +5133,41 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         }
 
         // Emit case body
+        // For pattern matching with binding variables, we need to add the binding to scope
+        // so that get_value_type can resolve it during body emission
         if let Some(body) = case_body {
-            emit_body(body, output, indent + 1, ctx, context)?;
+            if let NodeType::Pattern(pattern_info) = &case_pattern.node_type {
+                // Get the payload type from the enum definition
+                let info = parse_pattern_variant_name(&pattern_info.variant_name);
+                let payload_type_opt: Option<ValueType> = if let Some(ValueType::TCustom(ref enum_name)) = switch_type {
+                    context.scope_stack.lookup_enum(enum_name)
+                        .and_then(|enum_def| enum_def.enum_map.get(&info.variant_name).cloned())
+                        .flatten()
+                } else {
+                    None
+                };
+
+                if let Some(payload_type) = payload_type_opt {
+                    // Push scope and declare binding variable
+                    context.scope_stack.push(ScopeType::Block);
+                    context.scope_stack.declare_symbol(
+                        pattern_info.binding_var.clone(),
+                        SymbolInfo {
+                            value_type: payload_type,
+                            is_mut: false,
+                            is_copy: false,
+                            is_own: false,
+                            is_comptime_const: false,
+                        }
+                    );
+                    emit_body(body, output, indent + 1, ctx, context)?;
+                    context.scope_stack.pop().ok();
+                } else {
+                    emit_body(body, output, indent + 1, ctx, context)?;
+                }
+            } else {
+                emit_body(body, output, indent + 1, ctx, context)?;
+            }
         }
     }
 
@@ -5255,7 +5320,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             Ok(())
         },
         // enum_to_str(e) - get enum variant name as string
-        // Emits call to til_EnumType_to_str(e) which was generated during enum emission
+        // Emits call to til_EnumType_to_str(&e) which was generated during enum emission
+        // The _to_str function takes a pointer because enum_to_str(e: Dynamic) passes by reference
         "enum_to_str" => {
             if expr.params.len() < 2 {
                 return Err("ccodegen: enum_to_str requires 1 argument".to_string());
@@ -5268,7 +5334,16 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if context.scope_stack.lookup_enum(&enum_type_name).is_some() {
                     output.push_str(&til_name(&enum_type_name));
                     output.push_str("_to_str(");
-                    emit_expr(arg, output, 0, ctx, context)?;
+                    // Check if the argument was already hoisted (hoisted exprs include & for Dynamic params)
+                    let arg_addr = arg as *const Expr as usize;
+                    if ctx.hoisted_exprs.contains_key(&arg_addr) {
+                        // Already hoisted with & prefix
+                        emit_expr(arg, output, 0, ctx, context)?;
+                    } else {
+                        // Need to add & for pointer parameter
+                        output.push_str("&");
+                        emit_expr(arg, output, 0, ctx, context)?;
+                    }
                     output.push_str(")");
                     Ok(())
                 } else {
@@ -5500,8 +5575,34 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 None
             };
 
+            // Check if this is an enum variant constructor (Type.Variant or Type_Variant)
+            // Need to emit til_Type_make_Variant instead of til_Type_Variant
+            let is_enum_constructor = if func_name.contains('_') {
+                // Check if Type_Variant where Type is an enum and Variant is a variant
+                let parts: Vec<&str> = func_name.splitn(2, '_').collect();
+                if parts.len() == 2 {
+                    let type_name = parts[0];
+                    let variant_name = parts[1];
+                    context.scope_stack.lookup_enum(type_name)
+                        .map(|e| e.enum_map.contains_key(variant_name))
+                        .unwrap_or(false)
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
             output.push_str(TIL_PREFIX);
-            output.push_str(&func_name);
+            if is_enum_constructor {
+                // Emit til_Type_make_Variant
+                let parts: Vec<&str> = func_name.splitn(2, '_').collect();
+                output.push_str(parts[0]);
+                output.push_str("_make_");
+                output.push_str(parts[1]);
+            } else {
+                output.push_str(&func_name);
+            }
             output.push_str("(");
 
             // Check if this is a variadic function call

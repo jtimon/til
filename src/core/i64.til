@@ -91,6 +91,26 @@ I64 := struct {
         self = sub(self, 1)
     }
 
+    gteq := func(a: I64, b: I64) returns Bool {
+        if gt(a, b) {
+            return true
+        }
+        if lt(a, b) {
+            return false
+        }
+        return true  // equal
+    }
+
+    lteq := func(a: I64, b: I64) returns Bool {
+        if lt(a, b) {
+            return true
+        }
+        if gt(a, b) {
+            return false
+        }
+        return true  // equal
+    }
+
     // TODO: implement operators and allow operator overload
     __add__ := func(self: I64, other: I64) returns I64 {
         return add(self, other)
