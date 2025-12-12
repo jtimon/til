@@ -155,6 +155,7 @@ NodeType := enum {
     Identifier: Str,
     Declaration: Declaration,
     Assignment: Str,
+    NamedArg: Str,  // Named argument in function call: name=value
     FuncDef: SFuncDef,
     EnumDef: SEnumDef,
     StructDef: SStructDef,
@@ -167,7 +168,6 @@ NodeType := enum {
     DefaultCase,
     Range,
     Pattern: PatternInfo,  // Pattern matching for switch case with payload extraction
-    NamedArg: Str,  // Named argument in function call: name=value
 }
 
 Expr := struct {
@@ -1439,8 +1439,8 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
 
     // Create: loop_var.inc()
     mut inc_ident_params := Vec.new(Expr)
-    inc_expr := Expr.new_parse(NodeType.Identifier("inc"), initial_token, Vec.new(Expr))
-    inc_ident_params.push(inc_expr)
+    inc_method_ident := Expr.new_parse(NodeType.Identifier("inc"), initial_token, Vec.new(Expr))
+    inc_ident_params.push(inc_method_ident)
     mut inc_params := Vec.new(Expr)
     loop_var_inc_expr := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token, inc_ident_params)
     inc_params.push(loop_var_inc_expr)
