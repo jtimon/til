@@ -158,11 +158,12 @@ build := proc(path: Str) returns Str throws Str {
     mut main_ast := main_result.ast
     mut main_mode := main_result.file_mode
 
-    // Create context with the mode from the main file
-    mut context := Context.new(path, main_mode.name)
+    // Create context with "lib" mode first (like interpreter does at interpreter.rs:2713)
+    // This ensures core.til is typechecked with lib mode, not the main file's mode
+    mut context := Context.new(path, "lib")
 
-    // Auto-import core.til first (like the interpreter does at interpreter.rs:2610-2614)
-    // This runs init + typer on core.til and all its imports
+    // Auto-import core.til first (like the interpreter does at interpreter.rs:2714-2717)
+    // This runs init + typer on core.til and all its imports with lib mode
     mut core_path := "src/core/core.til"
     if not(path.eq(core_path)) {
         mut core_result := parse_file(core_path)
@@ -193,6 +194,9 @@ build := proc(path: Str) returns Str throws Str {
         _ := context.imports_init_done.insert(core_path)
         _ := context.imports_typer_done.insert(core_path)
     }
+
+    // Now set the mode to the main file's mode (like interpreter does at interpreter.rs:2610-2611)
+    context.mode_def = main_mode
 
     // Process mode-specific imports (like the interpreter does at interpreter.rs:2515-2541)
     mut mode_import_idx := 0

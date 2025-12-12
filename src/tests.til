@@ -534,6 +534,7 @@ main := proc(args: ..Str) {
     // Ideally we should benchmark against at least bash, python, roc, Rust, C and HolyC for this kind of mode, both interpreted and compiled
     rs_common.push(TestEntry(path="src/examples/hello_cli.til"))
     rs_common.push(TestEntry(path="src/examples/hello_lib.til"))
+    rs_common.push(TestEntry(path="src/examples/hello_pure.til"))
     rs_common.push(TestEntry(path="src/examples/hello_script.til"))
     rs_common.push(TestEntry(path="src/examples/hello_test.til"))
     rs_common.push(TestEntry(path="src/test/arithmetics.til"))
@@ -583,7 +584,6 @@ main := proc(args: ..Str) {
 
     mut rs_interpreted := Vec.new(TestEntry)
 
-    rs_interpreted.push(TestEntry(path="src/examples/hello_pure.til")) // TODO FIX: mode pure forbids procs but core.til has procs
     rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: read-only parameter assignment, mut Str* assignment
     rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: gcc: enum constructors emitted as function calls, incomplete enum types, til_bbb undeclared
     rs_interpreted.push(TestEntry(path="src/test/forward_declarations.til")) // TODO FIX: gcc: enum constructors emitted as function calls

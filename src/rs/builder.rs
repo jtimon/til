@@ -123,11 +123,12 @@ pub fn build(path: &str) -> Result<(), String> {
     // Parse main file
     let (main_ast, main_mode) = parse_file(path)?;
 
-    // Create context with the mode from the main file
-    let mut context = Context::new(&path.to_string(), &main_mode.name)?;
+    // Create context with "lib" mode first (like interpreter does at interpreter.rs:2713)
+    // This ensures core.til is typechecked with lib mode, not the main file's mode
+    let mut context = Context::new(&path.to_string(), "lib")?;
 
-    // Auto-import core.til first (like the interpreter does at interpreter.rs:2610-2614)
-    // This runs init + typer on core.til and all its imports
+    // Auto-import core.til first (like the interpreter does at interpreter.rs:2714-2717)
+    // This runs init + typer on core.til and all its imports with lib mode
     let core_path = "src/core/core.til";
     if path != core_path {
         let (core_ast, _) = parse_file(core_path)?;
@@ -148,6 +149,9 @@ pub fn build(path: &str) -> Result<(), String> {
         context.imports_init_done.insert(core_path.to_string());
         context.imports_typer_done.insert(core_path.to_string());
     }
+
+    // Now set the mode to the main file's mode (like interpreter does at interpreter.rs:2610-2611)
+    context.mode_def = main_mode;
 
     // Process mode-specific imports (like the interpreter does at interpreter.rs:2515-2541)
     for import_str in context.mode_def.imports.clone() {
