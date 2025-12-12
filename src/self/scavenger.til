@@ -330,13 +330,20 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
                     ci = ci.add(1)
                 }
             } else {
-                // Check if it's an enum constructor
+                // Check if this is an enum constructor (e.g., Color.Name)
                 mut found_enum := false
-                mut enum_def := SEnumDef()
-                enum_def = context.scope_stack.lookup_enum(func_name)
-                found_enum = true
-                catch (err: KeyNotFoundError) {
-                    // Not an enum
+                mut dot_pos := func_name.find(".")
+                if dot_pos.gt(0) {
+                    mut enum_name := func_name.get_substr(0, dot_pos)
+                    mut enum_def := SEnumDef()
+                    enum_def = context.scope_stack.lookup_enum(enum_name)
+                    found_enum = true
+                    catch (err: KeyNotFoundError) {
+                        // Not an enum
+                    }
+                    catch (err: IndexOutOfBoundsError) {
+                        // get_substr failed
+                    }
                 }
 
                 if not(found_enum) {
@@ -370,6 +377,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
+    catch (err: KeyNotFoundError) { throw err.msg }
 
     return reachable
 }

@@ -225,9 +225,14 @@ fn compute_reachable(
             for called_func in called {
                 mark_reachable(called_func, &mut reachable, &mut worklist);
             }
-        } else if context.scope_stack.lookup_enum(&func_name).is_some() {
-            // Enum constructor - no body to walk
         } else {
+            // Check if this is an enum constructor (e.g., Color.Name)
+            let parts: Vec<&str> = func_name.split('.').collect();
+            if parts.len() == 2 && context.scope_stack.lookup_enum(parts[0]).is_some() {
+                // Enum constructor - no body to walk
+                continue;
+            }
+
             return Err(e.lang_error(&context.path, "scavenger", &format!("no body found for '{}'", func_name)));
         }
     }
