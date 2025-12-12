@@ -84,12 +84,10 @@ string_from_context := proc(context: Context, id: Str, e: Expr) returns Str thro
 
     // Read string bytes from Arena and convert to String
     mut result := ""
-    mut i := 0
-    while i.lt(length) {
+    for i in 0..length {
         mut byte := U8.from_i64(0)
         arena.memory.get(c_string_ptr.add(i), byte)
         result = format(result, byte_to_str(byte))
-        i = i.add(1)
     }
     catch (err: AllocError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -135,10 +133,8 @@ func_malloc := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 
     if size.gt(0) {
         // extend arena by pushing bytes
-        mut j := 0
-        while j.lt(size) {
+        for _ in 0..size {
             arena.memory.push(U8.from_i64(0))
-            j = j.add(1)
         }
     }
     catch (err: AllocError) { throw err.msg }
@@ -178,10 +174,8 @@ func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str
         throw e.error(context.path, "eval", format("memset out of bounds: dest=", dest.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
 
-    mut i := 0
-    while i.lt(size) {
+    for i in 0..size {
         arena.memory.set(dest.add(i), value)
-        i = i.add(1)
     }
 
     return EvalResult.new("")
@@ -206,12 +200,10 @@ func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str
         throw e.error(context.path, "eval", format("memcpy out of bounds: src=", src.to_str(), " dest=", dest.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
 
-    mut i := 0
-    while i.lt(size) {
+    for i in 0..size {
         mut src_byte := U8.from_i64(0)
         arena.memory.get(src.add(i), src_byte)
         arena.memory.set(dest.add(i), src_byte)
-        i = i.add(1)
     }
 
     catch (err: U8_OverflowError) { throw err.msg }
@@ -238,8 +230,7 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     }
 
     // Compare bytes
-    mut i := 0
-    while i.lt(size) {
+    for i in 0..size {
         mut byte1 := U8.from_i64(0)
         mut byte2 := U8.from_i64(0)
         arena.memory.get(ptr1.add(i), byte1)
@@ -249,7 +240,6 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
         } else if U8.to_i64(byte1).gt(U8.to_i64(byte2)) {
             return EvalResult.new("1")
         }
-        i = i.add(1)
     }
 
     // All bytes equal

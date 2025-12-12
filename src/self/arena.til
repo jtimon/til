@@ -690,10 +690,8 @@ Arena := struct {
 
         // Allocate new memory
         new_offset := arena.memory.len()
-        mut ri := 0
-        while ri.lt(struct_size) {
+        for _ in 0..struct_size {
             arena.memory.push(0)
-            ri = add(ri, 1)
         }
 
         // memcpy from template
@@ -731,10 +729,8 @@ Arena := struct {
 
         // Allocate new memory
         new_offset := arena.memory.len()
-        mut ri := 0
-        while ri.lt(struct_size) {
+        for _ in 0..struct_size {
             arena.memory.push(0)
-            ri = add(ri, 1)
         }
 
         // memcpy from template

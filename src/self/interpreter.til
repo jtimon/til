@@ -20,12 +20,10 @@ RETURN_INSTANCE_NAME := "___temp_return_val_"
 i64_to_le_bytes := func(val: I64) returns Vec throws AllocError {
     mut bytes := Vec.new(U8)
     // Extract 8 bytes in little-endian order using bit shifts
-    mut i := 0
-    while i.lt(8) {
+    for i in 0..8 {
         mut byte_val : U8 = 0
         memcpy(to_ptr(byte_val), add(to_ptr(val), i), 1)
         bytes.push(byte_val)
-        i = i.add(1)
     }
     return bytes
 }
@@ -33,10 +31,8 @@ i64_to_le_bytes := func(val: I64) returns Vec throws AllocError {
 /// Copy bytes from arena memory into a Vec<U8>
 arena_memory_slice := func(arena: Arena, offset: I64, size: I64) returns Vec throws AllocError {
     mut bytes := Vec.new(U8)
-    mut i := 0
-    while i.lt(size) {
+    for _ in 0..size {
         bytes.push(0)
-        i = i.add(1)
     }
     memcpy(bytes.ptr, add(arena.memory.ptr, offset), size)
     return bytes
@@ -118,8 +114,7 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
     }
 
     mut defaults := Map.new(Str, Str)
-    mut i := 0
-    while i.lt(struct_def.members.len()) {
+    for i in 0..struct_def.members.len() {
         mut decl := Declaration()
         struct_def.members.get(i, decl)
         if decl.is_mut {
@@ -185,14 +180,12 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                             nested = eval_struct_defaults(ctx, type_name, e)
                             // Iterate nested map and insert with prefix
                             mut keys := nested.keys
-                            mut j := 0
-                            while j.lt(nested.len()) {
+                            for j in 0..nested.len() {
                                 mut k := ""
                                 keys.get(j, k)
                                 mut v := ""
                                 nested.get(k, v)
                                 defaults.insert(format(decl.name, ".", k), v)
-                                j = j.add(1)
                             }
                             catch (err: KeyNotFoundError) {
                                 // struct not found, skip
@@ -202,7 +195,6 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                 }
             }
         }
-        i = i.add(1)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
@@ -392,8 +384,7 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                     // Check if this is a field access (has params that are identifiers)
                     if to_switch.params.len().gt(0) {
                         enum_var_name = name
-                        mut i := 0
-                        while i.lt(to_switch.params.len()) {
+                        for i in 0..to_switch.params.len() {
                             mut param := Expr()
                             to_switch.params.get(i, param)
                             switch param.node_type {
@@ -402,7 +393,6 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                             case:
                                 // not an identifier field access
                             }
-                            i = i.add(1)
                         }
                     } else {
                         enum_var_name = name
@@ -567,8 +557,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
             // Check if this is a struct literal (has named args) or default constructor
             mut has_named_args := false
-            mut i := 1
-            while i.lt(e.params.len()) {
+            for i in 1..e.params.len() {
                 mut arg := Expr()
                 e.params.get(i, arg)
                 switch arg.node_type {
@@ -576,7 +565,6 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                     has_named_args = true
                 case:
                 }
-                i = i.add(1)
             }
 
             if has_named_args {
@@ -593,8 +581,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                 insert_struct_instance(context, temp_name.clone(), name, e)
 
                 // Process named arguments to override field values
-                mut j := 1
-                while j.lt(e.params.len()) {
+                for j in 1..e.params.len() {
                     mut arg := Expr()
                     e.params.get(j, arg)
                     mut field_name := ""
@@ -611,15 +598,13 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                         // Find the field type in the struct definition
                         mut field_type := ValueType.TCustom("")
                         mut found_field := false
-                        mut k := 0
-                        while k.lt(struct_members.len()) {
+                        for k in 0..struct_members.len() {
                             mut member := Declaration()
                             struct_members.get(k, member)
                             if member.name.eq(field_name) {
                                 field_type = member.value_type
                                 found_field = true
                             }
-                            k = k.add(1)
                         }
                         if not(found_field) {
                             throw arg.error(context.path, "eval", format("Field '", field_name, "' not found in struct '", name, "'"))
@@ -658,8 +643,6 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                             throw arg.error(context.path, "eval", format("Unsupported field type for field '", field_name, "'"))
                         }
                     } // end if is_named_arg
-
-                    j = j.add(1)
                 }
 
                 return EvalResult.new(temp_name)
@@ -895,12 +878,10 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                 if not(NULL.eq(enum_val.payload.data)) {
                                     mut enum_payload_vec := Vec.new(U8)
                                     memcpy(to_ptr(enum_payload_vec), enum_val.payload.data, size_of(Vec))
-                                    mut pi := 0
-                                    while pi.lt(enum_payload_vec.len()) {
+                                    for pi in 0..enum_payload_vec.len() {
                                         mut pb := U8.from_i64(0)
                                         enum_payload_vec.get(pi, pb)
                                         enum_bytes.push(pb)
-                                        pi = pi.add(1)
                                     }
                                 }
 
@@ -1159,8 +1140,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             context.scope_stack.declare_struct(declaration.name, struct_def.clone())
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
             // Process struct members with default values
-            mut mi := 0
-            while mi.lt(struct_def.members.len()) {
+            for mi in 0..struct_def.members.len() {
                 mut member_decl := Declaration()
                 struct_def.members.get(mi, member_decl)
                 if not(member_decl.is_mut) {
@@ -1231,7 +1211,6 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
 
                     context.scope_stack.declare_symbol(combined_name, SymbolInfo.new(member_decl.value_type, member_decl.is_mut, member_decl.is_copy, member_decl.is_own))
                 }
-                mi = mi.add(1)
             }
             // Eagerly create default instance template for this struct type
             _ := create_default_instance(context, declaration.name, e)
@@ -1445,8 +1424,7 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
         mut current_name := name
         mut current_type := ValueType.TCustom(custom_type_name)
 
-        mut pi := 0
-        while pi.lt(e.params.len()) {
+        for pi in 0..e.params.len() {
             mut inner_e := Expr()
             e.params.get(pi, inner_e)
             switch inner_e.node_type {
@@ -1481,7 +1459,6 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
             case:
                 throw inner_e.lang_error(context.path, "eval", format("Expected identifier, found ", enum_to_str(inner_e.node_type)))
             }
-            pi = pi.add(1)
         }
 
         if e.params.len().eq(0) {
@@ -1593,11 +1570,10 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
 }
 
 eval_body := proc(mut context: Context, statements: Vec) returns EvalResult throws Str {
-    mut i := 0
     mut pending_throw := EvalResult()
     mut has_pending_throw := false
 
-    while i.lt(statements.len()) {
+    for i in 0..statements.len() {
         mut stmt := Expr()
         statements.get(i, stmt)
 
@@ -1662,18 +1638,15 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                 // Build list of keys with prefix by iterating map.keys Vec
                                 mut keys_to_copy := Vec.new(Str)
                                 mut lf2_arena_keys := lf2.arena_index.keys
-                                mut ai := 0
-                                while ai.lt(lf2.arena_index.len()) {
+                                for ai in 0..lf2.arena_index.len() {
                                     mut akey := ""
                                     lf2_arena_keys.get(ai, akey)
                                     if akey.starts_with(source_prefix) {
                                         keys_to_copy.push(akey.clone())
                                     }
-                                    ai = ai.add(1)
                                 }
                                 catch (err_alloc: AllocError) { }
-                                mut ki := 0
-                                while ki.lt(keys_to_copy.len()) {
+                                for ki in 0..keys_to_copy.len() {
                                     mut src_key := ""
                                     keys_to_copy.get(ki, src_key)
                                     mut src_offset := 0
@@ -1691,24 +1664,20 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                         lf3.arena_index.insert(dest_key, src_offset)
                                         context.scope_stack.frames.set(lf3_idx, lf3)
                                     }
-                                    ki = ki.add(1)
                                 }
 
                                 // Also copy symbol mappings for all fields - build list with prefix
                                 mut symbol_keys_to_copy := Vec.new(Str)
                                 mut lf2_sym_keys := lf2.symbols.keys
-                                mut sai := 0
-                                while sai.lt(lf2.symbols.len()) {
+                                for sai in 0..lf2.symbols.len() {
                                     mut skey := ""
                                     lf2_sym_keys.get(sai, skey)
                                     if skey.starts_with(source_prefix) {
                                         symbol_keys_to_copy.push(skey.clone())
                                     }
-                                    sai = sai.add(1)
                                 }
                                 catch (err_alloc2: AllocError) { }
-                                mut si := 0
-                                while si.lt(symbol_keys_to_copy.len()) {
+                                for si in 0..symbol_keys_to_copy.len() {
                                     mut sym_src_key := ""
                                     symbol_keys_to_copy.get(si, sym_src_key)
                                     mut src_symbol := SymbolInfo()
@@ -1722,7 +1691,6 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                         sym_dest_key := sym_src_key.replace(source_prefix, dest_prefix)
                                         context.scope_stack.declare_symbol(sym_dest_key, src_symbol.clone())
                                     }
-                                    si = si.add(1)
                                 }
                             } else {
                                 // Fallback: try to map fields from the thrown value or type
@@ -1754,8 +1722,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                             context.scope_stack.frames.set(lf4_idx, lf4)
                                         }
 
-                                        mut fi := 0
-                                        while fi.lt(struct_def.members.len()) {
+                                        for fi in 0..struct_def.members.len() {
                                             mut field_decl := Declaration()
                                             struct_def.members.get(fi, field_decl)
                                             src_instance_field := format(source_name, ".", field_decl.name)
@@ -1783,7 +1750,6 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                                 lf5.arena_index.insert(dst_field, field_offset)
                                                 context.scope_stack.frames.set(lf5_idx, lf5)
                                             }
-                                            fi = fi.add(1)
                                         }
                                     }
                                 }
@@ -1803,14 +1769,12 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                             has_cleanup_struct = true
                             catch (err: KeyNotFoundError) { }
                             if has_cleanup_struct {
-                                mut cfi := 0
-                                while cfi.lt(cleanup_struct_def.members.len()) {
+                                for cfi in 0..cleanup_struct_def.members.len() {
                                     mut cleanup_field_decl := Declaration()
                                     cleanup_struct_def.members.get(cfi, cleanup_field_decl)
                                     combined_name := format(var_name, ".", cleanup_field_decl.name)
                                     _ := context.scope_stack.remove_symbol(combined_name)
                                     _ := context.scope_stack.remove_var(combined_name)
-                                    cfi = cfi.add(1)
                                 }
                             }
 
@@ -1844,8 +1808,6 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                 }
             }
         }
-
-        i = i.add(1)
     }
 
     if has_pending_throw {
@@ -1929,8 +1891,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             case ValueType.TMulti(multi_value_type):
                 // Handle variadic args
                 mut values := Vec.new(Str)
-                mut vi := param_index
-                while vi.lt(e.params.len()) {
+                for vi in param_index..e.params.len() {
                     mut expr := Expr()
                     e.params.get(vi, expr)
                     result := eval_expr(context, expr)
@@ -1938,7 +1899,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         return result
                     }
                     values.push(result.value)
-                    vi = vi.add(1)
                 }
 
                 array_type_name := "Array"
@@ -2089,19 +2049,16 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             // Build list of keys to transfer by iterating map.keys Vec
                             mut keys_to_transfer := Vec.new(Str)
                             mut arena_keys := lf6.arena_index.keys
-                            mut ki := 0
-                            while ki.lt(lf6.arena_index.len()) {
+                            for ki in 0..lf6.arena_index.len() {
                                 mut key := ""
                                 arena_keys.get(ki, key)
                                 if key.starts_with(prefix) {
                                     keys_to_transfer.push(key.clone())
                                 }
-                                ki = ki.add(1)
                             }
 
                             // Now process the matching keys
-                            mut ki2 := 0
-                            while ki2.lt(keys_to_transfer.len()) {
+                            for ki2 in 0..keys_to_transfer.len() {
                                 mut key := ""
                                 keys_to_transfer.get(ki2, key)
                                 mut field_offset := 0
@@ -2117,19 +2074,16 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     function_frame.symbols.insert(new_key, field_sym.clone())
                                     catch (err_sym: KeyNotFoundError) { }
                                 }
-                                ki2 = ki2.add(1)
                             }
 
                             // Remove from caller's context (ownership transferred)
                             _ := context.scope_stack.remove_var(source_var)
                             _ := context.scope_stack.remove_symbol(source_var)
-                            mut ki3 := 0
-                            while ki3.lt(keys_to_transfer.len()) {
+                            for ki3 in 0..keys_to_transfer.len() {
                                 mut key := ""
                                 keys_to_transfer.get(ki3, key)
                                 _ := context.scope_stack.remove_var(key)
                                 _ := context.scope_stack.remove_symbol(key)
-                                ki3 = ki3.add(1)
                             }
 
                             param_index = param_index.add(1)
@@ -2185,14 +2139,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         replacement_prefix := format(arg.name, ".")
                                         mut field_offsets_to_copy := Vec.new(ArenaMapping)
                                         mut field_symbols_to_copy := Vec.new(SymbolEntry)
-                                        mut fi := 0
-                                        while fi.lt(context.scope_stack.frames.len()) {
+                                        for fi in 0..context.scope_stack.frames.len() {
                                             mut caller_frame := ScopeFrame()
                                             context.scope_stack.frames.get(fi, caller_frame)
                                             // Copy arena_index entries
                                             arena_keys := caller_frame.arena_index.keys
-                                            mut aki := 0
-                                            while aki.lt(arena_keys.len()) {
+                                            for aki in 0..arena_keys.len() {
                                                 mut key := ""
                                                 arena_keys.get(aki, key)
                                                 if key.starts_with(prefix) {
@@ -2204,12 +2156,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                     mapping.offset = value
                                                     field_offsets_to_copy.push(mapping)
                                                 }
-                                                aki = aki.add(1)
                                             }
                                             // Copy symbols entries
                                             symbol_keys := caller_frame.symbols.keys
-                                            mut ski := 0
-                                            while ski.lt(symbol_keys.len()) {
+                                            for ski in 0..symbol_keys.len() {
                                                 mut skey := ""
                                                 symbol_keys.get(ski, skey)
                                                 if skey.starts_with(prefix) {
@@ -2221,25 +2171,19 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                     entry.info = svalue.clone()
                                                     field_symbols_to_copy.push(entry)
                                                 }
-                                                ski = ski.add(1)
                                             }
-                                            fi = fi.add(1)
                                         }
                                         // Insert collected offsets
-                                        mut foi := 0
-                                        while foi.lt(field_offsets_to_copy.len()) {
+                                        for foi in 0..field_offsets_to_copy.len() {
                                             mut mapping := ArenaMapping()
                                             field_offsets_to_copy.get(foi, mapping)
                                             function_frame.arena_index.insert(mapping.name, mapping.offset)
-                                            foi = foi.add(1)
                                         }
                                         // Insert collected symbols
-                                        mut fsi := 0
-                                        while fsi.lt(field_symbols_to_copy.len()) {
+                                        for fsi in 0..field_symbols_to_copy.len() {
                                             mut entry := SymbolEntry()
                                             field_symbols_to_copy.get(fsi, entry)
                                             function_frame.symbols.insert(entry.name, entry.info)
-                                            fsi = fsi.add(1)
                                         }
 
                                         // Track that this parameter was passed by reference
@@ -2297,8 +2241,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     switch current_arg.node_type {
                                     case NodeType.Identifier(base_id):
                                         full_path = base_id.clone()
-                                        mut pi := 0
-                                        while pi.lt(current_arg.params.len()) {
+                                        for pi in 0..current_arg.params.len() {
                                             mut param := Expr()
                                             current_arg.params.get(pi, param)
                                             switch param.node_type {
@@ -2307,7 +2250,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             case:
                                                 throw e.lang_error(context.path, "eval", "Field access must use identifiers")
                                             }
-                                            pi = pi.add(1)
                                         }
                                         source_id = full_path
                                     case:
@@ -2345,8 +2287,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         prefix := format(id_, ".")
                                         last_frame := context.scope_stack.last_frame()
                                         arena_keys := last_frame.arena_index.keys
-                                        mut ki := 0
-                                        while ki.lt(arena_keys.len()) {
+                                        for ki in 0..arena_keys.len() {
                                             mut key := ""
                                             arena_keys.get(ki, key)
                                             mut should_copy := false
@@ -2363,7 +2304,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                 mapping.offset = offset_val
                                                 offsets.push(mapping)
                                             }
-                                            ki = ki.add(1)
                                         }
                                         saved_offsets.offsets = offsets
                                         saved_offsets.temp_src_key = format("__temp_src_", id_)
@@ -2406,14 +2346,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         replacement_prefix := format(arg.name, ".")
                                         mut field_offsets_to_copy := Vec.new(ArenaMapping)
                                         mut field_symbols_to_copy := Vec.new(SymbolEntry)
-                                        mut fi := 0
-                                        while fi.lt(context.scope_stack.frames.len()) {
+                                        for fi in 0..context.scope_stack.frames.len() {
                                             mut caller_frame := ScopeFrame()
                                             context.scope_stack.frames.get(fi, caller_frame)
                                             // Copy arena_index entries
                                             arena_keys := caller_frame.arena_index.keys
-                                            mut aki := 0
-                                            while aki.lt(arena_keys.len()) {
+                                            for aki in 0..arena_keys.len() {
                                                 mut key := ""
                                                 arena_keys.get(aki, key)
                                                 if key.starts_with(prefix) {
@@ -2425,12 +2363,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                     mapping.offset = value
                                                     field_offsets_to_copy.push(mapping)
                                                 }
-                                                aki = aki.add(1)
                                             }
                                             // Copy symbols entries
                                             symbol_keys := caller_frame.symbols.keys
-                                            mut ski := 0
-                                            while ski.lt(symbol_keys.len()) {
+                                            for ski in 0..symbol_keys.len() {
                                                 mut skey := ""
                                                 symbol_keys.get(ski, skey)
                                                 if skey.starts_with(prefix) {
@@ -2442,25 +2378,19 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                     entry.info = svalue.clone()
                                                     field_symbols_to_copy.push(entry)
                                                 }
-                                                ski = ski.add(1)
                                             }
-                                            fi = fi.add(1)
                                         }
                                         // Insert collected offsets
-                                        mut foi := 0
-                                        while foi.lt(field_offsets_to_copy.len()) {
+                                        for foi in 0..field_offsets_to_copy.len() {
                                             mut mapping := ArenaMapping()
                                             field_offsets_to_copy.get(foi, mapping)
                                             function_frame.arena_index.insert(mapping.name, mapping.offset)
-                                            foi = foi.add(1)
                                         }
                                         // Insert collected symbols
-                                        mut fsi := 0
-                                        while fsi.lt(field_symbols_to_copy.len()) {
+                                        for fsi in 0..field_symbols_to_copy.len() {
                                             mut entry := SymbolEntry()
                                             field_symbols_to_copy.get(fsi, entry)
                                             function_frame.symbols.insert(entry.name, entry.info)
-                                            fsi = fsi.add(1)
                                         }
 
                                         // Track that this was passed by reference
@@ -2475,8 +2405,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
                                         // If we saved offsets, restore them with temp keys for copy_fields
                                         if has_saved_offsets {
-                                            mut mi := 0
-                                            while mi.lt(saved_offsets.offsets.len()) {
+                                            for mi in 0..saved_offsets.offsets.len() {
                                                 mut mapping := ArenaMapping()
                                                 saved_offsets.offsets.get(mi, mapping)
                                                 mut new_key := ""
@@ -2492,14 +2421,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                 context.scope_stack.frames.get(lf9_idx, lf9)
                                                 lf9.arena_index.insert(new_key, mapping.offset)
                                                 context.scope_stack.frames.set(lf9_idx, lf9)
-                                                mi = mi.add(1)
                                             }
 
                                             Arena.copy_fields(context, custom_type_name, saved_offsets.temp_src_key, arg.name, e)
 
                                             // Clean up temp keys
-                                            mut ci := 0
-                                            while ci.lt(saved_offsets.offsets.len()) {
+                                            for ci in 0..saved_offsets.offsets.len() {
                                                 mut mapping := ArenaMapping()
                                                 saved_offsets.offsets.get(ci, mapping)
                                                 mut new_key := ""
@@ -2511,7 +2438,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                     new_key = mapping.name.clone()
                                                 }
                                                 _ := context.scope_stack.remove_var(new_key)
-                                                ci = ci.add(1)
                                             }
                                         } else {
                                             // Temporarily register source struct's base offset and symbol
@@ -2597,22 +2523,18 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         mut keys_to_remove := Vec.new(Str)
                                         lf7 := context.scope_stack.last_frame()
                                         arena_keys := lf7.arena_index.keys
-                                        mut ki := 0
-                                        while ki.lt(arena_keys.len()) {
+                                        for ki in 0..arena_keys.len() {
                                             mut key := ""
                                             arena_keys.get(ki, key)
                                             if key.starts_with(prefix) {
                                                 keys_to_remove.push(key.clone())
                                             }
-                                            ki = ki.add(1)
                                         }
-                                        mut ri := 0
-                                        while ri.lt(keys_to_remove.len()) {
+                                        for ri in 0..keys_to_remove.len() {
                                             mut key := ""
                                             keys_to_remove.get(ri, key)
                                             _ := context.scope_stack.remove_var(key)
                                             _ := context.scope_stack.remove_symbol(key)
-                                            ri = ri.add(1)
                                         }
                                     }
                                 }
@@ -2685,18 +2607,15 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     mut keys_to_copy := Vec.new(Str)
                     lf8 := context.scope_stack.last_frame()
                     arena_keys := lf8.arena_index.keys
-                    mut ki := 0
-                    while ki.lt(arena_keys.len()) {
+                    for ki in 0..arena_keys.len() {
                         mut key := ""
                         arena_keys.get(ki, key)
                         if key.starts_with(source_prefix) {
                             keys_to_copy.push(key.clone())
                         }
-                        ki = ki.add(1)
                     }
                     frame_count := context.scope_stack.frames.len()
-                    mut kci := 0
-                    while kci.lt(keys_to_copy.len()) {
+                    for kci in 0..keys_to_copy.len() {
                         mut src_key := ""
                         keys_to_copy.get(kci, src_key)
                         mut src_offset := 0
@@ -2712,13 +2631,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 context.scope_stack.frames.set(frame_count.sub(2), caller_frame)
                             }
                         }
-                        kci = kci.add(1)
                     }
 
                     // Copy symbol entries for fields
                     symbol_keys_to_copy := context.scope_stack.get_symbols_with_prefix(source_prefix)
-                    mut ski := 0
-                    while ski.lt(symbol_keys_to_copy.len()) {
+                    for ski in 0..symbol_keys_to_copy.len() {
                         mut src_key := ""
                         symbol_keys_to_copy.get(ski, src_key)
                         mut src_symbol := SymbolInfo()
@@ -2729,7 +2646,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         if src_symbol_found {
                             context.scope_stack.declare_symbol(src_key.clone(), src_symbol.clone())
                         }
-                        ski = ski.add(1)
                     }
                 }
             }
@@ -2817,20 +2733,17 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     // NOTE: MutArgValueType, MutArgValue, CollectedMutArg structs defined earlier
     mut collected_mut_args := Vec.new(CollectedMutArg)
 
-    mut mi := 0
-    while mi.lt(mut_args.len()) {
+    for mi in 0..mut_args.len() {
         mut m := MutArgEntry()
         mut_args.get(mi, m)
         // Check if this arg was passed by ref
         mut was_passed_by_ref := false
-        mut ref_check_i := 0
-        while ref_check_i.lt(pass_by_ref_params.len()) {
+        for ref_check_i in 0..pass_by_ref_params.len() {
             mut ref_param := ""
             pass_by_ref_params.get(ref_check_i, ref_param)
             if ref_param.eq(m.arg_name) {
                 was_passed_by_ref = true
             }
-            ref_check_i = ref_check_i.add(1)
         }
 
         mut is_tcustom := false
@@ -2904,7 +2817,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             context.path = saved_path
             throw e.todo_error(context.path, "eval", format("Cannot use '", m.arg_name, "' of type '", value_type_to_str(m.value_type), "' as a mut argument. Only structs and enums allowed for now."))
         }
-        mi = mi.add(1)
     }
 
     // Pop function frame BEFORE writing mut args back to caller
@@ -2912,8 +2824,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     context.path = saved_path.clone()
 
     // Write collected mut_args values to caller's frame (now on top)
-    mut ci := 0
-    while ci.lt(collected_mut_args.len()) {
+    for ci in 0..collected_mut_args.len() {
         mut c := CollectedMutArg()
         collected_mut_args.get(ci, c)
         switch c.value {
@@ -2935,7 +2846,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 context.map_instance_fields(struct_data.type_name, c.source_name, e)
             }
         }
-        ci = ci.add(1)
     }
 
     // If function returns a user-defined struct or enum, copy it back to caller frame as temp return val

@@ -117,14 +117,12 @@ SStructDef := struct {
 
     /** Helper to find a member by name */
     get_member := func(self: SStructDef, member_name: Str) returns Declaration throws Str {
-        mut i := 0
-        while i.lt(self.members.len()) {
+        for i in 0..self.members.len() {
             mut member := Declaration()
             self.members.get(i, member)
             if member.name.eq(member_name) {
                 return member
             }
-            i = i.add(1)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -266,12 +264,10 @@ Expr := struct {
 
     params_clone := func(self: Expr) returns Vec throws Str {
         mut cloned := Vec.new(Expr)
-        mut i := 0
-        while i.lt(self.params.len()) {
+        for i in 0..self.params.len() {
             mut elem := Expr()
             self.params.get(i, elem)
             cloned.push(elem)
-            i = i.add(1)
         }
         catch (err: AllocError) { throw concat("Expr.params_clone: ", err.msg) }
         catch (err: IndexOutOfBoundsError) { throw concat("Expr.params_clone: ", err.msg) }
@@ -899,8 +895,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
     mut members := Vec.new(Declaration)  // Vec of Declaration
     mut default_values := Map.new(Str, Expr)  // Map<Str, Expr>
 
-    mut i := 0
-    while i.lt(body.params.len()) {
+    for i in 0..body.params.len() {
         mut p := Expr()
         body.params.get(i, p)
         nt := p.node_type
@@ -928,7 +923,6 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
         } else {
             throw t.error(lexer.path, "expected only declarations inside struct definition")
         }
-        i = i.add(1)
     }
 
     mut struct_def := SStructDef()
@@ -987,12 +981,10 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
         arg_list := parse_args(lexer)
         mut fcall_params := Vec.new(Expr)
         fcall_params.push(e)
-        mut i := 0
-        while i.lt(arg_list.params.len()) {
+        for i in 0..arg_list.params.len() {
             mut arg := Expr()
             arg_list.params.get(i, arg)
             fcall_params.push(arg)
-            i = i.add(1)
         }
         initial_token2 := lexer.get_token(initial_current)
         result = Expr.new_parse(NodeType.FCall, initial_token2, fcall_params)
@@ -1042,12 +1034,10 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                 mut new_params := Vec.new(Expr)
                 new_params.push(method_id)
                 new_params.push(result)  // Previous call result becomes first argument
-                mut j := 0
-                while j.lt(method_args.params.len()) {
+                for j in 0..method_args.params.len() {
                     mut method_arg := Expr()
                     method_args.params.get(j, method_arg)
                     new_params.push(method_arg)
-                    j = j.add(1)
                 }
 
                 result = Expr.new_parse(NodeType.FCall, method_t, new_params)
@@ -1078,8 +1068,7 @@ get_combined_name := func(path: Str, e: Expr) returns Str throws Str {
             throw e.lang_error(path, "parse", "get_combined_name() is to be called with Identifier expressions only")
     }
 
-    mut i := 0
-    while i.lt(e.params.len()) {
+    for i in 0..e.params.len() {
         mut p := Expr()
         e.params.get(i, p)
         pnt := p.node_type
@@ -1090,7 +1079,6 @@ get_combined_name := func(path: Str, e: Expr) returns Str throws Str {
             case:
                 throw e.lang_error(path, "parse", "the params of an identifier expression must be Identifier expressions only")
         }
-        i = i.add(1)
     }
 
     // Remove the last '.'
@@ -1809,22 +1797,20 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
 parse_tokens := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     e := parse_body(lexer, TokenType.Eof)
 
-    mut i := lexer.current
-    mut unparsed_tokens := 0
     lexer_len_val := lexer.len()
+    mut unparsed_tokens := 0
 
-    if i.lt(lexer_len_val) {
-        unparsed_tokens = lexer_len_val.sub(i)
+    if lexer.current.lt(lexer_len_val) {
+        unparsed_tokens = lexer_len_val.sub(lexer.current)
     }
 
     if unparsed_tokens.gt(0) {
         println(format("Total tokens parsed: ", lexer.current.to_str(), "/", lexer_len_val.to_str()))
     }
 
-    while i.lt(lexer_len_val) {
+    for i in lexer.current..lexer_len_val {
         t := lexer.get_token(i)
         println(format("Token: ", token_type_to_str(t.token_type)))
-        i = i.add(1)
     }
 
     if unparsed_tokens.gt(0) {
