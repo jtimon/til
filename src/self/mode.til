@@ -24,67 +24,24 @@ can_be_imported := func(mode_def: ModeDef) returns Bool {
 
 mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef throws Str, AllocError {
     if mode_name.eq("lib") {
-        mut m := ModeDef()
-        m.name = mode_name
-        m.allows_procs = true
-        m.allows_base_calls = false
-        m.allows_base_mut = true
-        m.allows_base_anything = false
-        m.needs_main_proc = false
-        return m
+        return ModeDef(name=mode_name, allows_procs=true, allows_base_calls=false, allows_base_mut=true, allows_base_anything=false, needs_main_proc=false)
     }
     if mode_name.eq("pure") {
-        mut m := ModeDef()
-        m.name = mode_name
-        m.allows_procs = false
-        m.allows_base_calls = false
-        m.allows_base_mut = false
-        m.allows_base_anything = false
-        m.needs_main_proc = false
-        return m
+        return ModeDef(name=mode_name, allows_procs=false, allows_base_calls=false, allows_base_mut=false, allows_base_anything=false, needs_main_proc=false)
     }
     if mode_name.eq("script") {
-        mut m := ModeDef()
-        m.name = mode_name
-        m.allows_procs = true
-        m.allows_base_calls = true
-        m.allows_base_mut = true
-        m.allows_base_anything = true
-        m.needs_main_proc = false
-        return m
+        return ModeDef(name=mode_name, allows_procs=true, allows_base_calls=true, allows_base_mut=true, allows_base_anything=true, needs_main_proc=false)
     }
     if mode_name.eq("safe_script") {
-        mut m := ModeDef()
-        m.name = mode_name
-        m.allows_procs = true
-        m.allows_base_calls = true
-        m.allows_base_mut = true
-        m.allows_base_anything = true
-        m.needs_main_proc = false
-        return m
+        return ModeDef(name=mode_name, allows_procs=true, allows_base_calls=true, allows_base_mut=true, allows_base_anything=true, needs_main_proc=false)
     }
     if mode_name.eq("cli") {
-        mut m := ModeDef()
-        m.name = mode_name
-        m.allows_procs = true
-        m.allows_base_calls = false
-        m.allows_base_mut = true
-        m.allows_base_anything = false
-        m.needs_main_proc = true
-        return m
+        return ModeDef(name=mode_name, allows_procs=true, allows_base_calls=false, allows_base_mut=true, allows_base_anything=false, needs_main_proc=true)
     }
     if mode_name.eq("test") {
-        mut m := ModeDef()
-        m.name = mode_name
-        m.allows_procs = true
-        m.allows_base_calls = true
-        m.allows_base_mut = true
-        m.allows_base_anything = false
-        m.needs_main_proc = false
         mut test_imports := Vec.new(Str)
         test_imports.push("src/modes/test")
-        m.imports = test_imports
-        return m
+        return ModeDef(name=mode_name, allows_procs=true, allows_base_calls=true, allows_base_mut=true, allows_base_anything=false, needs_main_proc=false, imports=test_imports)
     }
 
     throw t.error(path, format(LANG_NAME, " interpreter implementation doesn't support mode '", mode_name, "'"))

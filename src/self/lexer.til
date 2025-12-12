@@ -361,12 +361,7 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
 }
 
 scan_push_token := proc(mut tokens: Vec, token_type: TokenType, token_str: Str, line: I64, col: I64) throws Str {
-    mut t := Token()
-    t.token_type = token_type
-    t.token_str = token_str
-    t.line = line
-    t.col = col
-
+    t := Token(token_type=token_type, token_str=token_str, line=line, col=col)
     tokens.push(t)
     catch (err: AllocError) {
         throw format(line.to_str(), ":", col.to_str(), ": scan_tokens: AllocError while pushing token: ", err.msg)

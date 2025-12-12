@@ -499,11 +499,7 @@ precomp_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) retu
     while i.lt(func_def.args.len()) {
         mut arg := Declaration()
         func_def.args.get(i, arg)
-        mut sym := SymbolInfo()
-        sym.value_type = arg.value_type
-        sym.is_mut = arg.is_mut
-        sym.is_copy = arg.is_copy
-        sym.is_own = arg.is_own
+        sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
         context.scope_stack.declare_symbol(arg.name, sym)
         i = i.add(1)
     }
@@ -597,12 +593,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
         .and(is_comptime_evaluable(context, first_param))
 
     // Register the declared variable in scope
-    mut sym := SymbolInfo()
-    sym.value_type = value_type
-    sym.is_mut = decl.is_mut
-    sym.is_copy = decl.is_copy
-    sym.is_own = decl.is_own
-    sym.is_comptime_const = is_comptime_const
+    sym := SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=is_comptime_const)
     context.scope_stack.declare_symbol(decl.name, sym)
 
     // Also register function definitions so UFCS can resolve their return types

@@ -218,11 +218,7 @@ create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) ret
     template_id := format("__default_", struct_type)
 
     // Declare temporary symbol for template (needed by insert_struct_core)
-    mut sym_info := SymbolInfo()
-    sym_info.value_type = ValueType.TCustom(struct_type)
-    sym_info.is_mut = true
-    sym_info.is_copy = false
-    sym_info.is_own = false
+    sym_info := SymbolInfo(value_type=ValueType.TCustom(struct_type), is_mut=true, is_copy=false, is_own=false)
     ctx.scope_stack.declare_symbol(template_id, sym_info)
 
     // Evaluate defaults and create template
@@ -414,11 +410,7 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                         // TODO: Full payload extraction - simplified for now
                         // The Rust version handles I64, Str, struct, and enum payloads
                         // This is complex byte manipulation that needs Arena support
-                        mut sym_info := SymbolInfo()
-                        sym_info.value_type = ValueType.TCustom("I64")
-                        sym_info.is_mut = false
-                        sym_info.is_copy = false
-                        sym_info.is_own = false
+                        sym_info := SymbolInfo(value_type=ValueType.TCustom("I64"), is_mut=false, is_copy=false, is_own=false)
                         context.scope_stack.declare_symbol(pattern_binding, sym_info)
                         // TODO: Arena.insert_* based on payload type
                     }
@@ -1870,8 +1862,7 @@ CollectedMutArg := struct {
 eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
     // TODO REFACTOR: Replace context.clone() with scope push/pop
 
-    mut function_frame := ScopeFrame()
-    function_frame.scope_type = ScopeType.Function
+    mut function_frame := ScopeFrame(scope_type=ScopeType.Function)
     saved_path := context.path
     _ := validate_func_arg_count(context.path, e, name, func_def)
 
@@ -3073,22 +3064,11 @@ main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str,
         context.mode_def.imports.get(import_idx, import_str)
 
         // Create synthetic import expression
-        mut import_func_name_expr := Expr()
-        import_func_name_expr.node_type = NodeType.Identifier("import")
-        import_func_name_expr.line = 0
-        import_func_name_expr.col = 0
-
-        mut import_path_expr := Expr()
-        import_path_expr.node_type = NodeType.LLiteral(Literal.Str(import_str))
-        import_path_expr.line = 0
-        import_path_expr.col = 0
-
-        mut import_fcall_expr := Expr()
-        import_fcall_expr.node_type = NodeType.FCall
+        import_func_name_expr := Expr(node_type=NodeType.Identifier("import"), line=0, col=0)
+        import_path_expr := Expr(node_type=NodeType.LLiteral(Literal.Str(import_str)), line=0, col=0)
+        mut import_fcall_expr := Expr(node_type=NodeType.FCall, line=0, col=0)
         import_fcall_expr.params.push(import_func_name_expr)
         import_fcall_expr.params.push(import_path_expr)
-        import_fcall_expr.line = 0
-        import_fcall_expr.col = 0
 
         // Mode imports need full processing: init, typer, eval
         init_import_declarations(context, import_fcall_expr, import_str)
@@ -3158,26 +3138,16 @@ main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str,
 
         // For modes that require a main proc, add an implicit call to main
         if context.mode_def.needs_main_proc {
-            mut main_ident_expr := Expr()
-            main_ident_expr.node_type = NodeType.Identifier("main")
-            main_ident_expr.line = 0
-            main_ident_expr.col = 0
-
-            mut main_call_expr := Expr()
-            main_call_expr.node_type = NodeType.FCall
+            main_ident_expr := Expr(node_type=NodeType.Identifier("main"), line=0, col=0)
+            mut main_call_expr := Expr(node_type=NodeType.FCall, line=0, col=0)
             main_call_expr.params.push(main_ident_expr)
-            main_call_expr.line = 0
-            main_call_expr.col = 0
 
             // Add string args
             mut arg_idx := 0
             while arg_idx.lt(main_args.len()) {
                 mut arg_str := ""
                 main_args.get(arg_idx, arg_str)
-                mut arg_expr := Expr()
-                arg_expr.node_type = NodeType.LLiteral(Literal.Str(arg_str))
-                arg_expr.line = 0
-                arg_expr.col = 0
+                arg_expr := Expr(node_type=NodeType.LLiteral(Literal.Str(arg_str)), line=0, col=0)
                 main_call_expr.params.push(arg_expr)
                 arg_idx = arg_idx.add(1)
             }

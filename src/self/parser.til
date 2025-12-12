@@ -175,21 +175,11 @@ Expr := struct {
     mut col: I64 = 0
 
     new_parse := func(node_type: NodeType, token: Token, params: Vec) returns Expr {
-        mut e := Expr()
-        e.node_type = node_type
-        e.params = params
-        e.line = token.line
-        e.col = token.col
-        return e
+        return Expr(node_type=node_type, params=params, line=token.line, col=token.col)
     }
 
     new_explicit := func(node_type: NodeType, params: Vec, line: I64, col: I64) returns Expr {
-        mut e := Expr()
-        e.node_type = node_type
-        e.params = params
-        e.line = line
-        e.col = col
-        return e
+        return Expr(node_type=node_type, params=params, line=line, col=col)
     }
 
     new_clone := func(node_type: NodeType, e: Expr, params: Vec) returns Expr {
@@ -217,12 +207,7 @@ Expr := struct {
     }
 
     clone := func(self: Expr) returns Expr {
-        mut e := Expr()
-        e.node_type = self.node_type
-        e.params = self.params
-        e.line = self.line
-        e.col = self.col
-        return e
+        return Expr(node_type=self.node_type, params=self.params, line=self.line, col=self.col)
     }
 
     exit_error := proc(self: Expr, phase: Str, msg: Str) {

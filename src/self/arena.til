@@ -1399,11 +1399,7 @@ Arena := struct {
             } else if Str.eq(elem_type, "Str") {
                 // For Str elements, create temp Str and copy bytes to array slot
                 temp_id := format(name, "_", I64.to_str(i))
-                mut temp_symbol := SymbolInfo()
-                temp_symbol.value_type = ValueType.TCustom("Str")
-                temp_symbol.is_mut = false
-                temp_symbol.is_copy = false
-                temp_symbol.is_own = false
+                temp_symbol := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
                 frame.symbols.insert(temp_id, temp_symbol)
 
                 Arena.insert_string_into_frame(ctx, frame, temp_id, val, e)
@@ -1455,11 +1451,7 @@ Arena := struct {
         // Set type_name field (it's a Str)
         type_name_field := format(name, ".type_name")
         temp_type_name_id := format(name, "_type_name_temp")
-        mut temp_symbol2 := SymbolInfo()
-        temp_symbol2.value_type = ValueType.TCustom("Str")
-        temp_symbol2.is_mut = false
-        temp_symbol2.is_copy = false
-        temp_symbol2.is_own = false
+        temp_symbol2 := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
         frame.symbols.insert(temp_type_name_id, temp_symbol2)
 
         Arena.insert_string_into_frame(ctx, frame, temp_type_name_id, elem_type, e)
