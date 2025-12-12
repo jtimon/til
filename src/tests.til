@@ -152,49 +152,6 @@ format_expected := func(cmd_args: Str, exit_code: I64, output: Str) returns Str 
     return result
 }
 
-// Parse expected file: extract exit code and output (args come from entry, not file)
-parse_expected := proc(content: Str, mut exit_code: I64, mut output: Str) throws AllocError, IndexOutOfBoundsError, Str {
-    // Format:
-    // args: <args>
-    // expected_status: <exit_code>
-    // output:
-    // <actual output>
-
-    lines := content.split("\n")
-    if lt(lines.len(), 3) {
-        throw "Invalid .out file format: need at least 3 lines. Use 'rstil interpret src/tests.til regen' to regenerate."
-    }
-
-    // Skip args line (line 0) - args come from entry, not file
-
-    // Parse expected_status line
-    mut status_line := ""
-    lines.get(1, status_line)
-    if not(status_line.starts_with("expected_status: ")) {
-        throw "Invalid .out file format: second line must start with 'expected_status: '. Use 'rstil interpret src/tests.til regen' to regenerate."
-    }
-    status_str := get_substr(status_line, 17, status_line.len())
-    exit_code = status_str.to_i64()
-
-    // Parse output line marker
-    mut output_line := ""
-    lines.get(2, output_line)
-    if not(output_line.eq("output:")) {
-        throw "Invalid .out file format: third line must be 'output:'. Use 'rstil interpret src/tests.til regen' to regenerate."
-    }
-
-    // Join remaining lines as output
-    output = ""
-    for i in 3..lines.len() {
-        mut line := ""
-        lines.get(i, line)
-        if i.gt(3) {
-            output = output.concat("\n")
-        }
-        output = output.concat(line)
-    }
-}
-
 run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
     mut errors_found := false
     mut total_interpret_ms := 0
@@ -374,12 +331,6 @@ test_rs_interpreted := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
     out_path := get_out_path(entry.path, "interpreted", entry.cmd_args)
     ensure_out_file(entry.path, entry.cmd_args, out_path, "interpreted")
 
-    // Read expected file and parse exit code and output
-    expected_content := readfile(out_path)
-    mut expected_exit_code := 0
-    mut expected_output := ""
-    parse_expected(expected_content, expected_exit_code, expected_output)
-
     // Run interpreter with timing
     mut interp_output := ""
     mut interp_time := 0
@@ -400,19 +351,19 @@ test_rs_interpreted := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
     }
 
     // Check output via diff
-    _ := writefile(entry.path.replace(".til", ".interpret.out"), interp_output)
-    _ := writefile(entry.path.replace(".til", ".expected.out"), expected_output)
-    mut interp_diff := ""
-    _ := interp_diff.run_cmd("diff", entry.path.replace(".til", ".expected.out"), entry.path.replace(".til", ".interpret.out"))
-    if not(interp_diff.eq("")) {
+    tmp_actual := "src/test/tmp/actual.out"
+    _ := writefile(tmp_actual, format_expected(entry.cmd_args, actual_exit_code, interp_output))
+    mut diff_result := ""
+    _ := diff_result.run_cmd("diff", out_path, tmp_actual)
+    mut rm_result := ""
+    _ := rm_result.run_cmd("rm", tmp_actual)
+    if not(diff_result.eq("")) {
         println("FAIL (interpret output): ", entry.path)
-        println(interp_diff)
+        println(diff_result)
         return true
     }
 
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: Str) { panic(loc(), err) }
 
     return false
 }
@@ -420,12 +371,6 @@ test_rs_interpreted := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
 test_rs_compiled := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
     out_path := get_out_path(entry.path, "compiled", entry.cmd_args)
     ensure_out_file(entry.path, entry.cmd_args, out_path, "compiled")
-
-    // Read expected file and parse exit code and output
-    expected_content := readfile(out_path)
-    mut expected_exit_code := 0
-    mut expected_output := ""
-    parse_expected(expected_content, expected_exit_code, expected_output)
 
     // Run compiled with timing
     mut run_output := ""
@@ -447,19 +392,19 @@ test_rs_compiled := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
     }
 
     // Check output via diff
-    _ := writefile(entry.path.replace(".til", ".run.out"), run_output)
-    _ := writefile(entry.path.replace(".til", ".expected.out"), expected_output)
-    mut run_diff := ""
-    _ := run_diff.run_cmd("diff", entry.path.replace(".til", ".expected.out"), entry.path.replace(".til", ".run.out"))
-    if not(run_diff.eq("")) {
+    tmp_actual := "src/test/tmp/actual.out"
+    _ := writefile(tmp_actual, format_expected(entry.cmd_args, actual_exit_code, run_output))
+    mut diff_result := ""
+    _ := diff_result.run_cmd("diff", out_path, tmp_actual)
+    mut rm_result := ""
+    _ := rm_result.run_cmd("rm", tmp_actual)
+    if not(diff_result.eq("")) {
         println("FAIL (run output): ", entry.path)
-        println(run_diff)
+        println(diff_result)
         return true
     }
 
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: Str) { panic(loc(), err) }
 
     return false
 }
@@ -468,12 +413,6 @@ test_rs_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: 
     // rs_common tests use .interpreted.out for BOTH modes (same expected output)
     out_path := get_out_path(entry.path, "interpreted", entry.cmd_args)
     ensure_out_file(entry.path, entry.cmd_args, out_path, "interpreted")
-
-    // Read expected file once and use for both modes
-    expected_content := readfile(out_path)
-    mut expected_exit_code := 0
-    mut expected_output := ""
-    parse_expected(expected_content, expected_exit_code, expected_output)
 
     mut errors_found := false
 
@@ -494,10 +433,12 @@ test_rs_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: 
         println("  actual: ", interp_exit_code.to_str())
         errors_found = true
     } else {
-        _ := writefile(entry.path.replace(".til", ".interpret.out"), interp_output)
-        _ := writefile(entry.path.replace(".til", ".expected.out"), expected_output)
+        tmp_actual := "src/test/tmp/actual.out"
+        _ := writefile(tmp_actual, format_expected(entry.cmd_args, interp_exit_code, interp_output))
         mut interp_diff := ""
-        _ := interp_diff.run_cmd("diff", entry.path.replace(".til", ".expected.out"), entry.path.replace(".til", ".interpret.out"))
+        _ := interp_diff.run_cmd("diff", out_path, tmp_actual)
+        mut rm_result := ""
+        _ := rm_result.run_cmd("rm", tmp_actual)
         if not(interp_diff.eq("")) {
             println("FAIL (interpret output): ", entry.path)
             println(interp_diff)
@@ -522,9 +463,12 @@ test_rs_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: 
         println("  actual: ", run_exit_code.to_str())
         errors_found = true
     } else {
-        _ := writefile(entry.path.replace(".til", ".run.out"), run_output)
+        tmp_actual := "src/test/tmp/actual.out"
+        _ := writefile(tmp_actual, format_expected(entry.cmd_args, run_exit_code, run_output))
         mut run_diff := ""
-        _ := run_diff.run_cmd("diff", entry.path.replace(".til", ".expected.out"), entry.path.replace(".til", ".run.out"))
+        _ := run_diff.run_cmd("diff", out_path, tmp_actual)
+        mut rm_result := ""
+        _ := rm_result.run_cmd("rm", tmp_actual)
         if not(run_diff.eq("")) {
             println("FAIL (run output): ", entry.path)
             println(run_diff)
@@ -533,8 +477,6 @@ test_rs_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: 
     }
 
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: Str) { panic(loc(), err) }
 
     return errors_found
 }

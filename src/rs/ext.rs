@@ -19,7 +19,7 @@ use std::process::Command;
 // TODO: "bash" is a temporary workaround for passing arguments to tests (src/tests.til).
 // Proper fix: add Array spread/apply operation to pass dynamic args to variadic functions.
 // Having bash here defeats the whitelist purpose since bash -c can run anything.
-const ALLOWED_COMMANDS: [&str; 7] = ["ls", "mkdir", "find", "gcc", "./bin/rstil", "diff", "bash"];
+const ALLOWED_COMMANDS: [&str; 8] = ["ls", "mkdir", "find", "gcc", "./bin/rstil", "diff", "bash", "rm"];
 // More restrictive whitelist for safe_script mode
 const SAFE_COMMANDS: [&str; 2] = ["ls", "mkdir"];
 
