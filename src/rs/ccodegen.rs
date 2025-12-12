@@ -194,18 +194,19 @@ fn get_struct_name(expr: &Expr) -> Option<String> {
     None
 }
 
-/// Collect type names used in enum payloads
-fn collect_enum_payload_types(expr: &Expr, types: &mut HashSet<String>) {
+/// Get enum dependencies (types used in payloads) as a Vec
+fn get_enum_dependencies(expr: &Expr) -> Vec<String> {
+    let mut deps = Vec::new();
     if let NodeType::Declaration(_) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
                 for (_variant_name, payload_type) in &enum_def.enum_map {
                     if let Some(pt) = payload_type {
                         if let ValueType::TCustom(type_name) = pt {
-                            // Skip primitives
-                            if type_name != "I64" && type_name != "U8" && type_name != "Bool"
+                            // Skip primitives (but NOT Str or Bool - they're structs)
+                            if type_name != "I64" && type_name != "U8"
                                 && type_name != "Dynamic" && type_name != "Type" {
-                                types.insert(type_name.clone());
+                                deps.push(type_name.clone());
                             }
                         }
                     }
@@ -213,23 +214,58 @@ fn collect_enum_payload_types(expr: &Expr, types: &mut HashSet<String>) {
             }
         }
     }
+    deps
 }
 
-/// Topologically sort struct declarations by their field dependencies
+/// Get enum name from an enum-with-payloads declaration expression
+fn get_enum_name(expr: &Expr) -> Option<String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::EnumDef(_) = &expr.params[0].node_type {
+                return Some(decl.name.clone());
+            }
+        }
+    }
+    None
+}
+
+/// Get dependencies for a type (struct or enum-with-payloads)
+fn get_type_dependencies(expr: &Expr) -> Vec<String> {
+    if is_struct_declaration(expr) {
+        get_struct_dependencies(expr)
+    } else if is_enum_declaration(expr) && is_enum_with_payloads(expr) {
+        get_enum_dependencies(expr)
+    } else {
+        Vec::new()
+    }
+}
+
+/// Get name for a type (struct or enum-with-payloads)
+fn get_type_name(expr: &Expr) -> Option<String> {
+    if is_struct_declaration(expr) {
+        get_struct_name(expr)
+    } else if is_enum_declaration(expr) && is_enum_with_payloads(expr) {
+        get_enum_name(expr)
+    } else {
+        None
+    }
+}
+
+/// Topologically sort type declarations (structs and enums-with-payloads) by their dependencies
 /// Returns indices into the original vector in sorted order
-fn topological_sort_structs(structs: &[&Expr]) -> Vec<usize> {
+fn topological_sort_types(types: &[&Expr]) -> Vec<usize> {
     // Build name -> index map
     let mut name_to_idx: HashMap<String, usize> = HashMap::new();
-    for (idx, expr) in structs.iter().enumerate() {
-        if let Some(name) = get_struct_name(expr) {
+    for (idx, expr) in types.iter().enumerate() {
+        if let Some(name) = get_type_name(expr) {
             name_to_idx.insert(name, idx);
         }
     }
 
     // Build adjacency list (dependencies)
-    let mut deps: Vec<Vec<usize>> = vec![Vec::new(); structs.len()];
-    for (idx, expr) in structs.iter().enumerate() {
-        for dep_name in get_struct_dependencies(expr) {
+    let mut deps: Vec<Vec<usize>> = vec![Vec::new(); types.len()];
+    for (idx, expr) in types.iter().enumerate() {
+        for dep_name in get_type_dependencies(expr) {
             if let Some(&dep_idx) = name_to_idx.get(&dep_name) {
                 if dep_idx != idx {
                     deps[idx].push(dep_idx);
@@ -239,24 +275,16 @@ fn topological_sort_structs(structs: &[&Expr]) -> Vec<usize> {
     }
 
     // Kahn's algorithm for topological sort
-    let mut in_degree: Vec<usize> = vec![0; structs.len()];
-    for dep_list in &deps {
-        for &dep in dep_list {
-            in_degree[dep] += 1;
-        }
-    }
-
-    // Actually we need reverse - if A depends on B, B must come first
-    // So reverse the edges
-    let mut reverse_deps: Vec<Vec<usize>> = vec![Vec::new(); structs.len()];
+    // If A depends on B, B must come first, so reverse the edges
+    let mut reverse_deps: Vec<Vec<usize>> = vec![Vec::new(); types.len()];
     for (idx, dep_list) in deps.iter().enumerate() {
         for &dep in dep_list {
             reverse_deps[dep].push(idx);
         }
     }
 
-    // Recalculate in-degree for reversed graph
-    let mut in_degree: Vec<usize> = vec![0; structs.len()];
+    // Calculate in-degree for reversed graph
+    let mut in_degree: Vec<usize> = vec![0; types.len()];
     for dep_list in &reverse_deps {
         for &dep in dep_list {
             in_degree[dep] += 1;
@@ -282,8 +310,8 @@ fn topological_sort_structs(structs: &[&Expr]) -> Vec<usize> {
     }
 
     // If we couldn't sort all (cycle), just append remaining in original order
-    if result.len() < structs.len() {
-        for idx in 0..structs.len() {
+    if result.len() < types.len() {
+        for idx in 0..types.len() {
             if !result.contains(&idx) {
                 result.push(idx);
             }
@@ -1305,120 +1333,23 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         }
     }
 
-    // Build a map of struct name -> struct dependencies for transitive closure
-    let mut struct_deps_map: HashMap<String, Vec<String>> = HashMap::new();
+    // Pass 1b: emit all structs and enums-with-payloads in topologically sorted order
+    // Both are "complex types" that can depend on each other
     if let NodeType::Body = &ast.node_type {
-        for child in &ast.params {
-            if is_struct_declaration(child) {
-                if let Some(name) = get_struct_name(child) {
-                    let deps = get_struct_dependencies(child);
-                    struct_deps_map.insert(name, deps);
-                }
-            }
-        }
-    }
-
-    // Collect types needed by enum payloads (these structs must be emitted before enums)
-    let mut enum_payload_deps: HashSet<String> = HashSet::new();
-    if let NodeType::Body = &ast.node_type {
-        for child in &ast.params {
-            if is_enum_declaration(child) && is_enum_with_payloads(child) {
-                collect_enum_payload_types(child, &mut enum_payload_deps);
-            }
-        }
-    }
-
-    // Expand to include transitive dependencies
-    let mut to_process: Vec<String> = enum_payload_deps.iter().cloned().collect();
-    while let Some(type_name) = to_process.pop() {
-        if let Some(deps) = struct_deps_map.get(&type_name) {
-            for dep in deps {
-                if !enum_payload_deps.contains(dep) {
-                    enum_payload_deps.insert(dep.clone());
-                    to_process.push(dep.clone());
-                }
-            }
-        }
-    }
-
-    // Collect names of enums with payloads (structs using these must be emitted after)
-    let mut enums_with_payloads_names: HashSet<String> = HashSet::new();
-    if let NodeType::Body = &ast.node_type {
-        for child in &ast.params {
-            if is_enum_declaration(child) && is_enum_with_payloads(child) {
-                if let NodeType::Declaration(decl) = &child.node_type {
-                    enums_with_payloads_names.insert(decl.name.clone());
-                }
-            }
-        }
-    }
-
-    // Pass 1b: emit struct definitions that are needed by enum payloads
-    // These must be complete before enum unions can use them
-    // BUT: exclude structs that use enums-with-payloads as fields (they go in pass 1d)
-    if let NodeType::Body = &ast.node_type {
-        let struct_decls: Vec<&Expr> = ast.params.iter()
-            .filter(|child| is_struct_declaration(child))
+        let type_decls: Vec<&Expr> = ast.params.iter()
             .filter(|child| {
-                if let Some(name) = get_struct_name(child) {
-                    if !enum_payload_deps.contains(&name) {
-                        return false;
-                    }
-                    // Check if this struct uses any enums-with-payloads as fields
-                    let deps = get_struct_dependencies(child);
-                    for dep in &deps {
-                        if enums_with_payloads_names.contains(dep) {
-                            return false; // Has dependency on enum-with-payloads, defer to pass 1d
-                        }
-                    }
-                    true
-                } else {
-                    false
-                }
+                is_struct_declaration(child) ||
+                (is_enum_declaration(child) && is_enum_with_payloads(child))
             })
             .collect();
-        let sorted_indices = topological_sort_structs(&struct_decls);
+        let sorted_indices = topological_sort_types(&type_decls);
         for idx in sorted_indices {
-            emit_struct_declaration(struct_decls[idx], &mut output)?;
-        }
-    }
-
-    // Pass 1c: emit enums with payloads (after their payload dependencies are defined)
-    if let NodeType::Body = &ast.node_type {
-        for child in &ast.params {
-            if is_enum_declaration(child) && is_enum_with_payloads(child) {
+            let child = type_decls[idx];
+            if is_struct_declaration(child) {
+                emit_struct_declaration(child, &mut output)?;
+            } else {
                 emit_enum_declaration(child, &mut output)?;
             }
-        }
-    }
-
-    // Pass 1d: emit remaining struct definitions (those not emitted in 1b)
-    // These may use enums with payloads
-    // This includes: structs NOT in enum_payload_deps, OR structs that use enums-with-payloads as fields
-    if let NodeType::Body = &ast.node_type {
-        let struct_decls: Vec<&Expr> = ast.params.iter()
-            .filter(|child| is_struct_declaration(child))
-            .filter(|child| {
-                if let Some(name) = get_struct_name(child) {
-                    if !enum_payload_deps.contains(&name) {
-                        return true; // Not needed by enum payloads, emit now
-                    }
-                    // Check if this struct uses any enums-with-payloads as fields
-                    let deps = get_struct_dependencies(child);
-                    for dep in &deps {
-                        if enums_with_payloads_names.contains(dep) {
-                            return true; // Has dependency on enum-with-payloads, emit now (after 1c)
-                        }
-                    }
-                    false // Was emitted in pass 1b
-                } else {
-                    true
-                }
-            })
-            .collect();
-        let sorted_indices = topological_sort_structs(&struct_decls);
-        for idx in sorted_indices {
-            emit_struct_declaration(struct_decls[idx], &mut output)?;
         }
     }
 

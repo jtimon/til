@@ -748,13 +748,15 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         switch after_dot.node_type {
         case NodeType.Identifier(variant_name):
             // Check if this variant exists in the enum (will throw KeyNotFoundError if not)
-            mut variant_value := ValueType.TCustom("")  // Default init
-            enum_def.enum_map.get(variant_name, variant_value)
+            mut payload_ptr := Ptr()  // Ptr to ValueType, NULL = None
+            enum_def.enum_map.get(variant_name, payload_ptr)
 
-            // Check if variant has a payload (ValueType.TCustom("") means no payload)
-            switch variant_value {
-            case ValueType.TCustom(payload_type_name):
-                if not(payload_type_name.eq("")) {
+            // Check if variant has a payload (NULL means no payload)
+            if not(NULL.eq(payload_ptr.data)) {
+                mut payload_type := ValueType.TCustom("")
+                memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
+                switch payload_type {
+                case ValueType.TCustom(payload_type_name):
                     // This variant expects a payload
                     if e.params.len().lt(2) {
                         throw e.error(context.path, "type", format("Enum constructor ", f_name, ".", variant_name, " expects a payload of type '", payload_type_name, "'"))
@@ -765,15 +767,15 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
 
                     // TODO: Verify payload type matches expected type
                     // For now, we just accept any payload
-                } else {
-                    // This variant doesn't have a payload (empty string means None)
-                    if e.params.len().gt(1) {
-                        throw e.error(context.path, "type", format("Enum variant ", f_name, ".", variant_name, " does not take a payload"))
-                    }
+                case:
+                    // Non-TCustom payload types are not currently supported
+                    throw e.todo_error(context.path, "type", format("Enum variant payload type '", value_type_to_str(payload_type), "' not yet supported"))
                 }
-            case:
-                // Non-TCustom payload types are not currently supported
-                throw e.todo_error(context.path, "type", format("Enum variant payload type '", value_type_to_str(variant_value), "' not yet supported"))
+            } else {
+                // This variant doesn't have a payload (NULL means None)
+                if e.params.len().gt(1) {
+                    throw e.error(context.path, "type", format("Enum variant ", f_name, ".", variant_name, " does not take a payload"))
+                }
             }
 
             // Return the enum type
@@ -2040,21 +2042,23 @@ Context := struct {
             while i.lt(keys.len()) {
                 mut variant_name := ""
                 keys.get(i, variant_name)
-                mut payload_type := ValueType.TCustom("")
-                enum_def.enum_map.get(variant_name, payload_type)
+                mut payload_ptr := Ptr()  // Ptr to ValueType, NULL = None
+                enum_def.enum_map.get(variant_name, payload_ptr)
 
-                // Check if payload type has content (not empty string)
-                switch payload_type {
-                case ValueType.TCustom(t):
-                    if not(t.eq("")) {
+                // Check if payload exists (not NULL)
+                if not(NULL.eq(payload_ptr.data)) {
+                    mut payload_type := ValueType.TCustom("")
+                    memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
+                    switch payload_type {
+                    case ValueType.TCustom(t):
                         payload_size := self.get_type_size(t)
                         variant_total := add(8, payload_size)  // tag + payload
                         if variant_total.gt(max_size) {
                             max_size = variant_total
                         }
+                    case:
+                        // Unsupported payload type
                     }
-                case:
-                    // No payload or unsupported type
                 }
                 i = i.add(1)
             }

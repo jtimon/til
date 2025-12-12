@@ -706,19 +706,15 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
             // Get the enum definition to check if this variant has a payload type
             enum_def := context.scope_stack.lookup_enum(enum_type)
-            mut variant_type := ValueType.TCustom("")
             mut has_variant := false
             mut has_payload := false
-            enum_def.enum_map.get(variant_name, variant_type)
+            mut variant_type := ValueType.TCustom("")  // Will be set if payload exists
+            mut payload_ptr := Ptr()  // Ptr to ValueType, NULL = None
+            enum_def.enum_map.get(variant_name, payload_ptr)
             has_variant = true
-            mut is_infer := false
-            switch variant_type {
-            case ValueType.TCustom(""):
-                is_infer = true
-            case:
-            }
-            if not(is_infer) {
+            if not(NULL.eq(payload_ptr.data)) {
                 has_payload = true
+                memcpy(to_ptr(variant_type), payload_ptr.data, size_of(ValueType))
             }
             catch (err: KeyNotFoundError) {
                 // has_variant stays false - variant not found

@@ -1002,6 +1002,268 @@ get_struct_dependencies := func(expr: Expr) returns Vec {
     return deps
 }
 
+// Get enum dependencies (types used in payloads) as a Vec
+get_enum_dependencies := func(expr: Expr) returns Vec {
+    mut deps := Vec.new(Str)
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return deps }
+            switch first.node_type {
+            case NodeType.EnumDef(enum_def):
+                // enum_map stores variant_name -> Ptr to ValueType (NULL = no payload)
+                mut i := 0
+                while lt(i, enum_def.enum_map.keys.len()) {
+                    mut variant_name := ""
+                    enum_def.enum_map.keys.get(i, variant_name)
+                    catch (err: IndexOutOfBoundsError) { return deps }
+                    mut payload_ptr := Ptr()
+                    enum_def.enum_map.get(variant_name, payload_ptr)
+                    catch (err: KeyNotFoundError) { }
+                    // Check if payload exists (not NULL)
+                    if not(NULL.eq(payload_ptr.data)) {
+                        mut payload_type := ValueType.TCustom("")
+                        memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
+                        switch payload_type {
+                        case ValueType.TCustom(type_name):
+                            // Skip primitives (but NOT Str or Bool - they're structs)
+                            if not(Str.eq(type_name, "I64")) {
+                                if not(Str.eq(type_name, "U8")) {
+                                    if not(Str.eq(type_name, "Dynamic")) {
+                                        if not(Str.eq(type_name, "Type")) {
+                                            deps.push(type_name)
+                                        }
+                                    }
+                                }
+                            }
+                        case:
+                        }
+                    }
+                    i = add(i, 1)
+                }
+            case:
+            }
+        }
+    case:
+    }
+    catch (err: AllocError) { }
+    return deps
+}
+
+// Get enum name from an enum-with-payloads declaration expression
+get_enum_name := func(expr: Expr) returns Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return "" }
+            switch first.node_type {
+            case NodeType.EnumDef(enum_def):
+                return decl.name
+            case:
+                return ""
+            }
+        }
+        return ""
+    case:
+        return ""
+    }
+}
+
+// Get dependencies for a type (struct or enum-with-payloads)
+get_type_dependencies := func(expr: Expr) returns Vec {
+    if is_struct_declaration(expr) {
+        return get_struct_dependencies(expr)
+    }
+    if is_enum_declaration(expr).and(is_enum_with_payloads(expr)) {
+        return get_enum_dependencies(expr)
+    }
+    mut empty := Vec.new(Str)
+    catch (err: AllocError) { }
+    return empty
+}
+
+// Get name for a type (struct or enum-with-payloads)
+get_type_name := func(expr: Expr) returns Str {
+    if is_struct_declaration(expr) {
+        return get_struct_name(expr)
+    }
+    if is_enum_declaration(expr).and(is_enum_with_payloads(expr)) {
+        return get_enum_name(expr)
+    }
+    return ""
+}
+
+// Topologically sort type declarations (structs and enums-with-payloads) by their dependencies
+// Returns indices into the original vector in sorted order
+topological_sort_types := func(types: List) returns Vec {
+    mut result := Vec.new(I64)
+    mut n := types.len()
+
+    // Build name -> index map
+    mut name_to_idx := Map.new(Str, I64)
+    mut idx := 0
+    while lt(idx, n) {
+        mut expr := Expr()
+        types.get(idx, expr)
+        catch (err: IndexOutOfBoundsError) { return result }
+        mut name := get_type_name(expr)
+        if gt(name.len(), 0) {
+            name_to_idx.set(name, idx)
+        }
+        idx = add(idx, 1)
+    }
+
+    // Build adjacency list (dependencies)
+    mut deps_list := List.new()  // List of Vec(I64) - deps_list[i] = dependencies of type i
+    idx = 0
+    while lt(idx, n) {
+        mut empty_vec := Vec.new(I64)
+        deps_list.push(Vec, empty_vec)
+        idx = add(idx, 1)
+    }
+    idx = 0
+    while lt(idx, n) {
+        mut expr := Expr()
+        types.get(idx, expr)
+        catch (err: IndexOutOfBoundsError) { return result }
+        mut deps := get_type_dependencies(expr)
+        mut dep_idx := 0
+        while lt(dep_idx, deps.len()) {
+            mut dep_name := ""
+            deps.get(dep_idx, dep_name)
+            if name_to_idx.contains_key(dep_name) {
+                mut dep_type_idx := 0
+                name_to_idx.get(dep_name, dep_type_idx)
+                catch (err: KeyNotFoundError) { }
+                if not(dep_type_idx.eq(idx)) {
+                    mut type_deps := Vec.new(I64)
+                    deps_list.get(idx, type_deps)
+                    catch (err: IndexOutOfBoundsError) { return result }
+                    type_deps.push(dep_type_idx)
+                }
+            }
+            dep_idx = add(dep_idx, 1)
+        }
+        idx = add(idx, 1)
+    }
+
+    // Kahn's algorithm for topological sort
+    // If A depends on B, B must come first, so reverse the edges
+    mut reverse_deps := List.new()  // List of Vec(I64)
+    idx = 0
+    while lt(idx, n) {
+        mut empty_vec := Vec.new(I64)
+        reverse_deps.push(Vec, empty_vec)
+        idx = add(idx, 1)
+    }
+    idx = 0
+    while lt(idx, n) {
+        mut dep_list := Vec.new(I64)
+        deps_list.get(idx, dep_list)
+        catch (err: IndexOutOfBoundsError) { return result }
+        mut dep_idx := 0
+        while lt(dep_idx, dep_list.len()) {
+            mut dep := 0
+            dep_list.get(dep_idx, dep)
+            mut rev_deps := Vec.new(I64)
+            reverse_deps.get(dep, rev_deps)
+            catch (err: IndexOutOfBoundsError) { return result }
+            rev_deps.push(idx)
+            dep_idx = add(dep_idx, 1)
+        }
+        idx = add(idx, 1)
+    }
+
+    // Calculate in-degree for reversed graph
+    mut in_degree := Vec.new(I64)
+    idx = 0
+    while lt(idx, n) {
+        in_degree.push(0)
+        idx = add(idx, 1)
+    }
+    idx = 0
+    while lt(idx, n) {
+        mut dep_list := Vec.new(I64)
+        reverse_deps.get(idx, dep_list)
+        catch (err: IndexOutOfBoundsError) { return result }
+        mut dep_idx := 0
+        while lt(dep_idx, dep_list.len()) {
+            mut dep := 0
+            dep_list.get(dep_idx, dep)
+            mut degree := 0
+            in_degree.get(dep, degree)
+            in_degree.set(dep, add(degree, 1))
+            dep_idx = add(dep_idx, 1)
+        }
+        idx = add(idx, 1)
+    }
+
+    // Start with nodes that have in-degree 0
+    mut queue := Vec.new(I64)
+    idx = 0
+    while lt(idx, n) {
+        mut degree := 0
+        in_degree.get(idx, degree)
+        if degree.eq(0) {
+            queue.push(idx)
+        }
+        idx = add(idx, 1)
+    }
+
+    // Process queue
+    while gt(queue.len(), 0) {
+        mut current := 0
+        queue.pop(current)
+        result.push(current)
+
+        // For each node that current points to, decrement in-degree
+        mut edges := Vec.new(I64)
+        reverse_deps.get(current, edges)
+        catch (err: IndexOutOfBoundsError) { return result }
+        mut edge_idx := 0
+        while lt(edge_idx, edges.len()) {
+            mut next := 0
+            edges.get(edge_idx, next)
+            mut degree := 0
+            in_degree.get(next, degree)
+            in_degree.set(next, sub(degree, 1))
+            if sub(degree, 1).eq(0) {
+                queue.push(next)
+            }
+            edge_idx = add(edge_idx, 1)
+        }
+    }
+
+    // If we couldn't sort all (cycle), append remaining in original order
+    if lt(result.len(), n) {
+        idx = 0
+        while lt(idx, n) {
+            mut found := false
+            mut i := 0
+            while lt(i, result.len()) {
+                mut val := 0
+                result.get(i, val)
+                if val.eq(idx) {
+                    found = true
+                }
+                i = add(i, 1)
+            }
+            if not(found) {
+                result.push(idx)
+            }
+            idx = add(idx, 1)
+        }
+    }
+
+    catch (err: AllocError) { }
+    catch (err: IndexOutOfBoundsError) { }
+    return result
+}
+
 // Topologically sort struct declarations by their field dependencies
 // Uses Kahn's algorithm. Returns Vec of indices in sorted order.
 topological_sort_structs := func(structs: List) returns Vec {
@@ -1145,6 +1407,27 @@ is_enum_declaration := func(expr: Expr) returns Bool {
             switch first.node_type {
             case NodeType.EnumDef(enum_def):
                 return true
+            case:
+                return false
+            }
+        }
+        return false
+    case:
+        return false
+    }
+}
+
+// Check if an expression is an enum declaration with payloads
+is_enum_with_payloads := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return false }
+            switch first.node_type {
+            case NodeType.EnumDef(enum_def):
+                return enum_has_payloads(enum_def)
             case:
                 return false
             }
@@ -1413,17 +1696,12 @@ enum_has_payloads := func(enum_def: SEnumDef) returns Bool {
         mut key := ""
         keys.get(i, key)
         catch (err: IndexOutOfBoundsError) { return false }
-        mut payload_type := ValueType.TCustom("")
-        enum_def.enum_map.get(key, payload_type)
-        catch (err: KeyNotFoundError) { /* no payload */ }
-        // Check if payload_type is not the default empty value
-        switch payload_type {
-        case ValueType.TCustom(name):
-            if gt(name.len(), 0) {
-                return true
-            }
-        case:
-            return true  // Any non-TCustom type means it has a payload
+        mut payload_ptr := Ptr()
+        enum_def.enum_map.get(key, payload_ptr)
+        catch (err: KeyNotFoundError) { }
+        // Check if payload exists (not NULL)
+        if not(NULL.eq(payload_ptr.data)) {
+            return true
         }
         i = add(i, 1)
     }
@@ -1465,10 +1743,10 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
         mut variant_name := ""
         variants.get(i, variant_name)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        mut payload_type := ValueType.TCustom("")
-        enum_def.enum_map.get(variant_name, payload_type)
-        catch (err: KeyNotFoundError) { /* no payload */ }
-        if variant_has_payload(payload_type) {
+        mut payload_ptr := Ptr()
+        enum_def.enum_map.get(variant_name, payload_ptr)
+        catch (err: KeyNotFoundError) { }
+        if not(NULL.eq(payload_ptr.data)) {
             has_any_payload = true
         }
         i = add(i, 1)
@@ -1481,10 +1759,12 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
             mut variant_name := ""
             variants.get(i, variant_name)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            mut payload_type := ValueType.TCustom("")
-            enum_def.enum_map.get(variant_name, payload_type)
-            catch (err: KeyNotFoundError) { /* no payload */ }
-            if variant_has_payload(payload_type) {
+            mut payload_ptr := Ptr()
+            enum_def.enum_map.get(variant_name, payload_ptr)
+            catch (err: KeyNotFoundError) { }
+            if not(NULL.eq(payload_ptr.data)) {
+                mut payload_type := ValueType.TCustom("")
+                memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
                 result = result.concat("    ").concat(til_type_to_c(payload_type)).concat(" ").concat(variant_name).concat(";\n")
             }
             i = add(i, 1)
@@ -1506,14 +1786,16 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
         mut variant_name := ""
         variants.get(i, variant_name)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        mut payload_type := ValueType.TCustom("")
-        enum_def.enum_map.get(variant_name, payload_type)
-        catch (err: KeyNotFoundError) { /* no payload */ }
+        mut payload_ptr := Ptr()
+        enum_def.enum_map.get(variant_name, payload_ptr)
+        catch (err: KeyNotFoundError) { }
 
         result = result.concat("static inline ").concat(enum_name).concat(" ").concat(enum_name).concat("_make_").concat(variant_name).concat("(")
 
         // Parameter for payload (if any)
-        if variant_has_payload(payload_type) {
+        if not(NULL.eq(payload_ptr.data)) {
+            mut payload_type := ValueType.TCustom("")
+            memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
             result = result.concat(til_type_to_c(payload_type)).concat(" value) {\n")
         } else {
             result = result.concat("void) {\n")
@@ -1523,7 +1805,7 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
         result = result.concat("    ").concat(enum_name).concat(" result = { .tag = ").concat(enum_name).concat("_").concat(variant_name).concat(" };\n")
 
         // Set payload if present
-        if variant_has_payload(payload_type) {
+        if not(NULL.eq(payload_ptr.data)) {
             result = result.concat("    result.payload.").concat(variant_name).concat(" = value;\n")
         }
 
@@ -1783,8 +2065,9 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip nested func collect pass
     }
 
-    // Pass 0b: emit forward declarations for all structs (for pointer cycles/self-references)
-    // Skip I64, U8, Bool - these are primitive typedefs, not structs
+    // Pass 0b: emit forward declarations for all structs and enums-with-payloads
+    // (enums with payloads are implemented as structs in C, so they need forward declarations too)
+    // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -1801,9 +2084,21 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
                     else if decl.name.eq("Dynamic") { }
                     else if decl.name.eq("Type") { }
                     else {
-                        output = output.concat("typedef struct ").concat(decl.name).concat(" ").concat(decl.name).concat(";\n")
+                        mut struct_name := til_name(decl.name)
+                        output = output.concat("typedef struct ").concat(struct_name).concat(" ").concat(struct_name).concat(";\n")
                     }
                 case:
+                }
+            }
+            // Also forward-declare enums with payloads (they're implemented as structs)
+            if is_enum_declaration(child) {
+                if is_enum_with_payloads(child) {
+                    switch child.node_type {
+                    case NodeType.Declaration(decl):
+                        mut enum_name := til_name(decl.name)
+                        output = output.concat("typedef struct ").concat(enum_name).concat(" ").concat(enum_name).concat(";\n")
+                    case:
+                    }
                 }
             }
             i = add(i, 1)
@@ -1814,7 +2109,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip forward declarations
     }
 
-    // Pass 1: emit enum definitions FIRST (structs may use enum types as fields)
+    // Pass 1a: emit simple enums (no payloads) - safe to emit early, structs may use them as fields
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -1823,7 +2118,9 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             mut child := Expr()
             ast.params.get(i, child)
             if is_enum_declaration(child) {
-                output = emit_enum_declaration(child, output)
+                if not(is_enum_with_payloads(child)) {
+                    output = emit_enum_declaration(child, output)
+                }
             }
             i = add(i, 1)
         }
@@ -1832,38 +2129,46 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip enum pass
     }
 
-    // Pass 1b: emit struct definitions (only mut fields become struct members)
-    // Use topological sort to handle embedded struct dependencies
+    // Pass 1b: emit all structs and enums-with-payloads in topologically sorted order
+    // Both are "complex types" that can depend on each other
     switch ast.node_type {
     case NodeType.Body:
-        // Collect all struct declarations
-        mut struct_decls := List.new()
+        // Collect all struct declarations and enums-with-payloads
+        mut type_decls := List.new()
         mut i := 0
         mut params_len := ast.params.len()
         while lt(i, params_len) {
             mut child := Expr()
             ast.params.get(i, child)
             if is_struct_declaration(child) {
-                struct_decls.push(Expr, child)
+                type_decls.push(Expr, child)
+            } else if is_enum_declaration(child) {
+                if is_enum_with_payloads(child) {
+                    type_decls.push(Expr, child)
+                }
             }
             i = add(i, 1)
         }
 
         // Sort by dependencies and emit in order
-        mut sorted_indices := topological_sort_structs(struct_decls)
+        mut sorted_indices := topological_sort_types(type_decls)
         i = 0
         while lt(i, sorted_indices.len()) {
             mut idx := 0
             sorted_indices.get(i, idx)
-            mut struct_expr := Expr()
-            struct_decls.get(idx, struct_expr)
-            output = emit_struct_declaration(struct_expr, output)
+            mut type_expr := Expr()
+            type_decls.get(idx, type_expr)
+            if is_struct_declaration(type_expr) {
+                output = emit_struct_declaration(type_expr, output)
+            } else {
+                output = emit_enum_declaration(type_expr, output)
+            }
             i = add(i, 1)
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        catch (err: AllocError) { throw "AllocError in struct pass" }
+        catch (err: AllocError) { throw "AllocError in type pass" }
     case:
-        // Not a body, skip struct pass
+        // Not a body, skip type pass
     }
 
     // Pass 1c: emit helper functions (after structs are defined)

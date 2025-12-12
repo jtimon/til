@@ -981,9 +981,9 @@ Arena := struct {
 
         enum_name := Context.variant_pos_to_str(enum_def, enum_value, ctx.path, e)
 
-        // Check if this variant has a payload type
-        mut payload_type := ValueType.TCustom("")
-        enum_def.enum_map.get(enum_name, payload_type)
+        // Check if this variant has a payload type (Ptr to ValueType, NULL = None)
+        mut payload_ptr := Ptr()
+        enum_def.enum_map.get(enum_name, payload_ptr)
         catch (err: KeyNotFoundError) {
             // No payload
         }
@@ -992,10 +992,12 @@ Arena := struct {
         result.enum_type = enum_type
         result.enum_name = enum_name
 
-        // Check if payload_type is meaningful (not empty string)
-        switch payload_type {
-        case ValueType.TCustom(inner_type):
-            if not(inner_type.eq("")) {
+        // Check if payload exists (not NULL)
+        if not(NULL.eq(payload_ptr.data)) {
+            mut payload_type := ValueType.TCustom("")
+            memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
+            switch payload_type {
+            case ValueType.TCustom(inner_type):
                 // This variant has a payload - recursively determine size
                 payload_size := Arena.get_payload_size_for_type(ctx, payload_type, add(offset, 8), e)
                 if payload_size.gt(0) {
@@ -1015,8 +1017,8 @@ Arena := struct {
                         result.payload_type.data = to_ptr(payload_type)
                     }
                 }
+            case:
             }
-        case:
         }
 
         catch (err: AllocError) {
@@ -1116,9 +1118,9 @@ Arena := struct {
 
         enum_name := Context.variant_pos_to_str(enum_def, enum_value, ctx.path, e)
 
-        // Check if this variant has a payload type
-        mut variant_payload_type := ValueType.TCustom("")
-        enum_def.enum_map.get(enum_name, variant_payload_type)
+        // Check if this variant has a payload type (Ptr to ValueType, NULL = None)
+        mut payload_ptr := Ptr()
+        enum_def.enum_map.get(enum_name, payload_ptr)
         catch (err: KeyNotFoundError) {
             // No payload type
         }
@@ -1127,10 +1129,12 @@ Arena := struct {
         result.enum_type = enum_type
         result.enum_name = enum_name
 
-        // Check if payload type is meaningful
-        switch variant_payload_type {
-        case ValueType.TCustom(vtype_name):
-            if not(vtype_name.eq("")) {
+        // Check if payload exists (not NULL)
+        if not(NULL.eq(payload_ptr.data)) {
+            mut variant_payload_type := ValueType.TCustom("")
+            memcpy(to_ptr(variant_payload_type), payload_ptr.data, size_of(ValueType))
+            switch variant_payload_type {
+            case ValueType.TCustom(vtype_name):
                 // This variant has a payload, read it from arena
                 mut payload_size := 0
                 if vtype_name.eq("I64") {
@@ -1186,8 +1190,8 @@ Arena := struct {
                         result.payload_type.data = to_ptr(variant_payload_type)
                     }
                 }
+            case:
             }
-        case:
         }
 
         catch (err: AllocError) {

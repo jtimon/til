@@ -76,14 +76,16 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
         mut enum_val_name := ""
         enum_keys.get(idx, enum_val_name)
 
-        // Get the value type for this variant
-        mut value_type := ValueType.TCustom("")  // Default init
-        enum_def.enum_map.get(enum_val_name, value_type)
+        // Get the payload type pointer for this variant (Ptr to ValueType, NULL = None)
+        mut payload_ptr := Ptr()
+        enum_def.enum_map.get(enum_val_name, payload_ptr)
 
-        switch value_type {
-        case ValueType.TCustom(custom_type_name):
-            // If custom_type_name is empty, it represents None (no payload)
-            if not(custom_type_name.eq("")) {
+        // Check if payload_ptr is Some (not NULL)
+        if not(NULL.eq(payload_ptr.data)) {
+            mut value_type := ValueType.TCustom("")
+            memcpy(to_ptr(value_type), payload_ptr.data, size_of(ValueType))
+            switch value_type {
+            case ValueType.TCustom(custom_type_name):
                 // Validate that the custom type exists
                 mut symbol_found := false
                 mut symbol_info := SymbolInfo()
@@ -110,11 +112,11 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
                         )))
                     }
                 }
+            case:
+                errors.push(e.todo_error(context.path, "type", format("'enum' does not support payloads of value type '", value_type_to_str(value_type), "' yet")))
             }
-            // else: empty string means None (no payload), nothing to check
-        case:
-            errors.push(e.todo_error(context.path, "type", format("'enum' does not support payloads of value type '", value_type_to_str(value_type), "' yet")))
         }
+        // else: NULL means None (no payload), nothing to check
 
         idx = idx.add(1)
     }
@@ -1165,13 +1167,15 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 variant = variant.get_substr(dot_pos.add(1), variant.len())
                             }
 
-                            // Look up payload type
+                            // Look up payload type (Ptr to ValueType, NULL = None)
                             mut enum_def := context.scope_stack.lookup_enum(enum_name)
-                            mut payload_type := ValueType.TCustom("")
-                            enum_def.enum_map.get(variant, payload_type)
+                            mut payload_ptr := Ptr()
+                            enum_def.enum_map.get(variant, payload_ptr)
 
-                            // If payload type is not default, add binding to scope
-                            if not(value_type_to_str(payload_type).eq("Bool")) {
+                            // If payload exists (not NULL), add binding to scope
+                            if not(NULL.eq(payload_ptr.data)) {
+                                mut payload_type := ValueType.TCustom("")
+                                memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
                                 context.scope_stack.push(ScopeType.Block)
                                 context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo.new(payload_type, false, false, false))
                                 errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_types, return_found))
@@ -1761,25 +1765,27 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
                     variant = variant.get_substr(dot_pos.add(1), variant.len())
                 }
 
-                // Look up payload type
+                // Look up payload type (Ptr to ValueType, NULL = None)
                 mut enum_def := context.scope_stack.lookup_enum(enum_name)
-                mut payload_type := ValueType.TCustom("")
-                mut has_payload := true
-                enum_def.enum_map.get(variant, payload_type)
+                mut payload_ptr := Ptr()
+                mut variant_found := true
+                enum_def.enum_map.get(variant, payload_ptr)
                 catch (err: KeyNotFoundError) {
-                    has_payload = false
+                    variant_found = false
                 }
 
-                if has_payload.and(not(value_type_to_str(payload_type).eq("Bool"))) {
-                    // Create a scoped context with the binding variable
+                if variant_found.and(not(NULL.eq(payload_ptr.data))) {
+                    // Variant has a payload - create scoped context with binding variable
+                    mut payload_type := ValueType.TCustom("")
+                    memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
                     context.scope_stack.push(ScopeType.Block)
                     context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo.new(payload_type, false, false, false))
                     // Switch case body statements discard return values
                     errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded))
                     _ := context.scope_stack.pop()
                     catch (err: Str) { }
-                } else if has_payload {
-                    // Variant exists but has no payload (Bool is placeholder)
+                } else if variant_found {
+                    // Variant exists but has no payload (NULL pointer)
                     errors.push(case_expr.error(context.path, "type", format("Variant '", variant, "' has no payload, cannot use pattern matching")))
                     errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded))
                 } else {

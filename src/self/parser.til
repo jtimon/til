@@ -10,7 +10,7 @@ import("self.mode")
 INFER_TYPE := "auto"
 
 SEnumDef := struct {
-    mut enum_map: Map = Map.new(Str, ValueType)
+    mut enum_map: Map = Map.new(Str, Ptr)  // Ptr to ValueType, NULL = None (no payload)
 
     clone := func(self: SEnumDef) returns SEnumDef throws AllocError {
         mut result := SEnumDef()
@@ -840,7 +840,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
         throw t2.error(lexer.path, "expected identifier after 'enum {{', found EOF.")
     }
     lexer.advance(1)
-    mut enum_map := Map.new(Str, ValueType)
+    mut enum_map := Map.new(Str, Ptr)  // Ptr to ValueType, NULL = None
 
     mut end_found := false
     while and(lexer.current.lt(lexer.len()), not(end_found)) {
@@ -860,16 +860,20 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
                 switch n2tt {
                 case TokenType.Identifier:
                     enum_val_type := next2_t.token_str
-                    enum_map.set(enum_val_name, str_to_value_type(enum_val_type))
+                    // Some(ValueType) - store pointer to payload type
+                    mut payload_type := str_to_value_type(enum_val_type)
+                    mut payload_ptr := Ptr()
+                    payload_ptr.data = to_ptr(payload_type)
+                    enum_map.set(enum_val_name, payload_ptr)
                     lexer.advance(2)
                 case:
                     throw next2_t.error(lexer.path, format("Expected type identifier after '", enum_val_name, " :', found '", token_type_to_str(next2_t.token_type), "'."))
                 }
             case TokenType.Comma:
-                enum_map.set(enum_val_name, ValueType.TCustom(""))  // None represented as empty TCustom
+                enum_map.set(enum_val_name, Ptr())  // None = NULL pointer
                 // Continue
             case TokenType.RightBrace:
-                enum_map.set(enum_val_name, ValueType.TCustom(""))  // None represented as empty TCustom
+                enum_map.set(enum_val_name, Ptr())  // None = NULL pointer
                 end_found = true
                 lexer.advance(1)  // Advance past the RightBrace since we peeked it with next()
             case:

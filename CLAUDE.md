@@ -5,6 +5,8 @@ Read `doc/bot.org` for full guidelines. Key points below are frequently repeated
 
 ## Various things
 - **NEVER** Use weird unicode symbols anywhere, stay ASCII
+- **NEVER** Use cat, use read, write or echo instead
+
 
 ## CRITICAL: Stay Within Project Directory
 - **NEVER** create or read files outside the project directory
