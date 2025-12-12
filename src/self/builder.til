@@ -2,7 +2,7 @@ mode lib
 
 import("self.interpreter")
 import("self.precomp")
-import("self.killer")
+import("self.scavenger")
 import("self.ccodegen")
 import("std.io")            // writefile
 
@@ -317,8 +317,8 @@ build := proc(path: Str) returns Str throws Str {
 
     mut merged_ast := Expr.new_explicit(NodeType.Body, all_params, main_ast.line, main_ast.col)
 
-    // Killer phase: Remove unused function declarations
-    merged_ast = killer_expr(context, merged_ast)
+    // Scavenger phase: Remove unused function declarations
+    merged_ast = scavenger_expr(context, merged_ast)
 
     // Generate C code
     mut c_code := emit(merged_ast, context)

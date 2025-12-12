@@ -585,8 +585,8 @@ main := proc(args: ..Str) {
 
     rs_interpreted.push(TestEntry(path="src/examples/hello_pure.til")) // TODO FIX: mode pure forbids procs but core.til has procs
     rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: read-only parameter assignment, mut Str* assignment
-    rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: killer: no body found for enum variant (Color.Name)
-    rs_interpreted.push(TestEntry(path="src/test/forward_declarations.til")) // TODO FIX: killer: no body found for enum variant (ValueType1.TFunction)
+    rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: scavenger: no body found for enum variant (Color.Name)
+    rs_interpreted.push(TestEntry(path="src/test/forward_declarations.til")) // TODO FIX: scavenger: no body found for enum variant (ValueType1.TFunction)
     rs_interpreted.push(TestEntry(path="src/test/introspections.til")) // TODO FIX: gcc: undefined reference to Introspection_has_const/has_field
     rs_interpreted.push(TestEntry(path="src/test/lists.til")) // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
     rs_interpreted.push(TestEntry(path="src/test/maps.til")) // TODO FIX: gcc: Str passed to Dynamic param (Map_position expects void*)
@@ -596,8 +596,8 @@ main := proc(args: ..Str) {
     rs_interpreted.push(TestEntry(path="src/test/scope_isolation.til")) // TODO FIX: eval: Missing arena index for return value 'false'
     rs_interpreted.push(TestEntry(path="src/test/sets.til")) // TODO FIX: gcc: or() called with no args
     rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: Str range comparisons (<=), and()/or() no args, Vec.new in struct init
-    rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: killer: no body found for enum variant (Literal.Number)
-    rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: killer: no body found for enum variant (TestPatternEnum.TypeB)
+    rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: scavenger: no body found for enum variant (Literal.Number)
+    rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: scavenger: no body found for enum variant (TestPatternEnum.TypeB)
     rs_interpreted.push(TestEntry(path="src/test/vecs.til")) // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
 
     // rs_interpreted.push(TestEntry(path="src/examples/hello_script_safe.til")) // TODO this is much harder than it sounds
@@ -610,8 +610,8 @@ main := proc(args: ..Str) {
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
     rs_interpreted.push(TestEntry(path="src/self/interpreter.til")) // TODO FIX: type: symbols already declared (double import?)
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: killer: no body found for enum variant (NodeType.LLiteral)
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="version")) // TODO FIX: killer: no body found for enum variant (ValueType.TCustom)
+    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: scavenger: no body found for enum variant (NodeType.LLiteral)
+    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="version")) // TODO FIX: scavenger: no body found for enum variant (ValueType.TCustom)
     // rs_interpreted.push(TestEntry(path="src/test/builders.til")) // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)

@@ -2696,11 +2696,11 @@ pub fn main_run(skip_init_and_typecheck: bool, context: &mut Context, path: &Str
         // Precomputation phase: Transform UFCS calls into regular function calls
         e = precomp_expr(context, &e)?;
 
-        // Killer phase: Remove unused function declarations
+        // Scavenger phase: Remove unused function declarations
         // NOTE: Disabled for interpreter - it doesn't merge ASTs like builder does,
         // so UFCS calls from imported modules aren't fully resolved in the main file.
-        // Killer is mainly useful for compilation anyway where code size matters.
-        // e = crate::rs::killer::killer_expr(context, &e)?;
+        // Scavenger is mainly useful for compilation anyway where code size matters.
+        // e = crate::rs::scavenger::scavenger_expr(context, &e)?;
     }
 
     return match eval_expr(context, &e) {

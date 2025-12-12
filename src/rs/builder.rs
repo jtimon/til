@@ -232,8 +232,8 @@ pub fn build(path: &str) -> Result<(), String> {
     // Merge all precompiled ASTs for codegen
     let merged_ast = merge_asts(main_ast, dep_asts);
 
-    // Killer phase: Remove unused function declarations
-    let merged_ast = crate::rs::killer::killer_expr(&mut context, &merged_ast)?;
+    // Scavenger phase: Remove unused function declarations
+    let merged_ast = crate::rs::scavenger::scavenger_expr(&mut context, &merged_ast)?;
 
     // Generate C code
     let c_code = ccodegen::emit(&merged_ast, &mut context)?;

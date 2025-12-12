@@ -2,7 +2,7 @@ mode lib
 
 import("self.init")
 
-// Killer phase: Removes unused function declarations from the AST.
+// Scavenger phase: Removes unused function declarations from the AST.
 // This phase runs after precomp (UFCS already resolved), before interpreter/builder.
 
 // ---------- Helper functions
@@ -340,7 +340,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
                 }
 
                 if not(found_enum) {
-                    throw e.lang_error(context.path, "killer", format("no body found for '", func_name, "'"))
+                    throw e.lang_error(context.path, "scavenger", format("no body found for '", func_name, "'"))
                 }
                 // Enum constructor - no body to walk
             }
@@ -378,7 +378,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
 
 /// Remove unused function declarations from the AST.
 /// This runs after precomp, so UFCS is already resolved.
-killer_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
+scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Only process Body nodes at the top level
     switch e.node_type {
     case NodeType.Body:

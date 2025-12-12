@@ -7,7 +7,7 @@ mod rs {
     pub mod init;
     pub mod typer;
     pub mod precomp;
-    pub mod killer;
+    pub mod scavenger;
     pub mod arena;
     pub mod interpreter;
     pub mod ext;

@@ -1,4 +1,4 @@
-// Killer phase: Removes unused function declarations from the AST.
+// Scavenger phase: Removes unused function declarations from the AST.
 // This phase runs after precomp (UFCS already resolved), before interpreter/builder.
 
 use crate::rs::init::Context;
@@ -228,7 +228,7 @@ fn compute_reachable(
         } else if context.scope_stack.lookup_enum(&func_name).is_some() {
             // Enum constructor - no body to walk
         } else {
-            return Err(e.lang_error(&context.path, "killer", &format!("no body found for '{}'", func_name)));
+            return Err(e.lang_error(&context.path, "scavenger", &format!("no body found for '{}'", func_name)));
         }
     }
 
@@ -239,7 +239,7 @@ fn compute_reachable(
 
 /// Remove unused function declarations from the AST.
 /// This runs after precomp, so UFCS is already resolved.
-pub fn killer_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
+pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     // Only process Body nodes at the top level
     if let NodeType::Body = &e.node_type {
         // Step 0: Register all functions and structs from the transformed AST into scope_stack
