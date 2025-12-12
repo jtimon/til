@@ -834,7 +834,7 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
             ti = ti.add(1)
         }
         if not(is_thrown) {
-            errors.push(e.error(context.path, "warning", format("It looks like `", declared_str, "` is declared in the throws section, but this function never throws it.\nSuggestion: You can remove it to improve readability.")))
+            errors.push(e.error(context.path, "type", format("`", declared_str, "` is declared in the throws section, but this function never throws it.\nSuggestion: Remove it from the throws section.")))
         }
         d = d.add(1)
     }

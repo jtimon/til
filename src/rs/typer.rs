@@ -597,7 +597,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
     for declared_throw in &func_def.throw_types {
         let declared_str = value_type_to_str(declared_throw);
         if !thrown_types.iter().any(|te| te.type_str == declared_str) {
-            errors.push(e.error(&context.path, "warning", &format!("It looks like `{}` is declared in the throws section, but this function never throws it.\nSuggestion: You can remove it to improve readability.",
+            errors.push(e.error(&context.path, "type", &format!("`{}` is declared in the throws section, but this function never throws it.\nSuggestion: Remove it from the throws section.",
                                                     declared_str)));
         }
     }
