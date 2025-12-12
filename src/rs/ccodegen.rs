@@ -1401,6 +1401,16 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         }
     }
 
+    // Pass 4a2: emit enum_to_str functions for all enums
+    // This must come after structs are defined (Str is needed for return type)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_enum_declaration(child) {
+                emit_enum_to_str_for_declaration(child, &mut output, context)?;
+            }
+        }
+    }
+
     // Pass 4b: emit top-level constants (non-mut declarations with literal values)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
@@ -2049,6 +2059,75 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
     }
     Err("emit_enum_declaration: not an enum declaration".to_string())
 }
+
+// Emit a _to_str function for an enum type
+// Takes a pointer because enum_to_str(e: Dynamic) passes by reference
+// For simple enums: til_Str til_EnumName_to_str(til_EnumName* e)
+// For enums with payloads: til_Str til_EnumName_to_str(til_EnumName* e)
+fn emit_enum_to_str_function(enum_name: &str, enum_def: &SEnumDef, output: &mut String) {
+    let has_payloads = enum_has_payloads(enum_def);
+    let mut variants: Vec<_> = enum_def.enum_map.keys().collect();
+    variants.sort();
+
+    // Function signature - takes pointer since Dynamic params are passed by reference
+    output.push_str("static inline til_Str ");
+    output.push_str(enum_name);
+    output.push_str("_to_str(");
+    output.push_str(enum_name);
+    output.push_str("* e) {\n    switch(");
+    if has_payloads {
+        output.push_str("e->tag");
+    } else {
+        output.push_str("*e");
+    }
+    output.push_str(") {\n");
+
+    // Cases - need the original (non-prefixed) enum name for the string
+    let original_name = if enum_name.starts_with(TIL_PREFIX) {
+        &enum_name[TIL_PREFIX.len()..]
+    } else {
+        enum_name
+    };
+
+    for variant in &variants {
+        let full_name = format!("{}.{}", original_name, variant);
+        output.push_str("        case ");
+        output.push_str(enum_name);
+        output.push_str("_");
+        output.push_str(variant);
+        output.push_str(": return (til_Str){(til_I64)\"");
+        output.push_str(&full_name);
+        output.push_str("\", ");
+        output.push_str(&full_name.len().to_string());
+        output.push_str("};\n");
+    }
+
+    // Default case (shouldn't happen but good for safety)
+    let unknown_name = format!("{}.?", original_name);
+    output.push_str("    }\n    return (til_Str){(til_I64)\"");
+    output.push_str(&unknown_name);
+    output.push_str("\", ");
+    output.push_str(&unknown_name.len().to_string());
+    output.push_str("};\n}\n\n");
+}
+
+// Emit _to_str function for an enum declaration node
+fn emit_enum_to_str_for_declaration(
+    expr: &Expr,
+    output: &mut String,
+    context: &mut Context,
+) -> Result<(), String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        let enum_name = &decl.name;
+        if let Some(enum_def) = context.scope_stack.lookup_enum(enum_name) {
+            let c_enum_name = til_name(enum_name);
+            emit_enum_to_str_function(&c_enum_name, &enum_def, output);
+            return Ok(());
+        }
+    }
+    Err("emit_enum_to_str_for_declaration: not an enum declaration".to_string())
+}
+
 // Emit struct function prototypes for all functions in a struct
 fn emit_struct_func_prototypes(expr: &Expr, output: &mut String) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
@@ -5174,6 +5253,30 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 emit_str_literal("unknown", output);
             }
             Ok(())
+        },
+        // enum_to_str(e) - get enum variant name as string
+        // Emits call to til_EnumType_to_str(e) which was generated during enum emission
+        "enum_to_str" => {
+            if expr.params.len() < 2 {
+                return Err("ccodegen: enum_to_str requires 1 argument".to_string());
+            }
+            let arg = &expr.params[1];
+            // Get the enum type from the argument
+            let value_type = get_value_type(context, arg)?;
+            if let ValueType::TCustom(enum_type_name) = value_type {
+                // Verify it's an enum type
+                if context.scope_stack.lookup_enum(&enum_type_name).is_some() {
+                    output.push_str(&til_name(&enum_type_name));
+                    output.push_str("_to_str(");
+                    emit_expr(arg, output, 0, ctx, context)?;
+                    output.push_str(")");
+                    Ok(())
+                } else {
+                    Err(format!("ccodegen: enum_to_str argument '{}' is not an enum type", enum_type_name))
+                }
+            } else {
+                Err(format!("ccodegen: enum_to_str argument has non-custom type: {:?}", value_type))
+            }
         },
         // size_of(T) - runtime type size lookup via til_size_of function
         // Can be called with a literal type name (size_of(Str)) or a Type variable (size_of(T))

@@ -586,18 +586,18 @@ main := proc(args: ..Str) {
     mut rs_interpreted := Vec.new(TestEntry)
 
     rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: copy param assignment/reassignment, append_str incompatible types
-    rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: gcc: enum_to_str undeclared, enum constructors called as functions not struct init
-    rs_interpreted.push(TestEntry(path="src/test/forward_declarations.til")) // TODO FIX: gcc: called object is not a function (enum constructor as func call)
+    rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: typer: pattern binding var extracted_option undeclared in switch case
+    rs_interpreted.push(TestEntry(path="src/test/forward_declarations.til")) // TODO FIX: gcc: called object is not a function (enum constructor with payload as func call)
     rs_interpreted.push(TestEntry(path="src/test/lists.til")) // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
     rs_interpreted.push(TestEntry(path="src/test/maps.til")) // TODO FIX: gcc: incompatible type for Map_position (Str passed to Dynamic param)
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/modes.til")) // TODO FIX: gcc: til_dummy_token undeclared (top-level const from func call)
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
-    rs_interpreted.push(TestEntry(path="src/test/scope_isolation.til")) // TODO FIX: gcc: mut parameter type mismatch (pass-by-ref vs pass-by-value)
+    rs_interpreted.push(TestEntry(path="src/test/scope_isolation.til")) // TODO FIX: gcc: mut parameter type mismatch in prototype vs definition
     rs_interpreted.push(TestEntry(path="src/test/sets.til")) // TODO FIX: gcc: too few arguments to function til_or (variadic and/or)
-    rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: Str <= comparison, too few args to til_and/til_or (variadic)
-    rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: Str <= comparison, too few args to til_and/til_or (variadic)
-    rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: gcc: enum constructor as func call, pattern binding var til_s/til_n undeclared
+    rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: Str <= comparison not supported
+    rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: Str <= comparison not supported
+    rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: gcc: enum constructor with payload as func call, pattern binding var undeclared
     rs_interpreted.push(TestEntry(path="src/test/vecs.til")) // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
 
     // rs_interpreted.push(TestEntry(path="src/examples/hello_script_safe.til")) // TODO this is much harder than it sounds
@@ -610,8 +610,8 @@ main := proc(args: ..Str) {
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
     rs_interpreted.push(TestEntry(path="src/self/interpreter.til")) // TODO FIX: precomp: Import not found in stored ASTs (self-referential import)
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: gcc: Str <= comparison, too few args to til_and/til_or (variadic)
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="version")) // TODO FIX: gcc: Str <= comparison, too few args to til_and/til_or (variadic)
+    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: typer: Undefined symbol 'literal' (pattern binding in switch)
+    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="version")) // TODO FIX: typer: Undefined symbol 'literal' (pattern binding in switch)
     // rs_interpreted.push(TestEntry(path="src/test/builders.til")) // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)

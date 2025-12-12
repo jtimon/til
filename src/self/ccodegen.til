@@ -1877,6 +1877,68 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 }
 
+// Emit a _to_str function for an enum type
+// Takes a pointer because enum_to_str(e: Dynamic) passes by reference
+// For simple enums: til_Str til_EnumName_to_str(til_EnumName* e)
+// For enums with payloads: til_Str til_EnumName_to_str(til_EnumName* e)
+emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, output: Str) returns Str throws Str {
+    mut result := output
+    has_payloads := enum_has_payloads(enum_def)
+    mut variants := enum_def.enum_map.keys
+
+    // Function signature - takes pointer since Dynamic params are passed by reference
+    result = result.concat("static inline til_Str ").concat(enum_name).concat("_to_str(").concat(enum_name).concat("* e) {\n    switch(")
+    if has_payloads {
+        result = result.concat("e->tag")
+    } else {
+        result = result.concat("*e")
+    }
+    result = result.concat(") {\n")
+
+    // Cases - need the original (non-prefixed) enum name for the string
+    mut original_name := enum_name
+    if enum_name.starts_with(TIL_PREFIX) {
+        original_name = get_substr(enum_name, TIL_PREFIX.len(), enum_name.len())
+    }
+
+    mut i := 0
+    while lt(i, variants.len()) {
+        mut variant_name := ""
+        variants.get(i, variant_name)
+        full_name := original_name.concat(".").concat(variant_name)
+        result = result.concat("        case ").concat(enum_name).concat("_").concat(variant_name).concat(": return (til_Str){(til_I64)\"").concat(full_name).concat("\", ").concat(full_name.len().to_str()).concat("};\n")
+        i = add(i, 1)
+    }
+
+    // Default case (shouldn't happen but good for safety)
+    unknown_name := original_name.concat(".?")
+    result = result.concat("    }\n    return (til_Str){(til_I64)\"").concat(unknown_name).concat("\", ").concat(unknown_name.len().to_str()).concat("};\n}\n\n")
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
+    return result
+}
+
+// Emit _to_str function for an enum declaration node
+emit_enum_to_str_for_declaration := proc(expr: Expr, output: Str, context: Context) returns Str throws Str {
+    mut result := output
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        enum_name := decl.name
+        enum_def := context.scope_stack.lookup_enum(enum_name)
+        c_enum_name := til_name(enum_name)
+        result = emit_enum_to_str_function(c_enum_name, enum_def, result)
+
+        catch (err: KeyNotFoundError) {
+            throw "emit_enum_to_str_for_declaration: enum not found in context"
+        }
+        return result
+    case:
+        throw "emit_enum_to_str_for_declaration: not an enum declaration"
+    }
+}
+
 // Emit struct function prototypes with mangled names: StructName_funcname
 emit_struct_func_prototypes := proc(expr: Expr, output: Str, ctx: CodegenContext) returns Str throws Str {
     mut result := output
@@ -2221,6 +2283,25 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip enum size_of pass
+    }
+
+    // Pass 2a2: emit enum_to_str functions for all enums
+    // This must come after structs are defined (Str is needed for return type)
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            if is_enum_declaration(child) {
+                output = emit_enum_to_str_for_declaration(child, output, context)
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, skip enum_to_str pass
     }
 
     // Pass 2b: emit top-level constants (non-mut declarations with literal values)
@@ -7188,7 +7269,37 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
     // Hardcoded builtins (compile-time intrinsics that can't be implemented in TIL)
     // loc() is now resolved in precomp phase, so it never reaches here
-    if orig_func_name.eq("size_of") {
+
+    // enum_to_str(e) - get enum variant name as string
+    // Emits call to til_EnumType_to_str(e) which was generated during enum emission
+    if orig_func_name.eq("enum_to_str") {
+        if lt(params_len, 2) {
+            throw "ccodegen: enum_to_str requires 1 argument"
+        }
+        mut arg := Expr()
+        expr.params.get(1, arg)
+        // Get the enum type from the argument
+        value_type := get_value_type(context, arg)
+        switch value_type {
+        case ValueType.TCustom(enum_type_name):
+            // Verify it's an enum type
+            _ := context.scope_stack.lookup_enum(enum_type_name)
+            result = result.concat(til_name(enum_type_name)).concat("_to_str(")
+            result = emit_expr(arg, result, 0, ctx, context)
+            result = result.concat(")")
+            if gt(indent, 0) {
+                result = result.concat(";\n")
+            }
+
+            catch (err: KeyNotFoundError) {
+                throw format("ccodegen: enum_to_str argument '", enum_type_name, "' is not an enum type")
+            }
+            return result
+        case:
+            throw format("ccodegen: enum_to_str argument has non-custom type")
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    } else if orig_func_name.eq("size_of") {
         // size_of(T) - runtime type size lookup via til_size_of function
         // Can be called with a literal type name (size_of(Str)) or a Type variable (size_of(T))
         if lt(params_len, 2) {
