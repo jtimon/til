@@ -215,6 +215,9 @@ pub fn build(path: &str) -> Result<(), String> {
     // Precomputation phase: Transform UFCS calls into regular function calls
     let merged_ast = crate::rs::precomp::precomp_expr(&mut context, &merged_ast)?;
 
+    // Killer phase: Remove unused function declarations
+    let merged_ast = crate::rs::killer::killer_expr(&mut context, &merged_ast)?;
+
     // Generate C code
     let c_code = ccodegen::emit(&merged_ast, &mut context)?;
 

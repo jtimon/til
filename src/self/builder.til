@@ -2,6 +2,7 @@ mode lib
 
 import("self.interpreter")
 import("self.precomp")
+import("self.killer")
 import("self.ccodegen")
 import("std.io")            // writefile
 
@@ -298,6 +299,9 @@ build := proc(path: Str) returns Str throws Str {
 
     // Precomputation phase: Transform UFCS calls into regular function calls
     merged_ast = precomp_expr(context, merged_ast)
+
+    // Killer phase: Remove unused function declarations
+    merged_ast = killer_expr(context, merged_ast)
 
     // Generate C code
     mut c_code := emit(merged_ast, context)

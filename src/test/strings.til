@@ -59,6 +59,19 @@ test_strings := proc() {
     func_name := "Str_clone"
     assert_eq(loc(), 3, func_name.find("_"))  // the actual use case
 
+    // Test find with newline in needle
+    newline_str := "hello\nreal\t0m0.123s"
+    assert_eq(loc(), 5, newline_str.find("\nreal"))
+
+    // Test find with medium string
+    mut med_str := ""
+    for i in 0..10 {
+        med_str = med_str.concat("Line ").concat(i.to_str()).concat(".\n")
+    }
+    med_str = med_str.concat("\nreal\t0m0.123s\n")
+    med_pos := med_str.find("\nreal")
+    test(loc(), med_pos.gt(0), "find in medium string should work")
+
     catch(err: I64_OverflowError) {
         panic(loc(), "Unexpected I64_OverflowError")
     }

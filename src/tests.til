@@ -261,11 +261,20 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
         mut entry := ""
         rs_interpreted.get(i, entry)
         mut time_ms := 0
-        if test_rs_interpreted(entry, time_ms) {
+        mut args_str := ""
+        if test_rs_interpreted(entry, time_ms, args_str) {
             errors_found = true
         }
         total_interpret_ms = total_interpret_ms.add(time_ms)
-        println("[", i.to_str(), "/", rs_interpreted.len().to_str(), "] ", entry, " (interpreted: ", format_time(time_ms), ")")
+        // Show args if present (use path not entry to avoid showing variant twice)
+        mut display_path := ""
+        mut display_variant := ""
+        parse_test_entry(entry, display_path, display_variant)
+        mut args_display := ""
+        if not(args_str.eq("")) {
+            args_display = concat(" ", args_str)
+        }
+        println("[", i.to_str(), "/", rs_interpreted.len().to_str(), "] ", display_path, args_display, " (interpreted: ", format_time(time_ms), ")")
         benchmark_content = benchmark_content.concat("- ").concat(entry).concat(" :: interpreted: ").concat(format_time(time_ms)).concat("\n")
     }
 
@@ -285,6 +294,7 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
     _ := writefile("benchmark.org", totals.concat(benchmark_content))
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
 
     if errors_found {
         panic(loc(), "tests failed")
@@ -347,7 +357,7 @@ ensure_out_file := proc(path: Str, out_path: Str, test_mode: Str) {
     }
 }
 
-test_rs_interpreted := proc(entry: Str, mut time_ms: I64) returns Bool {
+test_rs_interpreted := proc(entry: Str, mut time_ms: I64, mut out_args: Str) returns Bool {
     mut path := ""
     mut variant := ""
     parse_test_entry(entry, path, variant)
@@ -360,6 +370,7 @@ test_rs_interpreted := proc(entry: Str, mut time_ms: I64) returns Bool {
     mut expected_exit_code := 0
     mut expected_output := ""
     parse_expected(expected_content, args_str, expected_exit_code, expected_output)
+    out_args = args_str  // Return args for display in caller
 
     // Run interpreter with timing
     mut interp_output := ""
