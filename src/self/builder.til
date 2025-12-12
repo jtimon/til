@@ -95,7 +95,8 @@ get_import_path := func(expr: Expr) returns Str {
 
 
 // Collect imports from a single AST (non-recursive, returns new imports found)
-collect_imports_single := proc(ast: Expr, mut imported: Set, mut dep_asts: Vec) throws Str {
+// Each file is precompiled with its own path before being added to dep_asts
+collect_imports_single := proc(ast: Expr, mut imported: Set, mut dep_asts: Vec, mut context: Context) throws Str {
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -110,8 +111,13 @@ collect_imports_single := proc(ast: Expr, mut imported: Set, mut dep_asts: Vec) 
                     _ := imported.insert(file_path)
                     mut parse_result := parse_file(file_path)
                     // Recursively collect imports from this dependency first
-                    collect_imports_single(parse_result.ast, imported, dep_asts)
-                    dep_asts.push(parse_result.ast)
+                    collect_imports_single(parse_result.ast, imported, dep_asts, context)
+                    // Precomp with the correct path for this file
+                    mut saved_path := context.path
+                    context.path = file_path
+                    mut dep_ast := precomp_expr(context, parse_result.ast)
+                    context.path = saved_path
+                    dep_asts.push(dep_ast)
                 }
             }
             i = add(i, 1)
@@ -250,6 +256,7 @@ build := proc(path: Str) returns Str throws Str {
 
     // === Post-typer: Collect and merge ASTs for codegen ===
     // Now that type checking passed, collect all imported files for code generation
+    // Each file is precompiled with its own path before merging
     mut imported := Set.new(Str)
     _ := imported.insert(path)
     mut dep_asts := Vec.new(Expr)
@@ -258,8 +265,13 @@ build := proc(path: Str) returns Str throws Str {
     if not(path.eq(core_path)) {
         mut core_result := parse_file(core_path)
         _ := imported.insert(core_path)
-        collect_imports_single(core_result.ast, imported, dep_asts)
-        dep_asts.push(core_result.ast)
+        collect_imports_single(core_result.ast, imported, dep_asts, context)
+        // Precomp core.til with its own path
+        mut saved_path := context.path
+        context.path = core_path
+        mut core_ast := precomp_expr(context, core_result.ast)
+        context.path = saved_path
+        dep_asts.push(core_ast)
     }
 
     // Collect mode imports
@@ -271,16 +283,24 @@ build := proc(path: Str) returns Str throws Str {
         if not(imported.contains(file_path)) {
             _ := imported.insert(file_path)
             mut mode_result := parse_file(file_path)
-            collect_imports_single(mode_result.ast, imported, dep_asts)
-            dep_asts.push(mode_result.ast)
+            collect_imports_single(mode_result.ast, imported, dep_asts, context)
+            // Precomp mode file with its own path
+            mut saved_path := context.path
+            context.path = file_path
+            mut mode_ast := precomp_expr(context, mode_result.ast)
+            context.path = saved_path
+            dep_asts.push(mode_ast)
         }
         mode_collect_idx = add(mode_collect_idx, 1)
     }
 
     // Collect main file's imports
-    collect_imports_single(main_ast, imported, dep_asts)
+    collect_imports_single(main_ast, imported, dep_asts, context)
 
-    // Merge all ASTs for codegen
+    // Precomp main file with its own path (context.path should already be correct)
+    main_ast = precomp_expr(context, main_ast)
+
+    // Merge all precompiled ASTs for codegen
     mut all_params := Vec.new(Expr)
 
     // Add dependencies first (in order they were collected)
@@ -296,9 +316,6 @@ build := proc(path: Str) returns Str throws Str {
     merge_dep_params(main_ast, all_params)
 
     mut merged_ast := Expr.new_explicit(NodeType.Body, all_params, main_ast.line, main_ast.col)
-
-    // Precomputation phase: Transform UFCS calls into regular function calls
-    merged_ast = precomp_expr(context, merged_ast)
 
     // Killer phase: Remove unused function declarations
     merged_ast = killer_expr(context, merged_ast)

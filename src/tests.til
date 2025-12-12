@@ -565,6 +565,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/todo.til")) // permanent TODO, design notes for future features
     rs_common.push(TestEntry(path="src/test/u8.til"))
     rs_common.push(TestEntry(path="src/test/variadic.til"))
+    rs_common.push(TestEntry(path="src/test/errors.til"))
 
     mut rs_compiled := Vec.new(TestEntry)
     rs_compiled.push(TestEntry(path="src/test/enums_simple.til"))
@@ -585,7 +586,6 @@ main := proc(args: ..Str) {
     rs_interpreted.push(TestEntry(path="src/examples/hello_pure.til")) // TODO FIX: mode pure forbids procs but core.til has procs
     rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: read-only parameter assignment, mut Str* assignment
     rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: killer: no body found for enum variant (Color.Name)
-    rs_interpreted.push(TestEntry(path="src/test/errors.til")) // compiles but runtime: loc() path differs (src/core vs src/test)
     rs_interpreted.push(TestEntry(path="src/test/forward_declarations.til")) // TODO FIX: killer: no body found for enum variant (ValueType1.TFunction)
     rs_interpreted.push(TestEntry(path="src/test/introspections.til")) // TODO FIX: gcc: undefined reference to Introspection_has_const/has_field
     rs_interpreted.push(TestEntry(path="src/test/lists.til")) // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index

@@ -604,6 +604,29 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
 
 /// Transform FCall node - this is where UFCS resolution happens
 precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    // Check for loc() - replace with string literal before any other processing
+    if e.params.len().eq(1) {
+        mut func_expr := Expr()
+        e.params.get(0, func_expr)
+        switch func_expr.node_type {
+        case NodeType.Identifier(name):
+            if name.eq("loc") {
+                mut loc_str := format(context.path, ":", I64.to_str(e.line), ":", I64.to_str(e.col), ":")
+                return Expr.new_clone(NodeType.LLiteral(Literal.Str(loc_str)), e, Vec.new(Expr))
+            }
+        case:
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw format("precomp_fcall loc check: ", err.msg)
+        }
+        catch (err: AllocError) {
+            throw format("precomp_fcall loc check: ", err.msg)
+        }
+        catch (err: I64_OverflowError) {
+            throw format("precomp_fcall loc check: ", err.msg)
+        }
+    }
+
     // First, recursively transform all arguments
     mut transformed_params := Vec.new(Expr)
     mut i := 0

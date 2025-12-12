@@ -410,6 +410,20 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
 
 /// Transform FCall node - this is where UFCS resolution happens
 fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
+    // Check for loc() - replace with string literal before any other processing
+    if let Some(func_expr) = e.params.first() {
+        if let NodeType::Identifier(name) = &func_expr.node_type {
+            if name == "loc" && e.params.len() == 1 {
+                let loc_str = format!("{}:{}:{}:", context.path, e.line, e.col);
+                return Ok(Expr::new_clone(
+                    NodeType::LLiteral(Literal::Str(loc_str)),
+                    e,
+                    vec![],
+                ));
+            }
+        }
+    }
+
     // First, recursively transform all arguments
     let mut transformed_params = Vec::new();
     for p in &e.params {

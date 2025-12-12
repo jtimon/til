@@ -42,7 +42,8 @@ fn parse_file(path: &str) -> Result<(Expr, ModeDef), String> {
 }
 
 // Recursively collect all imports from an AST
-fn collect_imports(ast: &Expr, imported: &mut HashSet<String>, all_asts: &mut Vec<Expr>) -> Result<(), String> {
+// Each file is precompiled with its own path before being added to all_asts
+fn collect_imports(ast: &Expr, imported: &mut HashSet<String>, all_asts: &mut Vec<Expr>, context: &mut Context) -> Result<(), String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if let NodeType::FCall = &child.node_type {
@@ -55,7 +56,12 @@ fn collect_imports(ast: &Expr, imported: &mut HashSet<String>, all_asts: &mut Ve
                                     imported.insert(file_path.clone());
                                     let (dep_ast, _mode) = parse_file(&file_path)?;
                                     // Recursively collect imports from this dependency
-                                    collect_imports(&dep_ast, imported, all_asts)?;
+                                    collect_imports(&dep_ast, imported, all_asts, context)?;
+                                    // Precomp with the correct path for this file
+                                    let saved_path = context.path.clone();
+                                    context.path = file_path;
+                                    let dep_ast = crate::rs::precomp::precomp_expr(context, &dep_ast)?;
+                                    context.path = saved_path;
                                     all_asts.push(dep_ast);
                                 }
                             }
@@ -183,6 +189,7 @@ pub fn build(path: &str) -> Result<(), String> {
 
     // === Post-typer: Collect and merge ASTs for codegen ===
     // Now that type checking passed, collect all imported files for code generation
+    // Each file is precompiled with its own path before merging
     let mut imported = HashSet::new();
     imported.insert(path.to_string());
     let mut dep_asts = Vec::new();
@@ -191,7 +198,12 @@ pub fn build(path: &str) -> Result<(), String> {
     if path != core_path {
         let (core_ast, _) = parse_file(core_path)?;
         imported.insert(core_path.to_string());
-        collect_imports(&core_ast, &mut imported, &mut dep_asts)?;
+        collect_imports(&core_ast, &mut imported, &mut dep_asts, &mut context)?;
+        // Precomp core.til with its own path
+        let saved_path = context.path.clone();
+        context.path = core_path.to_string();
+        let core_ast = crate::rs::precomp::precomp_expr(&mut context, &core_ast)?;
+        context.path = saved_path;
         dep_asts.push(core_ast);
     }
 
@@ -201,19 +213,24 @@ pub fn build(path: &str) -> Result<(), String> {
         if !imported.contains(&file_path) {
             imported.insert(file_path.clone());
             let (mode_ast, _) = parse_file(&file_path)?;
-            collect_imports(&mode_ast, &mut imported, &mut dep_asts)?;
+            collect_imports(&mode_ast, &mut imported, &mut dep_asts, &mut context)?;
+            // Precomp mode file with its own path
+            let saved_path = context.path.clone();
+            context.path = file_path;
+            let mode_ast = crate::rs::precomp::precomp_expr(&mut context, &mode_ast)?;
+            context.path = saved_path;
             dep_asts.push(mode_ast);
         }
     }
 
     // Collect main file's imports
-    collect_imports(&main_ast, &mut imported, &mut dep_asts)?;
+    collect_imports(&main_ast, &mut imported, &mut dep_asts, &mut context)?;
 
-    // Merge all ASTs for codegen
+    // Precomp main file with its own path (context.path should already be correct)
+    let main_ast = crate::rs::precomp::precomp_expr(&mut context, &main_ast)?;
+
+    // Merge all precompiled ASTs for codegen
     let merged_ast = merge_asts(main_ast, dep_asts);
-
-    // Precomputation phase: Transform UFCS calls into regular function calls
-    let merged_ast = crate::rs::precomp::precomp_expr(&mut context, &merged_ast)?;
 
     // Killer phase: Remove unused function declarations
     let merged_ast = crate::rs::killer::killer_expr(&mut context, &merged_ast)?;

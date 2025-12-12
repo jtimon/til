@@ -5085,15 +5085,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     // Hardcoded builtins (compile-time intrinsics that can't be implemented in TIL)
     match orig_func_name.as_str() {
-        // loc() - just emit empty string for now
-        "loc" => {
-            if context.scope_stack.lookup_struct("Str").is_some() {
-                emit_str_literal("", output);
-            } else {
-                output.push_str("\"\"");
-            }
-            Ok(())
-        },
+        // loc() is now resolved in precomp phase, so it never reaches here
         // type_as_str(T) - compile-time intrinsic to get type name as string
         // TODO: This doesn't work correctly for Type parameters (T: Type) because
         // we emit a single generic function, not monomorphized versions per type.

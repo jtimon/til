@@ -6856,13 +6856,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     }
 
     // Hardcoded builtins (compile-time intrinsics that can't be implemented in TIL)
-    if orig_func_name.eq("loc") {
-        if has_str(context) {
-            return emit_str_literal("", output)
-        } else {
-            return concat(output, "\"\"")
-        }
-    } else if orig_func_name.eq("size_of") {
+    // loc() is now resolved in precomp phase, so it never reaches here
+    if orig_func_name.eq("size_of") {
         // size_of(T) - runtime type size lookup via til_size_of function
         // Can be called with a literal type name (size_of(Str)) or a Type variable (size_of(T))
         if lt(params_len, 2) {
@@ -6909,6 +6904,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             result = result.concat(";\n")
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: AllocError) { throw err.msg }
+        catch (err: I64_OverflowError) { throw err.msg }
         return result
     } else if orig_func_name.eq("to_ptr") {
         // to_ptr(var) - get address of variable
@@ -7150,7 +7147,6 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     }
 
     catch (err: I64_OverflowError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
 }
 
