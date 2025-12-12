@@ -64,7 +64,7 @@ impl Token {
                  path, self.line, self.col, LANG_NAME, msg);
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Kept for consistency with Expr.todo_error
     pub fn todo_error(self: &Token, path: &str, msg: &str) -> String {
         return format!("{}:{}:{}: {} parse ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
                  path, self.line, self.col, LANG_NAME, msg);
@@ -76,7 +76,6 @@ impl Token {
 }
 
 pub struct Lexer {
-    #[allow(dead_code)] // Used in TIL implementation, here for homologization
     pub path: String,
     tokens: Vec<Token>,
     pub current: usize,
@@ -85,13 +84,6 @@ pub struct Lexer {
 impl Lexer {
     pub fn new(source: String) -> Self {
         return Self{path: "<test>".to_string(), tokens: scan_tokens(source), current: 0};
-    }
-
-    #[allow(dead_code)] // Used in TIL implementation, here for homologization
-    pub fn new_from_file(path: &str) -> Result<Self, String> {
-        let source = std::fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read file '{}': {}", path, e))?;
-        return Ok(Self{path: path.to_string(), tokens: scan_tokens(source), current: 0});
     }
 
     pub fn len(self: &Lexer) -> usize {

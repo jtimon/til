@@ -91,7 +91,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
 }
 
 parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str {
-    _ := lexer_expect(lexer, TokenType.Mode)  // Add one for mode
+    _ := lexer.expect(TokenType.Mode)  // Add one for mode
 
     t := lexer.peek()
     tt := t.token_type
@@ -109,7 +109,7 @@ parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str {
         throw t.error(path, format("mode '", m.name, "' is not properly supported in '", LANG_NAME, "' yet. Try mode 'script' instead"))
     }
 
-    _ := lexer_expect(lexer, TokenType.Identifier)  // Add one for the identifier of the mode
+    _ := lexer.expect(TokenType.Identifier)  // Add one for the identifier of the mode
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg

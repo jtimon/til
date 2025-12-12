@@ -14,10 +14,10 @@ ParseResult := struct {
     mut file_mode: ModeDef = ModeDef()
 }
 
-// Parse a single file and return its AST and mode
+// Parse a single file and return its AST (and mode for main file)
 parse_file := proc(path: Str) returns ParseResult throws Str {
-    // Create lexer (reads file internally)
-    mut lexer := Lexer.new(path)
+    source := readfile(path)
+    mut lexer := lexer_from_source(path, source)
 
     // Parse mode
     mut file_mode := parse_mode(path, lexer)

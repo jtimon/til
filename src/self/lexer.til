@@ -4,7 +4,6 @@ import("core.vec")
 import("std.io")            // readfile
 
 LANG_NAME := "til"
-DEBUG_COMPILER := true
 
 TokenType := enum {
     // basic
@@ -47,7 +46,7 @@ TokenType := enum {
     Func, Proc, Macro,
     FuncExt, ProcExt,
 
-    // Errors (unsupported tokens)
+    // Errors
     Const, Var,
     Fn, Function,
     Try,
@@ -73,6 +72,7 @@ Token := struct {
         return result
     }
 
+    #[allow(dead_code)] // Kept for consistency with Expr.todo_error
     todo_error := func(self: Token, path: Str, msg: Str) returns Str throws Str {
         result := format(path, ":", self.line.to_str(), ":", self.col.to_str(), ": ",
             LANG_NAME, " parse ERROR: ", msg, "\n",
@@ -92,420 +92,12 @@ Token := struct {
     }
 }
 
-scan_push_token := proc(mut tokens: Vec, token_type: TokenType, token_str: Str, line: I64, col: I64) throws Str {
-    mut t := Token()
-    t.token_type = token_type
-    t.token_str = token_str
-    t.line = line
-    t.col = col
-
-    tokens.push(t)
-    catch (err: AllocError) {
-        throw format(line.to_str(), ":", col.to_str(), ": scan_tokens: AllocError while pushing token: ", err.msg)
-    }
-}
-
-is_digit := func(source: Str, pos: I64) returns Bool throws Str {
-    switch source.get_substr(pos, pos.add(1)) {
-    case "0".."9": return true
-    case: return false
-    }
-    catch (err: IndexOutOfBoundsError) {
-        throw format("is_digit: ", err.msg)
-    }
-    catch (err: AllocError) {
-        throw format("is_digit: ", err.msg)
-    }
-}
-
-is_id_start := func(source: Str, pos: I64) returns Bool throws Str {
-    // current_char := Str.get_substr(source, pos, add(pos, 1)) // TODO FIX throws check doesn't propagate for associated functions (unless called as methods)
-    current_char := source.get_substr(pos, pos.add(1))
-    switch current_char {
-    case "a".."z": return true
-    case "A".."Z": return true
-    case "_": return true
-    case:
-    }
-    catch (err: IndexOutOfBoundsError) {
-        throw format("is_id_start: ", err.msg)
-    }
-    catch (err: AllocError) {
-        throw format("is_id_start: ", err.msg)
-    }
-    return false
-}
-
-scan_reserved_words := func(identifier: Str) returns TokenType {
-    switch identifier {
-    case "mode": return TokenType.Mode
-        // declaration/arg modifiers
-    case "mut": return TokenType.Mut
-    case "copy": return TokenType.Copy
-    case "own": return TokenType.Own
-        // core data types
-    case "enum": return TokenType.Enum
-    case "struct": return TokenType.Struct
-        // function declaration
-    case "returns": return TokenType.Returns
-        // Anything that can be thrown must be explicitly declared in the function via 'throws', java style.
-        // Except perhaps PanicException or something like that which can be implicit, but still allowed to documment redundantly
-        // or perhaps not, for that may degenerate in an extra warning option
-        // perhaps just force the user to explicitly catch and exit any potential panic from the callee
-    case "throws": return TokenType.Throws // TODO implement
-    case "func": return TokenType.Func
-    case "proc": return TokenType.Proc
-    case "macro": return TokenType.Macro // TODO implement for real once we compile
-    case "ext_func": return TokenType.FuncExt // this has to link when we compile
-    case "ext_proc": return TokenType.ProcExt // this has to link when we compile
-
-        // control flow
-    case "if": return TokenType.If
-    case "else": return TokenType.Else
-    case "while": return TokenType.While
-    case "for": return TokenType.For
-    case "in": return TokenType.In
-    case "switch": return TokenType.Switch
-    case "match": return TokenType.Match // TODO like switch but special for declarations/assignments
-    case "case": return TokenType.Case
-    case "default": return TokenType.Default // TODO currently using "case:", but "default:" is more traditional, grepable and overt
-    case "return": return TokenType.Return
-    case "throw": return TokenType.Throw
-        // TODO throw should just act as a return that gets post-processed by the next catch or rethrown
-    case "catch": return TokenType.Catch
-        // or should 'try:' be optional?
-
-        // Reserved forbidden/illegal words (intentionally unsupported reserved words)
-        // TODO intentionally unsupport more reserved words
-        // TODO nicer messages for forbidden words
-    case "fn": return TokenType.Fn
-    case "function": return TokenType.Function
-    case "try": return TokenType.Try // TIL uses catch without try (forbidden for users from other languages)
-    case "let": return TokenType.Let
-    case "class": return TokenType.Class
-    case "global": return TokenType.Invalid // just use mut declaration in the root of the file, but they're not allowed in all modes
-        // const/vars are the most abstract types, you can't even explicitly declare them
-    case "const": return TokenType.Const
-    case "var": return TokenType.Var
-        // Do we really need const fields static other than static? (ie can be different per instance, but not modified afterwards)
-        // The answer is probably yet, but perhaps static is not the right answer
-        // how about this? if it's in the struct body, it is const, if it is in impl, it is static, just like functions\
-        // or do we need mut function fields too? probably yes
-    case "static": return TokenType.Invalid
-    case:
-    }
-    return TokenType.Identifier
-}
-
-scan_tokens := proc(source: Str) returns Vec throws Str {
-    mut tokens := Vec.new(Token)
-
-    eof_pos := source.len()
-    mut pos := 0
-    mut line := 1
-    mut start_line_pos := sub(0, 1)
-
-    while pos.lt(eof_pos) {
-        start := pos
-        if source.is_digit(pos) {
-            mut continue_scanning := true
-            while continue_scanning {
-                pos.inc()
-                if pos.lt(eof_pos) {
-                    if not(source.is_digit(pos)) {
-                        continue_scanning = false
-                    }
-                } else {
-                    continue_scanning = false
-                }
-            }
-            // Look for a fractional part.
-            if pos.lt(eof_pos) {
-                if source.get_substr(pos, pos.add(1)).eq(".") {
-                    if pos.add(1).lt(eof_pos) {
-                        if source.is_digit(pos.add(1)) {
-                            pos.inc()
-                            mut continue_scanning2 := true
-                            while continue_scanning2 {
-                                pos.inc()
-                                if pos.lt(eof_pos) {
-                                    if not(source.is_digit(pos)) {
-                                        continue_scanning2 = false
-                                    }
-                                } else {
-                                    continue_scanning2 = false
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            scan_push_token(tokens, TokenType.Number, source.get_substr(start, pos), line, start.sub(start_line_pos))
-        } else {
-
-            current_char := source.get_substr(pos, pos.add(1))
-            mut token_type := TokenType.Invalid
-            mut skip_token_push := false
-            switch current_char {
-                // chars to ignore in this language (increment pos, no token, continue loop):
-            case " ":
-                pos.inc()
-                skip_token_push = true
-            case "\r":
-                pos.inc()
-                skip_token_push = true
-            case "\t":
-                pos.inc()
-                skip_token_push = true
-            case "\n":
-                pos.inc()
-                line.inc()
-                start_line_pos = pos.sub(1)
-                skip_token_push = true
-
-                // open/close. left/right parentheses, craces and brackets
-            case "(":
-                token_type = TokenType.LeftParen
-            case ")":
-                token_type = TokenType.RightParen
-            case "{":
-                token_type = TokenType.LeftBrace
-            case "}":
-                token_type = TokenType.RightBrace
-            case "[":
-                token_type = TokenType.LeftBracket
-            case "]":
-                token_type = TokenType.RightBracket
-
-            case ";":
-                if source.get_substr(pos.add(1), pos.add(2)).eq(";") {
-                    pos.inc()
-                    token_type = TokenType.DoubleSemicolon
-                } else {
-                    token_type = TokenType.Semicolon
-                }
-                // separator for optional type before the equal in declarations or args
-            case ":":
-                token_type = TokenType.Colon
-                // separator for args
-            case ",":
-                token_type = TokenType.Comma
-
-                // math
-            case "+":
-                token_type = TokenType.Plus
-            case "-":
-                token_type = TokenType.Minus
-            case "*":
-                token_type = TokenType.Star
-
-                // reserved for two chars in a row
-            case ".":
-                if source.get_substr(pos.add(1), pos.add(2)).eq(".") {
-                    pos.inc()
-                    token_type = TokenType.DoubleDot
-                } else {
-                    token_type = TokenType.Dot
-                }
-            case "=":
-                if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
-                    pos.inc()
-                    token_type = TokenType.EqualEqual
-                } else {
-                    token_type = TokenType.Equal
-                }
-            case "<":
-                if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
-                    pos.inc()
-                    token_type = TokenType.LesserEqual
-                } else {
-                    token_type = TokenType.Lesser
-                }
-            case ">":
-                if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
-                    pos.inc()
-                    token_type = TokenType.GreaterEqual
-                } else {
-                    token_type = TokenType.Greater
-                }
-            case "!":
-                if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
-                    pos.inc()
-                    token_type = TokenType.NotEqual
-                } else {
-                    token_type = TokenType.Not
-                }
-
-                // comments:
-            case "#":
-                pos.inc()
-                while and(lt(pos.add(1), eof_pos), not(source.get_substr(pos, pos.add(1)).eq("\n"))) {
-                    pos.inc()
-                }
-                skip_token_push = true
-            case "/":
-                if source.get_substr(pos.add(1), pos.add(2)).eq("/") {
-                    // Single-line comment
-                    pos.inc()
-                    while and(lt(pos.add(1), eof_pos), not(source.get_substr(pos, pos.add(1)).eq("\n"))) {
-                        pos.inc()
-                    }
-                    skip_token_push = true
-                } else if source.get_substr(pos.add(1), pos.add(2)).eq("*") {
-                    // Nested block comment
-                    pos = pos.add(2)
-                    mut depth := 1
-                    mut comment_done := false
-                    // TODO: Replace comment_done flag with 'break' when break is implemented
-
-                    while and(pos.lt(sub(eof_pos, 1)), not(comment_done)) {
-                        next_two := source.get_substr(pos, pos.add(2))
-
-                        if next_two.eq("/*") {
-                            depth = depth.add(1)
-                            pos = pos.add(2)
-                        } else if next_two.eq("*/") {
-                            depth = depth.sub(1)
-                            pos = pos.add(2)
-                            if depth.eq(0) {
-                                comment_done = true  // TODO: Replace with 'break'
-                            }
-                        } else {
-                            if source.get_substr(pos, pos.add(1)).eq("\n") {
-                                line.inc()
-                                start_line_pos = pos
-                            }
-                            pos.inc()
-                        }
-                    }
-
-                    if depth.gt(0) {
-                        scan_push_token(tokens, TokenType.UnterminatedComment, "/*", line, pos.sub(start_line_pos))
-                        skip_token_push = true
-                    } else {
-                        skip_token_push = true
-                    }
-                } else {
-                    token_type = TokenType.Slash
-                }
-
-                // literal strings
-            case "\"":
-                mut lit_string := ""
-                pos.inc()
-                // while pos + 1 < eof_pos && &source[pos..pos+1] != "\""
-                mut continue_string_scan := true
-                while continue_string_scan {
-                    if not(lt(pos.add(1), eof_pos)) {
-                        continue_string_scan = false
-                    } else if source.get_substr(pos, pos.add(1)).eq("\"") {
-                        continue_string_scan = false
-                    } else {
-                        if source.get_substr(pos, pos.add(1)).eq("\\") {
-                            pos.inc() // if it's the escape character, skip it
-                            if lt(pos.add(1), eof_pos) {
-                                esc := source.get_substr(pos, pos.add(1))
-                                switch esc {
-                                case "\"":
-                                    lit_string = format(lit_string, "\"")
-                                case "\\":
-                                    lit_string = format(lit_string, "\\")
-                                case "n":
-                                    lit_string = format(lit_string, "\n")
-                                case "r":
-                                    lit_string = format(lit_string, "\r")
-                                case "t":
-                                    lit_string = format(lit_string, "\t")
-                                case "0":
-                                    lit_string = format(lit_string, "\0")
-                                case:
-                                    // If it's something else, just leave it as is for now, I guess
-                                    // TODO print some warning with unkown escaped characters?
-                                    lit_string = format(lit_string, "\\")
-                                    lit_string = format(lit_string, esc)
-                                }
-                            }
-                        } else {
-                            lit_string = format(lit_string, source.get_substr(pos, pos.add(1)))
-                        }
-                        pos.inc()
-                    }
-                }
-
-                if not(lt(pos, eof_pos)) {
-                    token_type = TokenType.UnterminatedString
-                } else {
-                    scan_push_token(tokens, TokenType.String, lit_string, line, start.sub(start_line_pos))
-                    token_type = TokenType.String
-                }
-
-                // Everything else must be reserved words, identifiers or invalid
-            case:
-                if source.is_id_start(pos) {
-                    pos.inc()
-                    mut continue_id_scan := true
-                    // TODO: Replace continue_id_scan flag with 'break' when break is implemented
-                    while and(pos.lt(eof_pos), continue_id_scan) {
-                        if or(source.is_digit(pos), source.is_id_start(pos)) {
-                            pos.inc()
-                        } else {
-                            continue_id_scan = false  // TODO: Replace with 'break'
-                        }
-                    }
-                    pos.dec()
-                    token_type = scan_reserved_words(source.get_substr(start, pos.add(1)))
-                } else {
-                    token_type = TokenType.Invalid
-                }
-            } // switch
-
-            // Push token if not already pushed (similar to Rust lines 487-490)
-            if not(skip_token_push) {
-                // Note: token_type for String is set but token already pushed inside the case
-                // so we check and skip pushing again
-                mut is_string := false
-                switch token_type {
-                case TokenType.String:
-                    is_string = true
-                case:
-                    is_string = false
-                }
-                if not(is_string) {
-                    scan_push_token(tokens, token_type, source.get_substr(start, pos.add(1)), line, start.sub(start_line_pos))
-                }
-                pos.inc()
-            }
-        } // else
-        // println("Current char:", current_char)
-    } // while
-    scan_push_token(tokens, TokenType.Eof, "End of file", line, 0);
-
-    catch (err: IndexOutOfBoundsError) {
-        throw format(loc(), "scan_tokens: IndexOutOfBoundsError: ", err.msg)
-    }
-    catch (err: I64_OverflowError) {
-        throw format(loc(), "scan_tokens: I64_OverflowError: ", err.msg)
-    }
-    catch (err: AllocError) {
-        throw format(loc(), "scan_tokens: AllocError: ", err.msg)
-    }
-    return tokens
-}
-
-/** An interface for the Lexer */
 Lexer := struct {
     mut path: Str = ""
     mut tokens: Vec = Vec.new(Token)
     mut current: I64 = 0
 
-    new := proc(path: Str) returns Lexer throws Str {
-        mut l := Lexer()
-        l.path = path
-        l.tokens = scan_tokens(readfile(path))
-        return l
-    }
-
-    new_from_src := proc(source: Str) returns Lexer throws Str {
+    new := proc(source: Str) returns Lexer throws Str {
         mut l := Lexer()
         l.path = "<test>"
         l.tokens = scan_tokens(source)
@@ -517,110 +109,98 @@ Lexer := struct {
     }
 
     is_eof := func(self: Lexer, offset: I64) returns Bool throws IndexOutOfBoundsError {
-        current := self.current
-        i := add(current, offset)
-        if gteq(i, self.tokens.len()) {
+        i := self.current.add(offset)
+        if i.gteq(self.tokens.len()) {
             return true
         }
         mut t := Token()
         self.tokens.get(i, t)
-        // Compare TokenType using switch
-        mut is_eof := false
         switch t.token_type {
         case TokenType.Eof:
-            is_eof = true
+            return true
         case:
-            is_eof = false
+            return false
         }
-        return is_eof
     }
 
-    get_token := func(self: Lexer, index: I64) returns Token throws IndexOutOfBoundsError {
+    get_token := func(self: Lexer, i: I64) returns Token throws Str {
+        if i.gteq(self.tokens.len()) {
+            mut t := self.peek()
+            throw t.lang_error(self.path, format("Token in pos ", i.to_str(), " is out of bounds"))
+        }
         mut t := Token()
-        self.tokens.get(index, t)
+        self.tokens.get(i, t)
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
         return t
     }
 
-    // TODO: If advance/go_back maintain the invariant that current is always valid,
-    // peek shouldn't need to throw IndexOutOfBoundsError
     peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
         mut t := Token()
         self.tokens.get(self.current, t)
         return t
     }
 
-    peek_ahead := func(self: Lexer, offset: I64) returns Token throws IndexOutOfBoundsError, Str {
-        index := add(self.current, offset)
-        if gteq(index, self.tokens.len()) {
-            mut err := IndexOutOfBoundsError()
-            err.msg = format("Peek ahead by ", I64.to_str(offset), " is out of bounds")
-            throw err
+    previous := func(self: Lexer) returns Token throws Str {
+        if self.current.eq(0) {
+            mut t := self.peek()
+            throw t.lang_error(self.path, "No previous token (at position 0)")
+        }
+        if self.current.sub(1).gteq(self.tokens.len()) {
+            mut t := self.peek()
+            throw t.lang_error(self.path, "Previous token is out of bounds")
         }
         mut t := Token()
-        self.tokens.get(index, t)
-        catch (err: I64_OverflowError) {
-            throw err.msg
-        }
-        catch (err: AllocError) {
+        self.tokens.get(self.current.sub(1), t)
+        catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
         return t
     }
 
-    next := func(self: Lexer) returns Token throws IndexOutOfBoundsError, Str {
+    advance := func(mut self: Lexer, count: I64) throws Str {
+        if self.current.add(count).gt(self.tokens.len()) {
+            mut t := self.peek()
+            throw t.lang_error(self.path, format("Attempt to advance by ", count.to_str(), " from ", self.current.to_str(),
+                    " would exceed bounds (", self.tokens.len().to_str(), " tokens total)"))
+        }
+        self.current = self.current.add(count)
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+    }
+
+    go_back := func(mut self: Lexer, count: I64) throws Str {
+        if count.gt(self.current) {
+            mut t := self.peek()
+            throw t.lang_error(self.path, format("Attempt to go back by ", count.to_str(), " from ", self.current.to_str(), " would underflow"))
+        }
+        self.current = self.current.sub(count)
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+    }
+
+    peek_ahead := func(self: Lexer, offset: I64) returns Token throws Str {
+        i := self.current.add(offset)
+        if i.gteq(self.tokens.len()) {
+            mut t := self.peek()
+            throw t.lang_error(self.path, format("Peek ahead by ", offset.to_str(), " from ", self.current.to_str(), " is out of bounds"))
+        }
+        mut t := Token()
+        self.tokens.get(i, t)
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        return t
+    }
+
+    next := func(self: Lexer) returns Token throws Str {
         return self.peek_ahead(1)
     }
 
-    previous := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
-        if eq(self.current, 0) {
-            mut err := IndexOutOfBoundsError()
-            err.msg = "No previous token (at position 0)"
-            throw err
-        }
-        index := sub(self.current, 1)
-        if gteq(index, self.tokens.len()) {
-            mut err := IndexOutOfBoundsError()
-            err.msg = "Previous token is out of bounds"
-            throw err
-        }
-        mut t := Token()
-        self.tokens.get(index, t)
-        return t
-    }
-
-    advance := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError, Str {
-        next_index := add(self.current, count)
-        if gt(next_index, self.tokens.len()) {
-            mut err := IndexOutOfBoundsError()
-            err.msg = format("Advance by ", I64.to_str(count), " from ", I64.to_str(self.current),
-                    " would exceed bounds (", I64.to_str(self.tokens.len()), " tokens total)")
-            throw err
-        }
-        self.current = next_index
-        catch (err: I64_OverflowError) {
-            throw err.msg
-        }
-        catch (err: AllocError) {
-            throw err.msg
-        }
-    }
-
-    go_back := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError, Str {
-        if gt(count, self.current) {
-            mut err := IndexOutOfBoundsError()
-            err.msg = format("Go back by ", I64.to_str(count), " from ", I64.to_str(self.current), " would underflow")
-            throw err
-        }
-        self.current = sub(self.current, count)
-        catch (err: I64_OverflowError) {
-            throw err.msg
-        }
-        catch (err: AllocError) {
-            throw err.msg
-        }
-    }
-
-    expect := func(mut self: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str {
+    expect := func(mut self: Lexer, expected: TokenType) returns Token throws Str {
         p := self.peek()
         switch p.token_type {
         case expected:
@@ -630,22 +210,11 @@ Lexer := struct {
             throw p.error(self.path, format(
                 "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'"))
         }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
     }
 
-}
-
-// Workaround for Bug #8: Uncaptured return values propagate up call stack
-// This standalone function allows callers to capture the return value with _ := lexer_expect(...)
-lexer_expect := func(mut lexer: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str {
-    p := lexer.peek()
-    switch p.token_type {
-    case expected:
-        lexer.advance(1)
-        return p
-    case:
-        throw p.error(lexer.path, format(
-            "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'"))
-    }
 }
 
 token_type_to_str := func(tt: TokenType) returns Str {
@@ -707,14 +276,417 @@ token_type_to_str := func(tt: TokenType) returns Str {
     }
 }
 
-build_var_suggestion := func(tokens: Vec, var_index: I64) returns Str throws Str {
-    mut result := "Suggestion: use 'mut' instead"
+is_digit := func(source: Str, pos: I64) returns Bool throws Str {
+    switch source.get_substr(pos, pos.add(1)) {
+    case "0".."9": return true
+    case: return false
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw format("is_digit: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw format("is_digit: ", err.msg)
+    }
+}
 
+is_id_start := func(source: Str, pos: I64) returns Bool throws Str {
+    current_char := source.get_substr(pos, pos.add(1))
+    switch current_char {
+    case "a".."z": return true
+    case "A".."Z": return true
+    case "_": return true
+    case:
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw format("is_id_start: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw format("is_id_start: ", err.msg)
+    }
+    return false
+}
+
+scan_reserved_words := func(identifier: Str) returns TokenType {
+    switch identifier {
+    case "mode": return TokenType.Mode
+
+        // declaration/arg modifiers
+    case "mut": return TokenType.Mut
+    case "copy": return TokenType.Copy
+    case "own": return TokenType.Own
+
+        // core data types
+    case "enum": return TokenType.Enum
+    case "struct": return TokenType.Struct
+
+        // function declaration
+    case "returns": return TokenType.Returns
+        // Anything that can be thrown must be explicitly declared in the function via 'throws', java style.
+        // Except perhaps PanicException or something like that which can be implicit, but still allowed to documment redundantly
+        // or perhaps not, for that may degenerate in an extra warning option
+        // perhaps just force the user to explicitly catch and exit any potential panic from the callee
+    case "throws": return TokenType.Throws // TODO parse
+    case "func": return TokenType.Func
+    case "proc": return TokenType.Proc
+    case "macro": return TokenType.Macro // TODO implement for real once we compile
+    case "ext_func": return TokenType.FuncExt // this has to link when we compile
+    case "ext_proc": return TokenType.ProcExt // this has to link when we compile
+
+        // control flow
+    case "if": return TokenType.If
+    case "else": return TokenType.Else
+    case "while": return TokenType.While
+    case "for": return TokenType.For
+    case "in": return TokenType.In
+    case "switch": return TokenType.Switch
+    case "match": return TokenType.Match // TODO like switch but special for declarations/assignments
+    case "case": return TokenType.Case
+    case "default": return TokenType.Default // TODO currently using "case:", but "default:" is more traditional, grepable and overt
+    case "return": return TokenType.Return
+    case "throw": return TokenType.Throw // TODO
+        // TODO throw should just act as a return that gets post-processed by the next catch or rethrown
+    case "catch": return TokenType.Catch
+
+        // Reserved forbidden/illegal words (intentionally unsupported reserved words)
+        // TODO intentionally unsupport more reserved words
+        // TODO nicer messages for forbidden words
+    case "fn": return TokenType.Fn
+    case "function": return TokenType.Function
+    case "try": return TokenType.Try // TIL uses catch without try (try is forbidden for users from other languages)
+    case "let": return TokenType.Let
+    case "class": return TokenType.Class
+    case "global": return TokenType.Invalid // just use mut declaration in the root of the file, but they're not allowed in all modes
+        // const/vars are the most abstract types, you can't even explicitly declare them
+    case "const": return TokenType.Const
+    case "var": return TokenType.Var
+
+        // Do we really need const fields static other than static? (ie can be different per instance, but not modified afterwards)
+        // The answer is probably yet, but perhaps static is not the right answer
+        // how about this? if it's in the struct body, it is const, if it is in impl, it is static, just like functions
+        // or do we need mut function fields too? probably yes
+    case "static": return TokenType.Invalid
+
+    case:
+    }
+    return TokenType.Identifier
+}
+
+scan_push_token := proc(mut tokens: Vec, token_type: TokenType, token_str: Str, line: I64, col: I64) throws Str {
+    mut t := Token()
+    t.token_type = token_type
+    t.token_str = token_str
+    t.line = line
+    t.col = col
+
+    tokens.push(t)
+    catch (err: AllocError) {
+        throw format(line.to_str(), ":", col.to_str(), ": scan_tokens: AllocError while pushing token: ", err.msg)
+    }
+}
+
+scan_tokens := proc(source: Str) returns Vec throws Str {
+    mut tokens := Vec.new(Token)
+
+    eof_pos := source.len()
+    mut pos := 0
+    mut line := 1
+    mut start_line_pos := sub(0, 1)
+
+    while pos.lt(eof_pos) {
+        start := pos
+        if source.is_digit(pos) {
+            mut continue_scanning := true
+            while continue_scanning {
+                pos.inc()
+                if pos.lt(eof_pos) {
+                    if not(source.is_digit(pos)) {
+                        continue_scanning = false
+                    }
+                } else {
+                    continue_scanning = false
+                }
+            }
+            // Look for a fractional part.
+            if pos.lt(eof_pos) {
+                if source.get_substr(pos, pos.add(1)).eq(".") {
+                    if pos.add(1).lt(eof_pos) {
+                        if source.is_digit(pos.add(1)) {
+                            pos.inc()
+                            mut continue_scanning2 := true
+                            while continue_scanning2 {
+                                pos.inc()
+                                if pos.lt(eof_pos) {
+                                    if not(source.is_digit(pos)) {
+                                        continue_scanning2 = false
+                                    }
+                                } else {
+                                    continue_scanning2 = false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            scan_push_token(tokens, TokenType.Number, source.get_substr(start, pos), line, start.sub(start_line_pos))
+        } else {
+
+            current_char := source.get_substr(pos, pos.add(1))
+            mut token_type := TokenType.Invalid
+            mut should_process_token := true
+            switch current_char {
+                // chars to ignore in this language (increment pos, no token, continue loop):
+            case " ":
+                pos.inc()
+                should_process_token = false
+            case "\r":
+                pos.inc()
+                should_process_token = false
+            case "\t":
+                pos.inc()
+                should_process_token = false
+            case "\n":
+                pos.inc()
+                line.inc()
+                start_line_pos = pos.sub(1)
+                should_process_token = false
+
+                // open/close. left/right parentheses, craces and brackets
+            case "(":
+                token_type = TokenType.LeftParen
+            case ")":
+                token_type = TokenType.RightParen
+            case "{":
+                token_type = TokenType.LeftBrace
+            case "}":
+                token_type = TokenType.RightBrace
+            case "[":
+                token_type = TokenType.LeftBracket
+            case "]":
+                token_type = TokenType.RightBracket
+
+                // separator for optional type before the equal in declarations or args
+            case ":":
+                token_type = TokenType.Colon
+                // separator for args
+            case ",":
+                token_type = TokenType.Comma // args can/must? have ',', otherwise the language would be too lispy when parsing from C
+
+                // math
+            case "-":
+                token_type = TokenType.Minus
+            case "+":
+                token_type = TokenType.Plus
+            case "*":
+                token_type = TokenType.Star
+
+                // reserved for two chars in a row
+            case ".":
+                if source.get_substr(pos.add(1), pos.add(2)).eq(".") {
+                    pos.inc()
+                    token_type = TokenType.DoubleDot
+                } else {
+                    token_type = TokenType.Dot
+                }
+            case "=":
+                if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
+                    pos.inc()
+                    token_type = TokenType.EqualEqual
+                } else {
+                    token_type = TokenType.Equal
+                }
+            case "<":
+                if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
+                    pos.inc()
+                    token_type = TokenType.LesserEqual
+                } else {
+                    token_type = TokenType.Lesser
+                }
+            case ">":
+                if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
+                    pos.inc()
+                    token_type = TokenType.GreaterEqual
+                } else {
+                    token_type = TokenType.Greater
+                }
+            case "!":
+                if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
+                    pos.inc()
+                    token_type = TokenType.NotEqual
+                } else {
+                    token_type = TokenType.Not
+                }
+
+                // semicolon is optional between statements, but allowed. DoubleSemicolon means empty statement
+            case ";":
+                if source.get_substr(pos.add(1), pos.add(2)).eq(";") {
+                    pos.inc()
+                    token_type = TokenType.DoubleSemicolon
+                } else {
+                    token_type = TokenType.Semicolon
+                }
+
+                // comments:
+            case "#":
+                pos.inc()
+                while and(lt(pos.add(1), eof_pos), not(source.get_substr(pos, pos.add(1)).eq("\n"))) {
+                    pos.inc()
+                }
+                should_process_token = false
+            case "/":
+                if source.get_substr(pos.add(1), pos.add(2)).eq("/") {
+                    // Single-line comment
+                    pos.inc()
+                    while and(lt(pos.add(1), eof_pos), not(source.get_substr(pos, pos.add(1)).eq("\n"))) {
+                        pos.inc()
+                    }
+                    should_process_token = false
+                } else if source.get_substr(pos.add(1), pos.add(2)).eq("*") {
+                    // Nested block comment
+                    pos = pos.add(2)
+                    mut depth := 1
+                    mut should_continue_parsing := true
+
+                    while and(pos.lt(eof_pos.sub(1)), should_continue_parsing) {
+                        next_two := source.get_substr(pos, pos.add(2))
+
+                        if next_two.eq("/*") {
+                            depth = depth.add(1)
+                            pos = pos.add(2)
+                        } else if next_two.eq("*/") {
+                            depth = depth.sub(1)
+                            pos = pos.add(2)
+                            if depth.eq(0) {
+                                should_continue_parsing = false
+                            }
+                        } else {
+                            if source.get_substr(pos, pos.add(1)).eq("\n") {
+                                line.inc()
+                                start_line_pos = pos
+                            }
+                            pos.inc()
+                        }
+                    }
+
+                    if depth.gt(0) {
+                        scan_push_token(tokens, TokenType.UnterminatedComment, "/*", line, pos.sub(start_line_pos))
+                    }
+                    should_process_token = false
+                } else {
+                    token_type = TokenType.Slash
+                }
+
+                // literal strings
+            case "\"":
+                mut lit_string := ""
+                pos.inc()
+                // while pos + 1 < eof_pos && &source[pos..pos+1] != "\""
+                mut continue_string_scan := true
+                while continue_string_scan {
+                    if not(lt(pos.add(1), eof_pos)) {
+                        continue_string_scan = false
+                    } else if source.get_substr(pos, pos.add(1)).eq("\"") {
+                        continue_string_scan = false
+                    } else {
+                        if source.get_substr(pos, pos.add(1)).eq("\\") {
+                            pos.inc() // if it's the escape character, skip it
+                            if lt(pos.add(1), eof_pos) {
+                                esc := source.get_substr(pos, pos.add(1))
+                                switch esc {
+                                case "\"":
+                                    lit_string = format(lit_string, "\"")
+                                case "\\":
+                                    lit_string = format(lit_string, "\\")
+                                case "n":
+                                    lit_string = format(lit_string, "\n")
+                                case "r":
+                                    lit_string = format(lit_string, "\r")
+                                case "t":
+                                    lit_string = format(lit_string, "\t")
+                                case "0":
+                                    lit_string = format(lit_string, "\0")
+                                case:
+                                    // If it's something else, just leave it as is for now, I guess
+                                    // TODO print some warning with unkown escaped characters?
+                                    lit_string = format(lit_string, "\\")
+                                    lit_string = format(lit_string, esc)
+                                }
+                            }
+                        } else {
+                            lit_string = format(lit_string, source.get_substr(pos, pos.add(1)))
+                        }
+                        pos.inc()
+                    }
+                }
+
+                if not(pos.lt(eof_pos)) {
+                    token_type = TokenType.UnterminatedString
+                } else {
+                    scan_push_token(tokens, TokenType.String, lit_string, line, start.sub(start_line_pos))
+                    token_type = TokenType.String
+                }
+
+                // Everything else must be reserved words, identifiers or invalid
+            case:
+                if source.is_id_start(pos) {
+                    pos.inc()
+                    mut continue_id_scan := true
+                    while and(pos.lt(eof_pos), continue_id_scan) {
+                        if or(source.is_digit(pos), source.is_id_start(pos)) {
+                            pos.inc()
+                        } else {
+                            continue_id_scan = false
+                        }
+                    }
+                    pos.dec()
+                    token_type = scan_reserved_words(source.get_substr(start, pos.add(1)))
+                } else {
+                    token_type = TokenType.Invalid
+                }
+            } // switch
+
+            if should_process_token {
+                // Note: token_type for String is set but token already pushed inside the case
+                // so we check and skip pushing again
+                mut is_string := false
+                switch token_type {
+                case TokenType.String:
+                    is_string = true
+                case:
+                    is_string = false
+                }
+                if not(is_string) {
+                    scan_push_token(tokens, token_type, source.get_substr(start, pos.add(1)), line, start.sub(start_line_pos))
+                }
+                pos.inc()
+            }
+        } // else
+    } // while
+
+    scan_push_token(tokens, TokenType.Eof, "End of file", line, 0);
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format(loc(), "scan_tokens: IndexOutOfBoundsError: ", err.msg)
+    }
+    catch (err: I64_OverflowError) {
+        throw format(loc(), "scan_tokens: I64_OverflowError: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw format(loc(), "scan_tokens: AllocError: ", err.msg)
+    }
+    return tokens
+}
+
+print_lex_error := proc(path: Str, t: Token, mut errors_found: I64, msg: Str) {
+    print(path, ":", I64.to_str(t.line), ":", I64.to_str(t.col), ": Lexical error ", I64.to_str(errors_found), ": ", msg)
+    print(". Offending symbol: '", t.token_str, "'")
+    print("\n")
+    errors_found.inc()
+}
+
+build_var_suggestion := func(tokens: Vec, var_index: I64) returns Str throws Str {
     // Check if pattern is: var <identifier> = <value>
     mut should_check := false
-    mut check_result := var_index.add(3)
-    mut tokens_length := tokens.len()
-    if lt(check_result, tokens_length) {
+    if var_index.add(3).lt(tokens.len()) {
         should_check = true
     }
 
@@ -744,7 +716,7 @@ build_var_suggestion := func(tokens: Vec, var_index: I64) returns Str throws Str
         }
 
         if and(is_identifier, is_equal) {
-            result = format("Suggestion: mut ", ident_token.token_str, " := ", value_token.token_str)
+            return format("Suggestion: mut ", ident_token.token_str, " := ", value_token.token_str)
         }
     }
 
@@ -757,14 +729,21 @@ build_var_suggestion := func(tokens: Vec, var_index: I64) returns Str throws Str
     catch (err: AllocError) {
         throw err.msg
     }
-    return result
+    return "Suggestion: use 'mut' instead"
 }
 
-print_lex_error := proc(path: Str, t: Token, mut errors_found: I64, msg: Str) {
-    print(path, ":", I64.to_str(t.line), ":", I64.to_str(t.col), ": Lexical error ", I64.to_str(errors_found), ": ", msg)
-    print(". Offending symbol: '", t.token_str, "'")
-    print("\n")
-    errors_found.inc()
+print_lex_errors := proc(tokens: Vec, path: Str) returns I64 throws Str {
+    mut errors_found := 0
+    mut tokens_len := tokens.len()
+    for i in 0..tokens_len {
+        mut t := Token()
+        tokens.get(i, t)
+        print_if_lex_error(path, tokens, i, t, errors_found)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    return errors_found
 }
 
 print_if_lex_error := proc(path: Str, tokens: Vec, index: I64, t: Token, mut errors_found: I64) throws Str {
@@ -841,20 +820,6 @@ print_if_lex_error := proc(path: Str, tokens: Vec, index: I64, t: Token, mut err
     }
 }
 
-print_lex_errors := proc(tokens: Vec, path: Str) returns I64 throws Str {
-    mut errors_found := 0
-    mut tokens_len := tokens.len()
-    for i in 0..tokens_len {
-        mut t := Token()
-        tokens.get(i, t)
-        print_if_lex_error(path, tokens, i, t, errors_found)
-    }
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    return errors_found
-}
-
 lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, IndexOutOfBoundsError {
     mut l := Lexer()
     l.path = path
@@ -874,7 +839,7 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, Inde
     }
 
     errors := print_lex_errors(tokens, path)
-    if gt(errors, 0) {
+    if errors.gt(0) {
         throw format(loc(), "Compiler errors: ", I64.to_str(errors), " lexical errors found")
     }
 

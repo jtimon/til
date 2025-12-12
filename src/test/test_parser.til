@@ -6,7 +6,7 @@ import("self.parser")
 parse_source := proc(source: Str) {
     // Just parse the body - parse_tokens doesn't handle mode declarations
     // (mode is handled separately when loading files via parse_mode)
-    mut lexer := Lexer.new_from_src(source)
+    mut lexer := Lexer.new(source)
     ast := parse_tokens(lexer)
     catch (err: Str) {
         println("ERROR:", loc(), "Parse error in parse_source")
@@ -130,7 +130,7 @@ test_is_literal := proc() {
 }
 
 test_parse_mode := proc() {
-    mut lexer := Lexer.new_from_src("mode test")
+    mut lexer := Lexer.new("mode test")
     mode_def := parse_mode("test.til", lexer)
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
@@ -140,7 +140,7 @@ test_parse_mode := proc() {
 }
 
 test_parse_literal := proc() {
-    mut lexer := Lexer.new_from_src("42")
+    mut lexer := Lexer.new("42")
     mut t := Token()
     t.token_type = TokenType.Number
     t.token_str = "42"
@@ -152,16 +152,10 @@ test_parse_literal := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-
 }
 
 test_parse_body := proc() {
-    mut lexer := Lexer.new_from_src("x := 42")
+    mut lexer := Lexer.new("x := 42")
     body := parse_body(lexer, TokenType.Eof)
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
@@ -177,7 +171,7 @@ test_parse_body := proc() {
 }
 
 test_parse_statement := proc() {
-    mut lexer := Lexer.new_from_src("x := 42")
+    mut lexer := Lexer.new("x := 42")
     stmt := parse_statement(lexer)
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
@@ -193,7 +187,7 @@ test_parse_statement := proc() {
 }
 
 test_parse_statement_identifier := proc() {
-    mut lexer := Lexer.new_from_src("x := 42")
+    mut lexer := Lexer.new("x := 42")
     stmt := parse_statement_identifier(lexer)
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
@@ -209,7 +203,7 @@ test_parse_statement_identifier := proc() {
 }
 
 test_parse_declaration := proc() {
-    mut lexer := Lexer.new_from_src("x := 42")
+    mut lexer := Lexer.new("x := 42")
     decl := parse_declaration(lexer, false, false, INFER_TYPE)
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
@@ -225,7 +219,7 @@ test_parse_declaration := proc() {
 }
 
 test_parse_args := proc() {
-    mut lexer := Lexer.new_from_src("(42, 43)")
+    mut lexer := Lexer.new("(42, 43)")
     list := parse_args(lexer)
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
@@ -241,7 +235,7 @@ test_parse_args := proc() {
 }
 
 test_parse_primary_identifier_fcall := proc() {
-    mut lexer := Lexer.new_from_src("foo(42)")
+    mut lexer := Lexer.new("foo(42)")
     fcall := parse_primary_identifier(lexer)
     catch (err: Str) {
         println("Error in parse_primary_identifier")

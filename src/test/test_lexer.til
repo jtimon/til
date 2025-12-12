@@ -148,7 +148,7 @@ test_unknown_escape()
 
 test_lexer_peek := proc() {
     // Create a simple test file
-    mut lexer := Lexer.new("src/examples/empty.til")
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
 
     // Peek at first token (should be "mode")
     first_token := lexer.peek()
@@ -173,7 +173,7 @@ test_lexer_peek := proc() {
 test_lexer_peek()
 
 test_lexer_advance := proc() {
-    mut lexer := Lexer.new("src/examples/empty.til")
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
 
     // First token should be "mode"
     t1 := lexer.peek()
@@ -199,7 +199,7 @@ test_lexer_advance := proc() {
 test_lexer_advance()
 
 test_lexer_peek_ahead := proc() {
-    mut lexer := Lexer.new("src/examples/empty.til")
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
 
     // Peek ahead by 1 (should be "script" while current is still "mode")
     next_token := lexer.peek_ahead(1)
@@ -224,7 +224,7 @@ test_lexer_peek_ahead := proc() {
 test_lexer_peek_ahead()
 
 test_lexer_next := proc() {
-    mut lexer := Lexer.new("src/examples/empty.til")
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
 
     // next() returns peek_ahead(1), so it returns the next token
     t1 := lexer.next()
@@ -249,7 +249,7 @@ test_lexer_next := proc() {
 test_lexer_next()
 
 test_lexer_previous := proc() {
-    mut lexer := Lexer.new("src/examples/empty.til")
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
 
     // Advance to "script"
     lexer.advance(1)
@@ -275,7 +275,7 @@ test_lexer_previous := proc() {
 test_lexer_previous()
 
 test_lexer_go_back := proc() {
-    mut lexer := Lexer.new("src/examples/empty.til")
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
 
     // Advance by 2
     lexer.advance(2)
@@ -302,7 +302,7 @@ test_lexer_go_back := proc() {
 test_lexer_go_back()
 
 test_lexer_len := proc() {
-    mut lexer := Lexer.new("src/examples/empty.til")
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
 
     // empty.til should have at least 2 tokens: "mode" and "script"
     token_count := lexer.len()
@@ -318,7 +318,7 @@ test_lexer_len := proc() {
 test_lexer_len()
 
 test_lexer_get_token := proc() {
-    mut lexer := Lexer.new("src/examples/empty.til")
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
 
     // Get token at index 0
     t0 := lexer.get_token(0)
@@ -328,15 +328,9 @@ test_lexer_get_token := proc() {
     t1 := lexer.get_token(1)
     assert_eq_str(loc(), "script", t1.token_str)
 
-    // Catch unexpected errors at end
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
-        exit(1)
-    }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
         exit(1)
     }
 }
