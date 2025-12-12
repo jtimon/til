@@ -597,7 +597,7 @@ main := proc(args: ..Str) {
     rs_interpreted.push(TestEntry(path="src/test/sets.til")) // TODO FIX: gcc: too few arguments to function til_or()
     rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: invalid operands to binary <= (Str range comparisons)
     rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: field has incomplete type, invalid operands to binary <= (Str comparisons)
-    rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: scavenger: no body found for 's.len' (builtin method not in scope)
+    rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: gcc: enum constructor as func call, pattern binding var undeclared
     rs_interpreted.push(TestEntry(path="src/test/vecs.til")) // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
 
     // rs_interpreted.push(TestEntry(path="src/examples/hello_script_safe.til")) // TODO this is much harder than it sounds
@@ -610,8 +610,8 @@ main := proc(args: ..Str) {
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
     rs_interpreted.push(TestEntry(path="src/self/interpreter.til")) // TODO FIX: gcc: field 'Declaration' has incomplete type (enum payload type order)
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: scavenger: no body found for 't.eq' (builtin method)
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="version")) // TODO FIX: scavenger: no body found for 't.eq' (builtin method)
+    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: gcc: field 'Declaration' has incomplete type, Str range comparisons
+    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="version")) // TODO FIX: gcc: field 'Declaration' has incomplete type, Str range comparisons
     // rs_interpreted.push(TestEntry(path="src/test/builders.til")) // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)

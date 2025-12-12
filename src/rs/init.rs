@@ -224,6 +224,16 @@ impl ScopeStack {
         }
         keys
     }
+
+    pub fn get_all_struct_names(&self) -> Vec<String> {
+        let mut names = Vec::new();
+        for frame in &self.frames {
+            for key in frame.structs.keys() {
+                names.push(key.clone());
+            }
+        }
+        names
+    }
 }
 
 pub fn get_func_name_in_call(e: &Expr) -> String {

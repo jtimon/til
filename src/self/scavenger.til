@@ -347,9 +347,96 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
                 }
 
                 if not(found_enum) {
-                    throw e.lang_error(context.path, "scavenger", format("no body found for '", func_name, "'"))
+                    // Check if this is an unresolved UFCS call (e.g., s.len or obj.field.len where s/obj is a variable)
+                    // This happens when precomp couldn't determine the type (e.g., pattern bindings in switch)
+                    // In this case, parts[0] is a variable name, not a type name
+                    mut parts := func_name.split(".")
+                    mut method_name := ""
+                    if parts.len().gt(0) {
+                        parts.get(parts.len().sub(1), method_name) // Last part is the method name
+                    }
+
+                    mut is_unresolved_ufcs := false
+                    if parts.len().gteq(2) {
+                        mut maybe_var := ""
+                        parts.get(0, maybe_var)
+                        // If first part is NOT a known struct/enum, it's likely a variable
+                        mut found_struct_check := false
+                        mut dummy_struct := SStructDef()
+                        dummy_struct = context.scope_stack.lookup_struct(maybe_var)
+                        found_struct_check = true
+                        catch (err: KeyNotFoundError) { }
+
+                        mut found_enum_check := false
+                        mut dummy_enum := SEnumDef()
+                        dummy_enum = context.scope_stack.lookup_enum(maybe_var)
+                        found_enum_check = true
+                        catch (err: KeyNotFoundError) { }
+
+                        is_unresolved_ufcs = not(or(found_struct_check, found_enum_check))
+                    } else {
+                        // Single name - could be a method that precomp couldn't resolve
+                        is_unresolved_ufcs = true
+                    }
+
+                    if is_unresolved_ufcs {
+                        // Try to find the method on built-in types first
+                        mut builtin_types := Vec.new(Str)
+                        builtin_types.push("Str")
+                        builtin_types.push("I64")
+                        builtin_types.push("Bool")
+                        builtin_types.push("U8")
+                        builtin_types.push("F64")
+                        builtin_types.push("Array")
+                        builtin_types.push("Vec")
+                        builtin_types.push("List")
+                        builtin_types.push("Map")
+                        builtin_types.push("Set")
+
+                        mut found_method := false
+                        mut bi := 0
+                        while bi.lt(builtin_types.len()) {
+                            mut builtin := ""
+                            builtin_types.get(bi, builtin)
+                            full_method := format(builtin, ".", method_name)
+                            mut dummy_fd := SFuncDef()
+                            dummy_fd = context.scope_stack.lookup_func(full_method)
+                            // Found a matching method - mark it reachable instead
+                            mark_reachable(full_method, reachable, worklist)
+                            found_method = true
+                            bi = builtin_types.len() // break
+                            catch (err: KeyNotFoundError) {
+                                bi = bi.add(1)
+                            }
+                        }
+
+                        // Also check user-defined structs for the method
+                        if not(found_method) {
+                            struct_names := context.scope_stack.get_all_struct_names()
+                            mut si := 0
+                            while si.lt(struct_names.len()) {
+                                mut struct_name := ""
+                                struct_names.get(si, struct_name)
+                                full_method := format(struct_name, ".", method_name)
+                                mut dummy_fd := SFuncDef()
+                                dummy_fd = context.scope_stack.lookup_func(full_method)
+                                mark_reachable(full_method, reachable, worklist)
+                                found_method = true
+                                si = struct_names.len() // break
+                                catch (err: KeyNotFoundError) {
+                                    si = si.add(1)
+                                }
+                            }
+                        }
+
+                        if not(found_method) {
+                            throw e.lang_error(context.path, "scavenger", format("no body found for '", func_name, "'"))
+                        }
+                    } else {
+                        throw e.lang_error(context.path, "scavenger", format("no body found for '", func_name, "'"))
+                    }
                 }
-                // Enum constructor - no body to walk
+                // Enum constructor or resolved UFCS - no body to walk
             }
         }
     }
@@ -378,6 +465,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
 
     return reachable
 }

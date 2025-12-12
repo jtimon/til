@@ -460,6 +460,31 @@ ScopeStack := struct {
         }
         return keys
     }
+
+    get_all_struct_names := func(self: ScopeStack) returns Vec throws Str {
+        mut names := Vec.new(Str)
+        mut i := 0
+        while i.lt(self.frames.len()) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)
+            mut struct_keys := frame.structs.keys
+            mut j := 0
+            while j.lt(struct_keys.len()) {
+                mut key := ""
+                struct_keys.get(j, key)
+                names.push(key)
+                j = j.add(1)
+            }
+            i = i.add(1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        return names
+    }
 }
 
 get_func_name_in_call := func(e: Expr) returns Str throws Str {

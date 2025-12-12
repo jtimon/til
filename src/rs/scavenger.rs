@@ -233,6 +233,50 @@ fn compute_reachable(
                 continue;
             }
 
+            // Check if this is an unresolved UFCS call (e.g., s.len or obj.field.len where s/obj is a variable)
+            // This happens when precomp couldn't determine the type (e.g., pattern bindings in switch)
+            // In this case, parts[0] is a variable name, not a type name
+            let method_name = parts.last().unwrap(); // Last part is the method name
+            let is_unresolved_ufcs = if parts.len() >= 2 {
+                let maybe_var = parts[0];
+                // If first part is NOT a known struct/enum, it's likely a variable
+                context.scope_stack.lookup_struct(maybe_var).is_none()
+                    && context.scope_stack.lookup_enum(maybe_var).is_none()
+            } else {
+                // Single name - could be a method that precomp couldn't resolve
+                // (e.g., "eq" when called on a value whose type wasn't known)
+                true
+            };
+
+            if is_unresolved_ufcs {
+                // Try to find the method on built-in types first
+                let builtin_types = ["Str", "I64", "Bool", "U8", "F64", "Array", "Vec", "List", "Map", "Set"];
+                let mut found = false;
+                for builtin in &builtin_types {
+                    let full_method = format!("{}.{}", builtin, method_name);
+                    if context.scope_stack.lookup_func(&full_method).is_some() {
+                        // Found a matching method - mark it reachable instead
+                        mark_reachable(full_method, &mut reachable, &mut worklist);
+                        found = true;
+                        break;
+                    }
+                }
+                // Also check user-defined structs for the method
+                if !found {
+                    for struct_name in context.scope_stack.get_all_struct_names() {
+                        let full_method = format!("{}.{}", struct_name, method_name);
+                        if context.scope_stack.lookup_func(&full_method).is_some() {
+                            mark_reachable(full_method, &mut reachable, &mut worklist);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                if found {
+                    continue;
+                }
+            }
+
             return Err(e.lang_error(&context.path, "scavenger", &format!("no body found for '{}'", func_name)));
         }
     }
