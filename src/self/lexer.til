@@ -62,33 +62,22 @@ Token := struct {
     mut line: I64 = 0
     mut col: I64 = 0
 
-    lang_error := func(self: Token, path: Str, msg: Str) returns Str throws Str {
-        result := format(path, ":", self.line.to_str(), ":", self.col.to_str(), ": ",
-            LANG_NAME, " parse ERROR: ", msg, "\n",
-            "Explanation: This is not your fault as a user, this is a bug in the language.")
-        catch (err: I64_OverflowError) { throw format("Token.lang_error: ", err.msg) }
-        catch (err: IndexOutOfBoundsError) { throw format("Token.lang_error: ", err.msg) }
-        catch (err: AllocError) { throw format("Token.lang_error: ", err.msg) }
-        return result
+    lang_error := func(self: Token, path: Str, msg: Str) returns Str {
+        return path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str())
+            .concat(": ").concat(LANG_NAME).concat(" parse ERROR: ").concat(msg).concat("\n")
+            .concat("Explanation: This is not your fault as a user, this is a bug in the language.")
     }
 
     #[allow(dead_code)] // Kept for consistency with Expr.todo_error
-    todo_error := func(self: Token, path: Str, msg: Str) returns Str throws Str {
-        result := format(path, ":", self.line.to_str(), ":", self.col.to_str(), ": ",
-            LANG_NAME, " parse ERROR: ", msg, "\n",
-            "Explanation: Not implemented yet, this is a missing feature in the language.")
-        catch (err: I64_OverflowError) { throw format("Token.todo_error: ", err.msg) }
-        catch (err: IndexOutOfBoundsError) { throw format("Token.todo_error: ", err.msg) }
-        catch (err: AllocError) { throw format("Token.todo_error: ", err.msg) }
-        return result
+    todo_error := func(self: Token, path: Str, msg: Str) returns Str {
+        return path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str())
+            .concat(": ").concat(LANG_NAME).concat(" parse ERROR: ").concat(msg).concat("\n")
+            .concat("Explanation: Not implemented yet, this is a missing feature in the language.")
     }
 
-    error := func(self: Token, path: Str, msg: Str) returns Str throws Str {
-        result := format(path, ":", self.line.to_str(), ":", self.col.to_str(), ": parse ERROR: ", msg)
-        catch (err: I64_OverflowError) { throw format("Token.error: ", err.msg) }
-        catch (err: IndexOutOfBoundsError) { throw format("Token.error: ", err.msg) }
-        catch (err: AllocError) { throw format("Token.error: ", err.msg) }
-        return result
+    error := func(self: Token, path: Str, msg: Str) returns Str {
+        return path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str())
+            .concat(": parse ERROR: ").concat(msg)
     }
 }
 
