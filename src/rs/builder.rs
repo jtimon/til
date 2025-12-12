@@ -172,6 +172,11 @@ pub fn build(path: &str) -> Result<(), String> {
         }
     }
 
+    // Mark main file as "done" to prevent re-processing via circular imports
+    // (like interpreter does at interpreter.rs:2598-2601)
+    context.imports_init_done.insert(path.to_string());
+    context.imports_typer_done.insert(path.to_string());
+
     // Run init + typer on the main file (this handles its imports internally)
     let mut errors: Vec<String> = Vec::new();
     errors.extend(crate::rs::init::init_context(&mut context, &main_ast));

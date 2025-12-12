@@ -228,6 +228,11 @@ build := proc(path: Str) returns Str throws Str {
         mode_import_idx = add(mode_import_idx, 1)
     }
 
+    // Mark main file as "done" to prevent re-processing via circular imports
+    // (like interpreter does at interpreter.rs:2598-2601)
+    _ := context.imports_init_done.insert(path)
+    _ := context.imports_typer_done.insert(path)
+
     // Run init + typer on the main file (this handles its imports internally)
     mut errors := init_context(context, main_ast)
     if gt(errors.len(), 0) {
