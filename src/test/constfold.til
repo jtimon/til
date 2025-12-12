@@ -47,3 +47,57 @@ test_loc_folded_correctly := proc() {
     test(loc(), location.contains(":45:"), "loc() should contain correct line number")
 }
 test_loc_folded_correctly()
+
+// === Struct Comptime Folding ===
+
+// Simple struct with pure constructor
+CfVec2 := struct {
+    mut x: I64 = 0
+    mut y: I64 = 0
+
+    // Pure func (not proc!) so it can be folded
+    // Use non-default values to ensure we're not relying on defaults
+    magic := func() returns CfVec2 {
+        return CfVec2(x=42, y=99)
+    }
+
+    at := func(x: I64, y: I64) returns CfVec2 {
+        return CfVec2(x=x, y=y)
+    }
+}
+
+// Test 7: Simple struct folding with non-default values
+test_struct_fold_simple := proc() {
+    v := CfVec2.magic()  // Should fold to CfVec2(x=42, y=99)
+    assert_eq(loc(), 42, v.x)
+    assert_eq(loc(), 99, v.y)
+}
+test_struct_fold_simple()
+
+// Test 8: Struct with argument values
+test_struct_fold_values := proc() {
+    p := CfVec2.at(10, 20)  // Should fold to CfVec2(x=10, y=20)
+    assert_eq(loc(), 10, p.x)
+    assert_eq(loc(), 20, p.y)
+}
+test_struct_fold_values()
+
+// Test 9: Nested struct
+CfRect := struct {
+    mut top_left: CfVec2 = CfVec2()
+    mut bottom_right: CfVec2 = CfVec2()
+
+    // Use non-default values to verify nested folding works
+    sample := func() returns CfRect {
+        return CfRect(top_left=CfVec2(x=5, y=10), bottom_right=CfVec2(x=100, y=200))
+    }
+}
+
+test_struct_fold_nested := proc() {
+    r := CfRect.sample()  // Should fold to CfRect(top_left=CfVec2(x=5,y=10), bottom_right=CfVec2(x=100,y=200))
+    assert_eq(loc(), 5, r.top_left.x)
+    assert_eq(loc(), 10, r.top_left.y)
+    assert_eq(loc(), 100, r.bottom_right.x)
+    assert_eq(loc(), 200, r.bottom_right.y)
+}
+test_struct_fold_nested()

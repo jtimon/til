@@ -3,12 +3,12 @@
 // This phase runs after typer, before interpreter/builder.
 
 use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType};
-use crate::rs::typer::func_proc_has_multi_arg;
+use crate::rs::typer::{func_proc_has_multi_arg, get_func_def_for_fcall_with_expr};
 use std::collections::HashMap;
 use crate::rs::parser::{
     Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal, TTypeDef,
 };
-use crate::rs::interpreter::eval_expr;
+use crate::rs::interpreter::{eval_expr, eval_declaration};
 use crate::rs::arena::Arena;
 
 // ---------- Named argument reordering
@@ -187,9 +187,11 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
             if f_name == "malloc" {
                 return false;
             }
-            let func_def = match context.scope_stack.lookup_func(&f_name) {
-                Some(f) => f,
-                None => return false, // Unknown function (struct constructor, etc.)
+            // Use get_func_def_for_fcall_with_expr like interpreter does
+            let mut e_clone = e.clone();
+            let func_def = match get_func_def_for_fcall_with_expr(context, &mut e_clone) {
+                Ok(Some(f)) => f,
+                _ => return false, // Unknown function (struct constructor, etc.)
             };
             // Must be pure function (not proc)
             if func_def.is_proc() {
@@ -215,7 +217,11 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
 
 /// Evaluate a comptime-evaluable expression and convert result back to AST literal.
 fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
-    let result = eval_expr(context, e)?;
+    // Save and restore context.path - interpreter may change it during function calls
+    let saved_path = context.path.clone();
+    let result = eval_expr(context, e);
+    context.path = saved_path;
+    let result = result?;
 
     // Check if the function threw an exception during evaluation
     if result.is_throw {
@@ -233,6 +239,13 @@ fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         },
         ValueType::TCustom(ref t) if t == "Str" => {
             Ok(Expr::new_clone(NodeType::LLiteral(Literal::Str(result.value.clone())), e, vec![]))
+        },
+        ValueType::TCustom(ref type_name) => {
+            // Check if it's a struct type - result.value is the instance name
+            if context.scope_stack.lookup_struct(type_name).is_some() {
+                return Arena::to_struct_literal(context, &result.value, type_name, e);
+            }
+            Err(format!("Cannot convert comptime result type: {:?}", value_type))
         },
         // For other types, don't fold - return error to fall back
         _ => Err(format!("Cannot convert comptime result type: {:?}", value_type)),
@@ -359,13 +372,14 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         }
     }
 
-    // For struct definitions, register them in scope (needed for type lookups)
-    // Note: We don't call create_default_instance here because it evaluates
-    // struct defaults which can pollute context.path and affect loc() calls.
-    // Struct templates will be created later during interpreter/ccodegen phases.
+    // For struct definitions, run eval_declaration to register templates in Arena
     if let ValueType::TType(TTypeDef::TStructDef) = &value_type {
         if let NodeType::StructDef(struct_def) = &new_params[0].node_type {
             context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
+            // Run the declaration through interpreter to set up Arena templates
+            let saved_path = context.path.clone();
+            eval_declaration(decl, context, e)?;
+            context.path = saved_path;
         }
     }
 

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
 use crate::rs::init::{Context, SymbolInfo, EnumVal, ScopeFrame, ScopeType};
-use crate::rs::parser::{Expr, ValueType, TTypeDef, value_type_to_str};
+use crate::rs::parser::{Expr, ValueType, TTypeDef, value_type_to_str, NodeType, Literal};
 
 // Arena: Memory management for the TIL interpreter
 // Extracted from interpreter.rs to enable incremental translation to TIL.
@@ -1052,5 +1052,69 @@ impl Arena {
             .copy_from_slice(&Arena::g().memory[temp_str_offset..temp_str_offset + str_size]);
 
         Ok(())
+    }
+
+    /// Convert a struct instance stored in Arena to a struct literal Expr.
+    /// Given instance "___temp_return_val_0" of type "Bool", produces:
+    ///   Bool(data=1)
+    /// The `e` parameter is only used for error reporting.
+    pub fn to_struct_literal(
+        ctx: &Context,
+        instance_name: &str,
+        type_name: &str,
+        e: &Expr,
+    ) -> Result<Expr, String> {
+        let struct_def = ctx.scope_stack.lookup_struct(type_name)
+            .ok_or_else(|| e.lang_error(&ctx.path, "arena",
+                &format!("to_struct_literal: struct '{}' not found", type_name)))?;
+
+        // First param is the type identifier
+        let type_id = Expr::new_explicit(NodeType::Identifier(type_name.to_string()), vec![], 0, 0);
+        let mut params = vec![type_id];
+
+        // For each mutable field, read value and create NamedArg
+        for member in &struct_def.members {
+            if !member.is_mut {
+                continue;  // Skip static fields
+            }
+            let field_id = format!("{}.{}", instance_name, member.name);
+            let field_value = Self::field_to_literal(ctx, &field_id, &member.value_type, e)?;
+
+            let named_arg = Expr::new_explicit(
+                NodeType::NamedArg(member.name.clone()),
+                vec![field_value],
+                0, 0
+            );
+            params.push(named_arg);
+        }
+
+        Ok(Expr::new_explicit(NodeType::FCall, params, 0, 0))
+    }
+
+    /// Helper: read a field value from Arena and convert to literal Expr
+    fn field_to_literal(
+        ctx: &Context,
+        field_id: &str,
+        value_type: &ValueType,
+        e: &Expr,
+    ) -> Result<Expr, String> {
+        match value_type {
+            ValueType::TCustom(ref t) if t == "I64" => {
+                let val = Self::get_i64(ctx, field_id, e)?;
+                Ok(Expr::new_explicit(NodeType::LLiteral(Literal::Number(val.to_string())), vec![], 0, 0))
+            },
+            ValueType::TCustom(ref t) if t == "U8" => {
+                let val = Self::get_u8(ctx, field_id, e)?;
+                Ok(Expr::new_explicit(NodeType::LLiteral(Literal::Number(val.to_string())), vec![], 0, 0))
+            },
+            ValueType::TCustom(ref nested_type) => {
+                // Check if nested struct
+                if ctx.scope_stack.lookup_struct(nested_type).is_some() {
+                    return Self::to_struct_literal(ctx, field_id, nested_type, e);
+                }
+                Err(e.lang_error(&ctx.path, "arena", &format!("to_struct_literal: unsupported nested type '{}'", nested_type)))
+            },
+            _ => Err(e.lang_error(&ctx.path, "arena", &format!("to_struct_literal: unsupported field type '{}'", value_type_to_str(value_type)))),
+        }
     }
 }

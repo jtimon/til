@@ -1036,7 +1036,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
     return eval_user_func_proc_call(&func_def, &combined_name, context, &new_fcall_e)
 }
 
-fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     let inner_e = e.get(0)?;
     let mut value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,

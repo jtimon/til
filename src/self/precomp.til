@@ -314,7 +314,10 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
 
 /// Evaluate a comptime-evaluable expression and convert result back to AST literal.
 eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    // Save and restore context.path - interpreter may change it during function calls
+    saved_path := context.path
     result := eval_expr(context, e)
+    context.path = saved_path
 
     // Check if the function threw an exception during evaluation
     if result.is_throw {
@@ -336,8 +339,12 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
         if type_name.eq("Str") {
             return Expr.new_clone(NodeType.LLiteral(Literal.Str(result.value)), e, Vec.new(Expr))
         }
-        // For other types, don't fold - throw error to fall back
-        throw "Cannot convert comptime result type"
+        // Check if it's a struct type - result.value is the instance name
+        mut struct_def := context.scope_stack.lookup_struct(type_name)
+        catch (err: KeyNotFoundError) {
+            throw format("Cannot convert comptime result type: ", type_name)
+        }
+        return Arena.to_struct_literal(context, result.value, type_name, e)
     case:
         throw "Cannot convert comptime result type"
     }
@@ -545,10 +552,10 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case:
     }
 
-    // For struct definitions, register them in scope (needed for type lookups)
-    // Note: We don't call create_default_instance here because it evaluates
-    // struct defaults which can pollute context.path and affect loc() calls.
-    // Struct templates will be created later during interpreter/ccodegen phases.
+    // For struct definitions, register them in scope and create Arena templates
+    // by calling eval_declaration. This is needed for struct comptime folding
+    // (to_struct_literal needs the Arena template to read field values).
+    // We save/restore context.path to avoid polluting it during default value evaluation.
     switch value_type {
     case ValueType.TType(TTypeDef.TStructDef):
         mut fp := Expr()
@@ -556,6 +563,9 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
         switch fp.node_type {
         case NodeType.StructDef(struct_def):
             context.scope_stack.declare_struct(decl.name, struct_def)
+            saved_path := context.path
+            _ := eval_declaration(decl, context, e)
+            context.path = saved_path
         case:
         }
     case:
