@@ -7,6 +7,40 @@ import("self.interpreter")
 // and performs compile-time constant folding for pure functions.
 // This phase runs after typer, before interpreter/builder.
 
+// Called when precomp encounters an import() call.
+// Runs precomp on the imported file to set up struct templates.
+precomp_import_declarations := proc(mut context: Context, import_path_str: Str) throws Str {
+    file_path := import_path_to_file_path(import_path_str)
+
+    // Already done (or in progress)? Skip.
+    if context.imports_precomp_done.contains(file_path) {
+        return
+    }
+
+    // Mark as done immediately - before processing - to handle circular imports
+    _ := context.imports_precomp_done.insert(file_path)
+
+    // Get stored AST from init phase
+    mut ast := Expr()
+    context.imported_asts.get(file_path, ast)
+    catch (err: KeyNotFoundError) {
+        throw format("precomp: Import ", file_path, " not found in stored ASTs - init phase should have stored it")
+    }
+
+    // Save and restore context path
+    original_path := context.path
+    context.path = file_path
+
+    // Run precomp on the imported AST
+    _ := precomp_expr(context, ast)
+
+    context.path = original_path
+
+    catch (err: AllocError) {
+        throw format("precomp_import_declarations: ", err.msg)
+    }
+}
+
 // ---------- Named argument reordering
 
 /// Reorder named arguments to match function parameter order.
@@ -282,7 +316,41 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
 
         mut func_def := context.scope_stack.lookup_func(f_name)
         catch (err: KeyNotFoundError) {
-            return false  // Unknown function (struct constructor, etc.)
+            // Could be a struct constructor - check if all args are comptime
+            combined_name := get_combined_name(context.path, e.get(0))
+            catch (err2: Str) {
+                return false
+            }
+            mut struct_def := context.scope_stack.lookup_struct(combined_name)
+            catch (err3: KeyNotFoundError) {
+                return false  // Unknown function
+            }
+            // It's a struct constructor - check all args are comptime
+            mut j := 1
+            while j.lt(e.params.len()) {
+                mut arg := Expr()
+                e.params.get(j, arg)
+                catch (err4: IndexOutOfBoundsError) {
+                    return false
+                }
+                // Handle named args - check the value inside
+                mut arg_to_check := arg
+                switch arg.node_type {
+                case NodeType.NamedArg(_):
+                    if arg.params.len().gt(0) {
+                        arg.params.get(0, arg_to_check)
+                        catch (err5: IndexOutOfBoundsError) {
+                            return false
+                        }
+                    }
+                case:
+                }
+                if not(is_comptime_evaluable(context, arg_to_check)) {
+                    return false
+                }
+                j = j.add(1)
+            }
+            return true  // Struct constructor with all comptime args
         }
         // Must be pure function (not proc)
         if func_def.is_proc() {
@@ -573,8 +641,6 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
 
     // For non-mut declarations with comptime-evaluable values, store in arena
     // so that later eval_expr calls can look them up during constant folding.
-    // Note: Only I64 and U8 are supported for now. Str requires the Str template
-    // which isn't set up during precomp. Structs/enums need more infrastructure.
     if is_comptime_const {
         mut inner_e := Expr()
         new_params.get(0, inner_e)
@@ -586,8 +652,33 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
                     Arena.insert_primitive(context, decl.name, value_type, result.value, e)
                 }
             }
-            // Str, structs, enums - not yet supported for comptime storage
-            // They would require templates/infrastructure not available in precomp
+        case:
+        }
+    }
+
+    // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
+    // run eval_declaration to store the instance in Arena so ccodegen can find it.
+    // Only do this if the value is comptime-evaluable (doesn't depend on runtime values).
+    mut first_param := Expr()
+    new_params.get(0, first_param)
+    if not(decl.is_mut).and(not(decl.is_copy)).and(not(decl.is_own)).and(is_comptime_evaluable(context, first_param)) {
+        switch value_type {
+        case ValueType.TCustom(custom_type_name):
+            // Skip primitives (I64, U8) - handled above. Skip Str - needs special handling.
+            if not(custom_type_name.eq("I64")).and(not(custom_type_name.eq("U8"))).and(not(custom_type_name.eq("Str"))) {
+                // Check if this is a struct type (not a struct definition)
+                mut sym := context.scope_stack.lookup_symbol(custom_type_name)
+                catch (err: KeyNotFoundError) {
+                    // Type not found, skip
+                }
+                switch sym.value_type {
+                case ValueType.TType(TTypeDef.TStructDef):
+                    saved_path := context.path
+                    _ := eval_declaration(decl, context, e)
+                    context.path = saved_path
+                case:
+                }
+            }
         case:
         }
     }
@@ -624,6 +715,30 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
         }
         catch (err: I64_OverflowError) {
             throw format("precomp_fcall loc check: ", err.msg)
+        }
+    }
+
+    // Special handling for import() calls - precomp the imported file first
+    f_name := get_func_name_in_call(e)
+    catch (err: Str) {
+        // Can't get function name, continue
+    }
+    if f_name.eq("import") {
+        if e.params.len().gt(1) {
+            mut path_expr := Expr()
+            e.params.get(1, path_expr)
+            catch (err: IndexOutOfBoundsError) {
+                // Can't get path, continue
+            }
+            switch path_expr.node_type {
+            case NodeType.LLiteral(lit):
+                switch lit {
+                case Literal.Str(import_path_str):
+                    precomp_import_declarations(context, import_path_str)
+                case:
+                }
+            case:
+            }
         }
     }
 

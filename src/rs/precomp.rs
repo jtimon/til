@@ -2,7 +2,7 @@
 // and performs compile-time constant folding for pure functions.
 // This phase runs after typer, before interpreter/builder.
 
-use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType};
+use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType, import_path_to_file_path};
 use crate::rs::typer::{func_proc_has_multi_arg, get_func_def_for_fcall_with_expr};
 use std::collections::HashMap;
 use crate::rs::parser::{
@@ -10,6 +10,38 @@ use crate::rs::parser::{
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration};
 use crate::rs::arena::Arena;
+
+// Called when precomp encounters an import() call.
+// Runs precomp on the imported file to set up struct templates.
+pub fn precomp_import_declarations(context: &mut Context, import_path_str: &str) -> Result<(), String> {
+    let path = import_path_to_file_path(import_path_str);
+
+    // Already done (or in progress)? Skip.
+    if context.imports_precomp_done.contains(&path) {
+        return Ok(());
+    }
+
+    // Mark as done immediately - before processing - to handle circular imports
+    context.imports_precomp_done.insert(path.clone());
+
+    // Get stored AST from init phase
+    let ast = match context.imported_asts.get(&path) {
+        Some(ast) => ast.clone(),
+        None => {
+            return Err(format!("precomp: Import {} not found in stored ASTs - init phase should have stored it", path));
+        }
+    };
+
+    // Save and restore context path
+    let original_path = context.path.clone();
+    context.path = path.clone();
+
+    // Run precomp on the imported AST
+    let _ = precomp_expr(context, &ast)?;
+
+    context.path = original_path;
+    Ok(())
+}
 
 // ---------- Named argument reordering
 
@@ -191,7 +223,30 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
             let mut e_clone = e.clone();
             let func_def = match get_func_def_for_fcall_with_expr(context, &mut e_clone) {
                 Ok(Some(f)) => f,
-                _ => return false, // Unknown function (struct constructor, etc.)
+                Ok(None) => {
+                    // Could be a struct constructor - check if all args are comptime
+                    let combined_name = crate::rs::parser::get_combined_name(&context.path, e.params.first().unwrap()).unwrap_or_default();
+                    if context.scope_stack.lookup_struct(&combined_name).is_some() {
+                        // It's a struct constructor - check all args are comptime
+                        for i in 1..e.params.len() {
+                            // Handle named args - check the value inside
+                            let arg = &e.params[i];
+                            let arg_to_check = if let NodeType::NamedArg(_) = &arg.node_type {
+                                arg.params.first().unwrap_or(arg)
+                            } else {
+                                arg
+                            };
+                            if !is_comptime_evaluable(context, arg_to_check) {
+                                return false;
+                            }
+                        }
+                        return true; // Struct constructor with all comptime args
+                    }
+                    return false;
+                },
+                Err(_) => {
+                    return false; // Unknown function
+                }
             };
             // Must be pure function (not proc)
             if func_def.is_proc() {
@@ -385,8 +440,6 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
 
     // For non-mut declarations with comptime-evaluable values, store in arena
     // so that later eval_expr calls can look them up during constant folding.
-    // Note: Only I64 and U8 are supported for now. Str requires the Str template
-    // which isn't set up during precomp. Structs/enums need more infrastructure.
     if is_comptime_const {
         let inner_e = &new_params[0];
         if let ValueType::TCustom(ref custom_type_name) = &value_type {
@@ -401,6 +454,25 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
                     // Str, structs, enums - not yet supported for comptime storage
                     // They would require templates/infrastructure not available in precomp
                 },
+            }
+        }
+    }
+
+    // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
+    // run eval_declaration to store the instance in Arena so ccodegen can find it.
+    // Only do this if the value is comptime-evaluable (doesn't depend on runtime values).
+    if !decl.is_mut && !decl.is_copy && !decl.is_own && is_comptime_evaluable(context, &new_params[0]) {
+        if let ValueType::TCustom(ref custom_type_name) = &value_type {
+            // Skip primitives (I64, U8) - handled above. Skip Str - needs special handling.
+            if custom_type_name != "I64" && custom_type_name != "U8" && custom_type_name != "Str" {
+                // Check if this is a struct type (not a struct definition)
+                if let Some(sym) = context.scope_stack.lookup_symbol(custom_type_name) {
+                    if sym.value_type == ValueType::TType(TTypeDef::TStructDef) {
+                        let saved_path = context.path.clone();
+                        eval_declaration(decl, context, e)?;
+                        context.path = saved_path;
+                    }
+                }
             }
         }
     }
@@ -420,6 +492,16 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                     e,
                     vec![],
                 ));
+            }
+        }
+    }
+
+    // Special handling for import() calls - precomp the imported file first
+    let f_name = get_func_name_in_call(&e);
+    if f_name == "import" {
+        if let Ok(path_expr) = e.get(1) {
+            if let NodeType::LLiteral(Literal::Str(import_path)) = &path_expr.node_type {
+                precomp_import_declarations(context, import_path)?;
             }
         }
     }

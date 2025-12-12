@@ -1065,6 +1065,7 @@ pub struct Context {
     pub imported_asts: HashMap<String, Expr>,  // path → parsed AST (stored after init, used by typer and eval)
     pub imports_init_done: HashSet<String>,
     pub imports_typer_done: HashSet<String>,
+    pub imports_precomp_done: HashSet<String>,
     pub imports_eval_done: HashSet<String>,
     // REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
     // REM: This would enable: std := import("src/std") and then std.panic(), std.format(), etc.
@@ -1092,6 +1093,7 @@ impl Context {
             imported_asts: HashMap::new(),
             imports_init_done: HashSet::new(),
             imports_typer_done: HashSet::new(),
+            imports_precomp_done: HashSet::new(),
             imports_eval_done: HashSet::new(),
         });
     }

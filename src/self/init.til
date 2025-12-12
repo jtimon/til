@@ -1840,6 +1840,7 @@ Context := struct {
     mut imported_asts: Map = Map.new(Str, Expr)  # path -> parsed AST (stored after init, used by typer and eval)
     mut imports_init_done: Set = Set.new(Str)
     mut imports_typer_done: Set = Set.new(Str)
+    mut imports_precomp_done: Set = Set.new(Str)
     mut imports_eval_done: Set = Set.new(Str)
     # REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
     # REM: This would enable: std := import("src/std") and then std.panic(), std.format(), etc.
@@ -1868,6 +1869,7 @@ Context := struct {
         result.imported_asts = Map.new(Str, Expr)
         result.imports_init_done = Set.new(Str)
         result.imports_typer_done = Set.new(Str)
+        result.imports_precomp_done = Set.new(Str)
         result.imports_eval_done = Set.new(Str)
         catch (err: AllocError) {
             throw err.msg

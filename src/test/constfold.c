@@ -1076,40 +1076,40 @@ void til_test_deeply_nested(void) {
 }
 
 void til_test_string_concat(void) {
-    const til_Str til_result = til_concat(((til_Str){(til_I64)"hello", 5}), ((til_Str){(til_I64)" world", 6}));
-    til_test(((til_Str){(til_I64)"src/test/constfold.til:30:10:", 29}), til_Str_eq(til_result, ((til_Str){(til_I64)"hello world", 11})), ((til_Str){(til_I64)"concat works at runtime", 23}));
+    const til_Str til_result = ((til_Str){(til_I64)"hello world", 11});
+    til_test(((til_Str){(til_I64)"src/test/constfold.til:29:10:", 29}), til_Str_eq(til_result, ((til_Str){(til_I64)"hello world", 11})), ((til_Str){(til_I64)"concat is folded at compile time", 32}));
 }
 
 void til_test_fold_variable(void) {
     const til_I64 til_x = 5;
     const til_I64 til_result = 8;
-    til_test(((til_Str){(til_I64)"src/test/constfold.til:39:10:", 29}), til_I64_eq(til_result, 8), ((til_Str){(til_I64)"add(x, 3) should fold to 8", 26}));
+    til_test(((til_Str){(til_I64)"src/test/constfold.til:38:10:", 29}), til_I64_eq(til_result, 8), ((til_Str){(til_I64)"add(x, 3) should fold to 8", 26}));
 }
 
 void til_test_loc_folded_correctly(void) {
-    const til_Str til_location = ((til_Str){(til_I64)"src/test/constfold.til:45:17:", 29});
-    til_test(((til_Str){(til_I64)"src/test/constfold.til:46:10:", 29}), til_Str_contains(til_location, ((til_Str){(til_I64)"constfold.til", 13})), ((til_Str){(til_I64)"loc() should contain filename", 29}));
-    til_test(((til_Str){(til_I64)"src/test/constfold.til:47:10:", 29}), til_Str_contains(til_location, ((til_Str){(til_I64)":45:", 4})), ((til_Str){(til_I64)"loc() should contain correct line number", 40}));
+    const til_Str til_location = ((til_Str){(til_I64)"src/test/constfold.til:44:17:", 29});
+    til_test(((til_Str){(til_I64)"src/test/constfold.til:45:10:", 29}), til_Str_contains(til_location, ((til_Str){(til_I64)"constfold.til", 13})), ((til_Str){(til_I64)"loc() should contain filename", 29}));
+    til_test(((til_Str){(til_I64)"src/test/constfold.til:46:10:", 29}), til_Str_contains(til_location, ((til_Str){(til_I64)":44:", 4})), ((til_Str){(til_I64)"loc() should contain correct line number", 40}));
 }
 
 void til_test_struct_fold_simple(void) {
     const til_CfVec2 til_v = {.x = 42, .y = 99};
-    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:72:15:", 29}), 42, til_v.x);
-    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:73:15:", 29}), 99, til_v.y);
+    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:71:15:", 29}), 42, til_v.x);
+    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:72:15:", 29}), 99, til_v.y);
 }
 
 void til_test_struct_fold_values(void) {
     const til_CfVec2 til_p = {.x = 10, .y = 20};
-    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:80:15:", 29}), 10, til_p.x);
-    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:81:15:", 29}), 20, til_p.y);
+    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:79:15:", 29}), 10, til_p.x);
+    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:80:15:", 29}), 20, til_p.y);
 }
 
 void til_test_struct_fold_nested(void) {
     const til_CfRect til_r = {.top_left = (til_CfVec2){.x = 5, .y = 10}, .bottom_right = (til_CfVec2){.x = 100, .y = 200}};
-    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:98:15:", 29}), 5, til_r.top_left.x);
-    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:99:15:", 29}), 10, til_r.top_left.y);
-    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:100:15:", 30}), 100, til_r.bottom_right.x);
-    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:101:15:", 30}), 200, til_r.bottom_right.y);
+    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:97:15:", 29}), 5, til_r.top_left.x);
+    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:98:15:", 29}), 10, til_r.top_left.y);
+    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:99:15:", 29}), 100, til_r.bottom_right.x);
+    til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:100:15:", 30}), 200, til_r.bottom_right.y);
 }
 
 til_IndexOutOfBoundsError til_IndexOutOfBoundsError_new(const til_Str til_msg) {

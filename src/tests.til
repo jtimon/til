@@ -546,6 +546,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/comparisons.til"))
     rs_common.push(TestEntry(path="src/test/constfold.til"))
     rs_common.push(TestEntry(path="src/test/editor_mode_test.til"))
+    rs_common.push(TestEntry(path="src/test/errors.til"))
     rs_common.push(TestEntry(path="src/test/eval.til"))
     rs_common.push(TestEntry(path="src/test/exit.til", expected_status=69))
     rs_common.push(TestEntry(path="src/test/fibonacci.til"))
@@ -553,6 +554,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/func_purity.til"))
     rs_common.push(TestEntry(path="src/test/function_pointers.til"))
     rs_common.push(TestEntry(path="src/test/intro.til"))
+    rs_common.push(TestEntry(path="src/test/introspections.til"))
     rs_common.push(TestEntry(path="src/test/loops.til"))
     rs_common.push(TestEntry(path="src/test/mut_test.til"))
     rs_common.push(TestEntry(path="src/test/namespaces.til"))
@@ -566,7 +568,6 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/todo.til")) // permanent TODO, design notes for future features
     rs_common.push(TestEntry(path="src/test/u8.til"))
     rs_common.push(TestEntry(path="src/test/variadic.til"))
-    rs_common.push(TestEntry(path="src/test/errors.til"))
 
     mut rs_compiled := Vec.new(TestEntry)
     rs_compiled.push(TestEntry(path="src/test/enums_simple.til"))
@@ -584,19 +585,18 @@ main := proc(args: ..Str) {
 
     mut rs_interpreted := Vec.new(TestEntry)
 
-    rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: assignment of member in read-only object (nested struct field assignment)
+    rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: copy param assignment/reassignment, append_str incompatible types
     rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: gcc: enum_to_str undeclared, enum constructors called as functions not struct init
     rs_interpreted.push(TestEntry(path="src/test/forward_declarations.til")) // TODO FIX: gcc: called object is not a function (enum constructor as func call)
-    rs_interpreted.push(TestEntry(path="src/test/introspections.til")) // TODO FIX: linker: undefined reference to Introspection_has_const/has_field
     rs_interpreted.push(TestEntry(path="src/test/lists.til")) // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
     rs_interpreted.push(TestEntry(path="src/test/maps.til")) // TODO FIX: gcc: incompatible type for Map_position (Str passed to Dynamic param)
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/modes.til")) // TODO FIX: gcc: til_dummy_token undeclared (top-level const from func call)
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
-    rs_interpreted.push(TestEntry(path="src/test/scope_isolation.til")) // TODO FIX: eval: Missing arena index for return value 'false'
+    rs_interpreted.push(TestEntry(path="src/test/scope_isolation.til")) // TODO FIX: gcc: mut parameter type mismatch (pass-by-ref vs pass-by-value)
     rs_interpreted.push(TestEntry(path="src/test/sets.til")) // TODO FIX: gcc: too few arguments to function til_or (variadic and/or)
-    rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: too few arguments to til_and/til_or (variadic and/or)
-    rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: enum constructors as func calls, too few args to til_and, end_token undeclared
+    rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: Str <= comparison, too few args to til_and/til_or (variadic)
+    rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: Str <= comparison, too few args to til_and/til_or (variadic)
     rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: gcc: enum constructor as func call, pattern binding var til_s/til_n undeclared
     rs_interpreted.push(TestEntry(path="src/test/vecs.til")) // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
 
@@ -609,9 +609,9 @@ main := proc(args: ..Str) {
 
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
-    rs_interpreted.push(TestEntry(path="src/self/interpreter.til")) // TODO FIX: gcc: Arena_new/make_allowed_commands/make_safe_commands undeclared (top-level const from func call)
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: gcc: Arena_new undeclared, too few args to til_main (variadic main)
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="version")) // TODO FIX: gcc: Arena_new undeclared, too few args to til_main (variadic main)
+    rs_interpreted.push(TestEntry(path="src/self/interpreter.til")) // TODO FIX: precomp: Import not found in stored ASTs (self-referential import)
+    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: gcc: Str <= comparison, too few args to til_and/til_or (variadic)
+    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="version")) // TODO FIX: gcc: Str <= comparison, too few args to til_and/til_or (variadic)
     // rs_interpreted.push(TestEntry(path="src/test/builders.til")) // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)

@@ -3136,6 +3136,7 @@ main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str,
     // Mark main file as "done" to prevent re-processing via circular imports
     _ := context.imports_init_done.insert(path.clone())
     _ := context.imports_typer_done.insert(path.clone())
+    _ := context.imports_precomp_done.insert(path.clone())
     _ := context.imports_eval_done.insert(path.clone())
     catch (err: AllocError) { throw err.msg }
 

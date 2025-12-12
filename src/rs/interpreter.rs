@@ -2598,6 +2598,7 @@ pub fn main_run(skip_init_and_typecheck: bool, context: &mut Context, path: &Str
     // Mark main file as "done" to prevent re-processing via circular imports
     context.imports_init_done.insert(path.clone());
     context.imports_typer_done.insert(path.clone());
+    context.imports_precomp_done.insert(path.clone());
     context.imports_eval_done.insert(path.clone());
 
     let mut lexer = match lexer_from_source(&path, source) {
