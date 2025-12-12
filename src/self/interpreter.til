@@ -72,7 +72,7 @@ EvalResult := struct {
         return r
     }
 
-    new_throw := func(value: Str, thrown_type: ValueType) returns EvalResult throws Str {
+    new_throw := func(value: Str, thrown_type: ValueType) returns EvalResult {
         mut r := EvalResult()
         r.value = value
         r.is_return = false

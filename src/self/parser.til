@@ -115,7 +115,7 @@ SStructDef := struct {
         return result
     }
 
-    // Helper to find a member by name
+    /** Helper to find a member by name */
     get_member := func(self: SStructDef, member_name: Str) returns Declaration throws Str {
         mut i := 0
         while i.lt(self.members.len()) {
@@ -132,7 +132,7 @@ SStructDef := struct {
         throw format(loc(), "Member '", member_name, "' not found")
     }
 
-    // Helper to find a member by name or return an error
+    /** Helper to find a member by name or return an error */
     get_member_or_err := func(self: SStructDef, member_name: Str, struct_name: Str, path: Str, e: Expr) returns Declaration throws Str {
         member := self.get_member(member_name)
         catch (err: Str) {
@@ -303,34 +303,29 @@ ValueType := enum {
     TMulti: Str,
 }
 
-value_type_to_str := func(arg_type: ValueType) returns Str throws Str {
-    mut result := ""
+value_type_to_str := func(arg_type: ValueType) returns Str {
     switch arg_type {
     case ValueType.TType(TTypeDef.TEnumDef):
-        result = "enum"
+        return "enum"
     case ValueType.TType(TTypeDef.TStructDef):
-        result = "struct"
+        return "struct"
     case ValueType.TFunction(FunctionType.FTFunc):
-        result = "func"
+        return "func"
     case ValueType.TFunction(FunctionType.FTFuncExt):
-        result = "func"
+        return "func"
     case ValueType.TFunction(FunctionType.FTProc):
-        result = "proc"
+        return "proc"
     case ValueType.TFunction(FunctionType.FTProcExt):
-        result = "proc"
+        return "proc"
     case ValueType.TFunction(FunctionType.FTMacro):
-        result = "macro"
+        return "macro"
     case ValueType.TMulti(type_name):
-        result = format("{}", type_name)
+        return type_name
     case ValueType.TCustom(type_name):
-        result = format("{}", type_name)
+        return type_name
     case:
-        result = "unknown"
+        return "unknown"
     }
-    catch (err: I64_OverflowError) { throw concat("value_type_to_str: ", err.msg) }
-    catch (err: AllocError) { throw concat("value_type_to_str: ", err.msg) }
-    catch (err: IndexOutOfBoundsError) { throw concat("value_type_to_str: ", err.msg) }
-    return result
 }
 
 str_to_value_type := func(arg_type: Str) returns ValueType {
@@ -1077,8 +1072,8 @@ get_combined_name := func(path: Str, e: Expr) returns Str throws Str {
     nt := e.node_type
     switch nt {
         case NodeType.Identifier(id_str):
-            to_return = id_str
-            to_return = format(to_return, ".")
+            to_return = to_return.concat(id_str)
+            to_return = to_return.concat(".")
         case:
             throw e.lang_error(path, "parse", "get_combined_name() is to be called with Identifier expressions only")
     }
@@ -1090,8 +1085,8 @@ get_combined_name := func(path: Str, e: Expr) returns Str throws Str {
         pnt := p.node_type
         switch pnt {
             case NodeType.Identifier(id_str):
-                to_return = format(to_return, id_str)
-                to_return = format(to_return, ".")
+                to_return = to_return.concat(id_str)
+                to_return = to_return.concat(".")
             case:
                 throw e.lang_error(path, "parse", "the params of an identifier expression must be Identifier expressions only")
         }
@@ -1100,15 +1095,8 @@ get_combined_name := func(path: Str, e: Expr) returns Str throws Str {
 
     // Remove the last '.'
     to_return = to_return.get_substr(0, to_return.len().sub(1))
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
+    catch (err: IndexOutOfBoundsError) { throw concat("get_combined_name: ", err.msg) }
+    catch (err: AllocError) { throw concat("get_combined_name: ", err.msg) }
     return to_return
 }
 
@@ -1483,7 +1471,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
 
 // Helper function to extract full identifier name from an expression
 // Handles both simple identifiers and dotted names (represented as FCall)
-get_full_identifier_name := func(e: Expr) returns Str throws Str, IndexOutOfBoundsError {
+get_full_identifier_name := func(e: Expr) returns Str throws Str {
     mut result := ""
     ent := e.node_type
     switch ent {
@@ -1497,12 +1485,12 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str, IndexOutOfBoun
                 p0nt := p0.node_type
                 switch p0nt {
                     case NodeType.Identifier(param_name):
-                        result = format(name, ".", param_name)
+                        result = name.concat(".").concat(param_name)
                     case:
                 }
             }
         case NodeType.FCall:
-            if not(e.params.len().lt(1)) {
+            if e.params.len().gteq(1) {
                 // For FCall, try to extract the function name
                 mut p0_fcall := Expr()
                 e.params.get(0, p0_fcall)
@@ -1510,12 +1498,7 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str, IndexOutOfBoun
             }
         case:
     }
-    catch (err: I64_OverflowError) {
-        throw concat("get_full_identifier_name: ", err.msg)
-    }
-    catch (err: AllocError) {
-        throw concat("get_full_identifier_name: ", err.msg)
-    }
+    catch (err: IndexOutOfBoundsError) { throw concat("get_full_identifier_name: ", err.msg) }
     return result
 }
 
@@ -1803,7 +1786,7 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
             case:
                 is_semicolon = false
             }
-            if is_semicolon {
+            if is_semicolon { // REM: TokenType::DoubleSemicolon results in a lexical error, no need to parse it
                 _ := lexer.expect(TokenType.Semicolon) // REM: This is suboptimal but more clear in grep
             } else {
                 stmt := parse_statement(lexer)
