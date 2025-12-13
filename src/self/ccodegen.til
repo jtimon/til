@@ -6526,11 +6526,185 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     context.scope_stack.declare_symbol(name, SymbolInfo.new(var_type, decl.is_mut, false, false))
 
     if gt(struct_type.len(), 0) {
-        // Struct variable declaration
-        result = result.concat(struct_type)
-        result = result.concat(" ")
-        result = result.concat(name)
-        result = result.concat(" = {0};\n")
+        // Struct variable declaration with values (defaults or named args)
+
+        // Build map of named arg values from struct literal
+        mut named_values := Map.new(Str, Expr)
+        if gt(expr.params.len(), 0) {
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
+            mut arg_idx := 1
+            while lt(arg_idx, first_param.params.len()) {
+                mut arg := Expr()
+                first_param.params.get(arg_idx, arg)
+                switch arg.node_type {
+                case NodeType.NamedArg(field_name):
+                    if gt(arg.params.len(), 0) {
+                        mut value_expr := Expr()
+                        arg.params.get(0, value_expr)
+                        named_values.set(field_name, value_expr)
+                    }
+                case:
+                }
+                arg_idx = arg_idx.add(1)
+            }
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: AllocError) { throw err.msg }
+
+        // Look up struct definition to get default values
+        mut struct_def_found := false
+        mut struct_def := context.scope_stack.lookup_struct(struct_type)
+        struct_def_found = true
+        catch (err: KeyNotFoundError) { }
+
+        if struct_def_found {
+            if struct_def.members.len().eq(0) {
+                // Empty struct - use empty initializer
+                result = result.concat(til_name(struct_type))
+                result = result.concat(" ")
+                result = result.concat(til_name(name))
+                result = result.concat(" = {};\n")
+            } else if struct_def.default_values.len().eq(0).and(named_values.len().eq(0)) {
+                // No defaults and no named args - zero initialize
+                result = result.concat(til_name(struct_type))
+                result = result.concat(" ")
+                result = result.concat(til_name(name))
+                result = result.concat(" = {0};\n")
+            } else {
+                // Has default values or named args - emit designated initializer
+                // First check if any default value is a throwing function call
+                mut throwing_defaults := Vec.new(Str)  // member names with throwing defaults
+                mut throwing_default_exprs := Vec.new(Expr)  // corresponding expressions
+                mut member_idx := 0
+                while lt(member_idx, struct_def.members.len()) {
+                    mut member := Declaration()
+                    struct_def.members.get(member_idx, member)
+                    if member.is_mut {
+                        if not(named_values.contains_key(member.name)) {
+                            // Named arg overrides default, so only check if not provided
+                            mut default_expr := Expr()
+                            mut has_default := false
+                            struct_def.default_values.get(member.name, default_expr)
+                            has_default = true
+                            catch (err: KeyNotFoundError) { }
+                            if has_default {
+                                if is_throwing_fcall(default_expr, context) {
+                                    throwing_defaults.push(member.name)
+                                    throwing_default_exprs.push(default_expr)
+                                }
+                            }
+                        }
+                    }
+                    member_idx = member_idx.add(1)
+                }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                catch (err: AllocError) { throw err.msg }
+
+                // If we have throwing defaults, emit them as separate statements first
+                mut td_idx := 0
+                while lt(td_idx, throwing_defaults.len()) {
+                    mut member_name := ""
+                    mut default_expr := Expr()
+                    throwing_defaults.get(td_idx, member_name)
+                    throwing_default_exprs.get(td_idx, default_expr)
+
+                    // Get the function's throw types
+                    mut throw_types := Vec.new(ValueType)
+                    if gt(default_expr.params.len(), 0) {
+                        mut first_param := Expr()
+                        default_expr.params.get(0, first_param)
+                        mut fcall_func_name := get_func_name_string(first_param)
+                        if fcall_func_name.found {
+                            mut lookup_name := fcall_func_name.name.replace("_", ".")
+                            mut func_def_found := false
+                            mut func_def := context.scope_stack.lookup_func(lookup_name)
+                            func_def_found = true
+                            catch (err: KeyNotFoundError) { }
+                            if func_def_found {
+                                throw_types = func_def.throw_types
+                            }
+                        }
+                    }
+                    catch (err: IndexOutOfBoundsError) { }
+                    catch (err: AllocError) { throw err.msg }
+
+                    mut temp_name := "_default_"
+                    temp_name = temp_name.concat(member_name)
+                    // Emit the function call with out-param using emit_throwing_call_propagate
+                    result = emit_throwing_call_propagate(default_expr, throw_types, temp_name, "", result, indent, ctx, context)
+                    // Record that this struct default was hoisted using expression address
+                    expr_addr := to_ptr(default_expr)
+                    ctx.hoisted_struct_defaults.insert(expr_addr, temp_name)
+                    catch (err: DuplicatedKeyError) { }
+                    catch (err: AllocError) { throw err.msg }
+
+                    td_idx = td_idx.add(1)
+                }
+
+                result = result.concat(til_name(struct_type))
+                result = result.concat(" ")
+                result = result.concat(til_name(name))
+                result = result.concat(" = {")
+                mut is_first := true
+                member_idx = 0
+                while lt(member_idx, struct_def.members.len()) {
+                    mut member := Declaration()
+                    struct_def.members.get(member_idx, member)
+                    // Only include mut fields (actual struct data members)
+                    // Skip functions, constants, and non-mut fields
+                    if member.is_mut {
+                        if not(is_first) {
+                            result = result.concat(", ")
+                        }
+                        is_first = false
+                        result = result.concat(".").concat(member.name).concat(" = ")
+                        // Use named arg value if provided, otherwise use default
+                        mut value_expr := Expr()
+                        mut has_named_value := false
+                        named_values.get(member.name, value_expr)
+                        has_named_value = true
+                        catch (err: KeyNotFoundError) { }
+                        if has_named_value.and(gt(value_expr.params.len(), 0).or(gt(value_expr.line, 0))) {
+                            result = emit_expr(value_expr, result, 0, ctx, context)
+                        } else {
+                            mut default_expr := Expr()
+                            mut has_default := false
+                            struct_def.default_values.get(member.name, default_expr)
+                            has_default = true
+                            catch (err: KeyNotFoundError) { }
+                            if has_default {
+                                // Check if this was a throwing default - use temp var instead
+                                expr_addr := to_ptr(default_expr)
+                                mut temp_name := ""
+                                ctx.hoisted_struct_defaults.get(expr_addr, temp_name)
+                                result = result.concat(temp_name)
+                                catch (err: KeyNotFoundError) {
+                                    if is_throwing_fcall(default_expr, context) {
+                                        // Shouldn't happen - throwing defaults should be hoisted
+                                        result = result.concat("/* ERROR: unhoisted throwing default */")
+                                    } else {
+                                        result = emit_expr(default_expr, result, 0, ctx, context)
+                                    }
+                                }
+                            } else {
+                                // No default - use zero
+                                result = result.concat("0")
+                            }
+                        }
+                    }
+                    member_idx = member_idx.add(1)
+                }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                result = result.concat("};\n")
+            }
+        } else {
+            // Struct not found - fall back to zero init
+            result = result.concat(til_name(struct_type))
+            result = result.concat(" ")
+            result = result.concat(til_name(name))
+            result = result.concat(" = {0};\n")
+        }
     } else if gt(enum_type.len(), 0) {
         // Enum variable declaration
         result = result.concat(enum_type)

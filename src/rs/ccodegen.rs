@@ -4279,6 +4279,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     let temp_name = format!("_default_{}", member_name);
                     // Emit the function call with out-param using emit_throwing_call_propagate
                     emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
+                    // Record that this struct default was hoisted using expression address
+                    let expr_addr = *default_expr as *const Expr as usize;
+                    ctx.hoisted_struct_defaults.insert(expr_addr, temp_name);
                 }
 
                 output.push_str(&indent_str);
