@@ -563,6 +563,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/pointers.til"))
     rs_common.push(TestEntry(path="src/test/return_value_usage.til"))
     rs_common.push(TestEntry(path="src/test/run_cmd.til"))
+    rs_common.push(TestEntry(path="src/test/sets.til"))
     rs_common.push(TestEntry(path="src/test/strings.til"))
     rs_common.push(TestEntry(path="src/test/structs.til"))
     rs_common.push(TestEntry(path="src/test/temp.til"))
@@ -570,7 +571,6 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/u8.til"))
     rs_common.push(TestEntry(path="src/test/variadic.til"))
     rs_common.push(TestEntry(path="src/test/vecs.til"))
-    rs_common.push(TestEntry(path="src/test/sets.til"))
 
     mut rs_compiled := Vec.new(TestEntry)
     rs_compiled.push(TestEntry(path="src/test/enums_simple.til"))
