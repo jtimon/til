@@ -778,66 +778,10 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_fun
                     mangled_name = mangled_name.concat(decl.name)
                     ctx.nested_func_names.insert(decl.name, mangled_name)
 
-                    // Generate prototype for this nested function
+                    // Generate prototype using emit_func_signature (handles throwing functions properly)
                     mut proto := ""
-                    mut return_type := "void"
-                    if gt(func_def.return_types.len(), 0) {
-                        mut rt := ValueType.TCustom("")
-                        func_def.return_types.get(0, rt)
-                        mut maybe_type := til_type_to_c(rt)
-                        if gt(maybe_type.len(), 0) {
-                            return_type = maybe_type
-                        }
-                    }
-                    proto = proto.concat(return_type)
-                    proto = proto.concat(" ")
-                    proto = proto.concat(til_name(mangled_name))
-                    proto = proto.concat("(")
-
-                    if func_def.args.len().eq(0) {
-                        proto = proto.concat("void")
-                    } else {
-                        mut ai := 0
-                        while lt(ai, func_def.args.len()) {
-                            if gt(ai, 0) {
-                                proto = proto.concat(", ")
-                            }
-                            mut arg := Declaration()
-                            func_def.args.get(ai, arg)
-                            // Handle variadic args (TMulti) - they become (type* ptr, int64_t count)
-                            switch arg.value_type {
-                            case ValueType.TMulti(elem_type_name):
-                                mut c_type := til_type_to_c(ValueType.TCustom(elem_type_name))
-                                if gt(c_type.len(), 0) {
-                                    proto = proto.concat(c_type)
-                                    proto = proto.concat("* ")
-                                    proto = proto.concat(til_name(arg.name))
-                                    proto = proto.concat("_arr, ")
-                                    proto = proto.concat(TIL_PREFIX)
-                                    proto = proto.concat("I64 ")
-                                    proto = proto.concat(til_name(arg.name))
-                                    proto = proto.concat("_count")
-                                }
-                            case:
-                                mut c_type := til_type_to_c(arg.value_type)
-                                if gt(c_type.len(), 0) {
-                                    if arg.is_mut {
-                                        // mut: use pointer so mutations are visible to caller
-                                        proto = proto.concat(c_type)
-                                        proto = proto.concat("* ")
-                                    } else {
-                                        // const or copy: pass by value
-                                        proto = proto.concat("const ")
-                                        proto = proto.concat(c_type)
-                                        proto = proto.concat(" ")
-                                    }
-                                    proto = proto.concat(til_name(arg.name))
-                                }
-                            }
-                            ai = add(ai, 1)
-                        }
-                    }
-                    proto = proto.concat(");\n")
+                    proto = emit_func_signature(til_name(mangled_name), func_def, proto, ctx)
+                    proto = proto.concat(";\n")
                     ctx.hoisted_prototypes.push(proto)
 
                     // Recursively check for nested functions within this nested function
@@ -1591,6 +1535,95 @@ is_constant_declaration := func(expr: Expr) returns Bool {
     case:
         return false
     }
+}
+
+// Check if an expression is a non-constant top-level declaration that needs to be a global
+// These are declarations that are NOT: functions, structs, enums, or literal constants
+// but are still non-mut and could be referenced from function bodies
+is_global_declaration := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        // Skip true/false declarations - they're handled specially
+        if decl.name.eq("true").or(decl.name.eq("false")) {
+            return false
+        }
+        // Must not be mutable (constants/globals are immutable)
+        if decl.is_mut {
+            return false
+        }
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return false }
+            switch first.node_type {
+            // Skip these - they have their own handling
+            case NodeType.StructDef(struct_def):
+                return false
+            case NodeType.EnumDef(enum_def):
+                return false
+            case NodeType.FuncDef(func_def):
+                return false
+            // Skip literal constants - they're handled by is_constant_declaration
+            case NodeType.LLiteral(lit):
+                return false
+            // Skip true/false RHS - they're handled by is_constant_declaration
+            case NodeType.Identifier(name):
+                if name.eq("true").or(name.eq("false")) {
+                    return false
+                }
+                // Everything else is a global
+                return true
+            case:
+                // Everything else (function calls like Color.Green(true), etc.) is a global
+                return true
+            }
+        }
+        return false
+    case:
+        return false
+    }
+}
+
+// Emit a global declaration as a static variable at file scope (type only, no initializer)
+// The initializer will be emitted in main()
+emit_global_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, context: Context) returns Str throws Str {
+    mut result := output
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            // Determine the type from the initializer expression
+            // Check for enum construction first (Color.Green(true) -> til_Color)
+            mut c_type := ""
+            mut enum_type := get_enum_construction_type(first)
+            if gt(enum_type.len(), 0) {
+                c_type = til_name(enum_type)
+            } else {
+                mut struct_type := get_struct_construction_type(first)
+                if gt(struct_type.len(), 0) {
+                    c_type = til_name(struct_type)
+                } else {
+                    inferred := infer_type_from_expr(first, context)
+                    inferred_c := til_type_to_c(inferred)
+                    if gt(inferred_c.len(), 0) {
+                        c_type = inferred_c
+                    } else {
+                        c_type = til_type_to_c(decl.value_type)
+                    }
+                }
+            }
+            // Emit static declaration (no initializer - will be set in main)
+            result = result.concat("static ").concat(c_type).concat(" ").concat(til_name(decl.name)).concat(";\n")
+            // Track that this variable has been declared globally
+            _ := ctx.declared_vars.insert(decl.name)
+            catch (err: AllocError) { throw err.msg }
+        }
+    case:
+        // Not a declaration
+    }
+    return result
 }
 
 // Emit a top-level constant declaration at file scope
@@ -2439,7 +2472,26 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip top-level constants pass
     }
 
-    // Pass 2c: emit til_size_of function (runtime type size lookup)
+    // Pass 2c: emit global declarations (non-constant, non-func/struct/enum declarations)
+    // These need to be file-scope statics so functions can access them
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            if is_global_declaration(child) {
+                output = emit_global_declaration(child, output, ctx, context)
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, skip global declarations pass
+    }
+
+    // Pass 2d: emit til_size_of function (runtime type size lookup)
     output = emit_size_of_function(output, ctx)
 
     output = output.concat("\n")
@@ -2549,6 +2601,28 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
 
     // Clear hoisted_exprs to avoid cross-contamination from function passes
     ctx.hoisted_exprs = Map.new(Str, Str)
+
+    // Re-populate declared_vars with global declarations (functions clear declared_vars)
+    // This ensures global declarations emit only assignments in main(), not redeclarations
+    switch ast.node_type {
+    case NodeType.Body:
+        mut gdecl_i := 0
+        while lt(gdecl_i, ast.params.len()) {
+            mut gdecl_child := Expr()
+            ast.params.get(gdecl_i, gdecl_child)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            if is_global_declaration(gdecl_child) {
+                switch gdecl_child.node_type {
+                case NodeType.Declaration(gdecl):
+                    _ := ctx.declared_vars.insert(gdecl.name)
+                    catch (err: AllocError) { throw err.msg }
+                case:
+                }
+            }
+            gdecl_i = add(gdecl_i, 1)
+        }
+    case:
+    }
 
     // Pass 5: emit non-struct, non-function, non-enum, non-constant statements
     // Collect them into a Vec and use emit_stmts for proper variadic/throwing call handling
@@ -3514,6 +3588,11 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         }
 
         // Emit case body - with scope for pattern bindings
+        // Save declared_vars for block scope - variables declared in this case body
+        // should not affect other case bodies
+        saved_declared_vars := ctx.declared_vars.clone()
+        catch (err: AllocError) { throw err.msg }
+
         switch case_pattern.node_type {
         case NodeType.Pattern(pattern_info):
             // For pattern bindings, we need to declare the binding variable in scope
@@ -3561,6 +3640,9 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             result = emit_body(case_body, result, add(indent, 1), ctx, context)
         }
 
+        // Restore declared_vars after case body
+        ctx.declared_vars = saved_declared_vars
+
         case_idx = add(case_idx, 1)
     }
 
@@ -3570,7 +3652,11 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             result = result.concat(indent_str)
             result = result.concat("} else {\n")
         }
+        // Save declared_vars for default case body
+        saved_default_vars := ctx.declared_vars.clone()
+        catch (err: AllocError) { throw err.msg }
         result = emit_body(default_body, result, add(indent, 1), ctx, context)
+        ctx.declared_vars = saved_default_vars
     }
 
     // Close the if/else chain
@@ -4358,6 +4444,14 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         throw "emit_throwing_call: could not get function name"
     }
 
+    // Check if this is a call to a nested (hoisted) function - use mangled name
+    mut mangled_name := ""
+    ctx.nested_func_names.get(func_name, mangled_name)
+    catch (err: KeyNotFoundError) { }
+    if gt(mangled_name.len(), 0) {
+        func_name = mangled_name
+    }
+
     // Generate unique temp name for this call
     mut temp_suffix := next_mangled()
 
@@ -4841,6 +4935,14 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         throw "emit_throwing_call_propagate: could not get function name"
     }
 
+    // Check if this is a call to a nested (hoisted) function - use mangled name
+    mut mangled_name := ""
+    ctx.nested_func_names.get(func_name, mangled_name)
+    catch (err: KeyNotFoundError) { }
+    if gt(mangled_name.len(), 0) {
+        func_name = mangled_name
+    }
+
     // Generate unique temp name for this call
     mut temp_suffix := next_mangled()
 
@@ -5251,6 +5353,14 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut func_name := get_fcall_func_name(fcall)
     if eq(func_name.len(), 0) {
         throw "emit_throwing_call_with_goto: could not get function name"
+    }
+
+    // Check if this is a call to a nested (hoisted) function - use mangled name
+    mut mangled_name := ""
+    ctx.nested_func_names.get(func_name, mangled_name)
+    catch (err: KeyNotFoundError) { }
+    if gt(mangled_name.len(), 0) {
+        func_name = mangled_name
     }
 
     // Generate unique temp name for this call

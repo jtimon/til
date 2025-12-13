@@ -546,6 +546,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/comparisons.til"))
     rs_common.push(TestEntry(path="src/test/constfold.til"))
     rs_common.push(TestEntry(path="src/test/editor_mode_test.til"))
+    rs_common.push(TestEntry(path="src/test/enums.til"))
     rs_common.push(TestEntry(path="src/test/errors.til"))
     rs_common.push(TestEntry(path="src/test/eval.til"))
     rs_common.push(TestEntry(path="src/test/exit.til", expected_status=69))
@@ -592,7 +593,6 @@ main := proc(args: ..Str) {
     mut rs_interpreted := Vec.new(TestEntry)
 
     rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: copy param assignment of read-only, append_str incompatible pointer types
-    rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: gcc: pattern binding vars undeclared (til_bbb, til_is_olive, til_code, etc)
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/modes.til")) // TODO FIX: gcc: Vec_new in struct literal - too few args (throwing func as field initializer)
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
