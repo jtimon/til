@@ -1223,11 +1223,23 @@ fn emit_arg_with_param_type(
         // Check if arg is a simple identifier (can take address directly)
         if let NodeType::Identifier(name) = &arg.node_type {
             if arg.params.is_empty() {
-                // Simple variable - cast to til_Dynamic* (void**)
-                output.push_str("(");
-                output.push_str(TIL_PREFIX);
-                output.push_str("Dynamic*)&");
-                output.push_str(&til_name(name));
+                // Check if this identifier is already a pointer (from being a mut param)
+                // If so, just cast it without taking address again
+                let is_already_pointer = ctx.current_mut_params.contains(name)
+                    || ctx.current_variadic_params.contains_key(name);
+                if is_already_pointer {
+                    // Already a pointer - just cast without &
+                    output.push_str("(");
+                    output.push_str(TIL_PREFIX);
+                    output.push_str("Dynamic*)");
+                    output.push_str(&til_name(name));
+                } else {
+                    // Simple variable - cast to til_Dynamic* (void**) and take address
+                    output.push_str("(");
+                    output.push_str(TIL_PREFIX);
+                    output.push_str("Dynamic*)&");
+                    output.push_str(&til_name(name));
+                }
                 return Ok(());
             }
         }
@@ -2720,8 +2732,9 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                         continue;
                     } else if !func_level_catches.is_empty() {
                         // No immediate catch, not a throwing function, but has function-level catches
-                        // Use those catches for error handling
-                        emit_throwing_call(fcall, &throw_types, &func_level_catches, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
+                        // Use goto to jump to the catch labels (already registered in local_catch_labels)
+                        // This ensures that statements between the throwing call and the catch are skipped on error
+                        emit_throwing_call_with_goto(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
                         i += 1;
                         continue;
                     } else if !ctx.local_catch_labels.is_empty() {
@@ -2806,6 +2819,12 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 
             // Emit catch body
             emit_expr(&catch_block.params[2], output, indent, ctx, context)?;
+
+            // Jump to end of catches to avoid falling through to next catch
+            output.push_str(&indent_str);
+            output.push_str("goto ");
+            output.push_str(&end_catches_label);
+            output.push_str(";\n");
 
             // Close the block
             output.push_str(&indent_str);

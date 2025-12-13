@@ -568,6 +568,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/todo.til")) // permanent TODO, design notes for future features
     rs_common.push(TestEntry(path="src/test/u8.til"))
     rs_common.push(TestEntry(path="src/test/variadic.til"))
+    rs_common.push(TestEntry(path="src/test/vecs.til"))
 
     mut rs_compiled := Vec.new(TestEntry)
     rs_compiled.push(TestEntry(path="src/test/enums_simple.til"))
@@ -598,7 +599,6 @@ main := proc(args: ..Str) {
     rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: Str <= comparison not supported
     rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: Str <= comparison not supported
     rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: gcc: enum constructor with payload as func call, pattern binding var undeclared
-    rs_interpreted.push(TestEntry(path="src/test/vecs.til")) // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
 
     // rs_interpreted.push(TestEntry(path="src/examples/hello_script_safe.til")) // TODO this is much harder than it sounds
     // rs_interpreted.push(TestEntry(path="src/test/undefined.til"))

@@ -2680,8 +2680,16 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
         switch arg.node_type {
         case NodeType.Identifier(name):
             if arg.params.len().eq(0) {
-                // Simple variable - cast to til_Dynamic* (void**)
-                result = result.concat("(").concat(TIL_PREFIX).concat("Dynamic*)&").concat(til_name(name))
+                // Check if this identifier is already a pointer (from being a mut param)
+                // If so, just cast it without taking address again
+                mut is_already_pointer := ctx.current_mut_params.contains(name).or(Map.contains_key(ctx.current_variadic_params, name))
+                if is_already_pointer {
+                    // Already a pointer - just cast without &
+                    result = result.concat("(").concat(TIL_PREFIX).concat("Dynamic*)").concat(til_name(name))
+                } else {
+                    // Simple variable - cast to til_Dynamic* (void**) and take address
+                    result = result.concat("(").concat(TIL_PREFIX).concat("Dynamic*)&").concat(til_name(name))
+                }
                 return result
             }
         case:
@@ -3796,14 +3804,15 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                         } else {
                             if gt(func_level_catches.len(), 0) {
                                 // No immediate catch, not a throwing function, but has function-level catches
-                                // Use those catches for error handling
+                                // Use goto to jump to the catch labels (already registered in local_catch_labels)
+                                // This ensures that statements between the throwing call and the catch are skipped on error
                                 if has_decl {
-                                    result = emit_throwing_call(maybe_fcall, throw_types, func_level_catches, maybe_decl_name, "", result, indent, ctx, context)
+                                    result = emit_throwing_call_with_goto(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
                                 } else {
                                     if has_assign {
-                                        result = emit_throwing_call(maybe_fcall, throw_types, func_level_catches, "", maybe_assign_name, result, indent, ctx, context)
+                                        result = emit_throwing_call_with_goto(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
                                     } else {
-                                        result = emit_throwing_call(maybe_fcall, throw_types, func_level_catches, "", "", result, indent, ctx, context)
+                                        result = emit_throwing_call_with_goto(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
                                     }
                                 }
                             } else {
@@ -3916,6 +3925,12 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                 entry.catch_block.params.get(2, catch_body)
                 result = emit_expr(catch_body, result, indent, ctx, context)
             }
+
+            // Jump to end of catches to avoid falling through to next catch
+            result = result.concat(indent_str)
+            result = result.concat("goto ")
+            result = result.concat(end_catches_label)
+            result = result.concat(";\n")
 
             // Close the block
             result = result.concat(indent_str)
