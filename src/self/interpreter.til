@@ -48,6 +48,8 @@ EvalResult := struct {
     mut value: Str = ""
     mut is_return: Bool = false
     mut is_throw: Bool = false
+    mut is_break: Bool = false
+    mut is_continue: Bool = false
     mut thrown_type: Str = ""  // Empty string = None
 
     new := func(value: Str) returns EvalResult {
@@ -55,6 +57,8 @@ EvalResult := struct {
         r.value = value
         r.is_return = false
         r.is_throw = false
+        r.is_break = false
+        r.is_continue = false
         r.thrown_type = ""
         return r
     }
@@ -64,6 +68,8 @@ EvalResult := struct {
         r.value = value
         r.is_return = true
         r.is_throw = false
+        r.is_break = false
+        r.is_continue = false
         r.thrown_type = ""
         return r
     }
@@ -73,7 +79,31 @@ EvalResult := struct {
         r.value = value
         r.is_return = false
         r.is_throw = true
+        r.is_break = false
+        r.is_continue = false
         r.thrown_type = value_type_to_str(thrown_type)
+        return r
+    }
+
+    new_break := func() returns EvalResult {
+        mut r := EvalResult()
+        r.value = ""
+        r.is_return = false
+        r.is_throw = false
+        r.is_break = true
+        r.is_continue = false
+        r.thrown_type = ""
+        return r
+    }
+
+    new_continue := func() returns EvalResult {
+        mut r := EvalResult()
+        r.value = ""
+        r.is_return = false
+        r.is_throw = false
+        r.is_break = false
+        r.is_continue = true
+        r.thrown_type = ""
         return r
     }
 }
@@ -312,15 +342,24 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
         if result_cond.is_throw {
             return result_cond
         }
-        while eval_condition_to_bool(context, result_cond, cond_expr) {
+        mut should_break := false
+        while eval_condition_to_bool(context, result_cond, cond_expr).and(not(should_break)) {
             result := eval_expr(context, e.get(1))
             if result.is_return.or(result.is_throw) {
                 return result
             }
-            cond_expr = e.get(0)
-            result_cond = eval_expr(context, cond_expr)
-            if result_cond.is_throw {
-                return result_cond
+            if result.is_break {
+                // Break exits the loop immediately
+                should_break = true
+            }
+            // Continue just skips to the next iteration (re-evaluate condition)
+            // No special handling needed - we just don't return
+            if not(should_break) {
+                cond_expr = e.get(0)
+                result_cond = eval_expr(context, cond_expr)
+                if result_cond.is_throw {
+                    return result_cond
+                }
             }
         }
         return EvalResult.new("")
@@ -508,6 +547,10 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
         }
     case NodeType.Catch:
         throw e.lang_error(context.path, "eval", "Catch statements should always be evaluated within bodies.")
+    case NodeType.Break:
+        return EvalResult.new_break()
+    case NodeType.Continue:
+        return EvalResult.new_continue()
     case:
         throw e.lang_error(context.path, "eval", format("Not implemented yet, found node type ", enum_to_str(e.node_type), "."))
     }
@@ -1770,7 +1813,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                 }
                             }
 
-                            if result.is_return {
+                            if result.is_return.or(result.is_break).or(result.is_continue) {
                                 return result
                             } else if result.is_throw {
                                 pending_throw = result
@@ -1792,7 +1835,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
             }
             if not(is_catch) {
                 result := eval_expr(context, stmt)
-                if result.is_return {
+                if result.is_return.or(result.is_break).or(result.is_continue) {
                     return result
                 } else if result.is_throw {
                     pending_throw = result

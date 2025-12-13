@@ -160,6 +160,8 @@ NodeType := enum {
     Return,
     Throw,
     Catch,
+    Break,
+    Continue,
     If,
     While,
     Switch,
@@ -1212,6 +1214,28 @@ return_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBo
     return Expr.new_parse(NodeType.Return, initial_token, params)
 }
 
+parse_break_statement := func(mut lexer: Lexer) returns Expr throws Str {
+    initial_current := lexer.current
+    lexer.advance(1) // consume 'break'
+    initial_token := lexer.get_token(initial_current)
+    mut params := Vec.new(Expr)
+    catch (err: AllocError) {
+        throw concat("parse_break_statement: ", err.msg)
+    }
+    return Expr.new_parse(NodeType.Break, initial_token, params)
+}
+
+parse_continue_statement := func(mut lexer: Lexer) returns Expr throws Str {
+    initial_current := lexer.current
+    lexer.advance(1) // consume 'continue'
+    initial_token := lexer.get_token(initial_current)
+    mut params := Vec.new(Expr)
+    catch (err: AllocError) {
+        throw concat("parse_continue_statement: ", err.msg)
+    }
+    return Expr.new_parse(NodeType.Continue, initial_token, params)
+}
+
 parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_current := lexer.current
     lexer.advance(1)
@@ -1704,6 +1728,10 @@ parse_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
         return return_statement(lexer)
     case TokenType.Throw:
         return parse_throw_statement(lexer)
+    case TokenType.Break:
+        return parse_break_statement(lexer)
+    case TokenType.Continue:
+        return parse_continue_statement(lexer)
     case TokenType.If:
         return if_statement(lexer)
     case TokenType.While:

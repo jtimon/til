@@ -3264,6 +3264,28 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     return result
 }
 
+emit_break := proc(expr: Expr, output: Str, indent: I64) returns Str {
+    mut result := output
+    mut i := 0
+    while lt(i, indent) {
+        result = result.concat("    ")
+        i = add(i, 1)
+    }
+    result = result.concat("break;\n")
+    return result
+}
+
+emit_continue := proc(expr: Expr, output: Str, indent: I64) returns Str {
+    mut result := output
+    mut i := 0
+    while lt(i, indent) {
+        result = result.concat("    ")
+        i = add(i, 1)
+    }
+    result = result.concat("continue;\n")
+    return result
+}
+
 // Result struct for variant info extraction
 VariantInfo := struct {
     mut type_name: Str = ""
@@ -3793,6 +3815,10 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
         return emit_if(expr, output, indent, ctx, context)
     case NodeType.While:
         return emit_while(expr, output, indent, ctx, context)
+    case NodeType.Break:
+        return emit_break(expr, output, indent)
+    case NodeType.Continue:
+        return emit_continue(expr, output, indent)
     case NodeType.Catch:
         // Catch blocks handled at call site in emit_stmts
         return output

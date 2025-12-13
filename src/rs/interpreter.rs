@@ -115,20 +115,30 @@ pub struct EvalResult {
     pub value: String,
     pub is_return: bool,
     pub is_throw: bool,
+    pub is_break: bool,
+    pub is_continue: bool,
     pub thrown_type: Option<String>,
 }
 
 impl EvalResult {
     pub fn new(value: &str) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: false, is_throw: false, thrown_type: None}
+        return EvalResult{value: value.to_string(), is_return: false, is_throw: false, is_break: false, is_continue: false, thrown_type: None}
     }
 
     pub fn new_return(value: &str) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: true, is_throw: false, thrown_type: None}
+        return EvalResult{value: value.to_string(), is_return: true, is_throw: false, is_break: false, is_continue: false, thrown_type: None}
     }
 
     pub fn new_throw(value: &str, thrown_type: ValueType) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: false, is_throw: true, thrown_type: Some(value_type_to_str(&thrown_type))}
+        return EvalResult{value: value.to_string(), is_return: false, is_throw: true, is_break: false, is_continue: false, thrown_type: Some(value_type_to_str(&thrown_type))}
+    }
+
+    pub fn new_break() -> EvalResult {
+        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: true, is_continue: false, thrown_type: None}
+    }
+
+    pub fn new_continue() -> EvalResult {
+        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: false, is_continue: true, thrown_type: None}
     }
 }
 
@@ -350,6 +360,12 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                 if result.is_return || result.is_throw {
                     return Ok(result)
                 }
+                if result.is_break {
+                    // Break exits the loop immediately
+                    break;
+                }
+                // Continue just skips to the next iteration (re-evaluate condition)
+                // No special handling needed - we just don't return
                 cond_expr = e.get(0)?;
                 result_cond = eval_expr(context, cond_expr)?;
                 if result_cond.is_throw {
@@ -694,6 +710,12 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         },
         NodeType::Catch => {
             return Err(e.lang_error(&context.path, "eval", "Catch statements should always be evaluated within bodies."))
+        },
+        NodeType::Break => {
+            return Ok(EvalResult::new_break())
+        },
+        NodeType::Continue => {
+            return Ok(EvalResult::new_continue())
         },
         _ => Err(e.lang_error(&context.path, "eval", &format!("Not implemented yet, found node type {:?}.", e.node_type))),
     }
@@ -1686,7 +1708,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                 }
                             }
 
-                            if result.is_return {
+                            if result.is_return || result.is_break || result.is_continue {
                                 return Ok(result);
                             } else if result.is_throw {
                                 pending_throw = Some(result);
@@ -1701,7 +1723,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
             // If no pending throw, ignore catch statements
             if NodeType::Catch != stmt.node_type {
                 let result = eval_expr(&mut context, stmt)?;
-                if result.is_return {
+                if result.is_return || result.is_break || result.is_continue {
                     return Ok(result);
                 } else if result.is_throw {
                     pending_throw = Some(result);

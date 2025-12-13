@@ -115,6 +115,8 @@ pub enum NodeType {
     Return,
     Throw,
     Catch,
+    Break,
+    Continue,
     If,
     While,
     Switch,
@@ -969,6 +971,18 @@ fn return_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     Ok(Expr::new_parse(NodeType::Return, lexer.get_token(initial_current)?.clone(), params))
 }
 
+fn parse_break_statement(lexer: &mut Lexer) -> Result<Expr, String> {
+    let initial_current = lexer.current;
+    lexer.advance(1)?; // consume 'break'
+    Ok(Expr::new_parse(NodeType::Break, lexer.get_token(initial_current)?.clone(), vec![]))
+}
+
+fn parse_continue_statement(lexer: &mut Lexer) -> Result<Expr, String> {
+    let initial_current = lexer.current;
+    lexer.advance(1)?; // consume 'continue'
+    Ok(Expr::new_parse(NodeType::Continue, lexer.get_token(initial_current)?.clone(), vec![]))
+}
+
 fn parse_throw_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     let initial_current = lexer.current;
     lexer.advance(1)?;
@@ -1364,6 +1378,8 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     match &t.token_type {
         TokenType::Return => return return_statement(lexer),
         TokenType::Throw => return parse_throw_statement(lexer),
+        TokenType::Break => return parse_break_statement(lexer),
+        TokenType::Continue => return parse_continue_statement(lexer),
         TokenType::If => return if_statement(lexer),
         TokenType::While => return while_statement(lexer),
         TokenType::For => return parse_for_statement(lexer),

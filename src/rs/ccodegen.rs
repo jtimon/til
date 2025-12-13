@@ -2770,6 +2770,8 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::Return => emit_return(expr, output, indent, ctx, context),
         NodeType::If => emit_if(expr, output, indent, ctx, context),
         NodeType::While => emit_while(expr, output, indent, ctx, context),
+        NodeType::Break => emit_break(expr, output, indent),
+        NodeType::Continue => emit_continue(expr, output, indent),
         NodeType::Catch => Ok(()), // Catch blocks handled at call site
         NodeType::Throw => emit_throw(expr, output, indent, ctx, context),
         NodeType::StructDef(_) => Err("ccodegen: StructDef should be handled at top level, not in emit_expr".to_string()),
@@ -5092,6 +5094,20 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     output.push_str(&indent_str);
     output.push_str("}\n");
 
+    Ok(())
+}
+
+fn emit_break(_expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+    let indent_str = "    ".repeat(indent);
+    output.push_str(&indent_str);
+    output.push_str("break;\n");
+    Ok(())
+}
+
+fn emit_continue(_expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+    let indent_str = "    ".repeat(indent);
+    output.push_str(&indent_str);
+    output.push_str("continue;\n");
     Ok(())
 }
 

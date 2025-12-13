@@ -34,6 +34,7 @@ pub enum TokenType {
     Match, Switch, Default, Case,
     Return, Throw,
     Catch,
+    Break, Continue,
 
     // Special in this language:
     Mode,
@@ -179,6 +180,8 @@ fn token_type_to_str(tt: &TokenType) -> &'static str {
         TokenType::Return => "return",
         TokenType::Throw => "throw",
         TokenType::Catch => "catch",
+        TokenType::Break => "break",
+        TokenType::Continue => "continue",
         TokenType::Struct => "struct",
         TokenType::Enum => "enum",
         TokenType::Mode => "mode",
@@ -282,6 +285,8 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
         "throw" => TokenType::Throw, // TODO
         // TODO throw should just act as a return that gets post-processed by the next catch or rethrown
         "catch" => TokenType::Catch,
+        "break" => TokenType::Break,
+        "continue" => TokenType::Continue,
 
         // Reserved forbidden/illegal words (intentionally unsupported reserved words)
         // TODO intentionally unsupport more reserved words

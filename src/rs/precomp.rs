@@ -179,6 +179,8 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::Identifier(_) => precomp_params(context, e),
         // Leaf nodes - no transformation needed
         NodeType::LLiteral(_) | NodeType::DefaultCase | NodeType::Pattern(_) => Ok(e.clone()),
+        // Break and Continue are leaf nodes (no params) - no transformation needed
+        NodeType::Break | NodeType::Continue => Ok(e.clone()),
         // Named arguments - transform the value expression
         NodeType::NamedArg(name) => {
             let mut new_params = Vec::new();

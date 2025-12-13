@@ -266,6 +266,12 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
         }
     case NodeType.Catch:
         errors.extend(check_catch_statement(context, e))
+    case NodeType.Break:
+        // Break and Continue are simple statements with no parameters to type-check
+        // Scope validation (must be inside a loop) could be added here later
+    case NodeType.Continue:
+        // Break and Continue are simple statements with no parameters to type-check
+        // Scope validation (must be inside a loop) could be added here later
     case NodeType.LLiteral(_):
         // Nothing to check
     case NodeType.DefaultCase:
@@ -2642,6 +2648,13 @@ is_expr_calling_procs := func(context: Context, e: Expr) returns Bool throws Str
             // TODO Err(lang_error) here instead
             return true
         }
+
+    case NodeType.Break:
+        // Break and Continue have no params, so they don't call procs
+        return false
+    case NodeType.Continue:
+        // Break and Continue have no params, so they don't call procs
+        return false
 
     case:
         // Unknown node type - assume it might call procs to be safe

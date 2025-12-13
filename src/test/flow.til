@@ -187,3 +187,96 @@ test_nested_function_returns := proc() {
     assert_eq(loc(), 15, add_ten_helper(5))
 }
 test_nested_function_returns()
+
+// break and continue statements:
+
+test_break_in_while := proc() {
+    mut sum := 0
+    mut i := 0
+    while lt(i, 10) {
+        if i.eq(5) {
+            break
+        }
+        sum = sum.add(i)
+        i.inc()
+    }
+    // sum should be 0+1+2+3+4 = 10 (breaks before adding 5)
+    assert_eq(loc(), 10, sum)
+    assert_eq(loc(), 5, i) // i should be 5 when break happened
+}
+test_break_in_while()
+
+test_continue_in_while := proc() {
+    mut sum := 0
+    mut i := 0
+    while lt(i, 10) {
+        i.inc()
+        if i.eq(5) {
+            continue // skip adding 5 to sum
+        }
+        sum = sum.add(i)
+    }
+    // sum should be 1+2+3+4+6+7+8+9+10 = 55 - 5 = 50
+    assert_eq(loc(), 50, sum)
+}
+test_continue_in_while()
+
+test_break_in_for := proc() {
+    mut sum := 0
+    for i in 0..10 {
+        if i.eq(5) {
+            break
+        }
+        sum = sum.add(i)
+    }
+    // sum should be 0+1+2+3+4 = 10
+    assert_eq(loc(), 10, sum)
+}
+test_break_in_for()
+
+// NOTE: continue in for loops does NOT work because for loops desugar to while
+// with the increment at the end of the body. Continue skips the increment,
+// causing an infinite loop. Use while loops with manual increment if you need continue.
+
+test_nested_loop_break := proc() {
+    // break only breaks innermost loop
+    mut outer_count := 0
+    mut inner_count := 0
+    mut i := 0
+    while lt(i, 3) {
+        outer_count.inc()
+        mut j := 0
+        while lt(j, 5) {
+            inner_count.inc()
+            if j.eq(2) {
+                break // breaks inner loop only
+            }
+            j.inc()
+        }
+        i.inc()
+    }
+    // outer loop runs 3 times
+    assert_eq(loc(), 3, outer_count)
+    // inner loop runs 3 times for each outer (0,1,2 then break) = 3*3 = 9
+    assert_eq(loc(), 9, inner_count)
+}
+test_nested_loop_break()
+
+test_break_after_statements := proc() {
+    mut a := 0
+    mut b := 0
+    mut i := 0
+    while lt(i, 10) {
+        a.inc()
+        b = b.add(i)
+        if i.eq(3) {
+            break
+        }
+        i.inc()
+    }
+    // a should be 4 (0,1,2,3 then break)
+    assert_eq(loc(), 4, a)
+    // b should be 0+1+2+3 = 6
+    assert_eq(loc(), 6, b)
+}
+test_break_after_statements()

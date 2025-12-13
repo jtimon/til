@@ -203,6 +203,10 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
         }
 
         NodeType::LLiteral(_) | NodeType::DefaultCase | NodeType::Pattern(_) => {},
+        NodeType::Break | NodeType::Continue => {
+            // Break and Continue are simple statements with no parameters to type-check
+            // Scope validation (must be inside a loop) could be added here later
+        },
         NodeType::NamedArg(_) => {
             // Named args - type check the value expression
             for p in &e.params {
@@ -1879,6 +1883,10 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
                     return true;
                 }
             }
+            false
+        },
+        NodeType::Break | NodeType::Continue => {
+            // Break and Continue have no params, so they don't call procs
             false
         },
         NodeType::Catch => {

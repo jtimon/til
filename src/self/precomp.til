@@ -266,6 +266,11 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         return e.clone()
     case NodeType.Pattern:
         return e.clone()
+    // Break and Continue are leaf nodes (no params) - no transformation needed
+    case NodeType.Break:
+        return e.clone()
+    case NodeType.Continue:
+        return e.clone()
     // Named arguments - transform the value expression
     case NodeType.NamedArg(name):
         mut new_params := Vec.new(Expr)
