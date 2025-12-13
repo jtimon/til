@@ -572,6 +572,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/structs.til"))
     rs_common.push(TestEntry(path="src/test/temp.til"))
     rs_common.push(TestEntry(path="src/test/todo.til")) // permanent TODO, design notes for future features
+    rs_common.push(TestEntry(path="src/test/args.til"))
     rs_common.push(TestEntry(path="src/test/u8.til"))
     rs_common.push(TestEntry(path="src/test/variadic.til"))
     rs_common.push(TestEntry(path="src/test/vecs.til"))
@@ -591,7 +592,6 @@ main := proc(args: ..Str) {
 
     mut rs_interpreted := Vec.new(TestEntry)
 
-    rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: assignment of read-only param (copy semantics), append_str Str* vs Str type mismatch
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/modes.til")) // TODO FIX: gcc: Vec_new in struct literal - too few args (throwing func as field initializer)
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
