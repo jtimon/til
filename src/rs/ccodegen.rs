@@ -43,8 +43,6 @@ struct CodegenContext {
     hoisted_prototypes: Vec<String>,
     // Map original function name -> mangled name for nested functions
     nested_func_names: HashMap<String, String>,
-    // Map (struct_name, member_name) -> temp var for hoisted throwing struct defaults
-    hoisted_struct_defaults: HashMap<(String, String), String>,
 }
 
 impl CodegenContext {
@@ -63,7 +61,6 @@ impl CodegenContext {
             hoisted_functions: Vec::new(),
             hoisted_prototypes: Vec::new(),
             nested_func_names: HashMap::new(),
-            hoisted_struct_defaults: HashMap::new(),
         }
     }
 }
@@ -597,60 +594,8 @@ fn hoist_throwing_expr(
     }
 
     // Not a throwing call or variadic call - recursively check sub-expressions
-    // For FCall, check all arguments AND check for struct literals with throwing defaults
+    // For FCall, check all arguments
     if let NodeType::FCall = &expr.node_type {
-        // Check if this is a struct literal - if so, hoist throwing calls from default values
-        if let Some(func_name) = get_func_name_string(expr.params.first().unwrap_or(expr)) {
-            let has_named_args = expr.params.iter().skip(1).any(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
-            if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
-                && !func_name.contains('_')
-                && (expr.params.len() == 1 || has_named_args)
-            {
-                // This is a struct literal - check default values for throwing calls
-                if let Some(struct_def) = context.scope_stack.lookup_struct(&func_name).cloned() {
-                    // Build map of named arg values
-                    let mut named_values: std::collections::HashMap<String, &Expr> = std::collections::HashMap::new();
-                    for arg in expr.params.iter().skip(1) {
-                        if let NodeType::NamedArg(field_name) = &arg.node_type {
-                            if let Some(value_expr) = arg.params.first() {
-                                named_values.insert(field_name.clone(), value_expr);
-                            }
-                        }
-                    }
-
-                    // Hoist throwing calls from default values
-                    for member in &struct_def.members {
-                        if !member.is_mut {
-                            continue;
-                        }
-                        if named_values.contains_key(&member.name) {
-                            continue; // Named arg overrides default
-                        }
-                        if let Some(default_expr) = struct_def.default_values.get(&member.name) {
-                            if is_throwing_fcall(default_expr, context) {
-                                // Hoist this throwing call with unique temp var name
-                                let temp_var = next_mangled();
-                                // Record in hoisted_struct_defaults so emit_fcall can find it
-                                // Use (struct_name, member_name) as key since default_expr addresses differ per clone
-                                ctx.hoisted_struct_defaults.insert((func_name.clone(), member.name.clone()), temp_var.clone());
-                                // Emit the throwing call
-                                if let Some(first_param) = default_expr.params.first() {
-                                    if let Some(fcall_func_name) = get_func_name_string(first_param) {
-                                        let lookup_name = fcall_func_name.replacen('_', ".", 1);
-                                        if let Some(fd) = context.scope_stack.lookup_func(&lookup_name) {
-                                            let throw_types = fd.throw_types.clone();
-                                            emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_var), None, output, indent, ctx, context)?;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Recurse into arguments
         if expr.params.len() > 1 {
             for arg in &expr.params[1..] {
                 hoist_throwing_expr(arg, output, indent, ctx, context)?;
@@ -1895,9 +1840,16 @@ fn collect_nested_func_info(expr: &Expr, ctx: &mut CodegenContext, parent_func_n
                                         proto.push_str("_count");
                                     }
                                 } else if let Some(c_type) = til_type_to_c(&arg.value_type) {
-                                    proto.push_str("const ");
-                                    proto.push_str(&c_type);
-                                    proto.push_str(" ");
+                                    if arg.is_mut {
+                                        // mut: use pointer so mutations are visible to caller
+                                        proto.push_str(&c_type);
+                                        proto.push_str("* ");
+                                    } else {
+                                        // const or copy: pass by value
+                                        proto.push_str("const ");
+                                        proto.push_str(&c_type);
+                                        proto.push_str(" ");
+                                    }
                                     proto.push_str(&til_name(&arg.name));
                                 }
                             }
@@ -2546,12 +2498,8 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
                 // mut: use pointer so mutations are visible to caller
                 output.push_str(&arg_type);
                 output.push_str("* ");
-            } else if arg.is_copy || arg.is_own {
-                // copy/own: pass by value, mutable local copy
-                output.push_str(&arg_type);
-                output.push_str(" ");
             } else {
-                // immutable: pass by value with const
+                // const or copy: pass by value
                 output.push_str("const ");
                 output.push_str(&arg_type);
                 output.push_str(" ");
@@ -3427,10 +3375,6 @@ fn emit_throwing_call(
         // Assignment: assign to existing variable
         let inner_indent = "    ".repeat(indent + 1);
         output.push_str(&inner_indent);
-        // Check if assignment target is a mut param (pointer) - need to dereference
-        if ctx.current_mut_params.contains(var_name) {
-            output.push_str("*");
-        }
         output.push_str(&til_name(var_name));
         output.push_str(" = _ret_");
         output.push_str(&temp_suffix.to_string());
@@ -3727,10 +3671,6 @@ fn emit_throwing_call_propagate(
         }
     } else if let Some(var_name) = assign_name {
         output.push_str(&indent_str);
-        // Check if assignment target is a mut param (pointer) - need to dereference
-        if ctx.current_mut_params.contains(var_name) {
-            output.push_str("*");
-        }
         output.push_str(&til_name(var_name));
         output.push_str(" = _ret_");
         output.push_str(&temp_suffix);
@@ -3944,10 +3884,6 @@ fn emit_throwing_call_with_goto(
         }
     } else if let Some(var_name) = assign_name {
         output.push_str(&indent_str);
-        // Check if assignment target is a mut param (pointer) - need to dereference
-        if ctx.current_mut_params.contains(var_name) {
-            output.push_str("*");
-        }
         output.push_str(&til_name(var_name));
         output.push_str(" = _ret_");
         output.push_str(&temp_suffix);
@@ -4893,7 +4829,46 @@ fn emit_fcall_with_hoisted(
                     }
                 }
 
-                // Throwing defaults are hoisted by hoist_throwing_expr before we get here
+                // Check if any default value is a throwing function call
+                // Such calls need out-params and can't be inlined in struct initializers
+                let mut throwing_defaults: Vec<(&String, &Expr)> = Vec::new();
+                for member in &struct_def.members {
+                    if !member.is_mut {
+                        continue;
+                    }
+                    if named_values.contains_key(&member.name) {
+                        continue; // Named arg overrides default
+                    }
+                    if let Some(default_expr) = struct_def.default_values.get(&member.name) {
+                        if is_throwing_fcall(default_expr, context) {
+                            throwing_defaults.push((&member.name, default_expr));
+                        }
+                    }
+                }
+
+                // If we have throwing defaults, emit them as separate statements first
+                // This only works when we're in a statement context (not inline expression)
+                // For now, emit temp variables before the struct literal
+                for (member_name, default_expr) in &throwing_defaults {
+                    // Get the function's throw types
+                    let throw_types = if let Some(first_param) = default_expr.params.first() {
+                        if let Some(fcall_func_name) = get_func_name_string(first_param) {
+                            let lookup_name = fcall_func_name.replacen('_', ".", 1);
+                            context.scope_stack.lookup_func(&lookup_name)
+                                .map(|fd| fd.throw_types.clone())
+                                .unwrap_or_default()
+                        } else {
+                            Vec::new()
+                        }
+                    } else {
+                        Vec::new()
+                    };
+
+                    let temp_name = format!("_default_{}", member_name);
+                    // Emit the function call with out-param using emit_throwing_call_propagate
+                    emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, 0, ctx, context)?;
+                }
+
                 output.push_str("{");
                 let mut first = true;
                 for member in &struct_def.members {
@@ -4911,15 +4886,10 @@ fn emit_fcall_with_hoisted(
                     if let Some(value_expr) = named_values.get(&member.name) {
                         emit_expr(value_expr, output, 0, ctx, context)?;
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
-                        // Check if this was a throwing default - use temp var from hoisted_struct_defaults
+                        // Check if this was a throwing default - use temp var instead
                         if is_throwing_fcall(default_expr, context) {
-                            let key = (func_name.clone(), member.name.clone());
-                            if let Some(temp_var) = ctx.hoisted_struct_defaults.get(&key) {
-                                output.push_str(temp_var);
-                            } else {
-                                // Fallback - shouldn't happen if hoisting worked
-                                emit_expr(default_expr, output, 0, ctx, context)?;
-                            }
+                            output.push_str("_default_");
+                            output.push_str(&member.name);
                         } else {
                             emit_expr(default_expr, output, 0, ctx, context)?;
                         }
@@ -5386,6 +5356,12 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     let has_named_args = expr.params.iter().skip(1).any(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
     if has_named_args {
         if let Some(struct_def) = context.scope_stack.lookup_struct(&func_name).cloned() {
+            // Emit C compound literal: (til_TypeName){.field1 = val1, .field2 = val2, ...}
+            output.push_str("(");
+            output.push_str(TIL_PREFIX);
+            output.push_str(&func_name);
+            output.push_str(")");
+
             // Build map of named arg values
             let mut named_values: std::collections::HashMap<String, &Expr> = std::collections::HashMap::new();
             for arg in expr.params.iter().skip(1) {
@@ -5395,51 +5371,6 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     }
                 }
             }
-
-            // Hoist throwing calls from field values, but ONLY at statement level (indent > 0)
-            // At expression level (indent == 0), hoist_throwing_expr should have already been called by the caller
-            let mut hoisted_fields: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-            if indent > 0 {
-                for member in &struct_def.members {
-                    if !member.is_mut {
-                        continue;
-                    }
-                    // Check named arg value first, then default
-                    let field_expr: Option<&Expr> = named_values.get(&member.name).copied()
-                        .or_else(|| struct_def.default_values.get(&member.name));
-                    if let Some(field_value) = field_expr {
-                        if let Some(temp_var) = hoist_throwing_expr(field_value, output, indent, ctx, context)? {
-                            hoisted_fields.insert(member.name.clone(), temp_var);
-                        }
-                    }
-                }
-            } else {
-                // At expression level, check if defaults were hoisted by caller
-                // Look up temp var names in hoisted_struct_defaults using (struct_name, member_name)
-                for member in &struct_def.members {
-                    if !member.is_mut {
-                        continue;
-                    }
-                    if named_values.contains_key(&member.name) {
-                        continue; // Named arg overrides default
-                    }
-                    if let Some(default_expr) = struct_def.default_values.get(&member.name) {
-                        if is_throwing_fcall(default_expr, context) {
-                            // Look up temp var from hoisted_struct_defaults
-                            let key = (func_name.clone(), member.name.clone());
-                            if let Some(temp_var) = ctx.hoisted_struct_defaults.get(&key) {
-                                hoisted_fields.insert(member.name.clone(), temp_var.clone());
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Emit C compound literal: (til_TypeName){.field1 = val1, .field2 = val2, ...}
-            output.push_str("(");
-            output.push_str(TIL_PREFIX);
-            output.push_str(&func_name);
-            output.push_str(")");
 
             if struct_def.members.is_empty() || struct_def.default_values.is_empty() {
                 output.push_str("{}");
@@ -5457,10 +5388,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     output.push_str(".");
                     output.push_str(&member.name);
                     output.push_str(" = ");
-                    // Use hoisted temp var if available
-                    if let Some(temp_var) = hoisted_fields.get(&member.name) {
-                        output.push_str(temp_var);
-                    } else if let Some(value_expr) = named_values.get(&member.name) {
+                    // Use named arg value if provided, otherwise use default
+                    if let Some(value_expr) = named_values.get(&member.name) {
                         emit_expr(value_expr, output, 0, ctx, context)?;
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
                         emit_expr(default_expr, output, 0, ctx, context)?;
