@@ -1315,10 +1315,15 @@ fn emit_arg_with_param_type(
         // Check if arg is a simple identifier (can take address directly)
         if let NodeType::Identifier(name) = &arg.node_type {
             if arg.params.is_empty() {
-                // Check if this identifier is already a pointer (from being a mut param)
-                // If so, just cast it without taking address again
+                // Check if this identifier is already a pointer:
+                // - mut params are passed as pointers
+                // - variadic params are passed as Array pointers
+                // - Dynamic params are already void* (no need to take address)
                 let is_already_pointer = ctx.current_mut_params.contains(name)
-                    || ctx.current_variadic_params.contains_key(name);
+                    || ctx.current_variadic_params.contains_key(name)
+                    || context.scope_stack.lookup_symbol(name)
+                        .map(|sym| matches!(&sym.value_type, ValueType::TCustom(t) if t == "Dynamic"))
+                        .unwrap_or(false);
                 if is_already_pointer {
                     // Already a pointer - just cast without &
                     output.push_str("(");
