@@ -3639,13 +3639,26 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             case_pattern.params.get(1, range_end)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-            result = emit_expr(range_start, result, 0, ctx, context)
-            result = result.concat(" <= ")
-            result = result.concat(switch_var)
-            result = result.concat(" && ")
-            result = result.concat(switch_var)
-            result = result.concat(" <= ")
-            result = emit_expr(range_end, result, 0, ctx, context)
+            if is_str_switch {
+                // For string ranges, use strcmp: strcmp(low, val) <= 0 && strcmp(val, high) <= 0
+                result = result.concat("strcmp((char*)")
+                result = emit_expr(range_start, result, 0, ctx, context)
+                result = result.concat(".c_string, (char*)")
+                result = result.concat(switch_var)
+                result = result.concat(".c_string) <= 0 && strcmp((char*)")
+                result = result.concat(switch_var)
+                result = result.concat(".c_string, (char*)")
+                result = emit_expr(range_end, result, 0, ctx, context)
+                result = result.concat(".c_string) <= 0")
+            } else {
+                result = emit_expr(range_start, result, 0, ctx, context)
+                result = result.concat(" <= ")
+                result = result.concat(switch_var)
+                result = result.concat(" && ")
+                result = result.concat(switch_var)
+                result = result.concat(" <= ")
+                result = emit_expr(range_end, result, 0, ctx, context)
+            }
             result = result.concat(") {\n")
         case NodeType.Identifier(name):
             info := get_case_variant_info(case_pattern)

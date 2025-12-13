@@ -5350,13 +5350,26 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 if case_pattern.params.len() < 2 {
                     return Err("ccodegen: Range requires start and end values".to_string());
                 }
-                emit_expr(&case_pattern.params[0], output, 0, ctx, context)?;
-                output.push_str(" <= ");
-                output.push_str(&switch_var);
-                output.push_str(" && ");
-                output.push_str(&switch_var);
-                output.push_str(" <= ");
-                emit_expr(&case_pattern.params[1], output, 0, ctx, context)?;
+                if is_str_switch {
+                    // For string ranges, use strcmp: strcmp(low, val) <= 0 && strcmp(val, high) <= 0
+                    output.push_str("strcmp((char*)");
+                    emit_expr(&case_pattern.params[0], output, 0, ctx, context)?;
+                    output.push_str(".c_string, (char*)");
+                    output.push_str(&switch_var);
+                    output.push_str(".c_string) <= 0 && strcmp((char*)");
+                    output.push_str(&switch_var);
+                    output.push_str(".c_string, (char*)");
+                    emit_expr(&case_pattern.params[1], output, 0, ctx, context)?;
+                    output.push_str(".c_string) <= 0");
+                } else {
+                    emit_expr(&case_pattern.params[0], output, 0, ctx, context)?;
+                    output.push_str(" <= ");
+                    output.push_str(&switch_var);
+                    output.push_str(" && ");
+                    output.push_str(&switch_var);
+                    output.push_str(" <= ");
+                    emit_expr(&case_pattern.params[1], output, 0, ctx, context)?;
+                }
                 output.push_str(") {\n");
             },
             NodeType::Identifier(_name) => {
