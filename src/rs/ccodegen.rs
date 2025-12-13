@@ -5403,7 +5403,9 @@ fn get_case_variant_info(expr: &Expr) -> VariantInfo {
                     };
                 }
             }
-            VariantInfo { type_name: String::new(), variant_name: name.clone() }
+            // Plain identifier without nested params - NOT an enum variant pattern
+            // Return empty to let emit_switch fall through to regular value comparison
+            VariantInfo { type_name: String::new(), variant_name: String::new() }
         },
         _ => VariantInfo { type_name: String::new(), variant_name: String::new() },
     }

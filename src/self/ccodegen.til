@@ -3531,21 +3531,17 @@ get_case_variant_info := func(expr: Expr) returns VariantInfo {
         if gt(expr.params.len(), 0) {
             mut nested := Expr()
             expr.params.get(0, nested)
-            catch (err: IndexOutOfBoundsError) {
-                result.variant_name = name
-                return result
-            }
+            catch (err: IndexOutOfBoundsError) { return result }
             switch nested.node_type {
             case NodeType.Identifier(variant_name):
                 result.type_name = name
                 result.variant_name = variant_name
                 return result
             case:
-                result.variant_name = name
-                return result
             }
         }
-        result.variant_name = name
+        // Plain identifier without nested params - NOT an enum variant pattern
+        // Return empty to let emit_switch fall through to regular value comparison
         return result
     case:
         return result
