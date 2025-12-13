@@ -5304,6 +5304,60 @@ fn parse_pattern_variant_name(variant_name: &str) -> VariantInfo {
     }
 }
 
+/// Collect all variable declarations in a body (recursively) for hoisting
+/// Returns Vec of (var_name, ValueType) pairs
+fn collect_declarations_in_body(body: &Expr, context: &Context) -> Vec<(String, ValueType)> {
+    let mut decls = Vec::new();
+
+    if let NodeType::Body = &body.node_type {
+        for stmt in &body.params {
+            collect_declarations_recursive(stmt, &mut decls, context);
+        }
+    } else {
+        collect_declarations_recursive(body, &mut decls, context);
+    }
+
+    decls
+}
+
+fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<(String, ValueType)>, context: &Context) {
+    match &expr.node_type {
+        NodeType::Declaration(decl) => {
+            // Add this declaration
+            decls.push((decl.name.clone(), decl.value_type.clone()));
+        }
+        NodeType::Body => {
+            for stmt in &expr.params {
+                collect_declarations_recursive(stmt, decls, context);
+            }
+        }
+        NodeType::If => {
+            // Recurse into if branches
+            if expr.params.len() >= 2 {
+                collect_declarations_recursive(&expr.params[1], decls, context);
+            }
+            if expr.params.len() >= 3 {
+                collect_declarations_recursive(&expr.params[2], decls, context);
+            }
+        }
+        NodeType::Switch => {
+            // Recurse into switch case bodies
+            let mut i = 1;
+            while i + 1 < expr.params.len() {
+                collect_declarations_recursive(&expr.params[i + 1], decls, context);
+                i += 2;
+            }
+        }
+        NodeType::While => {
+            // Recurse into while body
+            if expr.params.len() >= 2 {
+                collect_declarations_recursive(&expr.params[1], decls, context);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // Switch: params[0] = switch expression
     // params[1..] = alternating (case_pattern, body) pairs
@@ -5382,6 +5436,45 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
             cases.push((case_pattern, case_body));
         }
         i += 2;
+    }
+
+    // Hoist declarations from all case bodies to before the if/else chain
+    // This ensures variables declared in switch cases are visible after the switch
+    // (TIL has function-level scoping, not block-level scoping)
+    for (_, case_body) in &cases {
+        if let Some(body) = case_body {
+            let decls = collect_declarations_in_body(body, context);
+            for (var_name, value_type) in decls {
+                // Only emit if not already declared
+                let c_var_name = til_name(&var_name);
+                if !ctx.declared_vars.contains(&c_var_name) {
+                    if let Some(c_type) = til_type_to_c(&value_type) {
+                        output.push_str(&indent_str);
+                        output.push_str(&c_type);
+                        output.push_str(" ");
+                        output.push_str(&c_var_name);
+                        output.push_str(";\n");
+                        ctx.declared_vars.insert(c_var_name);
+                    }
+                }
+            }
+        }
+    }
+    if let Some(body) = &default_body {
+        let decls = collect_declarations_in_body(body, context);
+        for (var_name, value_type) in decls {
+            let c_var_name = til_name(&var_name);
+            if !ctx.declared_vars.contains(&c_var_name) {
+                if let Some(c_type) = til_type_to_c(&value_type) {
+                    output.push_str(&indent_str);
+                    output.push_str(&c_type);
+                    output.push_str(" ");
+                    output.push_str(&c_var_name);
+                    output.push_str(";\n");
+                    ctx.declared_vars.insert(c_var_name);
+                }
+            }
+        }
     }
 
     // Emit if/else if chain for non-default cases

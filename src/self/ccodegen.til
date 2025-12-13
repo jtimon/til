@@ -3506,6 +3506,78 @@ parse_pattern_variant_name := func(variant_name: Str) returns VariantInfo {
     return result
 }
 
+/// Collect all variable declarations in a body (recursively) for hoisting
+/// Returns Vec of (var_name, ValueType) pairs
+collect_declarations_in_body := proc(body: Expr, context: Context) returns Vec throws AllocError {
+    mut decls := Vec.new(Declaration)
+
+    switch body.node_type {
+    case NodeType.Body:
+        mut i := 0
+        while lt(i, body.params.len()) {
+            mut stmt := Expr()
+            body.params.get(i, stmt)
+            catch (err: IndexOutOfBoundsError) { }
+            collect_declarations_recursive(stmt, decls, context)
+            i = add(i, 1)
+        }
+    case:
+        collect_declarations_recursive(body, decls, context)
+    }
+
+    return decls
+}
+
+collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, context: Context) throws AllocError {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        // Add this declaration
+        decls.push(decl)
+    case NodeType.Body:
+        mut i := 0
+        while lt(i, expr.params.len()) {
+            mut stmt := Expr()
+            expr.params.get(i, stmt)
+            catch (err: IndexOutOfBoundsError) { }
+            collect_declarations_recursive(stmt, decls, context)
+            i = add(i, 1)
+        }
+    case NodeType.If:
+        // Recurse into if branches
+        if gteq(expr.params.len(), 2) {
+            mut then_branch := Expr()
+            expr.params.get(1, then_branch)
+            catch (err: IndexOutOfBoundsError) { }
+            collect_declarations_recursive(then_branch, decls, context)
+        }
+        if gteq(expr.params.len(), 3) {
+            mut else_branch := Expr()
+            expr.params.get(2, else_branch)
+            catch (err: IndexOutOfBoundsError) { }
+            collect_declarations_recursive(else_branch, decls, context)
+        }
+    case NodeType.Switch:
+        // Recurse into switch case bodies
+        mut i := 1
+        while lt(add(i, 1), expr.params.len()) {
+            mut case_body := Expr()
+            expr.params.get(add(i, 1), case_body)
+            catch (err: IndexOutOfBoundsError) { }
+            collect_declarations_recursive(case_body, decls, context)
+            i = add(i, 2)
+        }
+    case NodeType.While:
+        // Recurse into while body
+        if gteq(expr.params.len(), 2) {
+            mut while_body := Expr()
+            expr.params.get(1, while_body)
+            catch (err: IndexOutOfBoundsError) { }
+            collect_declarations_recursive(while_body, decls, context)
+        }
+    case:
+    }
+}
+
 emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // Switch: params[0] = switch expression
     // params[1..] = alternating (case_pattern, body) pairs
@@ -3627,6 +3699,65 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             catch (err: AllocError) { throw err.msg }
         }
         i = add(i, 2)
+    }
+
+    // Hoist declarations from all case bodies to before the if/else chain
+    // This ensures variables declared in switch cases are visible after the switch
+    // (TIL has function-level scoping, not block-level scoping)
+    mut hoist_idx := 0
+    while lt(hoist_idx, case_bodies.len()) {
+        mut case_body := Expr()
+        case_bodies.get(hoist_idx, case_body)
+        catch (err: IndexOutOfBoundsError) { }
+        decls := collect_declarations_in_body(case_body, context)
+        catch (err: AllocError) { throw err.msg }
+        mut decl_idx := 0
+        while lt(decl_idx, decls.len()) {
+            mut decl := Declaration()
+            decls.get(decl_idx, decl)
+            catch (err: IndexOutOfBoundsError) { }
+            // Only emit if not already declared
+            c_var_name := til_name(decl.name)
+            if not(ctx.declared_vars.contains(c_var_name)) {
+                c_type := til_type_to_c(decl.value_type)
+                if gt(c_type.len(), 0) {
+                    result = result.concat(indent_str)
+                    result = result.concat(c_type)
+                    result = result.concat(" ")
+                    result = result.concat(c_var_name)
+                    result = result.concat(";\n")
+                    _ := ctx.declared_vars.insert(c_var_name)
+                }
+            }
+            decl_idx = add(decl_idx, 1)
+        }
+        hoist_idx = add(hoist_idx, 1)
+
+        catch (err: AllocError) { throw err.msg }
+    }
+    if has_default {
+        decls := collect_declarations_in_body(default_body, context)
+        mut decl_idx := 0
+        while lt(decl_idx, decls.len()) {
+            mut decl := Declaration()
+            decls.get(decl_idx, decl)
+            catch (err: IndexOutOfBoundsError) { }
+            c_var_name := til_name(decl.name)
+            if not(ctx.declared_vars.contains(c_var_name)) {
+                c_type := til_type_to_c(decl.value_type)
+                if gt(c_type.len(), 0) {
+                    result = result.concat(indent_str)
+                    result = result.concat(c_type)
+                    result = result.concat(" ")
+                    result = result.concat(c_var_name)
+                    result = result.concat(";\n")
+                    _ := ctx.declared_vars.insert(c_var_name)
+                }
+            }
+            decl_idx = add(decl_idx, 1)
+        }
+
+        catch (err: AllocError) { throw err.msg }
     }
 
     // Emit if/else if chain for non-default cases
