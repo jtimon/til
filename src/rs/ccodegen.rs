@@ -2546,8 +2546,12 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
                 // mut: use pointer so mutations are visible to caller
                 output.push_str(&arg_type);
                 output.push_str("* ");
+            } else if arg.is_copy || arg.is_own {
+                // copy/own: pass by value, mutable local copy
+                output.push_str(&arg_type);
+                output.push_str(" ");
             } else {
-                // const or copy: pass by value
+                // immutable: pass by value with const
                 output.push_str("const ");
                 output.push_str(&arg_type);
                 output.push_str(" ");
@@ -3423,6 +3427,10 @@ fn emit_throwing_call(
         // Assignment: assign to existing variable
         let inner_indent = "    ".repeat(indent + 1);
         output.push_str(&inner_indent);
+        // Check if assignment target is a mut param (pointer) - need to dereference
+        if ctx.current_mut_params.contains(var_name) {
+            output.push_str("*");
+        }
         output.push_str(&til_name(var_name));
         output.push_str(" = _ret_");
         output.push_str(&temp_suffix.to_string());
@@ -3719,6 +3727,10 @@ fn emit_throwing_call_propagate(
         }
     } else if let Some(var_name) = assign_name {
         output.push_str(&indent_str);
+        // Check if assignment target is a mut param (pointer) - need to dereference
+        if ctx.current_mut_params.contains(var_name) {
+            output.push_str("*");
+        }
         output.push_str(&til_name(var_name));
         output.push_str(" = _ret_");
         output.push_str(&temp_suffix);
@@ -3932,6 +3944,10 @@ fn emit_throwing_call_with_goto(
         }
     } else if let Some(var_name) = assign_name {
         output.push_str(&indent_str);
+        // Check if assignment target is a mut param (pointer) - need to dereference
+        if ctx.current_mut_params.contains(var_name) {
+            output.push_str("*");
+        }
         output.push_str(&til_name(var_name));
         output.push_str(" = _ret_");
         output.push_str(&temp_suffix);

@@ -538,6 +538,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/examples/hello_script.til"))
     rs_common.push(TestEntry(path="src/examples/hello_test.til"))
     rs_common.push(TestEntry(path="src/test/arithmetics.til"))
+    rs_common.push(TestEntry(path="src/test/args.til"))
     rs_common.push(TestEntry(path="src/test/arrays.til"))
     rs_common.push(TestEntry(path="src/test/boolean.til"))
     rs_common.push(TestEntry(path="src/test/branchless.til"))
@@ -590,7 +591,6 @@ main := proc(args: ..Str) {
 
     mut rs_interpreted := Vec.new(TestEntry)
 
-    rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: copy params (const) assigned as read-only, mut Str param incompatible pointer types
     rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: gcc: switch case binding vars undeclared (til_bbb, til_is_olive, til_code)
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/modes.til")) // TODO FIX: gcc: module-level var (dummy_token) used by procs but declared inside main()

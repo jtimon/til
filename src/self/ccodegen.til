@@ -1097,8 +1097,11 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
             if arg.is_mut {
                 // mut: use pointer so mutations are visible to caller
                 result = result.concat(til_type_to_c(arg.value_type)).concat("* ")
+            } else if arg.is_copy.or(arg.is_own) {
+                // copy/own: pass by value, mutable local copy
+                result = result.concat(til_type_to_c(arg.value_type)).concat(" ")
             } else {
-                // const or copy: pass by value
+                // immutable: pass by value with const
                 result = result.concat("const ").concat(til_type_to_c(arg.value_type)).concat(" ")
             }
             result = result.concat(TIL_PREFIX).concat(arg.name)
@@ -4825,7 +4828,11 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                 ind = add(ind, 1)
             }
             result = result.concat(inner_indent)
-            result = result.concat(assign_name)
+            // Check if assignment target is a mut param (pointer) - need to dereference
+            if ctx.current_mut_params.contains(assign_name) {
+                result = result.concat("*")
+            }
+            result = result.concat(til_name(assign_name))
             result = result.concat(" = _ret_")
             result = result.concat(temp_suffix)
             result = result.concat(";\n")
@@ -5330,7 +5337,11 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     } else {
         if gt(assign_name.len(), 0) {
             result = result.concat(indent_str)
-            result = result.concat(assign_name)
+            // Check if assignment target is a mut param (pointer) - need to dereference
+            if ctx.current_mut_params.contains(assign_name) {
+                result = result.concat("*")
+            }
+            result = result.concat(til_name(assign_name))
             result = result.concat(" = _ret_")
             result = result.concat(temp_suffix)
             result = result.concat(";\n")
@@ -5733,6 +5744,10 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     } else {
         if gt(assign_name.len(), 0) {
             result = result.concat(indent_str)
+            // Check if assignment target is a mut param (pointer) - need to dereference
+            if ctx.current_mut_params.contains(assign_name) {
+                result = result.concat("*")
+            }
             result = result.concat(til_name(assign_name))
             result = result.concat(" = _ret_")
             result = result.concat(temp_suffix)
