@@ -342,24 +342,21 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
         if result_cond.is_throw {
             return result_cond
         }
-        mut should_break := false
-        while eval_condition_to_bool(context, result_cond, cond_expr).and(not(should_break)) {
+        while eval_condition_to_bool(context, result_cond, cond_expr) {
             result := eval_expr(context, e.get(1))
             if result.is_return.or(result.is_throw) {
                 return result
             }
             if result.is_break {
                 // Break exits the loop immediately
-                should_break = true
+                break
             }
             // Continue just skips to the next iteration (re-evaluate condition)
             // No special handling needed - we just don't return
-            if not(should_break) {
-                cond_expr = e.get(0)
-                result_cond = eval_expr(context, cond_expr)
-                if result_cond.is_throw {
-                    return result_cond
-                }
+            cond_expr = e.get(0)
+            result_cond = eval_expr(context, cond_expr)
+            if result_cond.is_throw {
+                return result_cond
             }
         }
         return EvalResult.new("")
@@ -459,66 +456,65 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                 } else {
                     // No match, continue to next case
                     param_it = param_it.add(2)
+                    continue
+                }
+            }
+
+            // Not a pattern - check Range or direct match
+            mut is_range := false
+            switch case_expr.node_type {
+            case NodeType.Range:
+                is_range = true
+            case:
+            }
+
+            mut is_match := false
+            if is_range {
+                mut start_expr := Expr()
+                case_expr.params.get(0, start_expr)
+                start := eval_expr(context, start_expr)
+                if start.is_throw {
+                    return start
+                }
+                mut end_expr := Expr()
+                case_expr.params.get(1, end_expr)
+                end := eval_expr(context, end_expr)
+                if end.is_throw {
+                    return end
+                }
+
+                // Check if numeric type
+                mut is_numeric := false
+                switch value_type {
+                case ValueType.TCustom(s):
+                    if s.eq("I64").or(s.eq("U8")) {
+                        is_numeric = true
+                    }
+                case:
+                }
+
+                if is_numeric {
+                    val := I64.from_str(result_to_switch.value)
+                    start_val := I64.from_str(start.value)
+                    end_val := I64.from_str(end.value)
+                    is_match = val.gteq(start_val).and(val.lteq(end_val))
+                } else {
+                    // String ranges not supported in self-hosted interpreter
+                    throw e.lang_error(context.path, "eval", "String range comparisons not yet supported")
                 }
             } else {
-                // Not a pattern - check Range or direct match
-                mut is_range := false
-                switch case_expr.node_type {
-                case NodeType.Range:
-                    is_range = true
-                case:
-                    // not range
+                result_case := eval_expr(context, case_expr)
+                if result_case.is_throw {
+                    return result_case
                 }
-
-                mut is_match := false
-                if is_range {
-                    mut start_expr := Expr()
-                    case_expr.params.get(0, start_expr)
-                    start := eval_expr(context, start_expr)
-                    if start.is_throw {
-                        return start
-                    }
-                    mut end_expr := Expr()
-                    case_expr.params.get(1, end_expr)
-                    end := eval_expr(context, end_expr)
-                    if end.is_throw {
-                        return end
-                    }
-
-                    // Check if numeric type
-                    mut is_numeric := false
-                    switch value_type {
-                    case ValueType.TCustom(s):
-                        if s.eq("I64").or(s.eq("U8")) {
-                            is_numeric = true
-                        }
-                    case:
-                        // not custom
-                    }
-
-                    if is_numeric {
-                        val := I64.from_str(result_to_switch.value)
-                        start_val := I64.from_str(start.value)
-                        end_val := I64.from_str(end.value)
-                        is_match = val.gteq(start_val).and(val.lteq(end_val))
-                    } else {
-                        // String ranges not supported in self-hosted interpreter
-                        throw e.lang_error(context.path, "eval", "String range comparisons not yet supported")
-                    }
-                } else {
-                    result_case := eval_expr(context, case_expr)
-                    if result_case.is_throw {
-                        return result_case
-                    }
-                    is_match = result_to_switch.value.eq(result_case.value)
-                }
-
-                param_it = param_it.add(1)
-                if is_match {
-                    return eval_expr(context, e.get(param_it))
-                }
-                param_it = param_it.add(1)
+                is_match = result_to_switch.value.eq(result_case.value)
             }
+
+            param_it = param_it.add(1)
+            if is_match {
+                return eval_expr(context, e.get(param_it))
+            }
+            param_it = param_it.add(1)
         }
         return EvalResult.new("")
     case NodeType.Return:
@@ -1943,9 +1939,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             case ValueType.TCustom(custom_type_name):
                 current_arg := e.get(param_index)
 
-                // Special handling for Dynamic/Type parameters
-                mut skip_this_param := false
-                if custom_type_name.eq("Dynamic") {
+                // Special handling for Dynamic parameters: don't evaluate, just copy the value
+                // When a type like I64, U8, Str is passed to a Dynamic/Type parameter,
+                // store the type name as a string so size_of(T) and type_as_str(T) can use it
+                if custom_type_name.eq("Dynamic").or(custom_type_name.eq("Type")) {
                     switch current_arg.node_type {
                     case NodeType.Identifier(id_name):
                         mut sym := SymbolInfo()
@@ -1956,32 +1953,17 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             function_frame.symbols.insert(arg.name, SymbolInfo.new(ValueType.TCustom("Str"), false, false, false))
                             Arena.insert_string_into_frame(context, function_frame, arg.name, id_name, e)
                             param_index = param_index.add(1)
-                            skip_this_param = true
+                            arg_i = arg_i.add(1)
+                            continue  // Skip eval_expr for this parameter
                         case:
                         }
                         catch (err: KeyNotFoundError) { }
                     case:
                     }
-                } else if custom_type_name.eq("Type") {
-                    switch current_arg.node_type {
-                    case NodeType.Identifier(id_name):
-                        mut sym := SymbolInfo()
-                        sym = context.scope_stack.lookup_symbol(id_name)
-                        switch sym.value_type {
-                        case ValueType.TType(tdef):
-                            // This is a type identifier - store the type name as a string
-                            function_frame.symbols.insert(arg.name, SymbolInfo.new(ValueType.TCustom("Str"), false, false, false))
-                            Arena.insert_string_into_frame(context, function_frame, arg.name, id_name, e)
-                            param_index = param_index.add(1)
-                            skip_this_param = true
-                        case:
-                        }
-                        catch (err: KeyNotFoundError) { }
-                    case:
-                    }
+                    // If it's not a type identifier, fall through to normal evaluation
                 }
 
-                if not(skip_this_param) {
+                {
                     // Check if this is an enum argument and save payload
                     mut enum_payload_backup := EnumPayload()
                     mut has_enum_backup := false
@@ -2069,18 +2051,18 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     }
 
                     // Handle ownership transfer for 'own' parameters
-                    mut own_handled := false
+                    // Like const/mut: identifiers (including field access) by reference, expressions copied
                     if arg.is_own {
                         switch current_arg.node_type {
                         case NodeType.Identifier(source_var):
+                            // Transfer arena offset from caller to function frame
                             mut offset := 0
                             offset = context.scope_stack.lookup_var(source_var)
                             function_frame.arena_index.insert(arg.name, offset)
 
-                            // Transfer all related entries - iterate over map keys and filter by prefix
+                            // Transfer all related entries (for structs with fields, strings with metadata, etc.)
                             prefix := format(source_var, ".")
                             lf6 := context.scope_stack.last_frame()
-                            // Build list of keys to transfer by iterating map.keys Vec
                             mut keys_to_transfer := Vec.new(Str)
                             mut arena_keys := lf6.arena_index.keys
                             for ki in 0..lf6.arena_index.len() {
@@ -2091,24 +2073,22 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 }
                             }
 
-                            // Now process the matching keys
                             for ki2 in 0..keys_to_transfer.len() {
                                 mut key := ""
                                 keys_to_transfer.get(ki2, key)
                                 mut field_offset := 0
-                                mut have_field_offset := false
                                 field_offset = context.scope_stack.lookup_var(key)
-                                have_field_offset = true
-                                catch (err_var: KeyNotFoundError) { }
-                                if have_field_offset {
-                                    mut new_key := key.replace(source_var, arg.name)
-                                    function_frame.arena_index.insert(new_key, field_offset)
-                                    mut field_sym := SymbolInfo()
-                                    field_sym = context.scope_stack.lookup_symbol(key)
-                                    function_frame.symbols.insert(new_key, field_sym.clone())
-                                    catch (err_sym: KeyNotFoundError) { }
-                                }
+                                mut new_key := key.replace(source_var, arg.name)
+                                function_frame.arena_index.insert(new_key, field_offset)
+                                // Also transfer symbol info for fields
+                                mut field_sym := SymbolInfo()
+                                field_sym = context.scope_stack.lookup_symbol(key)
+                                function_frame.symbols.insert(new_key, field_sym.clone())
+                                catch (err_sym: KeyNotFoundError) { }
                             }
+                            catch (err_var: KeyNotFoundError) { }
+
+                            // Note: register_struct_fields_for_typecheck done after frame is pushed
 
                             // Remove from caller's context (ownership transferred)
                             _ := context.scope_stack.remove_var(source_var)
@@ -2121,119 +2101,104 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             }
 
                             param_index = param_index.add(1)
-                            own_handled = true
-                            catch (err1: KeyNotFoundError) { }
-                            catch (err_alloc: AllocError) { }
+                            arg_i = arg_i.add(1)
+                            continue  // Skip normal allocation logic
                         case:
+                            // If not an identifier, fall through to copy like const/mut do
                         }
                     }
 
-                    if not(own_handled) {
-                        // Phase 3: Pass-by-reference for non-copy, non-own, non-Type parameters
-                        // If argument is a variable (identifier), share arena offset instead of copying
-                        // Note: Type parameters need copy semantics for type name storage, so skip them
-                        // Note: Dynamic parameters NOW use pass-by-reference (including mut Dynamic)
-                        // Note: own parameters are handled separately above and should not fall through here
-                        // Works for ALL types thanks to field offset refactoring (commit 2b9d08d):
-                        // - Only base offset stored in arena_index
-                        // - Field offsets calculated dynamically from struct definitions
-                        // - Inline memory layout means sharing base offset shares all fields
-                        mut should_pass_by_ref := false
-                        if not(arg.is_copy) {
-                            if not(arg.is_own) {
-                                if not(custom_type_name.eq("Type")) {
-                                    should_pass_by_ref = true
-                                }
-                            }
-                        }
-                        if should_pass_by_ref {
-                            mut pass_by_ref_done := false
-                            switch current_arg.node_type {
-                            case NodeType.Identifier(source_var):
-                                // Only share offset for SIMPLE identifiers (no field access, no params)
-                                // Field access like s.cap is also an Identifier node but has params
-                                if current_arg.params.len().eq(0) {
-                                    // Share arena offset from caller context (zero-copy pass-by-reference)
-                                    mut offset_found := false
-                                    mut offset := 0
-                                    offset = context.scope_stack.lookup_var(source_var)
-                                    offset_found = true
-                                    catch (err: KeyNotFoundError) { }
-                                    if offset_found {
-                                        // Create symbol info for parameter using the resolved type
-                                        param_symbol := SymbolInfo.new(resolved_value_type, arg.is_mut, arg.is_copy, arg.is_own)
-                                        function_frame.symbols.insert(arg.name.clone(), param_symbol)
-                                        function_frame.arena_index.insert(arg.name.clone(), offset)
+                    // Phase 3: Pass-by-reference for non-copy, non-own, non-Type parameters
+                    // If argument is a variable (identifier), share arena offset instead of copying
+                    // Note: Type parameters need copy semantics for type name storage, so skip them
+                    // Note: Dynamic parameters NOW use pass-by-reference (including mut Dynamic)
+                    // Note: own parameters are handled separately above and should not fall through here
+                    // Works for ALL types thanks to field offset refactoring (commit 2b9d08d):
+                    // - Only base offset stored in arena_index
+                    // - Field offsets calculated dynamically from struct definitions
+                    // - Inline memory layout means sharing base offset shares all fields
+                    if not(arg.is_copy).and(not(arg.is_own)).and(not(custom_type_name.eq("Type"))) {
+                        switch current_arg.node_type {
+                        case NodeType.Identifier(source_var):
+                            // Only share offset for SIMPLE identifiers (no field access, no params)
+                            // Field access like s.cap is also an Identifier node but has params
+                            if current_arg.params.len().eq(0) {
+                                // Share arena offset from caller context (zero-copy pass-by-reference)
+                                mut offset := 0
+                                offset = context.scope_stack.lookup_var(source_var)
+                                // Create symbol info for parameter using the resolved type
+                                param_symbol := SymbolInfo.new(resolved_value_type, arg.is_mut, arg.is_copy, arg.is_own)
+                                function_frame.symbols.insert(arg.name.clone(), param_symbol)
+                                function_frame.arena_index.insert(arg.name.clone(), offset)
 
-                                        // CRITICAL: Copy all nested field offsets AND symbols from ALL frames to callee
-                                        // insert_struct registers nested field offsets (e.g., "l.start.x")
-                                        // We need to copy these so field access works in the callee
-                                        // Must search ALL frames because globals like `true` are in frame 0
-                                        prefix := format(source_var, ".")
-                                        replacement_prefix := format(arg.name, ".")
-                                        mut field_offsets_to_copy := Vec.new(ArenaMapping)
-                                        mut field_symbols_to_copy := Vec.new(SymbolEntry)
-                                        for fi in 0..context.scope_stack.frames.len() {
-                                            mut caller_frame := ScopeFrame()
-                                            context.scope_stack.frames.get(fi, caller_frame)
-                                            // Copy arena_index entries
-                                            arena_keys := caller_frame.arena_index.keys
-                                            for aki in 0..arena_keys.len() {
-                                                mut key := ""
-                                                arena_keys.get(aki, key)
-                                                if key.starts_with(prefix) {
-                                                    mut value := 0
-                                                    caller_frame.arena_index.get(key, value)
-                                                    mut new_key := key.replace(prefix, replacement_prefix)
-                                                    mut mapping := ArenaMapping()
-                                                    mapping.name = new_key
-                                                    mapping.offset = value
-                                                    field_offsets_to_copy.push(mapping)
-                                                }
-                                            }
-                                            // Copy symbols entries
-                                            symbol_keys := caller_frame.symbols.keys
-                                            for ski in 0..symbol_keys.len() {
-                                                mut skey := ""
-                                                symbol_keys.get(ski, skey)
-                                                if skey.starts_with(prefix) {
-                                                    mut svalue := SymbolInfo()
-                                                    caller_frame.symbols.get(skey, svalue)
-                                                    new_skey := skey.replace(prefix, replacement_prefix)
-                                                    mut entry := SymbolEntry()
-                                                    entry.name = new_skey
-                                                    entry.info = svalue.clone()
-                                                    field_symbols_to_copy.push(entry)
-                                                }
-                                            }
-                                        }
-                                        // Insert collected offsets
-                                        for foi in 0..field_offsets_to_copy.len() {
+                                // CRITICAL: Copy all nested field offsets AND symbols from ALL frames to callee
+                                // insert_struct registers nested field offsets (e.g., "l.start.x")
+                                // We need to copy these so field access works in the callee
+                                // Must search ALL frames because globals like `true` are in frame 0
+                                prefix := format(source_var, ".")
+                                replacement_prefix := format(arg.name, ".")
+                                mut field_offsets_to_copy := Vec.new(ArenaMapping)
+                                mut field_symbols_to_copy := Vec.new(SymbolEntry)
+                                for fi in 0..context.scope_stack.frames.len() {
+                                    mut caller_frame := ScopeFrame()
+                                    context.scope_stack.frames.get(fi, caller_frame)
+                                    // Copy arena_index entries
+                                    arena_keys := caller_frame.arena_index.keys
+                                    for aki in 0..arena_keys.len() {
+                                        mut key := ""
+                                        arena_keys.get(aki, key)
+                                        if key.starts_with(prefix) {
+                                            mut value := 0
+                                            caller_frame.arena_index.get(key, value)
+                                            mut new_key := key.replace(prefix, replacement_prefix)
                                             mut mapping := ArenaMapping()
-                                            field_offsets_to_copy.get(foi, mapping)
-                                            function_frame.arena_index.insert(mapping.name, mapping.offset)
+                                            mapping.name = new_key
+                                            mapping.offset = value
+                                            field_offsets_to_copy.push(mapping)
                                         }
-                                        // Insert collected symbols
-                                        for fsi in 0..field_symbols_to_copy.len() {
+                                    }
+                                    // Copy symbols entries
+                                    symbol_keys := caller_frame.symbols.keys
+                                    for ski in 0..symbol_keys.len() {
+                                        mut skey := ""
+                                        symbol_keys.get(ski, skey)
+                                        if skey.starts_with(prefix) {
+                                            mut svalue := SymbolInfo()
+                                            caller_frame.symbols.get(skey, svalue)
+                                            new_skey := skey.replace(prefix, replacement_prefix)
                                             mut entry := SymbolEntry()
-                                            field_symbols_to_copy.get(fsi, entry)
-                                            function_frame.symbols.insert(entry.name, entry.info)
+                                            entry.name = new_skey
+                                            entry.info = svalue.clone()
+                                            field_symbols_to_copy.push(entry)
                                         }
-
-                                        // Track that this parameter was passed by reference
-                                        pass_by_ref_params.push(arg.name.clone())
-
-                                        param_index = param_index.add(1)
-                                        pass_by_ref_done = true
                                     }
                                 }
-                            case:
-                            }
-                            // If not an identifier or not found, fall through to normal allocation
-                            // (expressions must allocate fresh memory)
-                        }
+                                for foi in 0..field_offsets_to_copy.len() {
+                                    mut mapping := ArenaMapping()
+                                    field_offsets_to_copy.get(foi, mapping)
+                                    function_frame.arena_index.insert(mapping.name, mapping.offset)
+                                }
+                                for fsi in 0..field_symbols_to_copy.len() {
+                                    mut entry := SymbolEntry()
+                                    field_symbols_to_copy.get(fsi, entry)
+                                    function_frame.symbols.insert(entry.name, entry.info)
+                                }
 
-                        if not(pass_by_ref_done) {
+                                // Track that this parameter was passed by reference
+                                pass_by_ref_params.push(arg.name.clone())
+
+                                param_index = param_index.add(1)
+                                arg_i = arg_i.add(1)
+                                continue  // Skip allocation logic - we're sharing the offset
+                                catch (err: KeyNotFoundError) { }
+                            }
+                        case:
+                        }
+                        // If not an identifier or not found, fall through to normal allocation
+                        // (expressions must allocate fresh memory)
+                    }
+
+                    {
                         switch custom_type_name {
                         case "I64":
                             Arena.insert_i64_into_frame(context, function_frame, arg.name, result_str, e)
@@ -2576,9 +2541,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 throw e.lang_error(context.path, "eval", format("Cannot use '", arg.name, "' of type '", custom_type_name, "' as an argument. Custom types can only be struct or enum."))
                             }
                         }
-                        } // end switch custom_type_name
-                    } // end if not(pass_by_ref_done)
-                } // end if not(own_handled)
+                        }
+                    }
 
             case:
                 throw e.todo_error(context.path, "eval", format("Cannot use '", arg.name, "' of type '", value_type_to_str(arg.value_type), "' as an argument. Only enum custom types allowed for now."))
