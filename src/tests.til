@@ -551,6 +551,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/exit.til", expected_status=69))
     rs_common.push(TestEntry(path="src/test/fibonacci.til"))
     rs_common.push(TestEntry(path="src/test/flow.til"))
+    rs_common.push(TestEntry(path="src/test/forward_declarations.til"))
     rs_common.push(TestEntry(path="src/test/func_purity.til"))
     rs_common.push(TestEntry(path="src/test/function_pointers.til"))
     rs_common.push(TestEntry(path="src/test/intro.til"))
@@ -586,19 +587,18 @@ main := proc(args: ..Str) {
 
     mut rs_interpreted := Vec.new(TestEntry)
 
-    rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: copy param assignment/reassignment, append_str incompatible types
-    rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: typer: pattern binding var extracted_option undeclared in switch case
-    rs_interpreted.push(TestEntry(path="src/test/forward_declarations.til")) // TODO FIX: gcc: called object is not a function (enum constructor with payload as func call)
-    rs_interpreted.push(TestEntry(path="src/test/lists.til")) // compiles but runtime: doesn't throw IndexOutOfBoundsError on bad index
+    rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: copy param assignment of read-only, append_str incompatible pointer types
+    rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: gcc: pattern binding vars undeclared (til_bbb, til_is_olive, til_code, til_name_copy)
+    rs_interpreted.push(TestEntry(path="src/test/lists.til")) // compiles but runtime: double free detected
     rs_interpreted.push(TestEntry(path="src/test/maps.til")) // TODO FIX: gcc: incompatible type for Map_position (Str passed to Dynamic param)
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
-    rs_interpreted.push(TestEntry(path="src/test/modes.til")) // TODO FIX: gcc: til_dummy_token undeclared (top-level const from func call)
+    rs_interpreted.push(TestEntry(path="src/test/modes.til")) // TODO FIX: gcc: Vec_new in struct literal - too few args (throwing func as field initializer)
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     rs_interpreted.push(TestEntry(path="src/test/scope_isolation.til")) // TODO FIX: gcc: mut parameter type mismatch in prototype vs definition
-    rs_interpreted.push(TestEntry(path="src/test/sets.til")) // TODO FIX: gcc: too few arguments to function til_or (variadic and/or)
-    rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: Str <= comparison not supported
-    rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: Str <= comparison not supported
-    rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: gcc: enum constructor with payload as func call, pattern binding var undeclared
+    rs_interpreted.push(TestEntry(path="src/test/sets.til")) // TODO FIX: gcc: redeclaration of '_' (discard var) with no linkage
+    rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: Str <= comparison not supported, variadic and/or too few args
+    rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: Str <= comparison not supported, variadic and/or too few args
+    rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: gcc: pattern binding var in switch generates wrong func call (til_s_len vs til_Str_len)
 
     // rs_interpreted.push(TestEntry(path="src/examples/hello_script_safe.til")) // TODO this is much harder than it sounds
     // rs_interpreted.push(TestEntry(path="src/test/undefined.til"))
