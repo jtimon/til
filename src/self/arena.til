@@ -1504,21 +1504,19 @@ Arena := struct {
         params.push(type_id)
 
         // For each mutable field, read value and create NamedArg
-        mut i := 0
-        while i.lt(struct_def.members.len()) {
+        for i in 0..struct_def.members.len() {
             mut member := Declaration()
             struct_def.members.get(i, member)
-            if member.is_mut {
-                // Only process mutable fields, skip static fields
-                field_id := format(instance_name, ".", member.name)
-                field_value := Arena.field_to_literal(ctx, field_id, member.value_type, e)
-
-                mut named_arg_params := Vec.new("Expr")
-                named_arg_params.push(field_value)
-                named_arg := Expr.new_explicit(NodeType.NamedArg(member.name), named_arg_params, 0, 0)
-                params.push(named_arg)
+            if not(member.is_mut) {
+                continue  // Skip static fields
             }
-            i = i.add(1)
+            field_id := format(instance_name, ".", member.name)
+            field_value := Arena.field_to_literal(ctx, field_id, member.value_type, e)
+
+            mut named_arg_params := Vec.new("Expr")
+            named_arg_params.push(field_value)
+            named_arg := Expr.new_explicit(NodeType.NamedArg(member.name), named_arg_params, 0, 0)
+            params.push(named_arg)
         }
 
         result := Expr.new_explicit(NodeType.FCall, params, 0, 0)
