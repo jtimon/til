@@ -206,6 +206,16 @@ impl ScopeStack {
         None
     }
 
+    pub fn all_structs(&self) -> Vec<&SStructDef> {
+        let mut result = Vec::new();
+        for frame in self.frames.iter().rev() {
+            for struct_def in frame.structs.values() {
+                result.push(struct_def);
+            }
+        }
+        result
+    }
+
     pub fn declare_struct(&mut self, name: String, struct_def: SStructDef) {
         if let Some(current_frame) = self.frames.last_mut() {
             current_frame.structs.insert(name, struct_def);

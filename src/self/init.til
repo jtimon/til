@@ -408,6 +408,31 @@ ScopeStack := struct {
         throw KeyNotFoundError()
     }
 
+    all_structs := func(self: ScopeStack) returns Vec throws Str {
+        mut result := Vec.new(SStructDef)
+        mut i := self.frames.len().sub(1)
+        while i.gteq(0) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)
+            mut values := frame.structs.values
+            mut j := 0
+            while j.lt(values.len()) {
+                mut struct_def := SStructDef()
+                values.get(j, struct_def)
+                result.push(struct_def)
+                j = j.add(1)
+            }
+            i = i.sub(1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        return result
+    }
+
     declare_struct := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)

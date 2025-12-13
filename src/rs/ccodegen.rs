@@ -4616,6 +4616,13 @@ fn infer_type_from_expr(expr: &Expr, context: &Context) -> Option<ValueType> {
                             }
                         }
                     }
+                    // Fallback: if variable not in scope, try to find field type from all known structs
+                    // This handles cases where we're hoisting declarations before the variable is declared
+                    for struct_def in context.scope_stack.all_structs() {
+                        if let Some(member) = struct_def.get_member(field_name) {
+                            return Some(member.value_type.clone());
+                        }
+                    }
                 }
                 return None;
             }

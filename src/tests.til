@@ -158,7 +158,7 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
     mut total_compile_ms := 0
     mut benchmark_content := ""
 
-    println("=== rs_common (", rs_common.len().to_str(), " tests) ===")
+    println("\n=== rs_common (", rs_common.len().to_str(), " tests) ===\n")
     benchmark_content = benchmark_content.concat("* rs_common\n")
     for i in 0..rs_common.len() {
         mut entry := TestEntry()
@@ -188,7 +188,7 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
         benchmark_content = benchmark_content.concat("- ").concat(entry.path).concat(" :: interpreted: ").concat(format_time(interp_ms)).concat(", compiled: ").concat(format_time(compile_ms)).concat(faster).concat("\n")
     }
 
-    println("=== rs_compiled (", rs_compiled.len().to_str(), " tests) ===")
+    println("\n=== rs_compiled (", rs_compiled.len().to_str(), " tests) ===\n")
     benchmark_content = benchmark_content.concat("\n* rs_compiled\n")
     for i in 0..rs_compiled.len() {
         mut entry := TestEntry()
@@ -207,7 +207,7 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
         benchmark_content = benchmark_content.concat("- ").concat(entry.path).concat(" :: compiled: ").concat(format_time(time_ms)).concat("\n")
     }
 
-    println("=== rs_interpreted (", rs_interpreted.len().to_str(), " tests) ===")
+    println("\n=== rs_interpreted (", rs_interpreted.len().to_str(), " tests) ===\n")
     benchmark_content = benchmark_content.concat("\n* rs_interpreted\n")
     for i in 0..rs_interpreted.len() {
         mut entry := TestEntry()
@@ -572,6 +572,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/examples/hello_pure.til"))
     rs_common.push(TestEntry(path="src/examples/hello_script.til"))
     rs_common.push(TestEntry(path="src/examples/hello_test.til"))
+    rs_common.push(TestEntry(path="src/test/args.til"))
     rs_common.push(TestEntry(path="src/test/arithmetics.til"))
     rs_common.push(TestEntry(path="src/test/arrays.til"))
     rs_common.push(TestEntry(path="src/test/boolean.til"))
@@ -608,8 +609,8 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/structs.til"))
     rs_common.push(TestEntry(path="src/test/temp.til"))
     rs_common.push(TestEntry(path="src/test/test_lexer.til"))
+    rs_common.push(TestEntry(path="src/test/test_parser.til"))
     rs_common.push(TestEntry(path="src/test/todo.til")) // permanent TODO, design notes for future features
-    rs_common.push(TestEntry(path="src/test/args.til"))
     rs_common.push(TestEntry(path="src/test/u8.til"))
     rs_common.push(TestEntry(path="src/test/ufcs.til"))
     rs_common.push(TestEntry(path="src/test/variadic.til"))
@@ -632,7 +633,6 @@ main := proc(args: ..Str) {
 
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
-    rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: Lexer_advance signature mismatch (return type vs out param confusion)
 
     // rs_interpreted.push(TestEntry(path="src/examples/hello_script_safe.til")) // TODO this is much harder than it sounds
     // rs_interpreted.push(TestEntry(path="src/test/undefined.til"))

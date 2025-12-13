@@ -6602,6 +6602,26 @@ infer_type_from_expr := func(expr: Expr, context: Context) returns ValueType {
                 case:
                 }
                 catch (err: KeyNotFoundError) { }
+                // Fallback: if variable not in scope, try to find field type from all known structs
+                // This handles cases where we're hoisting declarations before the variable is declared
+                mut all_struct_defs := context.scope_stack.all_structs()
+                mut s_idx := 0
+                while lt(s_idx, all_struct_defs.len()) {
+                    mut struct_def := SStructDef()
+                    all_struct_defs.get(s_idx, struct_def)
+                    mut m_idx := 0
+                    while lt(m_idx, struct_def.members.len()) {
+                        mut member := Declaration()
+                        struct_def.members.get(m_idx, member)
+                        if Str.eq(member.name, field_name) {
+                            return member.value_type
+                        }
+                        m_idx = add(m_idx, 1)
+                    }
+                    s_idx = add(s_idx, 1)
+                }
+                catch (err: IndexOutOfBoundsError) { }
+                catch (err: Str) { }
             case:
             }
             catch (err: IndexOutOfBoundsError) { }
