@@ -236,7 +236,7 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.While:
         return precomp_params(context, e)
     case NodeType.Switch:
-        return precomp_params(context, e)
+        return precomp_switch(context, e)
     case NodeType.FuncDef(func_def):
         return precomp_func_def(context, e, func_def)
     case NodeType.Declaration(decl):
@@ -465,6 +465,113 @@ precomp_params := proc(mut context: Context, e: Expr) returns Expr throws Str {
     }
 
     return Expr.new_clone(e.node_type, e, new_params)
+}
+
+/// Transform Switch - handle pattern binding variables by adding them to scope
+/// before processing the case body. This mirrors the typer's handling of Bug #28.
+precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    // Switch structure: params[0] is switch expression, then pairs of (case, body)
+    if e.params.len().eq(0) {
+        return e.clone()
+    }
+
+    mut new_params := Vec.new(Expr)
+
+    // Transform switch expression
+    mut switch_expr := Expr()
+    e.params.get(0, switch_expr)
+    new_params.push(precomp_expr(context, switch_expr))
+
+    // Get the type of the switch expression for pattern binding resolution
+    mut switch_expr_type := ValueType.TCustom("")
+    mut got_switch_type := true
+    switch_expr_type = get_value_type(context, switch_expr)
+    catch (err: Str) {
+        got_switch_type = false
+    }
+
+    // Process case/body pairs
+    mut i := 1
+    while i.add(1).lt(e.params.len().add(1)) {
+        mut case_expr := Expr()
+        mut body_expr := Expr()
+        e.params.get(i, case_expr)
+        e.params.get(i.add(1), body_expr)
+
+        // Transform case expression (no scope change needed for case itself)
+        new_params.push(precomp_expr(context, case_expr))
+
+        // For pattern matching with binding variable, add binding to scope before processing body
+        switch case_expr.node_type {
+        case NodeType.Pattern(pattern_info):
+            mut handled := false
+            if got_switch_type {
+                switch switch_expr_type {
+                case ValueType.TCustom(enum_name):
+                    // Extract variant name (after the last dot)
+                    variant_name := pattern_info.variant_name
+                    mut variant := variant_name
+                    dot_pos := variant_name.rfind(".")
+                    if dot_pos.gteq(0) {
+                        variant = get_substr(variant_name, dot_pos.add(1), variant_name.len())
+                    }
+
+                    // Get payload type from enum definition
+                    mut enum_found := true
+                    mut enum_def := context.scope_stack.lookup_enum(enum_name)
+                    catch (err: KeyNotFoundError) {
+                        enum_found = false
+                    }
+
+                    if enum_found {
+                        mut payload_type := ValueType.TCustom("")
+                        mut got_payload := false
+                        enum_def.enum_map.get(variant, payload_type)
+                        got_payload = true
+                        catch (err: KeyNotFoundError) {
+                            // Variant not found or no payload
+                        }
+
+                        if got_payload {
+                            // Push block scope, declare binding variable, transform body, pop scope
+                            context.scope_stack.push(ScopeType.Block)
+                            sym := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
+                            context.scope_stack.declare_symbol(pattern_info.binding_var, sym)
+                            new_params.push(precomp_expr(context, body_expr))
+                            _ := context.scope_stack.pop()
+                            handled = true
+                        }
+                    }
+                case:
+                }
+            }
+            if not(handled) {
+                // No payload type found or switch type not found, transform body without binding
+                new_params.push(precomp_expr(context, body_expr))
+            }
+        case:
+            // Not a pattern, transform body normally
+            new_params.push(precomp_expr(context, body_expr))
+        }
+
+        i = i.add(2)
+    }
+
+    // Handle odd trailing element (default case body without case expression)
+    if i.lt(e.params.len()) {
+        mut trailing := Expr()
+        e.params.get(i, trailing)
+        new_params.push(precomp_expr(context, trailing))
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("precomp_switch: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw format("precomp_switch: ", err.msg)
+    }
+
+    return Expr.new_clone(NodeType.Switch, e, new_params)
 }
 
 /// Transform StructDef - recursively transform default values (which contain function defs)

@@ -577,6 +577,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/u8.til"))
     rs_common.push(TestEntry(path="src/test/variadic.til"))
     rs_common.push(TestEntry(path="src/test/vecs.til"))
+    rs_common.push(TestEntry(path="src/test/ufcs.til"))
 
     mut rs_compiled := Vec.new(TestEntry)
     rs_compiled.push(TestEntry(path="src/test/memcmp_str_compiled.til"))
@@ -597,7 +598,6 @@ main := proc(args: ..Str) {
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: Str <= comparison, Bool.and missing, get_substr wrong args in while condition
     rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: Str <= comparison, Bool.and missing, get_substr wrong args in while condition
-    rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: gcc/linker: pattern binding var 's' generates til_s_len instead of til_Str_len
 
     // rs_interpreted.push(TestEntry(path="src/examples/hello_script_safe.til")) // TODO this is much harder than it sounds
     // rs_interpreted.push(TestEntry(path="src/test/undefined.til"))
