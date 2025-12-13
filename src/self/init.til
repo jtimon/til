@@ -1762,6 +1762,27 @@ Context := struct {
         throw e.lang_error(self.path, "context", format("struct not found for id '", id, "'"))
     }
 
+    // Scope management helpers for upcoming context clone refactor
+    // These will replace context cloning with proper scope push/pop
+
+    // Push a new function scope and switch to the function's source path
+    // Returns the saved path that should be restored when popping
+    push_function_scope := proc(mut self: Context, function_path: Str) returns Str throws Str {
+        self.scope_stack.push(ScopeType.Function)
+        mut saved_path := self.path
+        self.path = function_path
+        return saved_path
+    }
+
+    // Pop the current function scope and restore the previous path
+    pop_function_scope := proc(mut self: Context, saved_path: Str) throws Str {
+        self.path = saved_path
+        _ := self.scope_stack.pop()
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+    }
+
     // Get the size of a type in bytes
     get_type_size := func(self: Context, type_name: Str) returns I64 throws Str {
         if type_name.eq("U8") {
