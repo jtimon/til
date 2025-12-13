@@ -674,17 +674,8 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 id_params.pop(); // Remove the method name
                 let receiver_expr = Expr::new_clone(func_expr.node_type.clone(), &e, id_params);
 
-                // Try as a regular standalone function first
-                if context.scope_stack.lookup_func(&ufcs_func_name.to_string()).is_some() {
-                    let new_e = Expr::new_clone(NodeType::Identifier(ufcs_func_name.clone()), e.get(0)?, Vec::new());
-                    let mut new_args = Vec::new();
-                    new_args.push(new_e);
-                    new_args.push(receiver_expr);
-                    new_args.extend(e.params[1..].to_vec());
-                    return Ok(Expr::new_clone(NodeType::FCall, e.get(0)?, new_args));
-                }
-
-                // Try as an associated method (Type.method)
+                // Try as an associated method (Type.method) first - this takes priority over standalone functions
+                // because x.and(y) should resolve to Bool.and(x, y) not and(x, y) when both exist
                 match get_value_type(context, &receiver_expr) {
                     Ok(value_type) => {
                         // Get type name from value_type - TCustom or TMulti (variadic params become Array)
@@ -706,8 +697,18 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                         }
                     }
                     Err(_err) => {
-                        // Type could not be determined - leave unchanged
+                        // Type could not be determined - fall through to standalone function check
                     }
+                }
+
+                // Fall back to standalone function
+                if context.scope_stack.lookup_func(&ufcs_func_name.to_string()).is_some() {
+                    let new_e = Expr::new_clone(NodeType::Identifier(ufcs_func_name.clone()), e.get(0)?, Vec::new());
+                    let mut new_args = Vec::new();
+                    new_args.push(new_e);
+                    new_args.push(receiver_expr);
+                    new_args.extend(e.params[1..].to_vec());
+                    return Ok(Expr::new_clone(NodeType::FCall, e.get(0)?, new_args));
                 }
             }
         }

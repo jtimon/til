@@ -988,30 +988,8 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 }
                 mut receiver_expr := Expr.new_clone(func_expr.node_type, e, id_params)
 
-                // Try as a regular standalone function first
-                mut standalone_found := false
-                mut dummy4 := context.scope_stack.lookup_func(ufcs_func_name)
-                standalone_found = true
-                catch (err: KeyNotFoundError) {
-                    // Not found
-                }
-                if standalone_found {
-                    mut new_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), func_expr, Vec.new(Expr))
-                    mut new_args := Vec.new(Expr)
-                    new_args.push(new_e)
-                    new_args.push(receiver_expr)
-                    // Add remaining args
-                    mut j := 1
-                    while j.lt(e.params.len()) {
-                        mut arg := Expr()
-                        e.params.get(j, arg)
-                        new_args.push(arg)
-                        j = j.add(1)
-                    }
-                    return Expr.new_clone(NodeType.FCall, func_expr, new_args)
-                }
-
-                // Try as an associated method (Type.method)
+                // Try as an associated method (Type.method) first - this takes priority over standalone functions
+                // because x.and(y) should resolve to Bool.and(x, y) not and(x, y) when both exist
                 mut got_type2 := true
                 mut value_type := get_value_type(context, receiver_expr)
                 catch (err: Str) {
@@ -1054,6 +1032,29 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                             return Expr.new_clone(NodeType.FCall, func_expr, new_args)
                         }
                     }
+                }
+
+                // Fall back to standalone function
+                mut standalone_found := false
+                mut dummy4 := context.scope_stack.lookup_func(ufcs_func_name)
+                standalone_found = true
+                catch (err: KeyNotFoundError) {
+                    // Not found
+                }
+                if standalone_found {
+                    mut new_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), func_expr, Vec.new(Expr))
+                    mut new_args := Vec.new(Expr)
+                    new_args.push(new_e)
+                    new_args.push(receiver_expr)
+                    // Add remaining args
+                    mut j := 1
+                    while j.lt(e.params.len()) {
+                        mut arg := Expr()
+                        e.params.get(j, arg)
+                        new_args.push(arg)
+                        j = j.add(1)
+                    }
+                    return Expr.new_clone(NodeType.FCall, func_expr, new_args)
                 }
             case:
             }
