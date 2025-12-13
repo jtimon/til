@@ -66,9 +66,9 @@ CodegenContext := struct {
     mut hoisted_prototypes: Vec = Vec.new(Str)
     // Map original function name -> mangled name for nested functions
     mut nested_func_names: Map = Map.new(Str, Str)
-    // Set of hoisted struct default values (format: "StructName.field_name")
+    // Map from expression address to temp var name for hoisted struct defaults
     // Used to track which struct literal defaults were hoisted as temp vars
-    mut hoisted_struct_defaults: Set = Set.new(Str)
+    mut hoisted_struct_defaults: Map = Map.new(I64, Str)
 }
 
 // Helper to check if Str struct is defined in context
@@ -720,8 +720,8 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                                     // Check if the default is a throwing function call
                                     mut default_throwing := check_throwing_fcall(default_expr, ctx, context)
                                     if default_throwing.is_throwing {
-                                        // Emit the throwing call as a temp var
-                                        mut temp_name := concat("_default_", member.name)
+                                        // Emit the throwing call as a temp var with unique name
+                                        mut temp_name := next_mangled()
 
                                         // Get C type for the temp variable
                                         mut c_type := "int"
@@ -732,9 +732,10 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                                         // Emit the temp var using emit_throwing_call_propagate
                                         result = emit_throwing_call_propagate(default_expr, default_throwing.throw_types, temp_name, "", result, indent, ctx, context)
 
-                                        // Record that this struct default was hoisted
-                                        mut hoisted_key := func_name.concat(".").concat(member.name)
-                                        _ := ctx.hoisted_struct_defaults.insert(hoisted_key)
+                                        // Record that this struct default was hoisted using expression address
+                                        expr_addr := to_ptr(default_expr)
+                                        ctx.hoisted_struct_defaults.insert(expr_addr, temp_name)
+                                        catch (err: DuplicatedKeyError) { }  // Ignore if already hoisted
                                     }
                                 }
                             }
@@ -2281,8 +2282,9 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             catch (err: AllocError) { throw err.msg }
                             catch (err: DuplicatedKeyError) { }  // Ignore duplicates
 
-                            // Clear declared_vars for new function scope
+                            // Clear declared_vars and hoisted_struct_defaults for new function scope
                             ctx.declared_vars = Set.new(Str)
+                            ctx.hoisted_struct_defaults = Map.new(I64, Str)
                             catch (err: AllocError) { throw err.msg }
 
                             // Use emit_func_signature with mangled name
@@ -2850,8 +2852,9 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 // Track variadic params - they're passed as til_Array* so need dereference
                 ctx.current_variadic_params = Map.new(Str, Str)
 
-                // Clear declared_vars for new function scope
+                // Clear declared_vars and hoisted_struct_defaults for new function scope
                 ctx.declared_vars = Set.new(Str)
+                ctx.hoisted_struct_defaults = Map.new(I64, Str)
                 // Check for variadic parameter and track mut params
                 mut arg_idx := 0
                 while lt(arg_idx, func_def.args.len()) {
@@ -6318,7 +6321,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 ctx.current_function_name = mangled_name
                 ctx.current_mut_params = Vec.new(Str)
                 ctx.current_variadic_params = Map.new(Str, Str)
+                // Clear declared_vars and hoisted_struct_defaults for new function scope
                 ctx.declared_vars = Set.new(Str)
+                ctx.hoisted_struct_defaults = Map.new(I64, Str)
 
                 // Track mut params and variadic params
                 mut arg_idx := 0
@@ -7924,19 +7929,24 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                                 catch (err: KeyNotFoundError) { }
                                 if default_found {
                                     // Check if this was a throwing default - use temp var instead
-                                    // Check hoisted_struct_defaults set OR if default is an FCall
-                                    mut hoisted_key := func_name.concat(".").concat(member.name)
-                                    mut is_hoisted := ctx.hoisted_struct_defaults.contains(hoisted_key)
-                                    mut is_fcall := false
-                                    switch default_expr.node_type {
-                                    case NodeType.FCall:
-                                        is_fcall = true
-                                    case:
-                                    }
-                                    if is_hoisted.or(is_fcall) {
-                                        result = result.concat("_default_").concat(member.name)
-                                    } else {
-                                        result = emit_expr(default_expr, result, 0, ctx, context)
+                                    expr_addr := to_ptr(default_expr)
+                                    mut temp_name := ""
+                                    ctx.hoisted_struct_defaults.get(expr_addr, temp_name)
+                                    result = result.concat(temp_name)
+                                    catch (err: KeyNotFoundError) {
+                                        // Not hoisted - check if it's an FCall (shouldn't happen)
+                                        mut is_fcall := false
+                                        switch default_expr.node_type {
+                                        case NodeType.FCall:
+                                            is_fcall = true
+                                        case:
+                                        }
+                                        if is_fcall {
+                                            // Shouldn't happen - throwing defaults should be hoisted
+                                            result = result.concat("/* ERROR: unhoisted throwing default */")
+                                        } else {
+                                            result = emit_expr(default_expr, result, 0, ctx, context)
+                                        }
                                     }
                                 } else {
                                     result = result.concat("0")

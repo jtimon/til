@@ -43,9 +43,9 @@ struct CodegenContext {
     hoisted_prototypes: Vec<String>,
     // Map original function name -> mangled name for nested functions
     nested_func_names: HashMap<String, String>,
-    // Set of hoisted struct default values (format: "StructName.field_name")
+    // Map of hoisted struct default expressions (expr address -> temp var name)
     // Used to track which struct literal defaults were hoisted as temp vars
-    hoisted_struct_defaults: HashSet<String>,
+    hoisted_struct_defaults: HashMap<usize, String>,
 }
 
 impl CodegenContext {
@@ -64,7 +64,7 @@ impl CodegenContext {
             hoisted_functions: Vec::new(),
             hoisted_prototypes: Vec::new(),
             nested_func_names: HashMap::new(),
-            hoisted_struct_defaults: HashSet::new(),
+            hoisted_struct_defaults: HashMap::new(),
         }
     }
 }
@@ -636,11 +636,12 @@ fn hoist_throwing_expr(
                                     Vec::new()
                                 };
 
-                                let temp_name = format!("_default_{}", member.name);
+                                let temp_name = next_mangled();
                                 // Emit the function call with out-param using emit_throwing_call_propagate
                                 emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
-                                // Record that this struct default was hoisted
-                                ctx.hoisted_struct_defaults.insert(format!("{}.{}", func_name, member.name));
+                                // Record that this struct default was hoisted using expression address
+                                let expr_addr = default_expr as *const Expr as usize;
+                                ctx.hoisted_struct_defaults.insert(expr_addr, temp_name);
                             }
                         }
                     }
@@ -2456,8 +2457,9 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     }
     context.scope_stack.frames.push(function_frame);
 
-    // Clear declared_vars for new function scope
+    // Clear declared_vars and hoisted_struct_defaults for new function scope
     ctx.declared_vars.clear();
+    ctx.hoisted_struct_defaults.clear();
 
     let mangled_name = format!("{}_{}", struct_name, member.name);
     emit_func_signature(&mangled_name, func_def, output);
@@ -2709,8 +2711,9 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 }
                 context.scope_stack.frames.push(function_frame);
 
-                // Clear declared_vars for new function scope
+                // Clear declared_vars and hoisted_struct_defaults for new function scope
                 ctx.declared_vars.clear();
+                ctx.hoisted_struct_defaults.clear();
 
                 let func_name = til_name(&decl.name);
 
@@ -4308,11 +4311,12 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                         emit_expr(value_expr, output, 0, ctx, context)?;
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
                         // Check if this was a throwing default - use temp var instead
-                        // Check both is_throwing_fcall and the hoisted_struct_defaults set
-                        let hoisted_key = format!("{}.{}", type_name, member.name);
-                        if ctx.hoisted_struct_defaults.contains(&hoisted_key) || is_throwing_fcall(default_expr, context) {
-                            output.push_str("_default_");
-                            output.push_str(&member.name);
+                        let expr_addr = default_expr as *const Expr as usize;
+                        if let Some(temp_name) = ctx.hoisted_struct_defaults.get(&expr_addr) {
+                            output.push_str(temp_name);
+                        } else if is_throwing_fcall(default_expr, context) {
+                            // Shouldn't happen - throwing defaults should be hoisted
+                            output.push_str("/* ERROR: unhoisted throwing default */");
                         } else {
                             emit_expr(default_expr, output, 0, ctx, context)?;
                         }
@@ -5019,13 +5023,12 @@ fn emit_fcall_with_hoisted(
                         emit_expr(value_expr, output, 0, ctx, context)?;
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
                         // Check if this was a throwing default - use temp var instead
-                        // Check the hoisted_struct_defaults set, throwing_defaults we computed,
-                        // OR if the default is an FCall (which might be throwing but undetected)
-                        let hoisted_key = format!("{}.{}", func_name, member.name);
-                        let is_fcall = matches!(default_expr.node_type, NodeType::FCall);
-                        if ctx.hoisted_struct_defaults.contains(&hoisted_key) || throwing_default_names.contains(&member.name) || is_fcall {
-                            output.push_str("_default_");
-                            output.push_str(&member.name);
+                        let expr_addr = default_expr as *const Expr as usize;
+                        if let Some(temp_name) = ctx.hoisted_struct_defaults.get(&expr_addr) {
+                            output.push_str(temp_name);
+                        } else if throwing_default_names.contains(&member.name) || matches!(default_expr.node_type, NodeType::FCall) {
+                            // Shouldn't happen - throwing defaults should be hoisted
+                            output.push_str("/* ERROR: unhoisted throwing default */");
                         } else {
                             emit_expr(default_expr, output, 0, ctx, context)?;
                         }
@@ -5553,11 +5556,12 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         emit_expr(value_expr, output, 0, ctx, context)?;
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
                         // Check if this was a throwing default - use temp var instead
-                        // Check the hoisted_struct_defaults set OR if default is an FCall
-                        let hoisted_key = format!("{}.{}", func_name, member.name);
-                        if ctx.hoisted_struct_defaults.contains(&hoisted_key) || matches!(default_expr.node_type, NodeType::FCall) {
-                            output.push_str("_default_");
-                            output.push_str(&member.name);
+                        let expr_addr = default_expr as *const Expr as usize;
+                        if let Some(temp_name) = ctx.hoisted_struct_defaults.get(&expr_addr) {
+                            output.push_str(temp_name);
+                        } else if matches!(default_expr.node_type, NodeType::FCall) {
+                            // Shouldn't happen - throwing defaults should be hoisted
+                            output.push_str("/* ERROR: unhoisted throwing default */");
                         } else {
                             emit_expr(default_expr, output, 0, ctx, context)?;
                         }
@@ -5839,11 +5843,12 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                             output.push_str(" = ");
                             if let Some(default_expr) = struct_def.default_values.get(&member.name) {
                                 // Check if this was a throwing default - use temp var instead
-                                // Check both is_throwing_fcall and the hoisted_struct_defaults set
-                                let hoisted_key = format!("{}.{}", func_name, member.name);
-                                if ctx.hoisted_struct_defaults.contains(&hoisted_key) || is_throwing_fcall(default_expr, context) {
-                                    output.push_str("_default_");
-                                    output.push_str(&member.name);
+                                let expr_addr = default_expr as *const Expr as usize;
+                                if let Some(temp_name) = ctx.hoisted_struct_defaults.get(&expr_addr) {
+                                    output.push_str(temp_name);
+                                } else if is_throwing_fcall(default_expr, context) {
+                                    // Shouldn't happen - throwing defaults should be hoisted
+                                    output.push_str("/* ERROR: unhoisted throwing default */");
                                 } else {
                                     emit_expr(default_expr, output, 0, ctx, context)?;
                                 }
