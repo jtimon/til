@@ -66,6 +66,8 @@ CodegenContext := struct {
     mut hoisted_prototypes: Vec = Vec.new(Str)
     // Map original function name -> mangled name for nested functions
     mut nested_func_names: Map = Map.new(Str, Str)
+    // Map (struct_name + "." + member_name) -> temp var for hoisted throwing struct defaults
+    mut hoisted_struct_defaults: Map = Map.new(Str, Str)
 }
 
 // Helper to check if Str struct is defined in context
@@ -657,8 +659,119 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
     }
 
     // Not a throwing call or variadic call - recursively check sub-expressions
+    // For FCall, check all arguments AND check for struct literals with throwing defaults
     switch expr.node_type {
     case NodeType.FCall:
+        // Check if this is a struct literal - if so, hoist throwing calls from default values
+        if gt(expr.params.len(), 0) {
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
+            mut func_name_result := get_func_name_string(first_param)
+
+            // Check for struct literal: PascalCase name without underscore
+            mut is_struct_literal := false
+            mut func_name := ""
+            if func_name_result.found {
+                func_name = func_name_result.name
+                mut first_char := func_name.get_substr(0, 1)
+                if first_char.is_uppercase() {
+                    if not(func_name.contains("_")) {
+                        // Check if all args are named or no args
+                        mut has_named_args := false
+                        mut ai := 1
+                        while lt(ai, expr.params.len()) {
+                            mut arg := Expr()
+                            expr.params.get(ai, arg)
+                            switch arg.node_type {
+                            case NodeType.NamedArg(field_name):
+                                has_named_args = true
+                            case:
+                            }
+                            ai = add(ai, 1)
+                        }
+                        if or(eq(expr.params.len(), 1), has_named_args) {
+                            is_struct_literal = true
+                        }
+                    }
+                }
+            }
+
+            if is_struct_literal {
+                // This is a struct literal - check default values for throwing calls
+                mut found_struct := false
+                mut struct_def := context.scope_stack.lookup_struct(func_name)
+                found_struct = true
+                catch (err: KeyNotFoundError) { }
+
+                if found_struct {
+                    // Build map of named arg values
+                    mut named_values := Map.new(Str, Expr)
+                    mut ai := 1
+                    while lt(ai, expr.params.len()) {
+                        mut arg := Expr()
+                        expr.params.get(ai, arg)
+                        switch arg.node_type {
+                        case NodeType.NamedArg(field_name):
+                            if gt(arg.params.len(), 0) {
+                                mut value_expr := Expr()
+                                arg.params.get(0, value_expr)
+                                named_values.insert(field_name, value_expr)
+                            }
+                        case:
+                        }
+                        ai = add(ai, 1)
+                    }
+                    catch (err: DuplicatedKeyError) { }
+                    catch (err: IndexOutOfBoundsError) { }
+
+                    // Hoist throwing calls from default values
+                    mut mi := 0
+                    while lt(mi, struct_def.members.len()) {
+                        mut member := Declaration()
+                        struct_def.members.get(mi, member)
+                        catch (err: IndexOutOfBoundsError) { }
+                        if member.is_mut {
+                            mut has_named_val := named_values.contains_key(member.name)
+                            if not(has_named_val) {
+                                mut has_default := struct_def.default_values.contains_key(member.name)
+                                if has_default {
+                                    mut default_expr := Expr()
+                                    struct_def.default_values.get(member.name, default_expr)
+                                    catch (err: KeyNotFoundError) { }
+                                    if is_throwing_fcall(default_expr, context) {
+                                        // Hoist this throwing call with unique temp var name
+                                        mut temp_var := next_mangled()
+                                        // Record in hoisted_struct_defaults
+                                        mut key := func_name.concat(".").concat(member.name)
+                                        ctx.hoisted_struct_defaults.set(key, temp_var)
+                                        // Emit the throwing call
+                                        if gt(default_expr.params.len(), 0) {
+                                            mut fcall_first := Expr()
+                                            default_expr.params.get(0, fcall_first)
+                                            catch (err: IndexOutOfBoundsError) { }
+                                            mut fcall_func_name_result := get_func_name_string(fcall_first)
+                                            if fcall_func_name_result.found {
+                                                mut lookup_name := fcall_func_name_result.name.replace("_", ".")
+                                                mut found_func := false
+                                                mut fd := context.scope_stack.lookup_func(lookup_name)
+                                                found_func = true
+                                                catch (err: KeyNotFoundError) { }
+                                                if found_func {
+                                                    result = emit_throwing_call_propagate(default_expr, fd.throw_types, temp_var, "", result, indent, ctx, context)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        mi = add(mi, 1)
+                    }
+                }
+            }
+        }
+
+        // Recurse into arguments
         if gt(expr.params.len(), 1) {
             mut arg_idx := 1
             while lt(arg_idx, expr.params.len()) {
@@ -7596,10 +7709,24 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         return result
     } else {
         // User-defined function call
-        // Check for struct construction: TypeName() -> (til_TypeName){defaults...}
-        // Struct names are PascalCase, no underscore in func_name (meaning not Type_method), no args
+        // Check for struct construction: TypeName() or TypeName(field=value, ...)
+        // Struct names are PascalCase, no underscore in func_name, either no args or only named args
         mut first_char := func_name.get_substr(0, 1)
-        if first_char.is_uppercase().and(not(func_name.contains("_"))).and(params_len.eq(1)) {
+        mut has_named_args := false
+        mut na_idx := 1
+        while lt(na_idx, params_len) {
+            mut na_arg := Expr()
+            expr.params.get(na_idx, na_arg)
+            switch na_arg.node_type {
+            case NodeType.NamedArg(field_name):
+                has_named_args = true
+            case:
+            }
+            na_idx = add(na_idx, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { }
+
+        if first_char.is_uppercase().and(not(func_name.contains("_"))).and(or(params_len.eq(1), has_named_args)) {
             // Look up struct definition to get default values
             mut struct_found := false
             mut struct_def := context.scope_stack.lookup_struct(func_name)
@@ -7607,38 +7734,95 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             catch (err: KeyNotFoundError) { }
 
             if struct_found {
+                // Build map of named arg values
+                mut named_values := Map.new(Str, Expr)
+                na_idx = 1
+                while lt(na_idx, params_len) {
+                    mut na_arg := Expr()
+                    expr.params.get(na_idx, na_arg)
+                    switch na_arg.node_type {
+                    case NodeType.NamedArg(field_name):
+                        if gt(na_arg.params.len(), 0) {
+                            mut value_expr := Expr()
+                            na_arg.params.get(0, value_expr)
+                            named_values.insert(field_name, value_expr)
+                        }
+                    case:
+                    }
+                    na_idx = add(na_idx, 1)
+                }
+                catch (err: IndexOutOfBoundsError) { }
+                catch (err: DuplicatedKeyError) { }
+
                 if struct_def.members.len().eq(0).or(struct_def.default_values.len().eq(0)) {
                     result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat("){}")
                 } else {
-                    // Check if any default value is a throwing function call
-                    // Such calls need out-params and can't be inlined in struct initializers
-                    mut throwing_defaults := Map.new(Str, Str)  // member_name -> temp_var
-                    mut member_idx := 0
-                    while lt(member_idx, struct_def.members.len()) {
-                        mut member := Declaration()
-                        struct_def.members.get(member_idx, member)
-                        catch (err: IndexOutOfBoundsError) { throw err.msg }
-                        if member.is_mut {
-                            mut default_expr := Expr()
-                            struct_def.default_values.get(member.name, default_expr)
-                            if is_throwing_fcall(default_expr, context) {
-                                // Emit the throwing call as a separate statement
-                                result = hoist_throwing_expr(default_expr, result, indent, ctx, context)
-                                // Get the temp var that was just generated (it's in hoisted_exprs)
-                                mut expr_key := default_expr.line.to_str().concat(":").concat(default_expr.col.to_str())
-                                mut temp_var := ""
-                                ctx.hoisted_exprs.get(expr_key, temp_var)
-                                throwing_defaults.set(member.name, temp_var)
-                                catch (err: KeyNotFoundError) { }
+                    // Hoist throwing calls from field values, but ONLY at statement level (indent > 0)
+                    // At expression level (indent == 0), hoist_throwing_expr should have already been called
+                    mut hoisted_fields := Map.new(Str, Str)
+                    if gt(indent, 0) {
+                        mut member_idx := 0
+                        while lt(member_idx, struct_def.members.len()) {
+                            mut member := Declaration()
+                            struct_def.members.get(member_idx, member)
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
+                            if member.is_mut {
+                                // Check named arg value first, then default
+                                mut has_named_val := named_values.contains_key(member.name)
+                                if not(has_named_val) {
+                                    mut default_expr := Expr()
+                                    struct_def.default_values.get(member.name, default_expr)
+                                    if is_throwing_fcall(default_expr, context) {
+                                        // Emit the throwing call as a separate statement
+                                        result = hoist_throwing_expr(default_expr, result, indent, ctx, context)
+                                        // Get the temp var that was just generated
+                                        mut expr_key := default_expr.line.to_str().concat(":").concat(default_expr.col.to_str())
+                                        mut temp_var := ""
+                                        ctx.hoisted_exprs.get(expr_key, temp_var)
+                                        hoisted_fields.set(member.name, temp_var)
+                                        catch (err: KeyNotFoundError) { }
+                                    }
+                                    catch (err: KeyNotFoundError) { }
+                                }
                             }
-                            catch (err: KeyNotFoundError) { }
+                            member_idx = add(member_idx, 1)
                         }
-                        member_idx = add(member_idx, 1)
+                    } else {
+                        // At expression level, check if defaults were hoisted by caller
+                        // Look up temp var names in hoisted_struct_defaults using struct_name.member_name
+                        mut member_idx := 0
+                        while lt(member_idx, struct_def.members.len()) {
+                            mut member := Declaration()
+                            struct_def.members.get(member_idx, member)
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
+                            if member.is_mut {
+                                mut has_named_val := named_values.contains_key(member.name)
+                                if not(has_named_val) {
+                                    mut has_default := struct_def.default_values.contains_key(member.name)
+                                    if has_default {
+                                        mut default_expr := Expr()
+                                        struct_def.default_values.get(member.name, default_expr)
+                                        if is_throwing_fcall(default_expr, context) {
+                                            // Look up temp var from hoisted_struct_defaults
+                                            mut key := func_name.concat(".").concat(member.name)
+                                            mut temp_var := ""
+                                            ctx.hoisted_struct_defaults.get(key, temp_var)
+                                            if gt(temp_var.len(), 0) {
+                                                hoisted_fields.set(member.name, temp_var)
+                                            }
+                                            catch (err: KeyNotFoundError) { }
+                                        }
+                                        catch (err: KeyNotFoundError) { }
+                                    }
+                                }
+                            }
+                            member_idx = add(member_idx, 1)
+                        }
                     }
 
                     // Now emit the struct initializer
-                    // Need to add indentation if we emitted throwing calls
-                    if gt(throwing_defaults.len(), 0) {
+                    // Need to add indentation if we emitted throwing calls at indent > 0
+                    if gt(indent, 0).and(gt(hoisted_fields.len(), 0)) {
                         mut ind := 0
                         while lt(ind, indent) {
                             result = result.concat("    ")
@@ -7647,7 +7831,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     }
                     result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat("){")
                     mut is_first := true
-                    member_idx = 0
+                    mut member_idx := 0
                     while lt(member_idx, struct_def.members.len()) {
                         mut member := Declaration()
                         struct_def.members.get(member_idx, member)
@@ -7660,21 +7844,27 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                             }
                             is_first = false
                             result = result.concat(".").concat(member.name).concat(" = ")
-                            // Check if this was a throwing default - use temp var instead
+                            // Use hoisted temp var if available
                             mut temp_var := ""
-                            throwing_defaults.get(member.name, temp_var)
+                            hoisted_fields.get(member.name, temp_var)
                             if gt(temp_var.len(), 0) {
                                 result = result.concat(temp_var)
                             } else {
-                                mut default_found := false
-                                mut default_expr := Expr()
-                                struct_def.default_values.get(member.name, default_expr)
-                                default_found = true
-                                catch (err: KeyNotFoundError) { }
-                                if default_found {
-                                    result = emit_expr(default_expr, result, 0, ctx, context)
-                                } else {
-                                    result = result.concat("0")
+                                // Use named arg value if provided, otherwise use default
+                                mut value_expr := Expr()
+                                named_values.get(member.name, value_expr)
+                                result = emit_expr(value_expr, result, 0, ctx, context)
+                                catch (err: KeyNotFoundError) {
+                                    mut default_found := false
+                                    mut default_expr := Expr()
+                                    struct_def.default_values.get(member.name, default_expr)
+                                    default_found = true
+                                    catch (err: KeyNotFoundError) { }
+                                    if default_found {
+                                        result = emit_expr(default_expr, result, 0, ctx, context)
+                                    } else {
+                                        result = result.concat("0")
+                                    }
                                 }
                             }
                             catch (err: KeyNotFoundError) { }
