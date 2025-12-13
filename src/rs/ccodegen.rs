@@ -976,15 +976,31 @@ fn hoist_for_dynamic_params(
             NodeType::LLiteral(Literal::Str(_)) => format!("{}Str", TIL_PREFIX),
             NodeType::LLiteral(Literal::Number(_)) => "int64_t".to_string(),
             NodeType::LLiteral(Literal::List(_)) => "int64_t".to_string(), // TODO: proper list type
-            NodeType::Identifier(type_name) if !arg.params.is_empty() => {
-                // Type-qualified identifier like ExampleEnum.A (enum constructor)
-                // Check if this is an enum constructor
-                if let Some(NodeType::Identifier(variant_name)) = arg.params.first().map(|p| &p.node_type) {
-                    if context.scope_stack.lookup_enum(type_name)
-                        .map(|e| e.enum_map.contains_key(variant_name))
+            NodeType::Identifier(var_name) if !arg.params.is_empty() => {
+                // Could be: enum constructor (Type.Variant), field access (var.field), or method call
+                if let Some(NodeType::Identifier(field_or_variant)) = arg.params.first().map(|p| &p.node_type) {
+                    // Check if this is an enum constructor
+                    if context.scope_stack.lookup_enum(var_name)
+                        .map(|e| e.enum_map.contains_key(field_or_variant))
                         .unwrap_or(false) {
                         // Enum constructor returns the enum type
-                        til_name(type_name)
+                        til_name(var_name)
+                    } else if let Some(sym) = context.scope_stack.lookup_symbol(var_name) {
+                        // Field access - look up variable's type, then field's type
+                        if let ValueType::TCustom(struct_name) = &sym.value_type {
+                            if let Some(struct_def) = context.scope_stack.lookup_struct(struct_name) {
+                                // Find the field in the struct
+                                if let Some(member) = struct_def.members.iter().find(|m| &m.name == field_or_variant) {
+                                    til_type_to_c(&member.value_type).unwrap_or_else(|| "int64_t".to_string())
+                                } else {
+                                    "int64_t".to_string()
+                                }
+                            } else {
+                                "int64_t".to_string()
+                            }
+                        } else {
+                            "int64_t".to_string()
+                        }
                     } else {
                         "int64_t".to_string()
                     }

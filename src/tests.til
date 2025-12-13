@@ -368,6 +368,9 @@ test_rs_interpreted := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
         println("FAIL (interpret exit code): ", entry.path)
         println("  expected: ", entry.expected_status.to_str())
         println("  actual: ", actual_exit_code.to_str())
+        if not(interp_output.eq("")) {
+            println("  output: ", interp_output)
+        }
         return true
     }
 
@@ -409,6 +412,9 @@ test_rs_compiled := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
         println("FAIL (run exit code): ", entry.path)
         println("  expected: ", entry.expected_status.to_str())
         println("  actual: ", actual_exit_code.to_str())
+        if not(run_output.eq("")) {
+            println("  output: ", run_output)
+        }
         return true
     }
 
@@ -452,6 +458,9 @@ test_rs_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: 
         println("FAIL (interpret exit code): ", entry.path)
         println("  expected: ", entry.expected_status.to_str())
         println("  actual: ", interp_exit_code.to_str())
+        if not(interp_output.eq("")) {
+            println("  output: ", interp_output)
+        }
         errors_found = true
     } else {
         tmp_actual := "src/test/tmp/actual.out"
@@ -482,6 +491,9 @@ test_rs_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: 
         println("FAIL (run exit code): ", entry.path)
         println("  expected: ", entry.expected_status.to_str())
         println("  actual: ", run_exit_code.to_str())
+        if not(run_output.eq("")) {
+            println("  output: ", run_output)
+        }
         errors_found = true
     } else {
         tmp_actual := "src/test/tmp/actual.out"

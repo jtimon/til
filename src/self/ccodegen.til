@@ -7656,6 +7656,54 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                         case Literal.List(l):
                             c_type = "int64_t"  // TODO: proper list type
                         }
+                    case NodeType.Identifier(var_name):
+                        // Could be: enum constructor (Type.Variant), field access (var.field), or method call
+                        if gt(arg.params.len(), 0) {
+                            mut first_param := Expr()
+                            arg.params.get(0, first_param)
+                            switch first_param.node_type {
+                            case NodeType.Identifier(field_or_variant):
+                                // Check if this is an enum constructor
+                                mut is_enum := false
+                                mut enum_def := context.scope_stack.lookup_enum(var_name)
+                                is_enum = true
+                                catch (err: KeyNotFoundError) { }
+                                if is_enum {
+                                    mut has_variant := false
+                                    mut variant_ptr := Ptr()
+                                    enum_def.enum_map.get(field_or_variant, variant_ptr)
+                                    has_variant = true
+                                    catch (err: KeyNotFoundError) { }
+                                    if has_variant {
+                                        c_type = til_name(var_name)
+                                    }
+                                } else {
+                                    // Field access - look up variable's type, then field's type
+                                    mut sym := context.scope_stack.lookup_symbol(var_name)
+                                    switch sym.value_type {
+                                    case ValueType.TCustom(struct_name):
+                                        mut struct_def := context.scope_stack.lookup_struct(struct_name)
+                                        // Find the field in the struct
+                                        mut found_field := false
+                                        mut fi := 0
+                                        while lt(fi, struct_def.members.len()) {
+                                            mut member := Declaration()
+                                            struct_def.members.get(fi, member)
+                                            if member.name.eq(field_or_variant) {
+                                                c_type = til_type_to_c(member.value_type)
+                                                found_field = true
+                                            }
+                                            fi = add(fi, 1)
+                                        }
+                                        catch (err: IndexOutOfBoundsError) { }
+                                    case:
+                                    }
+                                    catch (err: KeyNotFoundError) { }
+                                }
+                            case:
+                            }
+                            catch (err: IndexOutOfBoundsError) { }
+                        }
                     case NodeType.FCall:
                         // For function calls, try to determine return type
                         mut info := check_throwing_fcall(arg, ctx, context)
