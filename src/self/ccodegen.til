@@ -6955,7 +6955,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     catch (err: AllocError) { throw err.msg }
 
                     mut temp_name := "_default_"
-                    temp_name = temp_name.concat(member_name)
+                    temp_name = temp_name.concat(member_name).concat("_").concat(next_mangled())
                     // Emit the function call with out-param using emit_throwing_call_propagate
                     result = emit_throwing_call_propagate(default_expr, throw_types, temp_name, "", result, indent, ctx, context)
                     // Record that this struct default was hoisted using expression address

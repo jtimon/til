@@ -4379,7 +4379,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                         Vec::new()
                     };
 
-                    let temp_name = format!("_default_{}", member_name);
+                    let temp_name = format!("_default_{}_{}", member_name, next_mangled());
                     // Emit the function call with out-param using emit_throwing_call_propagate
                     emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
                     // Record that this struct default was hoisted using expression address
@@ -5106,9 +5106,12 @@ fn emit_fcall_with_hoisted(
                         Vec::new()
                     };
 
-                    let temp_name = format!("_default_{}", member_name);
+                    let temp_name = format!("_default_{}_{}", member_name, next_mangled());
                     // Emit the function call with out-param using emit_throwing_call_propagate
                     emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, 0, ctx, context)?;
+                    // Record that this struct default was hoisted using expression address
+                    let expr_addr = *default_expr as *const Expr as usize;
+                    ctx.hoisted_struct_defaults.insert(expr_addr, temp_name);
                 }
 
                 // Build set of throwing default member names for quick lookup
@@ -6126,9 +6129,12 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                                 Vec::new()
                             };
 
-                            let temp_name = format!("_default_{}", member_name);
+                            let temp_name = format!("_default_{}_{}", member_name, next_mangled());
                             // Emit the function call with out-param using emit_throwing_call_propagate
                             emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
+                            // Record that this struct default was hoisted using expression address
+                            let expr_addr = *default_expr as *const Expr as usize;
+                            ctx.hoisted_struct_defaults.insert(expr_addr, temp_name);
                         }
 
                         output.push_str(&indent_str);
