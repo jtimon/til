@@ -4634,9 +4634,20 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     mut temp_suffix := next_mangled()
 
     // Determine if we need a return value temp variable
+    // Only if function actually returns something AND we're capturing it
+    mut func_has_return := false
+    mut func_def_found := false
+    mut func_def := context.scope_stack.lookup_func(func_name)
+    func_def_found = true
+    catch (err: KeyNotFoundError) { }
+    if func_def_found {
+        func_has_return = gt(func_def.return_types.len(), 0)
+    }
     mut needs_ret := false
-    if gt(decl_name.len(), 0) { needs_ret = true }
-    if gt(assign_name.len(), 0) { needs_ret = true }
+    if func_has_return {
+        if gt(decl_name.len(), 0) { needs_ret = true }
+        if gt(assign_name.len(), 0) { needs_ret = true }
+    }
 
     // Calculate param_types early for Dynamic hoisting
     mut param_types := Vec.new(ValueType)
@@ -5129,9 +5140,20 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut temp_suffix := next_mangled()
 
     // Determine if we need a return value temp variable
+    // Only if function actually returns something AND we're capturing it
+    mut func_has_return := false
+    mut func_def_found := false
+    mut func_def := context.scope_stack.lookup_func(func_name)
+    func_def_found = true
+    catch (err: KeyNotFoundError) { }
+    if func_def_found {
+        func_has_return = gt(func_def.return_types.len(), 0)
+    }
     mut needs_ret := false
-    if gt(decl_name.len(), 0) { needs_ret = true }
-    if gt(assign_name.len(), 0) { needs_ret = true }
+    if func_has_return {
+        if gt(decl_name.len(), 0) { needs_ret = true }
+        if gt(assign_name.len(), 0) { needs_ret = true }
+    }
 
     // Calculate param_types early for Dynamic hoisting
     mut param_types := Vec.new(ValueType)
@@ -5553,9 +5575,20 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut temp_suffix := next_mangled()
 
     // Determine if we need a return value temp variable
+    // Only if function actually returns something AND we're capturing it
+    mut func_has_return := false
+    mut func_def_found := false
+    mut func_def := context.scope_stack.lookup_func(func_name)
+    func_def_found = true
+    catch (err: KeyNotFoundError) { }
+    if func_def_found {
+        func_has_return = gt(func_def.return_types.len(), 0)
+    }
     mut needs_ret := false
-    if gt(decl_name.len(), 0) { needs_ret = true }
-    if gt(assign_name.len(), 0) { needs_ret = true }
+    if func_has_return {
+        if gt(decl_name.len(), 0) { needs_ret = true }
+        if gt(assign_name.len(), 0) { needs_ret = true }
+    }
 
     // Calculate param_types early for Dynamic hoisting
     mut param_types := Vec.new(ValueType)

@@ -3301,7 +3301,11 @@ fn emit_throwing_call(
     let temp_suffix = next_mangled();
 
     // Determine if we need a return value temp variable
-    let needs_ret = decl_name.is_some() || assign_name.is_some();
+    // Only if function actually returns something AND we're capturing it
+    let func_has_return = lookup_func_by_name(context, &func_name)
+        .map(|fd| !fd.return_types.is_empty())
+        .unwrap_or(false);
+    let needs_ret = func_has_return && (decl_name.is_some() || assign_name.is_some());
 
     // Calculate param_types early for Dynamic hoisting
     let param_types: Vec<Option<ValueType>> = {
@@ -3586,7 +3590,11 @@ fn emit_throwing_call_propagate(
     let temp_suffix = next_mangled();
 
     // Determine if we need a return value temp variable
-    let needs_ret = decl_name.is_some() || assign_name.is_some();
+    // Only if function actually returns something AND we're capturing it
+    let func_has_return = lookup_func_by_name(context, &func_name)
+        .map(|fd| !fd.return_types.is_empty())
+        .unwrap_or(false);
+    let needs_ret = func_has_return && (decl_name.is_some() || assign_name.is_some());
 
     // Calculate param_types early for Dynamic hoisting
     let param_types: Vec<Option<ValueType>> = {
@@ -3830,7 +3838,11 @@ fn emit_throwing_call_with_goto(
     let temp_suffix = next_mangled();
 
     // Determine if we need a return value temp variable
-    let needs_ret = decl_name.is_some() || assign_name.is_some();
+    // Only if function actually returns something AND we're capturing it
+    let func_has_return = lookup_func_by_name(context, &func_name)
+        .map(|fd| !fd.return_types.is_empty())
+        .unwrap_or(false);
+    let needs_ret = func_has_return && (decl_name.is_some() || assign_name.is_some());
 
     // Calculate param_types and param_is_mut
     let param_types: Vec<Option<ValueType>> = {
