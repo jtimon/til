@@ -92,15 +92,13 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
 
     // Count positional args (before first named arg)
     mut positional_count := 0
-    i = 1
-    while i.lt(e.params.len()) {
+    for i in 1..e.params.len() {
         mut arg := e.get(i)
         switch arg.node_type {
         case NodeType.NamedArg(_):
-            i = e.params.len() // break
+            break
         case:
             positional_count = positional_count.add(1)
-            i = i.add(1)
         }
     }
 
