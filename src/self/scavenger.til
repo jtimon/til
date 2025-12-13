@@ -267,38 +267,32 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
 
         if found_func {
             // Check if this function has variadic parameters (TMulti)
-            mut ai := 0
-            while ai.lt(func_def.args.len()) {
+            for ai in 0..func_def.args.len() {
                 mut arg := Declaration()
                 func_def.args.get(ai, arg)
                 switch arg.value_type {
                 case ValueType.TMulti(_):
                     needs_variadic_support = true
-                    ai = func_def.args.len() // break
+                    break
                 case:
-                    ai = ai.add(1)
                 }
             }
 
             if func_def.is_ext() {
                 // External function - no body to walk
-            } else {
-                mut called := Set.new(Str)
-                mut bi := 0
-                while bi.lt(func_def.body.len()) {
-                    mut stmt := Expr()
-                    func_def.body.get(bi, stmt)
-                    collect_called_functions(stmt, called)
-                    bi = bi.add(1)
-                }
-                // Add newly discovered functions
-                mut ci := 0
-                while ci.lt(called.len()) {
-                    mut called_func := ""
-                    called.get(ci, called_func)
-                    mark_reachable(called_func, reachable, worklist)
-                    ci = ci.add(1)
-                }
+                continue
+            }
+            mut called := Set.new(Str)
+            for bi in 0..func_def.body.len() {
+                mut stmt := Expr()
+                func_def.body.get(bi, stmt)
+                collect_called_functions(stmt, called)
+            }
+            // Add newly discovered functions
+            for ci in 0..called.len() {
+                mut called_func := ""
+                called.get(ci, called_func)
+                mark_reachable(called_func, reachable, worklist)
             }
         } else {
             // Check if it's a struct constructor
@@ -346,7 +340,12 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
                     }
                 }
 
-                if not(found_enum) {
+                if found_enum {
+                    // Enum constructor - no body to walk
+                    continue
+                }
+
+                {
                     // Check if this is an unresolved UFCS call (e.g., s.len or obj.field.len where s/obj is a variable)
                     // This happens when precomp couldn't determine the type (e.g., pattern bindings in switch)
                     // In this case, parts[0] is a variable name, not a type name
@@ -394,8 +393,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
                         builtin_types.push("Set")
 
                         mut found_method := false
-                        mut bi := 0
-                        while bi.lt(builtin_types.len()) {
+                        for bi in 0..builtin_types.len() {
                             mut builtin := ""
                             builtin_types.get(bi, builtin)
                             full_method := format(builtin, ".", method_name)
@@ -404,17 +402,14 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
                             // Found a matching method - mark it reachable instead
                             mark_reachable(full_method, reachable, worklist)
                             found_method = true
-                            bi = builtin_types.len() // break
-                            catch (err: KeyNotFoundError) {
-                                bi = bi.add(1)
-                            }
+                            break
+                            catch (err: KeyNotFoundError) { }
                         }
 
                         // Also check user-defined structs for the method
                         if not(found_method) {
                             struct_names := context.scope_stack.get_all_struct_names()
-                            mut si := 0
-                            while si.lt(struct_names.len()) {
+                            for si in 0..struct_names.len() {
                                 mut struct_name := ""
                                 struct_names.get(si, struct_name)
                                 full_method := format(struct_name, ".", method_name)
@@ -422,21 +417,19 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
                                 dummy_fd = context.scope_stack.lookup_func(full_method)
                                 mark_reachable(full_method, reachable, worklist)
                                 found_method = true
-                                si = struct_names.len() // break
-                                catch (err: KeyNotFoundError) {
-                                    si = si.add(1)
-                                }
+                                break
+                                catch (err: KeyNotFoundError) { }
                             }
                         }
 
-                        if not(found_method) {
-                            throw e.lang_error(context.path, "scavenger", format("no body found for '", func_name, "'"))
+                        if found_method {
+                            continue
                         }
+                        throw e.lang_error(context.path, "scavenger", format("no body found for '", func_name, "'"))
                     } else {
                         throw e.lang_error(context.path, "scavenger", format("no body found for '", func_name, "'"))
                     }
                 }
-                // Enum constructor or resolved UFCS - no body to walk
             }
         }
     }
