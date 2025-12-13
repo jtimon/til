@@ -1340,9 +1340,20 @@ fn emit_arg_with_param_type(
                 return Ok(());
             }
         }
-        // For non-identifier args (function calls, literals), they should have
-        // been hoisted already. If not, just emit without & and let C handle it.
-        emit_expr(arg, output, 0, ctx, context)?;
+        // For non-identifier args (literals, compound literals), emit with &
+        // But first check if already hoisted (hoisted_exprs already includes & prefix)
+        let arg_addr = arg as *const Expr as usize;
+        if ctx.hoisted_exprs.contains_key(&arg_addr) {
+            // Already hoisted with & prefix - just emit it
+            emit_expr(arg, output, 0, ctx, context)?;
+        } else if matches!(&arg.node_type, NodeType::LLiteral(_)) {
+            // Compound literals are lvalues in C99+, so &((til_Str){...}) works
+            output.push_str("&");
+            emit_expr(arg, output, 0, ctx, context)?;
+        } else {
+            // Other non-identifier args (function calls, etc.) - emit as-is
+            emit_expr(arg, output, 0, ctx, context)?;
+        }
         return Ok(());
     }
 

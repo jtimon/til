@@ -2818,9 +2818,23 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
             }
         case:
         }
-        // For non-identifier args (function calls, literals), they should have
-        // been hoisted already. If not, just emit without & and let C handle it.
-        result = emit_expr(arg, result, 0, ctx, context)
+        // For non-identifier args (literals, compound literals), emit with &
+        // But first check if already hoisted (hoisted_exprs already includes & prefix)
+        arg_addr := to_ptr(arg)
+        if Map.contains_key(ctx.hoisted_exprs, arg_addr.to_str()) {
+            // Already hoisted with & prefix - just emit it
+            result = emit_expr(arg, result, 0, ctx, context)
+        } else {
+            switch arg.node_type {
+            case NodeType.LLiteral(_):
+                // Compound literals are lvalues in C99+, so &((til_Str){...}) works
+                result = result.concat("&")
+                result = emit_expr(arg, result, 0, ctx, context)
+            case:
+                // Other non-identifier args (function calls, etc.) - emit as-is
+                result = emit_expr(arg, result, 0, ctx, context)
+            }
+        }
         return result
     }
 
