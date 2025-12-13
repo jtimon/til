@@ -546,7 +546,117 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         return result
     }
 
-    // Not a throwing call - recursively check sub-expressions
+    // Check if this is a non-throwing variadic call - also needs hoisting
+    switch expr.node_type {
+    case NodeType.FCall:
+        mut variadic_info := detect_variadic_fcall(expr, ctx)
+        if variadic_info.is_variadic {
+            // Recursively hoist any throwing/variadic calls in this call's arguments first
+            mut nested_hoisted := Map.new(I64, Str)
+            if gt(expr.params.len(), 1) {
+                mut nested_args := Vec.new(Expr)
+                mut ni := 1
+                while lt(ni, expr.params.len()) {
+                    mut narg := Expr()
+                    expr.params.get(ni, narg)
+                    nested_args.push(narg)
+                    ni = add(ni, 1)
+                }
+                mut nested_vec := hoist_throwing_args(nested_args, result, indent, ctx, context)
+                // Convert Vec<HoistedArg> to Map<I64, Str>
+                mut nhi := 0
+                while lt(nhi, nested_vec.len()) {
+                    mut entry := HoistedArg()
+                    nested_vec.get(nhi, entry)
+                    nested_hoisted.set(entry.index, entry.temp_var)
+                    nhi = add(nhi, 1)
+                }
+            }
+
+            mut temp_var := next_mangled()
+
+            // Determine return type from function
+            mut c_type := "int"
+            mut func_name := get_fcall_func_name(expr)
+            if gt(func_name.len(), 0) {
+                mut fd_result := lookup_func_by_name(context, func_name)
+                if fd_result.found {
+                    if gt(fd_result.func_def.return_types.len(), 0) {
+                        mut ret_type := ValueType.TCustom("")
+                        fd_result.func_def.return_types.get(0, ret_type)
+                        c_type = til_type_to_c(ret_type)
+                        catch (err: IndexOutOfBoundsError) { }
+                    }
+                }
+            }
+
+            // Declare temp variable
+            result = result.concat(indent_str).concat(c_type).concat(" ").concat(temp_var).concat(";\n")
+
+            // Construct variadic array
+            mut variadic_args := Vec.new(Expr)
+            mut vi := add(1, variadic_info.regular_count)
+            while lt(vi, expr.params.len()) {
+                mut varg := Expr()
+                expr.params.get(vi, varg)
+                variadic_args.push(varg)
+                vi = add(vi, 1)
+            }
+            mut variadic_arr_var := hoist_variadic_args(variadic_info.elem_type, variadic_args, nested_hoisted, variadic_info.regular_count, result, indent, ctx, context)
+
+            // Emit the function call (non-throwing, so direct assignment)
+            result = result.concat(indent_str).concat(temp_var).concat(" = ")
+
+            // Emit function name
+            if gt(func_name.len(), 0) {
+                result = result.concat(til_func_name(func_name))
+            }
+            result = result.concat("(")
+
+            // Emit regular args (using nested hoisted temps)
+            mut first := true
+            mut ri := 0
+            while lt(ri, variadic_info.regular_count) {
+                if not(first) {
+                    result = result.concat(", ")
+                }
+                first = false
+                // Check if this arg was hoisted
+                mut found_hoisted := false
+                mut hoisted_temp := ""
+                nested_hoisted.get(ri, hoisted_temp)
+                found_hoisted = true
+                catch (err: KeyNotFoundError) { }
+                if found_hoisted {
+                    result = result.concat(hoisted_temp)
+                } else {
+                    mut param := Expr()
+                    expr.params.get(add(ri, 1), param)
+                    result = emit_expr(param, result, 0, ctx, context)
+                }
+                ri = add(ri, 1)
+            }
+
+            // Emit variadic array pointer
+            if not(first) {
+                result = result.concat(", ")
+            }
+            result = result.concat("&").concat(variadic_arr_var).concat(");\n")
+
+            // Delete the variadic array
+            result = result.concat(indent_str).concat(TIL_PREFIX).concat("Array_delete(&").concat(variadic_arr_var).concat(");\n")
+
+            // Store temp var in hoisted_exprs for caller to use
+            mut expr_key := expr.line.to_str().concat(":").concat(expr.col.to_str())
+            ctx.hoisted_exprs.set(expr_key, temp_var)
+
+            return result
+        }
+    case:
+        // Not an FCall
+    }
+
+    // Not a throwing call or variadic call - recursively check sub-expressions
     switch expr.node_type {
     case NodeType.FCall:
         if gt(expr.params.len(), 1) {

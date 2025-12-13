@@ -501,7 +501,99 @@ fn hoist_throwing_expr(
         return Ok(Some(temp_var));
     }
 
-    // Not a throwing call - recursively check sub-expressions
+    // Check if this is a non-throwing variadic call - also needs hoisting
+    if let NodeType::FCall = &expr.node_type {
+        if let Some((elem_type, regular_count)) = detect_variadic_fcall(expr, ctx) {
+            // Recursively hoist any throwing/variadic calls in this call's arguments first
+            let nested_hoisted: std::collections::HashMap<usize, String> = if expr.params.len() > 1 {
+                let nested_args = &expr.params[1..];
+                let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
+                nested_vec.into_iter().collect()
+            } else {
+                std::collections::HashMap::new()
+            };
+
+            let temp_var = next_mangled();
+
+            // Determine return type from function
+            let c_type = if let Some(func_name) = get_fcall_func_name(expr) {
+                if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                    if let Some(ret_type) = fd.return_types.first() {
+                        til_type_to_c(ret_type).unwrap_or_else(|| "int".to_string())
+                    } else {
+                        "int".to_string()
+                    }
+                } else {
+                    "int".to_string()
+                }
+            } else {
+                "int".to_string()
+            };
+
+            // Declare temp variable
+            output.push_str(&indent_str);
+            output.push_str(&c_type);
+            output.push_str(" ");
+            output.push_str(&temp_var);
+            output.push_str(";\n");
+
+            // Construct variadic array
+            let variadic_args: Vec<_> = expr.params.iter().skip(1 + regular_count).collect();
+            let variadic_arr_var = if !variadic_args.is_empty() {
+                hoist_variadic_args(&elem_type, &variadic_args, &nested_hoisted, regular_count, output, indent, ctx, context)?
+            } else {
+                hoist_variadic_args(&elem_type, &[], &nested_hoisted, regular_count, output, indent, ctx, context)?
+            };
+
+            // Emit the function call (non-throwing, so direct assignment)
+            output.push_str(&indent_str);
+            output.push_str(&temp_var);
+            output.push_str(" = ");
+
+            // Emit function name
+            if let Some(func_name) = get_fcall_func_name(expr) {
+                output.push_str(&til_func_name(&func_name));
+            }
+            output.push('(');
+
+            // Emit regular args (using nested hoisted temps)
+            let mut first = true;
+            for (i, param) in expr.params.iter().skip(1).take(regular_count).enumerate() {
+                if !first {
+                    output.push_str(", ");
+                }
+                first = false;
+                if let Some(temp) = nested_hoisted.get(&i) {
+                    output.push_str(temp);
+                } else {
+                    emit_expr(param, output, 0, ctx, context)?;
+                }
+            }
+
+            // Emit variadic array pointer
+            if !first {
+                output.push_str(", ");
+            }
+            output.push_str("&");
+            output.push_str(&variadic_arr_var);
+            output.push_str(");\n");
+
+            // Emit Array.delete for the variadic array
+            output.push_str(&indent_str);
+            output.push_str(TIL_PREFIX);
+            output.push_str("Array_delete(&");
+            output.push_str(&variadic_arr_var);
+            output.push_str(");\n");
+
+            // Record in hoisted_exprs map using expression address
+            let expr_addr = expr as *const Expr as usize;
+            ctx.hoisted_exprs.insert(expr_addr, temp_var.clone());
+
+            return Ok(Some(temp_var));
+        }
+    }
+
+    // Not a throwing call or variadic call - recursively check sub-expressions
     // For FCall, check all arguments
     if let NodeType::FCall = &expr.node_type {
         if expr.params.len() > 1 {
@@ -3640,20 +3732,23 @@ fn emit_throwing_call_with_goto(
         output.push_str(";\n");
     }
 
-    // For declarations: declare the variable BEFORE
+    // For declarations: declare the variable BEFORE the if block so it's visible after
+    // Skip for underscore _ which is just a discard
     if let Some(var_name) = decl_name {
-        output.push_str(&indent_str);
-        output.push_str(&ret_type);
-        output.push_str(" ");
-        output.push_str(&til_name(var_name));
-        output.push_str(";\n");
-        ctx.declared_vars.insert(til_name(var_name));
-        if let Some(fd) = lookup_func_by_name(context, &func_name) {
-            if let Some(first_type) = fd.return_types.first() {
-                context.scope_stack.declare_symbol(
-                    var_name.to_string(),
-                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
-                );
+        if var_name != "_" {
+            output.push_str(&indent_str);
+            output.push_str(&ret_type);
+            output.push_str(" ");
+            output.push_str(&til_name(var_name));
+            output.push_str(";\n");
+            ctx.declared_vars.insert(til_name(var_name));
+            if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                if let Some(first_type) = fd.return_types.first() {
+                    context.scope_stack.declare_symbol(
+                        var_name.to_string(),
+                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
+                    );
+                }
             }
         }
     }
