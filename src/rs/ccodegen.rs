@@ -992,6 +992,14 @@ fn hoist_for_dynamic_params(
                     "int64_t".to_string()
                 }
             }
+            NodeType::Identifier(type_name) if arg.params.is_empty() => {
+                // Struct constructor like Ptr() - identifier with no params
+                if context.scope_stack.lookup_struct(type_name).is_some() {
+                    til_name(type_name)
+                } else {
+                    "int64_t".to_string()
+                }
+            }
             NodeType::FCall => {
                 // For function calls, try to determine return type
                 if let Some((_func_name, _throw_types, return_type)) = check_throwing_fcall(arg, ctx, context) {
@@ -1024,6 +1032,9 @@ fn hoist_for_dynamic_params(
                         } else {
                             "int64_t".to_string()
                         }
+                    } else if context.scope_stack.lookup_struct(&func_name).is_some() {
+                        // Struct constructor like Ptr() - returns the struct type
+                        til_name(&func_name)
                     } else {
                         "int64_t".to_string()
                     }

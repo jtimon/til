@@ -7675,6 +7675,11 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                                         c_type = til_type_to_c(ret_type)
                                         catch (err: IndexOutOfBoundsError) { }
                                     }
+                                } else {
+                                    // Check if this is a struct constructor like Ptr()
+                                    mut struct_def := context.scope_stack.lookup_struct(func_name)
+                                    c_type = til_name(func_name)
+                                    catch (err: KeyNotFoundError) { }
                                 }
                             }
                         }
