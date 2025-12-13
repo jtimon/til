@@ -3,6 +3,13 @@
 ## Primary Documentation
 Read `doc/bot.org` for full guidelines. Key points below are frequently repeated corrections.
 
+## Before commit
+1) Run `make tests` to verify everything works
+2) Any changes made to rust code, we port to the equavalent files in til (self hosted implementation)
+3) Run `make tests` to verify everything works again after porting to til
+4) If exit code 0, commit
+5) If non-zero, read output and fix
+
 ## Various things
 - **NEVER** Use weird unicode symbols anywhere, stay ASCII
 - **NEVER** Use cat, use read, write or echo instead
@@ -103,15 +110,6 @@ Don't ask permission for:
 - Changed behavior? Update design docs
 - Added feature? Update relevant docs
 - Even partial fixes should be documented
-
-## Commit Process
-1) Update documentation first if anything was fixed/changed
-2) Any changes made to rust code, we port to the equavalent files in til (self hosted implementation)
-3) Run `make tests` to verify everything works
-4) If exit code 0, commit
-5) If non-zero, read output and fix
-6) Use heredoc for commit messages
-7) Always include co-author footer
 
 ## Rust to TIL Porting Rules
 When porting code from Rust (`src/rs/`) to TIL (`src/self/`):
