@@ -37,7 +37,7 @@ Array := struct {
 
     /** Get element at index. */
     get := proc(self: Array, index: I64, mut T: Dynamic) throws IndexOutOfBoundsError {
-        if gteq(index, self._len) {
+        if index.gteq(self._len) {
             throw IndexOutOfBoundsError.new(format(loc(), "Array.get: index out of bounds"))
         }
 
@@ -52,7 +52,7 @@ Array := struct {
 
     /** Set element at index. */
     set := proc(mut self: Array, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
-        if gteq(index, self._len) {
+        if index.gteq(self._len) {
             throw IndexOutOfBoundsError.new(format(loc(), "Array.set: index out of bounds"))
         }
 

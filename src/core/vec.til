@@ -77,7 +77,7 @@ Vec := struct {
 
     /** Get element at index. */
     get := proc(self: Vec, index: I64, mut T: Dynamic) throws IndexOutOfBoundsError {
-        if gteq(index, self._len) {
+        if index.gteq(self._len) {
             throw IndexOutOfBoundsError.new(format(loc(), "Vec.get: index out of bounds"))
         }
 
@@ -92,7 +92,7 @@ Vec := struct {
 
     /** Set element at index. */
     set := proc(mut self: Vec, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
-        if gteq(index, self._len) {
+        if index.gteq(self._len) {
             throw IndexOutOfBoundsError.new(format(loc(), "Vec.set: index out of bounds"))
         }
 
@@ -198,7 +198,7 @@ Vec := struct {
 
     /** Remove element at index, shifting remaining elements left. */
     remove := proc(mut self: Vec, index: I64) throws IndexOutOfBoundsError {
-        if gteq(index, self._len) {
+        if index.gteq(self._len) {
             throw IndexOutOfBoundsError.new(format(loc(), "Vec.remove: index out of bounds"))
         }
 

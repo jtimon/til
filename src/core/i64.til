@@ -30,26 +30,6 @@ I64_OverflowError := struct {
 
 // DivideByZero := struct {} // REM Apparently Roc tried this and rolled it back
 
-lteq := func(a: I64, b: I64) returns Bool {
-    if lt(a, b) {
-        return true
-    }
-    if a.eq(b) {
-        return true
-    }
-    return false
-}
-
-gteq := func(a: I64, b: I64) returns Bool {
-    if gt(a, b) {
-        return true
-    }
-    if a.eq(b) {
-        return true
-    }
-    return false
-}
-
 /** I64 - Signed 64-bit integer type. */
 // Note that I64 and U8 don't have fields because they're the "real core types"
 // think of them as "half-external types" for now
