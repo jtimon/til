@@ -43,6 +43,15 @@ EnumVal := struct {
     // For now, supports Bool (1 byte) and I64 (8 bytes)
     mut payload: Ptr = Ptr()  // Ptr to Vec<U8>, NULL = None
     mut payload_type: Ptr = Ptr()  // Ptr to ValueType, NULL = None
+
+    clone := func(self: EnumVal) returns EnumVal {
+        return EnumVal(
+            enum_type=self.enum_type,
+            enum_name=self.enum_name,
+            payload=self.payload,
+            payload_type=self.payload_type
+        )
+    }
 }
 
 // Scope stack for proper lexical scoping
@@ -75,6 +84,17 @@ ScopeFrame := struct {
 
     // Scope type (helps with cleanup and debugging)
     mut scope_type: ScopeType = ScopeType.Global
+
+    clone := func(self: ScopeFrame) returns ScopeFrame {
+        return ScopeFrame(
+            arena_index=self.arena_index.clone(),
+            symbols=self.symbols.clone(),
+            funcs=self.funcs.clone(),
+            enums=self.enums.clone(),
+            structs=self.structs.clone(),
+            scope_type=self.scope_type
+        )
+    }
 }
 
 ScopeStack := struct {
@@ -472,6 +492,10 @@ ScopeStack := struct {
             throw err.msg
         }
         return names
+    }
+
+    clone := func(self: ScopeStack) returns ScopeStack {
+        return ScopeStack(frames=self.frames.clone())
     }
 }
 
@@ -2096,5 +2120,19 @@ Context := struct {
         catch (err: I64_OverflowError) {
             throw err.msg
         }
+    }
+
+    clone := func(self: Context) returns Context {
+        return Context(
+            mode_def=self.mode_def,
+            path=self.path,
+            scope_stack=self.scope_stack.clone(),
+            temp_enum_payload=self.temp_enum_payload,
+            imported_asts=self.imported_asts.clone(),
+            imports_init_done=self.imports_init_done.clone(),
+            imports_typer_done=self.imports_typer_done.clone(),
+            imports_precomp_done=self.imports_precomp_done.clone(),
+            imports_eval_done=self.imports_eval_done.clone()
+        )
     }
 }
