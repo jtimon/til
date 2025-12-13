@@ -579,7 +579,9 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                 is_mut = false
                 is_copy = false
                 is_own = false
+                // Don't advance again - we already did above or parse_expression did
                 t = lexer.peek()
+                continue
             }
         case TokenType.Mut:
             if not(expect_name) {
