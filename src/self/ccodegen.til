@@ -503,18 +503,17 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         // Emit error checking - propagate or goto based on context
         // Check if there are local catch labels for these error types
         mut has_local_catch := false
-        err_idx = 0
-        while lt(err_idx, throwing_info.throw_types.len()) {
+        for err_idx in 0..throwing_info.throw_types.len() {
             mut throw_type := ValueType.TCustom("")
             throwing_info.throw_types.get(err_idx, throw_type)
             switch throw_type {
             case ValueType.TCustom(type_name):
                 if Map.contains_key(ctx.local_catch_labels, type_name) {
                     has_local_catch = true
+                    break
                 }
             case:
             }
-            err_idx = add(err_idx, 1)
         }
 
         if has_local_catch {
@@ -556,6 +555,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                                 result = result.concat(indent_str).concat("    if (_status_").concat(temp_suffix).concat(" == ").concat(add(err_idx, 1).to_str())
                                 result = result.concat(") { *_err").concat(add(curr_idx, 1).to_str()).concat(" = _err").concat(err_idx.to_str()).concat("_").concat(temp_suffix)
                                 result = result.concat("; return ").concat(add(curr_idx, 1).to_str()).concat("; }\n")
+                                break
                             }
                         case:
                         }
@@ -730,44 +730,44 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                     catch (err: IndexOutOfBoundsError) { }
 
                     // For each member with a default that's a throwing call and not overridden, emit temp var
-                    mut mi := 0
-                    while lt(mi, struct_def.members.len()) {
+                    for mi in 0..struct_def.members.len() {
                         mut member := Declaration()
                         struct_def.members.get(mi, member)
-                        if member.is_mut {
-                            if not(provided_names.contains(member.name)) {
-                                // Check if there's a default value for this member
-                                mut default_expr := Expr()
-                                mut has_default := false
-                                struct_def.default_values.get(member.name, default_expr)
-                                has_default = true
-                                catch (err: KeyNotFoundError) { }
+                        if not(member.is_mut) {
+                            continue
+                        }
+                        if provided_names.contains(member.name) {
+                            continue  // Named arg overrides default
+                        }
+                        // Check if there's a default value for this member
+                        mut default_expr := Expr()
+                        mut has_default := false
+                        struct_def.default_values.get(member.name, default_expr)
+                        has_default = true
+                        catch (err: KeyNotFoundError) { }
 
-                                if has_default {
-                                    // Check if the default is a throwing function call
-                                    mut default_throwing := check_throwing_fcall(default_expr, ctx, context)
-                                    if default_throwing.is_throwing {
-                                        // Emit the throwing call as a temp var with unique name
-                                        mut temp_name := next_mangled()
+                        if has_default {
+                            // Check if the default is a throwing function call
+                            mut default_throwing := check_throwing_fcall(default_expr, ctx, context)
+                            if default_throwing.is_throwing {
+                                // Emit the throwing call as a temp var with unique name
+                                mut temp_name := next_mangled()
 
-                                        // Get C type for the temp variable
-                                        mut c_type := "int"
-                                        if default_throwing.has_return_type {
-                                            c_type = til_type_to_c(default_throwing.return_type)
-                                        }
-
-                                        // Emit the temp var using emit_throwing_call_propagate
-                                        result = emit_throwing_call_propagate(default_expr, default_throwing.throw_types, temp_name, "", result, indent, ctx, context)
-
-                                        // Record that this struct default was hoisted using "struct_name:member_name" key
-                                        key := func_name.concat(":").concat(member.name)
-                                        ctx.hoisted_struct_defaults.insert(key, temp_name)
-                                        catch (err: DuplicatedKeyError) { }  // Ignore if already hoisted
-                                    }
+                                // Get C type for the temp variable
+                                mut c_type := "int"
+                                if default_throwing.has_return_type {
+                                    c_type = til_type_to_c(default_throwing.return_type)
                                 }
+
+                                // Emit the temp var using emit_throwing_call_propagate
+                                result = emit_throwing_call_propagate(default_expr, default_throwing.throw_types, temp_name, "", result, indent, ctx, context)
+
+                                // Record that this struct default was hoisted using "struct_name:member_name" key
+                                key := func_name.concat(":").concat(member.name)
+                                ctx.hoisted_struct_defaults.insert(key, temp_name)
+                                catch (err: DuplicatedKeyError) { }  // Ignore if already hoisted
                             }
                         }
-                        mi = add(mi, 1)
                     }
                     catch (err: IndexOutOfBoundsError) { }
                 }
@@ -812,23 +812,22 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
             switch first.node_type {
             case NodeType.FuncDef(func_def):
                 // Top-level function - check for variadic args
-                mut ai := 0
-                while lt(ai, func_def.args.len()) {
+                for ai in 0..func_def.args.len() {
                     mut arg := Declaration()
                     func_def.args.get(ai, arg)
                     switch arg.value_type {
                     case ValueType.TMulti(elem_type_name):
+                        // Track: (arg_name, element_type, count of regular args before variadic)
                         mut info := VariadicParamInfo()
                         info.arg_name = arg.name
                         info.elem_type = elem_type_name
                         info.regular_count = ai  // number of args before variadic
                         ctx.func_variadic_args.insert(decl.name, info)
+                        break  // Only one variadic arg per function
                     case:
-                        // Not variadic, continue
                     }
-                    ai = add(ai, 1)
                 }
-                catch (err: IndexOutOfBoundsError) { /* ignore */ }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
             case NodeType.StructDef(struct_def):
                 // Struct methods - use mangled names (StructName_methodName)
                 mut struct_name := decl.name
@@ -843,9 +842,8 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                     case NodeType.FuncDef(func_def):
                         mut mangled_name := concat(struct_name, "_")
                         mangled_name = mangled_name.concat(member_name)
-                        // Check for variadic args
-                        mut ai := 0
-                        while lt(ai, func_def.args.len()) {
+                        // Check for variadic args (TMulti) in struct methods
+                        for ai in 0..func_def.args.len() {
                             mut arg := Declaration()
                             func_def.args.get(ai, arg)
                             switch arg.value_type {
@@ -855,12 +853,11 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                                 info.elem_type = elem_type_name
                                 info.regular_count = ai
                                 ctx.func_variadic_args.insert(mangled_name, info)
+                                break
                             case:
-                                // Not variadic, continue
                             }
-                            ai = add(ai, 1)
                         }
-                        catch (err: IndexOutOfBoundsError) { /* ignore */ }
+                        catch (err: IndexOutOfBoundsError) { throw err.msg }
                     case:
                         // Not a function, skip
                     }
@@ -1155,27 +1152,21 @@ get_struct_dependencies := func(expr: Expr) returns Vec {
             catch (err: IndexOutOfBoundsError) { return deps }
             switch first.node_type {
             case NodeType.StructDef(struct_def):
-                mut i := 0
-                while lt(i, struct_def.members.len()) {
+                for i in 0..struct_def.members.len() {
                     mut member := Declaration()
                     struct_def.members.get(i, member)
                     catch (err: IndexOutOfBoundsError) { return deps }
-                    if member.is_mut {
-                        switch member.value_type {
-                        case ValueType.TCustom(type_name):
-                            // I64 and U8 are primitives, not struct deps
-                            if not(Str.eq(type_name, "I64")) {
-                                if not(Str.eq(type_name, "U8")) {
-                                    if not(Str.eq(type_name, "auto")) {
-                                        deps.push(type_name)
-                                    }
-                                }
-                            }
-                        case:
-                            // Other types are not struct deps
-                        }
+                    if not(member.is_mut) {
+                        continue
                     }
-                    i = add(i, 1)
+                    switch member.value_type {
+                    case ValueType.TCustom(type_name):
+                        // I64 and U8 are primitives, not struct deps
+                        if not(Str.eq(type_name, "I64")).and(not(Str.eq(type_name, "U8"))).and(not(Str.eq(type_name, "auto"))) {
+                            deps.push(type_name)
+                        }
+                    case:
+                    }
                 }
             case:
             }
@@ -1830,15 +1821,14 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
             switch first.node_type {
             case NodeType.StructDef(struct_def):
                 result = result.concat("typedef struct {\n")
-                mut i := 0
-                while lt(i, struct_def.members.len()) {
+                for i in 0..struct_def.members.len() {
                     mut member := Declaration()
                     struct_def.members.get(i, member)
                     // Only emit mut fields as struct members
-                    if member.is_mut {
-                        result = result.concat("    ").concat(til_type_to_c(member.value_type)).concat(" ").concat(member.name).concat(";\n")
+                    if not(member.is_mut) {
+                        continue
                     }
-                    i = add(i, 1)
+                    result = result.concat("    ").concat(til_type_to_c(member.value_type)).concat(" ").concat(member.name).concat(";\n")
                 }
                 result = result.concat("} ").concat(decl.name).concat(";\n\n")
                 return result
@@ -2406,38 +2396,29 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
+        for i in 0..ast.params.len() {
             mut child := Expr()
             ast.params.get(i, child)
             if is_struct_declaration(child) {
                 switch child.node_type {
                 case NodeType.Declaration(decl):
-                    if decl.name.eq("I64") { }
-                    else if decl.name.eq("U8") { }
-                    else if decl.name.eq("Bool") { }
-                    else if decl.name.eq("Dynamic") { }
-                    else if decl.name.eq("Type") { }
-                    else {
-                        mut struct_name := til_name(decl.name)
-                        output = output.concat("typedef struct ").concat(struct_name).concat(" ").concat(struct_name).concat(";\n")
+                    if decl.name.eq("I64").or(decl.name.eq("U8")).or(decl.name.eq("Bool")).or(decl.name.eq("Dynamic")).or(decl.name.eq("Type")) {
+                        continue  // Skip - these are primitive typedefs
                     }
+                    mut struct_name := til_name(decl.name)
+                    output = output.concat("typedef struct ").concat(struct_name).concat(" ").concat(struct_name).concat(";\n")
                 case:
                 }
             }
             // Also forward-declare enums with payloads (they're implemented as structs)
-            if is_enum_declaration(child) {
-                if is_enum_with_payloads(child) {
-                    switch child.node_type {
-                    case NodeType.Declaration(decl):
-                        mut enum_name := til_name(decl.name)
-                        output = output.concat("typedef struct ").concat(enum_name).concat(" ").concat(enum_name).concat(";\n")
-                    case:
-                    }
+            if is_enum_declaration(child).and(is_enum_with_payloads(child)) {
+                switch child.node_type {
+                case NodeType.Declaration(decl):
+                    mut enum_name := til_name(decl.name)
+                    output = output.concat("typedef struct ").concat(enum_name).concat(" ").concat(enum_name).concat(";\n")
+                case:
                 }
             }
-            i = add(i, 1)
         }
         output = output.concat("\n")
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -3153,30 +3134,27 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: Str, mut ctx: 
                     } else {
                         result = result.concat("{")
                         mut is_first := true
-                        mut member_idx := 0
-                        while lt(member_idx, struct_def.members.len()) {
+                        for member_idx in 0..struct_def.members.len() {
                             mut member := Declaration()
                             struct_def.members.get(member_idx, member)
                             catch (err: IndexOutOfBoundsError) { throw err.msg }
                             if not(member.is_mut) {
-                                member_idx = add(member_idx, 1)
+                                continue
+                            }
+                            if not(is_first) {
+                                result = result.concat(", ")
+                            }
+                            is_first = false
+                            result = result.concat(".").concat(member.name).concat(" = ")
+                            mut default_found := false
+                            mut default_expr := Expr()
+                            struct_def.default_values.get(member.name, default_expr)
+                            default_found = true
+                            catch (err: KeyNotFoundError) { }
+                            if default_found {
+                                result = emit_expr(default_expr, result, 0, ctx, context)
                             } else {
-                                if not(is_first) {
-                                    result = result.concat(", ")
-                                }
-                                is_first = false
-                                result = result.concat(".").concat(member.name).concat(" = ")
-                                mut default_found := false
-                                mut default_expr := Expr()
-                                struct_def.default_values.get(member.name, default_expr)
-                                default_found = true
-                                catch (err: KeyNotFoundError) { }
-                                if default_found {
-                                    result = emit_expr(default_expr, result, 0, ctx, context)
-                                } else {
-                                    result = result.concat("0")
-                                }
-                                member_idx = add(member_idx, 1)
+                                result = result.concat("0")
                             }
                         }
                         result = result.concat("}")
@@ -4364,54 +4342,44 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
     // Only register the FIRST catch for each error type (later ones will be unreachable for explicit throws)
     mut catch_suffix := next_mangled()
     mut catch_label_info := Vec.new(CatchLabelInfoEntry)  // (type_name, label, temp_var, catch_block)
-    mut registered_types := Vec.new(Str)
-    mut ci := 0
-    while lt(ci, func_level_catches.len()) {
+    mut registered_types := Set.new(Str)
+    for ci in 0..func_level_catches.len() {
         mut catch_block := Expr()
         func_level_catches.get(ci, catch_block)
-        if gteq(catch_block.params.len(), 3) {
-            mut err_type_expr := Expr()
-            catch_block.params.get(1, err_type_expr)
-            switch err_type_expr.node_type {
-            case NodeType.Identifier(err_type_name):
-                // Only register the first catch for each type
-                mut already_registered := false
-                mut ri := 0
-                while lt(ri, registered_types.len()) {
-                    mut rt := ""
-                    registered_types.get(ri, rt)
-                    if rt.eq(err_type_name) {
-                        already_registered = true
-                    }
-                    ri = add(ri, 1)
-                }
-                if not(already_registered) {
-                    registered_types.push(err_type_name)
-                    mut label := format("_catch_", err_type_name, "_", catch_suffix)
-                    mut temp_var := format("_thrown_", err_type_name, "_", catch_suffix)
-                    mut info := CatchLabelInfo()
-                    info.label = label
-                    info.temp_var = temp_var
-                    ctx.local_catch_labels.set(err_type_name, info)
-                    mut entry := CatchLabelInfoEntry()
-                    entry.type_name = err_type_name
-                    entry.label = label
-                    entry.temp_var = temp_var
-                    entry.catch_block = catch_block
-                    catch_label_info.push(entry)
-
-                    // Declare temp variable to store thrown error value
-                    result = result.concat(indent_str)
-                    result = result.concat(til_name(err_type_name))
-                    result = result.concat(" ")
-                    result = result.concat(temp_var)
-                    result = result.concat(";\n")
-                }
-            case:
-                // Not an identifier, skip
-            }
+        if lt(catch_block.params.len(), 3) {
+            continue
         }
-        ci = add(ci, 1)
+        mut err_type_expr := Expr()
+        catch_block.params.get(1, err_type_expr)
+        switch err_type_expr.node_type {
+        case NodeType.Identifier(err_type_name):
+            // Only register the first catch for each type
+            if registered_types.contains(err_type_name) {
+                continue
+            }
+            _ := registered_types.insert(err_type_name)
+
+            mut label := format("_catch_", err_type_name, "_", catch_suffix)
+            mut temp_var := format("_thrown_", err_type_name, "_", catch_suffix)
+            mut info := CatchLabelInfo()
+            info.label = label
+            info.temp_var = temp_var
+            ctx.local_catch_labels.set(err_type_name, info)
+            mut entry := CatchLabelInfoEntry()
+            entry.type_name = err_type_name
+            entry.label = label
+            entry.temp_var = temp_var
+            entry.catch_block = catch_block
+            catch_label_info.push(entry)
+
+            // Declare temp variable to store thrown error value
+            result = result.concat(indent_str)
+            result = result.concat(til_name(err_type_name))
+            result = result.concat(" ")
+            result = result.concat(temp_var)
+            result = result.concat(";\n")
+        case:
+        }
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
@@ -4501,10 +4469,9 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                             catch (err: AllocError) { throw err.msg }
                             j = add(j, 1)
                         case:
-                            // Not a catch block, stop
-                            j = stmts.len()  // break out of loop
+                            break
                         }
-                        catch (err: IndexOutOfBoundsError) { j = stmts.len() }
+                        catch (err: IndexOutOfBoundsError) { throw next_stmt.lang_error(context.path, "ccodegen", err.msg) }
                     }
 
                     if gt(catch_blocks.len(), 0) {
@@ -6970,27 +6937,26 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 // First check if any default value is a throwing function call
                 mut throwing_defaults := Vec.new(Str)  // member names with throwing defaults
                 mut throwing_default_exprs := Vec.new(Expr)  // corresponding expressions
-                mut member_idx := 0
-                while lt(member_idx, struct_def.members.len()) {
+                for member_idx in 0..struct_def.members.len() {
                     mut member := Declaration()
                     struct_def.members.get(member_idx, member)
-                    if member.is_mut {
-                        if not(named_values.contains_key(member.name)) {
-                            // Named arg overrides default, so only check if not provided
-                            mut default_expr := Expr()
-                            mut has_default := false
-                            struct_def.default_values.get(member.name, default_expr)
-                            has_default = true
-                            catch (err: KeyNotFoundError) { }
-                            if has_default {
-                                if is_throwing_fcall(default_expr, context) {
-                                    throwing_defaults.push(member.name)
-                                    throwing_default_exprs.push(default_expr)
-                                }
-                            }
+                    if not(member.is_mut) {
+                        continue
+                    }
+                    if named_values.contains_key(member.name) {
+                        continue  // Named arg overrides default
+                    }
+                    mut default_expr := Expr()
+                    mut has_default := false
+                    struct_def.default_values.get(member.name, default_expr)
+                    has_default = true
+                    catch (err: KeyNotFoundError) { }
+                    if has_default {
+                        if is_throwing_fcall(default_expr, context) {
+                            throwing_defaults.push(member.name)
+                            throwing_default_exprs.push(default_expr)
                         }
                     }
-                    member_idx = member_idx.add(1)
                 }
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 catch (err: AllocError) { throw err.msg }
@@ -7048,53 +7014,52 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 result = emit_struct_literal_start(result, struct_type, already_declared)
                 result = result.concat("{")
                 mut is_first := true
-                member_idx = 0
-                while lt(member_idx, struct_def.members.len()) {
+                for member_idx in 0..struct_def.members.len() {
                     mut member := Declaration()
                     struct_def.members.get(member_idx, member)
                     // Only include mut fields (actual struct data members)
                     // Skip functions, constants, and non-mut fields
-                    if member.is_mut {
-                        if not(is_first) {
-                            result = result.concat(", ")
-                        }
-                        is_first = false
-                        result = result.concat(".").concat(member.name).concat(" = ")
-                        // Use named arg value if provided, otherwise use default
-                        mut value_expr := Expr()
-                        mut has_named_value := false
-                        named_values.get(member.name, value_expr)
-                        has_named_value = true
+                    if not(member.is_mut) {
+                        continue
+                    }
+                    if not(is_first) {
+                        result = result.concat(", ")
+                    }
+                    is_first = false
+                    result = result.concat(".").concat(member.name).concat(" = ")
+                    // Use named arg value if provided, otherwise use default
+                    mut value_expr := Expr()
+                    mut has_named_value := false
+                    named_values.get(member.name, value_expr)
+                    has_named_value = true
+                    catch (err: KeyNotFoundError) { }
+                    if has_named_value.and(gt(value_expr.params.len(), 0).or(gt(value_expr.line, 0))) {
+                        result = emit_expr(value_expr, result, 0, ctx, context)
+                    } else {
+                        mut default_expr := Expr()
+                        mut has_default := false
+                        struct_def.default_values.get(member.name, default_expr)
+                        has_default = true
                         catch (err: KeyNotFoundError) { }
-                        if has_named_value.and(gt(value_expr.params.len(), 0).or(gt(value_expr.line, 0))) {
-                            result = emit_expr(value_expr, result, 0, ctx, context)
-                        } else {
-                            mut default_expr := Expr()
-                            mut has_default := false
-                            struct_def.default_values.get(member.name, default_expr)
-                            has_default = true
-                            catch (err: KeyNotFoundError) { }
-                            if has_default {
-                                // Check if this was a throwing default - use temp var instead
-                                key := type_name.concat(":").concat(member.name)
-                                mut temp_name := ""
-                                ctx.hoisted_struct_defaults.get(key, temp_name)
-                                result = result.concat(temp_name)
-                                catch (err: KeyNotFoundError) {
-                                    if is_throwing_fcall(default_expr, context) {
-                                        // Shouldn't happen - throwing defaults should be hoisted
-                                        result = result.concat("/* ERROR: unhoisted throwing default */")
-                                    } else {
-                                        result = emit_expr(default_expr, result, 0, ctx, context)
-                                    }
+                        if has_default {
+                            // Check if this was a throwing default - use temp var instead
+                            key := type_name.concat(":").concat(member.name)
+                            mut temp_name := ""
+                            ctx.hoisted_struct_defaults.get(key, temp_name)
+                            result = result.concat(temp_name)
+                            catch (err: KeyNotFoundError) {
+                                if is_throwing_fcall(default_expr, context) {
+                                    // Shouldn't happen - throwing defaults should be hoisted
+                                    result = result.concat("/* ERROR: unhoisted throwing default */")
+                                } else {
+                                    result = emit_expr(default_expr, result, 0, ctx, context)
                                 }
-                            } else {
-                                // No default - use zero
-                                result = result.concat("0")
                             }
+                        } else {
+                            // No default - use zero
+                            result = result.concat("0")
                         }
                     }
-                    member_idx = member_idx.add(1)
                 }
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 result = result.concat("};\n")
@@ -7806,9 +7771,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                                 output = output.concat("; return ")
                                 output = output.concat(I64.to_str(add(curr_idx, 1)))
                                 output = output.concat("; }\n")
+                                break
                             }
                         case:
-                            // Skip
                         }
                         curr_idx = add(curr_idx, 1)
                         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -8246,8 +8211,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     output = output.concat(err_suffix)
     output = output.concat(" != 0) {\n")
     // Propagate AllocError if current function throws it
-    mut curr_idx := 0
-    while lt(curr_idx, ctx.current_throw_types.len()) {
+    for curr_idx in 0..ctx.current_throw_types.len() {
         mut curr_throw := ValueType.TCustom("")
         ctx.current_throw_types.get(curr_idx, curr_throw)
         switch curr_throw {
@@ -8261,11 +8225,10 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
                 output = output.concat("; return ")
                 output = output.concat(I64.to_str(add(curr_idx, 1)))
                 output = output.concat(";\n")
+                break
             }
         case:
-            // Skip
         }
-        curr_idx = add(curr_idx, 1)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     output = output.concat(indent_str)
@@ -8292,13 +8255,12 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         output = output.concat(temp)
         output = output.concat(");\n")
 
-        // Error check for Array.set
+        // Error check for Array.set (IndexOutOfBoundsError - shouldn't happen but propagate if thrown)
         output = output.concat(indent_str)
         output = output.concat("if (_arr_status_")
         output = output.concat(err_suffix)
         output = output.concat(" != 0) {\n")
-        curr_idx = 0
-        while lt(curr_idx, ctx.current_throw_types.len()) {
+        for curr_idx in 0..ctx.current_throw_types.len() {
             mut curr_throw := ValueType.TCustom("")
             ctx.current_throw_types.get(curr_idx, curr_throw)
             switch curr_throw {
@@ -8312,11 +8274,10 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
                     output = output.concat("; return ")
                     output = output.concat(I64.to_str(add(curr_idx, 1)))
                     output = output.concat(";\n")
+                    break
                 }
             case:
-                // Skip
             }
-            curr_idx = add(curr_idx, 1)
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         output = output.concat(indent_str)
