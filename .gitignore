@@ -12,10 +12,8 @@ c/**/*.c
 src/**/*.c
 # Exception: track hello_script.c for codegen debugging
 !c/examples/hello_script.c
-!src/examples/hello_script.c
 # Exception: track constfold.c for constant folding verification
 !c/test/constfold.c
-!src/test/constfold.c
 
 # Compiled binaries go to bin/ subdirectories (consistent with top-level bin/)
 src/**/bin/
