@@ -3964,6 +3964,55 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 result = emit_expr(case_pattern, result, 0, ctx, context)
             }
             result = result.concat(") {\n")
+        case NodeType.FCall:
+            // FCall pattern: Type.Variant(payload) - enum variant with payload argument
+            // For example: ValueType.TType(TTypeDef.TEnumDef)
+            info := get_case_variant_info(case_pattern)
+            if gt(info.variant_name.len(), 0).and(enum_has_payloads_flag) {
+                // Compare tag first
+                result = result.concat(switch_var)
+                result = result.concat(".tag == til_")
+                result = result.concat(info.type_name)
+                result = result.concat("_")
+                result = result.concat(info.variant_name)
+
+                // Check if there's a payload argument to compare
+                // params[0] is Type.Variant identifier, params[1+] are arguments
+                if gt(case_pattern.params.len(), 1) {
+                    mut payload_expr := Expr()
+                    case_pattern.params.get(1, payload_expr)
+                    catch (err: IndexOutOfBoundsError) { }
+                    // Check if payload is also an enum variant (Type.Variant pattern)
+                    payload_info := get_case_variant_info(payload_expr)
+                    if gt(payload_info.variant_name.len(), 0) {
+                        // Payload is an enum variant - compare payload field
+                        result = result.concat(" && ")
+                        result = result.concat(switch_var)
+                        result = result.concat(".payload.")
+                        result = result.concat(info.variant_name)
+                        result = result.concat(" == til_")
+                        result = result.concat(payload_info.type_name)
+                        result = result.concat("_")
+                        result = result.concat(payload_info.variant_name)
+                    }
+                    // TODO: handle non-enum payloads if needed
+                }
+                result = result.concat(") {\n")
+            } else if gt(info.variant_name.len(), 0) {
+                // Enum without payloads - simple tag comparison
+                result = result.concat(switch_var)
+                result = result.concat(" == til_")
+                result = result.concat(info.type_name)
+                result = result.concat("_")
+                result = result.concat(info.variant_name)
+                result = result.concat(") {\n")
+            } else {
+                // Not an enum pattern - fall through to generic comparison
+                result = result.concat(switch_var)
+                result = result.concat(" == ")
+                result = emit_expr(case_pattern, result, 0, ctx, context)
+                result = result.concat(") {\n")
+            }
         case:
             // Generic case: emit equality comparison
             if is_str_switch {

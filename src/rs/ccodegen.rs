@@ -5724,6 +5724,54 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 }
                 output.push_str(") {\n");
             },
+            NodeType::FCall => {
+                // FCall pattern: Type.Variant(payload) - enum variant with payload argument
+                // For example: ValueType.TType(TTypeDef.TEnumDef)
+                let info = get_case_variant_info(case_pattern);
+                if !info.variant_name.is_empty() && enum_has_payloads_flag {
+                    // Compare tag first
+                    output.push_str(&switch_var);
+                    output.push_str(".tag == til_");
+                    output.push_str(&info.type_name);
+                    output.push_str("_");
+                    output.push_str(&info.variant_name);
+
+                    // Check if there's a payload argument to compare
+                    // params[0] is Type.Variant identifier, params[1+] are arguments
+                    if case_pattern.params.len() > 1 {
+                        let payload_expr = &case_pattern.params[1];
+                        // Check if payload is also an enum variant (Type.Variant pattern)
+                        let payload_info = get_case_variant_info(payload_expr);
+                        if !payload_info.variant_name.is_empty() {
+                            // Payload is an enum variant - compare payload field
+                            output.push_str(" && ");
+                            output.push_str(&switch_var);
+                            output.push_str(".payload.");
+                            output.push_str(&info.variant_name);
+                            output.push_str(" == til_");
+                            output.push_str(&payload_info.type_name);
+                            output.push_str("_");
+                            output.push_str(&payload_info.variant_name);
+                        }
+                        // TODO: handle non-enum payloads if needed
+                    }
+                    output.push_str(") {\n");
+                } else if !info.variant_name.is_empty() {
+                    // Enum without payloads - simple tag comparison
+                    output.push_str(&switch_var);
+                    output.push_str(" == til_");
+                    output.push_str(&info.type_name);
+                    output.push_str("_");
+                    output.push_str(&info.variant_name);
+                    output.push_str(") {\n");
+                } else {
+                    // Not an enum pattern - fall through to generic comparison
+                    output.push_str(&switch_var);
+                    output.push_str(" == ");
+                    emit_expr(case_pattern, output, 0, ctx, context)?;
+                    output.push_str(") {\n");
+                }
+            },
             _ => {
                 // Generic case: emit equality comparison
                 if is_str_switch {
