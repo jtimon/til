@@ -11,7 +11,21 @@ Bool := struct {
     }
 
     eq := func(a: Bool, b: Bool) returns Bool {
-        return or(and(a, b), and(not(b), not(a)))
+        return a.and(b).or(not(b).and(not(a)))
+    }
+
+    and := func(self: Bool, other: Bool) returns Bool {
+        if self {
+            return other
+        }
+        return false
+    }
+
+    or := func(self: Bool, other: Bool) returns Bool {
+        if self {
+            return true
+        }
+        return other
     }
 
     to_str := func(self: Bool) returns Str {

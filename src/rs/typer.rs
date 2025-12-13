@@ -1664,30 +1664,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
             // Regular functions and associated functions used directly
             let combined_name = crate::rs::parser::get_combined_name(&context.path, func_expr)?;
 
-            // NEW: Check if this is a UFCS call on a function/expression result
-            // If params has 2+ elements and params[1] is an expression (FCall, etc.)
-            if fcall_expr.params.len() >= 2 {
-                let first_arg = fcall_expr.get(1)?;
-                // Try to get the type of the first argument
-                if let Ok(target_type) = get_value_type(context, first_arg) {
-                    if let ValueType::TCustom(custom_type_name) = target_type {
-                        // Check if this type has an associated method
-                        let method_name = format!("{}.{}", custom_type_name, combined_name);
-                        if let Some(func_def) = context.scope_stack.lookup_func(&method_name) {
-                            // Transform: method(target, args...) with proper identifier
-                            let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), fcall_expr.get(0)?, Vec::new());
-                            let mut new_args = Vec::new();
-                            new_args.push(new_e);
-                            new_args.extend(fcall_expr.params[1..].to_vec());
-
-                            *fcall_expr = Expr::new_clone(NodeType::FCall, fcall_expr.get(0)?, new_args);
-                            return Ok(Some(func_def.clone()));
-                        }
-                    }
-                }
-            }
-
-            // Original logic: check for regular function
+            // Regular function call - check if it exists
             if let Some(func_def) = context.scope_stack.lookup_func(&combined_name) {
                 return Ok(Some(func_def.clone()))
             }
@@ -1709,7 +1686,28 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                 }
             }
 
-            // Using UFCS
+            // UFCS for chained calls: func(result, args) -> Type.func(result, args)
+            // e.g., add(1, 2).mul(3) becomes mul(add(1,2), 3) which transforms to I64.mul(add(1,2), 3)
+            // This only applies when no standalone function with this name exists (checked above).
+            if fcall_expr.params.len() >= 2 {
+                let first_arg = fcall_expr.get(1)?;
+                if let Ok(target_type) = get_value_type(context, first_arg) {
+                    if let ValueType::TCustom(custom_type_name) = target_type {
+                        let method_name = format!("{}.{}", custom_type_name, combined_name);
+                        if let Some(func_def) = context.scope_stack.lookup_func(&method_name) {
+                            // Transform: func(target, args...) -> Type.func(target, args...)
+                            let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), fcall_expr.get(0)?, Vec::new());
+                            let mut new_args = Vec::new();
+                            new_args.push(new_e);
+                            new_args.extend(fcall_expr.params[1..].to_vec());
+                            *fcall_expr = Expr::new_clone(NodeType::FCall, fcall_expr.get(0)?, new_args);
+                            return Ok(Some(func_def.clone()));
+                        }
+                    }
+                }
+            }
+
+            // UFCS with dot notation
             if let Some(func_name_expr) = func_expr.params.last() {
                 if let NodeType::Identifier(ufcs_func_name) = &func_name_expr.node_type {
                     let mut parts: Vec<&str> = combined_name.split('.').collect();

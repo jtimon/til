@@ -31,7 +31,7 @@ rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def
             switch default_expr.node_type {
             case NodeType.FuncDef(func_def):
                 // Method - check if reachable or external
-                if or(func_def.is_ext(), reachable.contains(full_name)) {
+                if func_def.is_ext().or(reachable.contains(full_name)) {
                     new_members.push(member_decl)
                     new_default_values.set(member_decl.name, default_expr)
                 }
@@ -373,7 +373,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
                         found_enum_check = true
                         catch (err: KeyNotFoundError) { }
 
-                        is_unresolved_ufcs = not(or(found_struct_check, found_enum_check))
+                        is_unresolved_ufcs = not(found_struct_check.or(found_enum_check))
                     } else {
                         // Single name - could be a method that precomp couldn't resolve
                         is_unresolved_ufcs = true
@@ -489,7 +489,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             // CLI mode: root is main
             _ := roots.insert("main")
         } else {
-            if or(context.mode_def.allows_base_calls, context.mode_def.allows_base_anything) {
+            if context.mode_def.allows_base_calls.or(context.mode_def.allows_base_anything) {
                 // script/safe_script/test: all top-level non-declaration statements are roots
                 // Walk them to find called functions
                 mut i := 0
@@ -534,7 +534,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     switch inner.node_type {
                     case NodeType.FuncDef(func_def):
                         // Function declaration - keep if reachable or external
-                        if or(func_def.is_ext(), reachable.contains(decl.name)) {
+                        if func_def.is_ext().or(reachable.contains(decl.name)) {
                             new_params.push(stmt)
                         }
                     case NodeType.StructDef(struct_def):

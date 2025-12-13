@@ -512,7 +512,7 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                 // comments:
             case "#":
                 pos.inc()
-                while and(lt(pos.add(1), eof_pos), not(source.get_substr(pos, pos.add(1)).eq("\n"))) {
+                while lt(pos.add(1), eof_pos).and(not(source.get_substr(pos, pos.add(1)).eq("\n"))) {
                     pos.inc()
                 }
                 should_process_token = false
@@ -520,7 +520,7 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                 if source.get_substr(pos.add(1), pos.add(2)).eq("/") {
                     // Single-line comment
                     pos.inc()
-                    while and(lt(pos.add(1), eof_pos), not(source.get_substr(pos, pos.add(1)).eq("\n"))) {
+                    while lt(pos.add(1), eof_pos).and(not(source.get_substr(pos, pos.add(1)).eq("\n"))) {
                         pos.inc()
                     }
                     should_process_token = false
@@ -530,7 +530,7 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                     mut depth := 1
                     mut should_continue_parsing := true
 
-                    while and(pos.lt(eof_pos.sub(1)), should_continue_parsing) {
+                    while pos.lt(eof_pos.sub(1)).and(should_continue_parsing) {
                         next_two := source.get_substr(pos, pos.add(2))
 
                         if next_two.eq("/*") {
@@ -614,8 +614,8 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                 if source.is_id_start(pos) {
                     pos.inc()
                     mut continue_id_scan := true
-                    while and(pos.lt(eof_pos), continue_id_scan) {
-                        if or(source.is_digit(pos), source.is_id_start(pos)) {
+                    while pos.lt(eof_pos).and(continue_id_scan) {
+                        if source.is_digit(pos).or(source.is_id_start(pos)) {
                             pos.inc()
                         } else {
                             continue_id_scan = false
@@ -699,7 +699,7 @@ build_var_suggestion := func(tokens: Vec, var_index: I64) returns Str throws Str
             is_equal = false
         }
 
-        if and(is_identifier, is_equal) {
+        if is_identifier.and(is_equal) {
             return format("Suggestion: mut ", ident_token.token_str, " := ", value_token.token_str)
         }
     }

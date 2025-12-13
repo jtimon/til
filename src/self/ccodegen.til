@@ -3429,7 +3429,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     }
 
     // Close the if/else chain
-    if or(gt(case_patterns.len(), 0), has_default) {
+    if gt(case_patterns.len(), 0).or(has_default) {
         result = result.concat(indent_str)
         result = result.concat("}\n")
     }
@@ -4031,7 +4031,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
 
     // Determine return type if we need to declare a variable
     mut ret_type := "int"
-    if or(gt(decl_name.len(), 0), gt(assign_name.len(), 0)) {
+    if gt(decl_name.len(), 0).or(gt(assign_name.len(), 0)) {
         if lookup_result.found {
             if gt(lookup_result.func_def.return_types.len(), 0) {
                 mut first_ret := ValueType.TCustom("")

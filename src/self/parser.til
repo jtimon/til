@@ -360,7 +360,7 @@ parse_args := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsEr
     mut list_t := lexer.peek()
     mut expect_comma := false
 
-    while and(not(lexer.is_eof(0)), not(rightparent_found)) {
+    while not(lexer.is_eof(0)).and(not(rightparent_found)) {
         switch list_t.token_type {
         case TokenType.RightParen:
             _ := lexer.expect(TokenType.RightParen)
@@ -475,7 +475,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
     mut is_copy := false
     mut is_own := false
 
-    while and(not(lexer.is_eof(0)), not(rightparent_found)) {
+    while not(lexer.is_eof(0)).and(not(rightparent_found)) {
         tt := t.token_type
         switch tt {
         case TokenType.RightParen:
@@ -636,7 +636,7 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
     t = lexer.peek()
     mut expect_comma := false
 
-    while and(not(lexer.is_eof(0)), not(end_found)) {
+    while not(lexer.is_eof(0)).and(not(end_found)) {
         tt2 := t.token_type
         switch tt2 {
         case TokenType.Throws:
@@ -695,7 +695,7 @@ func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
     t = lexer.peek()
     mut expect_comma := false
 
-    while and(not(lexer.is_eof(0)), not(end_found)) {
+    while not(lexer.is_eof(0)).and(not(end_found)) {
         tt2 := t.token_type
         switch tt2 {
         case TokenType.LeftBrace:
@@ -800,7 +800,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
     mut enum_map := Map.new(Str, Ptr)  // Ptr to ValueType, NULL = None
 
     mut end_found := false
-    while and(lexer.current.lt(lexer.len()), not(end_found)) {
+    while lexer.current.lt(lexer.len()).and(not(end_found)) {
         it_t := lexer.peek()
         itt := it_t.token_type
         switch itt {
@@ -1554,7 +1554,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
     }
 
     mut end_found := false
-    while and(lexer.current.lt(lexer.len()), not(end_found)) {
+    while lexer.current.lt(lexer.len()).and(not(end_found)) {
         mut next_t := lexer.peek()
         ntt := next_t.token_type
         switch ntt {
@@ -1589,7 +1589,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
         next_t = lexer.peek()
         mut body_params := Vec.new(Expr)
         mut inner_loop_done := false
-        while and(lexer.current.lt(lexer.len()), not(inner_loop_done)) {  // TODO: Replace with 'while lexer.current < lexer.len()' + 'break' when implemented
+        while lexer.current.lt(lexer.len()).and(not(inner_loop_done)) {  // TODO: Replace with 'while lexer.current < lexer.len()' + 'break' when implemented
             ntt4 := next_t.token_type
             switch ntt4 {
             case TokenType.RightBrace:
@@ -1733,7 +1733,7 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
     mut t := lexer.peek() // track last token for error reporting
 
     mut continue_loop := true
-    while and(lexer.current.lt(lexer.len()), not(end_found)) {
+    while lexer.current.lt(lexer.len()).and(not(end_found)) {
         if not(continue_loop) {
             continue_loop = true
         }

@@ -26,7 +26,7 @@ test_ufcs := proc () {
     // test(loc(), and(true, true).and(true)), "and(true, true).and(true)) == true") // TODO implement UFCS (Uniform Function Call Syntax) for func calls results
 
     xor2 := func(a: Bool, b: Bool) returns Bool {
-        return or(a.and(not(b)), b.and(not(a)))
+        return a.and(not(b)).or(b.and(not(a)))
     }
     // my_true.xor2(false) // TODO FIX
     assert(loc(), xor2(true, false))
@@ -88,9 +88,9 @@ test_ufcs_on_function_results := proc () {
     assert(loc(), mul(5, 6).eq(30))
 
     // Test with Bool methods on function results
-    assert(loc(), and(true, true).or(false))
-    assert(loc(), or(false, false).not())
-    assert(loc(), not(and(true, false).or(false)))
+    assert(loc(), true.and(true).or(false))
+    assert(loc(), false.or(false).not())
+    assert(loc(), not(true.and(false).or(false)))
 
     // Catch unexpected errors at end
     catch (err: AllocError) {
@@ -128,9 +128,9 @@ test_ufcs_long_chains := proc () {
     assert_eq(loc(), 20, result3)
 
     // Complex boolean chains
-    assert(loc(), and(true, true).and(true).or(false))
-    assert(loc(), or(false, true).and(true).and(true))
-    assert(loc(), not(and(false, true).or(false).or(false)))
+    assert(loc(), true.and(true).and(true).or(false))
+    assert(loc(), false.or(true).and(true).and(true))
+    assert(loc(), not(false.and(true).or(false).or(false)))
 }
 test_ufcs_long_chains()
 

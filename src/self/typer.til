@@ -2230,52 +2230,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
         // Regular functions and associated functions used directly
         combined_name := get_combined_name(context.path, func_expr)
 
-        // NEW: Check if this is a UFCS call on a function/expression result
-        // If params has 2+ elements and params[1] is an expression (FCall, etc.)
-        if fcall_expr.params.len().gteq(2) {
-            mut first_arg := fcall_expr.get(1)
-            // Try to get the type of the first argument
-            mut target_type := ValueType.TCustom("")
-            mut target_type_valid := true
-            target_type = get_value_type(context, first_arg)
-            catch (err: Str) {
-                target_type_valid = false
-            }
-            if target_type_valid {
-                switch target_type {
-                case ValueType.TCustom(custom_type_name):
-                    // Check if this type has an associated method
-                    method_name := format(custom_type_name, ".", combined_name)
-                    mut method_found := false
-                    mut method_func_def := SFuncDef()
-                    method_func_def = context.scope_stack.lookup_func(method_name)
-                    method_found = true
-                    catch (err: KeyNotFoundError) {
-                        // Method not found, continue to other checks
-                    }
-                    if method_found {
-                        // Transform: method(target, args...) with proper identifier
-                        mut empty_params := Vec.new(Expr)
-                        mut new_e := Expr.new_clone(NodeType.Identifier(method_name), fcall_expr.get(0), empty_params)
-                        mut new_args := Vec.new(Expr)
-                        new_args.push(new_e)
-                        // Extend with params[1..]
-                        mut k := 1
-                        while k.lt(fcall_expr.params.len()) {
-                            mut arg_e := fcall_expr.get(k)
-                            new_args.push(arg_e)
-                            k = k.add(1)
-                        }
-                        fcall_expr = Expr.new_clone(NodeType.FCall, fcall_expr.get(0), new_args)
-                        return method_func_def
-                    }
-                case:
-                    // Non-TCustom type, skip
-                }
-            }
-        }
-
-        // Original logic: check for regular function
+        // Regular function call - check if it exists
         mut func_found := false
         mut func_def := SFuncDef()
         func_def = context.scope_stack.lookup_func(combined_name)
@@ -2328,7 +2283,51 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
             }
         }
 
-        // Using UFCS
+        // UFCS for chained calls: func(result, args) -> Type.func(result, args)
+        // e.g., add(1, 2).mul(3) becomes mul(add(1,2), 3) which transforms to I64.mul(add(1,2), 3)
+        // This only applies when no standalone function with this name exists (checked above).
+        if fcall_expr.params.len().gteq(2) {
+            mut first_arg := fcall_expr.get(1)
+            mut target_type := ValueType.TCustom("")
+            mut target_type_valid := true
+            target_type = get_value_type(context, first_arg)
+            catch (err: Str) {
+                target_type_valid = false
+            }
+            if target_type_valid {
+                switch target_type {
+                case ValueType.TCustom(custom_type_name):
+                    method_name := format(custom_type_name, ".", combined_name)
+                    mut method_found := false
+                    mut method_func_def := SFuncDef()
+                    method_func_def = context.scope_stack.lookup_func(method_name)
+                    method_found = true
+                    catch (err: KeyNotFoundError) {
+                        // Method not found, continue to other checks
+                    }
+                    if method_found {
+                        // Transform: func(target, args...) -> Type.func(target, args...)
+                        mut empty_params := Vec.new(Expr)
+                        mut new_e := Expr.new_clone(NodeType.Identifier(method_name), fcall_expr.get(0), empty_params)
+                        mut new_args := Vec.new(Expr)
+                        new_args.push(new_e)
+                        // Extend with params[1..]
+                        mut k := 1
+                        while k.lt(fcall_expr.params.len()) {
+                            mut arg_e := fcall_expr.get(k)
+                            new_args.push(arg_e)
+                            k = k.add(1)
+                        }
+                        fcall_expr = Expr.new_clone(NodeType.FCall, fcall_expr.get(0), new_args)
+                        return method_func_def
+                    }
+                case:
+                    // Non-TCustom type, skip
+                }
+            }
+        }
+
+        // UFCS with dot notation
         if func_expr.params.len().gt(0) {
             // Get last param (function name)
             mut last_idx := func_expr.params.len().sub(1)

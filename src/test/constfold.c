@@ -199,7 +199,7 @@ _catch_IndexOutOfBoundsError__tmp2: {
     _arr_status__tmp9 = til_Array_set(&_err_idx__tmp9, &_tmp8, 0, &_tmp10);
     if (_arr_status__tmp9 != 0) {
     }
-    til_panic(((til_Str){(til_I64)"src/core/bool.til:69:15:", 24}), &_tmp8);
+    til_panic(((til_Str){(til_I64)"src/core/bool.til:83:15:", 24}), &_tmp8);
     til_Array_delete(&_tmp8);
     goto _end_catches__tmp2;
     }
@@ -233,7 +233,7 @@ _catch_IndexOutOfBoundsError__tmp11: {
     _arr_status__tmp18 = til_Array_set(&_err_idx__tmp18, &_tmp17, 0, &_tmp19);
     if (_arr_status__tmp18 != 0) {
     }
-    til_panic(((til_Str){(til_I64)"src/core/bool.til:85:15:", 24}), &_tmp17);
+    til_panic(((til_Str){(til_I64)"src/core/bool.til:99:15:", 24}), &_tmp17);
     til_Array_delete(&_tmp17);
     goto _end_catches__tmp11;
     }

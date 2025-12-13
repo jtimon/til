@@ -5,24 +5,24 @@ mode test
 test(loc(), true, "true is true")
 test(loc(), not(false), "not: not false is true")
 test(loc(), not(not(true)), "not: not not true is true")
-// and(true, 1111) // fails, 'and' cannot take number literals
-// and(true, "asdfgdfafgd") // fails, 'and' cannot take string literals
-test(loc(), and(true, true), "and(true, true) == true")
-test(loc(), not(and(true, false)), "and(true, false) == false")
-test(loc(), not(and(true, false)), "and(false, true) == false")
-test(loc(), not(and(false, true)), "and(false, true) == false")
-test(loc(), not(and(false, false)), "and(false, false) == false")
+// true.and(1111) // fails, 'and' cannot take number literals
+// true.and("asdfgdfafgd") // fails, 'and' cannot take string literals
+test(loc(), true.and(true), "true.and(true) == true")
+test(loc(), not(true.and(false)), "true.and(false) == false")
+test(loc(), not(true.and(false)), "false.and(true) == false")
+test(loc(), not(false.and(true)), "false.and(true) == false")
+test(loc(), not(false.and(false)), "false.and(false) == false")
 
-test(loc(), or(true, true), "or(true, true) == true")
-test(loc(), or(true, false), "or(true, false) == true")
-test(loc(), or(false, true), "or(false, true) == true")
-test(loc(), not(or(false, false)), "or(false, false) == false")
+test(loc(), true.or(true), "true.or(true) == true")
+test(loc(), true.or(false), "true.or(false) == true")
+test(loc(), false.or(true), "false.or(true) == true")
+test(loc(), not(false.or(false)), "false.or(false) == false")
 
 // note that both 'and' and 'or' can take any number of bools as args, like in lisp
 // test(loc(), or(false, true, true), "or(false, false, true) == true")
 // test(loc(), not(and(false, true, true)), "and(false, false, true) == false")
 
-test(loc(), or(true, false), "and: true or false is true")
+test(loc(), true.or(false), "and: true or false is true")
 
 test(loc(), xor(true, false), "and: true xor false is true")
 test(loc(), not(xor(true, true)), "xor(true, true) == false")
@@ -34,10 +34,10 @@ test(loc(), I64.eq(Bool.to_i64(true), 1), "Bool.to_i64(true) = 1")
 test(loc(), I64.eq(Bool.to_i64(false), 0), "Bool.to_i64(false) = 0")
 
 // Testing 'and' with all combinations
-test(loc(), and(true, true), "true AND true = true")
-test(loc(), not(and(true, false)), "true AND false = false")
-test(loc(), not(and(false, true)), "false AND true = false")
-test(loc(), not(and(false, false)), "false AND false = false")
+test(loc(), true.and(true), "true AND true = true")
+test(loc(), not(true.and(false)), "true AND false = false")
+test(loc(), not(false.and(true)), "false AND true = false")
+test(loc(), not(false.and(false)), "false AND false = false")
 
 // variadic 'and'
 test(loc(), and(true), "true AND = true")
@@ -46,10 +46,10 @@ test(loc(), and(true, true, true), "true AND true AND true = true")
 test(loc(), not(and(true, false, true)), "true AND false AND true = false")
 
 // Testing 'or' with all combinations
-test(loc(), not(or(false, false)), "false OR false = false")
-test(loc(), or(true, false), "true OR false = true")
-test(loc(), or(false, true), "false OR true = true")
-test(loc(), or(true, true), "true OR true = true")
+test(loc(), not(false.or(false)), "false OR false = false")
+test(loc(), true.or(false), "true OR false = true")
+test(loc(), false.or(true), "false OR true = true")
+test(loc(), true.or(true), "true OR true = true")
 
 // variadic 'or'
 test(loc(), or(true), "true OR = true")
@@ -81,4 +81,4 @@ test(loc(), Str.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)") // Use a
 test(loc(), Str.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)")
 test(loc(), Str.eq("true", Bool.to_str(true)), "'true' = Bool.to_str(true)")
 test(loc(), Str.eq("false", Bool.to_str(false)), "'false' = Bool.to_str(false)")
-test(loc(), Str.eq("false", and(false, false).to_str()), "'false' = Bool.to_str(and(false, false)))")
+test(loc(), Str.eq("false", false.and(false).to_str()), "'false' = Bool.to_str(false.and(false)))")

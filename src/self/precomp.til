@@ -71,19 +71,19 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
     }
 
     // Named args are not supported for variadic functions
-    if and(has_named_args, is_variadic) {
+    if has_named_args.and(is_variadic) {
         throw e.error(context.path, "precomp", "Named arguments are not supported for variadic functions")
     }
 
     // Check if we need to fill in default values (fewer args than params)
     // Don't apply to variadic functions
     mut needs_defaults := false
-    if and(not(is_variadic), call_args_len.lt(func_def.args.len())) {
+    if not(is_variadic).and(call_args_len.lt(func_def.args.len())) {
         needs_defaults = true
     }
 
     // If no named args and no defaults needed, return unchanged
-    if and(not(has_named_args), not(needs_defaults)) {
+    if not(has_named_args).and(not(needs_defaults)) {
         return e.clone()
     }
 
@@ -757,47 +757,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.Identifier:
         mut combined_name := get_combined_name(context.path, func_expr)
 
-        // Case 1: UFCS call on a function/expression result
-        // e.g., add(1, 2).mul(3) where first arg is the result to call method on
-        if e.params.len().gteq(2) {
-            mut first_arg := Expr()
-            e.params.get(1, first_arg)
-            mut got_type := true
-            mut target_type := get_value_type(context, first_arg)
-            catch (err: Str) {
-                got_type = false
-            }
-            if got_type {
-                switch target_type {
-                case ValueType.TCustom(custom_type_name):
-                    mut method_name := format(custom_type_name, ".", combined_name)
-                    mut method_found := false
-                    mut dummy := context.scope_stack.lookup_func(method_name)
-                    method_found = true
-                    catch (err: KeyNotFoundError) {
-                        // Not found
-                    }
-                    if method_found {
-                        // Transform: method(target, args...) -> Type.method(target, args...)
-                        mut new_e := Expr.new_clone(NodeType.Identifier(method_name), func_expr, Vec.new(Expr))
-                        mut new_args := Vec.new(Expr)
-                        new_args.push(new_e)
-                        // Add remaining args
-                        mut j := 1
-                        while j.lt(e.params.len()) {
-                            mut arg := Expr()
-                            e.params.get(j, arg)
-                            new_args.push(arg)
-                            j = j.add(1)
-                        }
-                        return Expr.new_clone(NodeType.FCall, func_expr, new_args)
-                    }
-                case:
-                }
-            }
-        }
-
-        // Case 2: Already a regular function call - check if it exists
+        // Regular function call - check if it exists
         mut func_found := false
         mut func_def := context.scope_stack.lookup_func(combined_name)
         func_found = true
@@ -855,7 +815,48 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
             }
         }
 
-        // Case 4: UFCS with dot notation (e.g., a.method(b) or a.field.method())
+        // UFCS for chained calls: func(result, args) -> Type.func(result, args)
+        // e.g., add(1, 2).mul(3) becomes mul(add(1,2), 3) which transforms to I64.mul(add(1,2), 3)
+        // This only applies when no standalone function with this name exists (checked above).
+        if e.params.len().gteq(2) {
+            mut first_arg := Expr()
+            e.params.get(1, first_arg)
+            mut got_type := true
+            mut target_type := get_value_type(context, first_arg)
+            catch (err: Str) {
+                got_type = false
+            }
+            if got_type {
+                switch target_type {
+                case ValueType.TCustom(custom_type_name):
+                    mut method_name := format(custom_type_name, ".", combined_name)
+                    mut method_found := false
+                    mut dummy := context.scope_stack.lookup_func(method_name)
+                    method_found = true
+                    catch (err: KeyNotFoundError) {
+                        // Not found
+                    }
+                    if method_found {
+                        // Transform: func(target, args...) -> Type.func(target, args...)
+                        mut new_e := Expr.new_clone(NodeType.Identifier(method_name), func_expr, Vec.new(Expr))
+                        mut new_args := Vec.new(Expr)
+                        new_args.push(new_e)
+                        // Add remaining args
+                        mut j := 1
+                        while j.lt(e.params.len()) {
+                            mut arg := Expr()
+                            e.params.get(j, arg)
+                            new_args.push(arg)
+                            j = j.add(1)
+                        }
+                        return Expr.new_clone(NodeType.FCall, func_expr, new_args)
+                    }
+                case:
+                }
+            }
+        }
+
+        // UFCS with dot notation (e.g., a.method(b) or a.field.method())
         if func_expr.params.len().gt(0) {
             mut func_name_expr := Expr()
             func_expr.params.get(func_expr.params.len().sub(1), func_name_expr)
