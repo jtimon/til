@@ -2702,20 +2702,12 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::LLiteral(lit) => emit_literal(lit, output, context),
         NodeType::Declaration(decl) => emit_declaration(decl, expr, output, indent, ctx, context),
         NodeType::Identifier(name) => {
-            // Check for type-qualified access (Type.field)
+            // Check for type-qualified access (Type.field or Type.Variant)
             if !expr.params.is_empty() {
-                let first_char = name.chars().next().unwrap_or('a');
-                // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
-                if first_char.is_uppercase() {
-                    if let NodeType::Identifier(field) = &expr.params[0].node_type {
-                        // Check if this is an enum variant by looking up in context
-                        let is_enum_variant = if let Some(enum_def) = context.scope_stack.lookup_enum(name) {
-                            enum_def.enum_map.contains_key(field)
-                        } else {
-                            false
-                        };
-
-                        if is_enum_variant {
+                if let NodeType::Identifier(field) = &expr.params[0].node_type {
+                    // Check if this is an enum variant by looking up in context
+                    if let Some(enum_def) = context.scope_stack.lookup_enum(name) {
+                        if enum_def.enum_map.contains_key(field) {
                             // Enum variant: Type.Variant -> til_Type_make_Variant()
                             output.push_str(TIL_PREFIX);
                             output.push_str(name);
@@ -2723,13 +2715,15 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
                             output.push_str(field);
                             output.push_str("()");
                             return Ok(());
-                        } else {
-                            // Struct constant: Type.constant -> til_Type_constant
-                            output.push_str(&til_name(name));
-                            output.push_str("_");
-                            output.push_str(field);
-                            return Ok(());
                         }
+                    }
+                    // Check if this is a struct constant access
+                    if context.scope_stack.lookup_struct(name).is_some() {
+                        // Struct constant: Type.constant -> til_Type_constant
+                        output.push_str(&til_name(name));
+                        output.push_str("_");
+                        output.push_str(field);
+                        return Ok(());
                     }
                 }
             }
@@ -4085,14 +4079,14 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
     // Check if this is a struct construction (TypeName())
     let struct_type = if !expr.params.is_empty() {
-        get_struct_construction_type(&expr.params[0])
+        get_struct_construction_type(&expr.params[0], context)
     } else {
         None
     };
 
     // Check if this is an enum construction (Type.Variant or Type.Variant(value))
     let enum_type = if !expr.params.is_empty() {
-        get_enum_construction_type(&expr.params[0])
+        get_enum_construction_type(&expr.params[0], context)
     } else {
         None
     };
@@ -4333,16 +4327,13 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
 // Check if an expression is a struct construction call (TypeName() or TypeName(x=1, y=2))
 // Returns the type name if it is, None otherwise
-// Note: This function doesn't have access to Context, so it uses a heuristic.
-// The caller should verify with lookup_struct when needed.
-fn get_struct_construction_type(expr: &Expr) -> Option<String> {
+fn get_struct_construction_type(expr: &Expr, context: &Context) -> Option<String> {
     if let NodeType::FCall = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::Identifier(name) = &expr.params[0].node_type {
-                // Check if it's a PascalCase identifier with no nested params
-                // and either no args or only named args (struct literal)
-                if name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
-                    && expr.params[0].params.is_empty() {
+                // Use lookup_struct to check if this is a known struct type
+                if expr.params[0].params.is_empty()
+                    && context.scope_stack.lookup_struct(name).is_some() {
                     let only_named_args = expr.params.len() == 1 ||
                         expr.params.iter().skip(1).all(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
                     if only_named_args {
@@ -4359,18 +4350,18 @@ fn get_struct_construction_type(expr: &Expr) -> Option<String> {
 // Returns the type name if it is, None otherwise
 // AST structure for Color.Red(42): FCall -> [Identifier("Color") -> [Identifier("Red")], Literal(42)]
 // AST structure for Color.Unknown: Identifier("Color") -> [Identifier("Unknown")]
-fn get_enum_construction_type(expr: &Expr) -> Option<String> {
+fn get_enum_construction_type(expr: &Expr, context: &Context) -> Option<String> {
     // Check FCall case: Type.Variant(value) or Type.Variant()
     if let NodeType::FCall = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::Identifier(type_name) = &expr.params[0].node_type {
-                // Check if the type name is PascalCase
-                // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
-                if type_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
-                    // Check if there's a nested identifier (the variant) that's also PascalCase
+                // Use lookup_enum to check if this is a known enum type
+                if let Some(enum_def) = context.scope_stack.lookup_enum(type_name) {
+                    // Check if there's a nested identifier (the variant)
                     if !expr.params[0].params.is_empty() {
                         if let NodeType::Identifier(variant_name) = &expr.params[0].params[0].node_type {
-                            if variant_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                            // Verify the variant exists in the enum
+                            if enum_def.enum_map.contains_key(variant_name) {
                                 return Some(type_name.clone());
                             }
                         }
@@ -4382,11 +4373,12 @@ fn get_enum_construction_type(expr: &Expr) -> Option<String> {
 
     // Check Identifier case: Type.Variant (no parentheses, no payload)
     if let NodeType::Identifier(type_name) = &expr.node_type {
-        // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
-        if type_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+        // Use lookup_enum to check if this is a known enum type
+        if let Some(enum_def) = context.scope_stack.lookup_enum(type_name) {
             if !expr.params.is_empty() {
                 if let NodeType::Identifier(variant_name) = &expr.params[0].node_type {
-                    if variant_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                    // Verify the variant exists in the enum
+                    if enum_def.enum_map.contains_key(variant_name) {
                         return Some(type_name.clone());
                     }
                 }
@@ -4863,10 +4855,10 @@ fn emit_fcall_with_hoisted(
     };
 
     // Check for struct construction: TypeName() or TypeName(x=10, y=20)
-    // Struct names are PascalCase, no nested identifiers
+    // Use lookup_struct to verify this is a known struct type
     let has_named_args = expr.params.iter().skip(1).any(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
-    if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
-        && !func_name.contains('_')  // Not a Type_method call
+    let struct_def_opt = context.scope_stack.lookup_struct(&func_name).cloned();
+    if struct_def_opt.is_some()
         && (expr.params.len() == 1 || has_named_args)  // No args OR only named args (struct literal)
     {
         output.push_str("(");
@@ -4874,8 +4866,7 @@ fn emit_fcall_with_hoisted(
         output.push_str(&func_name);
         output.push_str(")");
 
-        // Look up struct definition to get default values
-        let struct_def_opt = context.scope_stack.lookup_struct(&func_name).cloned();
+        // Use the struct definition to get default values
         if let Some(struct_def) = struct_def_opt {
             if struct_def.members.is_empty() || struct_def.default_values.is_empty() {
                 output.push_str("{}");
@@ -5675,13 +5666,12 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             }
 
             // Check for struct construction: TypeName() -> (til_TypeName){defaults...}
-            // Struct names are PascalCase, no nested identifiers (no underscore in func_name), no args
-            if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
-                && !func_name.contains('_')  // No underscore means not Type_method
+            // Use lookup_struct to verify this is a known struct type
+            let struct_def_opt = context.scope_stack.lookup_struct(&func_name).cloned();
+            if struct_def_opt.is_some()
                 && expr.params.len() == 1    // No constructor args
             {
-                // Look up struct definition to get default values
-                let struct_def_opt = context.scope_stack.lookup_struct(&func_name).cloned();
+                // Use the struct definition to get default values
                 if let Some(struct_def) = struct_def_opt {
                     if struct_def.members.is_empty() || struct_def.default_values.is_empty() {
                         output.push_str("(");
