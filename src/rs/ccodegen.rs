@@ -85,6 +85,30 @@ fn til_name(name: &str) -> String {
     }
 }
 
+// Emit a struct literal, using compound literal syntax if already_declared
+// e.g., " = {0}" vs " = (til_TypeName){0}"
+fn emit_struct_literal_assign(output: &mut String, type_name: &str, already_declared: bool, literal_content: &str) {
+    output.push_str(" = ");
+    if already_declared {
+        output.push_str("(");
+        output.push_str(&til_name(type_name));
+        output.push_str(")");
+    }
+    output.push_str(literal_content);
+    output.push_str(";\n");
+}
+
+// Start a struct literal assignment - caller will emit content and closing brace
+// e.g., " = " vs " = (til_TypeName)"
+fn emit_struct_literal_start(output: &mut String, type_name: &str, already_declared: bool) {
+    output.push_str(" = ");
+    if already_declared {
+        output.push_str("(");
+        output.push_str(&til_name(type_name));
+        output.push_str(")");
+    }
+}
+
 // Returns the C name for a TIL function - adds TIL_PREFIX and converts dots to underscores
 // Used for function names like Array.len -> til_Array_len
 fn til_func_name(name: &str) -> String {
@@ -1716,7 +1740,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         for child in &ast.params {
             if is_global_declaration(child) {
                 if let NodeType::Declaration(decl) = &child.node_type {
-                    ctx.declared_vars.insert(decl.name.clone());
+                    ctx.declared_vars.insert(til_name(&decl.name));
                 }
             }
         }
@@ -1916,7 +1940,7 @@ fn emit_global_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
             output.push_str(";\n");
 
             // Track that this variable has been declared globally
-            ctx.declared_vars.insert(decl.name.clone());
+            ctx.declared_vars.insert(til_name(&decl.name));
         }
     }
     Ok(())
@@ -2878,16 +2902,55 @@ fn emit_body(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
 /// This is the core logic shared between emit_body and emit_func_declaration
 fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     let mut i = 0;
+    let indent_str = "    ".repeat(indent);
 
     // Pre-scan for function-level catches (at the end of the block)
     let func_level_catches = prescan_func_level_catches(stmts);
+
+    // Hoist declarations from catch blocks to function level
+    // (TIL has function-level scoping, not block-level scoping)
+    for catch_block in &func_level_catches {
+        if catch_block.params.len() >= 3 {
+            // Temporarily add the catch error variable to scope for type inference
+            // catch (err: ErrType) { body } -> err_var=params[0], err_type=params[1], body=params[2]
+            if let NodeType::Identifier(err_var_name) = &catch_block.params[0].node_type {
+                if let NodeType::Identifier(err_type_name) = &catch_block.params[1].node_type {
+                    context.scope_stack.declare_symbol(
+                        err_var_name.clone(),
+                        SymbolInfo {
+                            value_type: crate::rs::parser::ValueType::TCustom(err_type_name.clone()),
+                            is_mut: false,
+                            is_copy: false,
+                            is_own: false,
+                            is_comptime_const: false,
+                        }
+                    );
+                }
+            }
+
+            let catch_body = &catch_block.params[2];
+            let decls = collect_declarations_in_body(catch_body, context);
+            for (var_name, value_type) in decls {
+                let c_var_name = til_name(&var_name);
+                if !ctx.declared_vars.contains(&c_var_name) {
+                    if let Some(c_type) = til_type_to_c(&value_type) {
+                        output.push_str(&indent_str);
+                        output.push_str(&c_type);
+                        output.push_str(" ");
+                        output.push_str(&c_var_name);
+                        output.push_str(";\n");
+                        ctx.declared_vars.insert(c_var_name);
+                    }
+                }
+            }
+        }
+    }
 
     // Register function-level catches in ctx.local_catch_labels for throw statements
     // Generate unique labels for each catch block
     // Only register the FIRST catch for each error type (later ones will be unreachable for explicit throws)
     let catch_suffix = next_mangled();
     let mut catch_label_info: Vec<(String, String, String, &Expr)> = Vec::new(); // (type_name, label, temp_var, catch_block)
-    let indent_str = "    ".repeat(indent);
     let mut registered_types: std::collections::HashSet<String> = std::collections::HashSet::new();
     for catch_block in &func_level_catches {
         if catch_block.params.len() >= 3 {
@@ -4234,7 +4297,8 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     );
 
     // Check if variable already declared in this function (avoid C redefinition errors)
-    let already_declared = ctx.declared_vars.contains(name);
+    // Use til_name() since that's what hoisting code uses when inserting into declared_vars
+    let already_declared = ctx.declared_vars.contains(&til_name(name));
 
     if let Some(type_name) = struct_type {
         // Struct variable declaration with values (defaults or named args)
@@ -4264,10 +4328,10 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     }
                     output.push_str(&til_name(&type_name));
                     output.push_str(" ");
-                    ctx.declared_vars.insert(name.clone());
+                    ctx.declared_vars.insert(til_name(name));
                 }
                 output.push_str(&til_name(name));
-                output.push_str(" = {};\n");
+                emit_struct_literal_assign(output, &type_name, already_declared, "{}");
             } else if struct_def.default_values.is_empty() && named_values.is_empty() {
                 // No defaults and no named args - zero initialize
                 output.push_str(&indent_str);
@@ -4277,10 +4341,10 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     }
                     output.push_str(&til_name(&type_name));
                     output.push_str(" ");
-                    ctx.declared_vars.insert(name.clone());
+                    ctx.declared_vars.insert(til_name(name));
                 }
                 output.push_str(&til_name(name));
-                output.push_str(" = {0};\n");
+                emit_struct_literal_assign(output, &type_name, already_declared, "{0}");
             } else {
                 // Has default values or named args - emit designated initializer
                 // First check if any default value is a throwing function call
@@ -4330,10 +4394,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     }
                     output.push_str(&til_name(&type_name));
                     output.push_str(" ");
-                    ctx.declared_vars.insert(name.clone());
+                    ctx.declared_vars.insert(til_name(name));
                 }
                 output.push_str(&til_name(name));
-                output.push_str(" = {");
+                emit_struct_literal_start(output, &type_name, already_declared);
+                output.push_str("{");
                 let mut first = true;
                 for member in &struct_def.members {
                     // Only include mut fields (actual struct data members)
@@ -4378,10 +4443,10 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 }
                 output.push_str(&til_name(&type_name));
                 output.push_str(" ");
-                ctx.declared_vars.insert(name.clone());
+                ctx.declared_vars.insert(til_name(name));
             }
             output.push_str(&til_name(name));
-            output.push_str(" = {0};\n");
+            emit_struct_literal_assign(output, &type_name, already_declared, "{0}");
         }
     } else if let Some(type_name) = enum_type {
         // Enum variable declaration
@@ -4392,7 +4457,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             }
             output.push_str(&til_name(&type_name));
             output.push_str(" ");
-            ctx.declared_vars.insert(name.clone());
+            ctx.declared_vars.insert(til_name(name));
         }
         output.push_str(&til_name(name));
         output.push_str(" = ");
@@ -4413,7 +4478,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             };
             output.push_str(&c_type);
             output.push_str(" ");
-            ctx.declared_vars.insert(name.clone());
+            ctx.declared_vars.insert(til_name(name));
         }
         output.push_str(&til_name(name));
         if !expr.params.is_empty() {
@@ -4424,19 +4489,22 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     } else {
         // const declaration
         output.push_str(&indent_str);
-        // Determine C type from inferred type or fall back to int
-        let c_type = if !expr.params.is_empty() {
-            if let Some(inferred) = infer_type_from_expr(&expr.params[0], context) {
-                til_type_to_c(&inferred).unwrap_or("int".to_string())
+        if !already_declared {
+            // Determine C type from inferred type or fall back to int
+            let c_type = if !expr.params.is_empty() {
+                if let Some(inferred) = infer_type_from_expr(&expr.params[0], context) {
+                    til_type_to_c(&inferred).unwrap_or("int".to_string())
+                } else {
+                    til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
+                }
             } else {
                 til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
-            }
-        } else {
-            til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
-        };
-        output.push_str("const ");
-        output.push_str(&c_type);
-        output.push_str(" ");
+            };
+            output.push_str("const ");
+            output.push_str(&c_type);
+            output.push_str(" ");
+            ctx.declared_vars.insert(til_name(name));
+        }
         output.push_str(&til_name(name));
         if !expr.params.is_empty() {
             output.push_str(" = ");
@@ -5131,10 +5199,43 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
         return Err("ccodegen: If requires condition and body".to_string());
     }
 
+    let indent_str = "    ".repeat(indent);
+
+    // Hoist declarations from both branches to before the if statement
+    // (TIL has function-level scoping, not block-level scoping)
+    let then_decls = collect_declarations_in_body(&expr.params[1], context);
+    for (var_name, value_type) in then_decls {
+        let c_var_name = til_name(&var_name);
+        if !ctx.declared_vars.contains(&c_var_name) {
+            if let Some(c_type) = til_type_to_c(&value_type) {
+                output.push_str(&indent_str);
+                output.push_str(&c_type);
+                output.push_str(" ");
+                output.push_str(&c_var_name);
+                output.push_str(";\n");
+                ctx.declared_vars.insert(c_var_name);
+            }
+        }
+    }
+    if expr.params.len() > 2 {
+        let else_decls = collect_declarations_in_body(&expr.params[2], context);
+        for (var_name, value_type) in else_decls {
+            let c_var_name = til_name(&var_name);
+            if !ctx.declared_vars.contains(&c_var_name) {
+                if let Some(c_type) = til_type_to_c(&value_type) {
+                    output.push_str(&indent_str);
+                    output.push_str(&c_type);
+                    output.push_str(" ");
+                    output.push_str(&c_var_name);
+                    output.push_str(";\n");
+                    ctx.declared_vars.insert(c_var_name);
+                }
+            }
+        }
+    }
+
     // Hoist any throwing function calls in the condition
     hoist_throwing_expr(&expr.params[0], output, indent, ctx, context)?;
-
-    let indent_str = "    ".repeat(indent);
     output.push_str(&indent_str);
     output.push_str("if (");
     emit_expr(&expr.params[0], output, 0, ctx, context)?;
@@ -5146,10 +5247,9 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
     }
     output.push_str(") {\n");
 
-    // Then body - save/restore declared_vars for proper C scope handling
-    let saved_declared_vars = ctx.declared_vars.clone();
+    // Don't save/restore declared_vars - TIL has function-level scoping
+    // Variables declared in if branches stay declared for the rest of the function
     emit_body(&expr.params[1], output, indent + 1, ctx, context)?;
-    ctx.declared_vars = saved_declared_vars.clone();
 
     output.push_str(&indent_str);
     output.push_str("}");
@@ -5167,7 +5267,6 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
         } else {
             output.push_str(" else {\n");
             emit_body(&expr.params[2], output, indent + 1, ctx, context)?;
-            ctx.declared_vars = saved_declared_vars;
             output.push_str(&indent_str);
             output.push_str("}\n");
         }
@@ -5185,6 +5284,23 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     }
 
     let indent_str = "    ".repeat(indent);
+
+    // Hoist declarations from loop body to before the while statement
+    // (TIL has function-level scoping, not block-level scoping)
+    let body_decls = collect_declarations_in_body(&expr.params[1], context);
+    for (var_name, value_type) in body_decls {
+        let c_var_name = til_name(&var_name);
+        if !ctx.declared_vars.contains(&c_var_name) {
+            if let Some(c_type) = til_type_to_c(&value_type) {
+                output.push_str(&indent_str);
+                output.push_str(&c_type);
+                output.push_str(" ");
+                output.push_str(&c_var_name);
+                output.push_str(";\n");
+                ctx.declared_vars.insert(c_var_name);
+            }
+        }
+    }
 
     // Check if condition contains throwing calls by trying to hoist to a temp buffer
     let mut hoist_output = String::new();
@@ -5224,11 +5340,9 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         output.push_str(")) break;\n");
     }
 
-    // Save declared_vars before entering new scope (C allows redeclaration in new blocks)
-    let saved_declared_vars = ctx.declared_vars.clone();
+    // Don't save/restore declared_vars - TIL has function-level scoping
+    // Variables declared in loops stay declared for the rest of the function
     emit_body(&expr.params[1], output, indent + 1, ctx, context)?;
-    // Restore declared_vars after exiting scope
-    ctx.declared_vars = saved_declared_vars;
 
     output.push_str(&indent_str);
     output.push_str("}\n");
@@ -5324,7 +5438,17 @@ fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<(String, ValueTyp
     match &expr.node_type {
         NodeType::Declaration(decl) => {
             // Add this declaration
-            decls.push((decl.name.clone(), decl.value_type.clone()));
+            // If type is INFER_TYPE, try to infer from the expression
+            let value_type = if let ValueType::TCustom(name) = &decl.value_type {
+                if name == INFER_TYPE && !expr.params.is_empty() {
+                    infer_type_from_expr(&expr.params[0], context).unwrap_or(decl.value_type.clone())
+                } else {
+                    decl.value_type.clone()
+                }
+            } else {
+                decl.value_type.clone()
+            };
+            decls.push((decl.name.clone(), value_type));
         }
         NodeType::Body => {
             for stmt in &expr.params {
@@ -5352,6 +5476,13 @@ fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<(String, ValueTyp
             // Recurse into while body
             if expr.params.len() >= 2 {
                 collect_declarations_recursive(&expr.params[1], decls, context);
+            }
+        }
+        NodeType::Catch => {
+            // Recurse into catch body (params[2] is catch body)
+            // params[0] = err_var, params[1] = err_type, params[2] = body
+            if expr.params.len() >= 3 {
+                collect_declarations_recursive(&expr.params[2], decls, context);
             }
         }
         _ => {}

@@ -97,6 +97,32 @@ til_name := func(name: Str) returns Str {
     return concat(TIL_PREFIX, name)
 }
 
+// Emit a struct literal, using compound literal syntax if already_declared
+// e.g., " = {0}" vs " = (til_TypeName){0}"
+emit_struct_literal_assign := proc(output: Str, type_name: Str, already_declared: Bool, literal_content: Str) returns Str {
+    mut result := output.concat(" = ")
+    if already_declared {
+        result = result.concat("(")
+        result = result.concat(til_name(type_name))
+        result = result.concat(")")
+    }
+    result = result.concat(literal_content)
+    result = result.concat(";\n")
+    return result
+}
+
+// Start a struct literal assignment - caller will emit content and closing brace
+// e.g., " = " vs " = (til_TypeName)"
+emit_struct_literal_start := proc(output: Str, type_name: Str, already_declared: Bool) returns Str {
+    mut result := output.concat(" = ")
+    if already_declared {
+        result = result.concat("(")
+        result = result.concat(til_name(type_name))
+        result = result.concat(")")
+    }
+    return result
+}
+
 // Returns the C name for a TIL function - adds TIL_PREFIX and converts dots to underscores
 // Used for function names like Array.len -> til_Array_len
 til_func_name := func(name: Str) returns Str {
@@ -1713,7 +1739,7 @@ emit_global_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext
             // Emit static declaration (no initializer - will be set in main)
             result = result.concat("static ").concat(c_type).concat(" ").concat(til_name(decl.name)).concat(";\n")
             // Track that this variable has been declared globally
-            _ := ctx.declared_vars.insert(decl.name)
+            _ := ctx.declared_vars.insert(til_name(decl.name))
             catch (err: AllocError) { throw err.msg }
         }
     case:
@@ -2711,7 +2737,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             if is_global_declaration(gdecl_child) {
                 switch gdecl_child.node_type {
                 case NodeType.Declaration(gdecl):
-                    _ := ctx.declared_vars.insert(gdecl.name)
+                    _ := ctx.declared_vars.insert(til_name(gdecl.name))
                     catch (err: AllocError) { throw err.msg }
                 case:
                 }
@@ -3216,6 +3242,68 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
 
     mut result := output
 
+    // Generate indentation string
+    mut indent_str := ""
+    mut ind := 0
+    while lt(ind, indent) {
+        indent_str = indent_str.concat("    ")
+        ind = add(ind, 1)
+    }
+
+    // Hoist declarations from both branches to before the if statement
+    // (TIL has function-level scoping, not block-level scoping)
+    mut then_body := Expr()
+    expr.params.get(1, then_body)
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    then_decls := collect_declarations_in_body(then_body, context)
+    mut decl_idx := 0
+    while lt(decl_idx, then_decls.len()) {
+        mut decl := Declaration()
+        then_decls.get(decl_idx, decl)
+        c_var_name := til_name(decl.name)
+        if not(ctx.declared_vars.contains(c_var_name)) {
+            c_type := til_type_to_c(decl.value_type)
+            if gt(c_type.len(), 0) {
+                result = result.concat(indent_str)
+                result = result.concat(c_type)
+                result = result.concat(" ")
+                result = result.concat(c_var_name)
+                result = result.concat(";\n")
+                _ := ctx.declared_vars.insert(c_var_name)
+            }
+        }
+        decl_idx = add(decl_idx, 1)
+
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: AllocError) { throw err.msg }
+    }
+    if gt(expr.params.len(), 2) {
+        mut else_body := Expr()
+        expr.params.get(2, else_body)
+        else_decls := collect_declarations_in_body(else_body, context)
+        decl_idx = 0
+        while lt(decl_idx, else_decls.len()) {
+            mut decl := Declaration()
+            else_decls.get(decl_idx, decl)
+            c_var_name := til_name(decl.name)
+            if not(ctx.declared_vars.contains(c_var_name)) {
+                c_type := til_type_to_c(decl.value_type)
+                if gt(c_type.len(), 0) {
+                    result = result.concat(indent_str)
+                    result = result.concat(c_type)
+                    result = result.concat(" ")
+                    result = result.concat(c_var_name)
+                    result = result.concat(";\n")
+                    _ := ctx.declared_vars.insert(c_var_name)
+                }
+            }
+            decl_idx = add(decl_idx, 1)
+
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            catch (err: AllocError) { throw err.msg }
+        }
+    }
+
     // Hoist any throwing function calls in the condition
     mut cond := Expr()
     expr.params.get(0, cond)
@@ -3225,11 +3313,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
     catch (err: KeyNotFoundError) { throw "emit_if: KeyNotFoundError in hoist_throwing_expr" }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-    mut i := 0
-    while lt(i, indent) {
-        result = result.concat("    ")
-        i = add(i, 1)
-    }
+    result = result.concat(indent_str)
     result = result.concat("if (")
     result = emit_expr(cond, result, 0, ctx, context)
     // Bool is a struct with .data field - extract for C truthiness
@@ -3244,23 +3328,11 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
     catch (err: Str) { /* get_value_type failed, skip */ }
     result = result.concat(") {\n")
 
-    // Save declared_vars before entering new scope
-    mut saved_declared_vars := ctx.declared_vars.clone()
-    catch (err: AllocError) { throw err.msg }
-
-    // Then body
-    mut then_body := Expr()
-    expr.params.get(1, then_body)
+    // Don't save/restore declared_vars - TIL has function-level scoping
+    // Variables declared in if branches stay declared for the rest of the function
     result = emit_body(then_body, result, add(indent, 1), ctx, context)
 
-    // Restore declared_vars after exiting then scope
-    ctx.declared_vars = saved_declared_vars
-
-    i = 0
-    while lt(i, indent) {
-        result = result.concat("    ")
-        i = add(i, 1)
-    }
+    result = result.concat(indent_str)
     result = result.concat("}")
 
     // Else branch (optional)
@@ -3273,30 +3345,13 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
             // from nested if conditions have proper scope
             result = result.concat(" else {\n")
             result = emit_if(else_part, result, add(indent, 1), ctx, context)
-            i = 0
-            while lt(i, indent) {
-                result = result.concat("    ")
-                i = add(i, 1)
-            }
+            result = result.concat(indent_str)
             result = result.concat("}\n")
         case:
             // else block
             result = result.concat(" else {\n")
-
-            // Save declared_vars for else scope
-            saved_declared_vars = ctx.declared_vars.clone()
-            catch (err: AllocError) { throw err.msg }
-
             result = emit_body(else_part, result, add(indent, 1), ctx, context)
-
-            // Restore declared_vars after exiting else scope
-            ctx.declared_vars = saved_declared_vars
-
-            i = 0
-            while lt(i, indent) {
-                result = result.concat("    ")
-                i = add(i, 1)
-            }
+            result = result.concat(indent_str)
             result = result.concat("}\n")
         }
     } else {
@@ -3315,6 +3370,42 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
     mut result := output
 
+    // Generate indentation string
+    mut indent_str := ""
+    mut ind := 0
+    while lt(ind, indent) {
+        indent_str = indent_str.concat("    ")
+        ind = add(ind, 1)
+    }
+
+    // Hoist declarations from loop body to before the while statement
+    // (TIL has function-level scoping, not block-level scoping)
+    mut body := Expr()
+    expr.params.get(1, body)
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    body_decls := collect_declarations_in_body(body, context)
+    mut decl_idx := 0
+    while lt(decl_idx, body_decls.len()) {
+        mut decl := Declaration()
+        body_decls.get(decl_idx, decl)
+        c_var_name := til_name(decl.name)
+        if not(ctx.declared_vars.contains(c_var_name)) {
+            c_type := til_type_to_c(decl.value_type)
+            if gt(c_type.len(), 0) {
+                result = result.concat(indent_str)
+                result = result.concat(c_type)
+                result = result.concat(" ")
+                result = result.concat(c_var_name)
+                result = result.concat(";\n")
+                _ := ctx.declared_vars.insert(c_var_name)
+            }
+        }
+        decl_idx = add(decl_idx, 1)
+
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: AllocError) { throw err.msg }
+    }
+
     // Check if condition contains throwing calls by trying to hoist to a temp buffer
     mut cond := Expr()
     expr.params.get(0, cond)
@@ -3325,11 +3416,7 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
     if hoist_output.len().eq(0) {
         // No throwing calls in condition - use simple while
-        mut i := 0
-        while lt(i, indent) {
-            result = result.concat("    ")
-            i = i.add(1)
-        }
+        result = result.concat(indent_str)
         result = result.concat("while (")
 
         result = emit_expr(cond, result, 0, ctx, context)
@@ -3346,23 +3433,15 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         result = result.concat(") {\n")
     } else {
         // Throwing calls in condition - transform to while(1) with hoisted calls and break
-        mut i := 0
-        while lt(i, indent) {
-            result = result.concat("    ")
-            i = i.add(1)
-        }
+        result = result.concat(indent_str)
         result = result.concat("while (1) {\n")
 
         // Emit hoisted throwing calls inside the loop
         result = result.concat(hoist_output)
 
         // Emit condition check with break
-        i = 0
-        while lt(i, indent.add(1)) {
-            result = result.concat("    ")
-            i = i.add(1)
-        }
-        result = result.concat("if (!(")
+        result = result.concat(indent_str)
+        result = result.concat("    if (!(")
         result = emit_expr(cond, result, 0, ctx, context)
         // Bool is a struct with .data field - extract for C truthiness
         mut cond_type := get_value_type(context, cond)
@@ -3377,26 +3456,13 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         result = result.concat(")) break;\n")
     }
 
-    // Save declared_vars before entering new scope (C allows redeclaration in new blocks)
-    mut saved_declared_vars := ctx.declared_vars.clone()
-    catch (err: AllocError) { throw err.msg }
-
-    // Body
-    mut body := Expr()
-    expr.params.get(1, body)
+    // Don't save/restore declared_vars - TIL has function-level scoping
+    // Variables declared in loops stay declared for the rest of the function
     result = emit_body(body, result, indent.add(1), ctx, context)
 
-    // Restore declared_vars after exiting scope
-    ctx.declared_vars = saved_declared_vars
-
-    mut i := 0
-    while lt(i, indent) {
-        result = result.concat("    ")
-        i = i.add(1)
-    }
+    result = result.concat(indent_str)
     result = result.concat("}\n")
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     return result
 }
 
@@ -3532,7 +3598,23 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, context: Cont
     switch expr.node_type {
     case NodeType.Declaration(decl):
         // Add this declaration
-        decls.push(decl)
+        // If type is INFER_TYPE, try to infer from the expression
+        mut value_type := decl.value_type
+        switch decl.value_type {
+        case ValueType.TCustom(type_name):
+            if type_name.eq(INFER_TYPE).and(gt(expr.params.len(), 0)) {
+                mut first := Expr()
+                expr.params.get(0, first)
+                catch (err: IndexOutOfBoundsError) { }
+                value_type = infer_type_from_expr(first, context)
+            }
+        case:
+        }
+        mut new_decl := Declaration()
+        new_decl.name = decl.name
+        new_decl.value_type = value_type
+        new_decl.is_mut = decl.is_mut
+        decls.push(new_decl)
     case NodeType.Body:
         mut i := 0
         while lt(i, expr.params.len()) {
@@ -3573,6 +3655,15 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, context: Cont
             expr.params.get(1, while_body)
             catch (err: IndexOutOfBoundsError) { }
             collect_declarations_recursive(while_body, decls, context)
+        }
+    case NodeType.Catch:
+        // Recurse into catch body (params[2] is catch body)
+        // params[0] = err_var, params[1] = err_type, params[2] = body
+        if gteq(expr.params.len(), 3) {
+            mut catch_body := Expr()
+            expr.params.get(2, catch_body)
+            catch (err: IndexOutOfBoundsError) { }
+            collect_declarations_recursive(catch_body, decls, context)
         }
     case:
     }
@@ -4167,6 +4258,60 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
     // Pre-scan for function-level catches (at the end of the block)
     mut func_level_catches := prescan_func_level_catches(stmts)
     catch (err: AllocError) { throw err.msg }
+
+    // Hoist declarations from catch blocks to function level
+    // (TIL has function-level scoping, not block-level scoping)
+    mut hoist_ci := 0
+    while lt(hoist_ci, func_level_catches.len()) {
+        mut catch_block := Expr()
+        func_level_catches.get(hoist_ci, catch_block)
+        if gteq(catch_block.params.len(), 3) {
+            // Temporarily add the catch error variable to scope for type inference
+            // catch (err: ErrType) { body } -> err_var=params[0], err_type=params[1], body=params[2]
+            mut err_var_expr := Expr()
+            catch_block.params.get(0, err_var_expr)
+            switch err_var_expr.node_type {
+            case NodeType.Identifier(err_var_name):
+                mut err_type_expr := Expr()
+                catch_block.params.get(1, err_type_expr)
+                switch err_type_expr.node_type {
+                case NodeType.Identifier(err_type_name):
+                    context.scope_stack.declare_symbol(
+                        err_var_name,
+                        SymbolInfo.new(ValueType.TCustom(err_type_name), false, false, false)
+                    )
+                case:
+                }
+            case:
+            }
+
+            mut catch_body := Expr()
+            catch_block.params.get(2, catch_body)
+            decls := collect_declarations_in_body(catch_body, context)
+            mut decl_idx := 0
+            while lt(decl_idx, decls.len()) {
+                mut decl := Declaration()
+                decls.get(decl_idx, decl)
+                c_var_name := til_name(decl.name)
+                if not(ctx.declared_vars.contains(c_var_name)) {
+                    c_type := til_type_to_c(decl.value_type)
+                    if gt(c_type.len(), 0) {
+                        result = result.concat(indent_str)
+                        result = result.concat(c_type)
+                        result = result.concat(" ")
+                        result = result.concat(c_var_name)
+                        result = result.concat(";\n")
+                        _ := ctx.declared_vars.insert(c_var_name)
+                    }
+                }
+                decl_idx = add(decl_idx, 1)
+            }
+        }
+        hoist_ci = add(hoist_ci, 1)
+
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: AllocError) { throw err.msg }
+    }
 
     // Register function-level catches in ctx.local_catch_labels for throw statements
     // Generate unique labels for each catch block
@@ -6689,6 +6834,10 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     // Add to scope_stack so get_value_type can find it
     context.scope_stack.declare_symbol(name, SymbolInfo.new(var_type, decl.is_mut, false, false))
 
+    // Check if variable already declared in this function (avoid C redefinition errors)
+    // Use til_name() since that's what hoisting code uses when inserting into declared_vars
+    already_declared := ctx.declared_vars.contains(til_name(name))
+
     if gt(struct_type.len(), 0) {
         // Struct variable declaration with values (defaults or named args)
 
@@ -6725,16 +6874,28 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         if struct_def_found {
             if struct_def.members.len().eq(0) {
                 // Empty struct - use empty initializer
-                result = result.concat(til_name(struct_type))
-                result = result.concat(" ")
+                if not(already_declared) {
+                    if not(is_mut) {
+                        result = result.concat("const ")
+                    }
+                    result = result.concat(til_name(struct_type))
+                    result = result.concat(" ")
+                    _ := ctx.declared_vars.insert(til_name(name))
+                }
                 result = result.concat(til_name(name))
-                result = result.concat(" = {};\n")
+                result = emit_struct_literal_assign(result, struct_type, already_declared, "{}")
             } else if struct_def.default_values.len().eq(0).and(named_values.len().eq(0)) {
                 // No defaults and no named args - zero initialize
-                result = result.concat(til_name(struct_type))
-                result = result.concat(" ")
+                if not(already_declared) {
+                    if not(is_mut) {
+                        result = result.concat("const ")
+                    }
+                    result = result.concat(til_name(struct_type))
+                    result = result.concat(" ")
+                    _ := ctx.declared_vars.insert(til_name(name))
+                }
                 result = result.concat(til_name(name))
-                result = result.concat(" = {0};\n")
+                result = emit_struct_literal_assign(result, struct_type, already_declared, "{0}")
             } else {
                 // Has default values or named args - emit designated initializer
                 // First check if any default value is a throwing function call
@@ -6806,10 +6967,17 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     td_idx = td_idx.add(1)
                 }
 
-                result = result.concat(til_name(struct_type))
-                result = result.concat(" ")
+                if not(already_declared) {
+                    if not(is_mut) {
+                        result = result.concat("const ")
+                    }
+                    result = result.concat(til_name(struct_type))
+                    result = result.concat(" ")
+                    _ := ctx.declared_vars.insert(til_name(name))
+                }
                 result = result.concat(til_name(name))
-                result = result.concat(" = {")
+                result = emit_struct_literal_start(result, struct_type, already_declared)
+                result = result.concat("{")
                 mut is_first := true
                 member_idx = 0
                 while lt(member_idx, struct_def.members.len()) {
@@ -6864,16 +7032,28 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             }
         } else {
             // Struct not found - fall back to zero init
-            result = result.concat(til_name(struct_type))
-            result = result.concat(" ")
+            if not(already_declared) {
+                if not(is_mut) {
+                    result = result.concat("const ")
+                }
+                result = result.concat(til_name(struct_type))
+                result = result.concat(" ")
+                _ := ctx.declared_vars.insert(til_name(name))
+            }
             result = result.concat(til_name(name))
-            result = result.concat(" = {0};\n")
+            result = emit_struct_literal_assign(result, struct_type, already_declared, "{0}")
         }
     } else if gt(enum_type.len(), 0) {
         // Enum variable declaration
-        result = result.concat(enum_type)
-        result = result.concat(" ")
-        result = result.concat(name)
+        if not(already_declared) {
+            if not(is_mut) {
+                result = result.concat("const ")
+            }
+            result = result.concat(til_name(enum_type))
+            result = result.concat(" ")
+            _ := ctx.declared_vars.insert(til_name(name))
+        }
+        result = result.concat(til_name(name))
         result = result.concat(" = ")
         mut first := Expr()
         expr.params.get(0, first)
@@ -6882,26 +7062,29 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         result = result.concat(";\n")
     } else if is_mut {
         // Determine C type from inferred type or fall back to int
-        mut c_type := "int"
-        if gt(expr.params.len(), 0) {
-            mut first := Expr()
-            expr.params.get(0, first)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            inferred := infer_type_from_expr(first, context)
-            switch inferred {
-            case ValueType.TCustom(inf_type):
-                if Str.eq(inf_type, "Str") {
-                    c_type = "const char*"
-                } else if gt(inf_type.len(), 0) {
-                    c_type = inf_type  // I64, U8, etc. pass through
+        if not(already_declared) {
+            mut c_type := "int"
+            if gt(expr.params.len(), 0) {
+                mut first := Expr()
+                expr.params.get(0, first)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                inferred := infer_type_from_expr(first, context)
+                switch inferred {
+                case ValueType.TCustom(inf_type):
+                    if Str.eq(inf_type, "Str") {
+                        c_type = "const char*"
+                    } else if gt(inf_type.len(), 0) {
+                        c_type = inf_type  // I64, U8, etc. pass through
+                    }
+                case:
+                    // Keep default "int"
                 }
-            case:
-                // Keep default "int"
             }
+            result = result.concat(c_type)
+            result = result.concat(" ")
+            _ := ctx.declared_vars.insert(til_name(name))
         }
-        result = result.concat(c_type)
-        result = result.concat(" ")
-        result = result.concat(name)
+        result = result.concat(til_name(name))
         if gt(expr.params.len(), 0) {
             result = result.concat(" = ")
             mut first := Expr()
@@ -6911,28 +7094,32 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         }
         result = result.concat(";\n")
     } else {
-        // Determine C type from inferred type or fall back to int
-        mut c_type := "int"
-        if gt(expr.params.len(), 0) {
-            mut first := Expr()
-            expr.params.get(0, first)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            inferred := infer_type_from_expr(first, context)
-            switch inferred {
-            case ValueType.TCustom(inf_type):
-                if Str.eq(inf_type, "Str") {
-                    c_type = "const char*"
-                } else if gt(inf_type.len(), 0) {
-                    c_type = inf_type  // I64, U8, etc. pass through
+        // const declaration
+        if not(already_declared) {
+            // Determine C type from inferred type or fall back to int
+            mut c_type := "int"
+            if gt(expr.params.len(), 0) {
+                mut first := Expr()
+                expr.params.get(0, first)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                inferred := infer_type_from_expr(first, context)
+                switch inferred {
+                case ValueType.TCustom(inf_type):
+                    if Str.eq(inf_type, "Str") {
+                        c_type = "const char*"
+                    } else if gt(inf_type.len(), 0) {
+                        c_type = inf_type  // I64, U8, etc. pass through
+                    }
+                case:
+                    // Keep default "int"
                 }
-            case:
-                // Keep default "int"
             }
+            result = result.concat("const ")
+            result = result.concat(c_type)
+            result = result.concat(" ")
+            _ := ctx.declared_vars.insert(til_name(name))
         }
-        result = result.concat("const ")
-        result = result.concat(c_type)
-        result = result.concat(" ")
-        result = result.concat(name)
+        result = result.concat(til_name(name))
         if gt(expr.params.len(), 0) {
             result = result.concat(" = ")
             mut first := Expr()
@@ -6942,6 +7129,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         }
         result = result.concat(";\n")
     }
+
+    catch (err: AllocError) { throw err.msg }
+
     return result
 }
 
