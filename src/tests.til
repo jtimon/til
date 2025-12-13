@@ -592,13 +592,13 @@ main := proc(args: ..Str) {
 
     mut rs_interpreted := Vec.new(TestEntry)
 
-    rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: copy param assignment of read-only, append_str incompatible pointer types
+    rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: assignment of read-only param (copy semantics), append_str Str* vs Str type mismatch
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/modes.til")) // TODO FIX: gcc: Vec_new in struct literal - too few args (throwing func as field initializer)
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
-    rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: Str <= comparison not supported (invalid operands to binary <=)
-    rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: Str <= comparison not supported (invalid operands to binary <=)
-    rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: gcc: pattern binding var generates wrong func call (til_s_len vs til_Str_len)
+    rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: Str <= comparison, Bool.and missing, get_substr wrong args in while condition
+    rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: Str <= comparison, Bool.and missing, get_substr wrong args in while condition
+    rs_interpreted.push(TestEntry(path="src/test/ufcs.til")) // TODO FIX: gcc/linker: pattern binding var 's' generates til_s_len instead of til_Str_len
 
     // rs_interpreted.push(TestEntry(path="src/examples/hello_script_safe.til")) // TODO this is much harder than it sounds
     // rs_interpreted.push(TestEntry(path="src/test/undefined.til"))
@@ -609,9 +609,9 @@ main := proc(args: ..Str) {
 
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
-    rs_interpreted.push(TestEntry(path="src/self/interpreter.til")) // TODO FIX: precomp: Import not found in stored ASTs (self-referential import)
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: gcc: Str <= comparison not supported (invalid operands to binary <=)
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="version")) // TODO FIX: gcc: Str <= comparison not supported (invalid operands to binary <=)
+    rs_interpreted.push(TestEntry(path="src/self/interpreter.til")) // TODO FIX: precomp: Import not found in stored ASTs - init should have stored it
+    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: gcc: Str <= comparison, Bool.and missing, get_substr wrong args
+    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="version")) // TODO FIX: gcc: Str <= comparison, Bool.and missing, get_substr wrong args
     // rs_interpreted.push(TestEntry(path="src/test/builders.til")) // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
