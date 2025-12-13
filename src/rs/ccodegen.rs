@@ -1814,9 +1814,9 @@ fn emit_global_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
         if !expr.params.is_empty() {
             // Determine the type from the initializer expression
             // Check for enum construction first (Color.Green(true) -> til_Color)
-            let c_type = if let Some(enum_type) = get_enum_construction_type(&expr.params[0]) {
+            let c_type = if let Some(enum_type) = get_enum_construction_type(&expr.params[0], context) {
                 til_name(&enum_type)
-            } else if let Some(struct_type) = get_struct_construction_type(&expr.params[0]) {
+            } else if let Some(struct_type) = get_struct_construction_type(&expr.params[0], context) {
                 til_name(&struct_type)
             } else if let Some(inferred) = infer_type_from_expr(&expr.params[0], context) {
                 til_type_to_c(&inferred).unwrap_or("int".to_string())
