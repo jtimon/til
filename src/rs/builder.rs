@@ -247,8 +247,17 @@ pub fn build(path: &str) -> Result<(), String> {
     // Generate C code
     let c_code = ccodegen::emit(&merged_ast, &mut context)?;
 
-    // Write output file
-    let output_path = path.replace(".til", ".c");
+    // Write output file to ./c/ directory instead of alongside source
+    let c_filename = path.replace(".til", ".c");
+    let output_path = if c_filename.starts_with("src/") {
+        c_filename.replacen("src/", "c/", 1)
+    } else {
+        format!("c/{}", c_filename)
+    };
+    // Create output directory if it doesn't exist
+    if let Some(parent) = std::path::Path::new(&output_path).parent() {
+        let _ = fs::create_dir_all(parent);
+    }
     match fs::write(&output_path, &c_code) {
         Ok(_) => {},
         Err(e) => return Err(format!("Failed to write '{}': {}", output_path, e)),

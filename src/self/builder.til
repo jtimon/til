@@ -332,8 +332,22 @@ build := proc(path: Str) returns Str throws Str {
     // Generate C code
     mut c_code := emit(merged_ast, context)
 
-    // Write output file
-    mut output_path := path.replace(".til", ".c")
+    // Write output file to ./c/ directory instead of alongside source
+    mut c_filename := path.replace(".til", ".c")
+    mut output_path := c_filename
+    if c_filename.starts_with("src/") {
+        output_path = c_filename.replacen("src/", "c/", 1)
+    } else {
+        output_path = concat("c/", c_filename)
+    }
+    // Create output directory if it doesn't exist
+    // Extract parent directory path (everything up to last /)
+    mut last_slash := output_path.rfind("/")
+    if gt(last_slash, 0) {
+        mut parent_dir := output_path.get_substr(0, last_slash)
+        mut mkdir_output := ""
+        _ := run_cmd(mkdir_output, "mkdir", "-p", parent_dir)
+    }
     _ := writefile(output_path, c_code)
 
     // TODO: Compile with gcc (run_cmd not available in lib mode yet)
