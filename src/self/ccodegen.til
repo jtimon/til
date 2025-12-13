@@ -3314,27 +3314,68 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     }
 
     mut result := output
-    mut i := 0
-    while lt(i, indent) {
-        result = result.concat("    ")
-        i = add(i, 1)
-    }
-    result = result.concat("while (")
 
+    // Check if condition contains throwing calls by trying to hoist to a temp buffer
     mut cond := Expr()
     expr.params.get(0, cond)
-    result = emit_expr(cond, result, 0, ctx, context)
-    // Bool is a struct with .data field - extract for C truthiness
-    mut cond_type := get_value_type(context, cond)
-    switch cond_type {
-    case ValueType.TCustom(type_name):
-        if type_name.eq("Bool") {
-            result = result.concat(".data")
+    mut hoist_output := hoist_throwing_expr(cond, "", indent.add(1), ctx, context)
+    catch (err: AllocError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: KeyNotFoundError) { throw err.msg }
+
+    if hoist_output.len().eq(0) {
+        // No throwing calls in condition - use simple while
+        mut i := 0
+        while lt(i, indent) {
+            result = result.concat("    ")
+            i = i.add(1)
         }
-    case:
+        result = result.concat("while (")
+
+        result = emit_expr(cond, result, 0, ctx, context)
+        // Bool is a struct with .data field - extract for C truthiness
+        mut cond_type := get_value_type(context, cond)
+        switch cond_type {
+        case ValueType.TCustom(type_name):
+            if type_name.eq("Bool") {
+                result = result.concat(".data")
+            }
+        case:
+        }
+        catch (err: Str) { /* get_value_type failed, skip */ }
+        result = result.concat(") {\n")
+    } else {
+        // Throwing calls in condition - transform to while(1) with hoisted calls and break
+        mut i := 0
+        while lt(i, indent) {
+            result = result.concat("    ")
+            i = i.add(1)
+        }
+        result = result.concat("while (1) {\n")
+
+        // Emit hoisted throwing calls inside the loop
+        result = result.concat(hoist_output)
+
+        // Emit condition check with break
+        i = 0
+        while lt(i, indent.add(1)) {
+            result = result.concat("    ")
+            i = i.add(1)
+        }
+        result = result.concat("if (!(")
+        result = emit_expr(cond, result, 0, ctx, context)
+        // Bool is a struct with .data field - extract for C truthiness
+        mut cond_type := get_value_type(context, cond)
+        switch cond_type {
+        case ValueType.TCustom(type_name):
+            if type_name.eq("Bool") {
+                result = result.concat(".data")
+            }
+        case:
+        }
+        catch (err: Str) { /* get_value_type failed, skip */ }
+        result = result.concat(")) break;\n")
     }
-    catch (err: Str) { /* get_value_type failed, skip */ }
-    result = result.concat(") {\n")
 
     // Save declared_vars before entering new scope (C allows redeclaration in new blocks)
     mut saved_declared_vars := ctx.declared_vars.clone()
@@ -3343,15 +3384,15 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     // Body
     mut body := Expr()
     expr.params.get(1, body)
-    result = emit_body(body, result, add(indent, 1), ctx, context)
+    result = emit_body(body, result, indent.add(1), ctx, context)
 
     // Restore declared_vars after exiting scope
     ctx.declared_vars = saved_declared_vars
 
-    i = 0
+    mut i := 0
     while lt(i, indent) {
         result = result.concat("    ")
-        i = add(i, 1)
+        i = i.add(1)
     }
     result = result.concat("}\n")
 

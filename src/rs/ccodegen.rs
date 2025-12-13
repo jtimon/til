@@ -5143,16 +5143,44 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     }
 
     let indent_str = "    ".repeat(indent);
-    output.push_str(&indent_str);
-    output.push_str("while (");
-    emit_expr(&expr.params[0], output, 0, ctx, context)?;
-    // Bool is a struct with .data field - extract for C truthiness
-    if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, &expr.params[0]) {
-        if type_name == "Bool" {
-            output.push_str(".data");
+
+    // Check if condition contains throwing calls by trying to hoist to a temp buffer
+    let mut hoist_output = String::new();
+    hoist_throwing_expr(&expr.params[0], &mut hoist_output, indent + 1, ctx, context)?;
+
+    if hoist_output.is_empty() {
+        // No throwing calls in condition - use simple while
+        output.push_str(&indent_str);
+        output.push_str("while (");
+        emit_expr(&expr.params[0], output, 0, ctx, context)?;
+        // Bool is a struct with .data field - extract for C truthiness
+        if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, &expr.params[0]) {
+            if type_name == "Bool" {
+                output.push_str(".data");
+            }
         }
+        output.push_str(") {\n");
+    } else {
+        // Throwing calls in condition - transform to while(1) with hoisted calls and break
+        output.push_str(&indent_str);
+        output.push_str("while (1) {\n");
+
+        // Emit hoisted throwing calls inside the loop
+        output.push_str(&hoist_output);
+
+        // Emit condition check with break
+        let inner_indent_str = "    ".repeat(indent + 1);
+        output.push_str(&inner_indent_str);
+        output.push_str("if (!(");
+        emit_expr(&expr.params[0], output, 0, ctx, context)?;
+        // Bool is a struct with .data field - extract for C truthiness
+        if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, &expr.params[0]) {
+            if type_name == "Bool" {
+                output.push_str(".data");
+            }
+        }
+        output.push_str(")) break;\n");
     }
-    output.push_str(") {\n");
 
     // Save declared_vars before entering new scope (C allows redeclaration in new blocks)
     let saved_declared_vars = ctx.declared_vars.clone();
