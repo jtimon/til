@@ -556,6 +556,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/function_pointers.til"))
     rs_common.push(TestEntry(path="src/test/intro.til"))
     rs_common.push(TestEntry(path="src/test/introspections.til"))
+    rs_common.push(TestEntry(path="src/test/lists.til"))
     rs_common.push(TestEntry(path="src/test/loops.til"))
     rs_common.push(TestEntry(path="src/test/mut_test.til"))
     rs_common.push(TestEntry(path="src/test/namespaces.til"))
@@ -590,7 +591,6 @@ main := proc(args: ..Str) {
 
     rs_interpreted.push(TestEntry(path="src/test/args.til")) // TODO FIX: gcc: copy param assignment of read-only, append_str incompatible pointer types
     rs_interpreted.push(TestEntry(path="src/test/enums.til")) // TODO FIX: gcc: pattern binding vars undeclared (til_bbb, til_is_olive, til_code, etc)
-    rs_interpreted.push(TestEntry(path="src/test/lists.til")) // compiles but runtime: double free detected in tcache 2
     rs_interpreted.push(TestEntry(path="src/test/maps.til")) // TODO FIX: gcc: incompatible type for Map_position (Str passed to Dynamic param)
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/modes.til")) // TODO FIX: gcc: Vec_new in struct literal - too few args (throwing func as field initializer)

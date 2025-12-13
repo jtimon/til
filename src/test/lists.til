@@ -443,7 +443,18 @@ test_nested_lists := proc() {
     }
     test(loc(), nested_val.eq(1), "Value from nested list")
 
-    retrieved_inner.delete()
+    // NOTE: Don't delete retrieved_inner - it's a shallow copy that shares
+    // memory with inner. List.get does memcpy which copies the List struct
+    // including its internal data pointer. Deleting both would double-free.
+    //
+    // This is a fundamental design choice: TIL's List stores elements in a
+    // contiguous buffer (like a C array), so nested Lists share memory after get.
+    // Alternative: Lisp-style cons cells where each element is a pointer,
+    // making "copies" just reference the same data without ownership issues.
+    // Other options: deep copy on get, reference counting, or ownership semantics.
+    //
+    // The interpreter doesn't actually free on .delete() which masks this issue.
+    // retrieved_inner.delete()  // Would cause double-free in compiled code
     inner.delete()
     outer.delete()
 }
