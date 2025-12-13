@@ -7991,158 +7991,162 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
         mut arg := Expr()
         args.get(idx, arg)
 
-        // Skip if already hoisted by throwing args hoister (Map lookup)
-        mut already := false
-        mut tmp := ""
-        already_hoisted.get(idx, tmp)
-        already = true
-        catch (err: KeyNotFoundError) { }
+        // Skip if already hoisted by throwing args hoister or by a previous function call
+        arg_addr := to_ptr(arg)
+        if already_hoisted.contains_key(idx).or(ctx.hoisted_exprs.contains_key(arg_addr)) {
+            idx = add(idx, 1)
+            continue
+        }
 
-        if not(already) {
-            // Check if param type is Dynamic
-            mut is_dynamic := false
-            if lt(idx, param_types.len()) {
-                mut pt := ValueType.TCustom("")
-                param_types.get(idx, pt)
-                switch pt {
-                case ValueType.TCustom(type_name):
-                    if type_name.eq("Dynamic") {
-                        is_dynamic = true
-                    }
-                case:
+        // Check if param type is Dynamic
+        mut is_dynamic := false
+        if lt(idx, param_types.len()) {
+            mut pt := ValueType.TCustom("")
+            param_types.get(idx, pt)
+            switch pt {
+            case ValueType.TCustom(type_name):
+                if type_name.eq("Dynamic") {
+                    is_dynamic = true
                 }
-            }
-
-            if is_dynamic {
-                // Check if arg needs hoisting (not a simple identifier)
-                mut needs_hoisting := true
-                switch arg.node_type {
-                case NodeType.Identifier(name):
-                    // Simple identifier with no params is an lvalue, doesn't need hoisting
-                    if eq(arg.params.len(), 0) {
-                        needs_hoisting = false
-                    }
-                case NodeType.LLiteral(lit):
-                    // Literals need hoisting
-                    needs_hoisting = true
-                case NodeType.FCall:
-                    // Function calls need hoisting
-                    needs_hoisting = true
-                case:
-                    // Default to hoisting for safety
-                    needs_hoisting = true
-                }
-
-                if needs_hoisting {
-                    // Determine C type based on what the arg is
-                    mut c_type := "int64_t"
-                    switch arg.node_type {
-                    case NodeType.LLiteral(lit):
-                        switch lit {
-                        case Literal.Str(s):
-                            c_type = concat(TIL_PREFIX, "Str")
-                        case Literal.Number(n):
-                            c_type = "int64_t"
-                        case Literal.List(l):
-                            c_type = "int64_t"  // TODO: proper list type
-                        }
-                    case NodeType.Identifier(var_name):
-                        // Could be: enum constructor (Type.Variant), field access (var.field), or method call
-                        if gt(arg.params.len(), 0) {
-                            mut first_param := Expr()
-                            arg.params.get(0, first_param)
-                            switch first_param.node_type {
-                            case NodeType.Identifier(field_or_variant):
-                                // Check if this is an enum constructor
-                                mut is_enum := false
-                                mut enum_def := context.scope_stack.lookup_enum(var_name)
-                                is_enum = true
-                                catch (err: KeyNotFoundError) { }
-                                if is_enum {
-                                    mut has_variant := false
-                                    mut variant_ptr := Ptr()
-                                    enum_def.enum_map.get(field_or_variant, variant_ptr)
-                                    has_variant = true
-                                    catch (err: KeyNotFoundError) { }
-                                    if has_variant {
-                                        c_type = til_name(var_name)
-                                    }
-                                } else {
-                                    // Field access - look up variable's type, then field's type
-                                    mut sym := context.scope_stack.lookup_symbol(var_name)
-                                    switch sym.value_type {
-                                    case ValueType.TCustom(struct_name):
-                                        mut struct_def := context.scope_stack.lookup_struct(struct_name)
-                                        // Find the field in the struct
-                                        mut found_field := false
-                                        mut fi := 0
-                                        while lt(fi, struct_def.members.len()) {
-                                            mut member := Declaration()
-                                            struct_def.members.get(fi, member)
-                                            if member.name.eq(field_or_variant) {
-                                                c_type = til_type_to_c(member.value_type)
-                                                found_field = true
-                                            }
-                                            fi = add(fi, 1)
-                                        }
-                                        catch (err: IndexOutOfBoundsError) { }
-                                    case:
-                                    }
-                                    catch (err: KeyNotFoundError) { }
-                                }
-                            case:
-                            }
-                            catch (err: IndexOutOfBoundsError) { }
-                        }
-                    case NodeType.FCall:
-                        // For function calls, try to determine return type
-                        mut info := check_throwing_fcall(arg, ctx, context)
-                        if info.is_throwing {
-                            if info.has_return_type {
-                                c_type = til_type_to_c(info.return_type)
-                            }
-                        } else {
-                            // Non-throwing function call - look up return type
-                            mut func_name := get_fcall_func_name(arg)
-                            if gt(func_name.len(), 0) {
-                                mut fd_result := lookup_func_by_name(context, func_name)
-                                if fd_result.found {
-                                    if gt(fd_result.func_def.return_types.len(), 0) {
-                                        mut ret_type := ValueType.TCustom("")
-                                        fd_result.func_def.return_types.get(0, ret_type)
-                                        c_type = til_type_to_c(ret_type)
-                                        catch (err: IndexOutOfBoundsError) { }
-                                    }
-                                } else {
-                                    // Check if this is a struct constructor like Ptr()
-                                    mut struct_def := context.scope_stack.lookup_struct(func_name)
-                                    c_type = til_name(func_name)
-                                    catch (err: KeyNotFoundError) { }
-                                }
-                            }
-                        }
-                    case:
-                        c_type = "int64_t"  // Default to int64_t for unknown types
-                    }
-
-                    mut temp_var := next_mangled()
-
-                    // Emit: til_Str _tmpXX = <expression>;
-                    output = output.concat(indent_str)
-                    output = output.concat(c_type)
-                    output = output.concat(" ")
-                    output = output.concat(temp_var)
-                    output = output.concat(" = ")
-                    output = emit_expr(arg, output, 0, ctx, context)
-                    output = output.concat(";\n")
-
-                    mut hoisted_arg := HoistedArg()
-                    hoisted_arg.index = idx
-                    hoisted_arg.temp_var = temp_var
-                    hoisted.push(hoisted_arg)
-                }
+            case:
             }
         }
+
+        if not(is_dynamic) {
+            idx = add(idx, 1)
+            continue
+        }
+
+        // Check if arg needs hoisting (not a simple identifier)
+        mut needs_hoisting := true
+        switch arg.node_type {
+        case NodeType.Identifier(name):
+            // Simple identifier with no params is an lvalue, doesn't need hoisting
+            if eq(arg.params.len(), 0) {
+                needs_hoisting = false
+            }
+        case NodeType.LLiteral(lit):
+            // Literals need hoisting
+            needs_hoisting = true
+        case NodeType.FCall:
+            // Function calls need hoisting
+            needs_hoisting = true
+        case:
+            // Default to hoisting for safety
+            needs_hoisting = true
+        }
+
+        if not(needs_hoisting) {
+            idx = add(idx, 1)
+            continue
+        }
+
+        // Determine C type based on what the arg is
+        mut c_type := "int64_t"
+        switch arg.node_type {
+        case NodeType.LLiteral(lit):
+            switch lit {
+            case Literal.Str(s):
+                c_type = concat(TIL_PREFIX, "Str")
+            case Literal.Number(n):
+                c_type = "int64_t"
+            case Literal.List(l):
+                c_type = "int64_t"  // TODO: proper list type
+            }
+        case NodeType.Identifier(var_name):
+            // Could be: enum constructor (Type.Variant), field access (var.field), or method call
+            if gt(arg.params.len(), 0) {
+                mut first_param := Expr()
+                arg.params.get(0, first_param)
+                switch first_param.node_type {
+                case NodeType.Identifier(field_or_variant):
+                    // Check if this is an enum constructor
+                    mut is_enum := false
+                    mut enum_def := context.scope_stack.lookup_enum(var_name)
+                    is_enum = true
+                    catch (err: KeyNotFoundError) { }
+                    if is_enum {
+                        mut has_variant := false
+                        mut variant_ptr := Ptr()
+                        enum_def.enum_map.get(field_or_variant, variant_ptr)
+                        has_variant = true
+                        catch (err: KeyNotFoundError) { }
+                        if has_variant {
+                            c_type = til_name(var_name)
+                        }
+                    } else {
+                        // Field access - look up variable's type, then field's type
+                        mut sym := context.scope_stack.lookup_symbol(var_name)
+                        switch sym.value_type {
+                        case ValueType.TCustom(struct_name):
+                            mut struct_def := context.scope_stack.lookup_struct(struct_name)
+                            // Find the field in the struct
+                            mut found_field := false
+                            mut fi := 0
+                            while lt(fi, struct_def.members.len()) {
+                                mut member := Declaration()
+                                struct_def.members.get(fi, member)
+                                if member.name.eq(field_or_variant) {
+                                    c_type = til_type_to_c(member.value_type)
+                                    found_field = true
+                                }
+                                fi = add(fi, 1)
+                            }
+                            catch (err: IndexOutOfBoundsError) { }
+                        case:
+                        }
+                        catch (err: KeyNotFoundError) { }
+                    }
+                case:
+                }
+                catch (err: IndexOutOfBoundsError) { }
+            }
+        case NodeType.FCall:
+            // For function calls, try to determine return type
+            mut info := check_throwing_fcall(arg, ctx, context)
+            if info.is_throwing {
+                if info.has_return_type {
+                    c_type = til_type_to_c(info.return_type)
+                }
+            } else {
+                // Non-throwing function call - look up return type
+                mut func_name := get_fcall_func_name(arg)
+                if gt(func_name.len(), 0) {
+                    mut fd_result := lookup_func_by_name(context, func_name)
+                    if fd_result.found {
+                        if gt(fd_result.func_def.return_types.len(), 0) {
+                            mut ret_type := ValueType.TCustom("")
+                            fd_result.func_def.return_types.get(0, ret_type)
+                            c_type = til_type_to_c(ret_type)
+                            catch (err: IndexOutOfBoundsError) { }
+                        }
+                    } else {
+                        // Check if this is a struct constructor like Ptr()
+                        mut struct_def := context.scope_stack.lookup_struct(func_name)
+                        c_type = til_name(func_name)
+                        catch (err: KeyNotFoundError) { }
+                    }
+                }
+            }
+        case:
+            c_type = "int64_t"  // Default to int64_t for unknown types
+        }
+
+        mut temp_var := next_mangled()
+
+        // Emit: til_Str _tmpXX = <expression>;
+        output = output.concat(indent_str)
+        output = output.concat(c_type)
+        output = output.concat(" ")
+        output = output.concat(temp_var)
+        output = output.concat(" = ")
+        output = emit_expr(arg, output, 0, ctx, context)
+        output = output.concat(";\n")
+
+        mut hoisted_arg := HoistedArg()
+        hoisted_arg.index = idx
+        hoisted_arg.temp_var = temp_var
+        hoisted.push(hoisted_arg)
 
         idx = add(idx, 1)
 

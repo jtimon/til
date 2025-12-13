@@ -964,8 +964,9 @@ fn hoist_for_dynamic_params(
     let indent_str = "    ".repeat(indent);
 
     for (idx, arg) in args.iter().enumerate() {
-        // Skip if already hoisted by throwing args hoister
-        if already_hoisted.contains_key(&idx) {
+        // Skip if already hoisted by throwing args hoister or by a previous function call
+        let arg_addr = arg as *const Expr as usize;
+        if already_hoisted.contains_key(&idx) || ctx.hoisted_exprs.contains_key(&arg_addr) {
             continue;
         }
 
