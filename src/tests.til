@@ -184,7 +184,7 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
         if not(entry.cmd_args.eq("")) {
             args_display = concat(" ", entry.cmd_args)
         }
-        println("[", i.to_str(), "/", rs_common.len().to_str(), "] ", entry.path, args_display, " (interpreted: ", format_time(interp_ms), ", compiled: ", format_time(compile_ms), ")", faster)
+        println("[", i.add(1).to_str(), "/", rs_common.len().to_str(), "] ", entry.path, args_display, " (interpreted: ", format_time(interp_ms), ", compiled: ", format_time(compile_ms), ")", faster)
         benchmark_content = benchmark_content.concat("- ").concat(entry.path).concat(" :: interpreted: ").concat(format_time(interp_ms)).concat(", compiled: ").concat(format_time(compile_ms)).concat(faster).concat("\n")
     }
 
@@ -203,7 +203,7 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
         if not(entry.cmd_args.eq("")) {
             args_display = concat(" ", entry.cmd_args)
         }
-        println("[", i.to_str(), "/", rs_compiled.len().to_str(), "] ", entry.path, args_display, " (compiled: ", format_time(time_ms), ")")
+        println("[", i.add(1).to_str(), "/", rs_compiled.len().to_str(), "] ", entry.path, args_display, " (compiled: ", format_time(time_ms), ")")
         benchmark_content = benchmark_content.concat("- ").concat(entry.path).concat(" :: compiled: ").concat(format_time(time_ms)).concat("\n")
     }
 
@@ -222,7 +222,7 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
         if not(entry.cmd_args.eq("")) {
             args_display = concat(" ", entry.cmd_args)
         }
-        println("[", i.to_str(), "/", rs_interpreted.len().to_str(), "] ", entry.path, args_display, " (interpreted: ", format_time(time_ms), ")")
+        println("[", i.add(1).to_str(), "/", rs_interpreted.len().to_str(), "] ", entry.path, args_display, " (interpreted: ", format_time(time_ms), ")")
         benchmark_content = benchmark_content.concat("- ").concat(entry.path).concat(" :: interpreted: ").concat(format_time(time_ms)).concat("\n")
     }
 
