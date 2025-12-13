@@ -66,6 +66,9 @@ CodegenContext := struct {
     mut hoisted_prototypes: Vec = Vec.new(Str)
     // Map original function name -> mangled name for nested functions
     mut nested_func_names: Map = Map.new(Str, Str)
+    // Set of hoisted struct default values (format: "StructName.field_name")
+    // Used to track which struct literal defaults were hoisted as temp vars
+    mut hoisted_struct_defaults: Set = Set.new(Str)
 }
 
 // Helper to check if Str struct is defined in context
@@ -654,6 +657,95 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         }
     case:
         // Not an FCall
+    }
+
+    // Check if this is a struct literal with throwing default values
+    switch expr.node_type {
+    case NodeType.FCall:
+        mut func_name := get_fcall_func_name(expr)
+        if gt(func_name.len(), 0) {
+            mut has_named_args := false
+            mut nai := 1
+            while lt(nai, expr.params.len()) {
+                mut narg := Expr()
+                expr.params.get(nai, narg)
+                switch narg.node_type {
+                case NodeType.NamedArg(field_name):
+                    has_named_args = true
+                case:
+                }
+                nai = add(nai, 1)
+            }
+            catch (err: IndexOutOfBoundsError) { }
+
+            // Check if func_name is a known struct
+            mut found_struct := false
+            mut struct_def := context.scope_stack.lookup_struct(func_name)
+            found_struct = true
+            catch (err: KeyNotFoundError) { }
+
+            if found_struct {
+                if eq(expr.params.len(), 1).or(has_named_args) {
+                    // This is a struct literal - check for throwing defaults
+                    // Build set of named arg names that are provided
+                    mut provided_names := Set.new(Str)
+                    mut pai := 1
+                    while lt(pai, expr.params.len()) {
+                        mut parg := Expr()
+                        expr.params.get(pai, parg)
+                        switch parg.node_type {
+                        case NodeType.NamedArg(field_name):
+                            _ := provided_names.insert(field_name)
+                        case:
+                        }
+                        pai = add(pai, 1)
+                    }
+                    catch (err: IndexOutOfBoundsError) { }
+
+                    // For each member with a default that's a throwing call and not overridden, emit temp var
+                    mut mi := 0
+                    while lt(mi, struct_def.members.len()) {
+                        mut member := Declaration()
+                        struct_def.members.get(mi, member)
+                        if member.is_mut {
+                            if not(provided_names.contains(member.name)) {
+                                // Check if there's a default value for this member
+                                mut default_expr := Expr()
+                                mut has_default := false
+                                struct_def.default_values.get(member.name, default_expr)
+                                has_default = true
+                                catch (err: KeyNotFoundError) { }
+
+                                if has_default {
+                                    // Check if the default is a throwing function call
+                                    mut default_throwing := check_throwing_fcall(default_expr, ctx, context)
+                                    if default_throwing.is_throwing {
+                                        // Emit the throwing call as a temp var
+                                        mut temp_name := concat("_default_", member.name)
+
+                                        // Get C type for the temp variable
+                                        mut c_type := "int"
+                                        if default_throwing.has_return_type {
+                                            c_type = til_type_to_c(default_throwing.return_type)
+                                        }
+
+                                        // Emit the temp var using emit_throwing_call_propagate
+                                        result = emit_throwing_call_propagate(default_expr, default_throwing.throw_types, temp_name, "", result, indent, ctx, context)
+
+                                        // Record that this struct default was hoisted
+                                        mut hoisted_key := func_name.concat(".").concat(member.name)
+                                        _ := ctx.hoisted_struct_defaults.insert(hoisted_key)
+                                    }
+                                }
+                            }
+                        }
+                        mi = add(mi, 1)
+                    }
+                    catch (err: IndexOutOfBoundsError) { }
+                }
+            }
+        }
+    case:
     }
 
     // Not a throwing call or variadic call - recursively check sub-expressions
@@ -7754,10 +7846,24 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         return result
     } else {
         // User-defined function call
-        // Check for struct construction: TypeName() -> (til_TypeName){defaults...}
-        // Struct names are PascalCase, no underscore in func_name (meaning not Type_method), no args
+        // Check for struct construction: TypeName() or TypeName(field=value) -> (til_TypeName){defaults...}
+        // Struct names are PascalCase, no underscore in func_name (meaning not Type_method)
+        // Check for named args to detect TypeName(field=value) pattern
         mut first_char := func_name.get_substr(0, 1)
-        if first_char.is_uppercase().and(not(func_name.contains("_"))).and(params_len.eq(1)) {
+        mut has_named_args := false
+        mut named_arg_idx := 1
+        while lt(named_arg_idx, params_len) {
+            mut named_arg := Expr()
+            expr.params.get(named_arg_idx, named_arg)
+            switch named_arg.node_type {
+            case NodeType.NamedArg(field_name):
+                has_named_args = true
+            case:
+            }
+            named_arg_idx = add(named_arg_idx, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { }
+        if first_char.is_uppercase().and(not(func_name.contains("_"))).and(params_len.eq(1).or(has_named_args)) {
             // Look up struct definition to get default values
             mut struct_found := false
             mut struct_def := context.scope_stack.lookup_struct(func_name)
@@ -7765,47 +7871,32 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             catch (err: KeyNotFoundError) { }
 
             if struct_found {
-                if struct_def.members.len().eq(0).or(struct_def.default_values.len().eq(0)) {
+                // Build map of named arg values
+                mut named_values := Map.new(Str, Expr)
+                mut nav_idx := 1
+                while lt(nav_idx, params_len) {
+                    mut nav_expr := Expr()
+                    expr.params.get(nav_idx, nav_expr)
+                    switch nav_expr.node_type {
+                    case NodeType.NamedArg(field_name):
+                        if gt(nav_expr.params.len(), 0) {
+                            mut value_expr := Expr()
+                            nav_expr.params.get(0, value_expr)
+                            named_values.set(field_name, value_expr)
+                            catch (err: IndexOutOfBoundsError) { }
+                        }
+                    case:
+                    }
+                    nav_idx = add(nav_idx, 1)
+                }
+                catch (err: IndexOutOfBoundsError) { }
+
+                if struct_def.members.len().eq(0).or(struct_def.default_values.len().eq(0).and(named_values.len().eq(0))) {
                     result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat("){}")
                 } else {
-                    // Check if any default value is a throwing function call
-                    // Such calls need out-params and can't be inlined in struct initializers
-                    mut throwing_defaults := Map.new(Str, Str)  // member_name -> temp_var
-                    mut member_idx := 0
-                    while lt(member_idx, struct_def.members.len()) {
-                        mut member := Declaration()
-                        struct_def.members.get(member_idx, member)
-                        catch (err: IndexOutOfBoundsError) { throw err.msg }
-                        if member.is_mut {
-                            mut default_expr := Expr()
-                            struct_def.default_values.get(member.name, default_expr)
-                            if is_throwing_fcall(default_expr, context) {
-                                // Emit the throwing call as a separate statement
-                                result = hoist_throwing_expr(default_expr, result, indent, ctx, context)
-                                // Get the temp var that was just generated (it's in hoisted_exprs)
-                                mut expr_key := default_expr.line.to_str().concat(":").concat(default_expr.col.to_str())
-                                mut temp_var := ""
-                                ctx.hoisted_exprs.get(expr_key, temp_var)
-                                throwing_defaults.set(member.name, temp_var)
-                                catch (err: KeyNotFoundError) { }
-                            }
-                            catch (err: KeyNotFoundError) { }
-                        }
-                        member_idx = add(member_idx, 1)
-                    }
-
-                    // Now emit the struct initializer
-                    // Need to add indentation if we emitted throwing calls
-                    if gt(throwing_defaults.len(), 0) {
-                        mut ind := 0
-                        while lt(ind, indent) {
-                            result = result.concat("    ")
-                            ind = add(ind, 1)
-                        }
-                    }
                     result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat("){")
                     mut is_first := true
-                    member_idx = 0
+                    mut member_idx := 0
                     while lt(member_idx, struct_def.members.len()) {
                         mut member := Declaration()
                         struct_def.members.get(member_idx, member)
@@ -7818,19 +7909,35 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                             }
                             is_first = false
                             result = result.concat(".").concat(member.name).concat(" = ")
-                            // Check if this was a throwing default - use temp var instead
-                            mut temp_var := ""
-                            throwing_defaults.get(member.name, temp_var)
-                            if gt(temp_var.len(), 0) {
-                                result = result.concat(temp_var)
+                            // Use named arg value if provided, otherwise use default
+                            mut value_expr := Expr()
+                            named_values.get(member.name, value_expr)
+                            if gt(value_expr.params.len(), 0).or(gt(value_expr.line, 0)) {
+                                // Found named arg value
+                                result = emit_expr(value_expr, result, 0, ctx, context)
                             } else {
+                                // Check for default value
                                 mut default_found := false
                                 mut default_expr := Expr()
                                 struct_def.default_values.get(member.name, default_expr)
                                 default_found = true
                                 catch (err: KeyNotFoundError) { }
                                 if default_found {
-                                    result = emit_expr(default_expr, result, 0, ctx, context)
+                                    // Check if this was a throwing default - use temp var instead
+                                    // Check hoisted_struct_defaults set OR if default is an FCall
+                                    mut hoisted_key := func_name.concat(".").concat(member.name)
+                                    mut is_hoisted := ctx.hoisted_struct_defaults.contains(hoisted_key)
+                                    mut is_fcall := false
+                                    switch default_expr.node_type {
+                                    case NodeType.FCall:
+                                        is_fcall = true
+                                    case:
+                                    }
+                                    if is_hoisted.or(is_fcall) {
+                                        result = result.concat("_default_").concat(member.name)
+                                    } else {
+                                        result = emit_expr(default_expr, result, 0, ctx, context)
+                                    }
                                 } else {
                                     result = result.concat("0")
                                 }
@@ -7850,7 +7957,6 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             }
             return result
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
 
         // Regular function call
         // func_name already has underscores from get_func_name_string

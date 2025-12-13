@@ -560,6 +560,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/lists.til"))
     rs_common.push(TestEntry(path="src/test/loops.til"))
     rs_common.push(TestEntry(path="src/test/maps.til"))
+    rs_common.push(TestEntry(path="src/test/modes.til"))
     rs_common.push(TestEntry(path="src/test/mut_test.til"))
     rs_common.push(TestEntry(path="src/test/namespaces.til"))
     rs_common.push(TestEntry(path="src/test/optional_args.til"))
@@ -593,7 +594,6 @@ main := proc(args: ..Str) {
     mut rs_interpreted := Vec.new(TestEntry)
 
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
-    rs_interpreted.push(TestEntry(path="src/test/modes.til")) // TODO FIX: gcc: Vec_new in struct literal - too few args (throwing func as field initializer)
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     rs_interpreted.push(TestEntry(path="src/test/test_lexer.til")) // TODO FIX: gcc: Str <= comparison, Bool.and missing, get_substr wrong args in while condition
     rs_interpreted.push(TestEntry(path="src/test/test_parser.til")) // TODO FIX: gcc: Str <= comparison, Bool.and missing, get_substr wrong args in while condition
