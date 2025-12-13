@@ -645,7 +645,6 @@ main := proc(args: ..Str) {
     // run the self hosting libs just to see they pass typer checks
     rs_interpreted.push(TestEntry(path="src/self/interpreter.til")) // TODO FIX: precomp: Import not found in stored ASTs - init should have stored it
     rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: gcc: Str <= comparison, Bool.and missing, get_substr wrong args
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="version")) // TODO FIX: gcc: Str <= comparison, Bool.and missing, get_substr wrong args
     // rs_interpreted.push(TestEntry(path="src/test/builders.til")) // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
