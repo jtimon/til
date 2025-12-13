@@ -1,6 +1,4 @@
 bin/*
-scratch/*
-!scratch/.gitkeep
 doc/bot/*
 doc/log/*
 src/test/tmp/*
