@@ -124,11 +124,11 @@ format_time := func(ms: I64) returns Str {
     return secs.to_str().concat(".").concat(millis_str).concat("s")
 }
 
-// Path transform: src/examples/foo.til -> src/examples/foo.interpreted.out or foo.compiled.out
+// Path transform: src/examples/foo.til -> out/examples/foo.interpreted.out or foo.compiled.out
 // test_mode: "compiled" -> .compiled.out, anything else -> .interpreted.out
 // cmd_args: "" for default, "version" for .version.out, etc.
 get_out_path := func(src_path: Str, test_mode: Str, cmd_args: Str) returns Str throws AllocError {
-    base := src_path.replace(".til", "")
+    base := src_path.replace(".til", "").replace("src/", "out/")
     mut suffix := ""
     if test_mode.eq("compiled") {
         suffix = ".compiled"
@@ -300,6 +300,24 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec)
     catch (err: AllocError) { panic(loc(), err.msg) }
 }
 
+// Ensure parent directory exists for a file path
+ensure_parent_dir := proc(file_path: Str) throws AllocError {
+    // Extract directory by finding last /
+    mut last_slash := 0
+    for i in 0..file_path.len() {
+        if file_path.get_char(i).eq("/") {
+            last_slash = i
+        }
+    }
+    if last_slash.gt(0) {
+        dir := get_substr(file_path, 0, last_slash)
+        mut result := ""
+        _ := result.run_cmd("mkdir", "-p", dir)
+    }
+
+    catch (err: IndexOutOfBoundsError) { /* ignore */ }
+}
+
 ensure_out_file := proc(path: Str, cmd_args: Str, out_path: Str, test_mode: Str) {
     mut ls_result := ""
     _ := ls_result.run_cmd("ls", out_path)
@@ -322,9 +340,12 @@ ensure_out_file := proc(path: Str, cmd_args: Str, out_path: Str, test_mode: Str)
             }
         }
         formatted := format_expected(cmd_args, exit_code, output)
+        ensure_parent_dir(out_path)
         _ := writefile(out_path, formatted)
         println("Created: ", out_path)
     }
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 
 test_rs_interpreted := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
@@ -493,6 +514,7 @@ regen_test := proc(entry: TestEntry) throws AllocError {
         exit_code = output.run_cmd("bash", "-c", cmd)
     }
     formatted := format_expected(entry.cmd_args, exit_code, output)
+    ensure_parent_dir(out_path)
     _ := writefile(out_path, formatted)
     println("Regenerated: ", out_path)
 }
@@ -509,6 +531,7 @@ regen_test_compiled := proc(entry: TestEntry) throws AllocError {
         exit_code = output.run_cmd("bash", "-c", cmd)
     }
     formatted := format_expected(entry.cmd_args, exit_code, output)
+    ensure_parent_dir(out_path)
     _ := writefile(out_path, formatted)
     println("Regenerated (compiled): ", out_path)
 }
