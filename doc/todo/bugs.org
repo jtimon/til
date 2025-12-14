@@ -9,11 +9,12 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #35: Special `_` variable does not allow repeated declarations
+** Bug #35: Special `_` variable does not allow repeated declarations :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-12-14
+:FIXED: 2025-12-14
 :IMPACT: Code ergonomics
-:STATUS: Open
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -25,31 +26,38 @@ _ := context.imports_init_done.insert(path)
 _ := context.imports_typer_done.insert(path)  // ERROR: '_' already declared
 #+END_EXAMPLE
 
-*** Expected Behavior
-The `_` variable should be special-cased to allow multiple declarations in the same scope, since it's used to explicitly discard return values (per Bug #8 fix that requires explicit `_ :=` for unused return values).
+*** Fix (2025-12-14)
+Modified type checker and code generator to special-case "_" declarations:
 
-*** Current Workaround
-Use indexed variable names:
+*Type checker (init.rs, init.til):*
+1. In =declare_var()=: Skip the "already declared in this scope" check when name is "_"
+2. In =init_context()= Declaration handler: Skip the "already declared" check when name is "_"
+
+*Code generator (ccodegen.rs, ccodegen.til):*
+1. In =emit_constant_declaration()=: Use =next_mangled()= to generate unique names for "_" declarations
+2. In =emit_global_declaration()=: Use =next_mangled()= to generate unique names for "_" declarations
+3. In =emit_declaration()=: Use =next_mangled()= to generate unique names for "_" declarations
+
+This approach:
+- Allows multiple "_" declarations in the same TIL scope
+- Generates unique C variable names (like =_tmp0=, =_tmp1=) to avoid C redefinition errors
+- Evaluates the RHS expression for its side effects (return value is discarded)
+
+*** Now Works
 #+BEGIN_EXAMPLE til
-_1 := context.imports_init_done.insert(path)
-_2 := context.imports_typer_done.insert(path)
+// Both values are discarded - no error
+_ := context.imports_init_done.insert(path)
+_ := context.imports_typer_done.insert(path)
 #+END_EXAMPLE
 
-Or use dummy names:
-#+BEGIN_EXAMPLE til
-_init := context.imports_init_done.insert(path)
-_typer := context.imports_typer_done.insert(path)
-#+END_EXAMPLE
+*** Test Coverage
+- src/test/underscore.til: Tests multiple "_" declarations at both top-level and function scope
 
-*** Affected Files
-- src/rs/init.rs - init_context declaration handling
-- src/self/init.til - same
-
-*** Potential Fix
-In init_context when processing declarations:
-1. Check if declaration name is "_"
-2. If so, skip the "already declared" check
-3. Optionally: don't store "_" in symbols at all (just evaluate the RHS)
+*** Files Modified
+- src/rs/init.rs: declare_var, init_context
+- src/rs/ccodegen.rs: emit_constant_declaration, emit_global_declaration, emit_declaration
+- src/self/init.til: declare_var, init_context
+- src/self/ccodegen.til: emit_constant_declaration, emit_global_declaration, emit_declaration
 
 ** Bug #34: Code between throwing call and catch runs unconditionally
 :PROPERTIES:

@@ -1,0 +1,24 @@
+mode test
+
+// Test for Bug #35: underscore _ variable should allow repeated declarations
+// The _ variable is used to discard return values (per Bug #8 fix)
+// Multiple _ := declarations should be allowed in the same scope
+
+returns_value := func() returns I64 {
+    return 42
+}
+
+// Test multiple _ declarations at top-level scope
+_ := returns_value()
+_ := returns_value()
+
+test_multiple_underscore_decls := proc() {
+    // Both _ declarations should work without "already declared" error inside functions too
+    _ := returns_value()
+    _ := returns_value()
+
+    println("test_multiple_underscore_decls PASSED")
+}
+
+test_multiple_underscore_decls()
+println("test_underscore_toplevel PASSED")

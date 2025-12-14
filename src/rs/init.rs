@@ -129,7 +129,8 @@ impl ScopeStack {
             .ok_or_else(|| "No active scope".to_string())?;
 
         // Check for redeclaration in current scope only
-        if current_frame.arena_index.contains_key(&name) {
+        // Bug #35: Skip check for "_" - it's special for discarding return values
+        if name != "_" && current_frame.arena_index.contains_key(&name) {
             return Err(format!("Variable '{}' already declared in this scope", name));
         }
 
@@ -922,7 +923,8 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             }
         },
         NodeType::Declaration(decl) => {
-            if context.scope_stack.lookup_func(&decl.name).is_some() || context.scope_stack.lookup_symbol(&decl.name).is_some() {
+            // Bug #35: Skip "already declared" check for "_" - it's special for discarding return values
+            if decl.name != "_" && (context.scope_stack.lookup_func(&decl.name).is_some() || context.scope_stack.lookup_symbol(&decl.name).is_some()) {
                 errors.push(e.error(&context.path, "type", &format!("'{}' already declared.", decl.name)));
             }
             if e.params.len() != 1 {

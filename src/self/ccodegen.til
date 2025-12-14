@@ -1708,6 +1708,12 @@ emit_global_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if gt(expr.params.len(), 0) {
+            // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
+            mut var_name := til_name(decl.name)
+            if decl.name.eq("_") {
+                var_name = next_mangled()
+            }
+
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -1732,9 +1738,9 @@ emit_global_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                 }
             }
             // Emit static declaration (no initializer - will be set in main)
-            result = result.concat("static ").concat(c_type).concat(" ").concat(til_name(decl.name)).concat(";\n")
+            result = result.concat("static ").concat(c_type).concat(" ").concat(var_name).concat(";\n")
             // Track that this variable has been declared globally
-            _ := ctx.declared_vars.insert(til_name(decl.name))
+            _ := ctx.declared_vars.insert(var_name)
             catch (err: AllocError) { throw err.msg }
         }
     case:
@@ -1749,6 +1755,12 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, 
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if gt(expr.params.len(), 0) {
+            // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
+            mut var_name := decl.name
+            if decl.name.eq("_") {
+                var_name = next_mangled()
+            }
+
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -1761,18 +1773,18 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, 
                     if not(decl.is_mut) {
                         result = result.concat("const ")
                     }
-                    result = result.concat("I64 ").concat(decl.name).concat(" = ").concat(n).concat(";\n")
+                    result = result.concat("I64 ").concat(var_name).concat(" = ").concat(n).concat(";\n")
                 case Literal.Str(s):
                     if has_str(context) {
                         if not(decl.is_mut) {
                             result = result.concat("const ")
                         }
                         result = format(result, TIL_PREFIX, "Str ")
-                        result = result.concat(decl.name).concat(" = ")
+                        result = result.concat(var_name).concat(" = ")
                         result = emit_str_literal(s, result)
                         result = result.concat(";\n")
                     } else {
-                        result = result.concat("const char* ").concat(decl.name).concat(" = \"").concat(s).concat("\";\n")
+                        result = result.concat("const char* ").concat(var_name).concat(" = \"").concat(s).concat("\";\n")
                     }
                 case:
                     // Skip list literals for now
@@ -1784,7 +1796,7 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, 
                     if not(decl.is_mut) {
                         result = result.concat("const ")
                     }
-                    result = format(result, TIL_PREFIX, "Bool ", TIL_PREFIX, decl.name, " = ")
+                    result = format(result, TIL_PREFIX, "Bool ", var_name, " = ")
                     // Use struct literal instead of macro (valid constant initializer)
                     if name.eq("true") {
                         result = format(result, "((", TIL_PREFIX, "Bool){1});\n")
@@ -6987,6 +6999,26 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
 
     // Skip NULL - it's a C macro for 0
     if Str.eq(name, "NULL") { return output }
+
+    // Bug #35: For underscore declarations, just emit the expression (discard result)
+    // This avoids C redeclaration errors and matches the semantics of discarding
+    if name.eq("_") {
+        if gt(expr.params.len(), 0) {
+            mut ind := 0
+            while lt(ind, indent) {
+                result = result.concat("    ")
+                ind = add(ind, 1)
+            }
+            mut rhs := Expr()
+            expr.params.get(0, rhs)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            result = emit_expr(rhs, result, indent, ctx, context)
+            if not(result.ends_with(";\n")) {
+                result = result.concat(";\n")
+            }
+        }
+        return result
+    }
 
     // Add indentation
     mut ind := 0

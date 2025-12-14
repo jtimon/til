@@ -599,6 +599,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/todo.til")) // permanent TODO, design notes for future features
     rs_common.push(TestEntry(path="src/test/u8.til"))
     rs_common.push(TestEntry(path="src/test/ufcs.til"))
+    rs_common.push(TestEntry(path="src/test/underscore.til"))
     rs_common.push(TestEntry(path="src/test/variadic.til"))
     rs_common.push(TestEntry(path="src/test/vecs.til"))
     rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))

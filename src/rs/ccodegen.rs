@@ -1904,6 +1904,13 @@ fn is_throwing_fcall(expr: &Expr, context: &Context) -> bool {
 fn emit_constant_declaration(expr: &Expr, output: &mut String, context: &Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
+            // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
+            let var_name = if decl.name == "_" {
+                next_mangled()
+            } else {
+                til_name(&decl.name)
+            };
+
             // Handle literal constants (numbers, strings)
             if let NodeType::LLiteral(lit) = &expr.params[0].node_type {
                 let has_str = context.scope_stack.lookup_struct("Str").is_some();
@@ -1918,7 +1925,7 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, context: &Context
                 }
                 output.push_str(&c_type);
                 output.push_str(" ");
-                output.push_str(&til_name(&decl.name));
+                output.push_str(&var_name);
                 output.push_str(" = ");
                 emit_literal(lit, output, context)?;
                 output.push_str(";\n");
@@ -1930,7 +1937,7 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, context: &Context
                         output.push_str("const ");
                     }
                     output.push_str(&format!("{}Bool ", TIL_PREFIX));
-                    output.push_str(&til_name(&decl.name));
+                    output.push_str(&var_name);
                     output.push_str(" = ");
                     // Use struct literal instead of macro (valid constant initializer)
                     if name == "true" {
@@ -1978,6 +1985,13 @@ fn is_global_declaration(expr: &Expr) -> bool {
 fn emit_global_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
+            // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
+            let var_name = if decl.name == "_" {
+                next_mangled()
+            } else {
+                til_name(&decl.name)
+            };
+
             // Determine the type from the initializer expression
             // Check for enum construction first (Color.Green(true) -> til_Color)
             let c_type = if let Some(enum_type) = get_enum_construction_type(&expr.params[0], context) {
@@ -1994,11 +2008,11 @@ fn emit_global_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
             output.push_str("static ");
             output.push_str(&c_type);
             output.push_str(" ");
-            output.push_str(&til_name(&decl.name));
+            output.push_str(&var_name);
             output.push_str(";\n");
 
             // Track that this variable has been declared globally
-            ctx.declared_vars.insert(til_name(&decl.name));
+            ctx.declared_vars.insert(var_name);
         }
     }
     Ok(())
@@ -4350,7 +4364,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         hoist_throwing_expr(&expr.params[0], output, indent, ctx, context)?;
     }
 
-    // For underscore declarations, just emit the expression (discard result)
+    // Bug #35: For underscore declarations, just emit the expression (discard result)
     // This avoids C redeclaration errors and matches the semantics of discarding
     if decl.name == "_" {
         if !expr.params.is_empty() {
