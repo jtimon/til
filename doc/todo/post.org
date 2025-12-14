@@ -885,11 +885,12 @@ These are edge cases that rarely come up. Can be addressed after self-hosting.
 Like script mode but unsafe actions (non-whitelisted commands, file I/O) require user confirmation. Idea from Roc.
 
 *** What's Needed
-- [ ] Design safe_script mode semantics
+- [X] Design safe_script mode semantics
 - [ ] Implement user confirmation prompts
-- [ ] Add whitelist for safe commands
-- [ ] Create hello_script_safe.til test case
-- [ ] Document safe_script mode in README
+- [X] Add whitelist for safe commands
+- [X] Create hello_safe_script.til test case
+- [X] Document safe_script mode in README
+- [ ] Fix: current implementation can probably be bypassed with import
 
 *** Why It's Post-Self-Hosting
 This is a safety feature for running untrusted scripts. Not needed for self-hosting the compiler itself.

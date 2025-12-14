@@ -1,0 +1,12 @@
+#!/usr/bin/env til
+mode safe_script
+
+// Safe command: ls on editor directory (stable, rarely changes)
+mut out := ""
+exit_code := out.run_cmd("ls", "editor/")
+println("ls editor/ output:")
+println(out)
+
+// This will fail: bash is not in safe_script whitelist
+mut bash_out := ""
+bash_exit := bash_out.run_cmd("bash", "-c", "echo hello")
