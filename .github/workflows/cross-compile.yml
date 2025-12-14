@@ -39,7 +39,7 @@ jobs:
       - name: Test cross-compile
         run: |
           ./bin/rstil build src/examples/hello_script.til --target=linux-arm64
-          file src/examples/bin/hello_script | grep -q "aarch64"
+          file bin/examples/hello_script | grep -q "aarch64"
 
   linux-riscv64:
     name: linux-riscv64
@@ -57,7 +57,7 @@ jobs:
       - name: Test cross-compile
         run: |
           ./bin/rstil build src/examples/hello_script.til --target=linux-riscv64
-          file src/examples/bin/hello_script | grep -q "RISC-V"
+          file bin/examples/hello_script | grep -q "RISC-V"
 
   windows-x64:
     name: windows-x64
@@ -75,7 +75,7 @@ jobs:
       - name: Test cross-compile
         run: |
           ./bin/rstil build src/examples/hello_script.til --target=windows-x64
-          test -f src/examples/bin/hello_script.exe
+          test -f bin/examples/hello_script.exe
 
   macos-x64:
     name: macos-x64
