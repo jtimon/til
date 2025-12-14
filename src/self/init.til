@@ -181,14 +181,12 @@ ScopeStack := struct {
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
-            mut symbol := SymbolInfo()
-            mut found := false
-            frame.symbols.get(name, symbol)  // throws KeyNotFoundError if not found
-            found = true
-            catch (err: KeyNotFoundError) {
-                // Not in this frame, try next
-            }
-            if found {
+            // TODO #34: Use contains_key first to work around codegen bug
+            // (code between throw and catch runs unconditionally)
+            if frame.symbols.contains_key(name) {
+                mut symbol := SymbolInfo()
+                frame.symbols.get(name, symbol)
+                catch (err: KeyNotFoundError) { }  // Won't happen since we checked
                 return symbol
             }
             i = i.sub(1)
@@ -306,14 +304,12 @@ ScopeStack := struct {
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
-            mut func_def := SFuncDef()
-            mut found := false
-            frame.funcs.get(name, func_def)  // throws KeyNotFoundError if not found
-            found = true
-            catch (err: KeyNotFoundError) {
-                // Not in this frame, try next
-            }
-            if found {
+            // TODO #34: Use contains_key first to work around codegen bug
+            // (code between throw and catch runs unconditionally)
+            if frame.funcs.contains_key(name) {
+                mut func_def := SFuncDef()
+                frame.funcs.get(name, func_def)
+                catch (err: KeyNotFoundError) { }  // Won't happen since we checked
                 return func_def
             }
             i = i.sub(1)
@@ -349,14 +345,12 @@ ScopeStack := struct {
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
-            mut enum_def := SEnumDef()
-            mut found := false
-            frame.enums.get(name, enum_def)  // throws KeyNotFoundError if not found
-            found = true
-            catch (err: KeyNotFoundError) {
-                // Not in this frame, try next
-            }
-            if found {
+            // TODO #34: Use contains_key first to work around codegen bug
+            // (code between throw and catch runs unconditionally)
+            if frame.enums.contains_key(name) {
+                mut enum_def := SEnumDef()
+                frame.enums.get(name, enum_def)
+                catch (err: KeyNotFoundError) { }  // Won't happen since we checked
                 return enum_def
             }
             i = i.sub(1)
@@ -392,14 +386,12 @@ ScopeStack := struct {
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
-            mut struct_def := SStructDef()
-            mut found := false
-            frame.structs.get(name, struct_def)  // throws KeyNotFoundError if not found
-            found = true
-            catch (err: KeyNotFoundError) {
-                // Not in this frame, try next
-            }
-            if found {
+            // TODO #34: Use contains_key first to work around codegen bug
+            // (code between throw and catch runs unconditionally)
+            if frame.structs.contains_key(name) {
+                mut struct_def := SStructDef()
+                frame.structs.get(name, struct_def)
+                catch (err: KeyNotFoundError) { }  // Won't happen since we checked
                 return struct_def
             }
             i = i.sub(1)
@@ -1355,20 +1347,20 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
 
     case NodeType.Declaration(decl):
         // Check if already declared as func
-        mut found_as_func := false
+        // TODO #34: Pattern workaround for codegen bug - set found=true before call,
+        // set found=false IN catch (code between throw and catch runs unconditionally)
+        mut found_as_func := true
         mut existing_func := SFuncDef()
         existing_func = context.scope_stack.lookup_func(decl.name)
-        found_as_func = true
         catch (err: KeyNotFoundError) {
-            // Not declared as func
+            found_as_func = false  // Not declared as func
         }
         // Check if already declared as symbol
-        mut found_as_symbol := false
+        mut found_as_symbol := true
         mut existing_symbol := SymbolInfo()
         existing_symbol = context.scope_stack.lookup_symbol(decl.name)
-        found_as_symbol = true
         catch (err: KeyNotFoundError) {
-            // Not declared as symbol
+            found_as_symbol = false  // Not declared as symbol
         }
         if found_as_func.or(found_as_symbol) {
             errors.push(e.error(context.path, "type", format("'", decl.name, "' already declared.")))

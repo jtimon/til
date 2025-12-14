@@ -9,6 +9,88 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #34: Code between throwing call and catch runs unconditionally
+:PROPERTIES:
+:DISCOVERED: 2025-12-14
+:IMPACT: Error handling semantics
+:STATUS: Open
+:END:
+
+*** Description
+When there is code between a throwing function call and its catch block, that code runs unconditionally (on both success and error paths) instead of only on success.
+
+#+BEGIN_EXAMPLE til
+// Expected behavior:
+result = throwing_call()   // throws on error
+found = true               // Should only run on SUCCESS
+catch (err: E) { }         // Catches the error
+
+// Actual behavior:
+// found = true runs ALWAYS, regardless of success/failure
+#+END_EXAMPLE
+
+*** Root Cause
+The C code generator emits the if/else chain for error handling, then emits subsequent statements AFTER the chain:
+
+#+BEGIN_SRC c
+int _status = throwing_call(...);
+if (_status == 0) {
+    // success case - maybe assign return value
+} else if (_status == 1) {
+    // catch body
+}
+found = true;  // BUG: runs always, not inside success block!
+#+END_SRC
+
+The code generator only handles two patterns correctly:
+1. Immediate catch after throwing call (no intervening statements)
+2. Declaration/assignment with throwing call: ~result = throwing_call()~ followed by catch
+
+*** Workarounds
+Two patterns work correctly:
+
+*Pattern 1: Use contains_key before get (for Map lookups)*
+#+BEGIN_EXAMPLE til
+// Instead of:
+map.get(key, value)
+found = true
+catch (err: KeyNotFoundError) { }
+
+// Use:
+if map.contains_key(key) {
+    map.get(key, value)
+    catch (err: KeyNotFoundError) { }
+    return value
+}
+#+END_EXAMPLE
+
+*Pattern 2: Set flag INSIDE catch block*
+#+BEGIN_EXAMPLE til
+// Instead of:
+found = false
+lookup_call()
+found = true              // BUG: runs always
+catch (err: E) { }
+
+// Use:
+found = true              // Assume success
+lookup_call()
+catch (err: E) {
+    found = false         // Set to false only on error
+}
+#+END_EXAMPLE
+
+*** Proper Fix
+The code generator should detect statements between a throwing call and its catch block, and emit those statements inside the success branch of the if/else chain.
+
+*** Affected Files
+- src/rs/ccodegen.rs: emit_stmts, emit_throwing_call_with_goto
+- src/self/ccodegen.til: emit_stmts, emit_throwing_call_with_goto
+
+*** Workaround Locations
+These files contain workarounds for this bug (marked with TODO #34):
+- src/self/init.til: lookup_symbol, lookup_func, lookup_enum, lookup_struct, init_context Declaration check
+
 ** Bug #33: for-in loops don't work with enum collections
 :PROPERTIES:
 :DISCOVERED: 2025-12-14
