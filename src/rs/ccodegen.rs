@@ -1,7 +1,7 @@
 // C code generator for TIL
 // Translates TIL AST to C source code
 
-use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType, INFER_TYPE};
+use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, SStructDef, ValueType, INFER_TYPE};
 use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType};
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -4608,27 +4608,76 @@ fn infer_type_from_expr(expr: &Expr, context: &Context) -> Option<ValueType> {
             None
         },
         NodeType::Identifier(name) => {
-            // Check for field access (var.field)
+            // Check for field access chain (var.field or var.field.subfield)
+            // AST structure is FLAT: Identifier("var") with params [Identifier("field1"), Identifier("field2"), ...]
             if !expr.params.is_empty() {
-                if let NodeType::Identifier(field_name) = &expr.params[0].node_type {
-                    // Look up the variable type first
-                    if let Some(var_type) = context.scope_stack.lookup_symbol(name).map(|s| s.value_type.clone()) {
-                        // Get the struct type name
-                        if let ValueType::TCustom(struct_name) = var_type {
-                            // Look up the field type from the struct definition
-                            if let Some(struct_def) = context.scope_stack.lookup_struct(&struct_name) {
-                                // Use get_member helper to find the field
-                                if let Some(member) = struct_def.get_member(field_name) {
-                                    return Some(member.value_type.clone());
+                // Look up the variable type first
+                if let Some(var_type) = context.scope_stack.lookup_symbol(name).map(|s| s.value_type.clone()) {
+                    // Walk through the field chain
+                    let mut current_type = var_type;
+                    for field_expr in &expr.params {
+                        if let NodeType::Identifier(field_name) = &field_expr.node_type {
+                            if let ValueType::TCustom(struct_name) = &current_type {
+                                if let Some(struct_def) = context.scope_stack.lookup_struct(struct_name) {
+                                    if let Some(member) = struct_def.get_member(field_name) {
+                                        current_type = member.value_type.clone();
+                                    } else {
+                                        // Field not found in struct
+                                        return None;
+                                    }
+                                } else {
+                                    // Struct not found
+                                    return None;
                                 }
+                            } else {
+                                // Current type is not a struct
+                                return None;
                             }
+                        } else {
+                            // Field is not an identifier (might be a method call)
+                            return None;
                         }
                     }
-                    // Fallback: if variable not in scope, try to find field type from all known structs
-                    // This handles cases where we're hoisting declarations before the variable is declared
+                    return Some(current_type);
+                }
+                // Fallback: if variable not in scope, try to find the first field type from all known structs
+                // This handles cases where we're hoisting declarations before the variable is declared
+                if let NodeType::Identifier(field_name) = &expr.params[0].node_type {
                     for struct_def in context.scope_stack.all_structs() {
                         if let Some(member) = struct_def.get_member(field_name) {
-                            return Some(member.value_type.clone());
+                            // Walk through remaining fields if any
+                            if expr.params.len() > 1 {
+                                let mut current_type = member.value_type.clone();
+                                let mut all_resolved = true;
+                                for field_expr in &expr.params[1..] {
+                                    if let NodeType::Identifier(next_field_name) = &field_expr.node_type {
+                                        if let ValueType::TCustom(struct_name) = &current_type {
+                                            if let Some(next_struct_def) = context.scope_stack.lookup_struct(struct_name) {
+                                                if let Some(next_member) = next_struct_def.get_member(next_field_name) {
+                                                    current_type = next_member.value_type.clone();
+                                                } else {
+                                                    all_resolved = false;
+                                                    break;
+                                                }
+                                            } else {
+                                                all_resolved = false;
+                                                break;
+                                            }
+                                        } else {
+                                            all_resolved = false;
+                                            break;
+                                        }
+                                    } else {
+                                        all_resolved = false;
+                                        break;
+                                    }
+                                }
+                                if all_resolved {
+                                    return Some(current_type);
+                                }
+                            } else {
+                                return Some(member.value_type.clone());
+                            }
                         }
                     }
                 }

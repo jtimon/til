@@ -518,9 +518,29 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     }
                     i.inc()
                 }
+            } else {
+                // lib/pure mode - globals are still initialized in main(), so include those calls
+                mut j := 0
+                while j.lt(e.params.len()) {
+                    stmt := e.get(j)
+                    switch stmt.node_type {
+                    case NodeType.Declaration(decl):
+                        if stmt.params.len().gt(0) {
+                            inner := stmt.get(0)
+                            switch inner.node_type {
+                            case NodeType.FuncDef(_):
+                                // Skip function declarations
+                            case:
+                                // Non-function declaration initializer - collect calls from it
+                                collect_called_functions(inner, roots)
+                            }
+                        }
+                    case:
+                    }
+                    j.inc()
+                }
             }
         }
-        // else: lib/pure mode - no roots, all user functions get removed
 
         // Step 2: Compute reachable functions (transitive closure)
         reachable := compute_reachable(context, roots, e)

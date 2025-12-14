@@ -6488,57 +6488,121 @@ infer_type_from_expr := func(expr: Expr, context: Context) returns ValueType {
         }
         return ValueType.TCustom("")
     case NodeType.Identifier(name):
-        // Check for field access (var.field)
+        // Check for field access chain (var.field or var.field.subfield)
+        // AST structure is FLAT: Identifier("var") with params [Identifier("field1"), Identifier("field2"), ...]
         if gt(expr.params.len(), 0) {
-            mut first_param := Expr()
-            expr.params.get(0, first_param)
-            switch first_param.node_type {
-            case NodeType.Identifier(field_name):
-                // Look up the variable type first
-                mut sym := context.scope_stack.lookup_symbol(name)
-                switch sym.value_type {
-                case ValueType.TCustom(struct_name):
-                    // Look up the field type from the struct definition
-                    mut struct_def := context.scope_stack.lookup_struct(struct_name)
-                    // Check members for the field
-                    mut m_idx := 0
-                    while lt(m_idx, struct_def.members.len()) {
-                        mut member := Declaration()
-                        struct_def.members.get(m_idx, member)
-                        if Str.eq(member.name, field_name) {
-                            return member.value_type
+            // Look up the variable type first
+            mut sym := context.scope_stack.lookup_symbol(name)
+            // Walk through the field chain
+            mut current_type := sym.value_type
+            mut field_idx := 0
+            while lt(field_idx, expr.params.len()) {
+                mut field_expr := Expr()
+                expr.params.get(field_idx, field_expr)
+                switch field_expr.node_type {
+                case NodeType.Identifier(field_name):
+                    switch current_type {
+                    case ValueType.TCustom(struct_name):
+                        mut struct_def := context.scope_stack.lookup_struct(struct_name)
+                        // Find the field in the struct
+                        mut found_field := false
+                        mut m_idx := 0
+                        while lt(m_idx, struct_def.members.len()) {
+                            mut member := Declaration()
+                            struct_def.members.get(m_idx, member)
+                            if Str.eq(member.name, field_name) {
+                                current_type = member.value_type
+                                found_field = true
+                            }
+                            m_idx = add(m_idx, 1)
                         }
-                        m_idx = add(m_idx, 1)
+                        catch (err: IndexOutOfBoundsError) { return ValueType.TCustom("") }
+                        if not(found_field) {
+                            return ValueType.TCustom("")  // Field not found
+                        }
+                        catch (err: KeyNotFoundError) { return ValueType.TCustom("") }
+                    case:
+                        return ValueType.TCustom("")  // Current type is not a struct
+                    }
+                case:
+                    return ValueType.TCustom("")  // Field is not an identifier
+                }
+                field_idx = add(field_idx, 1)
+            }
+            catch (err: IndexOutOfBoundsError) { return ValueType.TCustom("") }
+            catch (err: KeyNotFoundError) {
+                // Fallback: if variable not in scope, try to find the first field type from all known structs
+                mut first_param := Expr()
+                expr.params.get(0, first_param)
+                switch first_param.node_type {
+                case NodeType.Identifier(first_field_name):
+                    mut all_struct_defs := context.scope_stack.all_structs()
+                    mut s_idx := 0
+                    while lt(s_idx, all_struct_defs.len()) {
+                        mut struct_def := SStructDef()
+                        all_struct_defs.get(s_idx, struct_def)
+                        mut m_idx := 0
+                        while lt(m_idx, struct_def.members.len()) {
+                            mut member := Declaration()
+                            struct_def.members.get(m_idx, member)
+                            if Str.eq(member.name, first_field_name) {
+                                // Walk through remaining fields if any
+                                if gt(expr.params.len(), 1) {
+                                    mut fallback_type := member.value_type
+                                    mut all_resolved := true
+                                    mut f_idx := 1
+                                    while lt(f_idx, expr.params.len()) {
+                                        mut next_field_expr := Expr()
+                                        expr.params.get(f_idx, next_field_expr)
+                                        switch next_field_expr.node_type {
+                                        case NodeType.Identifier(next_field_name):
+                                            switch fallback_type {
+                                            case ValueType.TCustom(next_struct_name):
+                                                mut next_struct_def := context.scope_stack.lookup_struct(next_struct_name)
+                                                mut found := false
+                                                mut nm_idx := 0
+                                                while lt(nm_idx, next_struct_def.members.len()) {
+                                                    mut next_member := Declaration()
+                                                    next_struct_def.members.get(nm_idx, next_member)
+                                                    if Str.eq(next_member.name, next_field_name) {
+                                                        fallback_type = next_member.value_type
+                                                        found = true
+                                                    }
+                                                    nm_idx = add(nm_idx, 1)
+                                                }
+                                                if not(found) {
+                                                    all_resolved = false
+                                                }
+                                                catch (err: KeyNotFoundError) { all_resolved = false }
+                                                catch (err: IndexOutOfBoundsError) { all_resolved = false }
+                                            case:
+                                                all_resolved = false
+                                            }
+                                        case:
+                                            all_resolved = false
+                                        }
+                                        f_idx = add(f_idx, 1)
+                                    }
+                                    catch (err: IndexOutOfBoundsError) { all_resolved = false }
+                                    if all_resolved {
+                                        return fallback_type
+                                    }
+                                } else {
+                                    return member.value_type
+                                }
+                            }
+                            m_idx = add(m_idx, 1)
+                        }
+                        s_idx = add(s_idx, 1)
                     }
                     catch (err: IndexOutOfBoundsError) { }
-                    catch (err: KeyNotFoundError) { }
+                    catch (err: Str) { }
                 case:
                 }
-                catch (err: KeyNotFoundError) { }
-                // Fallback: if variable not in scope, try to find field type from all known structs
-                // This handles cases where we're hoisting declarations before the variable is declared
-                mut all_struct_defs := context.scope_stack.all_structs()
-                mut s_idx := 0
-                while lt(s_idx, all_struct_defs.len()) {
-                    mut struct_def := SStructDef()
-                    all_struct_defs.get(s_idx, struct_def)
-                    mut m_idx := 0
-                    while lt(m_idx, struct_def.members.len()) {
-                        mut member := Declaration()
-                        struct_def.members.get(m_idx, member)
-                        if Str.eq(member.name, field_name) {
-                            return member.value_type
-                        }
-                        m_idx = add(m_idx, 1)
-                    }
-                    s_idx = add(s_idx, 1)
-                }
                 catch (err: IndexOutOfBoundsError) { }
-                catch (err: Str) { }
-            case:
+                return ValueType.TCustom("")
             }
-            catch (err: IndexOutOfBoundsError) { }
-            return ValueType.TCustom("")
+            return current_type
         }
         // Look up variable type from scope_stack
         mut var_type := ValueType.TCustom("")

@@ -328,8 +328,21 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                     }
                 }
             }
+        } else {
+            // lib/pure mode - globals are still initialized in main(), so include those calls
+            for stmt in &e.params {
+                if let NodeType::Declaration(_decl) = &stmt.node_type {
+                    if !stmt.params.is_empty() {
+                        if let NodeType::FuncDef(_) = &stmt.params[0].node_type {
+                            // Skip function declarations
+                        } else {
+                            // Non-function declaration initializer - collect calls from it
+                            collect_called_functions(&stmt.params[0], &mut roots);
+                        }
+                    }
+                }
+            }
         }
-        // else: lib/pure mode - no roots, all user functions get removed
 
         // Step 2: Compute reachable functions (transitive closure)
         // First pass: compute reachable and detect if variadic support is needed
