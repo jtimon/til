@@ -264,9 +264,7 @@ Shape := enum {
 
 test_struct_payloads := proc() {
     // Test basic struct payload
-    mut my_vec := Vec2()
-    my_vec.x = 10
-    my_vec.y = 20
+    my_vec := Vec2(x=10, y=20)
     point := Shape.Point(my_vec)
 
     mut extracted_vec := Vec2()
@@ -280,10 +278,7 @@ test_struct_payloads := proc() {
     assert_eq(loc(), 20, extracted_vec.y)
 
     // Test 3D point
-    mut my_vec3 := Vec3()
-    my_vec3.x = 1
-    my_vec3.y = 2
-    my_vec3.z = 3
+    my_vec3 := Vec3(x=1, y=2, z=3)
     point3d := Shape.Point3D(my_vec3)
 
     mut extracted_vec3 := Vec3()
@@ -495,25 +490,19 @@ test_complex_nesting := proc() {
     // Build up a complex nested structure: Message.State(GameState { Action.Update(Entity { Status.Error(Point2D) }) })
 
     // Level 1: Create Point2D
-    mut error_pos := Point2D()
-    error_pos.x = 42
-    error_pos.y = 100
+    error_pos := Point2D(x=42, y=100)
 
     // Level 2: Create Status.Error with Point2D payload
     error_status := Status.Error(error_pos)
 
     // Level 3: Create Entity with error status
-    mut entity := Entity()
-    entity.id = 123
-    entity.status = error_status
+    entity := Entity(id=123, status=error_status)
 
     // Level 4: Create Action.Update with Entity payload
     update_action := Action.Update(entity)
 
     // Level 5: Create GameState with Action
-    mut game_state := GameState()
-    game_state.current_action = update_action
-    game_state.player_id = 456  // Simple I64 field
+    game_state := GameState(current_action=update_action, player_id=456)
 
     // Level 6: Create Message.State with GameState payload
     message := Message.State(game_state)
@@ -594,9 +583,7 @@ test_complex_nesting := proc() {
     assert(loc(), enum_to_str(extracted_status2).eq("Status.Active"))
 
     // Test Action.Move with Point2D directly (simpler test)
-    mut test_point := Point2D()
-    test_point.x = 99
-    test_point.y = 88
+    test_point := Point2D(x=99, y=88)
     test_move := Action.Move(test_point)
 
     // Test direct extraction using switch pattern matching
@@ -831,8 +818,7 @@ test_enum_payload_copy := proc() {
     }
 
     // Copy from struct field (critical test case)
-    mut container := TestContainer()
-    container.enum_field = TestSimpleEnum.IntValue(99)
+    container := TestContainer(enum_field=TestSimpleEnum.IntValue(99))
     mut local_copy := container.enum_field
     switch local_copy {
     case TestSimpleEnum.IntValue(val):
@@ -872,8 +858,7 @@ Token := struct {
 
 // Test: Direct enum assignment to struct field preserves payload
 test_enum_field_assignment := proc() {
-    mut t := Token()
-    t.token_type = TokenType.Identifier("foo")
+    t := Token(token_type=TokenType.Identifier("foo"))
 
     nt := t.token_type
     switch nt {
@@ -887,8 +872,7 @@ test_enum_field_assignment()
 
 // Test: Enum without payload in struct field
 test_enum_field_no_payload := proc() {
-    mut t := Token()
-    t.token_type = TokenType.String
+    t := Token()
 
     nt := t.token_type
     switch nt {
@@ -902,9 +886,7 @@ test_enum_field_no_payload()
 
 // Test: Struct copy preserves enum payloads (Bug #6 regression test)
 test_struct_copy_with_enum := proc() {
-    mut t1 := Token()
-    t1.token_type = TokenType.Identifier("foo")
-    t1.token_str = "identifier_foo"
+    t1 := Token(token_type=TokenType.Identifier("foo"), token_str="identifier_foo")
 
     // Copy the struct
     t2 := t1
@@ -926,8 +908,7 @@ test_struct_copy_with_enum()
 // Test: Struct copy with different enum variants
 test_struct_copy_various_payloads := proc() {
     // Test with Number variant
-    mut t1 := Token()
-    t1.token_type = TokenType.Number
+    t1 := Token(token_type=TokenType.Number)
     t2 := t1
 
     nt := t2.token_type
@@ -939,8 +920,7 @@ test_struct_copy_various_payloads := proc() {
     }
 
     // Test with String variant
-    mut t3 := Token()
-    t3.token_type = TokenType.String
+    t3 := Token()
     t4 := t3
 
     nt2 := t4.token_type
@@ -952,8 +932,7 @@ test_struct_copy_various_payloads := proc() {
     }
 
     // Test with different Identifier payload
-    mut t5 := Token()
-    t5.token_type = TokenType.Identifier("bar_test")
+    t5 := Token(token_type=TokenType.Identifier("bar_test"))
     t6 := t5
 
     nt3 := t6.token_type
@@ -1120,8 +1099,7 @@ StructWithEnum := struct {
 }
 
 test_switch_on_struct_field := proc() {
-    mut s := StructWithEnum()
-    s.node_type = ExampleEnum.B
+    s := StructWithEnum(node_type=ExampleEnum.B)
 
     mut result := ""
     switch s.node_type {
@@ -1142,8 +1120,7 @@ StructWithPayloadEnum := struct {
 }
 
 test_switch_on_struct_field_with_payload := proc() {
-    mut s := StructWithPayloadEnum()
-    s.color = Color.Number(42)
+    s := StructWithPayloadEnum(color=Color.Number(42))
 
     mut result := 0
     switch s.color {
