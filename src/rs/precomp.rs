@@ -368,8 +368,10 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
         None => return Err(e.lang_error(&context.path, "precomp", "ForIn: missing body")),
     };
 
-    // Build: mut _for_i := 0
-    let index_var_name = "_for_i".to_string();
+    // Build: mut _for_i_N := 0 (unique name to avoid conflicts with nested loops)
+    let forin_id = Arena::g().temp_id_counter;
+    Arena::g().temp_id_counter += 1;
+    let index_var_name = format!("_for_i_{}", forin_id);
     let index_decl = Declaration {
         name: index_var_name.clone(),
         value_type: str_to_value_type(INFER_TYPE),

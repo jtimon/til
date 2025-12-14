@@ -265,11 +265,7 @@ Arena := struct {
         }
 
         mut current_offset := 0
-        mut mi := 0
-        while mi.lt(struct_def.members.len()) {
-            mut decl := Declaration()
-            struct_def.members.get(mi, decl)
-
+        for decl: Declaration in struct_def.members {
             if decl.is_mut {
                 mut field_size := 0
                 switch decl.value_type {
@@ -324,10 +320,9 @@ Arena := struct {
                     current_offset = add(current_offset, field_size)
                 }
             }
-            mi = add(mi, 1)
         }
         catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "context", "copy_fields: IndexOutOfBoundsError iterating members")
+            throw e.lang_error(ctx.path, "context", format("copy_fields: ", err.msg))
         }
         catch (err: I64_OverflowError) {
             throw err.msg
@@ -359,11 +354,7 @@ Arena := struct {
         mut total_size := 0
         mut field_offsets := Map.new(Str, I64)
 
-        mut mi := 0
-        while mi.lt(struct_def.members.len()) {
-            mut decl := Declaration()
-            struct_def.members.get(mi, decl)
-
+        for decl: Declaration in struct_def.members {
             if decl.is_mut {
                 mut field_size := 0
                 switch decl.value_type {
@@ -376,7 +367,6 @@ Arena := struct {
                 field_offsets.insert(decl.name, total_size)
                 total_size = add(total_size, field_size)
             }
-            mi = add(mi, 1)
         }
 
         // Either use existing offset (for nested structs) or allocate new memory
@@ -396,11 +386,7 @@ Arena := struct {
         result.arena_mappings.push(base_mapping)
 
         // Store each field's default value
-        mut mi2 := 0
-        while mi2.lt(struct_def.members.len()) {
-            mut decl := Declaration()
-            struct_def.members.get(mi2, decl)
-
+        for decl: Declaration in struct_def.members {
             if decl.is_mut {
                 mut field_offset := 0
                 field_offsets.get(decl.name, field_offset)
@@ -550,11 +536,10 @@ Arena := struct {
                 field_sym.info = SymbolInfo.new(decl.value_type, is_mut, false, false)
                 result.symbols.push(field_sym)
             }
-            mi2 = add(mi2, 1)
         }
 
         catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "context", "insert_struct_core: IndexOutOfBoundsError")
+            throw e.lang_error(ctx.path, "context", format("insert_struct_core: ", err.msg))
         }
         catch (err: AllocError) {
             throw e.lang_error(ctx.path, "context", "insert_struct_core: AllocError")
@@ -591,11 +576,7 @@ Arena := struct {
         // Calculate field offsets (same as insert_struct_core)
         mut current_offset := 0
         mut field_offsets := Map.new(Str, I64)
-        mut mi := 0
-        while mi.lt(struct_def.members.len()) {
-            mut decl := Declaration()
-            struct_def.members.get(mi, decl)
-
+        for decl: Declaration in struct_def.members {
             if decl.is_mut {
                 mut field_size := 0
                 switch decl.value_type {
@@ -607,7 +588,6 @@ Arena := struct {
                 field_offsets.insert(decl.name, current_offset)
                 current_offset = add(current_offset, field_size)
             }
-            mi = add(mi, 1)
         }
 
         // Add base struct mapping
@@ -617,11 +597,7 @@ Arena := struct {
         result.arena_mappings.push(base_mapping)
 
         // Generate mappings for each field
-        mut mi2 := 0
-        while mi2.lt(struct_def.members.len()) {
-            mut decl := Declaration()
-            struct_def.members.get(mi2, decl)
-
+        for decl: Declaration in struct_def.members {
             if decl.is_mut {
                 mut field_rel_offset := 0
                 field_offsets.get(decl.name, field_rel_offset)
@@ -663,11 +639,9 @@ Arena := struct {
                 case:
                 }
             }
-            mi2 = add(mi2, 1)
         }
-
         catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "generate_struct_mappings", "IndexOutOfBoundsError")
+            throw e.lang_error(ctx.path, "generate_struct_mappings", format("IndexOutOfBoundsError: ", err.msg))
         }
         catch (err: AllocError) {
             throw e.lang_error(ctx.path, "generate_struct_mappings", "AllocError")
@@ -1504,9 +1478,7 @@ Arena := struct {
         params.push(type_id)
 
         // For each mutable field, read value and create NamedArg
-        for i in 0..struct_def.members.len() {
-            mut member := Declaration()
-            struct_def.members.get(i, member)
+        for member: Declaration in struct_def.members {
             if not(member.is_mut) {
                 continue  // Skip static fields
             }

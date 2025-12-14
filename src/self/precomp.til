@@ -613,8 +613,10 @@ precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     }
     body_expr := precomp_expr(context, e.get(2))
 
-    // Build: mut _for_i := 0
-    index_var_name := "_for_i"
+    // Build: mut _for_i_N := 0 (unique name to avoid conflicts with nested loops)
+    forin_id := arena.temp_id_counter
+    arena.temp_id_counter.inc()
+    index_var_name := format("_for_i_", I64.to_str(forin_id))
     index_decl := Declaration(name=index_var_name, value_type=str_to_value_type(INFER_TYPE), is_mut=true, is_copy=false, is_own=false, default_value=NULL)
     mut zero_params := Vec.new(Expr)
     zero_literal := Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), zero_params, e.line, e.col)
@@ -732,6 +734,9 @@ precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
         throw format("precomp_forin: ", err.msg)
     }
     catch (err: AllocError) {
+        throw format("precomp_forin: ", err.msg)
+    }
+    catch (err: I64_OverflowError) {
         throw format("precomp_forin: ", err.msg)
     }
 
