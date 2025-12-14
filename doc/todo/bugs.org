@@ -9,6 +9,43 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #32: TIL doesn't support chained field access + method calls
+:PROPERTIES:
+:DISCOVERED: 2025-12-14
+:IMPACT: Code ergonomics
+:STATUS: Open
+:END:
+
+*** Description
+TIL doesn't support chained field access followed by method calls like:
+#+BEGIN_EXAMPLE til
+lexer.peek().token_type.eq(TokenType.Colon)
+#+END_EXAMPLE
+
+This causes parse errors like:
+#+BEGIN_EXAMPLE
+Expected '(' after method name 'token_type', found 'Dot'
+#+END_EXAMPLE
+
+Or type errors like:
+#+BEGIN_EXAMPLE
+Cannot call 'peeked.token_type', it is not a function, it is 'TokenType'
+#+END_EXAMPLE
+
+*** Workaround
+Use intermediate variables:
+#+BEGIN_EXAMPLE til
+peeked := lexer.peek()
+peeked_tt := peeked.token_type
+switch peeked_tt {
+case TokenType.Colon:
+    // ...
+}
+#+END_EXAMPLE
+
+*** Affected Code
+- src/self/parser.til: parse_for_statement (TODO #32 workaround)
+
 * Fixed Bugs Summary
 
 ** Bug #31: Switch on struct field with pattern matching fails :FIXED:

@@ -213,6 +213,9 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                 errors.extend(check_types_with_context(context, p, expr_context));
             }
         },
+        NodeType::ForIn(_var_type) => {
+            errors.extend(check_forin_statement(context, &e));
+        },
     }
 
     return errors
@@ -327,6 +330,119 @@ fn check_while_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     }
     return errors;
 }
+
+fn check_forin_statement(context: &mut Context, e: &Expr) -> Vec<String> {
+    let mut errors: Vec<String> = Vec::new();
+
+    // e.params[0] = Identifier(var_name)
+    // e.params[1] = collection expression
+    // e.params[2] = body
+    // NodeType::ForIn(var_type_name)
+
+    let var_type_name = match &e.node_type {
+        NodeType::ForIn(type_name) => type_name.clone(),
+        _ => return vec![e.lang_error(&context.path, "type", "Expected ForIn node")],
+    };
+
+    // Extract variable name from params[0]
+    let var_name = match &e.params.get(0) {
+        Some(var_expr) => match &var_expr.node_type {
+            NodeType::Identifier(name) => name.clone(),
+            _ => return vec![e.lang_error(&context.path, "type", "ForIn: expected identifier for loop variable")],
+        },
+        None => return vec![e.lang_error(&context.path, "type", "ForIn: missing loop variable")],
+    };
+
+    // Get collection expression
+    let collection_expr = match e.params.get(1) {
+        Some(expr) => expr,
+        None => return vec![e.lang_error(&context.path, "type", "ForIn: missing collection expression")],
+    };
+
+    // Type check the collection expression
+    errors.extend(check_types_with_context(context, collection_expr, ExprContext::ValueUsed));
+
+    // Get collection type
+    let collection_type = match get_value_type(context, collection_expr) {
+        Ok(t) => t,
+        Err(err) => {
+            errors.push(err);
+            return errors;
+        }
+    };
+
+    let type_name = match &collection_type {
+        ValueType::TCustom(name) => name.clone(),
+        _ => {
+            errors.push(e.error(&context.path, "type", "for-in loop requires a collection type"));
+            return errors;
+        }
+    };
+
+    // Check TypeName.len() exists and returns I64
+    let len_method = format!("{}.len", type_name);
+    match context.scope_stack.lookup_func(&len_method) {
+        Some(func_def) => {
+            // Verify returns I64
+            if func_def.return_types.len() != 1 ||
+               func_def.return_types[0] != ValueType::TCustom("I64".to_string()) {
+                errors.push(e.error(&context.path, "type", &format!(
+                    "for-in loop: '{}.len()' must return I64", type_name)));
+            }
+        },
+        None => {
+            errors.push(e.error(&context.path, "type", &format!(
+                "for-in loop: type '{}' does not have a 'len()' method.\n\
+                 Required: {}.len(self) returns I64", type_name, type_name)));
+        }
+    }
+
+    // Check TypeName.get() exists with right signature
+    let get_method = format!("{}.get", type_name);
+    match context.scope_stack.lookup_func(&get_method) {
+        Some(func_def) => {
+            // Verify signature: get(self, I64, mut Dynamic) throws IndexOutOfBoundsError
+            let valid = func_def.args.len() >= 3
+                && func_def.args[1].value_type == ValueType::TCustom("I64".to_string())
+                && func_def.args[2].is_mut
+                && func_def.args[2].value_type == ValueType::TCustom("Dynamic".to_string())
+                && func_def.throw_types.iter().any(|t|
+                    *t == ValueType::TCustom("IndexOutOfBoundsError".to_string()));
+
+            if !valid {
+                errors.push(e.error(&context.path, "type", &format!(
+                    "for-in loop: '{}.get()' has wrong signature.\n\
+                     Required: {}.get(self, index: I64, mut item: Dynamic) throws IndexOutOfBoundsError",
+                    type_name, type_name)));
+            }
+        },
+        None => {
+            errors.push(e.error(&context.path, "type", &format!(
+                "for-in loop: type '{}' does not have a 'get()' method.\n\
+                 Required: {}.get(self, index: I64, mut item: Dynamic) throws IndexOutOfBoundsError",
+                type_name, type_name)));
+        }
+    }
+
+    // Push scope for loop body, declare loop variable
+    context.scope_stack.push(ScopeType::Block);
+    context.scope_stack.declare_symbol(var_name, SymbolInfo {
+        value_type: ValueType::TCustom(var_type_name),
+        is_mut: true,  // Loop variable is mutable
+        is_copy: false,
+        is_own: false,
+        is_comptime_const: false,
+    });
+
+    // Type check body
+    if let Some(body_expr) = e.params.get(2) {
+        errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
+    }
+
+    context.scope_stack.pop().ok();
+    errors
+}
+
 fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors: Vec<String> = Vec::new();
     let f_name = get_func_name_in_call(e);
@@ -1897,6 +2013,16 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
                 // TODO Err(lang_error) here instead
                 true
             }
+        }
+        NodeType::ForIn(_) => {
+            // ForIn: params[0]=var, params[1]=collection, params[2]=body
+            // Check collection and body for proc calls
+            for param in &e.params {
+                if is_expr_calling_procs(context, param) {
+                    return true;
+                }
+            }
+            false
         }
     }
 }

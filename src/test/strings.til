@@ -45,6 +45,16 @@ test_strings := proc() {
     test(loc(), empty_str.starts_with(""), "starts_with: ''.starts_with('') = true")
     test(loc(), not(empty_str.starts_with("a")), "starts_with: ''.starts_with('a') = false")
 
+    // ends_with tests
+    test(loc(), hello.ends_with("lo"), "ends_with: 'hello'.ends_with('lo') = true")
+    test(loc(), hello.ends_with("hello"), "ends_with: 'hello'.ends_with('hello') = true")
+    test(loc(), hello.ends_with(""), "ends_with: 'hello'.ends_with('') = true")
+    test(loc(), not(hello.ends_with("world")), "ends_with: 'hello'.ends_with('world') = false")
+    test(loc(), not(hello.ends_with("helloworld")), "ends_with: 'hello'.ends_with('helloworld') = false")
+    test(loc(), not(hello.ends_with("hell")), "ends_with: 'hello'.ends_with('hell') = false")
+    test(loc(), empty_str.ends_with(""), "ends_with: ''.ends_with('') = true")
+    test(loc(), not(empty_str.ends_with("a")), "ends_with: ''.ends_with('a') = false")
+
     // find tests
     find_str := "hello"
     assert_eq(loc(), 0, find_str.find("h"))

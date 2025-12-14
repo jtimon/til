@@ -4233,6 +4233,8 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
         throw "ccodegen: Pattern should be handled inside emit_switch"
     case NodeType.NamedArg(_):
         throw expr.error(context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")
+    case NodeType.ForIn(_):
+        throw expr.lang_error(context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")
     }
 }
 

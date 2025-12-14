@@ -1,12 +1,90 @@
-mode script
+mode test
 
-// while loops:
+import("core.vec")
+import("core.array")
 
-mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
-print("it: ")
-// while 42 { // fails, because while expects a bool first, not an int
-while lt(it, 5) {
-    print(it.to_str(), " ")
-    it = add(it, 1)
+test_while_loop := proc() {
+    mut it := 0
+    mut result := ""
+    while it.lt(5) {
+        result = result.concat(it.to_str()).concat(" ")
+        it = it.add(1)
+    }
+    assert_eq_str(loc(), "0 1 2 3 4 ", result)
 }
-println(" ")
+test_while_loop()
+
+test_for_range_loop := proc() {
+    mut sum := 0
+    for i in 0..5 {
+        sum = sum.add(i)
+    }
+    assert_eq(loc(), 10, sum)  // 0+1+2+3+4 = 10
+}
+test_for_range_loop()
+
+test_for_in_vec_i64 := proc() {
+    mut v := Vec.new(I64)
+    v.push(10)
+    v.push(20)
+    v.push(30)
+    mut total := 0
+    for x: I64 in v {
+        total = total.add(x)
+    }
+    assert_eq(loc(), 60, total)
+    v.delete()
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_for_in_vec_i64()
+
+test_for_in_vec_str := proc() {
+    mut words := Vec.new(Str)
+    words.push("hello")
+    words.push(" ")
+    words.push("world")
+    mut sentence := ""
+    for w: Str in words {
+        sentence = sentence.concat(w)
+    }
+    assert_eq_str(loc(), "hello world", sentence)
+    words.delete()
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_for_in_vec_str()
+
+test_for_in_array_i64 := proc() {
+    mut arr := Array.new(I64, 3)
+    arr.set(0, 100)
+    arr.set(1, 200)
+    arr.set(2, 300)
+    mut arr_total := 0
+    for n: I64 in arr {
+        arr_total = arr_total.add(n)
+    }
+    assert_eq(loc(), 600, arr_total)
+    arr.delete()
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        // This catches IndexOutOfBoundsError from arr.set() calls above
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_for_in_array_i64()

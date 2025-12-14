@@ -7,6 +7,7 @@ use crate::rs::typer::{func_proc_has_multi_arg, get_func_def_for_fcall_with_expr
 use std::collections::HashMap;
 use crate::rs::parser::{
     Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal, TTypeDef, PatternInfo,
+    Declaration, str_to_value_type, INFER_TYPE,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration};
 use crate::rs::arena::Arena;
@@ -189,6 +190,12 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
             Ok(Expr::new_clone(NodeType::NamedArg(name.clone()), e, new_params))
         },
+        // ForIn desugaring: for VAR: TYPE in COLLECTION { body } -> while loop
+        // After desugaring, recursively precomp the result to resolve UFCS and loc()
+        NodeType::ForIn(var_type_name) => {
+            let desugared = precomp_forin(context, e, var_type_name)?;
+            precomp_expr(context, &desugared)
+        },
     }
 }
 
@@ -327,6 +334,180 @@ fn precomp_params(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         new_params.push(precomp_expr(context, p)?);
     }
     Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+}
+
+/// Desugar ForIn to a range-based for loop with get() calls
+/// for VAR: TYPE in COLLECTION { body }
+/// becomes:
+/// for _for_i in 0..collection.len() {
+///     mut VAR := TYPE()
+///     collection.get(_for_i, VAR)
+///     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+///     body
+/// }
+fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result<Expr, String> {
+    // Extract var_name from params[0]
+    let var_name = match e.params.get(0) {
+        Some(var_expr) => match &var_expr.node_type {
+            NodeType::Identifier(name) => name.clone(),
+            _ => return Err(e.lang_error(&context.path, "precomp", "ForIn: expected identifier for loop variable")),
+        },
+        None => return Err(e.lang_error(&context.path, "precomp", "ForIn: missing loop variable")),
+    };
+
+    // Get collection expression (params[1])
+    let collection_expr = match e.params.get(1) {
+        Some(expr) => precomp_expr(context, expr)?,
+        None => return Err(e.lang_error(&context.path, "precomp", "ForIn: missing collection expression")),
+    };
+
+    // Get body (params[2])
+    let body_expr = match e.params.get(2) {
+        Some(expr) => precomp_expr(context, expr)?,
+        None => return Err(e.lang_error(&context.path, "precomp", "ForIn: missing body")),
+    };
+
+    // Build: mut _for_i := 0
+    let index_var_name = "_for_i".to_string();
+    let index_decl = Declaration {
+        name: index_var_name.clone(),
+        value_type: str_to_value_type(INFER_TYPE),
+        is_mut: true,
+        is_copy: false,
+        is_own: false,
+        default_value: None,
+    };
+    let zero_literal = Expr::new_explicit(NodeType::LLiteral(Literal::Number("0".to_string())), vec![], e.line, e.col);
+    let index_decl_expr = Expr::new_explicit(NodeType::Declaration(index_decl), vec![zero_literal], e.line, e.col);
+
+    // Build len(collection) - already desugared form
+    let len_call_expr = Expr::new_explicit(
+        NodeType::FCall,
+        vec![
+            Expr::new_explicit(NodeType::Identifier("len".to_string()), vec![], e.line, e.col),
+            collection_expr.clone(),
+        ],
+        e.line,
+        e.col,
+    );
+
+    // Build lt(_for_i, len_result) - already desugared form
+    let cond_expr = Expr::new_explicit(
+        NodeType::FCall,
+        vec![
+            Expr::new_explicit(NodeType::Identifier("lt".to_string()), vec![], e.line, e.col),
+            Expr::new_explicit(NodeType::Identifier(index_var_name.clone()), vec![], e.line, e.col),
+            len_call_expr,
+        ],
+        e.line,
+        e.col,
+    );
+
+    // Build: mut VAR := TYPE()
+    let var_decl = Declaration {
+        name: var_name.clone(),
+        value_type: ValueType::TCustom(var_type_name.to_string()),
+        is_mut: true,
+        is_copy: false,
+        is_own: false,
+        default_value: None,
+    };
+    let type_call = Expr::new_explicit(
+        NodeType::FCall,
+        vec![Expr::new_explicit(NodeType::Identifier(var_type_name.to_string()), vec![], e.line, e.col)],
+        e.line,
+        e.col,
+    );
+    let var_decl_expr = Expr::new_explicit(NodeType::Declaration(var_decl), vec![type_call], e.line, e.col);
+
+    // Build: get(collection, _for_i, VAR) - already desugared form
+    let get_call = Expr::new_explicit(
+        NodeType::FCall,
+        vec![
+            Expr::new_explicit(NodeType::Identifier("get".to_string()), vec![], e.line, e.col),
+            collection_expr.clone(),
+            Expr::new_explicit(NodeType::Identifier(index_var_name.clone()), vec![], e.line, e.col),
+            Expr::new_explicit(NodeType::Identifier(var_name.clone()), vec![], e.line, e.col),
+        ],
+        e.line,
+        e.col,
+    );
+
+    // Build: catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    // Catch structure: params[0]=error type identifier, params[1]=error var name, params[2]=body
+    let panic_call = Expr::new_explicit(
+        NodeType::FCall,
+        vec![
+            Expr::new_explicit(NodeType::Identifier("panic".to_string()), vec![], e.line, e.col),
+            Expr::new_explicit(
+                NodeType::FCall,
+                vec![Expr::new_explicit(NodeType::Identifier("loc".to_string()), vec![], e.line, e.col)],
+                e.line,
+                e.col,
+            ),
+            Expr::new_explicit(
+                NodeType::Identifier("err".to_string()),
+                vec![Expr::new_explicit(NodeType::Identifier("msg".to_string()), vec![], e.line, e.col)],
+                e.line,
+                e.col,
+            ),
+        ],
+        e.line,
+        e.col,
+    );
+    let catch_body = Expr::new_explicit(NodeType::Body, vec![panic_call], e.line, e.col);
+    // Catch structure: [name_expr, type_expr, body_expr]
+    let catch_expr = Expr::new_explicit(
+        NodeType::Catch,
+        vec![
+            Expr::new_explicit(NodeType::Identifier("err".to_string()), vec![], e.line, e.col),
+            Expr::new_explicit(NodeType::Identifier("IndexOutOfBoundsError".to_string()), vec![], e.line, e.col),
+            catch_body,
+        ],
+        e.line,
+        e.col,
+    );
+
+    // Build: _for_i = add(_for_i, 1)
+    // Already desugared form - no UFCS resolution needed
+    let add_call = Expr::new_explicit(
+        NodeType::FCall,
+        vec![
+            Expr::new_explicit(NodeType::Identifier("add".to_string()), vec![], e.line, e.col),
+            Expr::new_explicit(NodeType::Identifier(index_var_name.clone()), vec![], e.line, e.col),
+            Expr::new_explicit(NodeType::LLiteral(Literal::Number("1".to_string())), vec![], e.line, e.col),
+        ],
+        e.line,
+        e.col,
+    );
+    let inc_stmt = Expr::new_explicit(
+        NodeType::Assignment(index_var_name.clone()),
+        vec![add_call],
+        e.line,
+        e.col,
+    );
+
+    // Build while body: var_decl, get_call + catch (together), original body statements, inc
+    // The catch must be right after get_call so it only catches IndexOutOfBoundsError from get,
+    // not from user code in the loop body
+    let mut while_body_params = vec![var_decl_expr, get_call, catch_expr];
+    // Add original body statements
+    match &body_expr.node_type {
+        NodeType::Body => {
+            while_body_params.extend(body_expr.params.clone());
+        },
+        _ => {
+            while_body_params.push(body_expr);
+        }
+    }
+    while_body_params.push(inc_stmt);
+    let while_body = Expr::new_explicit(NodeType::Body, while_body_params, e.line, e.col);
+
+    // Build while: while _for_i.lt(collection.len()) { ... }
+    let while_expr = Expr::new_explicit(NodeType::While, vec![cond_expr, while_body], e.line, e.col);
+
+    // Build outer body: index_decl, while
+    Ok(Expr::new_explicit(NodeType::Body, vec![index_decl_expr, while_expr], e.line, e.col))
 }
 
 /// Transform Switch - handle pattern binding variables by adding them to scope

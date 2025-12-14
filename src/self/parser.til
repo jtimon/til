@@ -168,6 +168,7 @@ NodeType := enum {
     DefaultCase,
     Range,
     Pattern: PatternInfo,  // Pattern matching for switch case with payload extraction
+    ForIn: Str,  // for VAR: TYPE in COLLECTION - payload is the TYPE name
 }
 
 Expr := struct {
@@ -1394,6 +1395,44 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     ident_token := lexer.expect(TokenType.Identifier)
     loop_var_name := ident_token.token_str
 
+    // Check for collection-based for: for VAR: TYPE in COLLECTION
+    // TODO #32: Workaround - can't use lexer.peek().token_type directly
+    peeked := lexer.peek()
+    peeked_tt := peeked.token_type
+    switch peeked_tt {
+    case TokenType.Colon:
+        lexer.advance(1) // consume ':'
+
+        // Get the element type
+        type_token := lexer.expect(TokenType.Identifier)
+        var_type_name := type_token.token_str
+
+        _ := lexer.expect(TokenType.In)
+
+        // Parse the collection expression
+        collection_expr := parse_primary(lexer)
+
+        _ := lexer.expect(TokenType.LeftBrace)
+        forin_body_expr := parse_body(lexer, TokenType.RightBrace)
+
+        // ForIn node: params[0] = Identifier(var_name), params[1] = collection, params[2] = body
+        var_ident := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token, Vec.new(Expr))
+
+        mut forin_params := Vec.new(Expr)
+        forin_params.push(var_ident)
+        forin_params.push(collection_expr)
+        forin_params.push(forin_body_expr)
+
+        catch (err: AllocError) {
+            throw concat("parse_for_statement: ", err.msg)
+        }
+
+        return Expr.new_explicit(NodeType.ForIn(var_type_name), forin_params, initial_token.line, initial_token.col)
+    case:
+        // Fall through to range-based for
+    }
+
+    // Range-based for: for VAR in RANGE { ... }
     _ := lexer.expect(TokenType.In)
 
     // Parse the range expression (e.g., 1..10)
@@ -1407,7 +1446,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         case:
     }
     if not(is_range) {
-        throw ident_token.error(lexer.path, "Expected range expression (start..end) after 'in'")
+        throw ident_token.error(lexer.path, "Expected range expression (start..end) after 'in'. For collection iteration, use 'for VAR: TYPE in COLLECTION'")
     }
     start_expr := range_expr.get(0)
     end_expr := range_expr.get(1)

@@ -282,6 +282,11 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             throw format("precomp_expr NamedArg: ", err.msg)
         }
         return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
+    // ForIn desugaring: for VAR: TYPE in COLLECTION { body } -> while loop
+    // After desugaring, recursively precomp the result to resolve UFCS and loc()
+    case NodeType.ForIn(var_type_name):
+        desugared := precomp_forin(context, e, var_type_name)
+        return precomp_expr(context, desugared)
     case:
         return e.clone()
     }
@@ -570,6 +575,166 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     }
 
     return Expr.new_clone(NodeType.Switch, e, new_params)
+}
+
+/// Desugar ForIn to a range-based for loop with get() calls
+// for VAR: TYPE in COLLECTION { body }
+// becomes:
+/// for _for_i in 0..collection.len() {
+//     mut VAR := TYPE()
+///     collection.get(_for_i, VAR)
+//     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+///     body
+/// }
+precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns Expr throws Str {
+    // Extract var_name from params[0]
+    if e.params.len().lt(1) {
+        throw e.lang_error(context.path, "precomp", "ForIn: missing loop variable")
+    }
+    mut var_expr := e.get(0)
+    mut var_name := ""
+    switch var_expr.node_type {
+    case NodeType.Identifier(name):
+        var_name = name
+    case:
+        throw e.lang_error(context.path, "precomp", "ForIn: expected identifier for loop variable")
+    }
+
+    // Get collection expression (params[1])
+    if e.params.len().lt(2) {
+        throw e.lang_error(context.path, "precomp", "ForIn: missing collection expression")
+    }
+    collection_expr := precomp_expr(context, e.get(1))
+
+    // Get body (params[2])
+    if e.params.len().lt(3) {
+        throw e.lang_error(context.path, "precomp", "ForIn: missing body")
+    }
+    body_expr := precomp_expr(context, e.get(2))
+
+    // Build: mut _for_i := 0
+    index_var_name := "_for_i"
+    index_decl := Declaration(name=index_var_name, value_type=str_to_value_type(INFER_TYPE), is_mut=true, is_copy=false, is_own=false, default_value=NULL)
+    mut zero_params := Vec.new(Expr)
+    zero_literal := Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), zero_params, e.line, e.col)
+    mut decl_params := Vec.new(Expr)
+    decl_params.push(zero_literal)
+    index_decl_expr := Expr.new_explicit(NodeType.Declaration(index_decl), decl_params, e.line, e.col)
+
+    // Build len(collection) - already desugared form
+    mut len_params := Vec.new(Expr)
+    len_params.push(Expr.new_explicit(NodeType.Identifier("len"), Vec.new(Expr), e.line, e.col))
+    len_params.push(collection_expr.clone())
+    len_call_expr := Expr.new_explicit(NodeType.FCall, len_params, e.line, e.col)
+
+    // Build lt(_for_i, len_result) - already desugared form
+    mut cond_params := Vec.new(Expr)
+    cond_params.push(Expr.new_explicit(NodeType.Identifier("lt"), Vec.new(Expr), e.line, e.col))
+    cond_params.push(Expr.new_explicit(NodeType.Identifier(index_var_name), Vec.new(Expr), e.line, e.col))
+    cond_params.push(len_call_expr)
+    cond_expr := Expr.new_explicit(NodeType.FCall, cond_params, e.line, e.col)
+
+    // Build: mut VAR := TYPE()
+    var_decl := Declaration(name=var_name, value_type=ValueType.TCustom(var_type_name), is_mut=true, is_copy=false, is_own=false, default_value=NULL)
+    mut type_call_params := Vec.new(Expr)
+    type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
+    type_call := Expr.new_explicit(NodeType.FCall, type_call_params, e.line, e.col)
+    mut var_decl_params := Vec.new(Expr)
+    var_decl_params.push(type_call)
+    var_decl_expr := Expr.new_explicit(NodeType.Declaration(var_decl), var_decl_params, e.line, e.col)
+
+    // Build: get(collection, _for_i, VAR) - already desugared form
+    mut get_params := Vec.new(Expr)
+    get_params.push(Expr.new_explicit(NodeType.Identifier("get"), Vec.new(Expr), e.line, e.col))
+    get_params.push(collection_expr.clone())
+    get_params.push(Expr.new_explicit(NodeType.Identifier(index_var_name), Vec.new(Expr), e.line, e.col))
+    get_params.push(Expr.new_explicit(NodeType.Identifier(var_name), Vec.new(Expr), e.line, e.col))
+    get_call := Expr.new_explicit(NodeType.FCall, get_params, e.line, e.col)
+
+    // Build: catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    // Build err.msg (identifier with field access)
+    mut msg_field := Vec.new(Expr)
+    msg_field.push(Expr.new_explicit(NodeType.Identifier("msg"), Vec.new(Expr), e.line, e.col))
+    err_msg_expr := Expr.new_explicit(NodeType.Identifier("err"), msg_field, e.line, e.col)
+
+    // Build loc() call
+    mut loc_params := Vec.new(Expr)
+    loc_params.push(Expr.new_explicit(NodeType.Identifier("loc"), Vec.new(Expr), e.line, e.col))
+    loc_call := Expr.new_explicit(NodeType.FCall, loc_params, e.line, e.col)
+
+    // Build panic(loc(), err.msg)
+    mut panic_params := Vec.new(Expr)
+    panic_params.push(Expr.new_explicit(NodeType.Identifier("panic"), Vec.new(Expr), e.line, e.col))
+    panic_params.push(loc_call)
+    panic_params.push(err_msg_expr)
+    panic_call := Expr.new_explicit(NodeType.FCall, panic_params, e.line, e.col)
+
+    // Build catch body
+    mut catch_body_params := Vec.new(Expr)
+    catch_body_params.push(panic_call)
+    catch_body := Expr.new_explicit(NodeType.Body, catch_body_params, e.line, e.col)
+
+    // Catch structure: [name_expr, type_expr, body_expr]
+    mut catch_params := Vec.new(Expr)
+    catch_params.push(Expr.new_explicit(NodeType.Identifier("err"), Vec.new(Expr), e.line, e.col))
+    catch_params.push(Expr.new_explicit(NodeType.Identifier("IndexOutOfBoundsError"), Vec.new(Expr), e.line, e.col))
+    catch_params.push(catch_body)
+    catch_expr := Expr.new_explicit(NodeType.Catch, catch_params, e.line, e.col)
+
+    // Build: _for_i = add(_for_i, 1)
+    // Already desugared form - no UFCS resolution needed
+    mut add_params := Vec.new(Expr)
+    add_params.push(Expr.new_explicit(NodeType.Identifier("add"), Vec.new(Expr), e.line, e.col))
+    add_params.push(Expr.new_explicit(NodeType.Identifier(index_var_name), Vec.new(Expr), e.line, e.col))
+    mut one_params := Vec.new(Expr)
+    add_params.push(Expr.new_explicit(NodeType.LLiteral(Literal.Number("1")), one_params, e.line, e.col))
+    add_call := Expr.new_explicit(NodeType.FCall, add_params, e.line, e.col)
+
+    mut inc_params := Vec.new(Expr)
+    inc_params.push(add_call)
+    inc_stmt := Expr.new_explicit(NodeType.Assignment(index_var_name), inc_params, e.line, e.col)
+
+    // Build while body: var_decl, get_call + catch (together), original body statements, inc
+    // The catch must be right after get_call so it only catches IndexOutOfBoundsError from get,
+    // not from user code in the loop body
+    mut while_body_params := Vec.new(Expr)
+    while_body_params.push(var_decl_expr)
+    while_body_params.push(get_call)
+    while_body_params.push(catch_expr)
+
+    // Add original body statements
+    switch body_expr.node_type {
+    case NodeType.Body:
+        for i in 0..body_expr.params.len() {
+            mut p := Expr()
+            body_expr.params.get(i, p)
+            while_body_params.push(p.clone())
+        }
+    case:
+        while_body_params.push(body_expr)
+    }
+    while_body_params.push(inc_stmt)
+    while_body := Expr.new_explicit(NodeType.Body, while_body_params, e.line, e.col)
+
+    // Build while: while _for_i.lt(collection.len()) { ... }
+    mut while_params := Vec.new(Expr)
+    while_params.push(cond_expr)
+    while_params.push(while_body)
+    while_expr := Expr.new_explicit(NodeType.While, while_params, e.line, e.col)
+
+    // Build outer body: index_decl, while
+    mut outer_body_params := Vec.new(Expr)
+    outer_body_params.push(index_decl_expr)
+    outer_body_params.push(while_expr)
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("precomp_forin: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw format("precomp_forin: ", err.msg)
+    }
+
+    return Expr.new_explicit(NodeType.Body, outer_body_params, e.line, e.col)
 }
 
 /// Transform StructDef - recursively transform default values (which contain function defs)

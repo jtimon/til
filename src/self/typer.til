@@ -284,6 +284,8 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
             mut p := e.get(i)
             errors.extend(check_types_with_context(context, p, ExprContext.ValueUsed))
         }
+    case NodeType.ForIn(_var_type):
+        errors.extend(check_forin_statement(context, e))
     case:
         // Other node types not handled
     }
@@ -429,6 +431,168 @@ check_while_statement := proc(mut context: Context, e: Expr) returns Vec throws 
         }
         errors.extend(check_types_with_context(context, p, ctx))
     }
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+    return errors
+}
+
+check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws Str, I64_OverflowError {
+    mut errors := Vec.new(Str)
+
+    // e.params[0] = Identifier(var_name)
+    // e.params[1] = collection expression
+    // e.params[2] = body
+    // NodeType.ForIn(var_type_name)
+
+    mut var_type_name := ""
+    switch e.node_type {
+    case NodeType.ForIn(type_name):
+        var_type_name = type_name
+    case:
+        errors.push(e.lang_error(context.path, "type", "Expected ForIn node"))
+        return errors
+    }
+
+    // Extract variable name from params[0]
+    mut var_name := ""
+    if e.params.len().lt(1) {
+        errors.push(e.lang_error(context.path, "type", "ForIn: missing loop variable"))
+        return errors
+    }
+    mut var_expr := e.get(0)
+    switch var_expr.node_type {
+    case NodeType.Identifier(name):
+        var_name = name
+    case:
+        errors.push(e.lang_error(context.path, "type", "ForIn: expected identifier for loop variable"))
+        return errors
+    }
+
+    // Get collection expression
+    if e.params.len().lt(2) {
+        errors.push(e.lang_error(context.path, "type", "ForIn: missing collection expression"))
+        return errors
+    }
+    mut collection_expr := e.get(1)
+
+    // Type check the collection expression
+    errors.extend(check_types_with_context(context, collection_expr, ExprContext.ValueUsed))
+
+    // Get collection type
+    mut collection_type := ValueType.TCustom("")
+    collection_type = get_value_type(context, collection_expr)
+    catch (err: Str) {
+        errors.push(err)
+        return errors
+    }
+
+    mut type_name := ""
+    switch collection_type {
+    case ValueType.TCustom(name):
+        type_name = name
+    case:
+        errors.push(e.error(context.path, "type", "for-in loop requires a collection type"))
+        return errors
+    }
+
+    // Check TypeName.len() exists and returns I64
+    len_method := format(type_name, ".len")
+    mut len_func := SFuncDef()
+    len_func = context.scope_stack.lookup_func(len_method)
+    // Verify returns I64
+    if not(len_func.return_types.len().eq(1)) {
+        errors.push(e.error(context.path, "type", format("for-in loop: '", type_name, ".len()' must return I64")))
+    } else {
+        mut ret_type := ValueType.TCustom("")
+        len_func.return_types.get(0, ret_type)
+        switch ret_type {
+        case ValueType.TCustom(ret_name):
+            if not(ret_name.eq("I64")) {
+                errors.push(e.error(context.path, "type", format("for-in loop: '", type_name, ".len()' must return I64")))
+            }
+        case:
+            errors.push(e.error(context.path, "type", format("for-in loop: '", type_name, ".len()' must return I64")))
+        }
+    }
+    catch (err: KeyNotFoundError) {
+        errors.push(e.error(context.path, "type", format("for-in loop: type '", type_name, "' does not have a 'len()' method.\nRequired: ", type_name, ".len(self) returns I64")))
+    }
+
+    // Check TypeName.get() exists with right signature
+    get_method := format(type_name, ".get")
+    mut get_func := SFuncDef()
+    get_func = context.scope_stack.lookup_func(get_method)
+    // Verify signature: get(self, I64, mut Dynamic) throws IndexOutOfBoundsError
+    mut valid := get_func.args.len().gteq(3)
+    if valid {
+        mut arg1 := Declaration()
+        get_func.args.get(1, arg1)
+        switch arg1.value_type {
+        case ValueType.TCustom(arg1_name):
+            if not(arg1_name.eq("I64")) {
+                valid = false
+            }
+        case:
+            valid = false
+        }
+    }
+    if valid {
+        mut arg2 := Declaration()
+        get_func.args.get(2, arg2)
+        if not(arg2.is_mut) {
+            valid = false
+        }
+        switch arg2.value_type {
+        case ValueType.TCustom(arg2_name):
+            if not(arg2_name.eq("Dynamic")) {
+                valid = false
+            }
+        case:
+            valid = false
+        }
+    }
+    if valid {
+        // Check throws IndexOutOfBoundsError
+        mut throws_ioob := false
+        for i in 0..get_func.throw_types.len() {
+            mut throw_type := ValueType.TCustom("")
+            get_func.throw_types.get(i, throw_type)
+            switch throw_type {
+            case ValueType.TCustom(throw_name):
+                if throw_name.eq("IndexOutOfBoundsError") {
+                    throws_ioob = true
+                }
+            case:
+            }
+        }
+        if not(throws_ioob) {
+            valid = false
+        }
+    }
+    if not(valid) {
+        errors.push(e.error(context.path, "type", format("for-in loop: '", type_name, ".get()' has wrong signature.\nRequired: ", type_name, ".get(self, index: I64, mut item: Dynamic) throws IndexOutOfBoundsError")))
+    }
+    catch (err: KeyNotFoundError) {
+        errors.push(e.error(context.path, "type", format("for-in loop: type '", type_name, "' does not have a 'get()' method.\nRequired: ", type_name, ".get(self, index: I64, mut item: Dynamic) throws IndexOutOfBoundsError")))
+    }
+
+    // Push scope for loop body, declare loop variable
+    context.scope_stack.push(ScopeType.Block)
+    context.scope_stack.declare_symbol(var_name, SymbolInfo.new(ValueType.TCustom(var_type_name), true, false, false))
+
+    // Type check body
+    if e.params.len().gteq(3) {
+        mut body_expr := e.get(2)
+        errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded))
+    }
+
+    _ := context.scope_stack.pop()
+    catch (err: Str) { }
+
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }

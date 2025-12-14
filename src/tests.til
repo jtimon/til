@@ -268,6 +268,7 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec)
         }
     } else {
         // regen specific files - find matching entries in lists
+        // Match by full path or by suffix (e.g., "loops.til" matches "src/test/loops.til")
         for i in 0..files.len() {
             mut file := ""
             files.get(i, file)
@@ -275,21 +276,21 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec)
             for j in 0..rs_common.len() {
                 mut entry := TestEntry()
                 rs_common.get(j, entry)
-                if entry.path.eq(file) {
+                if entry.path.eq(file).or(entry.path.ends_with(file)) {
                     regen_test(entry)
                 }
             }
             for j in 0..rs_compiled.len() {
                 mut entry := TestEntry()
                 rs_compiled.get(j, entry)
-                if entry.path.eq(file) {
+                if entry.path.eq(file).or(entry.path.ends_with(file)) {
                     regen_test_compiled(entry)
                 }
             }
             for j in 0..rs_interpreted.len() {
                 mut entry := TestEntry()
                 rs_interpreted.get(j, entry)
-                if entry.path.eq(file) {
+                if entry.path.eq(file).or(entry.path.ends_with(file)) {
                     regen_test(entry)
                 }
             }

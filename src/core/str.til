@@ -415,6 +415,26 @@ starts_with := func(s: Str, prefix: Str) returns Bool {
     return true
 }
 
+/** Check if string ends with the given suffix. */
+ends_with := func(s: Str, suffix: Str) returns Bool {
+    if suffix.len().gt(s.len()) {
+        return false
+    }
+    mut offset := s.len().sub(suffix.len())
+    mut i := 0
+    while i.lt(suffix.len()) {
+        mut s_byte : U8 = 0
+        mut suffix_byte : U8 = 0
+        memcpy(to_ptr(s_byte), add(s.c_string, offset.add(i)), 1)
+        memcpy(to_ptr(suffix_byte), add(suffix.c_string, i), 1)
+        if not(U8.eq(s_byte, suffix_byte)) {
+            return false
+        }
+        i = add(i, 1)
+    }
+    return true
+}
+
 /**
  * Simple 2-argument string concatenation that panics on error.
  * Use this in catch blocks where throwing is not allowed.

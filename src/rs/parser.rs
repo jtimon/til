@@ -123,6 +123,7 @@ pub enum NodeType {
     DefaultCase,
     Range,
     Pattern(PatternInfo), // Pattern matching for switch case with payload extraction
+    ForIn(String), // for VAR: TYPE in COLLECTION - payload is the TYPE name
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1115,12 +1116,41 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     let ident_token = lexer.expect(TokenType::Identifier)?;
     let loop_var_name = ident_token.token_str.clone();
 
+    // Check if next token is ':' (type annotation for collection-based for)
+    let next_token = lexer.peek();
+    if next_token.token_type == TokenType::Colon {
+        // Collection-based for: for VAR: TYPE in COLLECTION { ... }
+        lexer.advance(1)?; // consume ':'
+
+        let type_token = lexer.expect(TokenType::Identifier)?;
+        let var_type_name = type_token.token_str.clone();
+
+        lexer.expect(TokenType::In)?;
+
+        // Parse the collection expression
+        let collection_expr = parse_primary(lexer)?;
+
+        lexer.expect(TokenType::LeftBrace)?;
+        let forin_body_expr = parse_body(lexer, TokenType::RightBrace)?;
+
+        // ForIn node: params[0] = Identifier(var_name), params[1] = collection, params[2] = body
+        let var_ident = Expr::new_parse(NodeType::Identifier(loop_var_name), initial_token.clone(), vec![]);
+
+        return Ok(Expr::new_explicit(
+            NodeType::ForIn(var_type_name),
+            vec![var_ident, collection_expr, forin_body_expr],
+            initial_token.line,
+            initial_token.col,
+        ));
+    }
+
+    // Range-based for: for VAR in RANGE { ... }
     lexer.expect(TokenType::In)?;
 
     // Parse the range expression (e.g., 1..10)
     let range_expr = parse_case_expr(lexer)?;
     if range_expr.node_type != NodeType::Range {
-        return Err(ident_token.error(&lexer.path, "Expected range expression (start..end) after 'in'"));
+        return Err(ident_token.error(&lexer.path, "Expected range expression (start..end) after 'in'. For collection iteration, use 'for VAR: TYPE in COLLECTION'"));
     }
     let start_expr = range_expr.get(0)?.clone();
     let end_expr = range_expr.get(1)?.clone();
@@ -1128,6 +1158,7 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     lexer.expect(TokenType::LeftBrace)?;
     let body_expr = parse_body(lexer, TokenType::RightBrace)?;
 
+    // Desugar range-based for to while loop
     // let loop_var := <start_expr>
     let decl = Declaration {
         name: loop_var_name.clone(),

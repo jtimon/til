@@ -717,7 +717,29 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::Continue => {
             return Ok(EvalResult::new_continue())
         },
-        _ => Err(e.lang_error(&context.path, "eval", &format!("Not implemented yet, found node type {:?}.", e.node_type))),
+        NodeType::ForIn(_) => {
+            return Err(e.lang_error(&context.path, "eval", "ForIn should be desugared in precomp before reaching interpreter"))
+        },
+        // Definition types are handled during registration, not evaluation
+        NodeType::FuncDef(_) => Ok(EvalResult::new("")),
+        NodeType::EnumDef(_) => Ok(EvalResult::new("")),
+        NodeType::StructDef(_) => Ok(EvalResult::new("")),
+        // NamedArg is handled inside FCall processing
+        NodeType::NamedArg(_) => {
+            return Err(e.lang_error(&context.path, "eval", "NamedArg should only appear inside FCall"))
+        },
+        // Range should be desugared by parser into for loops
+        NodeType::Range => {
+            return Err(e.lang_error(&context.path, "eval", "Range should be desugared in parser before reaching interpreter"))
+        },
+        // Pattern is handled inside Switch
+        NodeType::Pattern(_) => {
+            return Err(e.lang_error(&context.path, "eval", "Pattern should only appear inside Switch"))
+        },
+        // DefaultCase is handled inside Switch
+        NodeType::DefaultCase => {
+            return Err(e.lang_error(&context.path, "eval", "DefaultCase should only appear inside Switch"))
+        },
     }
 }
 
