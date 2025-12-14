@@ -1657,10 +1657,6 @@ is_global_declaration := func(expr: Expr) returns Bool {
         if decl.name.eq("true").or(decl.name.eq("false")) {
             return false
         }
-        // Must not be mutable (constants/globals are immutable)
-        if decl.is_mut {
-            return false
-        }
         if gt(expr.params.len(), 0) {
             mut first := Expr()
             expr.params.get(0, first)
@@ -1674,17 +1670,24 @@ is_global_declaration := func(expr: Expr) returns Bool {
             case NodeType.FuncDef(func_def):
                 return false
             // Skip literal constants - they're handled by is_constant_declaration
+            // (only non-mut literals are constants)
             case NodeType.LLiteral(lit):
-                return false
+                if not(decl.is_mut) {
+                    return false
+                }
+                return true
             // Skip true/false RHS - they're handled by is_constant_declaration
+            // (only non-mut booleans are constants)
             case NodeType.Identifier(name):
                 if name.eq("true").or(name.eq("false")) {
-                    return false
+                    if not(decl.is_mut) {
+                        return false
+                    }
                 }
                 // Everything else is a global
                 return true
             case:
-                // Everything else (function calls like Color.Green(true), etc.) is a global
+                // Everything else (function calls like Arena.new(), etc.) is a global
                 return true
             }
         }

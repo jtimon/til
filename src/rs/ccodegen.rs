@@ -1896,19 +1896,17 @@ fn is_global_declaration(expr: &Expr) -> bool {
         if decl.name == "true" || decl.name == "false" {
             return false;
         }
-        // Must not be mutable (constants/globals are immutable)
-        if decl.is_mut {
-            return false;
-        }
         if !expr.params.is_empty() {
             match &expr.params[0].node_type {
                 // Skip these - they have their own handling
                 NodeType::StructDef(_) | NodeType::EnumDef(_) | NodeType::FuncDef(_) => return false,
                 // Skip literal constants - they're handled by is_constant_declaration
-                NodeType::LLiteral(_) => return false,
+                // (only non-mut literals are constants)
+                NodeType::LLiteral(_) if !decl.is_mut => return false,
                 // Skip true/false RHS - they're handled by is_constant_declaration
-                NodeType::Identifier(name) if name == "true" || name == "false" => return false,
-                // Everything else (function calls like Color.Green(true), etc.) is a global
+                // (only non-mut booleans are constants)
+                NodeType::Identifier(name) if (name == "true" || name == "false") && !decl.is_mut => return false,
+                // Everything else (function calls like Arena.new(), etc.) is a global
                 _ => return true,
             }
         }
