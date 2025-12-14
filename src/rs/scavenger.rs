@@ -304,8 +304,21 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         let mut roots: HashSet<String> = HashSet::new();
 
         if context.mode_def.needs_main_proc {
-            // CLI mode: root is main
+            // CLI mode: root is main plus global variable initializers
             roots.insert("main".to_string());
+            // Global variable initializers are also executed in main(), so their calls are roots
+            for stmt in &e.params {
+                if let NodeType::Declaration(_decl) = &stmt.node_type {
+                    if !stmt.params.is_empty() {
+                        if let NodeType::FuncDef(_) = &stmt.params[0].node_type {
+                            // Skip function declarations
+                        } else {
+                            // Non-function declaration initializer - collect calls from it
+                            collect_called_functions(&stmt.params[0], &mut roots);
+                        }
+                    }
+                }
+            }
         } else if context.mode_def.allows_base_calls || context.mode_def.allows_base_anything {
             // script/safe_script/test: all top-level non-declaration statements are roots
             // Walk them to find called functions

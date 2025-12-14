@@ -240,4 +240,14 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
     return (til_I64)exit_code;
 }
 
+// runfile: stub for compiled mode (repl functionality not available when compiled)
+// TODO: Implement actual runfile functionality for compiled mode if needed
+// This would require reading, parsing, and evaluating TIL files at runtime,
+// which would essentially embed the full interpreter into the compiled binary.
+static inline void til_runfile(til_Str* path) {
+    printf("Error: runfile is not available in compiled mode.\n");
+    printf("Use 'til repl' with the interpreted version instead.\n");
+    exit(1);
+}
+
 #endif /* TIL_EXT_C */

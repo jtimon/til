@@ -172,7 +172,7 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::Declaration(decl) => precomp_declaration(context, e, decl),
         NodeType::Assignment(_) => precomp_params(context, e),
         NodeType::Return | NodeType::Throw => precomp_params(context, e),
-        NodeType::Catch => precomp_params(context, e),
+        NodeType::Catch => precomp_catch(context, e),
         NodeType::Range => precomp_params(context, e),
         // Struct/enum definitions - need to process default values (which may contain function defs)
         NodeType::StructDef(struct_def) => precomp_struct_def(context, e, struct_def),
@@ -744,6 +744,51 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     }
 
     Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+}
+
+/// Transform Catch node - register the catch variable in scope before processing body
+/// This enables UFCS resolution for methods called on the error variable
+/// Catch structure: [var_name_expr, type_expr, body_expr]
+fn precomp_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
+    if e.params.len() < 3 {
+        // Malformed catch - just use default handling
+        return precomp_params(context, e);
+    }
+
+    // Get the catch variable name and type
+    let var_name = match &e.params[0].node_type {
+        NodeType::Identifier(name) => name.clone(),
+        _ => return precomp_params(context, e), // Not a simple identifier, use default handling
+    };
+    let type_name = match &e.params[1].node_type {
+        NodeType::Identifier(name) => name.clone(),
+        _ => return precomp_params(context, e), // Not a simple type, use default handling
+    };
+
+    // Push a scope frame for the catch block
+    context.scope_stack.push(ScopeType::Catch);
+
+    // Register the catch variable in the scope
+    context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+        value_type: ValueType::TCustom(type_name),
+        is_mut: false,
+        is_copy: false,
+        is_own: false,
+        is_comptime_const: false,
+    });
+
+    // Transform the catch body (params[2])
+    let new_body = precomp_expr(context, &e.params[2])?;
+
+    // Pop the scope frame
+    let _ = context.scope_stack.pop();
+
+    // Return the transformed catch with original var_name, type, and new body
+    Ok(Expr::new_clone(
+        NodeType::Catch,
+        e,
+        vec![e.params[0].clone(), e.params[1].clone(), new_body],
+    ))
 }
 
 /// Transform FCall node - this is where UFCS resolution happens
