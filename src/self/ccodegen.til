@@ -503,9 +503,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         // Emit error checking - propagate or goto based on context
         // Check if there are local catch labels for these error types
         mut has_local_catch := false
-        for err_idx in 0..throwing_info.throw_types.len() {
-            mut throw_type := ValueType.TCustom("")
-            throwing_info.throw_types.get(err_idx, throw_type)
+        for throw_type: ValueType in throwing_info.throw_types {
             switch throw_type {
             case ValueType.TCustom(type_name):
                 if Map.contains_key(ctx.local_catch_labels, type_name) {
@@ -730,9 +728,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                     catch (err: IndexOutOfBoundsError) { }
 
                     // For each member with a default that's a throwing call and not overridden, emit temp var
-                    for mi in 0..struct_def.members.len() {
-                        mut member := Declaration()
-                        struct_def.members.get(mi, member)
+                    for member: Declaration in struct_def.members {
                         if not(member.is_mut) {
                             continue
                         }
@@ -769,7 +765,6 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                             }
                         }
                     }
-                    catch (err: IndexOutOfBoundsError) { }
                 }
             }
         }
@@ -1152,10 +1147,7 @@ get_struct_dependencies := func(expr: Expr) returns Vec {
             catch (err: IndexOutOfBoundsError) { return deps }
             switch first.node_type {
             case NodeType.StructDef(struct_def):
-                for i in 0..struct_def.members.len() {
-                    mut member := Declaration()
-                    struct_def.members.get(i, member)
-                    catch (err: IndexOutOfBoundsError) { return deps }
+                for member: Declaration in struct_def.members {
                     if not(member.is_mut) {
                         continue
                     }
@@ -1821,9 +1813,7 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
             switch first.node_type {
             case NodeType.StructDef(struct_def):
                 result = result.concat("typedef struct {\n")
-                for i in 0..struct_def.members.len() {
-                    mut member := Declaration()
-                    struct_def.members.get(i, member)
+                for member: Declaration in struct_def.members {
                     // Only emit mut fields as struct members
                     if not(member.is_mut) {
                         continue
@@ -2362,15 +2352,9 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // Pass 0: collect function info (throw types, return types) for call-site generation
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             collect_func_info(child, ctx)
-            i = add(i, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip collect pass
     }
@@ -2378,15 +2362,9 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // Pass 0a: collect nested function info for hoisting (populates hoisted_prototypes and nested_func_names)
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             collect_nested_func_info(child, ctx, "")
-            i = add(i, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip nested func collect pass
     }
@@ -2396,9 +2374,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
     switch ast.node_type {
     case NodeType.Body:
-        for i in 0..ast.params.len() {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             if is_struct_declaration(child) {
                 switch child.node_type {
                 case NodeType.Declaration(decl):
@@ -2421,7 +2397,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             }
         }
         output = output.concat("\n")
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip forward declarations
     }
@@ -2429,19 +2404,13 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // Pass 1a: emit simple enums (no payloads) - safe to emit early, structs may use them as fields
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             if is_enum_declaration(child) {
                 if not(is_enum_with_payloads(child)) {
                     output = emit_enum_declaration(child, output)
                 }
             }
-            i = add(i, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip enum pass
     }
@@ -2452,11 +2421,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     case NodeType.Body:
         // Collect all struct declarations and enums-with-payloads
         mut type_decls := List.new()
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             if is_struct_declaration(child) {
                 type_decls.push(Expr, child)
             } else if is_enum_declaration(child) {
@@ -2464,15 +2429,11 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
                     type_decls.push(Expr, child)
                 }
             }
-            i = add(i, 1)
         }
 
         // Sort by dependencies and emit in order
         mut sorted_indices := topological_sort_types(type_decls)
-        i = 0
-        while lt(i, sorted_indices.len()) {
-            mut idx := 0
-            sorted_indices.get(i, idx)
+        for idx: I64 in sorted_indices {
             mut type_expr := Expr()
             type_decls.get(idx, type_expr)
             if is_struct_declaration(type_expr) {
@@ -2480,7 +2441,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             } else {
                 output = emit_enum_declaration(type_expr, output)
             }
-            i = add(i, 1)
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         catch (err: AllocError) { throw "AllocError in type pass" }
@@ -2507,17 +2467,11 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             if is_struct_declaration(child) {
                 output = emit_struct_constants(child, output, ctx, context)
             }
-            i = add(i, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip constants pass
     }
@@ -2525,17 +2479,11 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // Pass 2a: emit size_of constants for enums
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             if is_enum_declaration(child) {
                 output = emit_enum_size_of_constant(child, output, ctx)
             }
-            i = add(i, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip enum size_of pass
     }
@@ -2544,17 +2492,11 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // This must come after structs are defined (Str is needed for return type)
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             if is_enum_declaration(child) {
                 output = emit_enum_to_str_for_declaration(child, output, context)
             }
-            i = add(i, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip enum_to_str pass
     }
@@ -2562,17 +2504,11 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // Pass 2b: emit top-level constants (non-mut declarations with literal values)
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             if is_constant_declaration(child) {
                 output = emit_constant_declaration(child, output, ctx, context)
             }
-            i = add(i, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip top-level constants pass
     }
@@ -2581,17 +2517,11 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // These need to be file-scope statics so functions can access them
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             if is_global_declaration(child) {
                 output = emit_global_declaration(child, output, ctx, context)
             }
-            i = add(i, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip global declarations pass
     }
@@ -2605,48 +2535,31 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // 3a: top-level functions
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             if is_func_declaration(child) {
                 output = emit_func_prototype(child, output, ctx)
             }
-            i = add(i, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip prototype pass
     }
     // 3b: struct functions (with mangled names)
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             if is_struct_declaration(child) {
                 output = emit_struct_func_prototypes(child, output, ctx)
             }
-            i = add(i, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip struct func prototype pass
     }
     // 3c: hoisted nested function prototypes (collected in Pass 0a)
     if gt(ctx.hoisted_prototypes.len(), 0) {
         output = output.concat("\n// Nested function prototypes (hoisted)\n")
-        mut pi := 0
-        while lt(pi, ctx.hoisted_prototypes.len()) {
-            mut proto := ""
-            ctx.hoisted_prototypes.get(pi, proto)
+        for proto: Str in ctx.hoisted_prototypes {
             output = output.concat(proto)
-            pi = add(pi, 1)
         }
-        catch (err: IndexOutOfBoundsError) { /* ignore */ }
     }
     output = output.concat("\n")
 
@@ -2654,34 +2567,22 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // 4a: top-level functions
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             if is_func_declaration(child) {
                 output = emit_func_declaration(child, output, ctx, context)
             }
-            i = add(i, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip function pass
     }
     // 4b: struct functions (with mangled names)
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             if is_struct_declaration(child) {
                 output = emit_struct_func_bodies(child, output, ctx, context)
             }
-            i = add(i, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip struct func body pass
     }
@@ -2691,14 +2592,9 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // (prototypes were already emitted in Pass 3c)
     if gt(ctx.hoisted_functions.len(), 0) {
         output = output.concat("\n// Hoisted nested function definitions\n")
-        mut fi := 0
-        while lt(fi, ctx.hoisted_functions.len()) {
-            mut func_code := ""
-            ctx.hoisted_functions.get(fi, func_code)
+        for func_code: Str in ctx.hoisted_functions {
             output = output.concat(func_code)
-            fi = add(fi, 1)
         }
-        catch (err: IndexOutOfBoundsError) { /* ignore */ }
     }
 
     // Main function
@@ -2711,20 +2607,15 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // This ensures global declarations emit only assignments in main(), not redeclarations
     switch ast.node_type {
     case NodeType.Body:
-        mut gdecl_i := 0
-        while lt(gdecl_i, ast.params.len()) {
-            mut gdecl_child := Expr()
-            ast.params.get(gdecl_i, gdecl_child)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            if is_global_declaration(gdecl_child) {
-                switch gdecl_child.node_type {
-                case NodeType.Declaration(gdecl):
-                    _ := ctx.declared_vars.insert(til_name(gdecl.name))
+        for child: Expr in ast.params {
+            if is_global_declaration(child) {
+                switch child.node_type {
+                case NodeType.Declaration(decl):
+                    _ := ctx.declared_vars.insert(til_name(decl.name))
                     catch (err: AllocError) { throw err.msg }
                 case:
                 }
             }
-            gdecl_i = add(gdecl_i, 1)
         }
     case:
     }
@@ -2734,11 +2625,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     switch ast.node_type {
     case NodeType.Body:
         mut main_stmts := Vec.new(Expr)
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             // Skip true/false declarations - they're now #defines
             mut skip_true_false := false
             switch child.node_type {
@@ -2758,10 +2645,8 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
                     }
                 }
             }
-            i = add(i, 1)
         }
         output = emit_stmts(main_stmts, output, 1, ctx, context)
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, emit directly
         output = emit_expr(ast, output, 1, ctx, context)
@@ -3134,10 +3019,7 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: Str, mut ctx: 
                     } else {
                         result = result.concat("{")
                         mut is_first := true
-                        for member_idx in 0..struct_def.members.len() {
-                            mut member := Declaration()
-                            struct_def.members.get(member_idx, member)
-                            catch (err: IndexOutOfBoundsError) { throw err.msg }
+                        for member: Declaration in struct_def.members {
                             if not(member.is_mut) {
                                 continue
                             }
@@ -4251,11 +4133,7 @@ prescan_func_level_catches := proc(stmts: Vec) returns Vec throws AllocError {
     mut catches := Vec.new(Expr)
 
     // Collect ALL catch blocks
-    for i in 0..stmts.len() {
-        mut stmt := Expr()
-        stmts.get(i, stmt)
-        catch (err: IndexOutOfBoundsError) { return catches }
-
+    for stmt: Expr in stmts {
         switch stmt.node_type {
         case NodeType.Catch:
             catches.push(stmt)
@@ -4287,10 +4165,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
 
     // Hoist declarations from catch blocks to function level
     // (TIL has function-level scoping, not block-level scoping)
-    mut hoist_ci := 0
-    while lt(hoist_ci, func_level_catches.len()) {
-        mut catch_block := Expr()
-        func_level_catches.get(hoist_ci, catch_block)
+    for catch_block: Expr in func_level_catches {
         if gteq(catch_block.params.len(), 3) {
             // Temporarily add the catch error variable to scope for type inference
             // catch (err: ErrType) { body } -> err_var=params[0], err_type=params[1], body=params[2]
@@ -4314,10 +4189,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
             mut catch_body := Expr()
             catch_block.params.get(2, catch_body)
             decls := collect_declarations_in_body(catch_body, context)
-            mut decl_idx := 0
-            while lt(decl_idx, decls.len()) {
-                mut decl := Declaration()
-                decls.get(decl_idx, decl)
+            for decl: Declaration in decls {
                 c_var_name := til_name(decl.name)
                 if not(ctx.declared_vars.contains(c_var_name)) {
                     c_type := til_type_to_c(decl.value_type)
@@ -4330,10 +4202,8 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                         _ := ctx.declared_vars.insert(c_var_name)
                     }
                 }
-                decl_idx = add(decl_idx, 1)
             }
         }
-        hoist_ci = add(hoist_ci, 1)
 
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         catch (err: AllocError) { throw err.msg }
@@ -4345,9 +4215,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
     mut catch_suffix := next_mangled()
     mut catch_label_info := Vec.new(CatchLabelInfoEntry)  // (type_name, label, temp_var, catch_block)
     mut registered_types := Set.new(Str)
-    for ci in 0..func_level_catches.len() {
-        mut catch_block := Expr()
-        func_level_catches.get(ci, catch_block)
+    for catch_block: Expr in func_level_catches {
         if lt(catch_block.params.len(), 3) {
             continue
         }
@@ -6939,9 +6807,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 // First check if any default value is a throwing function call
                 mut throwing_defaults := Vec.new(Str)  // member names with throwing defaults
                 mut throwing_default_exprs := Vec.new(Expr)  // corresponding expressions
-                for member_idx in 0..struct_def.members.len() {
-                    mut member := Declaration()
-                    struct_def.members.get(member_idx, member)
+                for member: Declaration in struct_def.members {
                     if not(member.is_mut) {
                         continue
                     }
@@ -6960,7 +6826,6 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                         }
                     }
                 }
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
                 catch (err: AllocError) { throw err.msg }
 
                 // If we have throwing defaults, emit them as separate statements first
@@ -7016,9 +6881,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 result = emit_struct_literal_start(result, struct_type, already_declared)
                 result = result.concat("{")
                 mut is_first := true
-                for member_idx in 0..struct_def.members.len() {
-                    mut member := Declaration()
-                    struct_def.members.get(member_idx, member)
+                for member: Declaration in struct_def.members {
                     // Only include mut fields (actual struct data members)
                     // Skip functions, constants, and non-mut fields
                     if not(member.is_mut) {
@@ -7063,7 +6926,6 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                         }
                     }
                 }
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
                 result = result.concat("};\n")
             }
         } else {
