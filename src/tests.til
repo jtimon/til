@@ -26,9 +26,7 @@ TestEntry := struct {
 parse_time_ms := func(time_output: Str) returns I64 throws AllocError, IndexOutOfBoundsError {
     // Find "real" line
     lines := time_output.split("\n")
-    for i in 0..lines.len() {
-        mut line := ""
-        lines.get(i, line)
+    for line: Str in lines {
         if line.starts_with("real") {
             // Format: "real\t0m0.042s"
             // Find position of 'm' using index_of
@@ -251,45 +249,31 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
 regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
     if files.len().eq(0) {
         // regen all
-        for i in 0..rs_common.len() {
-            mut entry := TestEntry()
-            rs_common.get(i, entry)
+        for entry: TestEntry in rs_common {
             regen_test(entry)
         }
-        for i in 0..rs_compiled.len() {
-            mut entry := TestEntry()
-            rs_compiled.get(i, entry)
+        for entry: TestEntry in rs_compiled {
             regen_test_compiled(entry)
         }
-        for i in 0..rs_interpreted.len() {
-            mut entry := TestEntry()
-            rs_interpreted.get(i, entry)
+        for entry: TestEntry in rs_interpreted {
             regen_test(entry)
         }
     } else {
         // regen specific files - find matching entries in lists
         // Match by full path or by suffix (e.g., "loops.til" matches "src/test/loops.til")
-        for i in 0..files.len() {
-            mut file := ""
-            files.get(i, file)
+        for file: Str in files {
             // Search in each list for entries with matching path
-            for j in 0..rs_common.len() {
-                mut entry := TestEntry()
-                rs_common.get(j, entry)
+            for entry: TestEntry in rs_common {
                 if entry.path.eq(file).or(entry.path.ends_with(file)) {
                     regen_test(entry)
                 }
             }
-            for j in 0..rs_compiled.len() {
-                mut entry := TestEntry()
-                rs_compiled.get(j, entry)
+            for entry: TestEntry in rs_compiled {
                 if entry.path.eq(file).or(entry.path.ends_with(file)) {
                     regen_test_compiled(entry)
                 }
             }
-            for j in 0..rs_interpreted.len() {
-                mut entry := TestEntry()
-                rs_interpreted.get(j, entry)
+            for entry: TestEntry in rs_interpreted {
                 if entry.path.eq(file).or(entry.path.ends_with(file)) {
                     regen_test(entry)
                 }
@@ -297,7 +281,6 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec)
         }
     }
 
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     catch (err: AllocError) { panic(loc(), err.msg) }
 }
 

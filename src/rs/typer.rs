@@ -947,6 +947,30 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                 }
                 thrown_types.extend(temp_thrown_types);
             }
+            NodeType::ForIn(var_type_name) => {
+                // ForIn: params[0]=var, params[1]=collection, params[2]=body
+                let mut temp_thrown_types: Vec<ThrownType> = Vec::new();
+                if let Some(collection_expr) = p.params.get(1) {
+                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(collection_expr), &mut temp_thrown_types, return_found));
+                }
+                if let Some(body_expr) = p.params.get(2) {
+                    // Push scope and declare loop variable before checking body
+                    let var_name = p.params.get(0)
+                        .and_then(|v| if let NodeType::Identifier(name) = &v.node_type { Some(name.clone()) } else { None })
+                        .unwrap_or_default();
+                    context.scope_stack.push(ScopeType::Block);
+                    context.scope_stack.declare_symbol(var_name, SymbolInfo {
+                        value_type: ValueType::TCustom(var_type_name.clone()),
+                        is_mut: true,
+                        is_copy: false,
+                        is_own: false,
+                        is_comptime_const: false,
+                    });
+                    errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_types, return_found));
+                    context.scope_stack.pop().ok();
+                }
+                thrown_types.extend(temp_thrown_types);
+            }
             NodeType::If => {
                 let mut temp_thrown_types: Vec<ThrownType> = Vec::new();
                 if let Some(cond_expr) = p.params.get(0) {

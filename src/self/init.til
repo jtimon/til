@@ -23,6 +23,9 @@ SymbolInfo := struct {
     mut is_own: Bool = false
     mut is_comptime_const: Bool = false  // true if value was comptime-evaluable at declaration
 
+    // TODO: These helper methods are no longer needed since we have parametrized constructors.
+    // Can use SymbolInfo(value_type=..., is_mut=true) directly instead of SymbolInfo.new(...).
+    // Remove these methods and update all call sites.
     new := func(value_type: ValueType, is_mut: Bool, is_copy: Bool, is_own: Bool) returns SymbolInfo {
         return SymbolInfo(value_type=value_type, is_mut=is_mut, is_copy=is_copy, is_own=is_own, is_comptime_const=false)
     }

@@ -2,10 +2,7 @@ mode test
 
 concat2 := proc(args: ..Str) returns Str {
     mut result := ""
-    mut args_len := args.len()
-    for i in 0..args_len {
-        mut val := ""
-        args.get(i, val)
+    for val: Str in args {
         result = format(result, val)
     }
 
@@ -14,7 +11,7 @@ concat2 := proc(args: ..Str) returns Str {
         println(err.msg)
     }
     catch(err: IndexOutOfBoundsError) {
-        println(loc(), "concat2: IndexOutOfBoundsError thrown:")
+        println(loc(), "IndexOutOfBoundsError thrown:")
         println(err.msg)
     }
     catch(err: AllocError) {
@@ -28,37 +25,21 @@ assert_eq_str(loc(), "Variadic: foobarbaz", concat2("Variadic: ", "foo", "bar", 
 
 var_i64_add := proc(args: ..I64) returns I64 {
     mut result := 0
-    mut args_len := args.len()
-    for i in 0..args_len {
-        mut val := 0
-        args.get(i, val)
+    for val: I64 in args {
         result = result.add(val)
     }
-
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "var_i64_add: IndexOutOfBoundsError thrown:")
-        println(err.msg)
-    }
-
     return result
 }
 assert_eq(loc(), add(34, 35), var_i64_add(34, 35))
 
 var_u8_add := proc(args: ..U8) returns U8 {
     mut result : U8 = 0
-    mut args_len := args.len()
-    for i in 0..args_len {
-        mut val := U8.from_i64(0)
-        args.get(i, val)
+    for val: U8 in args {
         result = result.u8_add(val)
     }
 
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "var_i64_add: IndexOutOfBoundsError thrown:")
-        println(err.msg)
-    }
     catch(err: U8_OverflowError) {
-        println(loc(), "var_i64_add: U8_OverflowError thrown:")
+        println(loc(), "U8_OverflowError thrown:")
         println(err.msg)
     }
 
@@ -69,17 +50,9 @@ assert_eq(loc(), add(34, 35), U8.to_i64(var_u8_add(U8.from_i64(34), U8.from_i64(
 // Test: Variadic type checking (merged from variadic_type_check.til)
 test_i64_variadic := func(args: ..I64) returns I64 {
     mut sum := 0
-    mut args_len := args.len()
-    for i in 0..args_len {
-        mut val := 0
-        args.get(i, val)
+    for val: I64 in args {
         sum = sum.add(val)
     }
-
-    catch(err: IndexOutOfBoundsError) {
-        panic(loc(), "test_i64_variadic: IndexOutOfBoundsError should never happen")
-    }
-
     return sum
 }
 
@@ -88,25 +61,11 @@ assert_eq(loc(), 6, test_i64_variadic(1, 2, 3))
 assert_eq(loc(), 30, test_i64_variadic(10, 20))
 assert_eq(loc(), 0, test_i64_variadic())
 
-test_str_variadic := func(args: ..Str) returns Str {
+test_str_variadic := func(args: ..Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
     mut result := ""
-    mut args_len := args.len()
-    for i in 0..args_len {
-        mut val := ""
-        args.get(i, val)
+    for val: Str in args {
         result = format(result, val)
     }
-
-    catch(err: IndexOutOfBoundsError) {
-        panic(loc(), "test_str_variadic: IndexOutOfBoundsError should never happen")
-    }
-    catch(err: I64_OverflowError) {
-        panic(loc(), "test_str_variadic: I64_OverflowError")
-    }
-    catch(err: AllocError) {
-        panic(loc(), "test_str_variadic: AllocError")
-    }
-
     return result
 }
 
@@ -126,19 +85,11 @@ assert_eq_str(loc(), "onetwothreefourfive", test_str_variadic("one", "two", "thr
 // Test: Variadic with Bool type
 test_bool_variadic := func(args: ..Bool) returns I64 {
     mut count_true := 0
-    mut args_len := args.len()
-    for i in 0..args_len {
-        mut val := false
-        args.get(i, val)
+    for val: Bool in args {
         if val {
             count_true = count_true.add(1)
         }
     }
-
-    catch(err: IndexOutOfBoundsError) {
-        panic(loc(), "test_bool_variadic: IndexOutOfBoundsError should never happen")
-    }
-
     return count_true
 }
 

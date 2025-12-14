@@ -1239,6 +1239,37 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                 }
                 thrown_types.extend(temp_thrown_types)
 
+            case NodeType.ForIn(var_type_name):
+                // ForIn: params[0]=var, params[1]=collection, params[2]=body
+                mut temp_thrown_types := Vec.new(ThrownType)
+                if p.params.len().gt(1) {
+                    mut collection_expr := Expr()
+                    p.params.get(1, collection_expr)
+                    mut single_collection := Vec.new(Expr)
+                    single_collection.push(collection_expr)
+                    errors.extend(check_body_returns_throws(context, e, func_def, single_collection, temp_thrown_types, return_found))
+                }
+                if p.params.len().gt(2) {
+                    mut body_expr := Expr()
+                    p.params.get(2, body_expr)
+                    // Push scope and declare loop variable before checking body
+                    mut var_name := ""
+                    if p.params.len().gt(0) {
+                        mut var_expr := Expr()
+                        p.params.get(0, var_expr)
+                        switch var_expr.node_type {
+                        case NodeType.Identifier(name):
+                            var_name = name
+                        case:
+                        }
+                    }
+                    context.scope_stack.push(ScopeType.Block)
+                    context.scope_stack.declare_symbol(var_name, SymbolInfo(value_type=ValueType.TCustom(var_type_name), is_mut=true))
+                    errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_types, return_found))
+                    _ := context.scope_stack.pop()
+                }
+                thrown_types.extend(temp_thrown_types)
+
             case NodeType.If:
                 mut temp_thrown_types := Vec.new(ThrownType)
                 if p.params.len().gt(0) {
