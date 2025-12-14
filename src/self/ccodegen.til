@@ -766,6 +766,10 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                                 key := func_name.concat(":").concat(member.name)
                                 ctx.hoisted_struct_defaults.insert(key, temp_name)
                                 catch (err: DuplicatedKeyError) { }  // Ignore if already hoisted
+                            } else {
+                                // Also recursively hoist any throwing expressions in the default
+                                // This handles nested struct constructors with throwing defaults
+                                result = hoist_throwing_expr(default_expr, result, indent, ctx, context)
                             }
                         }
                     }
@@ -1710,11 +1714,11 @@ emit_global_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext
             // Determine the type from the initializer expression
             // Check for enum construction first (Color.Green(true) -> til_Color)
             mut c_type := ""
-            mut enum_type := get_enum_construction_type(first)
+            mut enum_type := get_enum_construction_type(first, context)
             if gt(enum_type.len(), 0) {
                 c_type = til_name(enum_type)
             } else {
-                mut struct_type := get_struct_construction_type(first)
+                mut struct_type := get_struct_construction_type(first, context)
                 if gt(struct_type.len(), 0) {
                     c_type = til_name(struct_type)
                 } else {
@@ -6341,7 +6345,7 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
 // Check if an expression is a struct construction call (TypeName())
 // Returns the type name if it is, empty string otherwise
-get_struct_construction_type := func(expr: Expr) returns Str {
+get_struct_construction_type := func(expr: Expr, context: Context) returns Str {
     switch expr.node_type {
     case NodeType.FCall:
         if gt(expr.params.len(), 0) {
@@ -6350,20 +6354,33 @@ get_struct_construction_type := func(expr: Expr) returns Str {
             catch (err: IndexOutOfBoundsError) { return "" }
             switch first.node_type {
             case NodeType.Identifier(name):
-                // If it's a PascalCase identifier with no nested params and no other args, assume struct
-                if gt(name.len(), 0) {
-                    // Check if first character is uppercase
-                    // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.til)
-                    mut first_char := name.get_substr(0, 1)
-                    if first_char.is_uppercase() {
-                        if eq(expr.params.len(), 1) {
-                            if eq(first.params.len(), 0) {
-                                return name
+                // Use lookup_struct to check if this is a known struct type
+                if eq(first.params.len(), 0) {
+                    mut struct_found := false
+                    _ := context.scope_stack.lookup_struct(name)
+                    struct_found = true
+                    catch (err: KeyNotFoundError) { }
+                    if struct_found {
+                        mut only_named_args := true
+                        if gt(expr.params.len(), 1) {
+                            mut i := 1
+                            while lt(i, expr.params.len()) {
+                                mut arg := Expr()
+                                expr.params.get(i, arg)
+                                catch (err: IndexOutOfBoundsError) { only_named_args = false }
+                                switch arg.node_type {
+                                case NodeType.NamedArg(_):
+                                    // OK
+                                case:
+                                    only_named_args = false
+                                }
+                                i.inc()
                             }
                         }
+                        if only_named_args {
+                            return name
+                        }
                     }
-                    catch (err: IndexOutOfBoundsError) { return "" }
-                    catch (err: AllocError) { return "" }
                 }
                 return ""
             case:
@@ -6377,10 +6394,10 @@ get_struct_construction_type := func(expr: Expr) returns Str {
 }
 
 // Check if an expression is an enum construction (Type.Variant or Type.Variant(value))
-// Returns the type name if it is, empty string otherwise
+// Returns the type name if it is, None otherwise
 // AST structure for Color.Red(42): FCall -> [Identifier("Color") -> [Identifier("Red")], Literal(42)]
 // AST structure for Color.Unknown: Identifier("Color") -> [Identifier("Unknown")]
-get_enum_construction_type := func(expr: Expr) returns Str {
+get_enum_construction_type := func(expr: Expr, context: Context) returns Str {
     // Check FCall case: Type.Variant(value) or Type.Variant()
     switch expr.node_type {
     case NodeType.FCall:
@@ -6390,70 +6407,49 @@ get_enum_construction_type := func(expr: Expr) returns Str {
             catch (err: IndexOutOfBoundsError) { return "" }
             switch first.node_type {
             case NodeType.Identifier(type_name):
-                // Check if the type name is PascalCase
-                // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.til)
-                if gt(type_name.len(), 0) {
-                    mut type_first_char := type_name.get_substr(0, 1)
-                    if type_first_char.is_uppercase() {
-                        // Check if there's a nested identifier (the variant) that's also PascalCase
-                        if gt(first.params.len(), 0) {
-                            mut nested := Expr()
-                            first.params.get(0, nested)
-                            catch (err: IndexOutOfBoundsError) { return "" }
-                            switch nested.node_type {
-                            case NodeType.Identifier(variant_name):
-                                if gt(variant_name.len(), 0) {
-                                    mut variant_first_char := variant_name.get_substr(0, 1)
-                                    if variant_first_char.is_uppercase() {
-                                        return type_name
-                                    }
-                                    catch (err: IndexOutOfBoundsError) { return "" }
-                                    catch (err: AllocError) { return "" }
-                                }
-                                return ""
-                            case:
-                                return ""
-                            }
-                        }
-                    }
+                // Use lookup_enum to check if this is a known enum type
+                mut enum_def := context.scope_stack.lookup_enum(type_name)
+                // Check if there's a nested identifier (the variant)
+                if gt(first.params.len(), 0) {
+                    mut nested := Expr()
+                    first.params.get(0, nested)
                     catch (err: IndexOutOfBoundsError) { return "" }
-                    catch (err: AllocError) { return "" }
+                    switch nested.node_type {
+                    case NodeType.Identifier(variant_name):
+                        // Verify the variant exists in the enum
+                        if enum_def.enum_map.contains_key(variant_name) {
+                            return type_name
+                        }
+                    case:
+                        return ""
+                    }
                 }
                 return ""
             case:
                 return ""
             }
+            catch (err: KeyNotFoundError) { return "" }
         }
         return ""
     case NodeType.Identifier(type_name):
         // Check Identifier case: Type.Variant (no parentheses, no payload)
-        // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.til)
-        if gt(type_name.len(), 0) {
-            mut type_first_char := type_name.get_substr(0, 1)
-            if type_first_char.is_uppercase() {
-                if gt(expr.params.len(), 0) {
-                    mut nested := Expr()
-                    expr.params.get(0, nested)
-                    catch (err: IndexOutOfBoundsError) { return "" }
-                    switch nested.node_type {
-                    case NodeType.Identifier(variant_name):
-                        if gt(variant_name.len(), 0) {
-                            mut variant_first_char := variant_name.get_substr(0, 1)
-                            if variant_first_char.is_uppercase() {
-                                return type_name
-                            }
-                            catch (err: IndexOutOfBoundsError) { return "" }
-                            catch (err: AllocError) { return "" }
-                        }
-                        return ""
-                    case:
-                        return ""
-                    }
-                }
-            }
+        // Use lookup_enum to check if this is a known enum type
+        mut enum_def := context.scope_stack.lookup_enum(type_name)
+        if gt(expr.params.len(), 0) {
+            mut nested := Expr()
+            expr.params.get(0, nested)
             catch (err: IndexOutOfBoundsError) { return "" }
-            catch (err: AllocError) { return "" }
+            switch nested.node_type {
+            case NodeType.Identifier(variant_name):
+                // Verify the variant exists in the enum
+                if enum_def.enum_map.contains_key(variant_name) {
+                    return type_name
+                }
+            case:
+                return ""
+            }
         }
+        catch (err: KeyNotFoundError) { return "" }
         return ""
     case:
         return ""
@@ -6474,6 +6470,16 @@ infer_type_from_expr := func(expr: Expr, context: Context) returns ValueType {
             return ValueType.TCustom("")  // Can't infer list element type
         }
     case NodeType.FCall:
+        // Check for struct constructor first (e.g., Declaration())
+        mut struct_name := get_struct_construction_type(expr, context)
+        if gt(struct_name.len(), 0) {
+            return ValueType.TCustom(struct_name)
+        }
+        // Check for enum constructor (e.g., Color.Red)
+        mut enum_name := get_enum_construction_type(expr, context)
+        if gt(enum_name.len(), 0) {
+            return ValueType.TCustom(enum_name)
+        }
         // Look up function return type from scope_stack
         mut func_name := get_fcall_func_name(expr)
         if gt(func_name.len(), 0) {
@@ -6782,7 +6788,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        struct_type = get_struct_construction_type(first)
+        struct_type = get_struct_construction_type(first, context)
     }
 
     // Check if this is an enum construction (Type.Variant or Type.Variant(value))
@@ -6791,7 +6797,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        enum_type = get_enum_construction_type(first)
+        enum_type = get_enum_construction_type(first, context)
     }
 
     // Track variable type for method mangling
@@ -6919,6 +6925,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 catch (err: AllocError) { throw err.msg }
 
                 // If we have throwing defaults, emit them as separate statements first
+                // Only do inline hoisting at statement level (indent > 0)
+                // At expression level, hoisting was already done by hoist_throwing_expr
+                if gt(indent, 0) {
                 mut td_idx := 0
                 while lt(td_idx, throwing_defaults.len()) {
                     mut member_name := ""
@@ -6958,6 +6967,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
 
                     td_idx.inc()
                 }
+                }  // end if gt(indent, 0)
 
                 if not(already_declared) {
                     if not(is_mut) {
@@ -8464,8 +8474,25 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             case:
             }
         } else {
-            result = result.concat("&")
-            result = emit_expr(arg, result, 0, ctx, context)
+            // Check if arg was hoisted with & prefix already
+            arg_addr := to_ptr(arg)
+            mut found_hoisted := false
+            mut temp_var := ""
+            ctx.hoisted_exprs.get(arg_addr, temp_var)
+            found_hoisted = true
+            catch (err: KeyNotFoundError) { }
+            if found_hoisted {
+                if temp_var.starts_with("&") {
+                    // Already has & prefix, just emit it
+                    result = result.concat(temp_var)
+                } else {
+                    result = result.concat("&")
+                    result = result.concat(temp_var)
+                }
+            } else {
+                result = result.concat("&")
+                result = emit_expr(arg, result, 0, ctx, context)
+            }
         }
         if gt(indent, 0) {
             result = result.concat(";\n")

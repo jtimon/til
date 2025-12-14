@@ -666,6 +666,10 @@ fn hoist_throwing_expr(
                                 // Record that this struct default was hoisted using "struct_name:member_name" key
                                 let key = format!("{}:{}", func_name, member.name);
                                 ctx.hoisted_struct_defaults.insert(key, temp_name);
+                            } else {
+                                // Also recursively hoist any throwing expressions in the default
+                                // This handles nested struct constructors with throwing defaults
+                                hoist_throwing_expr(default_expr, output, indent, ctx, context)?;
                             }
                         }
                     }
@@ -4599,6 +4603,14 @@ fn infer_type_from_expr(expr: &Expr, context: &Context) -> Option<ValueType> {
             }
         },
         NodeType::FCall => {
+            // Check for struct constructor first (e.g., Declaration())
+            if let Some(struct_name) = get_struct_construction_type(expr, context) {
+                return Some(ValueType::TCustom(struct_name));
+            }
+            // Check for enum constructor (e.g., Color.Red)
+            if let Some(enum_name) = get_enum_construction_type(expr, context) {
+                return Some(ValueType::TCustom(enum_name));
+            }
             // Look up function return type from scope_stack
             if let Some(func_name) = get_fcall_func_name(expr) {
                 if let Some(fd) = lookup_func_by_name(context, &func_name) {
@@ -6209,8 +6221,20 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     output.push_str(&til_name(name));
                 }
             } else {
-                output.push_str("&");
-                emit_arg_or_hoisted(arg, 0, &hoisted, output, ctx, context)?;
+                // Check if arg was hoisted with & prefix already
+                let arg_addr = arg as *const Expr as usize;
+                if let Some(temp_var) = ctx.hoisted_exprs.get(&arg_addr) {
+                    if temp_var.starts_with('&') {
+                        // Already has & prefix, just emit it
+                        output.push_str(temp_var);
+                    } else {
+                        output.push_str("&");
+                        output.push_str(temp_var);
+                    }
+                } else {
+                    output.push_str("&");
+                    emit_arg_or_hoisted(arg, 0, &hoisted, output, ctx, context)?;
+                }
             }
             Ok(())
         },
@@ -6282,27 +6306,31 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         }
 
                         // If we have throwing defaults, emit them as separate statements first
-                        for (member_name, default_expr) in &throwing_defaults {
-                            // Get the function's throw types
-                            let throw_types = if let Some(first_param) = default_expr.params.first() {
-                                if let Some(fcall_func_name) = get_func_name_string(first_param) {
-                                    let lookup_name = fcall_func_name.replacen('_', ".", 1);
-                                    context.scope_stack.lookup_func(&lookup_name)
-                                        .map(|fd| fd.throw_types.clone())
-                                        .unwrap_or_default()
+                        // Only do inline hoisting at statement level (indent > 0)
+                        // At expression level, hoisting was already done by hoist_throwing_expr
+                        if indent > 0 {
+                            for (member_name, default_expr) in &throwing_defaults {
+                                // Get the function's throw types
+                                let throw_types = if let Some(first_param) = default_expr.params.first() {
+                                    if let Some(fcall_func_name) = get_func_name_string(first_param) {
+                                        let lookup_name = fcall_func_name.replacen('_', ".", 1);
+                                        context.scope_stack.lookup_func(&lookup_name)
+                                            .map(|fd| fd.throw_types.clone())
+                                            .unwrap_or_default()
+                                    } else {
+                                        Vec::new()
+                                    }
                                 } else {
                                     Vec::new()
-                                }
-                            } else {
-                                Vec::new()
-                            };
+                                };
 
-                            let temp_name = format!("_default_{}_{}", member_name, next_mangled());
-                            // Emit the function call with out-param using emit_throwing_call_propagate
-                            emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
-                            // Record that this struct default was hoisted using "struct_name:member_name" key
-                            let key = format!("{}:{}", func_name, member_name);
-                            ctx.hoisted_struct_defaults.insert(key, temp_name);
+                                let temp_name = format!("_default_{}_{}", member_name, next_mangled());
+                                // Emit the function call with out-param using emit_throwing_call_propagate
+                                emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
+                                // Record that this struct default was hoisted using "struct_name:member_name" key
+                                let key = format!("{}:{}", func_name, member_name);
+                                ctx.hoisted_struct_defaults.insert(key, temp_name);
+                            }
                         }
 
                         output.push_str(&indent_str);

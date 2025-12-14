@@ -1,8 +1,17 @@
 use std::collections::HashMap;
 use std::io::Write; // <--- bring flush() into scope
 use std::io;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rs::lexer::{LANG_NAME, TokenType, Token, Lexer};
+
+// Counter for generating unique loop variable names when _ is used
+static LOOP_VAR_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+fn next_loop_var() -> String {
+    let n = LOOP_VAR_COUNTER.fetch_add(1, Ordering::SeqCst);
+    format!("_loop_{}", n)
+}
 
 pub const INFER_TYPE : &str = "auto";
 
@@ -1114,7 +1123,12 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
 
     // Expect loop variable name
     let ident_token = lexer.expect(TokenType::Identifier)?;
-    let loop_var_name = ident_token.token_str.clone();
+    // Replace _ with a unique generated name to avoid C redeclaration issues
+    let loop_var_name = if ident_token.token_str == "_" {
+        next_loop_var()
+    } else {
+        ident_token.token_str.clone()
+    };
 
     // Check if next token is ':' (type annotation for collection-based for)
     let next_token = lexer.peek();

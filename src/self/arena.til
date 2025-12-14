@@ -1281,10 +1281,10 @@ Arena := struct {
 
         result.enum_val.enum_type = enum_type
         result.enum_val.enum_name = enum_name
-        // Store payload directly (Vec and ValueType)
+        // Store payload as Ptr (Option pattern: NULL = None)
         if payload_data.len().gt(0) {
-            result.enum_val.payload = payload_data.clone()
-            result.enum_val.payload_type = payload_type
+            result.enum_val.payload.data = to_ptr(payload_data.clone())
+            result.enum_val.payload_type.data = to_ptr(payload_type)
         }
 
         catch (err: AllocError) {
@@ -1473,8 +1473,8 @@ Arena := struct {
         }
 
         // First param is the type identifier
-        type_id := Expr.new_explicit(NodeType.Identifier(type_name), Vec.new("Expr"), 0, 0)
-        mut params := Vec.new("Expr")
+        type_id := Expr.new_explicit(NodeType.Identifier(type_name), Vec.new(Expr), 0, 0)
+        mut params := Vec.new(Expr)
         params.push(type_id)
 
         // For each mutable field, read value and create NamedArg
@@ -1485,7 +1485,7 @@ Arena := struct {
             field_id := format(instance_name, ".", member.name)
             field_value := Arena.field_to_literal(ctx, field_id, member.value_type, e)
 
-            mut named_arg_params := Vec.new("Expr")
+            mut named_arg_params := Vec.new(Expr)
             named_arg_params.push(field_value)
             named_arg := Expr.new_explicit(NodeType.NamedArg(member.name), named_arg_params, 0, 0)
             params.push(named_arg)
@@ -1513,10 +1513,10 @@ Arena := struct {
         case ValueType.TCustom(custom_type):
             if custom_type.eq("I64") {
                 val := Arena.get_i64(ctx, field_id, e)
-                result = Expr.new_explicit(NodeType.LLiteral(Literal.Number(val.to_str())), Vec.new("Expr"), 0, 0)
+                result = Expr.new_explicit(NodeType.LLiteral(Literal.Number(val.to_str())), Vec.new(Expr), 0, 0)
             } else if custom_type.eq("U8") {
                 val := Arena.get_u8(ctx, field_id, e)
-                result = Expr.new_explicit(NodeType.LLiteral(Literal.Number(val.to_str())), Vec.new("Expr"), 0, 0)
+                result = Expr.new_explicit(NodeType.LLiteral(Literal.Number(val.to_str())), Vec.new(Expr), 0, 0)
             } else {
                 // Check if nested struct
                 mut is_struct := false

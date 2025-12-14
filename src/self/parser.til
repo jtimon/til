@@ -9,6 +9,15 @@ import("self.mode")
 
 INFER_TYPE := "auto"
 
+// Counter for generating unique loop variable names when _ is used
+mut LOOP_VAR_COUNTER := 0
+
+next_loop_var := func() returns Str {
+    n := LOOP_VAR_COUNTER
+    LOOP_VAR_COUNTER = add(LOOP_VAR_COUNTER, 1)
+    return concat("_loop_", n.to_str())
+}
+
 SEnumDef := struct {
     mut enum_map: Map = Map.new(Str, Ptr)  // Ptr to ValueType, NULL = None (no payload)
 
@@ -1393,7 +1402,13 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
 
     // Expect loop variable name
     ident_token := lexer.expect(TokenType.Identifier)
-    loop_var_name := ident_token.token_str
+    // Replace _ with a unique generated name to avoid C redeclaration issues
+    mut loop_var_name := ""
+    if ident_token.token_str.eq("_") {
+        loop_var_name = next_loop_var()
+    } else {
+        loop_var_name = ident_token.token_str
+    }
 
     // Check for collection-based for: for VAR: TYPE in COLLECTION
     // TODO #32: Workaround - can't use lexer.peek().token_type directly
