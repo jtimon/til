@@ -2614,7 +2614,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     }
 
     // Main function
-    output = output.concat("int main() {\n")
+    output = output.concat("int main(int argc, char** argv) {\n")
 
     // Clear hoisted_exprs to avoid cross-contamination from function passes
     ctx.hoisted_exprs = Map.new(Str, Str)
@@ -2670,7 +2670,33 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
 
     // Call til_main() for modes that require a main proc (like cli)
     if context.mode_def.needs_main_proc {
-        output = output.concat("    til_main();\n")
+        // Check if main has variadic args by looking up the function
+        // Variadic params have ValueType.TMulti as their type
+        mut main_has_variadic := false
+        mut main_func := context.scope_stack.lookup_func("main")
+        for arg: Declaration in main_func.args {
+            switch arg.value_type {
+            case ValueType.TMulti(_):
+                main_has_variadic = true
+            case:
+            }
+        }
+        catch (err: KeyNotFoundError) { }
+
+        if main_has_variadic {
+            // Convert argc/argv to til_Array and pass to til_main
+            output = output.concat("    til_Array _main_args;\n")
+            output = output.concat("    til_AllocError _main_args_err;\n")
+            output = output.concat("    til_Array_new(&_main_args, &_main_args_err, \"Str\", argc);\n")
+            output = output.concat("    for (int i = 0; i < argc; i++) {\n")
+            output = output.concat("        til_Str _arg = {(til_I64)argv[i], strlen(argv[i])};\n")
+            output = output.concat("        til_IndexOutOfBoundsError _set_err;\n")
+            output = output.concat("        til_Array_set(&_set_err, &_main_args, i, &_arg);\n")
+            output = output.concat("    }\n")
+            output = output.concat("    til_main(&_main_args);\n")
+        } else {
+            output = output.concat("    til_main();\n")
+        }
     }
 
     output = output.concat("    return 0;\n}\n")
@@ -2901,6 +2927,27 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                 } else {
                     // Simple variable - cast to til_Dynamic* (void**) and take address
                     result = result.concat("(").concat(TIL_PREFIX).concat("Dynamic*)&").concat(til_name(name))
+                }
+                return result
+            } else {
+                // Field access like member.name - need (til_Dynamic*)&(var.field)
+                // Check if base is a mut param (pointer) or regular variable
+                mut base_is_pointer := ctx.current_mut_params.contains(name)
+                result = result.concat("(").concat(TIL_PREFIX).concat("Dynamic*)&").concat(til_name(name))
+                mut param_idx := 0
+                for param: Expr in arg.params {
+                    switch param.node_type {
+                    case NodeType.Identifier(field):
+                        if base_is_pointer.and(param_idx.eq(0)) {
+                            result = result.concat("->")
+                        } else {
+                            result = result.concat(".")
+                        }
+                        // Field names don't get til_ prefix
+                        result = result.concat(field)
+                    case:
+                    }
+                    param_idx.inc()
                 }
                 return result
             }

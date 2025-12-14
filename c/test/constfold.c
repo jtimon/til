@@ -1848,7 +1848,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_OverflowError* _err1, const til_I64 til
     return 0;
 }
 
-int main() {
+int main(int argc, char** argv) {
     til_test_simple_add();
     til_test_nested_arithmetic();
     til_test_deeply_nested();

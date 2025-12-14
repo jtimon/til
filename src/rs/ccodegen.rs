@@ -1456,6 +1456,26 @@ fn emit_arg_with_param_type(
                     output.push_str(&til_name(name));
                 }
                 return Ok(());
+            } else {
+                // Field access like member.name - need (til_Dynamic*)&(var.field)
+                // Check if base is a mut param (pointer) or regular variable
+                let base_is_pointer = ctx.current_mut_params.contains(name);
+                output.push_str("(");
+                output.push_str(TIL_PREFIX);
+                output.push_str("Dynamic*)&");
+                output.push_str(&til_name(name));
+                for (i, param) in arg.params.iter().enumerate() {
+                    if let NodeType::Identifier(field) = &param.node_type {
+                        if base_is_pointer && i == 0 {
+                            output.push_str("->");
+                        } else {
+                            output.push_str(".");
+                        }
+                        // Field names don't get til_ prefix
+                        output.push_str(field);
+                    }
+                }
+                return Ok(());
             }
         }
         // For non-identifier args (literals, compound literals), emit with &
@@ -1736,7 +1756,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     }
 
     // Main function
-    output.push_str("int main() {\n");
+    output.push_str("int main(int argc, char** argv) {\n");
 
     // Clear hoisted_exprs to avoid cross-contamination from function passes
     ctx.hoisted_exprs.clear();
@@ -1774,7 +1794,26 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
 
     // Call til_main() for modes that require a main proc (like cli)
     if context.mode_def.needs_main_proc {
-        output.push_str("    til_main();\n");
+        // Check if main has variadic args by looking up the function
+        // Variadic params have ValueType::TMulti as their type
+        let main_has_variadic = context.scope_stack.lookup_func("main")
+            .map(|fd| fd.args.iter().any(|arg| matches!(&arg.value_type, ValueType::TMulti(_))))
+            .unwrap_or(false);
+
+        if main_has_variadic {
+            // Convert argc/argv to til_Array and pass to til_main
+            output.push_str("    til_Array _main_args;\n");
+            output.push_str("    til_AllocError _main_args_err;\n");
+            output.push_str("    til_Array_new(&_main_args, &_main_args_err, \"Str\", argc);\n");
+            output.push_str("    for (int i = 0; i < argc; i++) {\n");
+            output.push_str("        til_Str _arg = {(til_I64)argv[i], strlen(argv[i])};\n");
+            output.push_str("        til_IndexOutOfBoundsError _set_err;\n");
+            output.push_str("        til_Array_set(&_set_err, &_main_args, i, &_arg);\n");
+            output.push_str("    }\n");
+            output.push_str("    til_main(&_main_args);\n");
+        } else {
+            output.push_str("    til_main();\n");
+        }
     }
 
     output.push_str("    return 0;\n");
