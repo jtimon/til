@@ -1,7 +1,6 @@
 bin/*
 doc/bot/*
 doc/log/*
-src/test/tmp/*
 tmp/*
 *~
 \#*\#

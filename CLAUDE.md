@@ -18,7 +18,7 @@ Read `doc/bot.org` for full guidelines. Key points below are frequently repeated
 ## CRITICAL: Stay Within Project Directory
 - **NEVER** create or read files outside the project directory
 - **NEVER** use /tmp or any path outside this project
-- All temporary files go in `src/test/tmp/` (already gitignored)
+- All temporary files go in `tmp/` (already gitignored)
 - All work must stay within the project boundaries
 
 ## Issue Numbering System - IMPORTANT
@@ -61,7 +61,7 @@ Don't ask where tests go - they're organized by collection type:
 - List tests: `src/test/lists.til`
 - Map tests: `src/test/maps.til`
 - Array tests: `src/test/arrays.til`
-- Temporary/debug: `src/test/tmp/` or `src/test/temporary_tests.til`
+- Temporary/debug: `tmp/` or `src/test/temporary_tests.til`
 
 ## Build Commands
 - `make rstil` or `make` - Fast build, just compile rstil
@@ -77,7 +77,7 @@ Don't ask permission for:
 - `git status`, `git log`, `git diff`, `git add`, `git commit`
 - `timeout N ./bin/rstil file.til`
 - Reading any project file within the project
-- Creating/editing files in `src/test/tmp/` or `doc/bot/`
+- Creating/editing files in `tmp/` or `doc/bot/`
 - **Shell commands within project - FULL FREEDOM:**
   - ALL standard Unix commands: `cd`, `mv`, `cp`, `rm`, `mkdir`, `chmod`, `ls`, `pwd`, `echo`, `printf`
   - Text processing: `sed`, `awk`, `grep`, `find`, `cat`, `head`, `tail`, `sort`, `uniq`, `wc`, `tr`, `cut`

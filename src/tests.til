@@ -359,7 +359,7 @@ test_rs_interpreted := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
     }
 
     // Check output via diff
-    tmp_actual := "src/test/tmp/actual.out"
+    tmp_actual := "tmp/actual.out"
     _ := writefile(tmp_actual, format_expected(entry.cmd_args, actual_exit_code, interp_output))
     mut diff_result := ""
     _ := diff_result.run_cmd("diff", out_path, tmp_actual)
@@ -403,7 +403,7 @@ test_rs_compiled := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
     }
 
     // Check output via diff
-    tmp_actual := "src/test/tmp/actual.out"
+    tmp_actual := "tmp/actual.out"
     _ := writefile(tmp_actual, format_expected(entry.cmd_args, actual_exit_code, run_output))
     mut diff_result := ""
     _ := diff_result.run_cmd("diff", out_path, tmp_actual)
@@ -447,7 +447,7 @@ test_rs_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: 
         }
         errors_found = true
     } else {
-        tmp_actual := "src/test/tmp/actual.out"
+        tmp_actual := "tmp/actual.out"
         _ := writefile(tmp_actual, format_expected(entry.cmd_args, interp_exit_code, interp_output))
         mut interp_diff := ""
         _ := interp_diff.run_cmd("diff", out_path, tmp_actual)
@@ -480,7 +480,7 @@ test_rs_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: 
         }
         errors_found = true
     } else {
-        tmp_actual := "src/test/tmp/actual.out"
+        tmp_actual := "tmp/actual.out"
         _ := writefile(tmp_actual, format_expected(entry.cmd_args, run_exit_code, run_output))
         mut run_diff := ""
         _ := run_diff.run_cmd("diff", out_path, tmp_actual)
