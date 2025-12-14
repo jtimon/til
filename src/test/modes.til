@@ -4,12 +4,7 @@ import("self.mode")
 
 // Create a dummy token for testing mode_from_name (which requires a Token for error reporting)
 make_dummy_token := func() returns Token {
-    mut t := Token()
-    t.token_type = TokenType.Mode
-    t.token_str = "test"
-    t.line = 0
-    t.col = 0
-    return t
+    return Token(token_type=TokenType.Mode, token_str="test")
 }
 dummy_token := make_dummy_token()
 

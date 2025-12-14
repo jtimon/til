@@ -16,13 +16,13 @@ MyStruct := struct {
     mut vec2_field: Vec2 = Vec2()
 
     new := proc(bool_field: Bool, int_field: I64, string_field: Str, color_field: MyEnum, vec2_field: Vec2) returns MyStruct {
-        mut self := MyStruct()
-        self.bool_field = bool_field
-        self.int_field = int_field
-        self.string_field = string_field
-        self.color_field = color_field
-        self.vec2_field = vec2_field
-        return self
+        return MyStruct(
+            bool_field=bool_field,
+            int_field=int_field,
+            string_field=string_field,
+            color_field=color_field,
+            vec2_field=vec2_field
+        )
     }
 
     // FIXED: Type checker now correctly catches these errors!
@@ -44,9 +44,7 @@ MyStruct := struct {
 test_my_struct := proc() {
     test(loc(), MyStruct.static_bool_field, "MyStruct.static_bool_field is not true")
 
-    mut v := Vec2()
-    v.x = 1
-    v.y = 2
+    v := Vec2(x=1, y=2)
 
     mut my_struct := MyStruct.new(true, 42, "my field string", MyEnum.Green, v) // with enum and struct field
     assert(loc(), my_struct.bool_field)
@@ -90,10 +88,7 @@ Vec2 := struct {
     mut y : I64 = 0
 
     new := proc(x: I64, y: I64) returns Vec2 {
-        mut v := Vec2()
-        v.x = x
-        v.y = y
-        return v
+        return Vec2(x=x, y=y)
     }
 
     add_all_coordinates := func(self: Vec2) returns I64 {
@@ -112,14 +107,11 @@ Vec3 := struct {
 
 test_structs := proc() {
     my_empty_struct := EmptyStruct() // NOTE: empty instantiations are allowed
-    mut my_vec2 := Vec2()
-    my_vec2.x = 40
-    my_vec2.y =  2
+    my_vec2 := Vec2(x=40, y=2)
     assert_eq(loc(), 42, Vec2.add_all_coordinates(my_vec2)) // associated functions using fields
     assert_eq(loc(), 42, my_vec2.add_all_coordinates()) // associated functions can be used as methods (if the first argument matches the type)
 
-    mut my_vec3 := Vec3()
-    my_vec3.z = 42
+    my_vec3 := Vec3(z=42)
     assert_eq(loc(), 42, my_vec3.z) // access to struct fields as arguments
 
     new_vec2 := Vec2.new(40, 2)

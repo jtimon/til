@@ -9,17 +9,11 @@ Vec2 := struct {
     mut y : I64 = 0
 
     new := func(x: I64, y: I64) returns Vec2 {
-        mut v := Vec2()
-        v.x = x
-        v.y = y
-        return v
+        return Vec2(x=x, y=y)
     }
 
     clone := func(self: Vec2) returns Vec2 {
-        mut cloned := Vec2()
-        cloned.x = self.x
-        cloned.y = self.y
-        return cloned
+        return Vec2(x=self.x, y=self.y)
     }
 }
 
@@ -317,10 +311,7 @@ Point := struct {
     mut y : I64 = 0
 
     clone := func(self: Point) returns Point {
-        mut cloned := Point()
-        cloned.x = self.x
-        cloned.y = self.y
-        return cloned
+        return Point(x=self.x, y=self.y)
     }
 }
 
@@ -329,10 +320,7 @@ Line := struct {
     mut end   : Point = Point()
 
     clone := func(self: Line) returns Line {
-        mut cloned := Line()
-        cloned.start = self.start.clone()
-        cloned.end = self.end.clone()
-        return cloned
+        return Line(start=self.start.clone(), end=self.end.clone())
     }
 }
 
@@ -344,11 +332,7 @@ move_line := proc(mut line: Line, dx: I64, dy: I64) {
 }
 
 test_nested_struct_mut := proc() {
-    mut l := Line()
-    l.start.x = 10
-    l.start.y = 20
-    l.end.x = 30
-    l.end.y = 40
+    mut l := Line(start=Point(x=10, y=20), end=Point(x=30, y=40))
 
     move_line(l, 5, 10)
 
@@ -475,11 +459,7 @@ test_copy_nested_struct := proc(copy line: Line) returns Line {
 }
 
 test_copy_nested := proc() {
-    mut original := Line()
-    original.start.x = 1
-    original.start.y = 2
-    original.end.x = 3
-    original.end.y = 4
+    mut original := Line(start=Point(x=1, y=2), end=Point(x=3, y=4))
 
     modified := test_copy_nested_struct(original)
 

@@ -4,11 +4,9 @@ import("test.helpers.circular_a")
 import("test.helpers.circular_b")
 
 test_circular := proc() {
-    mut a := TypeA()
-    a.val = 42
+    a := TypeA(val=42)
 
-    mut b := TypeB()
-    b.val = 100
+    b := TypeB(val=100)
 
     // Test that we can use functions from both modules
     result_a := use_b(b)
