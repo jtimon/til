@@ -2014,27 +2014,10 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
         }
 
         if not(default_found) {
-            // Check for missing variants
-            mut vi := 0
-            mut enum_variants := enum_def.enum_map.keys
-            while vi.lt(enum_variants.len()) {
-                mut variant := ""
-                enum_variants.get(vi, variant)
-                // Check if variant is in matched_variants
-                mut is_matched := false
-                mut mi := 0
-                while mi.lt(matched_variants.len()) {
-                    mut matched := ""
-                    matched_variants.get(mi, matched)
-                    if matched.eq(variant) {
-                        is_matched = true
-                    }
-                    mi.inc()
-                }
-                if not(is_matched) {
+            for variant: Str in enum_def.enum_map.keys {
+                if not(matched_variants.contains(variant)) {
                     errors.push(e.error(context.path, "type", format("Switch is missing case for variant '", variant, "'")))
                 }
-                vi.inc()
             }
         }
         catch (err: KeyNotFoundError) {

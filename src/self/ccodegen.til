@@ -3135,6 +3135,8 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
                 result = result.concat(c_var_name)
                 result = result.concat(";\n")
                 _ := ctx.declared_vars.insert(c_var_name)
+                // Also register in scope_stack so infer_type_from_expr can find it
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
             }
         }
         decl_idx = add(decl_idx, 1)
@@ -3160,6 +3162,8 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
                     result = result.concat(c_var_name)
                     result = result.concat(";\n")
                     _ := ctx.declared_vars.insert(c_var_name)
+                    // Also register in scope_stack so infer_type_from_expr can find it
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
                 }
             }
             decl_idx = add(decl_idx, 1)
@@ -3263,6 +3267,8 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 result = result.concat(c_var_name)
                 result = result.concat(";\n")
                 _ := ctx.declared_vars.insert(c_var_name)
+                // Also register in scope_stack so infer_type_from_expr can find it
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
             }
         }
         decl_idx = add(decl_idx, 1)
@@ -3679,6 +3685,8 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                     result = result.concat(c_var_name)
                     result = result.concat(";\n")
                     _ := ctx.declared_vars.insert(c_var_name)
+                    // Also register in scope_stack so infer_type_from_expr can find it
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
                 }
             }
             decl_idx = add(decl_idx, 1)
@@ -3704,6 +3712,8 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                     result = result.concat(c_var_name)
                     result = result.concat(";\n")
                     _ := ctx.declared_vars.insert(c_var_name)
+                    // Also register in scope_stack so infer_type_from_expr can find it
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
                 }
             }
             decl_idx = add(decl_idx, 1)
@@ -4204,6 +4214,8 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                         result = result.concat(c_var_name)
                         result = result.concat(";\n")
                         _ := ctx.declared_vars.insert(c_var_name)
+                        // Also register in scope_stack so infer_type_from_expr can find it
+                        context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
                     }
                 }
             }

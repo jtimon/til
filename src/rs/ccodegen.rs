@@ -2942,6 +2942,14 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                         output.push_str(&c_var_name);
                         output.push_str(";\n");
                         ctx.declared_vars.insert(c_var_name);
+                        // Also register in scope_stack so infer_type_from_expr can find it
+                        context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+                            value_type: value_type.clone(),
+                            is_mut: false,
+                            is_copy: false,
+                            is_own: false,
+                            is_comptime_const: false,
+                        });
                     }
                 }
             }
@@ -5226,6 +5234,14 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
                 output.push_str(&c_var_name);
                 output.push_str(";\n");
                 ctx.declared_vars.insert(c_var_name);
+                // Also register in scope_stack so infer_type_from_expr can find it
+                context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+                    value_type: value_type.clone(),
+                    is_mut: false,
+                    is_copy: false,
+                    is_own: false,
+                    is_comptime_const: false,
+                });
             }
         }
     }
@@ -5241,6 +5257,14 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
                     output.push_str(&c_var_name);
                     output.push_str(";\n");
                     ctx.declared_vars.insert(c_var_name);
+                    // Also register in scope_stack so infer_type_from_expr can find it
+                    context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+                        value_type: value_type.clone(),
+                        is_mut: false,
+                        is_copy: false,
+                        is_own: false,
+                        is_comptime_const: false,
+                    });
                 }
             }
         }
@@ -5310,6 +5334,14 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 output.push_str(&c_var_name);
                 output.push_str(";\n");
                 ctx.declared_vars.insert(c_var_name);
+                // Also register in scope_stack so infer_type_from_expr can find it
+                context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+                    value_type: value_type.clone(),
+                    is_mut: false,
+                    is_copy: false,
+                    is_own: false,
+                    is_comptime_const: false,
+                });
             }
         }
     }
@@ -5600,6 +5632,14 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                         output.push_str(&c_var_name);
                         output.push_str(";\n");
                         ctx.declared_vars.insert(c_var_name);
+                        // Also register in scope_stack so infer_type_from_expr can find it
+                        context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+                            value_type: value_type.clone(),
+                            is_mut: false,
+                            is_copy: false,
+                            is_own: false,
+                            is_comptime_const: false,
+                        });
                     }
                 }
             }
@@ -5617,6 +5657,14 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     output.push_str(&c_var_name);
                     output.push_str(";\n");
                     ctx.declared_vars.insert(c_var_name);
+                    // Also register in scope_stack so infer_type_from_expr can find it
+                    context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+                        value_type: value_type.clone(),
+                        is_mut: false,
+                        is_copy: false,
+                        is_own: false,
+                        is_comptime_const: false,
+                    });
                 }
             }
         }
