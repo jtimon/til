@@ -144,9 +144,7 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
     }
 
     mut defaults := Map.new(Str, Str)
-    for i in 0..struct_def.members.len() {
-        mut decl := Declaration()
-        struct_def.members.get(i, decl)
+    for decl: Declaration in struct_def.members {
         if decl.is_mut {
             // Check if default_values has this field
             if struct_def.default_values.contains_key(decl.name) {
@@ -1171,9 +1169,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             context.scope_stack.declare_struct(declaration.name, struct_def.clone())
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
             // Process struct members with default values
-            for mi in 0..struct_def.members.len() {
-                mut member_decl := Declaration()
-                struct_def.members.get(mi, member_decl)
+            for member_decl: Declaration in struct_def.members {
                 if not(member_decl.is_mut) {
                     combined_name := format(declaration.name, ".", member_decl.name)
                     mut default_value := Expr()
@@ -1753,9 +1749,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                             context.scope_stack.frames.set(lf4_idx, lf4)
                                         }
 
-                                        for fi in 0..struct_def.members.len() {
-                                            mut field_decl := Declaration()
-                                            struct_def.members.get(fi, field_decl)
+                                        for field_decl: Declaration in struct_def.members {
                                             src_instance_field := format(source_name, ".", field_decl.name)
                                             src_type_field := format(thrown_type, ".", field_decl.name)
                                             dst_field := format(var_name, ".", field_decl.name)
@@ -1800,9 +1794,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                             has_cleanup_struct = true
                             catch (err: KeyNotFoundError) { }
                             if has_cleanup_struct {
-                                for cfi in 0..cleanup_struct_def.members.len() {
-                                    mut cleanup_field_decl := Declaration()
-                                    cleanup_struct_def.members.get(cfi, cleanup_field_decl)
+                                for cleanup_field_decl: Declaration in cleanup_struct_def.members {
                                     combined_name := format(var_name, ".", cleanup_field_decl.name)
                                     _ := context.scope_stack.remove_symbol(combined_name)
                                     _ := context.scope_stack.remove_var(combined_name)
@@ -1910,11 +1902,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     mut pass_by_ref_params := Vec.new(Str)
     mut params_consumed := false
 
-    mut arg_i := 0
-    while arg_i.lt(func_def.args.len()) {
+    for arg: Declaration in func_def.args {
         if not(params_consumed) {
-            mut arg := Declaration()
-            func_def.args.get(arg_i, arg)
             function_frame.symbols.insert(arg.name, SymbolInfo.new(arg.value_type, arg.is_mut, arg.is_copy, arg.is_own))
 
             switch arg.value_type {
@@ -1953,7 +1942,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             function_frame.symbols.insert(arg.name, SymbolInfo.new(ValueType.TCustom("Str"), false, false, false))
                             Arena.insert_string_into_frame(context, function_frame, arg.name, id_name, e)
                             param_index = param_index.add(1)
-                            arg_i = arg_i.add(1)
                             continue  // Skip eval_expr for this parameter
                         case:
                         }
@@ -2101,7 +2089,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             }
 
                             param_index = param_index.add(1)
-                            arg_i = arg_i.add(1)
                             continue  // Skip normal allocation logic
                         case:
                             // If not an identifier, fall through to copy like const/mut do
@@ -2188,7 +2175,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 pass_by_ref_params.push(arg.name.clone())
 
                                 param_index = param_index.add(1)
-                                arg_i = arg_i.add(1)
                                 continue  // Skip allocation logic - we're sharing the offset
                                 catch (err: KeyNotFoundError) { }
                             }
@@ -2550,7 +2536,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
             param_index = param_index.add(1)
         }
-        arg_i = arg_i.add(1)
     }
 
     // Push the populated frame and set function path
