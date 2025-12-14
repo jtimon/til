@@ -414,9 +414,7 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                     // Check if this is a field access (has params that are identifiers)
                     if to_switch.params.len().gt(0) {
                         enum_var_name = name
-                        for i in 0..to_switch.params.len() {
-                            mut param := Expr()
-                            to_switch.params.get(i, param)
+                        for param: Expr in to_switch.params {
                             switch param.node_type {
                             case NodeType.Identifier(field_name):
                                 enum_var_name = format(enum_var_name, ".", field_name)
@@ -1451,9 +1449,7 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
         mut current_name := name
         mut current_type := ValueType.TCustom(custom_type_name)
 
-        for pi in 0..e.params.len() {
-            mut inner_e := Expr()
-            e.params.get(pi, inner_e)
+        for inner_e: Expr in e.params {
             switch inner_e.node_type {
             case NodeType.Identifier(inner_name):
                 switch current_type {
@@ -3050,11 +3046,7 @@ main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str,
     context.mode_def = parsed_mode
 
     // Process mode imports (e.g., test mode auto-imports test helpers)
-    mut import_idx := 0
-    while import_idx.lt(context.mode_def.imports.len()) {
-        mut import_str := ""
-        context.mode_def.imports.get(import_idx, import_str)
-
+    for import_str: Str in context.mode_def.imports {
         // Create synthetic import expression
         import_func_name_expr := Expr(node_type=NodeType.Identifier("import"), line=0, col=0)
         import_path_expr := Expr(node_type=NodeType.LLiteral(Literal.Str(import_str)), line=0, col=0)
@@ -3070,12 +3062,8 @@ main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str,
 
         typer_errors := typer_import_declarations(context, import_str)
         if typer_errors.len().gt(0) {
-            mut err_idx := 0
-            while err_idx.lt(typer_errors.len()) {
-                mut err_msg := ""
-                typer_errors.get(err_idx, err_msg)
+            for err_msg: Str in typer_errors {
                 println(path, ":", err_msg)
-                err_idx = err_idx.add(1)
             }
             throw format("Compiler errors: ", typer_errors.len().to_str(), " type errors found")
         }
@@ -3085,8 +3073,9 @@ main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str,
         catch (err: Str) {
             throw format(path, ":", err)
         }
-
-        import_idx = import_idx.add(1)
+        catch (err: AllocError) {
+            throw err.msg
+        }
     }
 
     // Parse the body
@@ -3106,12 +3095,8 @@ main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str,
         }
 
         if errors.len().gt(0) {
-            mut err_idx := 0
-            while err_idx.lt(errors.len()) {
-                mut err_msg := ""
-                errors.get(err_idx, err_msg)
+            for err_msg: Str in errors {
                 println(path, ":", err_msg)
-                err_idx = err_idx.add(1)
             }
             throw format("Compiler errors: ", errors.len().to_str(), " declaration errors found")
         }
@@ -3120,12 +3105,8 @@ main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str,
         catch (err: Str) {
             throw format(path, ":", err)
         }
-        mut mode_err_idx := 0
-        while mode_err_idx.lt(mode_errors.len()) {
-            mut mode_err := ""
-            mode_errors.get(mode_err_idx, mode_err)
+        for mode_err: Str in mode_errors {
             errors.push(mode_err)
-            mode_err_idx = mode_err_idx.add(1)
         }
 
         // For modes that require a main proc, add an implicit call to main
@@ -3135,13 +3116,9 @@ main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str,
             main_call_expr.params.push(main_ident_expr)
 
             // Add string args
-            mut arg_idx := 0
-            while arg_idx.lt(main_args.len()) {
-                mut arg_str := ""
-                main_args.get(arg_idx, arg_str)
+            for arg_str: Str in main_args {
                 arg_expr := Expr(node_type=NodeType.LLiteral(Literal.Str(arg_str)), line=0, col=0)
                 main_call_expr.params.push(arg_expr)
-                arg_idx = arg_idx.add(1)
             }
 
             e.params.push(main_call_expr)
@@ -3151,34 +3128,25 @@ main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str,
         catch (err: Str) {
             throw format(path, ":", err)
         }
-        mut type_err_idx := 0
-        while type_err_idx.lt(type_errors.len()) {
-            mut type_err := ""
-            type_errors.get(type_err_idx, type_err)
+        for type_err: Str in type_errors {
             errors.push(type_err)
-            type_err_idx = type_err_idx.add(1)
         }
 
         // TODO: check_body_returns_throws for root body - needs SFuncDef and ThrownType
         // For now, skip this check (can be added post-self-hosting)
 
         if errors.len().gt(0) {
-            mut err_idx := 0
-            while err_idx.lt(errors.len()) {
-                mut err_msg := ""
-                errors.get(err_idx, err_msg)
+            for err_msg: Str in errors {
                 println(path, ":", err_msg)
-                err_idx = err_idx.add(1)
             }
             throw format("Compiler errors: ", errors.len().to_str(), " type errors found")
         }
 
         // Precomputation phase: Transform UFCS calls into regular function calls
         e = precomp_expr(context, e)
-    }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
+        catch (err: AllocError) { throw err.msg }
+    }
 
     // Evaluate the expression
     eval_result := eval_expr(context, e)

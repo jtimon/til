@@ -1132,13 +1132,9 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                         // Not a struct, skip field registration
                     }
                     if struct_found {
-                        mut fi := 0
-                        while fi.lt(struct_def_opt.members.len()) {
-                            mut field_decl := Declaration()
-                            struct_def_opt.members.get(fi, field_decl)
+                        for field_decl: Declaration in struct_def_opt.members {
                             combined_name := format(var_name, ".", field_decl.name)
                             context.scope_stack.declare_symbol(combined_name, SymbolInfo.new(field_decl.value_type, false, false, false))
-                            fi = fi.add(1)
                         }
                     }
 
@@ -1154,10 +1150,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
             case NodeType.FCall:
                 mut called_func_def := get_func_def_for_fcall(context, p)
-                mut cti := 0
-                while cti.lt(called_func_def.throw_types.len()) {
-                    mut called_throw := ValueType.TCustom("")
-                    called_func_def.throw_types.get(cti, called_throw)
+                for called_throw: ValueType in called_func_def.throw_types {
                     called_throw_str := value_type_to_str(called_throw)
                     error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
 
@@ -1169,7 +1162,6 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     te2.type_str = called_throw_str
                     te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                     thrown_types.push(te2)
-                    cti = cti.add(1)
                 }
 
                 // Check nested function calls in arguments
@@ -1414,10 +1406,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                         if not(is_constructor) {
                             mut called_func_def := get_func_def_for_fcall(context, initializer)
-                            mut cti := 0
-                            while cti.lt(called_func_def.throw_types.len()) {
-                                mut called_throw := ValueType.TCustom("")
-                                called_func_def.throw_types.get(cti, called_throw)
+                            for called_throw: ValueType in called_func_def.throw_types {
                                 called_throw_str := value_type_to_str(called_throw)
                                 error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
 
@@ -1429,7 +1418,6 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 te2.type_str = called_throw_str
                                 te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                                 thrown_types.push(te2)
-                                cti = cti.add(1)
                             }
 
                             mut temp_thrown_types := Vec.new(ThrownType)
@@ -1494,10 +1482,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                         if not(is_constructor) {
                             mut called_func_def := get_func_def_for_fcall(context, initializer)
-                            mut cti := 0
-                            while cti.lt(called_func_def.throw_types.len()) {
-                                mut called_throw := ValueType.TCustom("")
-                                called_func_def.throw_types.get(cti, called_throw)
+                            for called_throw: ValueType in called_func_def.throw_types {
                                 called_throw_str := value_type_to_str(called_throw)
                                 error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
 
@@ -1509,7 +1494,6 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 te2.type_str = called_throw_str
                                 te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                                 thrown_types.push(te2)
-                                cti = cti.add(1)
                             }
 
                             mut temp_thrown_types := Vec.new(ThrownType)
@@ -1593,13 +1577,9 @@ check_catch_statement := proc(mut context: Context, e: Expr) returns Vec throws 
 
     // Map struct fields so err.msg etc. can be accessed during type-checking
     mut struct_def := context.scope_stack.lookup_struct(type_name)
-    mut fi := 0
-    while fi.lt(struct_def.members.len()) {
-        mut field_decl := Declaration()
-        struct_def.members.get(fi, field_decl)
+    for field_decl: Declaration in struct_def.members {
         combined_name := format(var_name, ".", field_decl.name)
         context.scope_stack.declare_symbol(combined_name, SymbolInfo.new(field_decl.value_type, false, false, false))
-        fi = fi.add(1)
     }
     catch (err: KeyNotFoundError) {
         // Not a struct, skip field registration
@@ -2071,11 +2051,7 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
     }
 
     // Iterate through struct members
-    mut member_idx := 0
-    while member_idx.lt(struct_def.members.len()) {
-        mut member_decl := Declaration()
-        struct_def.members.get(member_idx, member_decl)
-
+    for member_decl: Declaration in struct_def.members {
         // Validate that the member's declared type exists (if it's a custom type)
         switch member_decl.value_type {
         case ValueType.TCustom(custom_type_name):
@@ -2222,8 +2198,6 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
         } else {
             errors.push(e.todo_error(context.path, "type", format("Member '", member_decl.name, "' lacks a default value. Not allowed yet.")))
         }
-
-        member_idx = member_idx.add(1)
     }
 
     // Check if collection-like structs have mandatory len() and size() methods
