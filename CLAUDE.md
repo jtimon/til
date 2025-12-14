@@ -13,7 +13,7 @@ Read `doc/bot.org` for full guidelines. Key points below are frequently repeated
 ## Various things
 - **NEVER** Use weird unicode symbols anywhere, stay ASCII
 - **NEVER** Use cat, use read, write or echo instead
-
+- **NEVER** Use git checkout or git restore, always ask the user before reverting big chunks of work that could be valuable
 
 ## CRITICAL: Stay Within Project Directory
 - **NEVER** create or read files outside the project directory
@@ -68,7 +68,7 @@ Don't ask where tests go - they're organized by collection type:
 - `make tests` - Full test suite (slower, for final verification)
 - Use `rstil interpret my_test.til` to test single files with the interpreter
 - Use `rstil run my_test.til` to test single files with the compiler (builds and runs)
-- use `rstil repl` for fast doubts about til syntax and functionality (call exit(0) at the end to quit the repl cli)
+- use `rstil repl` (using echo, not cat) for fast doubts about til syntax and functionality (call exit(0) at the end to quit the repl cli)
 
 ## Permissions Already Granted
 Don't ask permission for:
