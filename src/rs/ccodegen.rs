@@ -4801,11 +4801,17 @@ fn infer_type_from_expr(expr: &Expr, context: &Context) -> Option<ValueType> {
                     }
                     return Some(current_type);
                 }
-                // Fallback: if variable not in scope, try to find the first field type from all known structs
-                // This handles cases where we're hoisting declarations before the variable is declared
+                // Fallback: if variable not in scope, try to find struct with this field
+                // ONLY use if exactly ONE struct has this field (to avoid ambiguity)
                 if let NodeType::Identifier(field_name) = &expr.params[0].node_type {
-                    for struct_def in context.scope_stack.all_structs() {
-                        if let Some(member) = struct_def.get_member(field_name) {
+                    let matching_structs: Vec<_> = context.scope_stack.all_structs()
+                        .into_iter()
+                        .filter(|s| s.get_member(field_name).is_some())
+                        .collect();
+
+                    // Only use fallback if exactly one struct has this field
+                    if matching_structs.len() == 1 {
+                        if let Some(member) = matching_structs[0].get_member(field_name) {
                             // Walk through remaining fields if any
                             if expr.params.len() > 1 {
                                 let mut current_type = member.value_type.clone();
@@ -4813,7 +4819,7 @@ fn infer_type_from_expr(expr: &Expr, context: &Context) -> Option<ValueType> {
                                 for field_expr in &expr.params[1..] {
                                     if let NodeType::Identifier(next_field_name) = &field_expr.node_type {
                                         if let ValueType::TCustom(struct_name) = &current_type {
-                                            if let Some(next_struct_def) = context.scope_stack.lookup_struct(struct_name) {
+                                            if let Some(next_struct_def) = context.scope_stack.lookup_struct(&struct_name) {
                                                 if let Some(next_member) = next_struct_def.get_member(next_field_name) {
                                                     current_type = next_member.value_type.clone();
                                                 } else {
@@ -4846,6 +4852,120 @@ fn infer_type_from_expr(expr: &Expr, context: &Context) -> Option<ValueType> {
             }
             // Look up variable type from scope_stack
             context.scope_stack.lookup_symbol(name).map(|s| s.value_type.clone())
+        },
+        _ => None
+    }
+}
+
+/// Like infer_type_from_expr but also checks the collected declarations map
+/// This allows us to resolve types for variables that were declared earlier in the same body
+fn infer_type_from_expr_with_collected(expr: &Expr, context: &Context, collected: &std::collections::HashMap<String, ValueType>) -> Option<ValueType> {
+    match &expr.node_type {
+        NodeType::LLiteral(lit) => {
+            match lit {
+                Literal::Number(_) => Some(ValueType::TCustom("I64".to_string())),
+                Literal::Str(_) => Some(ValueType::TCustom("Str".to_string())),
+                Literal::List(_) => None,
+            }
+        },
+        NodeType::FCall => {
+            // Check for struct constructor first (e.g., Declaration())
+            if let Some(struct_name) = get_struct_construction_type(expr, context) {
+                return Some(ValueType::TCustom(struct_name));
+            }
+            // Check for enum constructor (e.g., Color.Red)
+            if let Some(enum_name) = get_enum_construction_type(expr, context) {
+                return Some(ValueType::TCustom(enum_name));
+            }
+            // Look up function return type from scope_stack
+            if let Some(func_name) = get_fcall_func_name(expr) {
+                if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                    return fd.return_types.first().cloned();
+                }
+            }
+            None
+        },
+        NodeType::Identifier(name) => {
+            // Check for field access chain (var.field or var.field.subfield)
+            if !expr.params.is_empty() {
+                // First try scope_stack
+                let var_type = context.scope_stack.lookup_symbol(name).map(|s| s.value_type.clone())
+                    // Then try collected declarations
+                    .or_else(|| collected.get(name).cloned());
+
+                if let Some(var_type) = var_type {
+                    // Walk through the field chain
+                    let mut current_type = var_type;
+                    for field_expr in &expr.params {
+                        if let NodeType::Identifier(field_name) = &field_expr.node_type {
+                            if let ValueType::TCustom(struct_name) = &current_type {
+                                if let Some(struct_def) = context.scope_stack.lookup_struct(struct_name) {
+                                    if let Some(member) = struct_def.get_member(field_name) {
+                                        current_type = member.value_type.clone();
+                                    } else {
+                                        return None;
+                                    }
+                                } else {
+                                    return None;
+                                }
+                            } else {
+                                return None;
+                            }
+                        } else {
+                            return None;
+                        }
+                    }
+                    return Some(current_type);
+                }
+                // Fallback: if variable not in scope or collected, try to find struct with this field
+                if let NodeType::Identifier(field_name) = &expr.params[0].node_type {
+                    let matching_structs: Vec<_> = context.scope_stack.all_structs()
+                        .into_iter()
+                        .filter(|s| s.get_member(field_name).is_some())
+                        .collect();
+
+                    if matching_structs.len() == 1 {
+                        if let Some(member) = matching_structs[0].get_member(field_name) {
+                            if expr.params.len() > 1 {
+                                let mut current_type = member.value_type.clone();
+                                let mut all_resolved = true;
+                                for field_expr in &expr.params[1..] {
+                                    if let NodeType::Identifier(next_field_name) = &field_expr.node_type {
+                                        if let ValueType::TCustom(struct_name) = &current_type {
+                                            if let Some(next_struct_def) = context.scope_stack.lookup_struct(&struct_name) {
+                                                if let Some(next_member) = next_struct_def.get_member(next_field_name) {
+                                                    current_type = next_member.value_type.clone();
+                                                } else {
+                                                    all_resolved = false;
+                                                    break;
+                                                }
+                                            } else {
+                                                all_resolved = false;
+                                                break;
+                                            }
+                                        } else {
+                                            all_resolved = false;
+                                            break;
+                                        }
+                                    } else {
+                                        all_resolved = false;
+                                        break;
+                                    }
+                                }
+                                if all_resolved {
+                                    return Some(current_type);
+                                }
+                            } else {
+                                return Some(member.value_type.clone());
+                            }
+                        }
+                    }
+                }
+                return None;
+            }
+            // Look up variable type - first from scope_stack, then from collected
+            context.scope_stack.lookup_symbol(name).map(|s| s.value_type.clone())
+                .or_else(|| collected.get(name).cloned())
         },
         _ => None
     }
@@ -5677,67 +5797,71 @@ fn parse_pattern_variant_name(variant_name: &str) -> VariantInfo {
 /// Returns Vec of (var_name, ValueType) pairs
 fn collect_declarations_in_body(body: &Expr, context: &Context) -> Vec<(String, ValueType)> {
     let mut decls = Vec::new();
+    // Track collected declarations for lookups during type inference
+    let mut collected: std::collections::HashMap<String, ValueType> = std::collections::HashMap::new();
 
     if let NodeType::Body = &body.node_type {
         for stmt in &body.params {
-            collect_declarations_recursive(stmt, &mut decls, context);
+            collect_declarations_recursive(stmt, &mut decls, &mut collected, context);
         }
     } else {
-        collect_declarations_recursive(body, &mut decls, context);
+        collect_declarations_recursive(body, &mut decls, &mut collected, context);
     }
 
     decls
 }
 
-fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<(String, ValueType)>, context: &Context) {
+fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<(String, ValueType)>, collected: &mut std::collections::HashMap<String, ValueType>, context: &Context) {
     match &expr.node_type {
         NodeType::Declaration(decl) => {
             // Add this declaration
             // If type is INFER_TYPE, try to infer from the expression
             let value_type = if let ValueType::TCustom(name) = &decl.value_type {
                 if name == INFER_TYPE && !expr.params.is_empty() {
-                    infer_type_from_expr(&expr.params[0], context).unwrap_or(decl.value_type.clone())
+                    infer_type_from_expr_with_collected(&expr.params[0], context, collected).unwrap_or(decl.value_type.clone())
                 } else {
                     decl.value_type.clone()
                 }
             } else {
                 decl.value_type.clone()
             };
+            // Track this declaration for future lookups
+            collected.insert(decl.name.clone(), value_type.clone());
             decls.push((decl.name.clone(), value_type));
         }
         NodeType::Body => {
             for stmt in &expr.params {
-                collect_declarations_recursive(stmt, decls, context);
+                collect_declarations_recursive(stmt, decls, collected, context);
             }
         }
         NodeType::If => {
             // Recurse into if branches
             if expr.params.len() >= 2 {
-                collect_declarations_recursive(&expr.params[1], decls, context);
+                collect_declarations_recursive(&expr.params[1], decls, collected, context);
             }
             if expr.params.len() >= 3 {
-                collect_declarations_recursive(&expr.params[2], decls, context);
+                collect_declarations_recursive(&expr.params[2], decls, collected, context);
             }
         }
         NodeType::Switch => {
             // Recurse into switch case bodies
             let mut i = 1;
             while i + 1 < expr.params.len() {
-                collect_declarations_recursive(&expr.params[i + 1], decls, context);
+                collect_declarations_recursive(&expr.params[i + 1], decls, collected, context);
                 i += 2;
             }
         }
         NodeType::While => {
             // Recurse into while body
             if expr.params.len() >= 2 {
-                collect_declarations_recursive(&expr.params[1], decls, context);
+                collect_declarations_recursive(&expr.params[1], decls, collected, context);
             }
         }
         NodeType::Catch => {
             // Recurse into catch body (params[2] is catch body)
             // params[0] = err_var, params[1] = err_type, params[2] = body
             if expr.params.len() >= 3 {
-                collect_declarations_recursive(&expr.params[2], decls, context);
+                collect_declarations_recursive(&expr.params[2], decls, collected, context);
             }
         }
         _ => {}
