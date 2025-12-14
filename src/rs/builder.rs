@@ -293,18 +293,19 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     // Get toolchain command for target
     let compiler = toolchain_command(target, lang)?;
 
-    // Compile - output to bin/ subdirectory
-    let source_dir = std::path::Path::new(path).parent().unwrap_or(std::path::Path::new("."));
-    let bin_dir = source_dir.join("bin");
-    // Create bin directory if it doesn't exist
-    let _ = fs::create_dir_all(&bin_dir);
-    let exe_name = std::path::Path::new(path)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("out");
+    // Compile - output to bin/ directory in project root, preserving relative path
+    // e.g., src/til.til -> bin/til, src/examples/hello_script.til -> bin/examples/hello_script
     let exe_extension = executable_extension(target);
-    let exe_path = bin_dir.join(format!("{}{}", exe_name, exe_extension));
-    let exe_path_str = exe_path.to_string_lossy().to_string();
+    let bin_filename = path.replace(".til", exe_extension);
+    let exe_path_str = if bin_filename.starts_with("src/") {
+        bin_filename.replacen("src/", "bin/", 1)
+    } else {
+        format!("bin/{}", bin_filename)
+    };
+    // Create bin directory if it doesn't exist
+    if let Some(parent) = std::path::Path::new(&exe_path_str).parent() {
+        let _ = fs::create_dir_all(parent);
+    }
 
     // Build command with extra args for target
     let mut cmd = Command::new(compiler);
