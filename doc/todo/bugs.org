@@ -9,6 +9,48 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #35: Special `_` variable does not allow repeated declarations
+:PROPERTIES:
+:DISCOVERED: 2025-12-14
+:IMPACT: Code ergonomics
+:STATUS: Open
+:END:
+
+*** Description
+The special `_` variable (used for discarding return values) throws "already declared" errors when used multiple times in the same scope.
+
+#+BEGIN_EXAMPLE til
+// This should work (both values are discarded):
+_ := context.imports_init_done.insert(path)
+_ := context.imports_typer_done.insert(path)  // ERROR: '_' already declared
+#+END_EXAMPLE
+
+*** Expected Behavior
+The `_` variable should be special-cased to allow multiple declarations in the same scope, since it's used to explicitly discard return values (per Bug #8 fix that requires explicit `_ :=` for unused return values).
+
+*** Current Workaround
+Use indexed variable names:
+#+BEGIN_EXAMPLE til
+_1 := context.imports_init_done.insert(path)
+_2 := context.imports_typer_done.insert(path)
+#+END_EXAMPLE
+
+Or use dummy names:
+#+BEGIN_EXAMPLE til
+_init := context.imports_init_done.insert(path)
+_typer := context.imports_typer_done.insert(path)
+#+END_EXAMPLE
+
+*** Affected Files
+- src/rs/init.rs - init_context declaration handling
+- src/self/init.til - same
+
+*** Potential Fix
+In init_context when processing declarations:
+1. Check if declaration name is "_"
+2. If so, skip the "already declared" check
+3. Optionally: don't store "_" in symbols at all (just evaluate the RHS)
+
 ** Bug #34: Code between throwing call and catch runs unconditionally
 :PROPERTIES:
 :DISCOVERED: 2025-12-14
