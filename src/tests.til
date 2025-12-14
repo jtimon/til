@@ -563,8 +563,10 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/branchless.til"))
     rs_common.push(TestEntry(path="src/test/c_mem.til"))
     rs_common.push(TestEntry(path="src/test/circular_test.til"))
+    rs_common.push(TestEntry(path="src/test/clone.til"))
     rs_common.push(TestEntry(path="src/test/comparisons.til"))
     rs_common.push(TestEntry(path="src/test/constfold.til"))
+    rs_common.push(TestEntry(path="src/test/cross_file_forward.til"))
     rs_common.push(TestEntry(path="src/test/editor_mode_test.til"))
     rs_common.push(TestEntry(path="src/test/enums.til"))
     rs_common.push(TestEntry(path="src/test/errors.til"))
@@ -605,13 +607,6 @@ main := proc(args: ..Str) {
     rs_compiled.push(TestEntry(path="src/test/memcmp_str_compiled.til"))
     rs_compiled.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     rs_compiled.push(TestEntry(path="src/test/throw_simple.til"))
-    // TODO FIX: enum constructors called as functions instead of struct init
-    // rs_compiled.push(TestEntry(path="src/test/enums_payload.til"))
-    // TODO FIX: switch_simple.til - same issue plus:
-    // - case labels missing til_ prefix (Color_Red vs til_Color_Red)
-    // - payload extraction variable not declared (til_n)
-    // - enum constructors called as functions instead of struct init
-    // rs_compiled.push(TestEntry(path="src/test/switch_simple.til"))
 
     mut rs_interpreted := Vec.new(TestEntry)
 
@@ -619,10 +614,6 @@ main := proc(args: ..Str) {
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     // rs_interpreted.push(TestEntry(path="src/test/undefined.til"))
-    // rs_interpreted.push(TestEntry(path="src/test/clone.til")) // TODO FIX: I64_OverflowError has no method 'clone'
-    // rs_interpreted.push(TestEntry(path="src/test/cross_file_forward.til")) // TODO FIX: Vec field access needs pointer, not value
-    // rs_interpreted.push(TestEntry(path="src/test/enums_payload.til")) // TODO FIX: enum constructors emitted as function calls not struct init
-    // rs_interpreted.push(TestEntry(path="src/test/switch_simple.til")) // TODO FIX: enum constructors as func calls, case payload var undeclared
     // rs_interpreted.push(TestEntry(path="src/test/builders.til")) // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
