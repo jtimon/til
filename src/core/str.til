@@ -138,13 +138,13 @@ Str := struct {
                     if not(U8.eq(self_byte, needle_byte)) {
                         matches = false
                     }
-                    needle_idx = needle_idx.add(1)
+                    needle_idx.inc()
                 }
             }
             if matches {
                 return start_idx
             }
-            start_idx = start_idx.add(1)
+            start_idx.inc()
         }
 
         return sub(0, 1)
@@ -203,10 +203,10 @@ Str := struct {
                 }
             }
             if matches {
-                count = count.add(1)
+                count.inc()
                 search_start = search_start.add(from.len())
             } else {
-                search_start = search_start.add(1)
+                search_start.inc()
             }
         }
 
@@ -252,8 +252,8 @@ Str := struct {
             } else {
                 # Copy single byte
                 memcpy(add(result.c_string, dst_idx), add(self.c_string, src_idx), 1)
-                dst_idx = dst_idx.add(1)
-                src_idx = src_idx.add(1)
+                dst_idx.inc()
+                src_idx.inc()
             }
         }
 
@@ -343,7 +343,7 @@ Str := struct {
                 start = pos.add(delimiter.len())
                 pos = start
             } else {
-                pos = pos.add(1)
+                pos.inc()
             }
         }
 

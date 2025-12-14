@@ -118,7 +118,7 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
         }
         // else: NULL means None (no payload), nothing to check
 
-        idx = idx.add(1)
+        idx.inc()
     }
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -322,7 +322,7 @@ validate_func_arg_count := func(path: Str, e: Expr, f_name: Str, func_def: SFunc
         mut arg_decl := Declaration()
         func_def.args.get(i, arg_decl)
         if NULL.eq(arg_decl.default_value.data) {
-            required_args = required_args.add(1)
+            required_args.inc()
         }
         catch (err: IndexOutOfBoundsError) {
             throw format("validate_func_arg_count: ", err.msg)
@@ -1100,7 +1100,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                         if te.type_str.eq(caught_type) {
                             found_caught = true
                         }
-                        ci = ci.add(1)
+                        ci.inc()
                     }
 
                     if found_caught {
@@ -1112,7 +1112,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                             if te.type_str.eq(caught_type) {
                                 thrown_types.remove(ri)
                             } else {
-                                ri = ri.add(1)
+                                ri.inc()
                             }
                         }
                     } else {
@@ -1184,7 +1184,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     case:
                         // Not a function call, skip
                     }
-                    argi = argi.add(1)
+                    argi.inc()
                 }
                 catch (err: Str) {
                     errors.push(p.error(context.path, "type", err))
@@ -1514,7 +1514,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                 // Other node types - skip
             }
         }
-        body_idx = body_idx.add(1)
+        body_idx.inc()
     }
 
     catch (err: IndexOutOfBoundsError) {
@@ -1782,7 +1782,7 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
                                     current_type = field_decl.value_type
                                     field_found = true
                                 }
-                                fi = fi.add(1)
+                                fi.inc()
                             }
                             if not(field_found) {
                                 errors.push(e.error(context.path, "type", format("Field '", field_name, "' not found in struct '", type_name, "'")))
@@ -1797,7 +1797,7 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
                             has_error = true
                         }
                     }
-                    pi = pi.add(1)
+                    pi.inc()
                 }
             } else {
                 errors.push(e.error(context.path, "type", format("Undefined symbol '", base_var, "'")))
@@ -1872,7 +1872,7 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
             }
         }
 
-        i = i.add(1)
+        i.inc()
 
         if i.gteq(e.params.len()) {
             errors.push(e.error(context.path, "type", "Switch case missing body expression"))
@@ -1936,7 +1936,7 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
             errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded))
         }
 
-        i = i.add(1)
+        i.inc()
     }
 
     if not(case_found) {
@@ -2015,12 +2015,12 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
                     if matched.eq(variant) {
                         is_matched = true
                     }
-                    mi = mi.add(1)
+                    mi.inc()
                 }
                 if not(is_matched) {
                     errors.push(e.error(context.path, "type", format("Switch is missing case for variant '", variant, "'")))
                 }
-                vi = vi.add(1)
+                vi.inc()
             }
         }
         catch (err: KeyNotFoundError) {
@@ -2469,7 +2469,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                         while k.lt(fcall_expr.params.len()) {
                             mut arg_e := fcall_expr.get(k)
                             new_args.push(arg_e)
-                            k = k.add(1)
+                            k.inc()
                         }
                         fcall_expr = Expr.new_clone(NodeType.FCall, fcall_expr.get(0), new_args)
                         return method_func_def
@@ -2500,7 +2500,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                         new_combined_name = format(new_combined_name, ".")
                     }
                     new_combined_name = format(new_combined_name, part)
-                    j = j.add(1)
+                    j.inc()
                 }
                 parts.delete()
 
@@ -2533,7 +2533,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                     while k.lt(fcall_expr.params.len()) {
                         mut arg_e := fcall_expr.get(k)
                         new_args.push(arg_e)
-                        k = k.add(1)
+                        k.inc()
                     }
                     fcall_expr = Expr.new_clone(NodeType.FCall, fcall_expr.get(0), new_args)
                     id_params.delete()
@@ -2570,7 +2570,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                             while m.lt(fcall_expr.params.len()) {
                                 mut arg_e := fcall_expr.get(m)
                                 new_args2.push(arg_e)
-                                m = m.add(1)
+                                m.inc()
                             }
                             fcall_expr = Expr.new_clone(NodeType.FCall, fcall_expr.get(0), new_args2)
                             id_params.delete()

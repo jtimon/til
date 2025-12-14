@@ -381,7 +381,7 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                 // not default
             }
             if is_default {
-                param_it = param_it.add(1)
+                param_it.inc()
                 return eval_expr(context, e.get(param_it))
             }
 
@@ -435,7 +435,7 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                 // Check if variant matches
                 if full_variant.eq(pattern_variant).or(enum_val.enum_name.eq(pattern_variant)) {
                     // Match! Extract the payload and bind it to the variable
-                    param_it = param_it.add(1)
+                    param_it.inc()
 
                     // Extract payload into the binding variable if present
                     if not(NULL.eq(enum_val.payload_type.data)) {
@@ -506,11 +506,11 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                 is_match = result_to_switch.value.eq(result_case.value)
             }
 
-            param_it = param_it.add(1)
+            param_it.inc()
             if is_match {
                 return eval_expr(context, e.get(param_it))
             }
-            param_it = param_it.add(1)
+            param_it.inc()
         }
         return EvalResult.new("")
     case NodeType.Return:
@@ -1937,7 +1937,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             // This is a type identifier - store the type name as a string
                             function_frame.symbols.insert(arg.name, SymbolInfo.new(ValueType.TCustom("Str"), false, false, false))
                             Arena.insert_string_into_frame(context, function_frame, arg.name, id_name, e)
-                            param_index = param_index.add(1)
+                            param_index.inc()
                             continue  // Skip eval_expr for this parameter
                         case:
                         }
@@ -2084,7 +2084,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 _ := context.scope_stack.remove_symbol(key)
                             }
 
-                            param_index = param_index.add(1)
+                            param_index.inc()
                             continue  // Skip normal allocation logic
                         case:
                             // If not an identifier, fall through to copy like const/mut do
@@ -2170,7 +2170,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 // Track that this parameter was passed by reference
                                 pass_by_ref_params.push(arg.name.clone())
 
-                                param_index = param_index.add(1)
+                                param_index.inc()
                                 continue  // Skip allocation logic - we're sharing the offset
                                 catch (err: KeyNotFoundError) { }
                             }
@@ -2530,7 +2530,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 throw e.todo_error(context.path, "eval", format("Cannot use '", arg.name, "' of type '", value_type_to_str(arg.value_type), "' as an argument. Only enum custom types allowed for now."))
             }
 
-            param_index = param_index.add(1)
+            param_index.inc()
         }
     }
 

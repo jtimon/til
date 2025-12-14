@@ -8,7 +8,7 @@ test_while_loop := proc() {
     mut result := ""
     while it.lt(5) {
         result = result.concat(it.to_str()).concat(" ")
-        it = it.add(1)
+        it.inc()
     }
     assert_eq_str(loc(), "0 1 2 3 4 ", result)
 }

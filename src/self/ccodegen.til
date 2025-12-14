@@ -6765,7 +6765,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     }
                 case:
                 }
-                arg_idx = arg_idx.add(1)
+                arg_idx.inc()
             }
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -6866,7 +6866,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     catch (err: DuplicatedKeyError) { }
                     catch (err: AllocError) { throw err.msg }
 
-                    td_idx = td_idx.add(1)
+                    td_idx.inc()
                 }
 
                 if not(already_declared) {

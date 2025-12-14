@@ -45,7 +45,7 @@ rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def
             new_members.push(member_decl)
         }
 
-        i = i.add(1)
+        i.inc()
     }
 
     mut new_struct_def := SStructDef()
@@ -79,7 +79,7 @@ collect_called_functions := proc(e: Expr, mut called: Set) throws Str {
         mut i := 1
         while i.lt(e.params.len()) {
             collect_called_functions(e.get(i), called)
-            i = i.add(1)
+            i.inc()
         }
     case NodeType.FuncDef(func_def):
         // Recurse into function body
@@ -88,7 +88,7 @@ collect_called_functions := proc(e: Expr, mut called: Set) throws Str {
             mut stmt := Expr()
             func_def.body.get(i, stmt)
             collect_called_functions(stmt, called)
-            i = i.add(1)
+            i.inc()
         }
     case NodeType.Catch:
         // Catch has params[0]=name, params[1]=type, params[2]=body
@@ -101,7 +101,7 @@ collect_called_functions := proc(e: Expr, mut called: Set) throws Str {
         mut i := 0
         while i.lt(e.params.len()) {
             collect_called_functions(e.get(i), called)
-            i = i.add(1)
+            i.inc()
         }
     }
 
@@ -125,7 +125,7 @@ get_combined_name_from_identifier := proc(e: Expr) returns Str throws Str {
                 if nested.len().gt(0) {
                     parts.push(nested)
                 }
-                i = i.add(1)
+                i.inc()
             }
             // Join with "."
             mut result := ""
@@ -137,7 +137,7 @@ get_combined_name_from_identifier := proc(e: Expr) returns Str throws Str {
                     result = result.concat(".")
                 }
                 result = result.concat(part)
-                i = i.add(1)
+                i.inc()
             }
             return result
         }
@@ -176,7 +176,7 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
                     mut stmt := Expr()
                     func_def.body.get(i, stmt)
                     register_declarations_recursive(context, stmt)
-                    i = i.add(1)
+                    i.inc()
                 }
             case NodeType.StructDef(struct_def):
                 // Struct declaration
@@ -198,11 +198,11 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
                             mut stmt := Expr()
                             func_def.body.get(j, stmt)
                             register_declarations_recursive(context, stmt)
-                            j = j.add(1)
+                            j.inc()
                         }
                     case:
                     }
-                    i = i.add(1)
+                    i.inc()
                 }
             case:
             }
@@ -214,7 +214,7 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
             mut stmt := Expr()
             func_def.body.get(i, stmt)
             register_declarations_recursive(context, stmt)
-            i = i.add(1)
+            i.inc()
         }
     case:
     }
@@ -222,7 +222,7 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
     mut i := 0
     while i.lt(e.params.len()) {
         register_declarations_recursive(context, e.get(i))
-        i = i.add(1)
+        i.inc()
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -249,7 +249,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
         mut root := ""
         roots.get(ri, root)
         mark_reachable(root, reachable, worklist)
-        ri = ri.add(1)
+        ri.inc()
     }
 
     while worklist.len().gt(0) {
@@ -314,14 +314,14 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
                     mut default_expr := Expr()
                     struct_def.default_values.get(key, default_expr)
                     collect_called_functions(default_expr, called)
-                    di = di.add(1)
+                    di.inc()
                 }
                 mut ci := 0
                 while ci.lt(called.len()) {
                     mut called_func := ""
                     called.get(ci, called_func)
                     mark_reachable(called_func, reachable, worklist)
-                    ci = ci.add(1)
+                    ci.inc()
                 }
             } else {
                 // Check if this is an enum constructor (e.g., Color.Name)
@@ -443,7 +443,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
             mut root := ""
             roots.get(ri, root)
             _ := extended_roots.insert(root)
-            ri = ri.add(1)
+            ri.inc()
         }
         // Add Array methods
         _ := extended_roots.insert("Array.new")
@@ -505,7 +505,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                         // Non-declaration statement (function call, assignment, etc.)
                         collect_called_functions(stmt, roots)
                     }
-                    i = i.add(1)
+                    i.inc()
                 }
             }
         }
@@ -546,7 +546,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 // Non-declaration - always keep
                 new_params.push(stmt)
             }
-            i = i.add(1)
+            i.inc()
         }
 
         catch (err: AllocError) { throw err.msg }

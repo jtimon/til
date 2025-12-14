@@ -87,7 +87,7 @@ test_bool_variadic := func(args: ..Bool) returns I64 {
     mut count_true := 0
     for val: Bool in args {
         if val {
-            count_true = count_true.add(1)
+            count_true.inc()
         }
     }
     return count_true

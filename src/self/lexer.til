@@ -539,7 +539,7 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                         next_two := source.get_substr(pos, pos.add(2))
 
                         if next_two.eq("/*") {
-                            depth = depth.add(1)
+                            depth.inc()
                             pos = pos.add(2)
                         } else if next_two.eq("*/") {
                             depth = depth.sub(1)

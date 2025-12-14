@@ -68,7 +68,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
             has_named_args = true
         case:
         }
-        i = i.add(1)
+        i.inc()
     }
 
     // Named args are not supported for variadic functions
@@ -99,7 +99,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
         case NodeType.NamedArg(_):
             break
         case:
-            positional_count = positional_count.add(1)
+            positional_count.inc()
         }
     }
 
@@ -116,7 +116,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
                 throw e.error(context.path, "precomp", "Positional arguments cannot appear after named arguments")
             }
         }
-        i = i.add(1)
+        i.inc()
     }
 
     // Build result: first positional args, then fill in from named args
@@ -127,7 +127,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
     while i.lt(func_def.args.len()) {
         final_args.push(Expr())
         final_args_set.push(false)
-        i = i.add(1)
+        i.inc()
     }
 
     // Place positional arguments
@@ -138,7 +138,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
         }
         final_args.set(i, e.get(i.add(1)))
         final_args_set.set(i, true)
-        i = i.add(1)
+        i.inc()
     }
 
     // Place named arguments
@@ -157,7 +157,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
                     param_idx = j
                     j = func_def.args.len() // break
                 } else {
-                    j = j.add(1)
+                    j.inc()
                 }
             }
             if param_idx.lt(0) {
@@ -175,7 +175,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
             final_args_set.set(param_idx, true)
         case:
         }
-        i = i.add(1)
+        i.inc()
     }
 
     // Check all required args are present and build final result
@@ -199,7 +199,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
                 throw e.error(context.path, "precomp", format("Missing argument for parameter '", arg_decl.name, "'"))
             }
         }
-        i = i.add(1)
+        i.inc()
     }
 
     final_result := Expr.new_clone(NodeType.FCall, e, result)
@@ -354,7 +354,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                 if not(is_comptime_evaluable(context, arg_to_check)) {
                     return false
                 }
-                j = j.add(1)
+                j.inc()
             }
             return true  // Struct constructor with all comptime args
         }
@@ -378,7 +378,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
             if not(is_comptime_evaluable(context, arg)) {
                 return false
             }
-            i = i.add(1)
+            i.inc()
         }
         return true
     case:
@@ -736,7 +736,7 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
         mut value_expr := Expr()
         struct_def.default_values.get(name, value_expr)
         new_default_values.set(name, precomp_expr(context, value_expr))
-        i = i.add(1)
+        i.inc()
     }
     mut new_struct_def := SStructDef()
     new_struct_def.members = struct_def.members.clone()
@@ -1106,7 +1106,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                             mut arg := Expr()
                             e.params.get(j, arg)
                             new_args.push(arg)
-                            j = j.add(1)
+                            j.inc()
                         }
                         return Expr.new_clone(NodeType.FCall, func_expr, new_args)
                     }
@@ -1173,7 +1173,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                                 mut arg := Expr()
                                 e.params.get(j, arg)
                                 new_args.push(arg)
-                                j = j.add(1)
+                                j.inc()
                             }
                             return Expr.new_clone(NodeType.FCall, func_expr, new_args)
                         }
@@ -1198,7 +1198,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                         mut arg := Expr()
                         e.params.get(j, arg)
                         new_args.push(arg)
-                        j = j.add(1)
+                        j.inc()
                     }
                     return Expr.new_clone(NodeType.FCall, func_expr, new_args)
                 }
