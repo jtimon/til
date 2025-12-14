@@ -3,6 +3,7 @@ use std::env;
 mod rs {
     pub mod lexer;
     pub mod mode;
+    pub mod target;
     pub mod parser;
     pub mod init;
     pub mod typer;
@@ -17,13 +18,43 @@ mod rs {
 use rs::lexer::LANG_NAME;
 use rs::interpreter::run_file;
 use rs::builder;
+use rs::target::{Target, Lang, target_from_str, lang_from_str, detect_current_target, default_lang_for_target};
 
 const SELF_HOSTED_PATH     : &str = "src/til.til";
+
+// Parse --target=X and --lang=X options from args, return (remaining_args, target, lang, translate_only)
+fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, bool), String> {
+    let mut remaining = Vec::new();
+    let mut target: Option<Target> = None;
+    let mut lang: Option<Lang> = None;
+    let mut translate_only = false;
+
+    for arg in args {
+        if arg.starts_with("--target=") {
+            let value = &arg[9..];
+            target = Some(target_from_str(value)?);
+        } else if arg.starts_with("--lang=") {
+            let value = &arg[7..];
+            lang = Some(lang_from_str(value)?);
+        } else if arg == "--translate" {
+            translate_only = true;
+        } else {
+            remaining.push(arg.clone());
+        }
+    }
+
+    // Default target is current platform
+    let final_target = target.unwrap_or_else(detect_current_target);
+    // Default lang is determined by target
+    let final_lang = lang.unwrap_or_else(|| default_lang_for_target(&final_target));
+
+    Ok((remaining, final_target, final_lang, translate_only))
+}
 
 // ---------- main, usage, args, etc
 
 fn usage() {
-    println!("Usage: {} [command] [path]\n", LANG_NAME);
+    println!("Usage: {} [command] [path] [options]\n", LANG_NAME);
     println!("Entering no arguments is equavalent to: {} repl", LANG_NAME);
     println!("Entering a single argument that's not a command is interpreted as a path, equivalent to: {} interpret <path>\n", LANG_NAME);
 
@@ -31,10 +62,16 @@ fn usage() {
 
     println!("repl: read eval print loop.");
     println!("interpret: reads a file in provided <path> and evaluates it.");
-    // println!("ast: reads a file in provided <path> and prints its abstract syntax tree (aka (lisp-like-syntax ast-from-now-on ) ).");
-    println!("build: reads a file in provided <path> and compiles it to C.");
+    println!("build: reads a file in provided <path> and compiles it.");
+    println!("translate: reads a file in provided <path> and generates source code (no compilation).");
     println!("run: reads a file in provided <path>, compiles and runs it.");
     println!("help: Prints this.\n");
+
+    println!("Build/Translate Options:\n");
+    println!("--target=TARGET   Cross-compile for target platform.");
+    println!("                  Supported: linux-x64, linux-arm64, windows-x64, macos-x64, macos-arm64");
+    println!("--lang=LANG       Output language for codegen (default: c).");
+    println!("                  Supported: c\n");
 }
 
 fn interpret_file_or_exit(path: &String, args: Vec<String>) {
@@ -47,9 +84,13 @@ fn interpret_file_or_exit(path: &String, args: Vec<String>) {
     };
 }
 
-fn build_file_or_exit(path: &String) {
-    match builder::build(path) {
-        Ok(_) => {},
+fn build_file_or_exit(path: &String, target: &Target, lang: &Lang, translate_only: bool) {
+    match builder::build(path, target, lang, translate_only) {
+        Ok(output_path) => {
+            if translate_only {
+                println!("Generated: {}", output_path);
+            }
+        },
         Err(err) => {
             println!("Build error: {}", err);
             std::process::exit(1);
@@ -57,22 +98,16 @@ fn build_file_or_exit(path: &String) {
     };
 }
 
-fn run_file_or_exit(path: &String) {
-    match rs::builder::build(path) {
-        Ok(_) => {},
+fn run_file_or_exit(path: &String, target: &Target, lang: &Lang) {
+    let exe_path = match builder::build(path, target, lang, false) {
+        Ok(exe) => exe,
         Err(err) => {
             println!("Build error: {}", err);
             std::process::exit(1);
         },
     };
 
-    // Run the compiled binary from bin/ subdirectory
-    let source_dir = std::path::Path::new(path).parent().unwrap_or(std::path::Path::new("."));
-    let exe_name = std::path::Path::new(path)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("out");
-    let exe_path = source_dir.join("bin").join(exe_name);
+    // Run the compiled binary
     let status = std::process::Command::new(&exe_path)
         .status();
 
@@ -83,7 +118,7 @@ fn run_file_or_exit(path: &String) {
             }
         },
         Err(e) => {
-            println!("Failed to run '{}': {}", exe_path.display(), e);
+            println!("Failed to run '{}': {}", exe_path, e);
             std::process::exit(1);
         },
     }
@@ -93,37 +128,62 @@ fn main() {
     env::set_var("RUST_BACKTRACE", "1");
     let args: Vec<String> = env::args().collect();
 
-
     if args.len() > 2 {
-        let mut main_args = Vec::new();
-        let mut i = 0;
-        for arg in &args {
-            if i > 2 {
-                main_args.push(arg.clone());
-            }
-            i += 1;
-        }
-        match args[1].as_str() {
+        let command = args[1].as_str();
+        let remaining_args: Vec<String> = args[2..].to_vec();
+
+        match command {
             "interpret" => {
-                interpret_file_or_exit(&args[2], main_args);
+                // interpret doesn't use build options, just pass remaining args
+                let path = &args[2];
+                let main_args: Vec<String> = args[3..].to_vec();
+                interpret_file_or_exit(path, main_args);
             },
-            "build" => {
-                build_file_or_exit(&args[2]);
+            "build" | "translate" => {
+                // Parse build options from remaining args
+                match parse_build_options(&remaining_args) {
+                    Ok((paths, target, lang, translate_flag)) => {
+                        if paths.is_empty() {
+                            println!("Error: No path specified");
+                            usage();
+                            std::process::exit(1);
+                        }
+                        let translate_only = command == "translate" || translate_flag;
+                        build_file_or_exit(&paths[0], &target, &lang, translate_only);
+                    },
+                    Err(err) => {
+                        println!("Error: {}", err);
+                        std::process::exit(1);
+                    },
+                }
             },
             "run" => {
-                run_file_or_exit(&args[2]);
+                // Parse build options from remaining args
+                match parse_build_options(&remaining_args) {
+                    Ok((paths, target, lang, _)) => {
+                        if paths.is_empty() {
+                            println!("Error: No path specified");
+                            usage();
+                            std::process::exit(1);
+                        }
+                        run_file_or_exit(&paths[0], &target, &lang);
+                    },
+                    Err(err) => {
+                        println!("Error: {}", err);
+                        std::process::exit(1);
+                    },
+                }
             },
             "repl" => {
                 usage();
             },
             _ => {
-                println!("command '{}' not implemented.", &args[1]);
+                println!("command '{}' not implemented.", command);
                 usage();
                 std::process::exit(1);
             },
         }
         return
-
     } else if args.len() > 1 {
         match args[1].as_str() {
             "repl" => {
@@ -131,7 +191,7 @@ fn main() {
                 repl_temp.push("repl".to_string());
                 interpret_file_or_exit(&SELF_HOSTED_PATH.to_string(), repl_temp);
             },
-            "ast" | "interpret" | "build" | "run" |
+            "ast" | "interpret" | "build" | "translate" | "run" |
             "help" | "-help" | "--help" | "--version" | "-v" => {
                 usage();
             },

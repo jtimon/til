@@ -11,6 +11,7 @@ use crate::rs::mode::{parse_mode, ModeDef};
 use crate::rs::ccodegen;
 use crate::rs::init::{import_path_to_file_path, init_import_declarations, Context};
 use crate::rs::typer::{check_types, basic_mode_checks, typer_import_declarations};
+use crate::rs::target::{Target, Lang, toolchain_command, toolchain_extra_args, executable_extension, validate_lang_for_target, lang_to_str, detect_current_target, default_lang_for_target};
 
 // Parse a single file and return its AST (and mode for main file)
 fn parse_file(path: &str) -> Result<(Expr, ModeDef), String> {
@@ -122,8 +123,17 @@ fn is_import_call(expr: &Expr) -> bool {
     false
 }
 
-// Build a TIL source file to C (default target)
-pub fn build(path: &str) -> Result<(), String> {
+// Build a TIL source file with target, lang, and translate_only options
+// Returns the output path (executable or source file)
+pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> Result<String, String> {
+    // Validate lang is supported for target
+    validate_lang_for_target(lang, target)?;
+
+    // Currently only C is supported
+    if *lang != Lang::C {
+        return Err(format!("Lang '{}' is not supported yet. Only 'c' is currently implemented.", lang_to_str(lang)));
+    }
+
     // Parse main file
     let (main_ast, main_mode) = parse_file(path)?;
 
@@ -255,21 +265,29 @@ pub fn build(path: &str) -> Result<(), String> {
 
     // Write output file to ./c/ directory instead of alongside source
     let c_filename = path.replace(".til", ".c");
-    let output_path = if c_filename.starts_with("src/") {
+    let source_output_path = if c_filename.starts_with("src/") {
         c_filename.replacen("src/", "c/", 1)
     } else {
         format!("c/{}", c_filename)
     };
     // Create output directory if it doesn't exist
-    if let Some(parent) = std::path::Path::new(&output_path).parent() {
+    if let Some(parent) = std::path::Path::new(&source_output_path).parent() {
         let _ = fs::create_dir_all(parent);
     }
-    match fs::write(&output_path, &c_code) {
+    match fs::write(&source_output_path, &c_code) {
         Ok(_) => {},
-        Err(e) => return Err(format!("Failed to write '{}': {}", output_path, e)),
+        Err(e) => return Err(format!("Failed to write '{}': {}", source_output_path, e)),
     }
 
-    // Compile with gcc - output to bin/ subdirectory
+    // If translate_only, return the source file path
+    if translate_only {
+        return Ok(source_output_path);
+    }
+
+    // Get toolchain command for target
+    let compiler = toolchain_command(target, lang)?;
+
+    // Compile - output to bin/ subdirectory
     let source_dir = std::path::Path::new(path).parent().unwrap_or(std::path::Path::new("."));
     let bin_dir = source_dir.join("bin");
     // Create bin directory if it doesn't exist
@@ -278,21 +296,29 @@ pub fn build(path: &str) -> Result<(), String> {
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("out");
-    let exe_path = bin_dir.join(exe_name);
+    let exe_extension = executable_extension(target);
+    let exe_path = bin_dir.join(format!("{}{}", exe_name, exe_extension));
     let exe_path_str = exe_path.to_string_lossy().to_string();
-    let output = Command::new("gcc")
-        .args(["-I", "src", &output_path, "-o", &exe_path_str])
-        .output();
+
+    // Build command with extra args for target
+    let mut cmd = Command::new(compiler);
+    cmd.args(["-I", "src"]);
+    for extra_arg in toolchain_extra_args(target, lang) {
+        cmd.arg(extra_arg);
+    }
+    cmd.args([&source_output_path, "-o", &exe_path_str]);
+
+    let output = cmd.output();
 
     match output {
         Ok(out) => {
             if out.status.success() {
-                Ok(())
+                Ok(exe_path_str)
             } else {
                 let stderr = String::from_utf8_lossy(&out.stderr);
-                Err(format!("gcc failed: {}", stderr))
+                Err(format!("{} failed: {}", compiler, stderr))
             }
         },
-        Err(e) => Err(format!("Failed to run gcc: {}", e)),
+        Err(e) => Err(format!("Failed to run {}: {}", compiler, e)),
     }
 }
