@@ -948,6 +948,17 @@ fn hoist_throwing_args(
                 }
             }
         }
+        // Handle struct literal arguments (no args, or only named args) - need to hoist their throwing defaults
+        // For struct literals like Expr() passed as arguments, their throwing default field values
+        // (e.g., params = Vec.new(Expr)) need to be hoisted BEFORE the struct literal is created
+        else if matches!(arg.node_type, NodeType::FCall) {
+            if let Some(func_name) = get_fcall_func_name(arg) {
+                if context.scope_stack.lookup_struct(&func_name).is_some() {
+                    // This is a struct literal - hoist its throwing defaults
+                    hoist_throwing_expr(arg, output, indent, ctx, context)?;
+                }
+            }
+        }
     }
 
     Ok(hoisted)
@@ -4564,6 +4575,31 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         emit_expr(&expr.params[0], output, 0, ctx, context)?;
         output.push_str(";\n");
     } else if is_mut {
+        // Hoist Dynamic params in RHS if it's an FCall (needed for methods like Set.contains)
+        if !expr.params.is_empty() {
+            if let NodeType::FCall = &expr.params[0].node_type {
+                let rhs_fcall = &expr.params[0];
+                if rhs_fcall.params.len() > 1 {
+                    if let Some(func_name) = get_fcall_func_name(rhs_fcall) {
+                        if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                            let param_types: Vec<Option<ValueType>> = fd.args.iter()
+                                .map(|a| Some(a.value_type.clone()))
+                                .collect();
+                            let args = &rhs_fcall.params[1..];
+                            let empty_hoisted = std::collections::HashMap::new();
+                            let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
+                            // Record hoisted Dynamic params in hoisted_exprs with & prefix
+                            for (idx, temp_var) in dynamic_hoisted {
+                                if let Some(arg) = args.get(idx) {
+                                    let expr_addr = arg as *const Expr as usize;
+                                    ctx.hoisted_exprs.insert(expr_addr, format!("&{}", temp_var));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         output.push_str(&indent_str);
         if !already_declared {
             // Determine C type from inferred type or fall back to int
@@ -4588,6 +4624,31 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         output.push_str(";\n");
     } else {
         // const declaration
+        // Hoist Dynamic params in RHS if it's an FCall (needed for methods like Set.contains)
+        if !expr.params.is_empty() {
+            if let NodeType::FCall = &expr.params[0].node_type {
+                let rhs_fcall = &expr.params[0];
+                if rhs_fcall.params.len() > 1 {
+                    if let Some(func_name) = get_fcall_func_name(rhs_fcall) {
+                        if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                            let param_types: Vec<Option<ValueType>> = fd.args.iter()
+                                .map(|a| Some(a.value_type.clone()))
+                                .collect();
+                            let args = &rhs_fcall.params[1..];
+                            let empty_hoisted = std::collections::HashMap::new();
+                            let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
+                            // Record hoisted Dynamic params in hoisted_exprs with & prefix
+                            for (idx, temp_var) in dynamic_hoisted {
+                                if let Some(arg) = args.get(idx) {
+                                    let expr_addr = arg as *const Expr as usize;
+                                    ctx.hoisted_exprs.insert(expr_addr, format!("&{}", temp_var));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         output.push_str(&indent_str);
         if !already_declared {
             // Determine C type from inferred type or fall back to int

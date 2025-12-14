@@ -7172,6 +7172,43 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         result = emit_expr(first, result, 0, ctx, context)
         result = result.concat(";\n")
     } else if is_mut {
+        // Hoist Dynamic params in RHS if it's an FCall (needed for methods like Set.contains)
+        if gt(expr.params.len(), 0) {
+            mut rhs_fcall := Expr()
+            expr.params.get(0, rhs_fcall)
+            switch rhs_fcall.node_type {
+            case NodeType.FCall:
+                if gt(rhs_fcall.params.len(), 1) {
+                    func_name := get_fcall_func_name(rhs_fcall)
+                    if gt(func_name.len(), 0) {
+                        fd_result := lookup_func_by_name(context, func_name)
+                        if fd_result.found {
+                            mut param_types := Vec.new(ValueType)
+                            for arg: Declaration in fd_result.func_def.args {
+                                param_types.push(arg.value_type)
+                            }
+                            args := rhs_fcall.params
+                            empty_hoisted := Map.new(I64, Str)
+                            dynamic_hoisted := hoist_for_dynamic_params(args, param_types, empty_hoisted, result, indent, ctx, context)
+                            // Record hoisted Dynamic params in hoisted_exprs with & prefix
+                            for h: HoistedArg in dynamic_hoisted {
+                                if lt(h.index, args.len()) {
+                                    mut arg_for_key := Expr()
+                                    args.get(h.index, arg_for_key)
+                                    arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
+                                    mut amp_str := "&"
+                                    hoisted_val := amp_str.concat(h.temp_var)
+                                    ctx.hoisted_exprs.set(arg_key, hoisted_val)
+                                }
+                            }
+                        }
+                    }
+                }
+            case:
+            }
+            catch (err: IndexOutOfBoundsError) { }
+            catch (err: AllocError) { }
+        }
         // Determine C type from inferred type or fall back to int
         if not(already_declared) {
             mut c_type := "int"
@@ -7206,6 +7243,43 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         result = result.concat(";\n")
     } else {
         // const declaration
+        // Hoist Dynamic params in RHS if it's an FCall (needed for methods like Set.contains)
+        if gt(expr.params.len(), 0) {
+            mut rhs_fcall := Expr()
+            expr.params.get(0, rhs_fcall)
+            switch rhs_fcall.node_type {
+            case NodeType.FCall:
+                if gt(rhs_fcall.params.len(), 1) {
+                    func_name := get_fcall_func_name(rhs_fcall)
+                    if gt(func_name.len(), 0) {
+                        fd_result := lookup_func_by_name(context, func_name)
+                        if fd_result.found {
+                            mut param_types := Vec.new(ValueType)
+                            for arg: Declaration in fd_result.func_def.args {
+                                param_types.push(arg.value_type)
+                            }
+                            args := rhs_fcall.params
+                            empty_hoisted := Map.new(I64, Str)
+                            dynamic_hoisted := hoist_for_dynamic_params(args, param_types, empty_hoisted, result, indent, ctx, context)
+                            // Record hoisted Dynamic params in hoisted_exprs with & prefix
+                            for h: HoistedArg in dynamic_hoisted {
+                                if lt(h.index, args.len()) {
+                                    mut arg_for_key := Expr()
+                                    args.get(h.index, arg_for_key)
+                                    arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
+                                    mut amp_str := "&"
+                                    hoisted_val := amp_str.concat(h.temp_var)
+                                    ctx.hoisted_exprs.set(arg_key, hoisted_val)
+                                }
+                            }
+                        }
+                    }
+                }
+            case:
+            }
+            catch (err: IndexOutOfBoundsError) { }
+            catch (err: AllocError) { }
+        }
         if not(already_declared) {
             // Determine C type from inferred type or fall back to int
             mut c_type := "int"
@@ -8003,6 +8077,22 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 if gt(arg.params.len(), 1) {
                     // Recurse to hoist any nested throwing/variadic calls
                     _ := hoist_throwing_args(arg.params, output, indent, ctx, context)
+                } else {
+                    // Handle struct literal arguments (no args, or only named args)
+                    // For struct literals like Expr() passed as arguments, their throwing default field values
+                    // (e.g., params = Vec.new(Expr)) need to be hoisted BEFORE the struct literal is created
+                    func_name := get_fcall_func_name(arg)
+                    if gt(func_name.len(), 0) {
+                        mut is_struct := false
+                        _ := context.scope_stack.lookup_struct(func_name)
+                        is_struct = true
+                        catch (err: KeyNotFoundError) { }
+                        if is_struct {
+                            // This is a struct literal - hoist its throwing defaults
+                            _ := hoist_throwing_expr(arg, output, indent, ctx, context)
+                            catch (err: KeyNotFoundError) { }
+                        }
+                    }
                 }
             case:
                 // Not an FCall, nothing to do
