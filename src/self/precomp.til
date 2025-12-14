@@ -273,11 +273,8 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Named arguments - transform the value expression
     case NodeType.NamedArg(name):
         mut new_params := Vec.new(Expr)
-        mut i := 0
-        while i.lt(e.params.len()) {
-            mut p := e.get(i)
+        for p: Expr in e.params {
             new_params.push(precomp_expr(context, p))
-            i = i.add(1)
         }
         catch (err: AllocError) {
             throw format("precomp_expr NamedArg: ", err.msg)
@@ -432,17 +429,10 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
 /// Transform Body node - recursively transform all statements
 precomp_body := proc(mut context: Context, e: Expr) returns Expr throws Str {
     mut new_params := Vec.new(Expr)
-    mut i := 0
-    while i.lt(e.params.len()) {
-        mut p := Expr()
-        e.params.get(i, p)
+    for p: Expr in e.params {
         new_params.push(precomp_expr(context, p))
-        i = i.add(1)
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw format("precomp_body: ", err.msg)
-    }
     catch (err: AllocError) {
         throw format("precomp_body: ", err.msg)
     }
@@ -453,17 +443,10 @@ precomp_body := proc(mut context: Context, e: Expr) returns Expr throws Str {
 /// Transform node params - recursively transform all child expressions
 precomp_params := proc(mut context: Context, e: Expr) returns Expr throws Str {
     mut new_params := Vec.new(Expr)
-    mut i := 0
-    while i.lt(e.params.len()) {
-        mut p := Expr()
-        e.params.get(i, p)
+    for p: Expr in e.params {
         new_params.push(precomp_expr(context, p))
-        i = i.add(1)
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw format("precomp_params: ", err.msg)
-    }
     catch (err: AllocError) {
         throw format("precomp_params: ", err.msg)
     }
@@ -776,23 +759,15 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
 precomp_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str {
     // Push a new scope frame with the function's parameters
     context.scope_stack.push(ScopeType.Function)
-    mut i := 0
-    while i.lt(func_def.args.len()) {
-        mut arg := Declaration()
-        func_def.args.get(i, arg)
+    for arg: Declaration in func_def.args {
         sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
         context.scope_stack.declare_symbol(arg.name, sym)
-        i = i.add(1)
     }
 
     // Transform the function body
     mut new_body := Vec.new(Expr)
-    mut j := 0
-    while j.lt(func_def.body.len()) {
-        mut stmt := Expr()
-        func_def.body.get(j, stmt)
+    for stmt: Expr in func_def.body {
         new_body.push(precomp_expr(context, stmt))
-        j = j.add(1)
     }
 
     // Pop the function scope frame
@@ -821,12 +796,8 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     // First transform the value expression (if any)
     mut new_params := Vec.new(Expr)
     if e.params.len().gt(0) {
-        mut i := 0
-        while i.lt(e.params.len()) {
-            mut p := Expr()
-            e.params.get(i, p)
+        for p: Expr in e.params {
             new_params.push(precomp_expr(context, p))
-            i = i.add(1)
         }
     }
 
@@ -1016,12 +987,8 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     // First, recursively transform all arguments
     mut transformed_params := Vec.new(Expr)
-    mut i := 0
-    while i.lt(e.params.len()) {
-        mut p := Expr()
-        e.params.get(i, p)
+    for p: Expr in e.params {
         transformed_params.push(precomp_expr(context, p))
-        i = i.add(1)
     }
     mut e := Expr.new_clone(e.node_type, e, transformed_params)
 
