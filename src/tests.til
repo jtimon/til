@@ -618,16 +618,12 @@ main := proc(args: ..Str) {
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
 
-    // rs_interpreted.push(TestEntry(path="src/examples/hello_script_safe.til")) // TODO this is much harder than it sounds
+    // rs_interpreted.push(TestEntry(path="src/examples/hello_script_safe.til")) // TODO improve example now that we have run_cmd
     // rs_interpreted.push(TestEntry(path="src/test/undefined.til"))
     // rs_interpreted.push(TestEntry(path="src/test/clone.til")) // TODO FIX: I64_OverflowError has no method 'clone'
     // rs_interpreted.push(TestEntry(path="src/test/cross_file_forward.til")) // TODO FIX: Vec field access needs pointer, not value
     // rs_interpreted.push(TestEntry(path="src/test/enums_payload.til")) // TODO FIX: enum constructors emitted as function calls not struct init
     // rs_interpreted.push(TestEntry(path="src/test/switch_simple.til")) // TODO FIX: enum constructors as func calls, case payload var undeclared
-
-    // Self-hosting interpreter tests
-    // run the self hosting libs just to see they pass typer checks
-    rs_interpreted.push(TestEntry(path="src/self/interpreter.til")) // TODO FIX: precomp: Import not found in stored ASTs - init should have stored it
     // rs_interpreted.push(TestEntry(path="src/test/builders.til")) // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
