@@ -2963,7 +2963,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
             switch arg.node_type {
             case NodeType.LLiteral(_):
                 // Compound literals are lvalues in C99+, so &((til_Str){...}) works
-                result = result.concat("&")
+                result = result.concat("(").concat(TIL_PREFIX).concat("Dynamic*)&")
                 result = emit_expr(arg, result, 0, ctx, context)
             case:
                 // Other non-identifier args (function calls, etc.) - emit as-is
@@ -5243,11 +5243,29 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                 ind = add(ind, 1)
             }
             result = result.concat(inner_indent)
-            // Check if this is a mut parameter that needs dereferencing
-            if ctx.current_mut_params.contains(assign_name) {
-                result = result.concat("*")
+            // Check if assignment target is a field access on a mut param (self.field)
+            // If so, emit with -> instead of .
+            mut dot_pos := assign_name.find(".")
+            if dot_pos.gteq(0) {
+                mut base := assign_name.get_substr(0, dot_pos)
+                mut rest := assign_name.get_substr(add(dot_pos, 1), assign_name.len())
+                if ctx.current_mut_params.contains(base) {
+                    // Mut param field access: til_self->field
+                    result = result.concat(til_name(base))
+                    result = result.concat("->")
+                    result = result.concat(rest)
+                } else {
+                    result = result.concat(til_name(assign_name))
+                }
+            } else {
+                if ctx.current_mut_params.contains(assign_name) {
+                    // Direct assignment to mut param: *til_var = value
+                    result = result.concat("*")
+                    result = result.concat(til_name(assign_name))
+                } else {
+                    result = result.concat(til_name(assign_name))
+                }
             }
-            result = result.concat(til_name(assign_name))
             result = result.concat(" = _ret_")
             result = result.concat(temp_suffix)
             result = result.concat(";\n")
@@ -5345,6 +5363,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         i = add(i, 1)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
 
     result = result.concat("\n")
     return result
@@ -5771,16 +5790,37 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     } else {
         if gt(assign_name.len(), 0) {
             result = result.concat(indent_str)
-            // Check if this is a mut parameter that needs dereferencing
-            if ctx.current_mut_params.contains(assign_name) {
-                result = result.concat("*")
+            // Check if assignment target is a field access on a mut param (self.field)
+            // If so, emit with -> instead of .
+            mut dot_pos := assign_name.find(".")
+            if dot_pos.gteq(0) {
+                mut base := assign_name.get_substr(0, dot_pos)
+                mut rest := assign_name.get_substr(add(dot_pos, 1), assign_name.len())
+                if ctx.current_mut_params.contains(base) {
+                    // Mut param field access: til_self->field
+                    result = result.concat(til_name(base))
+                    result = result.concat("->")
+                    result = result.concat(rest)
+                } else {
+                    result = result.concat(til_name(assign_name))
+                }
+            } else {
+                if ctx.current_mut_params.contains(assign_name) {
+                    // Direct assignment to mut param: *til_var = value
+                    result = result.concat("*")
+                    result = result.concat(til_name(assign_name))
+                } else {
+                    result = result.concat(til_name(assign_name))
+                }
             }
-            result = result.concat(til_name(assign_name))
             result = result.concat(" = _ret_")
             result = result.concat(temp_suffix)
             result = result.concat(";\n")
         }
     }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
 
     return result
 }
@@ -6197,16 +6237,37 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     } else {
         if gt(assign_name.len(), 0) {
             result = result.concat(indent_str)
-            // Check if this is a mut parameter that needs dereferencing
-            if ctx.current_mut_params.contains(assign_name) {
-                result = result.concat("*")
+            // Check if assignment target is a field access on a mut param (self.field)
+            // If so, emit with -> instead of .
+            mut dot_pos := assign_name.find(".")
+            if dot_pos.gteq(0) {
+                mut base := assign_name.get_substr(0, dot_pos)
+                mut rest := assign_name.get_substr(add(dot_pos, 1), assign_name.len())
+                if ctx.current_mut_params.contains(base) {
+                    // Mut param field access: til_self->field
+                    result = result.concat(til_name(base))
+                    result = result.concat("->")
+                    result = result.concat(rest)
+                } else {
+                    result = result.concat(til_name(assign_name))
+                }
+            } else {
+                if ctx.current_mut_params.contains(assign_name) {
+                    // Direct assignment to mut param: *til_var = value
+                    result = result.concat("*")
+                    result = result.concat(til_name(assign_name))
+                } else {
+                    result = result.concat(til_name(assign_name))
+                }
             }
-            result = result.concat(til_name(assign_name))
             result = result.concat(" = _ret_")
             result = result.concat(temp_suffix)
             result = result.concat(";\n")
         }
     }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
 
     return result
 }
@@ -8330,10 +8391,10 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         if first.params.len().eq(0) {
             orig_func_name = name
         } else {
-            orig_func_name = func_name.replace("_", ".")
+            orig_func_name = func_name.replacen("_", ".", 1)  // Only first underscore
         }
     case:
-        orig_func_name = func_name.replace("_", ".")
+        orig_func_name = func_name.replacen("_", ".", 1)  // Only first underscore
     }
     catch (err: AllocError) { throw err.msg }
 

@@ -1478,7 +1478,7 @@ fn emit_arg_with_param_type(
                 return Ok(());
             }
         }
-        // For non-identifier args (literals, compound literals), emit with &
+        // For non-identifier args (literals, compound literals), emit with (til_Dynamic*)&
         // But first check if already hoisted (hoisted_exprs already includes & prefix)
         let arg_addr = arg as *const Expr as usize;
         if ctx.hoisted_exprs.contains_key(&arg_addr) {
@@ -1486,7 +1486,9 @@ fn emit_arg_with_param_type(
             emit_expr(arg, output, 0, ctx, context)?;
         } else if matches!(&arg.node_type, NodeType::LLiteral(_)) {
             // Compound literals are lvalues in C99+, so &((til_Str){...}) works
-            output.push_str("&");
+            output.push_str("(");
+            output.push_str(TIL_PREFIX);
+            output.push_str("Dynamic*)&");
             emit_expr(arg, output, 0, ctx, context)?;
         } else {
             // Other non-identifier args (function calls, etc.) - emit as-is
@@ -3632,11 +3634,26 @@ fn emit_throwing_call(
         // Assignment: assign to existing variable
         let inner_indent = "    ".repeat(indent + 1);
         output.push_str(&inner_indent);
-        // Check if this is a mut parameter that needs dereferencing
-        if ctx.current_mut_params.contains(var_name) {
+        // Check if assignment target is a field access on a mut param (self.field)
+        // If so, emit with -> instead of .
+        if let Some(dot_pos) = var_name.find('.') {
+            let base = &var_name[..dot_pos];
+            let rest = &var_name[dot_pos + 1..];
+            if ctx.current_mut_params.contains(base) {
+                // Mut param field access: til_self->field
+                output.push_str(&til_name(base));
+                output.push_str("->");
+                output.push_str(rest);
+            } else {
+                output.push_str(&til_name(var_name));
+            }
+        } else if ctx.current_mut_params.contains(var_name) {
+            // Direct assignment to mut param: *til_var = value
             output.push_str("*");
+            output.push_str(&til_name(var_name));
+        } else {
+            output.push_str(&til_name(var_name));
         }
-        output.push_str(&til_name(var_name));
         output.push_str(" = _ret_");
         output.push_str(&temp_suffix.to_string());
         output.push_str(";\n");
@@ -3941,11 +3958,26 @@ fn emit_throwing_call_propagate(
         }
     } else if let Some(var_name) = assign_name {
         output.push_str(&indent_str);
-        // Check if this is a mut parameter that needs dereferencing
-        if ctx.current_mut_params.contains(var_name) {
+        // Check if assignment target is a field access on a mut param (self.field)
+        // If so, emit with -> instead of .
+        if let Some(dot_pos) = var_name.find('.') {
+            let base = &var_name[..dot_pos];
+            let rest = &var_name[dot_pos + 1..];
+            if ctx.current_mut_params.contains(base) {
+                // Mut param field access: til_self->field
+                output.push_str(&til_name(base));
+                output.push_str("->");
+                output.push_str(rest);
+            } else {
+                output.push_str(&til_name(var_name));
+            }
+        } else if ctx.current_mut_params.contains(var_name) {
+            // Direct assignment to mut param: *til_var = value
             output.push_str("*");
+            output.push_str(&til_name(var_name));
+        } else {
+            output.push_str(&til_name(var_name));
         }
-        output.push_str(&til_name(var_name));
         output.push_str(" = _ret_");
         output.push_str(&temp_suffix);
         output.push_str(";\n");
@@ -4167,11 +4199,26 @@ fn emit_throwing_call_with_goto(
         }
     } else if let Some(var_name) = assign_name {
         output.push_str(&indent_str);
-        // Check if this is a mut parameter that needs dereferencing
-        if ctx.current_mut_params.contains(var_name) {
+        // Check if assignment target is a field access on a mut param (self.field)
+        // If so, emit with -> instead of .
+        if let Some(dot_pos) = var_name.find('.') {
+            let base = &var_name[..dot_pos];
+            let rest = &var_name[dot_pos + 1..];
+            if ctx.current_mut_params.contains(base) {
+                // Mut param field access: til_self->field
+                output.push_str(&til_name(base));
+                output.push_str("->");
+                output.push_str(rest);
+            } else {
+                output.push_str(&til_name(var_name));
+            }
+        } else if ctx.current_mut_params.contains(var_name) {
+            // Direct assignment to mut param: *til_var = value
             output.push_str("*");
+            output.push_str(&til_name(var_name));
+        } else {
+            output.push_str(&til_name(var_name));
         }
-        output.push_str(&til_name(var_name));
         output.push_str(" = _ret_");
         output.push_str(&temp_suffix);
         output.push_str(";\n");
@@ -4769,7 +4816,8 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
                 if let Some(throw_types) = lookup_func_by_name(context, &func_name).map(|fd| fd.throw_types.clone()).filter(|t| !t.is_empty()) {
                     // RHS is a throwing function call - emit with error propagation
                     // (typer should ensure non-throwing context doesn't call throwing functions without catch)
-                    emit_throwing_call_propagate(rhs_expr, &throw_types, None, Some(&til_name(name)), output, indent, ctx, context)?;
+                    // Pass raw name so function can properly handle field access on mut params
+                    emit_throwing_call_propagate(rhs_expr, &throw_types, None, Some(name), output, indent, ctx, context)?;
                     return Ok(());
                 }
             }
@@ -6035,7 +6083,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // For builtins, we need the original name without underscore conversion
     let orig_func_name = match &expr.params[0].node_type {
         NodeType::Identifier(name) if expr.params[0].params.is_empty() => name.clone(),
-        _ => func_name.replace('_', "."),  // Convert back for lookup
+        _ => func_name.replacen('_', ".", 1),  // Convert back for lookup (only first underscore)
     };
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
