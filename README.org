@@ -49,6 +49,12 @@ itself to C and compile and link itself.
  - make (Optional, for convenience)
  - rlwrap (Optional, for the repl)
  - rustc (Temporary, needed until the language is self hosted)
+ - gcc (for rstil build/run)
+ - gcc-aarch64-linux-gnu (Optional, for linux-arm64 target)
+ - gcc-riscv64-linux-gnu (Optional, for linux-riscv64 target)
+ - mingw-w64 (Optional, for windows-x64 target)
+ - qemu-user (Optional, for make test-cross)
+ - wine (Optional, for make test-cross)
 
 * Milestones
 

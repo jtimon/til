@@ -19,5 +19,20 @@ til: rstil tests
 repl: rstil
 	rlwrap ./bin/rstil src/core/repl.til
 
+test-cross: rstil
+	@echo "=== Cross-compilation tests ==="
+	@echo "linux-arm64..."
+	./bin/rstil build src/examples/hello_script.til --target=linux-arm64
+	qemu-aarch64 -L /usr/aarch64-linux-gnu ./src/examples/bin/hello_script
+	@echo "linux-riscv64..."
+	./bin/rstil build src/examples/hello_script.til --target=linux-riscv64
+	qemu-riscv64 -L /usr/riscv64-linux-gnu ./src/examples/bin/hello_script
+	@echo "windows-x64..."
+	./bin/rstil build src/examples/hello_script.til --target=windows-x64
+	wine ./src/examples/bin/hello_script.exe
+	# TODO: macos-x64, macos-arm64 (no emulator available)
+	# TODO: wasm32 (needs libc/wasi support)
+	@echo "=== All cross-compilation tests passed ==="
+
 clean:
 	rm -rf bin/*
