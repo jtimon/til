@@ -98,6 +98,7 @@ main := proc(args: ..Str) {
         case:
             println("command '", cmd, "' not implemented.")
             usage()
+            exit(1)
         }
 
     } else if gt(args.len(), 0) {

@@ -5689,7 +5689,13 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         match &case_pattern.node_type {
             NodeType::Pattern(pattern_info) => {
                 // Enum pattern with payload binding: compare tag
-                let info = parse_pattern_variant_name(&pattern_info.variant_name);
+                let mut info = parse_pattern_variant_name(&pattern_info.variant_name);
+                // If no type prefix (shorthand syntax), use the switch expression's type
+                if info.type_name.is_empty() {
+                    if let Some(ValueType::TCustom(enum_name)) = &switch_type {
+                        info.type_name = enum_name.clone();
+                    }
+                }
                 output.push_str(&switch_var);
                 output.push_str(".tag == til_");
                 output.push_str(&info.type_name);

@@ -55,12 +55,16 @@ fn collect_imports(ast: &Expr, imported: &mut HashSet<String>, all_asts: &mut Ve
                                 if !imported.contains(&file_path) {
                                     imported.insert(file_path.clone());
                                     let (dep_ast, _mode) = parse_file(&file_path)?;
+                                    // Store AST in imported_asts so precomp can find it for circular imports
+                                    context.imported_asts.insert(file_path.clone(), dep_ast.clone());
                                     // Recursively collect imports from this dependency
                                     collect_imports(&dep_ast, imported, all_asts, context)?;
                                     // Precomp with the correct path for this file
                                     let saved_path = context.path.clone();
-                                    context.path = file_path;
+                                    context.path = file_path.clone();
                                     let dep_ast = crate::rs::precomp::precomp_expr(context, &dep_ast)?;
+                                    // Update with precompiled version
+                                    context.imported_asts.insert(file_path, dep_ast.clone());
                                     context.path = saved_path;
                                     all_asts.push(dep_ast);
                                 }
@@ -201,6 +205,8 @@ pub fn build(path: &str) -> Result<(), String> {
     // Each file is precompiled with its own path before merging
     let mut imported = HashSet::new();
     imported.insert(path.to_string());
+    // Store main file AST so circular imports can find it during precomp
+    context.imported_asts.insert(path.to_string(), main_ast.clone());
     let mut dep_asts = Vec::new();
 
     // Collect core.til and its imports

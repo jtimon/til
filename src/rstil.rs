@@ -119,6 +119,7 @@ fn main() {
             _ => {
                 println!("command '{}' not implemented.", &args[1]);
                 usage();
+                std::process::exit(1);
             },
         }
         return
