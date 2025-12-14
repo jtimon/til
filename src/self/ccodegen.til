@@ -3605,6 +3605,13 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             } else if name.contains(".") {
                 is_enum_switch = true
             }
+        case NodeType.FCall:
+            is_enum_switch = true
+            // FCall with arguments (e.g., ValueType.TType(TTypeDef.TEnumDef))
+            // implies the enum has payloads
+            if gt(case_pattern.params.len(), 1) {
+                enum_has_payloads_flag = true
+            }
         case:
         }
         scan_i = add(scan_i, 2)

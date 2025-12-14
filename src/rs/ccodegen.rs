@@ -5572,6 +5572,14 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     is_enum_switch = true;
                 }
             },
+            NodeType::FCall => {
+                is_enum_switch = true;
+                // FCall with arguments (e.g., ValueType.TType(TTypeDef.TEnumDef))
+                // implies the enum has payloads
+                if case_pattern.params.len() > 1 {
+                    enum_has_payloads_flag = true;
+                }
+            },
             _ => {}
         }
         i += 2;
