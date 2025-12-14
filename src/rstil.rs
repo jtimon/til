@@ -98,7 +98,7 @@ fn build_file_or_exit(path: &String, target: &Target, lang: &Lang, translate_onl
     };
 }
 
-fn run_file_or_exit(path: &String, target: &Target, lang: &Lang) {
+fn run_file_or_exit(path: &String, target: &Target, lang: &Lang, extra_args: &[String]) {
     let exe_path = match builder::build(path, target, lang, false) {
         Ok(exe) => exe,
         Err(err) => {
@@ -107,8 +107,9 @@ fn run_file_or_exit(path: &String, target: &Target, lang: &Lang) {
         },
     };
 
-    // Run the compiled binary
+    // Run the compiled binary with any extra arguments
     let status = std::process::Command::new(&exe_path)
+        .args(extra_args)
         .status();
 
     match status {
@@ -166,7 +167,9 @@ fn main() {
                             usage();
                             std::process::exit(1);
                         }
-                        run_file_or_exit(&paths[0], &target, &lang);
+                        // Pass remaining paths as arguments to the compiled program
+                        let extra_args = if paths.len() > 1 { &paths[1..] } else { &[] };
+                        run_file_or_exit(&paths[0], &target, &lang, extra_args);
                     },
                     Err(err) => {
                         println!("Error: {}", err);

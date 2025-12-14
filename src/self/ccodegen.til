@@ -2685,13 +2685,14 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
 
         if main_has_variadic {
             // Convert argc/argv to til_Array and pass to til_main
+            // Skip argv[0] (exe path) to match interpreter behavior
             output = output.concat("    til_Array _main_args;\n")
             output = output.concat("    til_AllocError _main_args_err;\n")
-            output = output.concat("    til_Array_new(&_main_args, &_main_args_err, \"Str\", argc);\n")
-            output = output.concat("    for (int i = 0; i < argc; i++) {\n")
+            output = output.concat("    til_Array_new(&_main_args, &_main_args_err, \"Str\", argc - 1);\n")
+            output = output.concat("    for (int i = 1; i < argc; i++) {\n")
             output = output.concat("        til_Str _arg = {(til_I64)argv[i], strlen(argv[i])};\n")
             output = output.concat("        til_IndexOutOfBoundsError _set_err;\n")
-            output = output.concat("        til_Array_set(&_set_err, &_main_args, i, &_arg);\n")
+            output = output.concat("        til_Array_set(&_set_err, &_main_args, i - 1, &_arg);\n")
             output = output.concat("    }\n")
             output = output.concat("    til_main(&_main_args);\n")
         } else {

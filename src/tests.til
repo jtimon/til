@@ -599,6 +599,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/ufcs.til"))
     rs_common.push(TestEntry(path="src/test/variadic.til"))
     rs_common.push(TestEntry(path="src/test/vecs.til"))
+    rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))
 
     mut rs_compiled := Vec.new(TestEntry)
     rs_compiled.push(TestEntry(path="src/test/memcmp_str_compiled.til"))
@@ -627,7 +628,6 @@ main := proc(args: ..Str) {
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
     rs_interpreted.push(TestEntry(path="src/self/interpreter.til")) // TODO FIX: precomp: Import not found in stored ASTs - init should have stored it
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: compiled binary has runtime lexer bugs
     // rs_interpreted.push(TestEntry(path="src/test/builders.til")) // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
