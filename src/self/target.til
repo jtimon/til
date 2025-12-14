@@ -10,6 +10,7 @@ import("core.vec")
 Lang := enum {
     C,
     HolyC,
+    TIL,  // TIL-to-TIL (for debugging: shows desugared, dead-code-eliminated output)
     // Future: Mojo, WASM, etc.
 }
 
@@ -19,13 +20,16 @@ lang_from_str := func(s: Str) returns Lang throws Str {
     if s.eq("holyc") { return Lang.HolyC }
     if s.eq("HolyC") { return Lang.HolyC }
     if s.eq("HOLYC") { return Lang.HolyC }
-    throw format("Unknown lang '", s, "'. Supported langs: c, holyc")
+    if s.eq("til") { return Lang.TIL }
+    if s.eq("TIL") { return Lang.TIL }
+    throw format("Unknown lang '", s, "'. Supported langs: c, holyc, til")
 }
 
 lang_to_str := func(lang: Lang) returns Str {
     switch lang {
     case Lang.C: return "c"
     case Lang.HolyC: return "holyc"
+    case Lang.TIL: return "til"
     }
     return "c"
 }
@@ -34,6 +38,7 @@ lang_file_extension := func(lang: Lang) returns Str {
     switch lang {
     case Lang.C: return "c"
     case Lang.HolyC: return "hc"
+    case Lang.TIL: return "til"
     }
     return "c"
 }
@@ -96,23 +101,31 @@ supported_langs_for_target := func(target: Target) returns Vec throws AllocError
     switch target {
     case Target.TempleosX86:
         result.push(Lang.HolyC)
+        result.push(Lang.TIL)
     case:
         result.push(Lang.C)
+        result.push(Lang.TIL)  // TIL is always supported (for debugging)
     }
     return result
 }
 
 is_lang_supported_for_target := func(lang: Lang, target: Target) returns Bool {
-    switch target {
-    case Target.TempleosX86:
-        switch lang {
-        case Lang.HolyC: return true
-        case: return false
-        }
+    // TIL is always supported (for debugging)
+    switch lang {
+    case Lang.TIL: return true
     case:
-        switch lang {
-        case Lang.C: return true
-        case: return false
+        // Check target-specific langs
+        switch target {
+        case Target.TempleosX86:
+            switch lang {
+            case Lang.HolyC: return true
+            case: return false
+            }
+        case:
+            switch lang {
+            case Lang.C: return true
+            case: return false
+            }
         }
     }
 }

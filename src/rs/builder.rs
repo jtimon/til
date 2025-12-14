@@ -129,9 +129,15 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     // Validate lang is supported for target
     validate_lang_for_target(lang, target)?;
 
-    // Currently only C is supported
-    if *lang != Lang::C {
-        return Err(format!("Lang '{}' is not supported yet. Only 'c' is currently implemented.", lang_to_str(lang)));
+    // Currently only C is fully supported
+    match lang {
+        Lang::C => {},  // Supported
+        Lang::TIL => {
+            return Err("Lang 'til' is not supported yet. TIL-to-TIL translation is a placeholder for future debugging features.".to_string());
+        },
+        _ => {
+            return Err(format!("Lang '{}' is not supported yet. Only 'c' is currently implemented.", lang_to_str(lang)));
+        }
     }
 
     // Parse main file

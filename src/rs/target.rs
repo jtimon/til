@@ -7,6 +7,7 @@
 pub enum Lang {
     C,
     HolyC,
+    TIL,  // TIL-to-TIL (for debugging: shows desugared, dead-code-eliminated output)
     // Future: Mojo, WASM, etc.
 }
 
@@ -14,7 +15,8 @@ pub fn lang_from_str(s: &str) -> Result<Lang, String> {
     match s.to_lowercase().as_str() {
         "c" => Ok(Lang::C),
         "holyc" => Ok(Lang::HolyC),
-        _ => Err(format!("Unknown lang '{}'. Supported langs: c, holyc", s)),
+        "til" => Ok(Lang::TIL),
+        _ => Err(format!("Unknown lang '{}'. Supported langs: c, holyc, til", s)),
     }
 }
 
@@ -22,6 +24,7 @@ pub fn lang_to_str(lang: &Lang) -> &'static str {
     match lang {
         Lang::C => "c",
         Lang::HolyC => "holyc",
+        Lang::TIL => "til",
     }
 }
 
@@ -29,6 +32,7 @@ pub fn lang_file_extension(lang: &Lang) -> &'static str {
     match lang {
         Lang::C => "c",
         Lang::HolyC => "hc",
+        Lang::TIL => "til",
     }
 }
 
@@ -82,8 +86,8 @@ pub fn default_lang_for_target(target: &Target) -> Lang {
 
 pub fn supported_langs_for_target(target: &Target) -> Vec<Lang> {
     match target {
-        Target::TempleosX86 => vec![Lang::HolyC],
-        _ => vec![Lang::C],
+        Target::TempleosX86 => vec![Lang::HolyC, Lang::TIL],
+        _ => vec![Lang::C, Lang::TIL],  // TIL is always supported (for debugging)
     }
 }
 
