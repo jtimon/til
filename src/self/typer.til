@@ -70,11 +70,7 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
     }
 
     // Iterate over enum_map keys
-    mut enum_keys := enum_def.enum_map.keys
-    mut idx := 0
-    while idx.lt(enum_keys.len()) {
-        mut enum_val_name := ""
-        enum_keys.get(idx, enum_val_name)
+    for enum_val_name: Str in enum_def.enum_map.keys {
 
         // Get the payload type pointer for this variant (Ptr to ValueType, NULL = None)
         mut payload_ptr := Ptr()
@@ -117,8 +113,6 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
             }
         }
         // else: NULL means None (no payload), nothing to check
-
-        idx.inc()
     }
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -934,10 +928,14 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
     // Filter and report only the thrown types that are not declared
     for te: ThrownType in thrown_types {
         mut is_declared := false
-        for declared: ValueType in func_def.throw_types {
+        mut decl_idx := 0
+        while decl_idx.lt(func_def.throw_types.len()) {
+            mut declared := ValueType.TCustom("")
+            func_def.throw_types.get(decl_idx, declared)
             if value_type_to_str(declared).eq(te.type_str) {
                 is_declared = true
             }
+            decl_idx.inc()
         }
         if not(is_declared) {
             errors.push(te.msg)
@@ -945,7 +943,10 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
     }
 
     // Warn about declared throws that are never thrown
-    for declared_throw: ValueType in func_def.throw_types {
+    mut decl_throw_idx := 0
+    while decl_throw_idx.lt(func_def.throw_types.len()) {
+        mut declared_throw := ValueType.TCustom("")
+        func_def.throw_types.get(decl_throw_idx, declared_throw)
         mut declared_str := value_type_to_str(declared_throw)
 
         mut is_thrown := false
@@ -957,6 +958,7 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
         if not(is_thrown) {
             errors.push(e.error(context.path, "type", format("`", declared_str, "` is declared in the throws section, but this function never throws it.\nSuggestion: Remove it from the throws section.")))
         }
+        decl_throw_idx.inc()
     }
 
     catch (err: IndexOutOfBoundsError) {
@@ -1107,9 +1109,9 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                         // Remove matching entries
                         mut ri := 0
                         while ri.lt(thrown_types.len()) {
-                            mut te := ThrownType()
-                            thrown_types.get(ri, te)
-                            if te.type_str.eq(caught_type) {
+                            mut te_remove := ThrownType()
+                            thrown_types.get(ri, te_remove)
+                            if te_remove.type_str.eq(caught_type) {
                                 thrown_types.remove(ri)
                             } else {
                                 ri.inc()
@@ -1150,7 +1152,10 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
             case NodeType.FCall:
                 mut called_func_def := get_func_def_for_fcall(context, p)
-                for called_throw: ValueType in called_func_def.throw_types {
+                mut ct_idx := 0
+                while ct_idx.lt(called_func_def.throw_types.len()) {
+                    mut called_throw := ValueType.TCustom("")
+                    called_func_def.throw_types.get(ct_idx, called_throw)
                     called_throw_str := value_type_to_str(called_throw)
                     error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
 
@@ -1162,6 +1167,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     te2.type_str = called_throw_str
                     te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                     thrown_types.push(te2)
+                    ct_idx.inc()
                 }
 
                 // Check nested function calls in arguments
@@ -1406,7 +1412,10 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                         if not(is_constructor) {
                             mut called_func_def := get_func_def_for_fcall(context, initializer)
-                            for called_throw: ValueType in called_func_def.throw_types {
+                            mut ct_idx2 := 0
+                            while ct_idx2.lt(called_func_def.throw_types.len()) {
+                                mut called_throw := ValueType.TCustom("")
+                                called_func_def.throw_types.get(ct_idx2, called_throw)
                                 called_throw_str := value_type_to_str(called_throw)
                                 error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
 
@@ -1418,6 +1427,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 te2.type_str = called_throw_str
                                 te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                                 thrown_types.push(te2)
+                                ct_idx2.inc()
                             }
 
                             mut temp_thrown_types := Vec.new(ThrownType)
@@ -1482,7 +1492,10 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                         if not(is_constructor) {
                             mut called_func_def := get_func_def_for_fcall(context, initializer)
-                            for called_throw: ValueType in called_func_def.throw_types {
+                            mut ct_idx2 := 0
+                            while ct_idx2.lt(called_func_def.throw_types.len()) {
+                                mut called_throw := ValueType.TCustom("")
+                                called_func_def.throw_types.get(ct_idx2, called_throw)
                                 called_throw_str := value_type_to_str(called_throw)
                                 error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
 
@@ -1494,6 +1507,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 te2.type_str = called_throw_str
                                 te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                                 thrown_types.push(te2)
+                                ct_idx2.inc()
                             }
 
                             mut temp_thrown_types := Vec.new(ThrownType)
@@ -1951,20 +1965,20 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
 
         mut j := 1
         while j.lt(e.params.len()) {
-            mut case_expr := Expr()
-            e.params.get(j, case_expr)
+            mut exh_case_expr := Expr()
+            e.params.get(j, exh_case_expr)
 
-            switch case_expr.node_type {
-            case NodeType.Pattern(pattern_info):
+            switch exh_case_expr.node_type {
+            case NodeType.Pattern(exh_pattern_info):
                 // Pattern matching: case EnumType.Variant(binding)
                 // Extract the variant name from the full "EnumType.Variant" string
-                variant_name := pattern_info.variant_name
+                variant_name := exh_pattern_info.variant_name
                 mut dot_pos := variant_name.rfind(".")
                 if dot_pos.gt(sub(0, 1)) {
                     enum_part := variant_name.get_substr(0, dot_pos)
                     variant_part := variant_name.get_substr(dot_pos.add(1), variant_name.len())
                     if not(enum_part.eq(enum_name)) {
-                        errors.push(case_expr.error(context.path, "type", format("Mismatched enum type '", enum_part, "', expected '", enum_name, "'.")))
+                        errors.push(exh_case_expr.error(context.path, "type", format("Mismatched enum type '", enum_part, "', expected '", enum_name, "'.")))
                     }
                     matched_variants.push(variant_part)
                 } else {
@@ -1972,22 +1986,22 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
                     matched_variants.push(variant_name)
                 }
 
-            case NodeType.Identifier(name):
-                if case_expr.params.len().eq(0) {
+            case NodeType.Identifier(exh_name):
+                if exh_case_expr.params.len().eq(0) {
                     // case A
-                    matched_variants.push(name)
+                    matched_variants.push(exh_name)
                 } else {
                     // case ExampleEnum.A
-                    mut variant_expr := Expr()
-                    case_expr.params.get(0, variant_expr)
-                    switch variant_expr.node_type {
-                    case NodeType.Identifier(variant):
-                        if not(name.eq(enum_name)) {
-                            errors.push(case_expr.error(context.path, "type", format("Mismatched enum type '", name, "', expected '", enum_name, "'.")))
+                    mut exh_variant_expr := Expr()
+                    exh_case_expr.params.get(0, exh_variant_expr)
+                    switch exh_variant_expr.node_type {
+                    case NodeType.Identifier(exh_variant):
+                        if not(exh_name.eq(enum_name)) {
+                            errors.push(exh_case_expr.error(context.path, "type", format("Mismatched enum type '", exh_name, "', expected '", enum_name, "'.")))
                         }
-                        matched_variants.push(variant)
+                        matched_variants.push(exh_variant)
                     case:
-                        errors.push(case_expr.error(context.path, "type", "Invalid enum case syntax"))
+                        errors.push(exh_case_expr.error(context.path, "type", "Invalid enum case syntax"))
                     }
                 }
 

@@ -226,10 +226,15 @@ fn compute_reachable(
                 mark_reachable(called_func, &mut reachable, &mut worklist);
             }
         } else {
-            // Check if this is an enum constructor (e.g., Color.Name)
+            // Check if this is an enum constructor (e.g., Color.Name) or enum type reference
             let parts: Vec<&str> = func_name.split('.').collect();
             if parts.len() == 2 && context.scope_stack.lookup_enum(parts[0]).is_some() {
                 // Enum constructor - no body to walk
+                continue;
+            }
+            // Check if this is just an enum type name (e.g., ValueType without variant)
+            if parts.len() == 1 && context.scope_stack.lookup_enum(&func_name).is_some() {
+                // Enum type reference - no body to walk
                 continue;
             }
 

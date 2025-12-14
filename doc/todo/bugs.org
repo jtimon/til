@@ -9,6 +9,58 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #33: for-in loops don't work with enum collections
+:PROPERTIES:
+:DISCOVERED: 2025-12-14
+:IMPACT: Code ergonomics
+:STATUS: Open
+:END:
+
+*** Description
+The for-in loop syntax doesn't work when iterating over collections of enum values (e.g., Vec<ValueType>).
+
+#+BEGIN_EXAMPLE til
+// This fails:
+for val: ValueType in vec_of_valuetypes {
+    // ...
+}
+#+END_EXAMPLE
+
+*** Root Cause
+The for-in desugaring in precomp.rs creates code like:
+
+#+BEGIN_EXAMPLE til
+for _for_i in 0..collection.len() {
+    mut val := ValueType()    // <-- Problem: no parameterless constructor
+    collection.get(_for_i, val)
+    // body
+}
+#+END_EXAMPLE
+
+For structs, `StructName()` creates a default-initialized instance. But enums don't have a parameterless constructor - all variants require payloads (e.g., `ValueType.TCustom(Str)`, `ValueType.TFunction(FunctionType)`).
+
+*** Workaround
+Use while loops with explicit initialization using a valid enum variant:
+
+#+BEGIN_EXAMPLE til
+mut i := 0
+while i.lt(vec_of_valuetypes.len()) {
+    mut val := ValueType.TCustom("")  // Use any valid variant as placeholder
+    vec_of_valuetypes.get(i, val)
+    // body
+    i.inc()
+}
+#+END_EXAMPLE
+
+*** Potential Fixes
+1. Add a default/placeholder variant to enums that need for-in iteration
+2. Change for-in desugaring to use a different mechanism that doesn't require default initialization
+3. Allow enums to specify a default variant for this purpose
+
+*** Affected Code
+- src/self/typer.til: Converted for-in loops over ValueType to while loops
+- src/self/ccodegen.til: Same workaround applied
+
 ** Bug #32: TIL doesn't support chained field access + method calls
 :PROPERTIES:
 :DISCOVERED: 2025-12-14

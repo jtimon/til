@@ -503,7 +503,10 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         // Emit error checking - propagate or goto based on context
         // Check if there are local catch labels for these error types
         mut has_local_catch := false
-        for throw_type: ValueType in throwing_info.throw_types {
+        mut throw_check_idx := 0
+        while throw_check_idx.lt(throwing_info.throw_types.len()) {
+            mut throw_type := ValueType.TCustom("")
+            throwing_info.throw_types.get(throw_check_idx, throw_type)
             switch throw_type {
             case ValueType.TCustom(type_name):
                 if Map.contains_key(ctx.local_catch_labels, type_name) {
@@ -512,6 +515,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                 }
             case:
             }
+            throw_check_idx.inc()
         }
 
         if has_local_catch {
@@ -5199,7 +5203,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                 mut err_idx := sub(0, 1)  // -1 = not found
                 mut j := 0
                 while lt(j, throw_types.len()) {
-                    mut vt := ValueType.TFunction
+                    mut vt := ValueType.TFunction(FunctionType.FTFunc)
                     throw_types.get(j, vt)
                     switch vt {
                     case ValueType.TCustom(type_name):
@@ -6177,7 +6181,7 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     if lookup_result.found {
                         // It's a function - use its return type as the thrown type
                         if gt(lookup_result.func_def.return_types.len(), 0) {
-                            mut ret_type := ValueType.TFunction
+                            mut ret_type := ValueType.TFunction(FunctionType.FTFunc)
                             lookup_result.func_def.return_types.get(0, ret_type)
                             switch ret_type {
                             case ValueType.TCustom(type_name):
@@ -6276,7 +6280,7 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     mut error_index := sub(0, 1)  // -1 = not found
     mut i := 0
     while lt(i, ctx.current_throw_types.len()) {
-        mut vt := ValueType.TFunction
+        mut vt := ValueType.TFunction(FunctionType.FTFunc)
         ctx.current_throw_types.get(i, vt)
         switch vt {
         case ValueType.TCustom(type_name):

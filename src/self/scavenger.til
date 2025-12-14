@@ -345,6 +345,17 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
                     continue
                 }
 
+                // Check if this is just an enum type name (e.g., ValueType without variant)
+                if dot_pos.lt(0).or(dot_pos.eq(0)) {
+                    mut enum_def := SEnumDef()
+                    enum_def = context.scope_stack.lookup_enum(func_name)
+                    // Enum type reference - no body to walk
+                    continue
+                    catch (err: KeyNotFoundError) {
+                        // Not an enum type name, continue checking
+                    }
+                }
+
                 {
                     // Check if this is an unresolved UFCS call (e.g., s.len or obj.field.len where s/obj is a variable)
                     // This happens when precomp couldn't determine the type (e.g., pattern bindings in switch)
