@@ -28,6 +28,7 @@ pub fn lang_to_str(lang: &Lang) -> &'static str {
     }
 }
 
+#[allow(dead_code)]
 pub fn lang_file_extension(lang: &Lang) -> &'static str {
     match lang {
         Lang::C => "c",

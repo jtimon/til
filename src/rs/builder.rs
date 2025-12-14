@@ -11,7 +11,7 @@ use crate::rs::mode::{parse_mode, ModeDef};
 use crate::rs::ccodegen;
 use crate::rs::init::{import_path_to_file_path, init_import_declarations, Context};
 use crate::rs::typer::{check_types, basic_mode_checks, typer_import_declarations};
-use crate::rs::target::{Target, Lang, toolchain_command, toolchain_extra_args, executable_extension, validate_lang_for_target, lang_to_str, detect_current_target, default_lang_for_target};
+use crate::rs::target::{Target, Lang, toolchain_command, toolchain_extra_args, executable_extension, validate_lang_for_target, lang_to_str};
 
 // Parse a single file and return its AST (and mode for main file)
 fn parse_file(path: &str) -> Result<(Expr, ModeDef), String> {
