@@ -55,18 +55,17 @@ usage := proc() {
 main := proc(args: ..Str) {
 
     if gt(args.len(), 1) {
-        mut main_args := Array.new(Str, sub(args.len(), 1))
+        mut main_args := Vec.new(Str)
+        mut i := 0
+        for arg: Str in args {
+            if i.gt(0) {
+                main_args.push(arg)
+            }
+            i.inc()
+        }
         catch(e: AllocError) {
             println("Fatal: Failed to allocate argument array")
             return
-        }
-        for i in 1..args.len() {
-            mut val := ""
-            args.get(i, val)
-            main_args.set(add(i, 0), val)
-            catch(err: IndexOutOfBoundsError) {
-                // REM: It is fine to args.set(0) here, we just checked
-            }
         }
 
         mut cmd := ""
