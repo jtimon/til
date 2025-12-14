@@ -92,8 +92,7 @@ Don't ask permission for:
 - Removing `.backup` files
 
 ## Never Allowed - Must Ask/Warn First
-- Modifying `doc/*.org` files (human-maintained)
-- Modifying `doc/human/*.org` files (human-maintained)
+- Modifying `doc/*.org` files (human-maintained, except doc/todo/*.org)
 - `git push` to remote
 - Git force operations (`push --force`, `reset --hard`, etc.)
 - Deleting tracked files outside tmp/ directories
@@ -122,9 +121,9 @@ When porting code from Rust (`src/rs/`) to TIL (`src/self/`):
 ## File Organization
 - `doc/bot.org` - READ THIS for full guidelines (human-maintained, don't edit)
 - `doc/bot/` - Your workspace (full freedom to create/edit)
-- `doc/human/` - Human reference docs (read-only)
+- `doc/*.org` - Reference docs (read-only, except doc/todo/*.org)
 - `doc/todo/` - Shared workspace (can edit)
-- `doc/human/translate_rs2til.org` - Rust to TIL translation guide
+- `doc/translate_rs2til.org` - Rust to TIL translation guide
 
 ## Task Naming Convention
 **NEVER use "Phase 1", "Phase 2", etc.** - This conflicts with compiler/interpreter phases.

@@ -199,8 +199,8 @@ This simplicity is a core TIL design principle: powerful features through simple
 
 * See Also
 
-- =doc/human/faq.org= - Mentions UFCS in the OOP vs data-oriented discussion
-- =doc/human/design.org= - May contain design rationale for UFCS
+- =doc/faq.org= - Mentions UFCS in the OOP vs data-oriented discussion
+- =doc/design.org= - May contain design rationale for UFCS
 
 * Notes
 

@@ -181,7 +181,7 @@ Required for types with collection operations (push/get/set/insert).
 
 * See Also
 
-- =doc/human/ufcs.org= - Explains how methods like =.size()= can be called with UFCS
+- =doc/ufcs.org= - Explains how methods like =.size()= can be called with UFCS
 - =doc/todo/mandatory.org= - Internal tracking of mandatory method enforcement
 
 * Notes

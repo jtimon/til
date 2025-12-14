@@ -67,15 +67,21 @@ Examples:
 - doc/bugs.org
 - doc/dry.org
 
-** doc/human/ - Human Reference Documentation
+** doc/*.org - Reference Documentation
 Human-maintained reference documentation and design notes.
 Bot should read these files but NOT edit them without explicit permission.
 
 Files:
-- doc/human/terminology.org
-- doc/human/design_notes.org
-- doc/human/literal_syntax.org
-- doc/human/syntax_bikeshedding.org
+- doc/terminology.org - Key terms and definitions
+- doc/design.org - Design notes and rationale
+- doc/literal_syntax.org - Literal syntax reference
+- doc/bike.org - Syntax bikeshedding discussions
+- doc/faq.org - Frequently asked questions
+- doc/mandatory.org - Mandatory method requirements
+- doc/metaprogramming.org - Metaprogramming features
+- doc/ownership.org - Ownership model design
+- doc/translate_rs2til.org - Rust to TIL translation guide
+- doc/ufcs.org - UFCS documentation
 
 ** doc/bot/ - Bot Workspace
 Complete freedom for bot's own notes and workspace.

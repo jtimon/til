@@ -635,7 +635,7 @@ This design aligns with Mojo's ownership model:
 - default = reference (efficient, safe with type checker)
 - Future: 'own' keyword for ownership transfer
 
-See doc/human/ownership.org for full design analysis and Mojo comparison.
+See doc/ownership.org for full design analysis and Mojo comparison.
 
 **All tests pass**, including test_declaration_creates_copy (args.til:484)
 

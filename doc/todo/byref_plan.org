@@ -677,7 +677,7 @@ If Str has other special cases (insert_string(), get_string(), etc.), those migh
 
 * Why Deferred Until Self-Hosting (Updated)
 
-From doc/human/ownership.org:218-221:
+From doc/ownership.org:218-221:
 
 #+BEGIN_QUOTE
 ** ⏸ Phase 3: Default Params as References (DEFERRED)
@@ -742,7 +742,7 @@ The original reasoning about "arena singleton corruption" was based on a misunde
 
 * Comparison with Mojo
 
-From doc/human/ownership.org:
+From doc/ownership.org:
 
 | Feature                 | Mojo (2025)    | TIL (Current)       | TIL (After Phase 3) |
 |-------------------------+----------------+---------------------+---------------------|
@@ -864,7 +864,7 @@ After Phase 3: ~mut~ return logic becomes offset sharing, no copying needed.
 
 * References
 
-- Mojo ownership model: doc/human/ownership.org
+- Mojo ownership model: doc/ownership.org
 - Parameter handling: src/rs/interpreter.rs:1450-1800
 - Type checking: src/rs/typer.rs:278-375
 - Arena implementation: src/rs/interpreter.rs:16-37
