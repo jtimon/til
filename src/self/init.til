@@ -459,15 +459,8 @@ ScopeStack := struct {
         // Collect all keys from all scopes that start with the given prefix
         mut keys := Vec.new(Str)
         mut prefix_len := prefix.len()
-        mut i := 0
-        while i.lt(self.frames.len()) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)
-            mut symbol_keys := frame.symbols.keys
-            mut j := 0
-            while j.lt(symbol_keys.len()) {
-                mut key := ""
-                symbol_keys.get(j, key)
+        for frame: ScopeFrame in self.frames {
+            for key: Str in frame.symbols.keys {
                 // Check if key starts with prefix
                 if key.len().gteq(prefix_len) {
                     mut matches := true
@@ -484,9 +477,7 @@ ScopeStack := struct {
                         keys.push(key)
                     }
                 }
-                j = j.add(1)
             }
-            i = i.add(1)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -499,22 +490,10 @@ ScopeStack := struct {
 
     get_all_struct_names := func(self: ScopeStack) returns Vec throws Str {
         mut names := Vec.new(Str)
-        mut i := 0
-        while i.lt(self.frames.len()) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)
-            mut struct_keys := frame.structs.keys
-            mut j := 0
-            while j.lt(struct_keys.len()) {
-                mut key := ""
-                struct_keys.get(j, key)
+        for frame: ScopeFrame in self.frames {
+            for key: Str in frame.structs.keys {
                 names.push(key)
-                j = j.add(1)
             }
-            i = i.add(1)
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw err.msg
         }
         catch (err: AllocError) {
             throw err.msg
@@ -1105,10 +1084,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
         }
 
         # Now, process each nested member.
-        mut param_idx := 0
-        while param_idx.lt(e.params.len()) {
-            mut cursor := Expr()  # Default init, will be overwritten by get()
-            e.params.get(param_idx, cursor)
+        for cursor: Expr in e.params {
             mut member_name := ""
             switch cursor.node_type {
             case NodeType.Identifier(n):
@@ -1154,8 +1130,6 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
             case:
                 throw e.error(context.path, "type", format("'", name, "' of type '", value_type_to_str(current_type), "' can't have members"))
             }
-
-            param_idx = param_idx.add(1)
         }
 
         return current_type  # Return the type of the last field (x)
@@ -1301,12 +1275,8 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         mut orig_path_clone := original_path
         context.path = original_path
         mut error_msg := format("While trying to import ", path, " from ", orig_path_clone, ":\n")
-        mut err_idx := 0
-        while err_idx.lt(errors.len()) {
-            mut err := ""  # Default init, will be overwritten by get()
-            errors.get(err_idx, err)
+        for err: Str in errors {
             error_msg = format(error_msg, path, ":", err, "\n")
-            err_idx = err_idx.add(1)
         }
         throw error_msg
     }
@@ -1341,23 +1311,11 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
 
     switch e.node_type {
     case NodeType.Body:
-        mut param_idx := 0
-        while param_idx.lt(e.params.len()) {
-            mut se := Expr()  # Default init, will be overwritten by get()
-            e.params.get(param_idx, se)
+        for se: Expr in e.params {
             mut sub_errors := init_context(context, se)
-            // Manually extend errors with sub_errors (no Vec.extend in TIL)
-            mut sub_idx := 0
-            while sub_idx.lt(sub_errors.len()) {
-                mut sub_err := ""
-                sub_errors.get(sub_idx, sub_err)
-                catch (idx_err: IndexOutOfBoundsError) {
-                    // Should not happen
-                }
+            for sub_err: Str in sub_errors {
                 errors.push(sub_err)
-                sub_idx = sub_idx.add(1)
             }
-            param_idx = param_idx.add(1)
         }
 
     case NodeType.FCall:
@@ -1515,21 +1473,13 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
                 context.scope_stack.declare_struct(decl.name, struct_def)
                 # Register associated funcs and constants (non-mut members only)
-                mut mem_idx := 0
-                while mem_idx.lt(struct_def.members.len()) {
-                    mut member_decl := Declaration()  # Default init, will be overwritten by get()
-                    struct_def.members.get(mem_idx, member_decl)
-                    catch (idx_err: IndexOutOfBoundsError) {
-                        # Should not happen
-                        mem_idx = mem_idx.add(1)
-                    }
-                    mut member_name := member_decl.name
+                for member_decl: Declaration in struct_def.members {
                     if not(member_decl.is_mut) {
                         # Skip instance fields - only process non-mut fields
                         # Try to find a default_value (required for funcs/consts)
                         mut has_default_value := false
-                        mut member_expr := Expr()  # Default init, will be overwritten by get()
-                        struct_def.default_values.get(member_name, member_expr)
+                        mut member_expr := Expr()
+                        struct_def.default_values.get(member_decl.name, member_expr)
                         has_default_value = true
                         catch (key_err: KeyNotFoundError) {
                             # No default value, skip this member
@@ -1540,7 +1490,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                             catch (err: Str) {
                                 # Failed to get type - just use INFER_TYPE default
                             }
-                            mut full_name := format(decl.name, ".", member_name)  # Note: using '.' not '::'
+                            mut full_name := format(decl.name, ".", member_decl.name)  # Note: using '.' not '::'
                             # Register in symbols
                             ScopeStack.declare_symbol(context.scope_stack, full_name, SymbolInfo.new(member_value_type, member_decl.is_mut, member_decl.is_copy, member_decl.is_own))
                             # If it's a function, also register in funcs
@@ -1552,7 +1502,6 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                             }
                         }
                     }
-                    mem_idx = mem_idx.add(1)
                 }
             case:
                 errors.push(e.lang_error(context.path, "type", "struct declarations should have definitions."))
@@ -1881,11 +1830,7 @@ Context := struct {
             // Calculate size of struct's fields manually
             mut total_size := 0
 
-            mut j := 0
-            while j.lt(struct_def.members.len()) {
-                mut decl := Declaration()
-                struct_def.members.get(j, decl)
-
+            for decl: Declaration in struct_def.members {
                 if decl.is_mut {
                     mut field_size := 0
                     switch decl.value_type {
@@ -1896,10 +1841,6 @@ Context := struct {
                     }
                     total_size = total_size.add(field_size)
                 }
-                j = j.add(1)
-            }
-            catch (err: IndexOutOfBoundsError) {
-                throw format("get_type_size: index error in struct '", type_name, "'")
             }
 
             return total_size
@@ -1917,11 +1858,7 @@ Context := struct {
 
         mut current_offset := 0
 
-        mut i := 0
-        while i.lt(struct_def.members.len()) {
-            mut decl := Declaration()
-            struct_def.members.get(i, decl)
-
+        for decl: Declaration in struct_def.members {
             if decl.is_mut {
                 if decl.name.eq(field_name) {
                     return current_offset
@@ -1937,10 +1874,6 @@ Context := struct {
 
                 current_offset = current_offset.add(field_size)
             }
-            i = i.add(1)
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw format("calculate_field_offset: index error in struct '", struct_type, "'")
         }
 
         throw format("calculate_field_offset: field '", field_name, "' not found in struct '", struct_type, "'")
@@ -2123,16 +2056,8 @@ Context := struct {
             return
         }
 
-        mut member_idx := 0
-        while member_idx.lt(struct_def.members.len()) {
-            mut decl := Declaration()
-            struct_def.members.get(member_idx, decl)
-            catch (err: IndexOutOfBoundsError) {
-                throw err.msg
-            }
-            mut field_name := decl.name
-
-            mut combined_name := format(instance_name, ".", field_name)
+        for decl: Declaration in struct_def.members {
+            mut combined_name := format(instance_name, ".", decl.name)
             self.scope_stack.declare_symbol(
                 combined_name,
                 SymbolInfo.new(
@@ -2158,15 +2083,14 @@ Context := struct {
             case:
                 # Not a custom type
             }
-            member_idx = member_idx.add(1)
-        }
-        catch (err: AllocError) {
-            throw err.msg
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
         catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
             throw err.msg
         }
     }
