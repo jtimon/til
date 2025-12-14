@@ -43,23 +43,26 @@ pub fn lang_file_extension(lang: &Lang) -> &'static str {
 pub enum Target {
     LinuxX64,
     LinuxArm64,
+    LinuxRiscv64,
     WindowsX64,
     MacosX64,
     MacosArm64,
+    Wasm32,
     TempleosX86,
-    // Future: more targets
 }
 
 pub fn target_from_str(s: &str) -> Result<Target, String> {
     match s.to_lowercase().as_str() {
         "linux-x64" | "linux-x86_64" | "linux-amd64" => Ok(Target::LinuxX64),
         "linux-arm64" | "linux-aarch64" => Ok(Target::LinuxArm64),
+        "linux-riscv64" | "linux-riscv" | "riscv64" => Ok(Target::LinuxRiscv64),
         "windows-x64" | "windows-x86_64" | "win64" => Ok(Target::WindowsX64),
         "macos-x64" | "macos-x86_64" | "darwin-x64" => Ok(Target::MacosX64),
         "macos-arm64" | "macos-aarch64" | "darwin-arm64" => Ok(Target::MacosArm64),
+        "wasm32" | "wasm" | "webassembly" => Ok(Target::Wasm32),
         "templeos-x86" | "templeos" => Ok(Target::TempleosX86),
         _ => Err(format!(
-            "Unknown target '{}'. Supported targets: linux-x64, linux-arm64, windows-x64, macos-x64, macos-arm64, templeos-x86",
+            "Unknown target '{}'. Supported targets: linux-x64, linux-arm64, linux-riscv64, windows-x64, macos-x64, macos-arm64, wasm32, templeos-x86",
             s
         )),
     }
@@ -69,9 +72,11 @@ pub fn target_to_str(target: &Target) -> &'static str {
     match target {
         Target::LinuxX64 => "linux-x64",
         Target::LinuxArm64 => "linux-arm64",
+        Target::LinuxRiscv64 => "linux-riscv64",
         Target::WindowsX64 => "windows-x64",
         Target::MacosX64 => "macos-x64",
         Target::MacosArm64 => "macos-arm64",
+        Target::Wasm32 => "wasm32",
         Target::TempleosX86 => "templeos-x86",
     }
 }
@@ -81,7 +86,8 @@ pub fn target_to_str(target: &Target) -> &'static str {
 pub fn default_lang_for_target(target: &Target) -> Lang {
     match target {
         Target::TempleosX86 => Lang::HolyC,
-        _ => Lang::C,
+        Target::LinuxX64 | Target::LinuxArm64 | Target::LinuxRiscv64 |
+        Target::WindowsX64 | Target::MacosX64 | Target::MacosArm64 | Target::Wasm32 => Lang::C,
     }
 }
 
@@ -117,16 +123,13 @@ pub fn validate_lang_for_target(lang: &Lang, target: &Target) -> Result<(), Stri
 
 pub fn toolchain_command(target: &Target, lang: &Lang) -> Result<&'static str, String> {
     match (target, lang) {
-        // Linux x64 - native gcc
         (Target::LinuxX64, Lang::C) => Ok("gcc"),
-        // Linux ARM64 - cross-compiler
         (Target::LinuxArm64, Lang::C) => Ok("aarch64-linux-gnu-gcc"),
-        // Windows x64 - MinGW cross-compiler
+        (Target::LinuxRiscv64, Lang::C) => Ok("riscv64-linux-gnu-gcc"),
         (Target::WindowsX64, Lang::C) => Ok("x86_64-w64-mingw32-gcc"),
-        // macOS - clang
         (Target::MacosX64, Lang::C) => Ok("clang"),
         (Target::MacosArm64, Lang::C) => Ok("clang"),
-        // TempleOS - HolyC compiler (placeholder)
+        (Target::Wasm32, Lang::C) => Ok("clang"),
         (Target::TempleosX86, Lang::HolyC) => Ok("holyc"),
         // Invalid combinations
         _ => Err(format!(
@@ -139,11 +142,9 @@ pub fn toolchain_command(target: &Target, lang: &Lang) -> Result<&'static str, S
 
 pub fn toolchain_extra_args(target: &Target, _lang: &Lang) -> Vec<&'static str> {
     match target {
-        // macOS ARM64 needs target specification
         Target::MacosArm64 => vec!["-target", "arm64-apple-macos11"],
         Target::MacosX64 => vec!["-target", "x86_64-apple-macos10.12"],
-        // Windows needs to link against Windows libraries
-        Target::WindowsX64 => vec![],
+        Target::Wasm32 => vec!["--target=wasm32", "-nostdlib", "-Wl,--no-entry", "-Wl,--export-all"],
         _ => vec![],
     }
 }
@@ -151,6 +152,7 @@ pub fn toolchain_extra_args(target: &Target, _lang: &Lang) -> Vec<&'static str> 
 pub fn executable_extension(target: &Target) -> &'static str {
     match target {
         Target::WindowsX64 => ".exe",
+        Target::Wasm32 => ".wasm",
         _ => "",
     }
 }

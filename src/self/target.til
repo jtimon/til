@@ -48,11 +48,12 @@ lang_file_extension := func(lang: Lang) returns Str {
 Target := enum {
     LinuxX64,
     LinuxArm64,
+    LinuxRiscv64,
     WindowsX64,
     MacosX64,
     MacosArm64,
+    Wasm32,
     TempleosX86,
-    // Future: more targets
 }
 
 target_from_str := func(s: Str) returns Target throws Str {
@@ -61,6 +62,9 @@ target_from_str := func(s: Str) returns Target throws Str {
     if s.eq("linux-amd64") { return Target.LinuxX64 }
     if s.eq("linux-arm64") { return Target.LinuxArm64 }
     if s.eq("linux-aarch64") { return Target.LinuxArm64 }
+    if s.eq("linux-riscv64") { return Target.LinuxRiscv64 }
+    if s.eq("linux-riscv") { return Target.LinuxRiscv64 }
+    if s.eq("riscv64") { return Target.LinuxRiscv64 }
     if s.eq("windows-x64") { return Target.WindowsX64 }
     if s.eq("windows-x86_64") { return Target.WindowsX64 }
     if s.eq("win64") { return Target.WindowsX64 }
@@ -70,18 +74,23 @@ target_from_str := func(s: Str) returns Target throws Str {
     if s.eq("macos-arm64") { return Target.MacosArm64 }
     if s.eq("macos-aarch64") { return Target.MacosArm64 }
     if s.eq("darwin-arm64") { return Target.MacosArm64 }
+    if s.eq("wasm32") { return Target.Wasm32 }
+    if s.eq("wasm") { return Target.Wasm32 }
+    if s.eq("webassembly") { return Target.Wasm32 }
     if s.eq("templeos-x86") { return Target.TempleosX86 }
     if s.eq("templeos") { return Target.TempleosX86 }
-    throw format("Unknown target '", s, "'. Supported targets: linux-x64, linux-arm64, windows-x64, macos-x64, macos-arm64, templeos-x86")
+    throw format("Unknown target '", s, "'. Supported targets: linux-x64, linux-arm64, linux-riscv64, windows-x64, macos-x64, macos-arm64, wasm32, templeos-x86")
 }
 
 target_to_str := func(target: Target) returns Str {
     switch target {
     case Target.LinuxX64: return "linux-x64"
     case Target.LinuxArm64: return "linux-arm64"
+    case Target.LinuxRiscv64: return "linux-riscv64"
     case Target.WindowsX64: return "windows-x64"
     case Target.MacosX64: return "macos-x64"
     case Target.MacosArm64: return "macos-arm64"
+    case Target.Wasm32: return "wasm32"
     case Target.TempleosX86: return "templeos-x86"
     }
     return "linux-x64"
@@ -151,6 +160,11 @@ toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
         case Lang.C: return "aarch64-linux-gnu-gcc"
         case: // fallthrough to error
         }
+    case Target.LinuxRiscv64:
+        switch lang {
+        case Lang.C: return "riscv64-linux-gnu-gcc"
+        case: // fallthrough to error
+        }
     case Target.WindowsX64:
         switch lang {
         case Lang.C: return "x86_64-w64-mingw32-gcc"
@@ -162,6 +176,11 @@ toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
         case: // fallthrough to error
         }
     case Target.MacosArm64:
+        switch lang {
+        case Lang.C: return "clang"
+        case: // fallthrough to error
+        }
+    case Target.Wasm32:
         switch lang {
         case Lang.C: return "clang"
         case: // fallthrough to error
@@ -184,6 +203,11 @@ toolchain_extra_args := func(target: Target, lang: Lang) returns Vec throws Allo
     case Target.MacosX64:
         result.push("-target")
         result.push("x86_64-apple-macos10.12")
+    case Target.Wasm32:
+        result.push("--target=wasm32")
+        result.push("-nostdlib")
+        result.push("-Wl,--no-entry")
+        result.push("-Wl,--export-all")
     case:
         // No extra args needed
     }
@@ -193,6 +217,7 @@ toolchain_extra_args := func(target: Target, lang: Lang) returns Vec throws Allo
 executable_extension := func(target: Target) returns Str {
     switch target {
     case Target.WindowsX64: return ".exe"
+    case Target.Wasm32: return ".wasm"
     case: return ""
     }
 }

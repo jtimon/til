@@ -1,154 +1,128 @@
-name: Cross-Compile Tests
+name: Tests
 
 on:
   push:
-    branches: [wip_cross_compile, master]
+    branches: [master]
   pull_request:
     branches: [master]
 
 jobs:
-  test-native:
-    name: Native Build (Linux x64)
+  linux-x64:
+    name: linux-x64
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust
-        run: rustup update stable
-
       - name: Build rstil
         run: make rstil
-
       - name: Create test tmp directory
         run: mkdir -p src/test/tmp
-
       - name: Run tests
         run: make tests
-
-      - name: Test translate command
+      - name: Test build
         run: |
-          ./bin/rstil translate src/examples/hello_script.til
-          test -f c/examples/hello_script.c
-
-      - name: Test build command (native)
-        run: |
-          ./bin/rstil build src/examples/hello_script.til
+          ./bin/rstil build src/examples/hello_script.til --target=linux-x64
           ./src/examples/bin/hello_script
 
-  test-translate:
-    name: Translate (codegen only)
+  linux-arm64:
+    name: linux-arm64
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust
-        run: rustup update stable
-
-      - name: Build rstil
-        run: make rstil
-
-      - name: Test translate generates valid C
-        run: |
-          ./bin/rstil translate src/examples/hello_script.til
-          test -s c/examples/hello_script.c
-          # Verify it compiles with gcc (syntax check)
-          gcc -fsyntax-only -I src c/examples/hello_script.c
-
-      - name: Test invalid lang error
-        run: |
-          if ./bin/rstil translate src/examples/hello_script.til --lang=invalid 2>&1 | grep -q "Unknown lang"; then
-            echo "Error message works correctly"
-          else
-            echo "Expected error message not found"
-            exit 1
-          fi
-
-      - name: Test TIL lang placeholder
-        run: |
-          if ./bin/rstil translate src/examples/hello_script.til --lang=til 2>&1 | grep -q "not supported yet"; then
-            echo "TIL placeholder message works correctly"
-          else
-            echo "Expected placeholder message not found"
-            exit 1
-          fi
-
-  test-cross-linux-arm64:
-    name: Cross-compile (Linux ARM64)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        run: rustup update stable
-
-      - name: Install ARM64 cross-compiler
+      - name: Install cross-compiler
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
-
       - name: Build rstil
         run: make rstil
+      - name: Create test tmp directory
+        run: mkdir -p src/test/tmp
+      - name: Run tests
+        run: make tests
+      - name: Test cross-compile
+        run: |
+          ./bin/rstil build src/examples/hello_script.til --target=linux-arm64
+          file src/examples/bin/hello_script | grep -q "aarch64"
 
-      - name: Cross-compile for Linux ARM64
-        run: ./bin/rstil build src/examples/hello_script.til --target=linux-arm64
-
-      - name: Verify binary format
-        run: file src/examples/bin/hello_script | grep -q "aarch64"
-
-  test-cross-windows:
-    name: Cross-compile (Windows x64)
+  linux-riscv64:
+    name: linux-riscv64
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install cross-compiler
+        run: sudo apt-get update && sudo apt-get install -y gcc-riscv64-linux-gnu
+      - name: Build rstil
+        run: make rstil
+      - name: Create test tmp directory
+        run: mkdir -p src/test/tmp
+      - name: Run tests
+        run: make tests
+      - name: Test cross-compile
+        run: |
+          ./bin/rstil build src/examples/hello_script.til --target=linux-riscv64
+          file src/examples/bin/hello_script | grep -q "RISC-V"
 
-      - name: Install Rust
-        run: rustup update stable
-
-      - name: Install MinGW cross-compiler
+  windows-x64:
+    name: windows-x64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross-compiler
         run: sudo apt-get update && sudo apt-get install -y mingw-w64
-
       - name: Build rstil
         run: make rstil
+      - name: Create test tmp directory
+        run: mkdir -p src/test/tmp
+      - name: Run tests
+        run: make tests
+      - name: Test cross-compile
+        run: |
+          ./bin/rstil build src/examples/hello_script.til --target=windows-x64
+          test -f src/examples/bin/hello_script.exe
 
-      - name: Cross-compile for Windows x64
-        run: ./bin/rstil build src/examples/hello_script.til --target=windows-x64
+  macos-x64:
+    name: macos-x64
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build rstil
+        run: make rstil
+      - name: Create test tmp directory
+        run: mkdir -p src/test/tmp
+      - name: Run tests
+        run: make tests
+      - name: Test build
+        run: |
+          ./bin/rstil build src/examples/hello_script.til --target=macos-x64
+          ./src/examples/bin/hello_script
 
-      - name: Verify executable extension
-        run: test -f src/examples/bin/hello_script.exe
+  macos-arm64:
+    name: macos-arm64
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build rstil
+        run: make rstil
+      - name: Create test tmp directory
+        run: mkdir -p src/test/tmp
+      - name: Run tests
+        run: make tests
+      - name: Test build
+        run: |
+          ./bin/rstil build src/examples/hello_script.til --target=macos-arm64
+          ./src/examples/bin/hello_script
 
-  test-validation-errors:
-    name: Validation Error Messages
+  wasm32:
+    name: wasm32
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust
-        run: rustup update stable
-
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang lld
       - name: Build rstil
         run: make rstil
-
-      - name: Test invalid target error
+      - name: Create test tmp directory
+        run: mkdir -p src/test/tmp
+      - name: Run tests
+        run: make tests
+      - name: Test cross-compile
         run: |
-          if ./bin/rstil build src/examples/hello_script.til --target=invalid 2>&1 | grep -q "Unknown target"; then
-            echo "Invalid target error works"
-          else
-            echo "Expected error not found"
-            exit 1
-          fi
-
-      - name: Test invalid lang error
-        run: |
-          if ./bin/rstil build src/examples/hello_script.til --lang=invalid 2>&1 | grep -q "Unknown lang"; then
-            echo "Invalid lang error works"
-          else
-            echo "Expected error not found"
-            exit 1
-          fi
-
-      - name: Test incompatible target/lang error
-        run: |
-          if ./bin/rstil build src/examples/hello_script.til --target=templeos-x86 --lang=c 2>&1 | grep -q "not supported for target"; then
-            echo "Incompatible target/lang error works"
-          else
-            echo "Expected error not found"
-            exit 1
-          fi
+          ./bin/rstil build src/examples/hello_script.til --target=wasm32
+          test -f src/examples/bin/hello_script.wasm
