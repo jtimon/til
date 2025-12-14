@@ -1909,11 +1909,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 for vi in param_index..e.params.len() {
                     mut expr := Expr()
                     e.params.get(vi, expr)
-                    result := eval_expr(context, expr)
-                    if result.is_throw {
-                        return result
+                    arg_result := eval_expr(context, expr)
+                    if arg_result.is_throw {
+                        return arg_result
                     }
-                    values.push(result.value)
+                    values.push(arg_result.value)
                 }
 
                 array_type_name := "Array"
@@ -1982,15 +1982,18 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     case:
                     }
 
-                    result := eval_expr(context, current_arg)
-                    if result.is_throw {
-                        return result
+                    eval_result := eval_expr(context, current_arg)
+                    if eval_result.is_throw {
+                        return eval_result
                     }
-                    result_str := result.value
+                    result_str := eval_result.value
 
                     // Restore enum payload if we saved it
                     if has_enum_backup {
-                        context.temp_enum_payload = enum_payload_backup
+                        // Allocate space for the backup and copy it
+                        mut temp_payload := EnumPayload()
+                        temp_payload = enum_payload_backup
+                        context.temp_enum_payload.data = to_ptr(temp_payload)
                     }
 
                     // Resolve Dynamic/Type to actual type first
@@ -2728,9 +2731,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         mut is_tcustom := false
         mut type_name := ""
         switch m.value_type {
-        case ValueType.TCustom:
+        case ValueType.TCustom(custom_name):
             is_tcustom = true
-            type_name = m.value_type.TCustom.name
+            type_name = custom_name
         case:
         }
 

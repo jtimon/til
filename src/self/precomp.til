@@ -990,16 +990,16 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     for p: Expr in e.params {
         transformed_params.push(precomp_expr(context, p))
     }
-    mut e := Expr.new_clone(e.node_type, e, transformed_params)
+    mut new_e := Expr.new_clone(e.node_type, e, transformed_params)
 
     // Now check if this is a UFCS call and transform it
-    if e.params.len().eq(0) {
+    if new_e.params.len().eq(0) {
         // Empty FCall, shouldn't happen but just return as-is
-        return e
+        return new_e
     }
 
     mut func_expr := Expr()
-    e.params.get(0, func_expr)
+    new_e.params.get(0, func_expr)
 
     switch func_expr.node_type {
     case NodeType.Identifier:
@@ -1014,7 +1014,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
         }
         if func_found {
             // Reorder named arguments to positional order before constant folding
-            reordered := reorder_named_args(context, e, func_def)
+            reordered := reorder_named_args(context, new_e, func_def)
 
             // Try compile-time constant folding for pure functions with literal args
             if is_comptime_evaluable(context, reordered) {
@@ -1040,7 +1040,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
             // Not found
         }
         if struct_found {
-            return e
+            return new_e
         }
 
         // Check for enum constructors (e.g., Color.Green(true))
@@ -1058,7 +1058,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 mut variant_name := ""
                 parts.get(1, variant_name)
                 if enum_def.enum_map.contains_key(variant_name) {
-                    return e
+                    return new_e
                 }
             }
         }
@@ -1066,9 +1066,9 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // UFCS for chained calls: func(result, args) -> Type.func(result, args)
         // e.g., add(1, 2).mul(3) becomes mul(add(1,2), 3) which transforms to I64.mul(add(1,2), 3)
         // This only applies when no standalone function with this name exists (checked above).
-        if e.params.len().gteq(2) {
+        if new_e.params.len().gteq(2) {
             mut first_arg := Expr()
-            e.params.get(1, first_arg)
+            new_e.params.get(1, first_arg)
             mut got_type := true
             mut target_type := get_value_type(context, first_arg)
             catch (err: Str) {
@@ -1097,14 +1097,14 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     }
                     if method_found {
                         // Transform: func(target, args...) -> Type.func(target, args...)
-                        mut new_e := Expr.new_clone(NodeType.Identifier(method_name), func_expr, Vec.new(Expr))
+                        mut new_id_e := Expr.new_clone(NodeType.Identifier(method_name), func_expr, Vec.new(Expr))
                         mut new_args := Vec.new(Expr)
-                        new_args.push(new_e)
-                        // Add remaining args
+                        new_args.push(new_id_e)
+                        // Add remaining args from outer new_e (the transformed FCall)
                         mut j := 1
-                        while j.lt(e.params.len()) {
+                        while j.lt(new_e.params.len()) {
                             mut arg := Expr()
-                            e.params.get(j, arg)
+                            new_e.params.get(j, arg)
                             new_args.push(arg)
                             j.inc()
                         }
@@ -1132,7 +1132,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 if id_params.len().gt(0) {
                     id_params.remove(id_params.len().sub(1))
                 }
-                mut receiver_expr := Expr.new_clone(func_expr.node_type, e, id_params)
+                mut receiver_expr := Expr.new_clone(func_expr.node_type, new_e, id_params)
 
                 // Try as an associated method (Type.method) first - this takes priority over standalone functions
                 // because x.and(y) should resolve to Bool.and(x, y) not and(x, y) when both exist
@@ -1163,15 +1163,15 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                             // Not found
                         }
                         if assoc_method_found {
-                            mut new_e := Expr.new_clone(NodeType.Identifier(method_name), func_expr, Vec.new(Expr))
+                            mut new_id_e := Expr.new_clone(NodeType.Identifier(method_name), func_expr, Vec.new(Expr))
                             mut new_args := Vec.new(Expr)
-                            new_args.push(new_e)
+                            new_args.push(new_id_e)
                             new_args.push(receiver_expr)
-                            // Add remaining args
+                            // Add remaining args from outer new_e
                             mut j := 1
-                            while j.lt(e.params.len()) {
+                            while j.lt(new_e.params.len()) {
                                 mut arg := Expr()
-                                e.params.get(j, arg)
+                                new_e.params.get(j, arg)
                                 new_args.push(arg)
                                 j.inc()
                             }
@@ -1188,15 +1188,15 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     // Not found
                 }
                 if standalone_found {
-                    mut new_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), func_expr, Vec.new(Expr))
+                    mut new_id_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), func_expr, Vec.new(Expr))
                     mut new_args := Vec.new(Expr)
-                    new_args.push(new_e)
+                    new_args.push(new_id_e)
                     new_args.push(receiver_expr)
-                    // Add remaining args
+                    // Add remaining args from outer new_e
                     mut j := 1
-                    while j.lt(e.params.len()) {
+                    while j.lt(new_e.params.len()) {
                         mut arg := Expr()
-                        e.params.get(j, arg)
+                        new_e.params.get(j, arg)
                         new_args.push(arg)
                         j.inc()
                     }
@@ -1219,5 +1219,5 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     }
 
     // No transformation needed
-    return e
+    return new_e
 }

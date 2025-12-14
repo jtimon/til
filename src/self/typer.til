@@ -2691,7 +2691,7 @@ is_expr_calling_procs := func(context: Context, e: Expr) returns Bool throws Str
 
         mut func_is_proc := false
         mut func_def := context.scope_stack.lookup_func(f_name)
-        func_is_proc = func_def.is_proc
+        func_is_proc = func_def.is_proc()
         catch (err: KeyNotFoundError) {
             func_is_proc = false
         }

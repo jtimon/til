@@ -127,9 +127,14 @@ static inline til_I64 til_str_to_i64(til_Str s)
 
 // I/O functions
 
-// input_read_line: read a line from stdin
-static inline til_Str til_input_read_line(void)
+// input_read_line: read a line from stdin, displaying prompt first
+static inline til_Str til_input_read_line(til_Str prompt)
 {
+    // Print the prompt if non-empty
+    if (prompt.cap > 0) {
+        printf("%.*s", (int)prompt.cap, (const char*)prompt.c_string);
+        fflush(stdout);
+    }
     static char buf[4096];
     if (fgets(buf, sizeof(buf), stdin) == NULL) {
         buf[0] = '\0';
