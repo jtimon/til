@@ -119,7 +119,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_OverflowError* _err1, const til_I64 til
 til_Bool til_Introspection_has_const(const til_Str til_type_name, const til_Str til_const_name);
 til_Bool til_Introspection_has_field(const til_Str til_type_name, const til_Str til_field_name);
 
-#include "ext.c"
+#include <ext.c>
 
 const til_I64 til_size_of_IndexOutOfBoundsError = sizeof(til_IndexOutOfBoundsError);
 const til_I64 til_size_of_AllocError = sizeof(til_AllocError);
