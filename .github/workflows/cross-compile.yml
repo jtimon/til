@@ -19,6 +19,9 @@ jobs:
       - name: Build rstil
         run: make rstil
 
+      - name: Create test tmp directory
+        run: mkdir -p src/test/tmp
+
       - name: Run tests
         run: make tests
 
