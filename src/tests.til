@@ -604,7 +604,6 @@ main := proc(args: ..Str) {
     rs_compiled.push(TestEntry(path="src/test/memcmp_str_compiled.til"))
     rs_compiled.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     rs_compiled.push(TestEntry(path="src/test/throw_simple.til"))
-    // rs_compiled.push(TestEntry(path="src/til.til")) // TODO: til.til can be unified to rs_common once til.til compiles without C errors
     // TODO FIX: enum constructors called as functions instead of struct init
     // rs_compiled.push(TestEntry(path="src/test/enums_payload.til"))
     // TODO FIX: switch_simple.til - same issue plus:
@@ -628,7 +627,7 @@ main := proc(args: ..Str) {
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
     rs_interpreted.push(TestEntry(path="src/self/interpreter.til")) // TODO FIX: precomp: Import not found in stored ASTs - init should have stored it
-    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: gcc: Str <= comparison, Bool.and missing, get_substr wrong args
+    rs_interpreted.push(TestEntry(path="src/til.til", cmd_args="help")) // TODO FIX: compiled binary has runtime lexer bugs
     // rs_interpreted.push(TestEntry(path="src/test/builders.til")) // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
