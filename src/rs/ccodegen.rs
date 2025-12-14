@@ -1650,7 +1650,9 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     output.push_str("\n");
 
     // Pass 3: include external C interface (after structs and forward decls)
-    output.push_str("#include \"ext.c\"\n\n");
+    // Use angle brackets to search only -I paths (src/), not the current directory
+    // This avoids including generated c/self/ext.c instead of the hand-written src/ext.c
+    output.push_str("#include <ext.c>\n\n");
 
     // Pass 4: emit struct constants (non-mut, non-function fields with mangled names)
     // Also emits size_of constants for each struct

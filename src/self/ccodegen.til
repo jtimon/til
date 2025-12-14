@@ -2574,6 +2574,11 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     }
     output = output.concat("\n")
 
+    // Pass 3d: include external C interface (after structs and forward decls)
+    // Use angle brackets to search only -I paths (src/), not the current directory
+    // This avoids including generated c/self/ext.c instead of the hand-written src/ext.c
+    output = output.concat("#include <ext.c>\n\n")
+
     // Pass 4: emit function definitions
     // 4a: top-level functions
     switch ast.node_type {
