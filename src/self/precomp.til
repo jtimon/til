@@ -31,8 +31,9 @@ precomp_import_declarations := proc(mut context: Context, import_path_str: Str) 
     original_path := context.path
     context.path = file_path
 
-    // Run precomp on the imported AST
-    _ := precomp_expr(context, ast)
+    // Run precomp on the imported AST and store the result
+    precompiled_ast := precomp_expr(context, ast)
+    context.imported_asts.set(file_path, precompiled_ast)
 
     context.path = original_path
 
@@ -1102,9 +1103,20 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 got_type = false
             }
             if got_type {
+                // Get type name from value_type - TCustom or TMulti (variadic params become Array)
+                mut type_name := ""
+                mut has_type_name := false
                 switch target_type {
                 case ValueType.TCustom(custom_type_name):
-                    mut method_name := format(custom_type_name, ".", combined_name)
+                    type_name = custom_type_name
+                    has_type_name = true
+                case ValueType.TMulti(variadic_type_name):
+                    type_name = "Array"
+                    has_type_name = true
+                case:
+                }
+                if has_type_name {
+                    mut method_name := format(type_name, ".", combined_name)
                     mut method_found := false
                     mut dummy := context.scope_stack.lookup_func(method_name)
                     method_found = true
@@ -1126,7 +1138,6 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                         }
                         return Expr.new_clone(NodeType.FCall, func_expr, new_args)
                     }
-                case:
                 }
             }
         }

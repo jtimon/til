@@ -2856,7 +2856,15 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
     context.path = path.clone();
 
-    // Just eval the stored AST - no re-parsing needed
+    // Run precomp on the imported AST if not already done
+    let ast = if !context.imports_precomp_done.contains(&path) {
+        context.imports_precomp_done.insert(path.clone());
+        precomp_expr(context, &ast)?
+    } else {
+        ast
+    };
+
+    // Eval the precomp'd AST
     let eval_result = eval_expr(context, &ast);
 
     context.path = original_path;

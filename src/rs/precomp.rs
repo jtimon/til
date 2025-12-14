@@ -37,8 +37,9 @@ pub fn precomp_import_declarations(context: &mut Context, import_path_str: &str)
     let original_path = context.path.clone();
     context.path = path.clone();
 
-    // Run precomp on the imported AST
-    let _ = precomp_expr(context, &ast)?;
+    // Run precomp on the imported AST and store the result
+    let precompiled_ast = precomp_expr(context, &ast)?;
+    context.imported_asts.insert(path.clone(), precompiled_ast);
 
     context.path = original_path;
     Ok(())
@@ -829,8 +830,14 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         if e.params.len() >= 2 {
             let first_arg = e.get(1)?;
             if let Ok(target_type) = get_value_type(context, first_arg) {
-                if let ValueType::TCustom(custom_type_name) = target_type {
-                    let method_name = format!("{}.{}", custom_type_name, combined_name);
+                // Get type name from value_type - TCustom or TMulti (variadic params become Array)
+                let custom_type_name = match &target_type {
+                    ValueType::TCustom(name) => Some(name.clone()),
+                    ValueType::TMulti(_) => Some("Array".to_string()),
+                    _ => None,
+                };
+                if let Some(type_name) = custom_type_name {
+                    let method_name = format!("{}.{}", type_name, combined_name);
                     if context.scope_stack.lookup_func(&method_name).is_some() {
                         // Transform: func(target, args...) -> Type.func(target, args...)
                         let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), e.get(0)?, Vec::new());

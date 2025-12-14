@@ -71,34 +71,20 @@ not := func(b: Bool) returns Bool {
 }
 
 or := func(args: ..Bool) returns Bool {
-    for i in 0..args.len() {
-        mut val := false
-        args.get(i, val)
+    for val: Bool in args {
         if val {
             return true
         }
     }
-
-    catch(err: IndexOutOfBoundsError) {
-        panic(loc(), "or: IndexOutOfBoundsError should never happen")
-    }
-
     return false
 }
 
 and := func(args: ..Bool) returns Bool {
-    for i in 0..args.len() {
-        mut val := false
-        args.get(i, val)
+    for val: Bool in args {
         if not(val) {
             return false
         }
     }
-
-    catch(err: IndexOutOfBoundsError) {
-        panic(loc(), "and: IndexOutOfBoundsError should never happen")
-    }
-
     return true
 }
 

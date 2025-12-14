@@ -88,17 +88,10 @@ Array := struct {
 
     /** Check if array contains value (for Str arrays). */
     contains := proc(self: Array, value: Str) returns Bool {
-        mut i := 0
-        while i.lt(self._len) {
-            mut elem := ""
-            self.get(i, elem)
+        for elem: Str in self {
             if elem.eq(value) {
                 return true
             }
-            i = i.add(1)
-        }
-        catch (err: IndexOutOfBoundsError) {
-            // Should never happen since we check bounds
         }
         return false
     }

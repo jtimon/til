@@ -3315,7 +3315,13 @@ proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 
     context.path = path.clone()
 
-    // Just eval the stored AST - no re-parsing needed
+    // Run precomp on the imported AST if not already done
+    if not(context.imports_precomp_done.contains(path)) {
+        _ := context.imports_precomp_done.insert(path.clone())
+        ast = precomp_expr(context, ast)
+    }
+
+    // Eval the precomp'd AST
     eval_result := eval_expr(context, ast)
 
     context.path = original_path

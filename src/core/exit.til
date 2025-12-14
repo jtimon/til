@@ -6,20 +6,12 @@ exit := ext_func(code: I64);
 
 panic := proc(loc_str: Str, msgs: ..Str) {
     single_print(loc_str)
-    for i in 0..msgs.len() {
-        mut val := ""
-        msgs.get(i, val)
+    for val: Str in msgs {
         single_print(val)
     }
     single_print("\n")
     print_flush()
     exit(1)
-
-    catch(err: IndexOutOfBoundsError) {
-        single_print("panic: IndexOutOfBoundsError should never happen\n")
-        print_flush()
-        exit(1)
-    }
 }
 
 assertm := func(loc_str: Str, cond: Bool, msg: Str) {

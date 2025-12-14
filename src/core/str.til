@@ -485,9 +485,7 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
     memcpy(result.c_string, prefix.c_string, prefix.cap)
     offset = prefix.cap
 
-    for i in 0..args.len() {
-        mut s := ""
-        args.get(i, s)
+    for s: Str in args {
         memcpy(add(result.c_string, offset), s.c_string, s.cap)
         offset = add(offset, s.cap)
     }
