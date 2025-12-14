@@ -6961,20 +6961,20 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         if gt(expr.params.len(), 0) {
             mut first_param := Expr()
             expr.params.get(0, first_param)
-            mut arg_idx := 1
-            while lt(arg_idx, first_param.params.len()) {
-                mut arg := Expr()
-                first_param.params.get(arg_idx, arg)
-                switch arg.node_type {
+            mut literal_arg_idx := 1
+            while lt(literal_arg_idx, first_param.params.len()) {
+                mut literal_arg := Expr()
+                first_param.params.get(literal_arg_idx, literal_arg)
+                switch literal_arg.node_type {
                 case NodeType.NamedArg(field_name):
-                    if gt(arg.params.len(), 0) {
+                    if gt(literal_arg.params.len(), 0) {
                         mut value_expr := Expr()
-                        arg.params.get(0, value_expr)
+                        literal_arg.params.get(0, value_expr)
                         named_values.set(field_name, value_expr)
                     }
                 case:
                 }
-                arg_idx.inc()
+                literal_arg_idx.inc()
             }
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
