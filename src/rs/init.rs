@@ -960,10 +960,10 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
         NodeType::Declaration(decl) => {
             // Bug #35: Skip "already declared" check for "_" - it's special for discarding return values
             if decl.name != "_" && (context.scope_stack.lookup_func(&decl.name).is_some() || context.scope_stack.lookup_symbol(&decl.name).is_some()) {
-                errors.push(e.error(&context.path, "type", &format!("'{}' already declared.", decl.name)));
+                errors.push(e.error(&context.path, "init", &format!("'{}' already declared.", decl.name)));
             }
             if e.params.len() != 1 {
-                errors.push(e.exit_error("type", &format!("in init_context, while declaring {}, declarations must take exactly one value.", decl.name)));
+                errors.push(e.exit_error("init", &format!("in init_context, while declaring {}, declarations must take exactly one value.", decl.name)));
                 return errors
             }
             let inner_e = match e.get(0) {
@@ -984,7 +984,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
                     value_type = decl.value_type.clone();
                 } else if value_type != decl.value_type {
-                    errors.push(e.error(&context.path, "type", &format!("'{}' declared of type '{}' but initialized to type '{}'.",
+                    errors.push(e.error(&context.path, "init", &format!("'{}' declared of type '{}' but initialized to type '{}'.",
                                                          decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type))));
                 }
             }
@@ -999,7 +999,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                                 context.scope_stack.declare_func(decl.name.to_string(), func_def.clone());
                             },
                             _ => {
-                                errors.push(e.lang_error(&context.path, "type", &format!("{}s should have definitions", value_type_to_str(&value_type))));
+                                errors.push(e.lang_error(&context.path, "init", &format!("{}s should have definitions", value_type_to_str(&value_type))));
                                 return errors;
                             },
                         }
@@ -1008,7 +1008,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
 
                 ValueType::TType(TTypeDef::TEnumDef) => {
                     if inner_e.params.len() != 0 {
-                        errors.push(e.exit_error("type", &format!("while declaring {}: enum declarations don't have any parameters in the tree.",
+                        errors.push(e.exit_error("init", &format!("while declaring {}: enum declarations don't have any parameters in the tree.",
                                                                   decl.name)));
                         return errors
                     }
@@ -1018,7 +1018,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             context.scope_stack.declare_enum(decl.name.to_string(), enum_def.clone());
                         },
                         _ => {
-                            errors.push(e.lang_error(&context.path, "type", "enums should have definitions."));
+                            errors.push(e.lang_error(&context.path, "init", "enums should have definitions."));
                             return errors;
                         },
                     }
@@ -1026,7 +1026,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
 
                 ValueType::TType(TTypeDef::TStructDef) => {
                     if inner_e.params.len() != 0 {
-                        errors.push(e.exit_error("type", &format!("while declaring {}, struct declarations must have exactly 0 params.",
+                        errors.push(e.exit_error("init", &format!("while declaring {}, struct declarations must have exactly 0 params.",
                                                                   decl.name)));
                         return errors
                     }
@@ -1036,7 +1036,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             for member_decl in &struct_def.members {
                                 if let ValueType::TCustom(ref member_type_name) = member_decl.value_type {
                                     if member_type_name == &decl.name {
-                                        errors.push(e.error(&context.path, "type", &format!(
+                                        errors.push(e.error(&context.path, "init", &format!(
                                             "recursive type '{}' has infinite size\n  --> field '{}' is recursive without indirection\nhelp: insert some indirection (e.g., a Ptr or Vec) to break the cycle",
                                             decl.name, member_decl.name
                                         )));
@@ -1065,7 +1065,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             }
                         },
                         _ => {
-                            errors.push(e.lang_error(&context.path, "type", "struct declarations should have definitions."));
+                            errors.push(e.lang_error(&context.path, "init", "struct declarations should have definitions."));
                             return errors;
                         },
                     }

@@ -1397,10 +1397,10 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
         }
         // Bug #35: Skip "already declared" check for "_" - it's special for discarding return values
         if not(decl.name.eq("_")).and(found_as_func.or(found_as_symbol)) {
-            errors.push(e.error(context.path, "type", format("'", decl.name, "' already declared.")))
+            errors.push(e.error(context.path, "init", format("'", decl.name, "' already declared.")))
         }
         if not(e.params.len().eq(1)) {
-            errors.push(e.lang_error(context.path, "type", format("in init_context, while declaring ", decl.name, ", declarations must take exactly one value.")))
+            errors.push(e.lang_error(context.path, "init", format("in init_context, while declaring ", decl.name, ", declarations must take exactly one value.")))
             return errors
         }
         mut inner_e := e.get(0)
@@ -1451,7 +1451,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 mut decl_vt_str := enum_to_str(decl.value_type)
                 mut value_vt_str := enum_to_str(value_type)
                 if not(value_vt_str.eq(decl_vt_str)) {
-                    errors.push(e.error(context.path, "type", format("'", decl.name, "' declared of type '", value_type_to_str(decl.value_type), "' but initialized to type '", value_type_to_str(value_type), "'.")))
+                    errors.push(e.error(context.path, "init", format("'", decl.name, "' declared of type '", value_type_to_str(decl.value_type), "' but initialized to type '", value_type_to_str(value_type), "'.")))
                 }
             }
         }
@@ -1469,14 +1469,14 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
                     context.scope_stack.declare_func(decl.name, func_def)
                 case:
-                    errors.push(e.lang_error(context.path, "type", format(value_type_to_str(value_type), "s should have definitions")))
+                    errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                     return errors
                 }
             }
 
         case ValueType.TType(TTypeDef.TEnumDef):
             if not(inner_e.params.len().eq(0)) {
-                errors.push(e.lang_error(context.path, "type", format("while declaring ", decl.name, ": enum declarations don't have any parameters in the tree.")))
+                errors.push(e.lang_error(context.path, "init", format("while declaring ", decl.name, ": enum declarations don't have any parameters in the tree.")))
                 return errors
             }
             switch inner_e.node_type {
@@ -1484,13 +1484,13 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
                 context.scope_stack.declare_enum(decl.name, enum_def)
             case:
-                errors.push(e.lang_error(context.path, "type", "enums should have definitions."))
+                errors.push(e.lang_error(context.path, "init", "enums should have definitions."))
                 return errors
             }
 
         case ValueType.TType(TTypeDef.TStructDef):
             if not(inner_e.params.len().eq(0)) {
-                errors.push(e.lang_error(context.path, "type", format("while declaring ", decl.name, ", struct declarations must have exactly 0 params.")))
+                errors.push(e.lang_error(context.path, "init", format("while declaring ", decl.name, ", struct declarations must have exactly 0 params.")))
                 return errors
             }
             switch inner_e.node_type {
@@ -1530,7 +1530,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                     }
                 }
             case:
-                errors.push(e.lang_error(context.path, "type", "struct declarations should have definitions."))
+                errors.push(e.lang_error(context.path, "init", "struct declarations should have definitions."))
                 return errors
             }
 
