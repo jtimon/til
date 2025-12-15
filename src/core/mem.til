@@ -2,12 +2,6 @@ mode lib
 
 AllocError := struct {
     mut msg: Str = ""
-
-    new := func(msg: Str) returns AllocError {
-        mut err := AllocError()
-        err.msg = msg
-        return err
-    }
 }
 
 // Memory operations

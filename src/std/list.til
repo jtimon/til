@@ -30,7 +30,7 @@ List := struct {
         list.data = malloc(1024)
 
         if I64.eq(list.data, 0) {
-            throw AllocError.new("List.new: malloc failed")
+            throw AllocError(msg="List.new: malloc failed")
         }
 
         list._len = 0
@@ -79,12 +79,12 @@ List := struct {
     /** Get element at index. */
     get := proc(self: List, index: I64, mut dest: Dynamic) throws IndexOutOfBoundsError {
         if gteq(index, self._len) {
-            throw IndexOutOfBoundsError.new(format("List.get: index ",
+            throw IndexOutOfBoundsError(msg=format("List.get: index ",
                 format(index.to_str(), format(" >= len ", self._len.to_str()))))
         }
 
         if lt(index, 0) {
-            throw IndexOutOfBoundsError.new(format("List.get: negative index ", index.to_str()))
+            throw IndexOutOfBoundsError(msg=format("List.get: negative index ", index.to_str()))
         }
 
         // Get type info for validation
@@ -113,12 +113,12 @@ List := struct {
      *  Example: list.set(0, I64, 99), list.set(1, Str, "world") */
     set := proc(mut self: List, index: I64, T: Type, value: Dynamic) throws IndexOutOfBoundsError {
         if gteq(index, self._len) {
-            throw IndexOutOfBoundsError.new(format("List.set: index ",
+            throw IndexOutOfBoundsError(msg=format("List.set: index ",
                 format(index.to_str(), format(" >= len ", self._len.to_str()))))
         }
 
         if lt(index, 0) {
-            throw IndexOutOfBoundsError.new(format("List.set: negative index ", index.to_str()))
+            throw IndexOutOfBoundsError(msg=format("List.set: negative index ", index.to_str()))
         }
 
         mut new_type := type_as_str(T)
@@ -167,7 +167,7 @@ List := struct {
     /** Pop last element from list. */
     pop := proc(mut self: List, mut dest: Dynamic) throws IndexOutOfBoundsError {
         if self._len.eq(0) {
-            throw IndexOutOfBoundsError.new(format(loc(), "List.pop: cannot pop from empty List"))
+            throw IndexOutOfBoundsError(msg=format(loc(), "List.pop: cannot pop from empty List"))
         }
 
         // Get last element FIRST before modifying anything
@@ -214,7 +214,7 @@ List := struct {
         mut total_bytes := self.calc_used()
         cloned.data = malloc(total_bytes)
         if NULL.eq(cloned.data) {
-            throw AllocError.new(format(loc(), "List.clone: malloc failed for ", I64.to_str(total_bytes), " bytes"))
+            throw AllocError(msg=format(loc(), "List.clone: malloc failed for ", I64.to_str(total_bytes), " bytes"))
         }
         memcpy(cloned.data, self.data, total_bytes)
         return cloned

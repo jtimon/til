@@ -11,12 +11,12 @@ Ptr := struct {
 
     new_by_size := proc(size: I64) returns Ptr throws AllocError {
         if size.lteq(0) {
-            throw AllocError.new(format(loc(), "Ptr.new_by_size: invalid size ", size.to_str()))
+            throw AllocError(msg=format(loc(), "Ptr.new_by_size: invalid size ", size.to_str()))
         }
         mut p := Ptr()
         p.data = malloc(size)
         if NULL.eq(p.data) {
-            throw AllocError.new(format(loc(), "Ptr.new: failed to allocate ", size.to_str(), " bytes"))
+            throw AllocError(msg=format(loc(), "Ptr.new: failed to allocate ", size.to_str(), " bytes"))
         }
         return p
     }
@@ -27,7 +27,7 @@ Ptr := struct {
 
     delete := proc(self: Ptr) throws AllocError {
         if NULL.eq(self.data) {
-            throw AllocError.new(format(loc(), "Ptr.free: trying to free a NULL pointer"))
+            throw AllocError(msg=format(loc(), "Ptr.free: trying to free a NULL pointer"))
         }
         free(self.data)
     }

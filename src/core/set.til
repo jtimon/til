@@ -143,7 +143,7 @@ Set := struct {
     /** Get element at index (for iteration) */
     get := proc(self: Set, index: I64, mut out: Dynamic) throws IndexOutOfBoundsError {
         if index.lt(0).or(not(index.lt(self._size))) {
-            throw IndexOutOfBoundsError.new(format("Set.get: index ", I64.to_str(index), " out of bounds (size: ", I64.to_str(self._size), ")"))
+            throw IndexOutOfBoundsError(msg=format("Set.get: index ", I64.to_str(index), " out of bounds (size: ", I64.to_str(self._size), ")"))
         }
         mut src_ptr := add(self.elements.ptr, mul(index, self.elem_type_size))
         memcpy(to_ptr(out), src_ptr, self.elem_type_size)

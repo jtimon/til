@@ -2,10 +2,4 @@ mode lib
 
 IndexOutOfBoundsError := struct {
     mut msg: Str = ""
-
-    new := func(msg: Str) returns IndexOutOfBoundsError {
-        mut err := IndexOutOfBoundsError()
-        err.msg = msg
-        return err
-    }
 }

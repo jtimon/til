@@ -20,12 +20,6 @@ MAX_I64   := 9223372036854775807 // REM This is a lie, see bellow.
 
 I64_OverflowError := struct {
     mut msg: Str = ""
-
-    new := func(msg: Str) returns I64_OverflowError {
-        mut err := I64_OverflowError()
-        err.msg = msg
-        return err
-    }
 }
 
 // DivideByZero := struct {} // REM Apparently Roc tried this and rolled it back

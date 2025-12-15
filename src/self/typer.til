@@ -2402,7 +2402,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
         }
         if struct_found {
             // This is to allow struct instantiation - throw KeyNotFoundError to signal Ok(None)
-            throw KeyNotFoundError.new(format("Struct instantiation: ", combined_name))
+            throw KeyNotFoundError(msg=format("Struct instantiation: ", combined_name))
         }
 
         // Check for enum constructors (e.g., Color.Green(true))
@@ -2424,7 +2424,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                     if enum_def.enum_map.contains_key(variant_name) {
                         // This is a valid enum constructor
                         parts.delete()
-                        throw KeyNotFoundError.new(format("Enum constructor: ", combined_name))
+                        throw KeyNotFoundError(msg=format("Enum constructor: ", combined_name))
                     }
                 }
                 parts.delete()

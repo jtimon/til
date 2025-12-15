@@ -38,7 +38,7 @@ Array := struct {
     /** Get element at index. */
     get := proc(self: Array, index: I64, mut T: Dynamic) throws IndexOutOfBoundsError {
         if index.gteq(self._len) {
-            throw IndexOutOfBoundsError.new(format(loc(), "Array.get: index out of bounds"))
+            throw IndexOutOfBoundsError(msg=format(loc(), "Array.get: index out of bounds"))
         }
 
         // if not(Str.eq(type_as_str(T), self.type_name)) { // TODO FIX
@@ -53,7 +53,7 @@ Array := struct {
     /** Set element at index. */
     set := proc(mut self: Array, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
         if index.gteq(self._len) {
-            throw IndexOutOfBoundsError.new(format(loc(), "Array.set: index out of bounds"))
+            throw IndexOutOfBoundsError(msg=format(loc(), "Array.set: index out of bounds"))
         }
 
         // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
@@ -80,7 +80,7 @@ Array := struct {
         mut total_bytes := mul(self._len, self.type_size)
         cloned.ptr = malloc(total_bytes)
         if NULL.eq(cloned.ptr) {
-            throw AllocError.new(format(loc(), "Array.clone: malloc failed for ", I64.to_str(total_bytes), " bytes"))
+            throw AllocError(msg=format(loc(), "Array.clone: malloc failed for ", I64.to_str(total_bytes), " bytes"))
         }
         memcpy(cloned.ptr, self.ptr, total_bytes)
         return cloned

@@ -6,12 +6,6 @@ MAX_U8    := 255
 
 U8_OverflowError := struct {
     mut msg: Str = ""
-
-    new := func(msg: Str) returns U8_OverflowError {
-        mut err := U8_OverflowError()
-        err.msg = msg
-        return err
-    }
 }
 
 /** U8 - Unsigned 8-bit integer type. */
@@ -53,10 +47,10 @@ U8 := struct {
 
     from_i64 := func(self: I64) returns U8 throws U8_OverflowError {
         if lt(self, 0) {
-            throw U8_OverflowError.new(format(loc(), "Negative values cannot be cast into 'U8'"))
+            throw U8_OverflowError(msg=format(loc(), "Negative values cannot be cast into 'U8'"))
         }
         if gt(self, MAX_U8) {
-            throw U8_OverflowError.new(format(loc(), "U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
+            throw U8_OverflowError(msg=format(loc(), "U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
         }
         i64_to_u8 := ext_func(i64: I64) returns U8;
         return i64_to_u8(self)

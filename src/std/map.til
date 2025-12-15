@@ -4,22 +4,10 @@ import("core.vec")
 
 DuplicatedKeyError := struct {
     mut msg: Str = ""
-
-    new := func(msg: Str) returns DuplicatedKeyError {
-        mut err := DuplicatedKeyError()
-        err.msg = msg
-        return err
-    }
 }
 
 KeyNotFoundError := struct {
     mut msg: Str = ""
-
-    new := func(msg: Str) returns KeyNotFoundError {
-        mut err := KeyNotFoundError()
-        err.msg = msg
-        return err
-    }
 }
 
 /**
@@ -92,7 +80,7 @@ Map := struct {
 
             if keys_match.eq(0) {
                 // Key already exists - throw error
-                throw DuplicatedKeyError.new(format(loc(), "Key already exists in map"))
+                throw DuplicatedKeyError(msg=format(loc(), "Key already exists in map"))
             }
             i = add(i, 1)
         }
@@ -232,7 +220,7 @@ Map := struct {
         }
 
         // Key not found
-        throw KeyNotFoundError.new(format(loc(), "Key not found in map"))
+        throw KeyNotFoundError(msg=format(loc(), "Key not found in map"))
     }
 
     /** Check if key exists in map. */

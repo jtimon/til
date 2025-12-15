@@ -150,7 +150,7 @@ Arena := struct {
             }
 
             memcpy(add(arena.memory.ptr, offset), to_ptr(v), 8)
-            throw KeyNotFoundError.new("already handled")
+            throw KeyNotFoundError(msg="already handled")
         }
 
         // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
@@ -210,7 +210,7 @@ Arena := struct {
             catch (err: IndexOutOfBoundsError) {
                 throw err.msg
             }
-            throw KeyNotFoundError.new("already handled")
+            throw KeyNotFoundError(msg="already handled")
         }
 
         offset := arena.memory.len()
@@ -799,7 +799,7 @@ Arena := struct {
                     }
                     mi = add(mi, 1)
                 }
-                throw KeyNotFoundError.new("already handled")
+                throw KeyNotFoundError(msg="already handled")
             }
 
             // Not yet inserted - insert fresh inlined Str
@@ -840,7 +840,7 @@ Arena := struct {
             }
 
             ctx.scope_stack.insert_var(id, struct_offset)
-            throw KeyNotFoundError.new("already handled")
+            throw KeyNotFoundError(msg="already handled")
         }
 
         mut result := StringInsertInfo()
