@@ -337,6 +337,56 @@ fn precomp_params(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
 }
 
+/// Build a default value expression for a given ValueType.
+/// Used when generating placeholder values for enum variant payloads in for-in loops.
+/// Bug #33: for-in loops don't work with enum collections
+fn build_default_value(vt: &ValueType, line: usize, col: usize) -> Expr {
+    match vt {
+        ValueType::TCustom(type_name) => {
+            match type_name.as_str() {
+                "I64" => Expr::new_explicit(
+                    NodeType::LLiteral(Literal::Number("0".to_string())),
+                    vec![],
+                    line,
+                    col,
+                ),
+                "U8" => Expr::new_explicit(
+                    NodeType::LLiteral(Literal::Number("0".to_string())),
+                    vec![],
+                    line,
+                    col,
+                ),
+                "Bool" => Expr::new_explicit(
+                    NodeType::Identifier("false".to_string()),
+                    vec![],
+                    line,
+                    col,
+                ),
+                "Str" => Expr::new_explicit(
+                    NodeType::LLiteral(Literal::Str(String::new())),
+                    vec![],
+                    line,
+                    col,
+                ),
+                // For other types (structs, other enums), use the default constructor
+                _ => Expr::new_explicit(
+                    NodeType::FCall,
+                    vec![Expr::new_explicit(NodeType::Identifier(type_name.clone()), vec![], line, col)],
+                    line,
+                    col,
+                ),
+            }
+        }
+        // For function types and other types, use a placeholder (shouldn't typically happen)
+        _ => Expr::new_explicit(
+            NodeType::LLiteral(Literal::Number("0".to_string())),
+            vec![],
+            line,
+            col,
+        ),
+    }
+}
+
 /// Desugar ForIn to a range-based for loop with get() calls
 /// for VAR: TYPE in COLLECTION { body }
 /// becomes:
@@ -406,7 +456,7 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
         e.col,
     );
 
-    // Build: mut VAR := TYPE()
+    // Build: mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
     let var_decl = Declaration {
         name: var_name.clone(),
         value_type: ValueType::TCustom(var_type_name.to_string()),
@@ -415,12 +465,60 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
         is_own: false,
         default_value: None,
     };
-    let type_call = Expr::new_explicit(
-        NodeType::FCall,
-        vec![Expr::new_explicit(NodeType::Identifier(var_type_name.to_string()), vec![], e.line, e.col)],
-        e.line,
-        e.col,
-    );
+
+    // Check if this is an enum type - enums need special handling since they don't have
+    // a parameterless constructor. We need to use the first variant as a placeholder.
+    // Bug #33: for-in loops don't work with enum collections
+    let type_call = if let Some(enum_def) = context.scope_stack.lookup_enum(var_type_name) {
+        // Get the first variant from the enum (arbitrary choice - value will be overwritten by get())
+        if let Some((first_variant, payload_type)) = enum_def.enum_map.iter().next() {
+            // Build the enum constructor:
+            // - For variants WITHOUT payload: EnumType.Variant (just identifier chain)
+            // - For variants WITH payload: EnumType.Variant(default_payload) (FCall)
+            let variant_id = Expr::new_explicit(
+                NodeType::Identifier(first_variant.clone()),
+                vec![],
+                e.line,
+                e.col,
+            );
+            let enum_id = Expr::new_explicit(
+                NodeType::Identifier(var_type_name.to_string()),
+                vec![variant_id],
+                e.line,
+                e.col,
+            );
+
+            if let Some(payload_vt) = payload_type {
+                // Variant has a payload - need FCall with default value
+                let default_arg = build_default_value(payload_vt, e.line, e.col);
+                Expr::new_explicit(
+                    NodeType::FCall,
+                    vec![enum_id, default_arg],
+                    e.line,
+                    e.col,
+                )
+            } else {
+                // Variant has no payload - just the identifier chain (NOT an FCall)
+                enum_id
+            }
+        } else {
+            // Empty enum - shouldn't happen, fall back to struct-like constructor
+            Expr::new_explicit(
+                NodeType::FCall,
+                vec![Expr::new_explicit(NodeType::Identifier(var_type_name.to_string()), vec![], e.line, e.col)],
+                e.line,
+                e.col,
+            )
+        }
+    } else {
+        // Not an enum - use struct-like constructor: TYPE()
+        Expr::new_explicit(
+            NodeType::FCall,
+            vec![Expr::new_explicit(NodeType::Identifier(var_type_name.to_string()), vec![], e.line, e.col)],
+            e.line,
+            e.col,
+        )
+    };
     let var_decl_expr = Expr::new_explicit(NodeType::Declaration(var_decl), vec![type_call], e.line, e.col);
 
     // Build: get(collection, _for_i, VAR) - already desugared form

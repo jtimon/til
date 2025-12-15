@@ -561,11 +561,39 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     return Expr.new_clone(NodeType.Switch, e, new_params)
 }
 
+/// Build a default value expression for a given ValueType.
+/// Used when generating placeholder values for enum variant payloads in for-in loops.
+/// Bug #33: for-in loops don't work with enum collections
+build_default_value_for_forin := func(vt: ValueType, line: I64, col: I64) returns Expr throws AllocError {
+    switch vt {
+    case ValueType.TCustom(type_name):
+        if type_name.eq("I64") {
+            return Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), line, col)
+        }
+        if type_name.eq("U8") {
+            return Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), line, col)
+        }
+        if type_name.eq("Bool") {
+            return Expr.new_explicit(NodeType.Identifier("false"), Vec.new(Expr), line, col)
+        }
+        if type_name.eq("Str") {
+            return Expr.new_explicit(NodeType.LLiteral(Literal.Str("")), Vec.new(Expr), line, col)
+        }
+        // For other types (structs, other enums), use the default constructor
+        mut fcall_params := Vec.new(Expr)
+        fcall_params.push(Expr.new_explicit(NodeType.Identifier(type_name), Vec.new(Expr), line, col))
+        return Expr.new_explicit(NodeType.FCall, fcall_params, line, col)
+    case:
+        // For function types and other types, use a placeholder (shouldn't typically happen)
+        return Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), line, col)
+    }
+}
+
 /// Desugar ForIn to a range-based for loop with get() calls
 // for VAR: TYPE in COLLECTION { body }
 // becomes:
 /// for _for_i in 0..collection.len() {
-//     mut VAR := TYPE()
+//     mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
 ///     collection.get(_for_i, VAR)
 //     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 ///     body
@@ -620,11 +648,65 @@ precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     cond_params.push(len_call_expr)
     cond_expr := Expr.new_explicit(NodeType.FCall, cond_params, e.line, e.col)
 
-    // Build: mut VAR := TYPE()
+    // Build: mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
     var_decl := Declaration(name=var_name, value_type=ValueType.TCustom(var_type_name), is_mut=true, is_copy=false, is_own=false, default_value=NULL)
-    mut type_call_params := Vec.new(Expr)
-    type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
-    type_call := Expr.new_explicit(NodeType.FCall, type_call_params, e.line, e.col)
+
+    // Check if this is an enum type - enums need special handling since they don't have
+    // a parameterless constructor. We need to use the first variant as a placeholder.
+    // Bug #33: for-in loops don't work with enum collections
+    mut type_call := Expr()
+    mut is_enum := false
+    mut enum_def := context.scope_stack.lookup_enum(var_type_name)
+    is_enum = true
+    catch (err: KeyNotFoundError) {
+        // Not an enum
+    }
+
+    if is_enum {
+        // Get the first variant from the enum (arbitrary choice - value will be overwritten by get())
+        if enum_def.enum_map.keys.len().gt(0) {
+            mut first_variant := ""
+            enum_def.enum_map.keys.get(0, first_variant)
+            mut payload_type_ptr := NULL
+            enum_def.enum_map.get(first_variant, payload_type_ptr)
+            catch (err: KeyNotFoundError) {
+                // Shouldn't happen since we got the key from keys list
+            }
+
+            // Build the enum constructor:
+            // - For variants WITHOUT payload: EnumType.Variant (just identifier chain)
+            // - For variants WITH payload: EnumType.Variant(default_payload) (FCall)
+            variant_id := Expr.new_explicit(NodeType.Identifier(first_variant), Vec.new(Expr), e.line, e.col)
+            mut variant_id_params := Vec.new(Expr)
+            variant_id_params.push(variant_id)
+            enum_id := Expr.new_explicit(NodeType.Identifier(var_type_name), variant_id_params, e.line, e.col)
+
+            if not(NULL.eq(payload_type_ptr)) {
+                // Variant has a payload - need FCall with default value
+                mut payload_vt := ValueType.TCustom("")
+                memcpy(to_ptr(payload_vt), payload_type_ptr, size_of(ValueType))
+                default_arg := build_default_value_for_forin(payload_vt, e.line, e.col)
+                mut fcall_params := Vec.new(Expr)
+                fcall_params.push(enum_id)
+                fcall_params.push(default_arg)
+                type_call = Expr.new_explicit(NodeType.FCall, fcall_params, e.line, e.col)
+            } else {
+                // Variant has no payload - just the identifier chain (NOT an FCall)
+                type_call = enum_id
+            }
+        } else {
+            // Empty enum - shouldn't happen, fall back to struct-like constructor
+            mut type_call_params := Vec.new(Expr)
+            type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
+            type_call = Expr.new_explicit(NodeType.FCall, type_call_params, e.line, e.col)
+        }
+    } else {
+        // Not an enum - use struct-like constructor: TYPE()
+        mut type_call_params := Vec.new(Expr)
+        type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
+        type_call = Expr.new_explicit(NodeType.FCall, type_call_params, e.line, e.col)
+    }
+
     mut var_decl_params := Vec.new(Expr)
     var_decl_params.push(type_call)
     var_decl_expr := Expr.new_explicit(NodeType.Declaration(var_decl), var_decl_params, e.line, e.col)

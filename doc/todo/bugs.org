@@ -9,6 +9,74 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #38: Vec.get doesn't preserve enum payload values
+:PROPERTIES:
+:DISCOVERED: 2025-12-15
+:IMPACT: Data corruption
+:STATUS: Open
+:END:
+
+*** Description
+When storing enums with payloads in a Vec and retrieving them with Vec.get, the enum tag is preserved but the payload value is corrupted.
+
+#+BEGIN_EXAMPLE til
+PayloadEnum := enum {
+    None,
+    Number: I64,
+    Text: Str,
+}
+
+p := PayloadEnum.Number(42)
+mut items := Vec.new(PayloadEnum)
+items.push(p)
+
+mut out := PayloadEnum.None
+items.get(0, out)
+
+// Expected: out is PayloadEnum.Number(42)
+// Actual: out is PayloadEnum.Number(2745) - payload corrupted
+#+END_EXAMPLE
+
+*** Root Cause
+The memcpy-based storage in Vec copies the enum bytes (tag + payload), but the payload bytes are not being correctly interpreted when read back. The issue is likely in how Arena stores enum payloads vs how Vec's raw memory storage works.
+
+*** Workaround
+Use enums without payloads in Vec collections, or store payload data separately.
+
+** Bug #37: Vec.push with direct enum constructor doesn't store data correctly
+:PROPERTIES:
+:DISCOVERED: 2025-12-15
+:IMPACT: Data corruption
+:STATUS: Open
+:END:
+
+*** Description
+When pushing an enum value directly using a constructor expression (e.g., `colors.push(SimpleColor.Red)`), the data is not stored correctly in the Vec. However, pushing via a variable works correctly.
+
+#+BEGIN_EXAMPLE til
+SimpleColor := enum { Red, Green, Blue }
+
+mut colors := Vec.new(SimpleColor)
+
+// This FAILS - data is corrupted:
+colors.push(SimpleColor.Red)
+
+// This WORKS:
+c := SimpleColor.Red
+colors.push(c)
+#+END_EXAMPLE
+
+*** Root Cause
+When calling Vec.push with a Dynamic parameter that is an enum constructor expression (not a variable), the to_ptr() function doesn't return the correct arena offset for the temporary enum value. The expression is evaluated but the result isn't stored in a location that to_ptr() can find.
+
+*** Workaround
+Always assign enum values to variables before pushing to Vec:
+
+#+BEGIN_EXAMPLE til
+c_red := SimpleColor.Red
+colors.push(c_red)
+#+END_EXAMPLE
+
 ** Bug #35: Special `_` variable does not allow repeated declarations :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-12-14
@@ -111,7 +179,8 @@ the ~goto _end_catches~ jump, so they only ran on the success path.
 :PROPERTIES:
 :DISCOVERED: 2025-12-14
 :IMPACT: Code ergonomics
-:STATUS: Open
+:STATUS: Fixed
+:FIXED: 2025-12-15
 :END:
 
 *** Description
@@ -137,23 +206,21 @@ for _for_i in 0..collection.len() {
 
 For structs, `StructName()` creates a default-initialized instance. But enums don't have a parameterless constructor - all variants require payloads (e.g., `ValueType.TCustom(Str)`, `ValueType.TFunction(FunctionType)`).
 
-*** Workaround
-Use while loops with explicit initialization using a valid enum variant:
+*** Fix Applied
+Changed for-in desugaring to detect when the iteration type is an enum and generate
+an appropriate placeholder value using the first variant:
+- For variants without payload: `EnumType.FirstVariant`
+- For variants with payload: `EnumType.FirstVariant(default_payload)`
 
-#+BEGIN_EXAMPLE til
-mut i := 0
-while i.lt(vec_of_valuetypes.len()) {
-    mut val := ValueType.TCustom("")  // Use any valid variant as placeholder
-    vec_of_valuetypes.get(i, val)
-    // body
-    i.inc()
-}
-#+END_EXAMPLE
+The placeholder value is immediately overwritten by the get() call, so any valid
+variant works as an initializer.
 
-*** Potential Fixes
-1. Add a default/placeholder variant to enums that need for-in iteration
-2. Change for-in desugaring to use a different mechanism that doesn't require default initialization
-3. Allow enums to specify a default variant for this purpose
+*** Files Changed
+- src/rs/precomp.rs: Added build_default_value() helper and updated precomp_forin()
+- src/self/precomp.til: TIL port with build_default_value_for_forin() and updated precomp_forin()
+- src/test/forin_enum.til: Regression test
+- src/tests.til: Added forin_enum.til to test suite
+- src/test/run_cmd.til: Updated directory list (bots/ removed, c/ and out/ added)
 
 *** Affected Code
 - src/self/typer.til: Converted for-in loops over ValueType to while loops
