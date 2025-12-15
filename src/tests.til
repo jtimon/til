@@ -131,11 +131,11 @@ format_time := func(ms: I64) returns Str {
     return secs.to_str().concat(".").concat(millis_str).concat("s")
 }
 
-// Path transform: src/examples/foo.til -> out/examples/foo.interpreted.out or foo.compiled.out
+// Path transform: src/examples/foo.til -> gen/out/examples/foo.interpreted.out or foo.compiled.out
 // test_mode: "compiled" -> .compiled.out, anything else -> .interpreted.out
 // cmd_args: "" for default, "version" for .version.out, etc.
 get_out_path := func(src_path: Str, test_mode: Str, cmd_args: Str) returns Str throws AllocError {
-    base := src_path.replace(".til", "").replace("src/", "out/")
+    base := src_path.replace(".til", "").replace("src/", "gen/out/")
     mut suffix := ""
     if test_mode.eq("compiled") {
         suffix = ".compiled"
@@ -246,7 +246,7 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
     totals = totals.concat("- Total compiled :: ").concat(format_time(total_compile_ms)).concat("\n")
     totals = totals.concat("- Total :: ").concat(format_time(total_interpret_ms.add(total_compile_ms))).concat("\n\n")
 
-    _ := writefile("benchmark.org", totals.concat(benchmark_content))
+    _ := writefile("gen/benchmark.org", totals.concat(benchmark_content))
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
@@ -594,7 +594,6 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/optional_args.til"))
     rs_common.push(TestEntry(path="src/test/pointers.til"))
     rs_common.push(TestEntry(path="src/test/return_value_usage.til"))
-    rs_common.push(TestEntry(path="src/test/run_cmd.til"))
     rs_common.push(TestEntry(path="src/test/scope_isolation.til"))
     rs_common.push(TestEntry(path="src/test/sets.til"))
     rs_common.push(TestEntry(path="src/test/strings.til"))

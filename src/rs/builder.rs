@@ -269,12 +269,12 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     // Generate C code
     let c_code = ccodegen::emit(&merged_ast, &mut context)?;
 
-    // Write output file to ./c/ directory instead of alongside source
+    // Write output file to ./gen/c/ directory instead of alongside source
     let c_filename = path.replace(".til", ".c");
     let source_output_path = if c_filename.starts_with("src/") {
-        c_filename.replacen("src/", "c/", 1)
+        c_filename.replacen("src/", "gen/c/", 1)
     } else {
-        format!("c/{}", c_filename)
+        format!("gen/c/{}", c_filename)
     };
     // Create output directory if it doesn't exist
     if let Some(parent) = std::path::Path::new(&source_output_path).parent() {
@@ -283,6 +283,11 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     match fs::write(&source_output_path, &c_code) {
         Ok(_) => {},
         Err(e) => return Err(format!("Failed to write '{}': {}", source_output_path, e)),
+    }
+
+    // Special case: auto-copy constfold.c to src/test/ to keep near constfold.til
+    if source_output_path == "gen/c/test/constfold.c" {
+        let _ = fs::copy("gen/c/test/constfold.c", "src/test/constfold.c");
     }
 
     // If translate_only, return the source file path

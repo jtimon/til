@@ -1,4 +1,4 @@
-.PHONY: all tests repl til clean
+.PHONY: all tests repl til clean copy_gen
 all: rstil
 
 rstil: src/rstil.rs
@@ -35,4 +35,11 @@ test-cross: rstil
 	@echo "=== All cross-compilation tests passed ==="
 
 clean:
-	rm -rf bin/*
+	rm -rf bin/* gen/*
+
+copy_gen:
+	@echo "Copying generated files to tracked locations..."
+	@mkdir -p bootstrap
+	cp gen/c/til.c bootstrap/til.c
+	cp gen/benchmark.org doc/benchmark.org
+	@echo "Done. You can now commit these files."

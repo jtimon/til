@@ -339,13 +339,13 @@ build := proc(path: Str) returns Str throws Str {
     // Generate C code
     mut c_code := emit(merged_ast, context)
 
-    // Write output file to ./c/ directory instead of alongside source
+    // Write output file to ./gen/c/ directory instead of alongside source
     mut c_filename := path.replace(".til", ".c")
     mut output_path := c_filename
     if c_filename.starts_with("src/") {
-        output_path = c_filename.replacen("src/", "c/", 1)
+        output_path = c_filename.replacen("src/", "gen/c/", 1)
     } else {
-        output_path = concat("c/", c_filename)
+        output_path = concat("gen/c/", c_filename)
     }
     // Create output directory if it doesn't exist
     // Extract parent directory path (everything up to last /)
@@ -356,6 +356,12 @@ build := proc(path: Str) returns Str throws Str {
         _ := run_cmd(mkdir_output, "mkdir", "-p", parent_dir)
     }
     _ := writefile(output_path, c_code)
+
+    // Special case: auto-copy constfold.c to src/test/ to keep near constfold.til
+    if output_path.eq("gen/c/test/constfold.c") {
+        mut cp_output := ""
+        _ := run_cmd(cp_output, "cp", "gen/c/test/constfold.c", "src/test/constfold.c")
+    }
 
     // TODO: Compile with gcc (run_cmd not available in lib mode yet)
 
