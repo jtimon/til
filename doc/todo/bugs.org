@@ -59,41 +59,53 @@ _ := context.imports_typer_done.insert(path)
 - src/self/init.til: declare_var, init_context
 - src/self/ccodegen.til: emit_constant_declaration, emit_global_declaration, emit_declaration
 
-** Bug #34: Code after catch blocks doesn't run in error path :FIXED:
+** Bug #34: Code after catch blocks doesn't run in error path
 :PROPERTIES:
 :DISCOVERED: 2025-12-14
-:FIXED: 2025-12-15
 :IMPACT: Error handling semantics
-:STATUS: Fixed
+:STATUS: Partially Fixed
 :END:
 
 *** Description
-Code placed AFTER catch blocks (not between throw and catch) doesn't run when an error is caught.
+Code placed AFTER catch blocks doesn't run when an error is caught.
+
+*** Partial Fix (2025-12-15)
+A fix was attempted that works ONLY when there's no code between the throwing
+call and the catch block:
 
 #+BEGIN_EXAMPLE til
-bug34_map_get("missing", value)
-found = true  // Between throw and catch - correctly skipped on error
-catch (err: Bug34Error) {
-    // error caught
-}
-// Code AFTER catch - BUG: was not running when error was caught
-test(loc(), found.not(), "found should be false")
+// This case WORKS after the partial fix:
+throwing_call()
+catch (err: Error) { }
+code_after_catch()  // Runs correctly in both paths
 #+END_EXAMPLE
 
-*** Root Cause
+*** Remaining Bug
+When there IS code between the throwing call and the catch block, the code
+AFTER the catch block does NOT run on the error path:
+
+#+BEGIN_EXAMPLE til
+// This case is BROKEN:
+throwing_call()
+between = true      // Between throw and catch - correctly skipped
+catch (err: Error) {
+    // error caught
+}
+code_after_catch()  // BUG: Does NOT run when error was caught!
+#+END_EXAMPLE
+
+*** Workaround
+Do not put any code between a throwing call and its catch block. Move such
+code either before the throwing call or after the catch block.
+
+*** Root Cause (partial fix)
 In the C code generator, statements after the last catch block were emitted BEFORE
 the ~goto _end_catches~ jump, so they only ran on the success path.
 
-*** Fix
-- Track ~last_catch_index~ to know where catch blocks end
-- Break out of main loop when past last catch
-- Emit after-catch statements at the ~_end_catches~ label
-- Add ~emit_stmts_no_catches~ helper for proper throwing call handling
-
-*** Files Modified
+*** Files Modified (partial fix)
 - src/rs/ccodegen.rs: Rust implementation
 - src/self/ccodegen.til: TIL port
-- src/test/errors.til: Regression test (test_bug34)
+- src/test/errors.til: Regression test (test_bug34 - only tests simple case)
 
 ** Bug #33: for-in loops don't work with enum collections
 :PROPERTIES:
