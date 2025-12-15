@@ -69,12 +69,12 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
         return errors
     }
 
-    // Iterate over enum_map keys
-    for enum_val_name: Str in enum_def.enum_map.keys {
-
-        // Get the payload type pointer for this variant (Ptr to ValueType, NULL = None)
-        mut payload_ptr := Ptr()
-        enum_def.enum_map.get(enum_val_name, payload_ptr)
+    // Bug #38 fix: Iterate over variants Vec
+    for i in 0..enum_def.variants.len() {
+        mut ev := EnumVariant()
+        enum_def.variants.get(i, ev)
+        enum_val_name := ev.name
+        payload_ptr := ev.payload_type
 
         // Check if payload_ptr is Some (not NULL)
         if not(NULL.eq(payload_ptr.data)) {
@@ -115,9 +115,6 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
         // else: NULL means None (no payload), nothing to check
     }
     catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: KeyNotFoundError) {
         throw err.msg
     }
     catch (err: AllocError) {
@@ -1411,9 +1408,10 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                             }
 
                             // Look up payload type (Ptr to ValueType, NULL = None)
+                            // Bug #38 fix: use helper method
                             mut enum_def := context.scope_stack.lookup_enum(enum_name)
-                            mut payload_ptr := Ptr()
-                            enum_def.enum_map.get(variant, payload_ptr)
+                            mut payload_ptr := enum_def.get(variant)
+                            catch (err: KeyNotFoundError) { }
 
                             // If payload exists (not NULL), add binding to scope
                             if not(NULL.eq(payload_ptr.data)) {
@@ -1425,9 +1423,6 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 _ := context.scope_stack.pop()
                                 catch (err: Str) { }
                                 handled = true
-                            }
-                            catch (err: KeyNotFoundError) {
-                                // Variant not found, just check body without binding
                             }
                         case:
                             // Not a custom type
@@ -2005,10 +2000,11 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
                 }
 
                 // Look up payload type (Ptr to ValueType, NULL = None)
+                // Bug #38 fix: use helper method
                 mut enum_def := context.scope_stack.lookup_enum(enum_name)
                 mut payload_ptr := Ptr()
                 mut variant_found := true
-                enum_def.enum_map.get(variant, payload_ptr)
+                payload_ptr = enum_def.get(variant)
                 catch (err: KeyNotFoundError) {
                     variant_found = false
                 }
@@ -2110,9 +2106,12 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
         }
 
         if not(default_found) {
-            for variant: Str in enum_def.enum_map.keys {
-                if not(matched_variants.contains(variant)) {
-                    errors.push(e.error(context.path, "type", format("Switch is missing case for variant '", variant, "'")))
+            // Bug #38 fix: use variants Vec
+            for vi in 0..enum_def.variants.len() {
+                mut ev := EnumVariant()
+                enum_def.variants.get(vi, ev)
+                if not(matched_variants.contains(ev.name)) {
+                    errors.push(e.error(context.path, "type", format("Switch is missing case for variant '", ev.name, "'")))
                 }
             }
         }
@@ -2517,7 +2516,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                 if enum_found {
                     mut variant_name := ""
                     parts.get(1, variant_name)
-                    if enum_def.enum_map.contains_key(variant_name) {
+                    if enum_def.contains_key(variant_name) {  // Bug #38 fix
                         // This is a valid enum constructor
                         parts.delete()
                         throw KeyNotFoundError(msg=format("Enum constructor: ", combined_name))

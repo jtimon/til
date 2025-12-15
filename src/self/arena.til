@@ -421,15 +421,14 @@ Arena := struct {
                         }
                         mut variant := ""
                         parts.get(1, variant)
-                        // Find variant index
+                        // Find variant index - Bug #38 fix: use variants Vec
                         mut index : I64 = 0
                         mut found_variant := false
                         mut vi := 0
-                        enum_keys := enum_def.enum_map.keys
-                        while vi.lt(enum_keys.len()) {
-                            mut key := ""
-                            enum_keys.get(vi, key)
-                            if key.eq(variant) {
+                        while vi.lt(enum_def.variants.len()) {
+                            mut ev := EnumVariant()
+                            enum_def.variants.get(vi, ev)
+                            if ev.name.eq(variant) {
                                 index = vi
                                 found_variant = true
                             }
@@ -952,10 +951,13 @@ Arena := struct {
         enum_name := Context.variant_pos_to_str(enum_def, enum_value, ctx.path, e)
 
         // Check if this variant has a payload type (Ptr to ValueType, NULL = None)
-        mut payload_ptr := Ptr()
-        enum_def.enum_map.get(enum_name, payload_ptr)
+        // Bug #38 fix: use helper method
+        mut payload_ptr := enum_def.get(enum_name)
         catch (err: KeyNotFoundError) {
             // No payload
+        }
+        catch (err: IndexOutOfBoundsError) {
+            // Should never happen
         }
 
         mut result := EnumVal()
@@ -1089,10 +1091,13 @@ Arena := struct {
         enum_name := Context.variant_pos_to_str(enum_def, enum_value, ctx.path, e)
 
         // Check if this variant has a payload type (Ptr to ValueType, NULL = None)
-        mut payload_ptr := Ptr()
-        enum_def.enum_map.get(enum_name, payload_ptr)
+        // Bug #38 fix: use helper method
+        mut payload_ptr := enum_def.get(enum_name)
         catch (err: KeyNotFoundError) {
             // No payload type
+        }
+        catch (err: IndexOutOfBoundsError) {
+            // Should never happen
         }
 
         mut result := EnumVal()
@@ -1200,6 +1205,11 @@ Arena := struct {
             payload_type = temp_payload.value_type
         }
 
+        // Bug #38 fix: Always allocate the maximum enum size to support memcpy of any variant
+        max_enum_size := ctx.get_type_size(enum_type)
+        payload_size := payload_data.len()
+        actual_size := add(8, payload_size)  // tag + current payload
+
         mut result := EnumInsertResult()
         result.has_mapping = false
 
@@ -1231,7 +1241,7 @@ Arena := struct {
                 result.has_mapping = false
             } else {
                 offset = arena.memory.len()
-                // Write enum value bytes
+                // Allocate max enum size, write tag and payload, then zero-pad remaining
                 mut ei := 0
                 while ei.lt(8) {
                     mut byte_val : U8 = 0
@@ -1248,13 +1258,20 @@ Arena := struct {
                         pi = add(pi, 1)
                     }
                 }
+                // Bug #38 fix: Pad with zeros to reach max_enum_size
+                if actual_size.lt(max_enum_size) {
+                    target_len := add(offset, max_enum_size)
+                    while arena.memory.len().lt(target_len) {
+                        arena.memory.push(0)
+                    }
+                }
                 result.has_mapping = true
                 result.mapping_name = id
                 result.mapping_offset = offset
             }
         } else {
             offset := arena.memory.len()
-            // Write enum value bytes
+            // Allocate max enum size, write tag and payload, then zero-pad remaining
             mut ei := 0
             while ei.lt(8) {
                 mut byte_val : U8 = 0
@@ -1269,6 +1286,13 @@ Arena := struct {
                     payload_data.get(pi, byte_val)
                     arena.memory.push(byte_val)
                     pi = add(pi, 1)
+                }
+            }
+            // Bug #38 fix: Pad with zeros to reach max_enum_size
+            if actual_size.lt(max_enum_size) {
+                target_len := add(offset, max_enum_size)
+                while arena.memory.len().lt(target_len) {
+                    arena.memory.push(0)
                 }
             }
             result.has_mapping = true

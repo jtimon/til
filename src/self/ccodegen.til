@@ -1188,15 +1188,13 @@ get_enum_dependencies := func(expr: Expr) returns Vec {
             catch (err: IndexOutOfBoundsError) { return deps }
             switch first.node_type {
             case NodeType.EnumDef(enum_def):
-                // enum_map stores variant_name -> Ptr to ValueType (NULL = no payload)
+                // Bug #38 fix: use variants Vec
                 mut i := 0
-                while lt(i, enum_def.enum_map.keys.len()) {
-                    mut variant_name := ""
-                    enum_def.enum_map.keys.get(i, variant_name)
+                while lt(i, enum_def.variants.len()) {
+                    mut ev := EnumVariant()
+                    enum_def.variants.get(i, ev)
                     catch (err: IndexOutOfBoundsError) { return deps }
-                    mut payload_ptr := Ptr()
-                    enum_def.enum_map.get(variant_name, payload_ptr)
-                    catch (err: KeyNotFoundError) { }
+                    payload_ptr := ev.payload_type
                     // Check if payload exists (not NULL)
                     if not(NULL.eq(payload_ptr.data)) {
                         mut payload_type := ValueType.TCustom("")
@@ -1965,22 +1963,16 @@ emit_size_of_function := proc(output: Str, ctx: CodegenContext) returns Str thro
 }
 
 // Check if an enum has any payloads
+// Bug #38 fix: use variants Vec
 enum_has_payloads := func(enum_def: SEnumDef) returns Bool {
-    mut keys := enum_def.enum_map.keys
-    mut i := 0
-    while lt(i, keys.len()) {
-        mut key := ""
-        keys.get(i, key)
-        catch (err: IndexOutOfBoundsError) { return false }
-        mut payload_ptr := Ptr()
-        enum_def.enum_map.get(key, payload_ptr)
-        catch (err: KeyNotFoundError) { }
-        // Check if payload exists (not NULL)
-        if not(NULL.eq(payload_ptr.data)) {
+    for i in 0..enum_def.variants.len() {
+        mut ev := EnumVariant()
+        enum_def.variants.get(i, ev)
+        if not(NULL.eq(ev.payload_type.data)) {
             return true
         }
-        i = add(i, 1)
     }
+    catch (err: IndexOutOfBoundsError) { return false }
     return false
 }
 
@@ -1995,56 +1987,44 @@ variant_has_payload := func(payload_type: ValueType) returns Bool {
 }
 
 // Emit an enum with payloads as a tagged union
+// Bug #38 fix: use variants Vec
 emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str) returns Str throws Str {
     mut result := output
-    mut variants := enum_def.enum_map.keys
 
     // 1. Emit tag enum: typedef enum { Color_Unknown = 0, ... } Color_Tag;
     result = result.concat("typedef enum {\n")
-    mut i := 0
-    while lt(i, variants.len()) {
-        mut variant_name := ""
-        variants.get(i, variant_name)
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        result = result.concat("    ").concat(enum_name).concat("_").concat(variant_name).concat(" = ").concat(i.to_str()).concat(",\n")
-        i = add(i, 1)
+    for i in 0..enum_def.variants.len() {
+        mut ev := EnumVariant()
+        enum_def.variants.get(i, ev)
+        result = result.concat("    ").concat(enum_name).concat("_").concat(ev.name).concat(" = ").concat(i.to_str()).concat(",\n")
     }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     result = result.concat("} ").concat(enum_name).concat("_Tag;\n\n")
 
     // 2. Emit payload union (only for variants that have payloads)
     // typedef union { unsigned char Green; long long Number; } Color_Payload;
     mut has_any_payload := false
-    i = 0
-    while lt(i, variants.len()) {
-        mut variant_name := ""
-        variants.get(i, variant_name)
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        mut payload_ptr := Ptr()
-        enum_def.enum_map.get(variant_name, payload_ptr)
-        catch (err: KeyNotFoundError) { }
-        if not(NULL.eq(payload_ptr.data)) {
+    for i in 0..enum_def.variants.len() {
+        mut ev := EnumVariant()
+        enum_def.variants.get(i, ev)
+        if not(NULL.eq(ev.payload_type.data)) {
             has_any_payload = true
         }
-        i = add(i, 1)
     }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     if has_any_payload {
         result = result.concat("typedef union {\n")
-        i = 0
-        while lt(i, variants.len()) {
-            mut variant_name := ""
-            variants.get(i, variant_name)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            mut payload_ptr := Ptr()
-            enum_def.enum_map.get(variant_name, payload_ptr)
-            catch (err: KeyNotFoundError) { }
-            if not(NULL.eq(payload_ptr.data)) {
+        for i in 0..enum_def.variants.len() {
+            mut ev := EnumVariant()
+            enum_def.variants.get(i, ev)
+            if not(NULL.eq(ev.payload_type.data)) {
                 mut payload_type := ValueType.TCustom("")
-                memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
-                result = result.concat("    ").concat(til_type_to_c(payload_type)).concat(" ").concat(variant_name).concat(";\n")
+                memcpy(to_ptr(payload_type), ev.payload_type.data, size_of(ValueType))
+                result = result.concat("    ").concat(til_type_to_c(payload_type)).concat(" ").concat(ev.name).concat(";\n")
             }
-            i = add(i, 1)
         }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
         result = result.concat("} ").concat(enum_name).concat("_Payload;\n\n")
     }
 
@@ -2057,16 +2037,12 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
 
     // 4. Emit constructor functions for ALL variants (including no-payload ones)
     // This ensures consistent calling convention: Color_make_Red(42), Color_make_Unknown()
-    i = 0
-    while lt(i, variants.len()) {
-        mut variant_name := ""
-        variants.get(i, variant_name)
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        mut payload_ptr := Ptr()
-        enum_def.enum_map.get(variant_name, payload_ptr)
-        catch (err: KeyNotFoundError) { }
+    for i in 0..enum_def.variants.len() {
+        mut ev := EnumVariant()
+        enum_def.variants.get(i, ev)
+        payload_ptr := ev.payload_type
 
-        result = result.concat("static inline ").concat(enum_name).concat(" ").concat(enum_name).concat("_make_").concat(variant_name).concat("(")
+        result = result.concat("static inline ").concat(enum_name).concat(" ").concat(enum_name).concat("_make_").concat(ev.name).concat("(")
 
         // Parameter for payload (if any)
         if not(NULL.eq(payload_ptr.data)) {
@@ -2078,17 +2054,16 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
         }
 
         // Constructor body
-        result = result.concat("    ").concat(enum_name).concat(" result = { .tag = ").concat(enum_name).concat("_").concat(variant_name).concat(" };\n")
+        result = result.concat("    ").concat(enum_name).concat(" result = { .tag = ").concat(enum_name).concat("_").concat(ev.name).concat(" };\n")
 
         // Set payload if present
         if not(NULL.eq(payload_ptr.data)) {
-            result = result.concat("    result.payload.").concat(variant_name).concat(" = value;\n")
+            result = result.concat("    result.payload.").concat(ev.name).concat(" = value;\n")
         }
 
         result = result.concat("    return result;\n}\n\n")
-
-        i = add(i, 1)
     }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     return result
 }
@@ -2116,28 +2091,21 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
                 result = result.concat("typedef enum {\n")
 
                 // Get variant names (order matches insertion order from parser)
-                mut variants := enum_def.enum_map.keys
-
-                mut i := 0
-                while lt(i, variants.len()) {
-                    mut variant_name := ""
-                    variants.get(i, variant_name)
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    result = result.concat("    ").concat(enum_name).concat("_").concat(variant_name).concat(" = ").concat(i.to_str()).concat(",\n")
-                    i = add(i, 1)
+                // Bug #38 fix: use ordered variants Vec
+                for i in 0..enum_def.variants.len() {
+                    mut ev := EnumVariant()
+                    enum_def.variants.get(i, ev)
+                    result = result.concat("    ").concat(enum_name).concat("_").concat(ev.name).concat(" = ").concat(i.to_str()).concat(",\n")
                 }
 
                 result = result.concat("} ").concat(enum_name).concat(";\n\n")
 
                 // Generate constructor functions for consistency with payload enums
                 // static inline EnumName EnumName_make_Variant(void) { return EnumName_Variant; }
-                i = 0
-                while lt(i, variants.len()) {
-                    mut variant_name := ""
-                    variants.get(i, variant_name)
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    result = result.concat("static inline ").concat(enum_name).concat(" ").concat(enum_name).concat("_make_").concat(variant_name).concat("(void) { return ").concat(enum_name).concat("_").concat(variant_name).concat("; }\n")
-                    i = add(i, 1)
+                for i in 0..enum_def.variants.len() {
+                    mut ev := EnumVariant()
+                    enum_def.variants.get(i, ev)
+                    result = result.concat("static inline ").concat(enum_name).concat(" ").concat(enum_name).concat("_make_").concat(ev.name).concat("(void) { return ").concat(enum_name).concat("_").concat(ev.name).concat("; }\n")
                 }
                 result = result.concat("\n")
 
@@ -2160,7 +2128,6 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
 emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, output: Str) returns Str throws Str {
     mut result := output
     has_payloads := enum_has_payloads(enum_def)
-    mut variants := enum_def.enum_map.keys
 
     // Function signature - takes pointer since Dynamic params are passed by reference
     result = result.concat("static inline til_Str ").concat(enum_name).concat("_to_str(").concat(enum_name).concat("* e) {\n    switch(")
@@ -2177,13 +2144,12 @@ emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, output: St
         original_name = get_substr(enum_name, TIL_PREFIX.len(), enum_name.len())
     }
 
-    mut i := 0
-    while lt(i, variants.len()) {
-        mut variant_name := ""
-        variants.get(i, variant_name)
-        full_name := original_name.concat(".").concat(variant_name)
-        result = result.concat("        case ").concat(enum_name).concat("_").concat(variant_name).concat(": return (til_Str){(til_I64)\"").concat(full_name).concat("\", ").concat(full_name.len().to_str()).concat("};\n")
-        i = add(i, 1)
+    // Bug #38 fix: use ordered variants Vec
+    for i in 0..enum_def.variants.len() {
+        mut ev := EnumVariant()
+        enum_def.variants.get(i, ev)
+        full_name := original_name.concat(".").concat(ev.name)
+        result = result.concat("        case ").concat(enum_name).concat("_").concat(ev.name).concat(": return (til_Str){(til_I64)\"").concat(full_name).concat("\", ").concat(full_name.len().to_str()).concat("};\n")
     }
 
     // Default case (shouldn't happen but good for safety)
@@ -4010,8 +3976,9 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 catch (err: KeyNotFoundError) { }
                 if found_enum {
                     // Found the enum, look up the variant's payload type (Ptr to ValueType, NULL = None)
+                    // Bug #38 fix: use helper method
                     mut payload_ptr := Ptr()
-                    enum_def.enum_map.get(info.variant_name, payload_ptr)
+                    payload_ptr = enum_def.get(info.variant_name)
                     catch (err: KeyNotFoundError) { }
                     // Check if payload exists (not NULL)
                     if not(NULL.eq(payload_ptr.data)) {
@@ -4125,7 +4092,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
                     // Check if this is an enum variant by looking up in context
                     mut is_enum_variant := false
                     mut enum_def := context.scope_stack.lookup_enum(name)
-                    is_enum_variant = enum_def.enum_map.contains_key(field)
+                    is_enum_variant = enum_def.contains_key(field)
                     catch (err: KeyNotFoundError) { /* not an enum */ }
 
                     if is_enum_variant {
@@ -6611,7 +6578,7 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str {
                     switch nested.node_type {
                     case NodeType.Identifier(variant_name):
                         // Verify the variant exists in the enum
-                        if enum_def.enum_map.contains_key(variant_name) {
+                        if enum_def.contains_key(variant_name) {
                             return type_name
                         }
                     case:
@@ -6636,7 +6603,7 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str {
             switch nested.node_type {
             case NodeType.Identifier(variant_name):
                 // Verify the variant exists in the enum
-                if enum_def.enum_map.contains_key(variant_name) {
+                if enum_def.contains_key(variant_name) {
                     return type_name
                 }
             case:
@@ -8523,12 +8490,8 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                     is_enum = true
                     catch (err: KeyNotFoundError) { }
                     if is_enum {
-                        mut has_variant := false
-                        mut variant_ptr := Ptr()
-                        enum_def.enum_map.get(field_or_variant, variant_ptr)
-                        has_variant = true
-                        catch (err: KeyNotFoundError) { }
-                        if has_variant {
+                        // Bug #38 fix: use helper method
+                        if enum_def.contains_key(field_or_variant) {
                             c_type = til_name(var_name)
                         }
                     } else {
@@ -9168,7 +9131,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 catch (err: KeyNotFoundError) { }
                 if found_enum {
                     // Check if this variant exists in the enum
-                    if enum_def.enum_map.contains_key(variant_name) {
+                    if enum_def.contains_key(variant_name) {
                         is_enum_constructor = true
                         enum_type_name = type_name
                         enum_variant_name = variant_name

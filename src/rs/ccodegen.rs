@@ -228,7 +228,7 @@ fn get_enum_dependencies(expr: &Expr) -> Vec<String> {
     if let NodeType::Declaration(_) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
-                for (_variant_name, payload_type) in &enum_def.enum_map {
+                for (_variant_name, payload_type) in enum_def.iter() {
                     if let Some(pt) = payload_type {
                         if let ValueType::TCustom(type_name) = pt {
                             // Skip primitives (but NOT Str or Bool - they're structs)
@@ -1021,7 +1021,7 @@ fn hoist_for_dynamic_params(
                 if let Some(NodeType::Identifier(field_or_variant)) = arg.params.first().map(|p| &p.node_type) {
                     // Check if this is an enum constructor
                     if context.scope_stack.lookup_enum(var_name)
-                        .map(|e| e.enum_map.contains_key(field_or_variant))
+                        .map(|e| e.contains_key(field_or_variant))
                         .unwrap_or(false) {
                         // Enum constructor returns the enum type
                         til_name(var_name)
@@ -1078,7 +1078,7 @@ fn hoist_for_dynamic_params(
                         if parts.len() == 2 {
                             let type_name = parts[0];
                             if context.scope_stack.lookup_enum(type_name)
-                                .map(|e| e.enum_map.contains_key(parts[1]))
+                                .map(|e| e.contains_key(parts[1]))
                                 .unwrap_or(false) {
                                 // Enum constructor returns the enum type
                                 til_name(type_name)
@@ -2264,7 +2264,7 @@ fn emit_size_of_function(output: &mut String, ctx: &CodegenContext) {
 
 // Check if an enum has any payloads
 fn enum_has_payloads(enum_def: &SEnumDef) -> bool {
-    for (_variant_name, payload_type) in &enum_def.enum_map {
+    for (_variant_name, payload_type) in enum_def.iter() {
         if payload_type.is_some() {
             return true;
         }
@@ -2287,7 +2287,7 @@ fn is_enum_with_payloads(expr: &Expr) -> bool {
 // Emit an enum with payloads as a tagged union
 fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut String) -> Result<(), String> {
     // Sort variants by name for deterministic output
-    let mut variants: Vec<_> = enum_def.enum_map.iter().collect();
+    let mut variants: Vec<_> = enum_def.iter().collect();
     variants.sort_by_key(|(name, _)| *name);
 
     // 1. Emit tag enum: typedef enum { Color_Unknown = 0, ... } Color_Tag;
@@ -2404,7 +2404,7 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
                 output.push_str("typedef enum {\n");
 
                 // Sort variants by name for deterministic output
-                let mut variants: Vec<_> = enum_def.enum_map.keys().collect();
+                let mut variants: Vec<_> = enum_def.keys().collect();
                 variants.sort();
 
                 for (index, variant_name) in variants.iter().enumerate() {
@@ -2451,7 +2451,7 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
 // For enums with payloads: til_Str til_EnumName_to_str(til_EnumName* e)
 fn emit_enum_to_str_function(enum_name: &str, enum_def: &SEnumDef, output: &mut String) {
     let has_payloads = enum_has_payloads(enum_def);
-    let mut variants: Vec<_> = enum_def.enum_map.keys().collect();
+    let mut variants: Vec<_> = enum_def.keys().collect();
     variants.sort();
 
     // Function signature - takes pointer since Dynamic params are passed by reference
@@ -2909,7 +2909,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
                 if let NodeType::Identifier(field) = &expr.params[0].node_type {
                     // Check if this is an enum variant by looking up in context
                     if let Some(enum_def) = context.scope_stack.lookup_enum(name) {
-                        if enum_def.enum_map.contains_key(field) {
+                        if enum_def.contains_key(field) {
                             // Enum variant: Type.Variant -> til_Type_make_Variant()
                             output.push_str(TIL_PREFIX);
                             output.push_str(name);
@@ -4761,7 +4761,7 @@ fn get_enum_construction_type(expr: &Expr, context: &Context) -> Option<String> 
                     if !expr.params[0].params.is_empty() {
                         if let NodeType::Identifier(variant_name) = &expr.params[0].params[0].node_type {
                             // Verify the variant exists in the enum
-                            if enum_def.enum_map.contains_key(variant_name) {
+                            if enum_def.contains_key(variant_name) {
                                 return Some(type_name.clone());
                             }
                         }
@@ -4778,7 +4778,7 @@ fn get_enum_construction_type(expr: &Expr, context: &Context) -> Option<String> 
             if !expr.params.is_empty() {
                 if let NodeType::Identifier(variant_name) = &expr.params[0].node_type {
                     // Verify the variant exists in the enum
-                    if enum_def.enum_map.contains_key(variant_name) {
+                    if enum_def.contains_key(variant_name) {
                         return Some(type_name.clone());
                     }
                 }
@@ -6248,7 +6248,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 let info = parse_pattern_variant_name(&pattern_info.variant_name);
                 let payload_type_opt: Option<ValueType> = if let Some(ValueType::TCustom(ref enum_name)) = switch_type {
                     context.scope_stack.lookup_enum(enum_name)
-                        .and_then(|enum_def| enum_def.enum_map.get(&info.variant_name).cloned())
+                        .and_then(|enum_def| enum_def.get(&info.variant_name).cloned())
                         .flatten()
                 } else {
                     None
@@ -6727,7 +6727,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     let type_name = parts[0];
                     let variant_name = parts[1];
                     context.scope_stack.lookup_enum(type_name)
-                        .map(|e| e.enum_map.contains_key(variant_name))
+                        .map(|e| e.contains_key(variant_name))
                         .unwrap_or(false)
                 } else {
                     false

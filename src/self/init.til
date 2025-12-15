@@ -752,8 +752,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         switch after_dot.node_type {
         case NodeType.Identifier(variant_name):
             // Check if this variant exists in the enum (will throw KeyNotFoundError if not)
-            mut payload_ptr := Ptr()  // Ptr to ValueType, NULL = None
-            enum_def.enum_map.get(variant_name, payload_ptr)
+            mut payload_ptr := enum_def.get(variant_name)  // Bug #38 fix: use helper method
 
             // Check if variant has a payload (NULL means no payload)
             if not(NULL.eq(payload_ptr.data)) {
@@ -1131,7 +1130,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
                 catch (err: KeyNotFoundError) {
                     throw e.error(context.path, "type", format("Enum '", name, "' not found"))
                 }
-                if enum_def.enum_map.contains_key(member_name) {
+                if enum_def.contains_key(member_name) {  // Bug #38 fix: use helper method
                     return ValueType.TCustom(name)
                 }
                 throw e.error(context.path, "type", format("Enum '", name, "' has no value '", member_name, "'"))
@@ -1625,13 +1624,13 @@ Context := struct {
         return result
     }
 
+    // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
     get_variant_pos := func(selfi: SEnumDef, variant_name: Str, path: Str, e: Expr) returns I64 throws Str {
-        mut variant_keys := selfi.enum_map.keys
         mut idx := 0
-        while idx.lt(variant_keys.len()) {
-            mut k := ""  # Default init, will be overwritten by get()
-            variant_keys.get(idx, k)
-            if k.eq(variant_name) {
+        while idx.lt(selfi.variants.len()) {
+            mut v := EnumVariant()
+            selfi.variants.get(idx, v)
+            if v.name.eq(variant_name) {
                 return idx
             }
             idx.inc()
@@ -1639,22 +1638,22 @@ Context := struct {
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        throw e.lang_error(path, "context", format("Error: Enum variant '", variant_name, "' not found in enum map."))
+        throw e.lang_error(path, "context", format("Error: Enum variant '", variant_name, "' not found in variants."))
     }
 
+    // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
     variant_pos_to_str := func(selfi: SEnumDef, position: I64, path: Str, e: Expr) returns Str throws Str {
-        mut keys := selfi.enum_map.keys
-        if position.lt(0).or(position.gteq(keys.len())) {
+        if position.lt(0).or(position.gteq(selfi.variants.len())) {
             # Return an error if the position is out of bounds
             throw e.lang_error(path, "context", format("Error: Invalid position '", I64.to_str(position), "' for enum variant."))
         }
         # If position is valid, return the corresponding variant name
-        mut result := ""  # Default init, will be overwritten by get()
-        keys.get(position, result)
+        mut v := EnumVariant()
+        selfi.variants.get(position, v)
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        return result
+        return v.name
     }
 
     map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str, e: Expr) throws Str {
@@ -1808,18 +1807,16 @@ Context := struct {
             // Calculate maximum variant size (8 bytes for tag + largest payload)
             mut max_size := 8  // Start with tag size
 
-            mut keys := enum_def.enum_map.keys
+            // Bug #38 fix: iterate over variants Vec
             mut i := 0
-            while i.lt(keys.len()) {
-                mut variant_name := ""
-                keys.get(i, variant_name)
-                mut payload_ptr := Ptr()  // Ptr to ValueType, NULL = None
-                enum_def.enum_map.get(variant_name, payload_ptr)
+            while i.lt(enum_def.variants.len()) {
+                mut v := EnumVariant()
+                enum_def.variants.get(i, v)
 
                 // Check if payload exists (not NULL)
-                if not(NULL.eq(payload_ptr.data)) {
+                if not(NULL.eq(v.payload_type.data)) {
                     mut payload_type := ValueType.TCustom("")
-                    memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
+                    memcpy(to_ptr(payload_type), v.payload_type.data, size_of(ValueType))
                     switch payload_type {
                     case ValueType.TCustom(t):
                         payload_size := self.get_type_size(t)
@@ -1835,9 +1832,6 @@ Context := struct {
             }
             catch (err: IndexOutOfBoundsError) {
                 throw format("get_type_size: index error in enum '", type_name, "'")
-            }
-            catch (err: KeyNotFoundError) {
-                throw format("get_type_size: key error in enum '", type_name, "'")
             }
 
             return max_size

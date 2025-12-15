@@ -573,7 +573,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 // Find variant name by matching the variant position
                                                 let mut found_variant = None;
                                                 let mut found = false;
-                                                for (name, _) in &enum_def.enum_map {
+                                                for (name, _) in enum_def.iter() {
                                                     if !found {
                                                         let pos = Context::get_variant_pos(enum_def, name, &context.path, &case)?;
                                                         if pos == variant_pos {
@@ -588,7 +588,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 })?;
 
                                                 // Get the inner payload type
-                                                let inner_payload_type = enum_def.enum_map.get(&variant_name)
+                                                let inner_payload_type = enum_def.get(&variant_name)
                                                     .and_then(|opt| opt.clone());
 
                                                 // Add symbol to context first
@@ -863,7 +863,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
             // Get the enum definition to check if this variant has a payload type
             let enum_def = context.scope_stack.lookup_enum(enum_type).unwrap();
-            let variant_type = enum_def.enum_map.get(variant_name).cloned();
+            let variant_type = enum_def.get(variant_name).cloned();
 
             match variant_type {
                 Some(Some(payload_type)) => {
@@ -2595,6 +2595,12 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 Arena::insert_string(context, &c.source_name, &val, e)?;
             },
             MutArgValue::Enum(val) => {
+                // Bug #38 fix: Set temp_enum_payload so insert_enum preserves the payload
+                if let Some(payload_data) = &val.payload {
+                    if let Some(payload_type) = &val.payload_type {
+                        context.temp_enum_payload = Some(EnumPayload { data: payload_data.clone(), value_type: payload_type.clone() });
+                    }
+                }
                 Arena::insert_enum(context, &c.source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
             },
             MutArgValue::Struct(MutArgStructData { offset, type_name, was_passed_by_ref }) => {

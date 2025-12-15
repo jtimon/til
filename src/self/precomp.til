@@ -513,8 +513,12 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     if enum_found {
                         mut payload_type := ValueType.TCustom("")
                         mut got_payload := false
-                        enum_def.enum_map.get(variant, payload_type)
-                        got_payload = true
+                        // Bug #38 fix: use helper method
+                        payload_ptr := enum_def.get(variant)
+                        if not(NULL.eq(payload_ptr.data)) {
+                            memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
+                            got_payload = true
+                        }
                         catch (err: KeyNotFoundError) {
                             // Variant not found or no payload
                         }
@@ -664,13 +668,14 @@ precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
 
     if is_enum {
         // Get the first variant from the enum (arbitrary choice - value will be overwritten by get())
-        if enum_def.enum_map.keys.len().gt(0) {
-            mut first_variant := ""
-            enum_def.enum_map.keys.get(0, first_variant)
-            mut payload_type_ptr := NULL
-            enum_def.enum_map.get(first_variant, payload_type_ptr)
-            catch (err: KeyNotFoundError) {
-                // Shouldn't happen since we got the key from keys list
+        // Bug #38 fix: use variants Vec
+        if enum_def.variants.len().gt(0) {
+            mut first_v := EnumVariant()
+            enum_def.variants.get(0, first_v)
+            first_variant := first_v.name
+            payload_type_ptr := first_v.payload_type
+            catch (err: IndexOutOfBoundsError) {
+                // Shouldn't happen since we checked len > 0
             }
 
             // Build the enum constructor:
@@ -681,10 +686,10 @@ precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
             variant_id_params.push(variant_id)
             enum_id := Expr.new_explicit(NodeType.Identifier(var_type_name), variant_id_params, e.line, e.col)
 
-            if not(NULL.eq(payload_type_ptr)) {
+            if not(NULL.eq(payload_type_ptr.data)) {
                 // Variant has a payload - need FCall with default value
                 mut payload_vt := ValueType.TCustom("")
-                memcpy(to_ptr(payload_vt), payload_type_ptr, size_of(ValueType))
+                memcpy(to_ptr(payload_vt), payload_type_ptr.data, size_of(ValueType))
                 default_arg := build_default_value_for_forin(payload_vt, e.line, e.col)
                 mut fcall_params := Vec.new(Expr)
                 fcall_params.push(enum_id)
@@ -1204,7 +1209,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
             if enum_found {
                 mut variant_name := ""
                 parts.get(1, variant_name)
-                if enum_def.enum_map.contains_key(variant_name) {
+                if enum_def.contains_key(variant_name) {  // Bug #38 fix
                     return new_e
                 }
             }

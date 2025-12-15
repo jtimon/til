@@ -18,13 +18,62 @@ next_loop_var := func() returns Str {
     return concat("_loop_", n.to_str())
 }
 
+// Bug #38 fix: Use a Vec to preserve variant order instead of Map
+EnumVariant := struct {
+    mut name: Str = ""
+    mut payload_type: Ptr = Ptr()  // Ptr to ValueType, NULL = None (no payload)
+
+    clone := func(self: EnumVariant) returns EnumVariant throws AllocError {
+        mut result := EnumVariant()
+        result.name = self.name.clone()
+        if not(NULL.eq(self.payload_type.data)) {
+            mut vt := ValueType.TCustom("")
+            memcpy(to_ptr(vt), self.payload_type.data, size_of(ValueType))
+            result.payload_type.data = to_ptr(vt)
+        }
+        return result
+    }
+}
+
 SEnumDef := struct {
-    mut enum_map: Map = Map.new(Str, Ptr)  // Ptr to ValueType, NULL = None (no payload)
+    mut variants: Vec = Vec.new(EnumVariant)
 
     clone := func(self: SEnumDef) returns SEnumDef throws AllocError {
         mut result := SEnumDef()
-        result.enum_map = self.enum_map.clone()
+        result.variants = self.variants.clone()
         return result
+    }
+
+    len := func(self: SEnumDef) returns I64 {
+        return self.variants.len()
+    }
+
+    size := func(self: SEnumDef) returns I64 {
+        return self.variants.size()
+    }
+
+    // Helper methods for backward compatibility
+    get := func(self: SEnumDef, variant_name: Str) returns Ptr throws KeyNotFoundError, IndexOutOfBoundsError {
+        for i in 0..self.variants.len() {
+            mut v := EnumVariant()
+            self.variants.get(i, v)
+            if v.name.eq(variant_name) {
+                return v.payload_type
+            }
+        }
+        throw KeyNotFoundError()
+    }
+
+    contains_key := func(self: SEnumDef, variant_name: Str) returns Bool {
+        for i in 0..self.variants.len() {
+            mut v := EnumVariant()
+            self.variants.get(i, v)
+            if v.name.eq(variant_name) {
+                return true
+            }
+        }
+        catch (err: IndexOutOfBoundsError) { }  // Should never happen with 0..len()
+        return false
     }
 }
 
@@ -811,7 +860,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
         throw t2.error(lexer.path, "expected identifier after 'enum {{', found EOF.")
     }
     lexer.advance(1)
-    mut enum_map := Map.new(Str, Ptr)  // Ptr to ValueType, NULL = None
+    mut variants := Vec.new(EnumVariant)  // Bug #38 fix: Use Vec for deterministic order
 
     mut end_found := false
     while lexer.current.lt(lexer.len()).and(not(end_found)) {
@@ -835,16 +884,23 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
                     mut payload_type := str_to_value_type(enum_val_type)
                     mut payload_ptr := Ptr()
                     payload_ptr.data = to_ptr(payload_type)
-                    enum_map.set(enum_val_name, payload_ptr)
+                    mut variant := EnumVariant()
+                    variant.name = enum_val_name
+                    variant.payload_type = payload_ptr
+                    variants.push(variant)
                     lexer.advance(2)
                 case:
                     throw next2_t.error(lexer.path, format("Expected type identifier after '", enum_val_name, " :', found '", token_type_to_str(next2_t.token_type), "'."))
                 }
             case TokenType.Comma:
-                enum_map.set(enum_val_name, Ptr())  // None = NULL pointer
+                mut variant := EnumVariant()
+                variant.name = enum_val_name
+                variants.push(variant)  // None = NULL pointer (default)
                 // Continue
             case TokenType.RightBrace:
-                enum_map.set(enum_val_name, Ptr())  // None = NULL pointer
+                mut variant := EnumVariant()
+                variant.name = enum_val_name
+                variants.push(variant)  // None = NULL pointer (default)
                 end_found = true
                 lexer.advance(1)  // Advance past the RightBrace since we peeked it with next()
             case:
@@ -862,7 +918,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
     }
     params := Vec.new(Expr)
     mut enum_def := SEnumDef()
-    enum_def.enum_map = enum_map
+    enum_def.variants = variants
     initial_token := lexer.get_token(initial_current)
     e := Expr.new_parse(NodeType.EnumDef(enum_def), initial_token, params)
     catch (err: AllocError) {

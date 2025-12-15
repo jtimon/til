@@ -12,8 +12,9 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 ** Bug #38: Vec.get doesn't preserve enum payload values
 :PROPERTIES:
 :DISCOVERED: 2025-12-15
+:FIXED: 2025-12-15
 :IMPACT: Data corruption
-:STATUS: Open
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -38,13 +39,25 @@ items.get(0, out)
 #+END_EXAMPLE
 
 *** Root Cause
-The memcpy-based storage in Vec copies the enum bytes (tag + payload), but the payload bytes are not being correctly interpreted when read back. The issue is likely in how Arena stores enum payloads vs how Vec's raw memory storage works.
+When passing an enum constructor like `PayloadEnum.None` to a Dynamic parameter (as in Vec.push),
+the argument binding code incorrectly identified `PayloadEnum` as a type identifier (because TEnumDef
+is a TType) and stored just the type name string instead of the actual enum value. This caused the
+enum data to not be inserted into the function frame, resulting in memcpy reading from garbage memory.
 
-*** Workaround
-Use enums without payloads in Vec collections, or store payload data separately.
+The issue was in interpreter.rs at the Dynamic/Type parameter handling: the code checked if the
+identifier resolved to a TType but didn't check if the expression had params (field access).
+`PayloadEnum.None` has params (the `.None` access), so it should NOT be treated as a bare type.
+
+*** Fix
+Added a check for `current_arg.params.is_empty()` before treating an identifier as a type identifier.
+This ensures enum constructors like `PayloadEnum.None` fall through to normal enum handling.
+
+Files changed:
+- src/rs/interpreter.rs: Added params.is_empty() check in Dynamic/Type handling
+- src/self/interpreter.til: Same fix ported to self-hosted version
 
 *** Test Coverage
-Regression test in src/test/vecs.til: test_vec_enum_payload() (currently disabled)
+Regression test in src/test/vecs.til: test_vec_enum_payload() (enabled)
 
 ** Bug #37: Vec.push with direct enum constructor doesn't store data correctly :FIXED:
 :PROPERTIES:

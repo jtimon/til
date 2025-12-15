@@ -426,7 +426,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 match &after_dot.node_type {
                     NodeType::Identifier(variant_name) => {
                         // Check if this variant exists in the enum
-                        let variant_type = match enum_def.enum_map.get(variant_name) {
+                        let variant_type = match enum_def.get(variant_name) {
                             Some(_variant) => _variant,
                             None => {
                                 return Err(e.error(&context.path, "type", &format!("enum '{}' has no variant '{}'", f_name, variant_name)));
@@ -742,7 +742,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
                         let enum_def = context.scope_stack.lookup_enum(name)
                             .ok_or_else(|| e.error(&context.path, "type", &format!("Enum '{}' not found", name)))?;
 
-                        if enum_def.enum_map.contains_key(member_name) {
+                        if enum_def.contains_key(member_name) {
                             return Ok(ValueType::TCustom(name.to_string()));
                         } else {
                             return Err(e.error(&context.path, "type", &format!("Enum '{}' has no value '{}'", name, member_name)));
@@ -1145,25 +1145,33 @@ impl Context {
         });
     }
 
+    // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
     pub fn get_variant_pos(selfi: &SEnumDef, variant_name: &str, path: &str, e: &Expr) -> Result<i64, String> {
-        match selfi.enum_map.keys().position(|k| k == variant_name) {
+        match selfi.variants.iter().position(|v| v.name == variant_name) {
             Some(position) => Ok(position as i64),
             None => {
-                return Err(e.lang_error(path, "context", &format!("Error: Enum variant '{}' not found in enum map.", variant_name)))
+                let names: Vec<&str> = selfi.variants.iter().map(|v| v.name.as_str()).collect();
+                return Err(e.lang_error(path, "context", &format!("Error: Enum variant '{}' not found in variants: {:?}.", variant_name, names)))
             },
         }
     }
 
+    // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
     pub fn variant_pos_to_str(selfi: &SEnumDef, position: i64, path: &str, e: &Expr) -> Result<String, String> {
-        let keys: Vec<String> = selfi.enum_map.keys().cloned().collect();
-        if position < 0 || position >= keys.len() as i64 {
-            // Return an error if the position is out of bounds
-            return Err(e.lang_error(path, "context", &format!("Error: Invalid position '{}' for enum variant in '{}'.",
-                                                        position, selfi.enum_map.keys().cloned().collect::<Vec<_>>().join(", "))));
+        if position < 0 || position >= selfi.variants.len() as i64 {
+            let names: Vec<&str> = selfi.variants.iter().map(|v| v.name.as_str()).collect();
+            return Err(e.lang_error(path, "context", &format!("Error: Invalid position '{}' for enum variant in '{:?}'.",
+                                                        position, names)));
         }
 
-        // If position is valid, return the corresponding variant name
-        return Ok(keys[position as usize].clone())
+        return Ok(selfi.variants[position as usize].name.clone())
+    }
+
+    // Bug #38 fix: Get payload type for a variant by name
+    pub fn get_variant_payload_type(selfi: &SEnumDef, variant_name: &str) -> Option<ValueType> {
+        selfi.variants.iter()
+            .find(|v| v.name == variant_name)
+            .and_then(|v| v.payload_type.clone())
     }
 
     pub fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str, e: &Expr) -> Result<(), String> {
@@ -1294,10 +1302,10 @@ impl Context {
             // Calculate maximum variant size (8 bytes for tag + largest payload)
             let mut max_size = 8; // Start with tag size
 
-            for (_variant_name, payload_type_opt) in &enum_def.enum_map {
+            for (_variant_name, payload_type_opt) in enum_def.iter() {
                 if let Some(payload_type) = payload_type_opt {
                     let payload_size = match payload_type {
-                        ValueType::TCustom(t) => self.get_type_size(t)?,
+                        ValueType::TCustom(t) => self.get_type_size(&t)?,
                         _ => {
                             return Err(format!(
                                 "get_type_size: unsupported payload type in enum '{}': {:?}",

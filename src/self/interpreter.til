@@ -719,8 +719,8 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
             mut has_variant := false
             mut has_payload := false
             mut variant_type := ValueType.TCustom("")  // Will be set if payload exists
-            mut payload_ptr := Ptr()  // Ptr to ValueType, NULL = None
-            enum_def.enum_map.get(variant_name, payload_ptr)
+            // Bug #38 fix: use helper method
+            mut payload_ptr := enum_def.get(variant_name)
             has_variant = true
             if not(NULL.eq(payload_ptr.data)) {
                 has_payload = true

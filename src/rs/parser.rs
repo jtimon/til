@@ -15,9 +15,37 @@ fn next_loop_var() -> String {
 
 pub const INFER_TYPE : &str = "auto";
 
+// Bug #38 fix: Use a Vec to preserve variant order instead of HashMap
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnumVariant {
+    pub name: String,
+    pub payload_type: Option<ValueType>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SEnumDef {
-    pub enum_map: HashMap<String, Option<ValueType>>,
+    pub variants: Vec<EnumVariant>,
+}
+
+impl SEnumDef {
+    // Helper methods for backward compatibility with enum_map interface
+    pub fn get(&self, variant_name: &str) -> Option<&Option<ValueType>> {
+        self.variants.iter()
+            .find(|v| v.name == variant_name)
+            .map(|v| &v.payload_type)
+    }
+
+    pub fn contains_key(&self, variant_name: &str) -> bool {
+        self.variants.iter().any(|v| v.name == variant_name)
+    }
+
+    pub fn keys(&self) -> impl Iterator<Item = &String> {
+        self.variants.iter().map(|v| &v.name)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &Option<ValueType>)> {
+        self.variants.iter().map(|v| (&v.name, &v.payload_type))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -679,7 +707,7 @@ fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
         return Err(t.error(&lexer.path, "expected identifier after 'enum {{', found EOF."));
     }
     lexer.advance(1)?;
-    let mut enum_map: HashMap<String, Option<ValueType>> = HashMap::new();
+    let mut variants: Vec<EnumVariant> = Vec::new();
 
     let mut end_found = false;
     while lexer.current < lexer.len() && !end_found {
@@ -699,11 +727,11 @@ fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
                                                               enum_val_name, next2_t.token_type)));
                         }
                         let enum_val_type = &next2_t.token_str;
-                        enum_map.insert(enum_val_name.to_string(), Some(str_to_value_type(enum_val_type)));
+                        variants.push(EnumVariant { name: enum_val_name.to_string(), payload_type: Some(str_to_value_type(enum_val_type)) });
                         lexer.advance(2)?;
                     },
                     TokenType::Comma | TokenType::RightBrace => {
-                        enum_map.insert(enum_val_name.to_string(), None);
+                        variants.push(EnumVariant { name: enum_val_name.to_string(), payload_type: None });
                         if next_t.token_type == TokenType::RightBrace {
                             end_found = true;
                             lexer.advance(1)?; // Advance past the RightBrace since we peeked it with next()
@@ -729,7 +757,7 @@ fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
         return Err(t.error(&lexer.path, "Expected '}}' to end enum."));
     }
     let params : Vec<Expr> = Vec::new();
-    return Ok(Expr::new_parse(NodeType::EnumDef(SEnumDef{enum_map: enum_map}), lexer.get_token(initial_current)?.clone(), params));
+    return Ok(Expr::new_parse(NodeType::EnumDef(SEnumDef{variants}), lexer.get_token(initial_current)?.clone(), params));
 }
 
 fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {

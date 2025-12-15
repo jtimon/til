@@ -65,7 +65,7 @@ fn check_enum_def(context: &Context, e: &Expr, enum_def: &SEnumDef) -> Vec<Strin
         return errors
     }
 
-    for (enum_val_name, enum_opt) in &enum_def.enum_map {
+    for (enum_val_name, enum_opt) in enum_def.iter() {
         match &enum_opt {
             None => {},
             Some(value_type) => {
@@ -1091,7 +1091,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                             };
 
                             let payload_type = context.scope_stack.lookup_enum(enum_name)
-                                .and_then(|e| e.enum_map.get(variant).cloned())
+                                .and_then(|e| e.get(variant).cloned())
                                 .flatten();
 
                             if let Some(payload_type) = payload_type {
@@ -1587,7 +1587,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 
                 // Clone the payload type before mutating context
                 let payload_type = context.scope_stack.lookup_enum(enum_name)
-                    .and_then(|e| e.enum_map.get(variant).cloned())
+                    .and_then(|e| e.get(variant).cloned())
                     .flatten();
 
                 if let Some(payload_type) = payload_type {
@@ -1607,7 +1607,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                     errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
                     context.scope_stack.pop().ok();
                 } else if context.scope_stack.lookup_enum(enum_name)
-                    .and_then(|e| e.enum_map.get(variant))
+                    .and_then(|e| e.get(variant))
                     .is_some() {
                     // Variant exists but has no payload
                     errors.push(case_expr.error(&context.path, "type", &format!("Variant '{}' has no payload, cannot use pattern matching", variant)));
@@ -1684,7 +1684,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             }
 
             if !default_found {
-                for variant in enum_def.enum_map.keys() {
+                for variant in enum_def.keys() {
                     if !matched_variants.contains(variant) {
                         errors.push(e.error(&context.path, "type", &format!("Switch is missing case for variant '{}'", variant)));
                     }
@@ -1900,7 +1900,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                 let enum_type = parts[0];
                 if let Some(enum_def) = context.scope_stack.lookup_enum(enum_type) {
                     let variant_name = parts[1];
-                    if enum_def.enum_map.contains_key(variant_name) {
+                    if enum_def.contains_key(variant_name) {
                         // This is a valid enum constructor
                         return Ok(None) // Allow enum construction
                     }

@@ -331,7 +331,7 @@ impl Arena {
                             return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid enum default value '{}' for field '{}'", default_value, decl.name)));
                         }
                         let variant = parts[1];
-                        let index = match enum_def.enum_map.keys().position(|v| v == variant) {
+                        let index = match enum_def.keys().position(|v| v == variant) {
                             Some(i) => i as i64,
                             None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Unknown enum variant '{}' for field '{}'", variant, decl.name))),
                         };
@@ -708,7 +708,7 @@ impl Arena {
         let enum_name = Context::variant_pos_to_str(enum_def, enum_value, &ctx.path, e)?;
 
         // Check if this variant has a payload type
-        let variant_payload_type = enum_def.enum_map.get(&enum_name);
+        let variant_payload_type = enum_def.get(&enum_name);
         let (payload_data, payload_type) = match variant_payload_type {
             Some(Some(vtype)) => {
                 // This variant has a payload - recursively determine size
@@ -805,7 +805,7 @@ impl Arena {
         let enum_name = Context::variant_pos_to_str(enum_def, enum_value, &ctx.path, e)?;
 
         // Check if this variant has a payload type
-        let variant_payload_type = enum_def.enum_map.get(&enum_name);
+        let variant_payload_type = enum_def.get(&enum_name);
         let (payload_data, payload_type) = match variant_payload_type {
             Some(Some(vtype)) => {
                 // This variant has a payload, read it from arena
@@ -881,6 +881,14 @@ impl Arena {
             None => (None, None),
         };
 
+        // Bug #38 fix: Always allocate the maximum enum size to support memcpy of any variant
+        // This ensures that when an enum is copied via memcpy (e.g., from Vec.get), the full
+        // payload space is available even if the current variant has no payload.
+        let max_enum_size = ctx.get_type_size(enum_type)
+            .map_err(|err| e.lang_error(&ctx.path, "context", &format!("insert_enum: {}", err)))?;
+        let payload_size = if let Some(ref bytes) = payload_data { bytes.len() } else { 0 };
+        let actual_size = 8 + payload_size; // tag + current payload
+
         let mapping = {
             let is_field = id.contains('.');
             if is_field {
@@ -898,17 +906,27 @@ impl Arena {
                     None
                 } else {
                     let offset = Arena::g().memory.len();
+                    // Allocate max enum size, write tag and payload, then zero-pad remaining
                     Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
                     if let Some(payload_bytes) = &payload_data {
                         Arena::g().memory.extend_from_slice(&payload_bytes);
+                    }
+                    // Pad with zeros to reach max_enum_size
+                    if actual_size < max_enum_size {
+                        Arena::g().memory.resize(offset + max_enum_size, 0);
                     }
                     Some(ArenaMapping { name: id.to_string(), offset })
                 }
             } else {
                 let offset = Arena::g().memory.len();
+                // Allocate max enum size, write tag and payload, then zero-pad remaining
                 Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
                 if let Some(payload_bytes) = &payload_data {
                     Arena::g().memory.extend_from_slice(&payload_bytes);
+                }
+                // Pad with zeros to reach max_enum_size
+                if actual_size < max_enum_size {
+                    Arena::g().memory.resize(offset + max_enum_size, 0);
                 }
                 Some(ArenaMapping { name: id.to_string(), offset })
             }

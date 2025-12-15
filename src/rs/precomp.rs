@@ -471,7 +471,7 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     // Bug #33: for-in loops don't work with enum collections
     let type_call = if let Some(enum_def) = context.scope_stack.lookup_enum(var_type_name) {
         // Get the first variant from the enum (arbitrary choice - value will be overwritten by get())
-        if let Some((first_variant, payload_type)) = enum_def.enum_map.iter().next() {
+        if let Some((first_variant, payload_type)) = enum_def.iter().next() {
             // Build the enum constructor:
             // - For variants WITHOUT payload: EnumType.Variant (just identifier chain)
             // - For variants WITH payload: EnumType.Variant(default_payload) (FCall)
@@ -649,7 +649,7 @@ fn precomp_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
                 // Get payload type from enum definition
                 let payload_type = context.scope_stack.lookup_enum(enum_name)
-                    .and_then(|e| e.enum_map.get(variant).cloned())
+                    .and_then(|e| e.get(variant).cloned())
                     .flatten();
 
                 if let Some(payload_type) = payload_type {
@@ -963,7 +963,7 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             let enum_type = parts[0];
             if let Some(enum_def) = context.scope_stack.lookup_enum(enum_type) {
                 let variant_name = parts[1];
-                if enum_def.enum_map.contains_key(variant_name) {
+                if enum_def.contains_key(variant_name) {
                     return Ok(e);
                 }
             }
