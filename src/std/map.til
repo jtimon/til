@@ -365,14 +365,16 @@ Map := struct {
     }
 
     clone := func(self: Map) returns Map throws AllocError {
-        mut cloned := Map()
-        cloned.key_type_name = self.key_type_name
-        cloned.key_type_size = self.key_type_size
-        cloned.value_type_name = self.value_type_name
-        cloned.value_type_size = self.value_type_size
-        cloned.keys = self.keys.clone()
-        cloned.values = self.values.clone()
-        cloned._size = self._size
-        return cloned
+        cloned_keys := self.keys.clone()
+        cloned_values := self.values.clone()
+        return Map(
+            key_type_name=self.key_type_name,
+            key_type_size=self.key_type_size,
+            value_type_name=self.value_type_name,
+            value_type_size=self.value_type_size,
+            keys=cloned_keys,
+            values=cloned_values,
+            _size=self._size
+        )
     }
 }

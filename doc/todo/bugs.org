@@ -9,6 +9,45 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #36: Throwing functions in struct literal parameters not recognized
+:PROPERTIES:
+:DISCOVERED: 2025-12-15
+:IMPACT: Type checker correctness
+:STATUS: Active
+:END:
+
+*** Description
+When calling a throwing function inside struct literal named parameters, the compiler fails to recognize that the function throws and incorrectly reports that the error type is never thrown.
+
+#+BEGIN_EXAMPLE til
+Map.clone := func(self: Map) returns Map throws AllocError {
+    return Map(
+        keys=self.keys.clone(),      // Vec.clone() throws AllocError
+        values=self.values.clone()   // Vec.clone() throws AllocError
+    )
+}
+
+// Compiler error:
+// `AllocError` is declared in the throws section, but this function never throws it.
+#+END_EXAMPLE
+
+*** Workaround
+Assign throwing function results to variables before using them in struct literals:
+
+#+BEGIN_EXAMPLE til
+Map.clone := func(self: Map) returns Map throws AllocError {
+    cloned_keys := self.keys.clone()
+    cloned_values := self.values.clone()
+    return Map(
+        keys=cloned_keys,
+        values=cloned_values
+    )
+}
+#+END_EXAMPLE
+
+*** Location
+- Type checker error detection in struct literal parameter evaluation
+
 ** Bug #35: Special `_` variable does not allow repeated declarations :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-12-14
