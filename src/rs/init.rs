@@ -674,6 +674,41 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
         NodeType::Range => Ok(ValueType::TCustom(format!("{}Range", value_type_to_str(&get_value_type(&context, e.get(0)?)?)))),
 
         NodeType::Identifier(name) => {
+            // Bug #32 fix: Handle field access on expression results
+            // When name is "_" and params[0] is an FCall, get the type of that expression first,
+            // then traverse the field access chain in params[1..]
+            if name == "_" && !e.params.is_empty() {
+                // Get the type of the base expression (params[0])
+                let base_expr = e.get(0)?;
+                let mut current_type = get_value_type(context, base_expr)?;
+
+                // Traverse the field access chain in params[1..]
+                for i in 1..e.params.len() {
+                    let field_expr = e.get(i)?;
+                    let field_name = match &field_expr.node_type {
+                        NodeType::Identifier(n) => n,
+                        _ => return Err(e.error(&context.path, "type", "Expected identifier in field access chain")),
+                    };
+
+                    match &current_type {
+                        ValueType::TCustom(type_name) => {
+                            if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
+                                if let Some(member) = struct_def.get_member(field_name) {
+                                    current_type = member.value_type.clone();
+                                } else {
+                                    return Err(e.error(&context.path, "type", &format!("Struct '{}' has no member '{}'", type_name, field_name)));
+                                }
+                            } else {
+                                return Err(e.error(&context.path, "type", &format!("'{}' is not a struct", type_name)));
+                            }
+                        },
+                        _ => return Err(e.error(&context.path, "type", &format!("Cannot access fields on type '{}'", value_type_to_str(&current_type)))),
+                    }
+                }
+
+                return Ok(current_type);
+            }
+
             let mut current_type = match context.scope_stack.lookup_symbol(name) {
                 Some(symbol_info_m) => {
                     symbol_info_m.value_type.clone()

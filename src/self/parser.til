@@ -1006,40 +1006,96 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                     method_name := method_t.token_str
                     lexer.advance(1)
 
-                    // Check if it's a method call (has parentheses)
+                    // Check if it's a method call (has parentheses) or field access (no parentheses)
                     next_peek := lexer.peek()
                     nptt := next_peek.token_type
                     switch nptt {
                     case TokenType.LeftParen:
-                        // Continue with method call parsing below
+                        // Method call: parse arguments
+                        method_args := parse_args(lexer)
+
+                        // Create a new FCall with the method name as identifier and previous result as first arg
+                        // This represents: method_name(result, args...)
+                        method_id := Expr.new_parse(NodeType.Identifier(method_name), method_t, Vec.new(Expr))
+                        mut new_params := Vec.new(Expr)
+                        new_params.push(method_id)
+                        new_params.push(result)  // Previous call result becomes first argument
+                        for j in 0..method_args.params.len() {
+                            mut method_arg := Expr()
+                            method_args.params.get(j, method_arg)
+                            new_params.push(method_arg)
+                        }
+
+                        result = Expr.new_parse(NodeType.FCall, method_t, new_params)
                     case:
-                        throw next_peek.error(lexer.path, format("Expected '(' after method name '", method_name, "', found '", token_type_to_str(next_peek.token_type), "'"))
+                        // Bug #32 fix: Field access on expression result (no parentheses)
+                        // Collect all field names in the chain until we hit something else
+                        mut field_params := Vec.new(Expr)
+                        field_params.push(result)  // First param is the FCall/expression result
+                        field_params.push(Expr.new_parse(NodeType.Identifier(method_name), method_t, Vec.new(Expr)))
+
+                        // Continue collecting fields until we hit '(' (method call) or something else
+                        mut continue_field_loop := true
+                        while continue_field_loop {
+                            peek_after := lexer.peek()
+                            patt := peek_after.token_type
+                            switch patt {
+                            case TokenType.Dot:
+                                lexer.advance(1)
+                                next_field_t := lexer.peek()
+                                nftt := next_field_t.token_type
+                                switch nftt {
+                                case TokenType.Identifier:
+                                    next_field_name := next_field_t.token_str
+                                    lexer.advance(1)
+
+                                    // Check if this is a method call
+                                    check_paren := lexer.peek()
+                                    cptt := check_paren.token_type
+                                    switch cptt {
+                                    case TokenType.LeftParen:
+                                        // This is a method call on the field chain
+                                        // Build the Identifier chain for the field access, then wrap in FCall
+                                        // Bug #32 fix: Use "_" to signal expression-based field access
+                                        field_access := Expr.new_parse(NodeType.Identifier("_"), method_t, field_params)
+
+                                        method_args2 := parse_args(lexer)
+
+                                        method_id2 := Expr.new_parse(NodeType.Identifier(next_field_name), next_field_t, Vec.new(Expr))
+                                        mut new_params2 := Vec.new(Expr)
+                                        new_params2.push(method_id2)
+                                        new_params2.push(field_access)
+                                        for k in 0..method_args2.params.len() {
+                                            mut method_arg2 := Expr()
+                                            method_args2.params.get(k, method_arg2)
+                                            new_params2.push(method_arg2)
+                                        }
+
+                                        result = Expr.new_parse(NodeType.FCall, next_field_t, new_params2)
+                                        continue_field_loop = false
+                                    case:
+                                        // Another field access
+                                        field_params.push(Expr.new_parse(NodeType.Identifier(next_field_name), next_field_t, Vec.new(Expr)))
+                                    }
+                                case:
+                                    throw next_field_t.error(lexer.path, format("Expected identifier after '.', found '", token_type_to_str(next_field_t.token_type), "'"))
+                                }
+                            case:
+                                // End of chain - create the field access expression
+                                // Bug #32 fix: Use "_" as identifier name to signal that
+                                // params[0] is an expression (FCall) to evaluate first, then access
+                                // the remaining params as fields on its result
+                                result = Expr.new_parse(NodeType.Identifier("_"), method_t, field_params)
+                                continue_field_loop = false
+                            }
+                        }
+                        continue_loop = false
                     }
                 case:
-                    throw method_t.error(lexer.path, format("Expected method name after '.', found '", token_type_to_str(method_t.token_type), "')"))
+                    throw method_t.error(lexer.path, format("Expected identifier after '.', found '", token_type_to_str(method_t.token_type), "')"))
                 }
             case:
                 continue_loop = false
-            }
-
-            if continue_loop {
-
-                // Parse the argument list
-                method_args := parse_args(lexer)
-
-                // Create a new FCall with the method name as identifier and previous result as first arg
-                // This represents: method_name(result, args...)
-                method_id := Expr.new_parse(NodeType.Identifier(method_name), method_t, Vec.new(Expr))
-                mut new_params := Vec.new(Expr)
-                new_params.push(method_id)
-                new_params.push(result)  // Previous call result becomes first argument
-                for j in 0..method_args.params.len() {
-                    mut method_arg := Expr()
-                    method_args.params.get(j, method_arg)
-                    new_params.push(method_arg)
-                }
-
-                result = Expr.new_parse(NodeType.FCall, method_t, new_params)
             }
         }
 
@@ -1411,10 +1467,8 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     }
 
     // Check for collection-based for: for VAR: TYPE in COLLECTION
-    // TODO #32: Workaround - can't use lexer.peek().token_type directly
-    peeked := lexer.peek()
-    peeked_tt := peeked.token_type
-    switch peeked_tt {
+    // Bug #32 fix: Now we can use lexer.peek().token_type directly
+    switch lexer.peek().token_type {
     case TokenType.Colon:
         lexer.advance(1) // consume ':'
 

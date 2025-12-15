@@ -1057,6 +1057,43 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
         return ValueType.TCustom(format(value_type_to_str(range_elem_type), "Range"))
 
     case NodeType.Identifier(name):
+        // Bug #32 fix: Handle field access on expression results
+        // When name is "_" and params[0] is an FCall, get the type of that expression first,
+        // then traverse the field access chain in params[1..]
+        if name.eq("_") {
+            if e.params.len().gt(0) {
+                // Get the type of the base expression (params[0])
+                base_expr := e.get(0)
+                mut current_type := get_value_type(context, base_expr)
+
+                // Traverse the field access chain in params[1..]
+                for i in 1..e.params.len() {
+                    field_expr := e.get(i)
+                    mut field_name := ""
+                    switch field_expr.node_type {
+                    case NodeType.Identifier(n):
+                        field_name = n
+                    case:
+                        throw e.error(context.path, "type", "Expected identifier in field access chain")
+                    }
+
+                    switch current_type {
+                    case ValueType.TCustom(type_name):
+                        mut struct_def := context.scope_stack.lookup_struct(type_name)
+                        catch (err: KeyNotFoundError) {
+                            throw e.error(context.path, "type", format("'", type_name, "' is not a struct"))
+                        }
+                        mut member := SStructDef.get_member_or_err(struct_def, field_name, type_name, context.path, e)
+                        current_type = member.value_type
+                    case:
+                        throw e.error(context.path, "type", format("Cannot access fields on type '", value_type_to_str(current_type), "'"))
+                    }
+                }
+
+                return current_type
+            }
+        }
+
         mut symbol := context.scope_stack.lookup_symbol(name)
         catch (err: KeyNotFoundError) {
             throw e.error(context.path, "type", format("Undefined symbol '", name, "'"))

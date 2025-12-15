@@ -1537,6 +1537,94 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
 }
 
 fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    // Bug #32 fix: Handle field access on expression results
+    // When name is "_" and params[0] is an FCall, evaluate that first,
+    // then params[1..] are field access on its result
+    if name == "_" && !e.params.is_empty() {
+        // Evaluate the base expression (params[0])
+        let base_expr = e.get(0)?;
+        let base_result = eval_expr(context, base_expr)?;
+        if base_result.is_throw {
+            return Ok(base_result);
+        }
+
+        // Get the type of the result
+        let base_type = get_value_type(context, base_expr)?;
+
+        // Now we have the result stored in arena - access the fields
+        // The result.value contains the identifier for the result
+        let result_name = base_result.value.clone();
+
+        // If there's only one param (the FCall), just return the result
+        if e.params.len() == 1 {
+            return Ok(base_result);
+        }
+
+        // Build the full field path by traversing params[1..]
+        let mut current_name = result_name.clone();
+        for i in 1..e.params.len() {
+            let field_expr = e.get(i)?;
+            if let NodeType::Identifier(field_name) = &field_expr.node_type {
+                current_name = format!("{}.{}", current_name, field_name);
+            } else {
+                return Err(e.error(&context.path, "eval", "Expected identifier in field access chain"));
+            }
+        }
+
+        // Now evaluate the final field access using the built path
+        // We need to determine the type of the final field to return it properly
+        match base_type {
+            ValueType::TCustom(ref type_name) => {
+                // Get the struct definition to traverse the field chain
+                let mut current_type = type_name.clone();
+                for i in 1..e.params.len() {
+                    let field_expr = e.get(i)?;
+                    if let NodeType::Identifier(field_name) = &field_expr.node_type {
+                        if let Some(struct_def) = context.scope_stack.lookup_struct(&current_type) {
+                            if let Some(member) = struct_def.get_member(field_name) {
+                                match &member.value_type {
+                                    ValueType::TCustom(inner_type) => {
+                                        current_type = inner_type.clone();
+                                    },
+                                    _ => {
+                                        return Err(e.error(&context.path, "eval", &format!("Unexpected field type for '{}'", field_name)));
+                                    }
+                                }
+                            } else {
+                                return Err(e.error(&context.path, "eval", &format!("Field '{}' not found in struct '{}'", field_name, current_type)));
+                            }
+                        } else {
+                            return Err(e.error(&context.path, "eval", &format!("Struct '{}' not found", current_type)));
+                        }
+                    }
+                }
+
+                // Now get the value based on the final type
+                match current_type.as_str() {
+                    "I64" => {
+                        let val = Arena::get_i64(context, &current_name, e)?;
+                        return Ok(EvalResult::new(&val.to_string()));
+                    },
+                    "U8" => {
+                        let val = Arena::get_u8(context, &current_name, e)?;
+                        return Ok(EvalResult::new(&val.to_string()));
+                    },
+                    "Str" => {
+                        let val = string_from_context(context, &current_name, e)?;
+                        return Ok(EvalResult::new(&val));
+                    },
+                    _ => {
+                        // Return the field path for struct fields
+                        return Ok(EvalResult::new(&current_name));
+                    }
+                }
+            },
+            _ => {
+                return Err(e.error(&context.path, "eval", &format!("Cannot access fields on non-struct type")));
+            }
+        }
+    }
+
     match context.scope_stack.lookup_symbol(name) {
         Some(symbol_info) => match &symbol_info.value_type {
             ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) | ValueType::TFunction(FunctionType::FTMacro) => {

@@ -235,8 +235,9 @@ variant works as an initializer.
 ** Bug #32: TIL doesn't support chained field access + method calls
 :PROPERTIES:
 :DISCOVERED: 2025-12-14
+:FIXED: 2025-12-15
 :IMPACT: Code ergonomics
-:STATUS: Open
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -255,19 +256,16 @@ Or type errors like:
 Cannot call 'peeked.token_type', it is not a function, it is 'TokenType'
 #+END_EXAMPLE
 
-*** Workaround
-Use intermediate variables:
-#+BEGIN_EXAMPLE til
-peeked := lexer.peek()
-peeked_tt := peeked.token_type
-switch peeked_tt {
-case TokenType.Colon:
-    // ...
-}
-#+END_EXAMPLE
+*** Fix
+Parser now handles field access after function/method calls by using
+Identifier("_") as a marker where params[0] holds the base expression
+and params[1..] holds the field chain. Changes in parser, init, typer,
+interpreter, and ccodegen (both Rust and TIL).
+
+Tests added to src/test/structs.til.
 
 *** Affected Code
-- src/self/parser.til: parse_for_statement (TODO #32 workaround)
+- src/self/parser.til: parse_for_statement (workaround removed)
 
 * Fixed Bugs Summary
 

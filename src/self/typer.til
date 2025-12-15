@@ -223,22 +223,32 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
             // Ignore pop error
         }
     case NodeType.Identifier(name):
-        mut func_found := false
-        mut symbol_found := false
-        mut dummy_func := SFuncDef()
-        dummy_func = context.scope_stack.lookup_func(name)
-        func_found = true
-        catch (err: KeyNotFoundError) {
-            // Not found
-        }
-        mut dummy_symbol := SymbolInfo()
-        dummy_symbol = context.scope_stack.lookup_symbol(name)
-        symbol_found = true
-        catch (err: KeyNotFoundError) {
-            // Not found
-        }
-        if not(func_found.or(symbol_found)) {
-            errors.push(e.error(context.path, "type", format("Undefined symbol '", name, "'")))
+        // Bug #32 fix: "_" is a special marker for field access on expression results
+        // params[0] is the expression, params[1..] are the field chain (field names, not symbols)
+        if name.eq("_") {
+            if e.params.len().gt(0) {
+                // Only check the base expression (params[0])
+                // params[1..] are field identifiers that don't need symbol lookup
+                errors.extend(check_types_with_context(context, e.get(0), ExprContext.ValueUsed))
+            }
+        } else {
+            mut func_found := false
+            mut symbol_found := false
+            mut dummy_func := SFuncDef()
+            dummy_func = context.scope_stack.lookup_func(name)
+            func_found = true
+            catch (err: KeyNotFoundError) {
+                // Not found
+            }
+            mut dummy_symbol := SymbolInfo()
+            dummy_symbol = context.scope_stack.lookup_symbol(name)
+            symbol_found = true
+            catch (err: KeyNotFoundError) {
+                // Not found
+            }
+            if not(func_found.or(symbol_found)) {
+                errors.push(e.error(context.path, "type", format("Undefined symbol '", name, "'")))
+            }
         }
     case NodeType.Declaration(decl):
         errors.extend(check_declaration(context, e, decl))

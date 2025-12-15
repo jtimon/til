@@ -329,3 +329,25 @@ test_struct_literals := proc() {
     assert_eq(loc(), 3, v3b.z)
 }
 test_struct_literals()
+
+// === Bug #32: Chained field access after function/method calls ===
+// After a function/method call returns a struct, we should be able to access its fields
+
+ChainedInner := struct {
+    mut value: I64 = 42
+}
+
+get_chained_inner := func() returns ChainedInner {
+    return ChainedInner()
+}
+
+test_chained_field_access := proc() {
+    // After get_chained_inner() returns ChainedInner, access .value
+    result := get_chained_inner().value
+    assert_eq(loc(), 42, result)
+
+    // Chained field access followed by method call
+    result2 := get_chained_inner().value.eq(42)
+    test(loc(), result2, "chained field then method should work")
+}
+test_chained_field_access()

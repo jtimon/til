@@ -805,7 +805,8 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
         params.extend(arg_list.params);
         let mut result = Expr::new_parse(NodeType::FCall, lexer.get_token(initial_current)?.clone(), params);
 
-        // Handle chained method calls: a.method1().method2().method3()
+        // Handle chained method calls and field access: a.method1().method2().field.method3()
+        // Bug #32 fix: Support field access after method calls (not just method calls)
         let mut should_continue_chaining = true;
         while should_continue_chaining {
             let peek_t = lexer.peek();
@@ -815,37 +816,96 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
 
             if should_continue_chaining {
                 // Consume the dot
-            lexer.advance(1)?;
+                lexer.advance(1)?;
 
-            // Expect an identifier for the next method name
-            let method_t = lexer.peek();
-            if method_t.token_type != TokenType::Identifier {
-                return Err(method_t.error(&lexer.path, &format!("Expected method name after '.', found '{:?}'", method_t.token_type)));
-            }
-            let method_name = method_t.token_str.clone();
-            lexer.advance(1)?;
+                // Expect an identifier for the next method/field name
+                let method_t = lexer.peek();
+                if method_t.token_type != TokenType::Identifier {
+                    return Err(method_t.error(&lexer.path, &format!("Expected identifier after '.', found '{:?}'", method_t.token_type)));
+                }
+                let method_name = method_t.token_str.clone();
+                lexer.advance(1)?;
 
-            // Check if it's a method call (has parentheses)
-            let next_peek = lexer.peek();
-            if next_peek.token_type != TokenType::LeftParen {
-                return Err(next_peek.error(&lexer.path, &format!("Expected '(' after method name '{}', found '{:?}'", method_name, next_peek.token_type)));
-            }
+                // Check if it's a method call (has parentheses) or field access (no parentheses)
+                let next_peek = lexer.peek();
+                if next_peek.token_type == TokenType::LeftParen {
+                    // Method call: parse arguments
+                    let method_args = match parse_args(lexer) {
+                        Ok(a_list) => a_list,
+                        Err(err_str) => return Err(err_str),
+                    };
 
-            // Parse the argument list
-            let method_args = match parse_args(lexer) {
-                Ok(a_list) => a_list,
-                Err(err_str) => return Err(err_str),
-            };
+                    // Create a new FCall with the method name as identifier and previous result as first arg
+                    // This represents: method_name(result, args...)
+                    let method_id = Expr::new_parse(NodeType::Identifier(method_name), method_t.clone(), Vec::new());
+                    let mut new_params = Vec::new();
+                    new_params.push(method_id);
+                    new_params.push(result); // Previous call result becomes first argument
+                    new_params.extend(method_args.params);
 
-            // Create a new FCall with the method name as identifier and previous result as first arg
-            // This represents: method_name(result, args...)
-            let method_id = Expr::new_parse(NodeType::Identifier(method_name), method_t.clone(), Vec::new());
-            let mut new_params = Vec::new();
-            new_params.push(method_id);
-            new_params.push(result); // Previous call result becomes first argument
-            new_params.extend(method_args.params);
+                    result = Expr::new_parse(NodeType::FCall, method_t, new_params);
+                } else {
+                    // Bug #32 fix: Field access on expression result (no parentheses)
+                    // Collect all field names in the chain until we hit something else
+                    let mut field_params: Vec<Expr> = Vec::new();
+                    field_params.push(result); // First param is the FCall/expression result
+                    field_params.push(Expr::new_parse(NodeType::Identifier(method_name.clone()), method_t.clone(), Vec::new()));
 
-            result = Expr::new_parse(NodeType::FCall, method_t, new_params);
+                    // Continue collecting fields until we hit '(' (method call) or something else
+                    loop {
+                        let peek_after = lexer.peek();
+                        if peek_after.token_type == TokenType::Dot {
+                            lexer.advance(1)?;
+                            let next_field_t = lexer.peek();
+                            if next_field_t.token_type != TokenType::Identifier {
+                                return Err(next_field_t.error(&lexer.path, &format!("Expected identifier after '.', found '{:?}'", next_field_t.token_type)));
+                            }
+                            let next_field_name = next_field_t.token_str.clone();
+                            lexer.advance(1)?;
+
+                            // Check if this is a method call
+                            let check_paren = lexer.peek();
+                            if check_paren.token_type == TokenType::LeftParen {
+                                // This is a method call on the field chain
+                                // Build the Identifier chain for the field access, then wrap in FCall
+                                // Bug #32 fix: Use "_" to signal expression-based field access
+                                let field_access = Expr::new_parse(
+                                    NodeType::Identifier("_".to_string()),
+                                    method_t.clone(),
+                                    field_params
+                                );
+
+                                let method_args = match parse_args(lexer) {
+                                    Ok(a_list) => a_list,
+                                    Err(err_str) => return Err(err_str),
+                                };
+
+                                let method_id = Expr::new_parse(NodeType::Identifier(next_field_name), next_field_t.clone(), Vec::new());
+                                let mut new_params = Vec::new();
+                                new_params.push(method_id);
+                                new_params.push(field_access);
+                                new_params.extend(method_args.params);
+
+                                result = Expr::new_parse(NodeType::FCall, next_field_t, new_params);
+                                break;
+                            } else {
+                                // Another field access
+                                field_params.push(Expr::new_parse(NodeType::Identifier(next_field_name), next_field_t.clone(), Vec::new()));
+                            }
+                        } else {
+                            // End of chain - create the field access expression
+                            // Bug #32 fix: Use "_" as identifier name to signal that
+                            // params[0] is an expression (FCall) to evaluate first, then access
+                            // the remaining params as fields on its result
+                            result = Expr::new_parse(
+                                NodeType::Identifier("_".to_string()),
+                                method_t.clone(),
+                                field_params
+                            );
+                            break;
+                        }
+                    }
+                }
             }
         }
 

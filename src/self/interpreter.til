@@ -1544,6 +1544,88 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
 }
 
 eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
+    // Bug #32 fix: Handle field access on expression results
+    // When name is "_" and params[0] is an FCall, evaluate that first,
+    // then params[1..] are field access on its result
+    if name.eq("_") {
+        if e.params.len().gt(0) {
+            // Evaluate the base expression (params[0])
+            base_expr := e.get(0)
+            base_result := eval_expr(context, base_expr)
+            if base_result.is_throw {
+                return base_result
+            }
+
+            // Get the type of the result
+            base_type := get_value_type(context, base_expr)
+
+            // Now we have the result stored in arena - access the fields
+            // The result.value contains the identifier for the result
+            result_name := base_result.value
+
+            // If there's only one param (the FCall), just return the result
+            if e.params.len().eq(1) {
+                return base_result
+            }
+
+            // Build the full field path by traversing params[1..]
+            mut current_name := result_name
+            for i in 1..e.params.len() {
+                field_expr := e.get(i)
+                switch field_expr.node_type {
+                case NodeType.Identifier(field_name):
+                    current_name = format(current_name, ".", field_name)
+                case:
+                    throw e.error(context.path, "eval", "Expected identifier in field access chain")
+                }
+            }
+
+            // Now evaluate the final field access using the built path
+            // We need to determine the type of the final field to return it properly
+            switch base_type {
+            case ValueType.TCustom(type_name):
+                // Get the struct definition to traverse the field chain
+                mut current_type := type_name
+                for i in 1..e.params.len() {
+                    field_expr := e.get(i)
+                    switch field_expr.node_type {
+                    case NodeType.Identifier(field_name):
+                        struct_def := context.scope_stack.lookup_struct(current_type)
+                        catch (err: KeyNotFoundError) {
+                            throw e.error(context.path, "eval", format("Struct '", current_type, "' not found"))
+                        }
+                        member := SStructDef.get_member_or_err(struct_def, field_name, current_type, context.path, e)
+                        switch member.value_type {
+                        case ValueType.TCustom(inner_type):
+                            current_type = inner_type
+                        case:
+                            throw e.error(context.path, "eval", format("Unexpected field type for '", field_name, "'"))
+                        }
+                    case:
+                        // Already handled above
+                    }
+                }
+
+                // Now get the value based on the final type
+                if current_type.eq("I64") {
+                    i64_val := Arena.get_i64(context, current_name, e)
+                    return EvalResult.new(I64.to_str(i64_val))
+                } else if current_type.eq("U8") {
+                    u8_val : U8 = Arena.get_u8(context, current_name, e)
+                    return EvalResult.new(U8.to_str(u8_val))
+                } else if current_type.eq("Str") {
+                    val := string_from_context(context, current_name, e)
+                    return EvalResult.new(val)
+                } else {
+                    // Return the field path for struct fields
+                    return EvalResult.new(current_name)
+                }
+            case:
+                throw e.error(context.path, "eval", "Cannot access fields on non-struct type")
+            }
+        }
+    }
+
     symbol_info := context.scope_stack.lookup_symbol(name)
     catch (err: KeyNotFoundError) {
         throw e.lang_error(context.path, "eval", format("Undefined symbol '", name, "'. This should have been caught in the compile phase."))
@@ -1589,6 +1671,10 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
     case:
         throw e.todo_error(context.path, "eval", format("Can't use identifier '", name, "'. Type ", value_type_to_str(symbol_info.value_type), " not supported yet."))
     }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 

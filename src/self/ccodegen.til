@@ -4091,6 +4091,28 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
     case NodeType.Declaration(decl):
         return emit_declaration(decl, expr, output, indent, ctx, context)
     case NodeType.Identifier(name):
+        // Bug #32 fix: Handle field access on expression results
+        // When name is "_", params[0] is an expression to emit first,
+        // then params[1..] are the field chain
+        if name.eq("_") {
+            if gt(expr.params.len(), 0) {
+                // Emit the base expression (params[0])
+                mut result := emit_expr(expr.get(0), output, indent, ctx, context)
+                // Then emit the field chain
+                for i in 1..expr.params.len() {
+                    field_expr := expr.get(i)
+                    switch field_expr.node_type {
+                    case NodeType.Identifier(field):
+                        result = result.concat(".")
+                        result = result.concat(field)
+                    case:
+                        // Ignore non-identifier params
+                    }
+                }
+                return result
+            }
+        }
+
         // Check for type-qualified access (Type.field)
         if gt(expr.params.len(), 0) {
             mut first_char := name.get_substr(0, 1)

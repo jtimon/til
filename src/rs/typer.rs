@@ -182,7 +182,13 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             context.scope_stack.pop().ok();
         },
         NodeType::Identifier(name) => {
-            if !(context.scope_stack.lookup_func(name).is_some() || context.scope_stack.lookup_symbol(name).is_some()) {
+            // Bug #32 fix: "_" is a special marker for field access on expression results
+            // params[0] is the expression, params[1..] are the field chain (field names, not symbols)
+            if name == "_" && !e.params.is_empty() {
+                // Only check the base expression (params[0])
+                // params[1..] are field identifiers that don't need symbol lookup
+                errors.extend(check_types_with_context(context, e.get(0).unwrap(), ExprContext::ValueUsed));
+            } else if !(context.scope_stack.lookup_func(name).is_some() || context.scope_stack.lookup_symbol(name).is_some()) {
                 errors.push(e.error(&context.path, "type", &format!("Undefined symbol '{}'", name)));
             }
         },

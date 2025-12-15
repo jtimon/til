@@ -2888,6 +2888,22 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::LLiteral(lit) => emit_literal(lit, output, context),
         NodeType::Declaration(decl) => emit_declaration(decl, expr, output, indent, ctx, context),
         NodeType::Identifier(name) => {
+            // Bug #32 fix: Handle field access on expression results
+            // When name is "_", params[0] is an expression to emit first,
+            // then params[1..] are the field chain
+            if name == "_" && !expr.params.is_empty() {
+                // Emit the base expression (params[0])
+                emit_expr(&expr.params[0], output, indent, ctx, context)?;
+                // Then emit the field chain
+                for i in 1..expr.params.len() {
+                    if let NodeType::Identifier(field) = &expr.params[i].node_type {
+                        output.push_str(".");
+                        output.push_str(field);
+                    }
+                }
+                return Ok(());
+            }
+
             // Check for type-qualified access (Type.field or Type.Variant)
             if !expr.params.is_empty() {
                 if let NodeType::Identifier(field) = &expr.params[0].node_type {
