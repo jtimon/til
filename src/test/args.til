@@ -8,10 +8,6 @@ Vec2 := struct {
     mut x : I64 = 0
     mut y : I64 = 0
 
-    new := func(x: I64, y: I64) returns Vec2 {
-        return Vec2(x=x, y=y)
-    }
-
     clone := func(self: Vec2) returns Vec2 {
         return Vec2(x=self.x, y=self.y)
     }
@@ -80,7 +76,7 @@ sum_vec := func(v: Vec2) returns I64 {
 }
 
 test_struct_arg := proc() {
-    v := Vec2.new(10, 20)
+    v := Vec2(x=10, y=20)
     result := sum_vec(v)
     assert_eq(loc(), 30, result)
 }
@@ -162,7 +158,7 @@ scale_vec := proc(mut v: Vec2, factor: I64) {
 }
 
 test_mut_struct := proc() {
-    mut v := Vec2.new(3, 4)
+    mut v := Vec2(x=3, y=4)
     scale_vec(v, 10)
     assert_eq(loc(), 30, v.x)
     assert_eq(loc(), 40, v.y)
@@ -222,7 +218,7 @@ translate_vec := proc(mut v: Vec2, dx: I64, dy: I64) {
 }
 
 test_struct_mixed_mut := proc() {
-    mut pos := Vec2.new(100, 200)
+    mut pos := Vec2(x=100, y=200)
     translate_vec(pos, 50, 75)
     assert_eq(loc(), 150, pos.x)
     assert_eq(loc(), 275, pos.y)
@@ -243,7 +239,7 @@ copy_and_modify := func(v: Vec2) returns Vec2 {
 }
 
 test_non_mut_isolation := proc() {
-    original := Vec2.new(1, 2)
+    original := Vec2(x=1, y=2)
     modified := copy_and_modify(original)
 
     // Original should be unchanged
@@ -380,7 +376,7 @@ test_copy_struct := proc(copy v: Vec2) returns Vec2 {
 }
 
 test_copy_struct_modification := proc() {
-    original := Vec2.new(1, 2)
+    original := Vec2(x=1, y=2)
     modified := test_copy_struct(original)
 
     // Modified copy has new values
@@ -434,12 +430,12 @@ test_mixed_param_modes()
 
 // Test 5: copy parameter can be reassigned entirely
 test_copy_reassignment := proc(copy v: Vec2) returns Vec2 {
-    v = Vec2.new(7, 8)  // completely replace the copy
+    v = Vec2(x=7, y=8)  // completely replace the copy
     return v
 }
 
 test_copy_full_reassignment := proc() {
-    original := Vec2.new(1, 2)
+    original := Vec2(x=1, y=2)
     result := test_copy_reassignment(original)
 
     assert_eq(loc(), 7, result.x)
@@ -480,7 +476,7 @@ test_copy_nested()
 // === Test that declarations create independent copies ===
 
 test_declaration_creates_copy := proc() {
-    original := Vec2.new(1, 2)
+    original := Vec2(x=1, y=2)
     mut dup := original  // Should create copy, not share offset
     dup.x = 999
     dup.y = 888
@@ -519,7 +515,7 @@ consume_vec := proc(own v: Vec2) returns I64 {
 }
 
 test_own_struct := proc() {
-    mut point := Vec2.new(10, 20)
+    mut point := Vec2(x=10, y=20)
     result := consume_vec(point)
     assert_eq(loc(), 30, result)
 }
@@ -533,7 +529,7 @@ modify_own_struct := proc(own v: Vec2) returns Vec2 {
 }
 
 test_own_can_modify := proc() {
-    original := Vec2.new(1, 2)
+    original := Vec2(x=1, y=2)
     modified := modify_own_struct(original)
     assert_eq(loc(), 100, modified.x)
     assert_eq(loc(), 200, modified.y)
@@ -572,7 +568,7 @@ test_own_string()
 
 // Test 5: own with expression (not a variable) - should allocate fresh
 test_own_expression := proc() {
-    result := consume_vec(Vec2.new(5, 15))
+    result := consume_vec(Vec2(x=5, y=15))
     assert_eq(loc(), 20, result)  // 5+15=20
 }
 test_own_expression()
