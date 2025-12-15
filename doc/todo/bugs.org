@@ -46,11 +46,12 @@ Use enums without payloads in Vec collections, or store payload data separately.
 *** Test Coverage
 Regression test in src/test/vecs.til: test_vec_enum_payload() (currently disabled)
 
-** Bug #37: Vec.push with direct enum constructor doesn't store data correctly
+** Bug #37: Vec.push with direct enum constructor doesn't store data correctly :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-12-15
+:FIXED: 2025-12-15
 :IMPACT: Data corruption
-:STATUS: Open
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -69,19 +70,40 @@ c := SimpleColor.Red
 colors.push(c)
 #+END_EXAMPLE
 
-*** Root Cause
-When calling Vec.push with a Dynamic parameter that is an enum constructor expression (not a variable), the to_ptr() function doesn't return the correct arena offset for the temporary enum value. The expression is evaluated but the result isn't stored in a location that to_ptr() can find.
+*** Root Cause (Found)
+The bug was in the interpreter's handling of Dynamic parameters. When an enum constructor expression like `SimpleColor.Green` was passed to a Dynamic parameter:
 
-*** Workaround
-Always assign enum values to variables before pushing to Vec:
+1. The parser creates an Identifier("SimpleColor") node with params [Identifier("Green")]
+2. The interpreter checked if "SimpleColor" was a type reference (TType)
+3. Since SimpleColor is an enum type definition, it matched as TType
+4. The code incorrectly treated it as a bare type reference, storing "SimpleColor" as a string
+5. This caused to_ptr(value) to return the wrong arena offset
 
-#+BEGIN_EXAMPLE til
-c_red := SimpleColor.Red
-colors.push(c_red)
-#+END_EXAMPLE
+*** Fix (2025-12-15)
+Added check for `current_arg.params.is_empty()` before treating an identifier as a type reference:
+
+*interpreter.rs (line 1938):*
+#+BEGIN_SRC rust
+if current_arg.params.is_empty() {
+    if let Some(sym) = context.scope_stack.lookup_symbol(id_name) {
+        if let ValueType::TType(_) = &sym.value_type {
+            // Only treat as type reference if params are empty
+        }
+    }
+}
+#+END_SRC
+
+*interpreter.til (line 2022):*
+#+BEGIN_SRC til
+if current_arg.params.len().eq(0) {
+    // Only treat as type reference if params are empty
+}
+#+END_SRC
+
+Workarounds in std/map.til were also removed - now uses Vec.push() directly.
 
 *** Test Coverage
-Regression test in src/test/vecs.til: test_vec_enum_direct_push() (currently disabled)
+Regression test in src/test/vecs.til: test_vec_enum_direct_push() (enabled)
 
 ** Bug #35: Special `_` variable does not allow repeated declarations :FIXED:
 :PROPERTIES:

@@ -2016,18 +2016,23 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 if custom_type_name.eq("Dynamic").or(custom_type_name.eq("Type")) {
                     switch current_arg.node_type {
                     case NodeType.Identifier(id_name):
-                        mut sym := SymbolInfo()
-                        sym = context.scope_stack.lookup_symbol(id_name)
-                        switch sym.value_type {
-                        case ValueType.TType(tdef):
-                            // This is a type identifier - store the type name as a string
-                            function_frame.symbols.insert(arg.name, SymbolInfo.new(ValueType.TCustom("Str"), false, false, false))
-                            Arena.insert_string_into_frame(context, function_frame, arg.name, id_name, e)
-                            param_index.inc()
-                            continue  // Skip eval_expr for this parameter
-                        case:
+                        // Bug #37 fix: Only treat as type reference if there are NO params.
+                        // An enum constructor like SimpleColor.Green has params (Green),
+                        // so it should fall through to normal evaluation, not be treated as a type.
+                        if current_arg.params.len().eq(0) {
+                            mut sym := SymbolInfo()
+                            sym = context.scope_stack.lookup_symbol(id_name)
+                            switch sym.value_type {
+                            case ValueType.TType(tdef):
+                                // This is a type identifier - store the type name as a string
+                                function_frame.symbols.insert(arg.name, SymbolInfo.new(ValueType.TCustom("Str"), false, false, false))
+                                Arena.insert_string_into_frame(context, function_frame, arg.name, id_name, e)
+                                param_index.inc()
+                                continue  // Skip eval_expr for this parameter
+                            case:
+                            }
+                            catch (err: KeyNotFoundError) { }
                         }
-                        catch (err: KeyNotFoundError) { }
                     case:
                     }
                     // If it's not a type identifier, fall through to normal evaluation

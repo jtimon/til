@@ -86,34 +86,8 @@ Map := struct {
         }
 
         // Key doesn't exist - add it
-        // Workaround for bug: pushing Dynamic parameters doesn't work
-        // Instead, manually grow the array and memcpy directly
-        if self.keys._len.eq(self.keys.cap) {
-            // Need to grow
-            mut new_cap := mul(self.keys.cap, 2)
-            mut new_ptr := malloc(mul(new_cap, self.keys.type_size))
-            memcpy(new_ptr, self.keys.ptr, mul(self.keys._len, self.keys.type_size))
-            free(self.keys.ptr)
-            self.keys.ptr = new_ptr
-            self.keys.cap = new_cap
-        }
-        // Copy key directly into array memory
-        mut dest_ptr := add(self.keys.ptr, mul(self.keys._len, self.keys.type_size))
-        memcpy(dest_ptr, to_ptr(key), self.keys.type_size)
-        self.keys._len = add(self.keys._len, 1)
-
-        // Same workaround for values
-        if self.values._len.eq(self.values.cap) {
-            mut new_cap := mul(self.values.cap, 2)
-            mut new_ptr := malloc(mul(new_cap, self.values.type_size))
-            memcpy(new_ptr, self.values.ptr, mul(self.values._len, self.values.type_size))
-            free(self.values.ptr)
-            self.values.ptr = new_ptr
-            self.values.cap = new_cap
-        }
-        mut dest_ptr := add(self.values.ptr, mul(self.values._len, self.values.type_size))
-        memcpy(dest_ptr, to_ptr(value), self.values.type_size)
-        self.values._len = add(self.values._len, 1)
+        self.keys.push(key)
+        self.values.push(value)
 
         self._size = add(self._size, 1)
     }
@@ -155,30 +129,9 @@ Map := struct {
             i = add(i, 1)
         }
 
-        // Key not found - insert new entry (use same workaround as insert())
-        if self.keys._len.eq(self.keys.cap) {
-            mut new_cap := mul(self.keys.cap, 2)
-            mut new_ptr := malloc(mul(new_cap, self.keys.type_size))
-            memcpy(new_ptr, self.keys.ptr, mul(self.keys._len, self.keys.type_size))
-            free(self.keys.ptr)
-            self.keys.ptr = new_ptr
-            self.keys.cap = new_cap
-        }
-        mut dest_ptr := add(self.keys.ptr, mul(self.keys._len, self.keys.type_size))
-        memcpy(dest_ptr, to_ptr(key), self.keys.type_size)
-        self.keys._len = add(self.keys._len, 1)
-
-        if self.values._len.eq(self.values.cap) {
-            mut new_cap := mul(self.values.cap, 2)
-            mut new_ptr := malloc(mul(new_cap, self.values.type_size))
-            memcpy(new_ptr, self.values.ptr, mul(self.values._len, self.values.type_size))
-            free(self.values.ptr)
-            self.values.ptr = new_ptr
-            self.values.cap = new_cap
-        }
-        mut dest_ptr2 := add(self.values.ptr, mul(self.values._len, self.values.type_size))
-        memcpy(dest_ptr2, to_ptr(value), self.values.type_size)
-        self.values._len = add(self.values._len, 1)
+        // Key not found - insert new entry
+        self.keys.push(key)
+        self.values.push(value)
 
         self._size = add(self._size, 1)
     }

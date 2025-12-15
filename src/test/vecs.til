@@ -628,8 +628,8 @@ test_vec_enum_direct_push := proc() {
         exit(1)
     }
 }
-// TODO: Bug #37 - uncomment when fixed
-// test_vec_enum_direct_push()
+// Bug #37 test - should fail until bug is fixed
+test_vec_enum_direct_push()
 
 test_vec_enum_payload := proc() {
     // Bug #38: Test that enum payloads are preserved through Vec storage

@@ -1931,19 +1931,24 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 // store the type name as a string so size_of(T) and type_as_str(T) can use it
                 if custom_type_name == "Dynamic" || custom_type_name == "Type" {
                     if let NodeType::Identifier(id_name) = &current_arg.node_type {
-                        if let Some(sym) = context.scope_stack.lookup_symbol(id_name) {
-                            if let ValueType::TType(_) = &sym.value_type {
-                                // This is a type identifier - store the type name as a string
-                                function_frame.symbols.insert(arg.name.clone(), SymbolInfo {
-                                    value_type: ValueType::TCustom("Str".to_string()),
-                                    is_mut: false,
-                                    is_copy: false,
-                                    is_own: false,
-                                    is_comptime_const: false,
-                                });
-                                Arena::insert_string_into_frame(context, &mut function_frame, &arg.name, id_name, e)?;
-                                param_index += 1;
-                                continue; // Skip eval_expr for this parameter
+                        // Bug #37 fix: Only treat as type reference if there are NO params.
+                        // An enum constructor like SimpleColor.Green has params (Green),
+                        // so it should fall through to normal evaluation, not be treated as a type.
+                        if current_arg.params.is_empty() {
+                            if let Some(sym) = context.scope_stack.lookup_symbol(id_name) {
+                                if let ValueType::TType(_) = &sym.value_type {
+                                    // This is a type identifier - store the type name as a string
+                                    function_frame.symbols.insert(arg.name.clone(), SymbolInfo {
+                                        value_type: ValueType::TCustom("Str".to_string()),
+                                        is_mut: false,
+                                        is_copy: false,
+                                        is_own: false,
+                                        is_comptime_const: false,
+                                    });
+                                    Arena::insert_string_into_frame(context, &mut function_frame, &arg.name, id_name, e)?;
+                                    param_index += 1;
+                                    continue; // Skip eval_expr for this parameter
+                                }
                             }
                         }
                     }
