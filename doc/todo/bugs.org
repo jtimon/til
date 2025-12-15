@@ -43,6 +43,9 @@ The memcpy-based storage in Vec copies the enum bytes (tag + payload), but the p
 *** Workaround
 Use enums without payloads in Vec collections, or store payload data separately.
 
+*** Test Coverage
+Regression test in src/test/vecs.til: test_vec_enum_payload() (currently disabled)
+
 ** Bug #37: Vec.push with direct enum constructor doesn't store data correctly
 :PROPERTIES:
 :DISCOVERED: 2025-12-15
@@ -76,6 +79,9 @@ Always assign enum values to variables before pushing to Vec:
 c_red := SimpleColor.Red
 colors.push(c_red)
 #+END_EXAMPLE
+
+*** Test Coverage
+Regression test in src/test/vecs.til: test_vec_enum_direct_push() (currently disabled)
 
 ** Bug #35: Special `_` variable does not allow repeated declarations :FIXED:
 :PROPERTIES:

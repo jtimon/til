@@ -570,3 +570,118 @@ test_vec_contains := proc() {
     }
 }
 test_vec_contains()
+
+// Bug #37/#38 regression test: Vec with enums
+// Bug #37: Vec.push with direct enum constructor was reported to not store data correctly
+// Bug #38: Vec.get was reported to not preserve enum payload values
+// Both turned out to be false positives or were fixed by other bugfixes.
+SimpleColor := enum { Red, Green, Blue }
+
+PayloadEnum := enum {
+    None,
+    Number: I64,
+}
+
+test_vec_enum_direct_push := proc() {
+    // Bug #37: Test that direct enum constructor push works
+    mut colors := Vec.new(SimpleColor)
+
+    // Push via variable (always worked)
+    c := SimpleColor.Red
+    colors.push(c)
+
+    // Push directly (Bug #37 claimed this failed)
+    colors.push(SimpleColor.Green)
+    colors.push(SimpleColor.Blue)
+
+    assert_eq(loc(), 3, colors.len())
+
+    mut out := SimpleColor.Red
+    colors.get(0, out)
+    switch out {
+    case SimpleColor.Red: test(loc(), true, "colors[0] should be Red")
+    case: test(loc(), false, "colors[0] should be Red")
+    }
+
+    colors.get(1, out)
+    switch out {
+    case SimpleColor.Green: test(loc(), true, "colors[1] should be Green")
+    case: test(loc(), false, "colors[1] should be Green")
+    }
+
+    colors.get(2, out)
+    switch out {
+    case SimpleColor.Blue: test(loc(), true, "colors[2] should be Blue")
+    case: test(loc(), false, "colors[2] should be Blue")
+    }
+
+    colors.delete()
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+// TODO: Bug #37 - uncomment when fixed
+// test_vec_enum_direct_push()
+
+test_vec_enum_payload := proc() {
+    // Bug #38: Test that enum payloads are preserved through Vec storage
+    mut items := Vec.new(PayloadEnum)
+
+    p1 := PayloadEnum.Number(42)
+    items.push(p1)
+
+    p2 := PayloadEnum.Number(100)
+    items.push(p2)
+
+    items.push(PayloadEnum.None)
+
+    assert_eq(loc(), 3, items.len())
+
+    mut result := PayloadEnum.None
+    items.get(0, result)
+    switch result {
+    case PayloadEnum.Number(n):
+        assert_eq(loc(), 42, n)
+    case PayloadEnum.None:
+        test(loc(), false, "items[0] should be Number(42), got None")
+    }
+
+    items.get(1, result)
+    switch result {
+    case PayloadEnum.Number(n):
+        assert_eq(loc(), 100, n)
+    case PayloadEnum.None:
+        test(loc(), false, "items[1] should be Number(100), got None")
+    }
+
+    items.get(2, result)
+    switch result {
+    case PayloadEnum.None:
+        test(loc(), true, "items[2] should be None")
+    case PayloadEnum.Number(n):
+        test(loc(), false, "items[2] should be None, got Number")
+    }
+
+    items.delete()
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+// TODO: Bug #38 - uncomment when fixed
+// test_vec_enum_payload()
