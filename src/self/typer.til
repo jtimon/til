@@ -1187,6 +1187,26 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                         catch (err: KeyNotFoundError) {
                             // Enum/struct constructor - no throw checking needed
                         }
+                    // Bug #36 fix: Handle named arguments in struct literals (e.g., Map(keys=self.keys.clone()))
+                    case NodeType.NamedArg(_):
+                        if arg.params.len().gt(0) {
+                            mut value_expr := Expr()
+                            arg.params.get(0, value_expr)
+                            switch value_expr.node_type {
+                            case NodeType.FCall:
+                                mut nested_func_def := get_func_def_for_fcall(context, value_expr)
+                                mut temp_thrown_types := Vec.new(ThrownType)
+                                errors.extend(check_body_returns_throws(context, value_expr, nested_func_def, value_expr.params, temp_thrown_types, return_found))
+                                thrown_types.extend(temp_thrown_types)
+                                catch (err: Str) {
+                                    errors.push(value_expr.error(context.path, "type", format("Failed to resolve nested function call in named arg: ", err)))
+                                }
+                                catch (err: KeyNotFoundError) {
+                                    // Enum/struct constructor - no throw checking needed
+                                }
+                            case:
+                            }
+                        }
                     case:
                         // Not a function call, skip
                     }
@@ -1196,7 +1216,73 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     errors.push(p.error(context.path, "type", err))
                 }
                 catch (err: KeyNotFoundError) {
-                    // Enum/struct constructor - no throw checking needed
+                    // Enum/struct constructor - but arguments may contain throwing function calls (Bug #36 fix)
+                    mut argi2 := 1
+                    while argi2.lt(p.params.len()) {
+                        mut arg := Expr()
+                        p.params.get(argi2, arg)
+                        switch arg.node_type {
+                        case NodeType.FCall:
+                            mut nested_func_def := get_func_def_for_fcall(context, arg)
+                            // Track the function's declared throw types
+                            mut ct_idx := 0
+                            while ct_idx.lt(nested_func_def.throw_types.len()) {
+                                mut called_throw := ValueType.TCustom("")
+                                nested_func_def.throw_types.get(ct_idx, called_throw)
+                                called_throw_str := value_type_to_str(called_throw)
+                                error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
+                                mut te1 := ThrownType()
+                                te1.type_str = called_throw_str
+                                te1.msg = arg.error(context.path, "type", error_msg)
+                                thrown_types.push(te1)
+                                mut te2 := ThrownType()
+                                te2.type_str = called_throw_str
+                                te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
+                                thrown_types.push(te2)
+                                ct_idx.inc()
+                            }
+                            catch (err2: Str) {
+                                errors.push(arg.error(context.path, "type", format("Failed to resolve nested function call: ", err2)))
+                            }
+                            catch (err2: KeyNotFoundError) {
+                            }
+                        // Bug #36 fix: Handle named arguments in struct literals
+                        case NodeType.NamedArg(_):
+                            if arg.params.len().gt(0) {
+                                mut value_expr := Expr()
+                                arg.params.get(0, value_expr)
+                                switch value_expr.node_type {
+                                case NodeType.FCall:
+                                    mut nested_func_def := get_func_def_for_fcall(context, value_expr)
+                                    // Track the function's declared throw types
+                                    mut ct_idx := 0
+                                    while ct_idx.lt(nested_func_def.throw_types.len()) {
+                                        mut called_throw := ValueType.TCustom("")
+                                        nested_func_def.throw_types.get(ct_idx, called_throw)
+                                        called_throw_str := value_type_to_str(called_throw)
+                                        error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
+                                        mut te1 := ThrownType()
+                                        te1.type_str = called_throw_str
+                                        te1.msg = value_expr.error(context.path, "type", error_msg)
+                                        thrown_types.push(te1)
+                                        mut te2 := ThrownType()
+                                        te2.type_str = called_throw_str
+                                        te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
+                                        thrown_types.push(te2)
+                                        ct_idx.inc()
+                                    }
+                                    catch (err2: Str) {
+                                        errors.push(value_expr.error(context.path, "type", format("Failed to resolve nested function call in named arg: ", err2)))
+                                    }
+                                    catch (err2: KeyNotFoundError) {
+                                    }
+                                case:
+                                }
+                            }
+                        case:
+                        }
+                        argi2.inc()
+                    }
                 }
 
             case NodeType.While:
