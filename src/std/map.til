@@ -364,16 +364,15 @@ Map := struct {
         self._size = 0
     }
 
+    // Bug #36 fix: Now we can inline throwing functions in struct literal params
     clone := func(self: Map) returns Map throws AllocError {
-        cloned_keys := self.keys.clone()
-        cloned_values := self.values.clone()
         return Map(
             key_type_name=self.key_type_name,
             key_type_size=self.key_type_size,
             value_type_name=self.value_type_name,
             value_type_size=self.value_type_size,
-            keys=cloned_keys,
-            values=cloned_values,
+            keys=self.keys.clone(),
+            values=self.values.clone(),
             _size=self._size
         )
     }

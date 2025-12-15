@@ -909,6 +909,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         }
 
                         for arg in p.params.iter().skip(1) {
+                            // Handle direct function calls as arguments
                             if let NodeType::FCall = arg.node_type {
                                 match get_func_def_for_fcall(&context, arg) {
                                     Ok(Some(nested_func_def)) => {
@@ -925,11 +926,81 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                     }
                                 }
                             }
+                            // Bug #36 fix: Handle named arguments in struct literals (e.g., Map(keys=self.keys.clone()))
+                            // The throwing function call is inside the NamedArg's params
+                            if let NodeType::NamedArg(_) = &arg.node_type {
+                                if let Some(value_expr) = arg.params.get(0) {
+                                    if let NodeType::FCall = &value_expr.node_type {
+                                        match get_func_def_for_fcall(&context, value_expr) {
+                                            Ok(Some(nested_func_def)) => {
+                                                let mut temp_thrown_types: Vec<ThrownType> = Vec::new();
+                                                errors.extend(check_body_returns_throws(context, value_expr, &nested_func_def, &value_expr.params, &mut temp_thrown_types, return_found));
+                                                thrown_types.extend(temp_thrown_types);
+                                            },
+                                            Ok(None) => {
+                                                // Ok(None) is returned for enum constructors and struct instantiation
+                                            },
+                                            Err(reason) => {
+                                                errors.push(value_expr.error(&context.path, "type", &format!("Failed to resolve nested function call in named arg: {}", reason)));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     },
                     Ok(None) => {
                         // Ok(None) is returned for enum constructors and struct instantiation
-                        // These are valid and don't throw errors, so we don't add an error here
+                        // These are valid and don't throw errors themselves, but their arguments
+                        // may contain throwing function calls (Bug #36 fix)
+                        for arg in p.params.iter().skip(1) {
+                            // Handle direct function calls as arguments
+                            if let NodeType::FCall = arg.node_type {
+                                match get_func_def_for_fcall(&context, arg) {
+                                    Ok(Some(nested_func_def)) => {
+                                        // Track the function's declared throw types
+                                        for called_throw in &nested_func_def.throw_types {
+                                            let called_throw_str = value_type_to_str(called_throw);
+                                            let error_msg = format!(
+                                                "Function throws '{}', but it is not declared in this function's throws section.",
+                                                called_throw_str
+                                            );
+                                            thrown_types.push(ThrownType { type_str: called_throw_str.clone(), msg: arg.error(&context.path, "type", &error_msg) });
+                                            thrown_types.push(ThrownType { type_str: called_throw_str.clone(), msg: e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block") });
+                                        }
+                                    },
+                                    Ok(None) => {},
+                                    Err(reason) => {
+                                        errors.push(arg.error(&context.path, "type", &format!("Failed to resolve nested function call: {}", reason)));
+                                    }
+                                }
+                            }
+                            // Bug #36 fix: Handle named arguments in struct literals (e.g., Map(keys=self.keys.clone()))
+                            if let NodeType::NamedArg(_) = &arg.node_type {
+                                if let Some(value_expr) = arg.params.get(0) {
+                                    if let NodeType::FCall = &value_expr.node_type {
+                                        match get_func_def_for_fcall(&context, value_expr) {
+                                            Ok(Some(nested_func_def)) => {
+                                                // Track the function's declared throw types
+                                                for called_throw in &nested_func_def.throw_types {
+                                                    let called_throw_str = value_type_to_str(called_throw);
+                                                    let error_msg = format!(
+                                                        "Function throws '{}', but it is not declared in this function's throws section.",
+                                                        called_throw_str
+                                                    );
+                                                    thrown_types.push(ThrownType { type_str: called_throw_str.clone(), msg: value_expr.error(&context.path, "type", &error_msg) });
+                                                    thrown_types.push(ThrownType { type_str: called_throw_str.clone(), msg: e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block") });
+                                                }
+                                            },
+                                            Ok(None) => {},
+                                            Err(reason) => {
+                                                errors.push(value_expr.error(&context.path, "type", &format!("Failed to resolve nested function call in named arg: {}", reason)));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     },
                     Err(reason) => {
                         errors.push(p.error(&context.path, "type", &reason));

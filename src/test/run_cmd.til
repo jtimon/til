@@ -10,5 +10,5 @@ exit1 := out.run_cmd("mkdir", "-p", "tmp")
 // This test enforces root directory stability - update when intentionally changed
 // Using explicit paths since safe_script doesn't allow sh for glob expansion
 mut dirs := ""
-exit2 := dirs.run_cmd("ls", "-d", "bin/", "bots/", "doc/", "editor/", "img/", "src/", "tmp/")
-assertm(loc(), dirs.eq("bin/\nbots/\ndoc/\neditor/\nimg/\nsrc/\ntmp/\n"), dirs)
+exit2 := dirs.run_cmd("ls", "-d", "bin/", "c/", "doc/", "editor/", "img/", "out/", "src/", "tmp/")
+assertm(loc(), dirs.eq("bin/\nc/\ndoc/\neditor/\nimg/\nout/\nsrc/\ntmp/\n"), dirs)

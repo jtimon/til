@@ -88,7 +88,7 @@ ScopeFrame := struct {
     // Scope type (helps with cleanup and debugging)
     mut scope_type: ScopeType = ScopeType.Global
 
-    clone := func(self: ScopeFrame) returns ScopeFrame {
+    clone := func(self: ScopeFrame) returns ScopeFrame throws AllocError {
         return ScopeFrame(
             arena_index=self.arena_index.clone(),
             symbols=self.symbols.clone(),
@@ -486,7 +486,7 @@ ScopeStack := struct {
         return names
     }
 
-    clone := func(self: ScopeStack) returns ScopeStack {
+    clone := func(self: ScopeStack) returns ScopeStack throws AllocError {
         return ScopeStack(frames=self.frames.clone())
     }
 }
@@ -1146,6 +1146,9 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
     catch (err: AllocError) {
         throw err.msg
     }
+    catch (err: I64_OverflowError) {
+        throw err.msg
+    }
 }
 
 # Convert dot-based import path to OS-specific file path
@@ -1529,11 +1532,11 @@ EnumPayload := struct {
     mut data: Vec = Vec.new(U8)
     mut value_type: ValueType = ValueType.TCustom("")
 
-    new := func(payload_data: Vec, payload_type: ValueType) returns EnumPayload {
+    new := func(payload_data: Vec, payload_type: ValueType) returns EnumPayload throws AllocError {
         return EnumPayload(data=payload_data.clone(), value_type=payload_type)
     }
 
-    clone := func(self: EnumPayload) returns EnumPayload {
+    clone := func(self: EnumPayload) returns EnumPayload throws AllocError {
         return EnumPayload(data=self.data.clone(), value_type=self.value_type)
     }
 }
@@ -2081,7 +2084,7 @@ Context := struct {
         }
     }
 
-    clone := func(self: Context) returns Context {
+    clone := func(self: Context) returns Context throws AllocError {
         return Context(
             mode_def=self.mode_def,
             path=self.path,

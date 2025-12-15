@@ -325,6 +325,51 @@ test_bug34_after_catch_error := proc() {
 test_bug34_after_catch_error()
 
 // ==============================================================================
+// Bug #36: Throwing functions in struct literal parameters not recognized
+// ==============================================================================
+
+Bug36Error := struct {
+    mut msg: Str = ""
+}
+
+Bug36TestData := struct {
+    mut a: I64 = 0
+    mut b: I64 = 0
+}
+
+// A function that throws
+bug36_throws := func(should_throw: Bool) returns I64 throws Bug36Error {
+    if should_throw {
+        throw Bug36Error(msg="test error")
+    }
+    return 42
+}
+
+// Bug #36: This function should compile without error.
+// The compiler incorrectly said Bug36Error is declared but never thrown,
+// because it didn't see the throwing function inside the struct literal.
+bug36_test_throws_in_struct_literal := func() returns Bug36TestData throws Bug36Error {
+    return Bug36TestData(
+        a=bug36_throws(true),
+        b=bug36_throws(true)
+    )
+}
+
+test_bug36 := proc() {
+    mut caught := false
+    result := bug36_test_throws_in_struct_literal()
+    // Should not reach here
+    assert(loc(), false)
+
+    catch (err: Bug36Error) {
+        caught = true
+    }
+
+    test(loc(), caught, "Bug #36: throwing functions in struct literal params")
+}
+test_bug36()
+
+// ==============================================================================
 // TODO: Features that could be added to error handling
 // ==============================================================================
 
