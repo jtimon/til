@@ -279,6 +279,52 @@ test_rethrow_error_field_via_assign := proc() {
 test_rethrow_error_field_via_assign()
 
 // ==============================================================================
+// Bug #34 regression test: code AFTER catch must run in both success/error paths
+// ==============================================================================
+
+Bug34Error := struct {
+    mut msg: Str = ""
+}
+
+bug34_maybe_throw := func(should_throw: Bool) throws Bug34Error {
+    if should_throw {
+        throw Bug34Error()
+    }
+}
+
+// Test that code AFTER catch runs on success path
+test_bug34_after_catch_success := proc() {
+    mut after_catch_ran := false
+
+    bug34_maybe_throw(false)  // Does NOT throw
+    catch (err: Bug34Error) {
+        // Should not reach here
+    }
+
+    // Code AFTER catch - must run on success path
+    after_catch_ran = true
+
+    test(loc(), after_catch_ran, "Bug #34: code after catch must run on success")
+}
+test_bug34_after_catch_success()
+
+// Test that code AFTER catch runs on error path (this was the bug)
+test_bug34_after_catch_error := proc() {
+    mut after_catch_ran := false
+
+    bug34_maybe_throw(true)   // DOES throw
+    catch (err: Bug34Error) {
+        // Error caught
+    }
+
+    // Code AFTER catch - Bug #34: this was NOT running when error was caught
+    after_catch_ran = true
+
+    test(loc(), after_catch_ran, "Bug #34: code after catch must run on error path")
+}
+test_bug34_after_catch_error()
+
+// ==============================================================================
 // TODO: Features that could be added to error handling
 // ==============================================================================
 

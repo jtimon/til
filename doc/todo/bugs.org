@@ -98,87 +98,41 @@ _ := context.imports_typer_done.insert(path)
 - src/self/init.til: declare_var, init_context
 - src/self/ccodegen.til: emit_constant_declaration, emit_global_declaration, emit_declaration
 
-** Bug #34: Code between throwing call and catch runs unconditionally
+** Bug #34: Code after catch blocks doesn't run in error path :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-12-14
+:FIXED: 2025-12-15
 :IMPACT: Error handling semantics
-:STATUS: Open
+:STATUS: Fixed
 :END:
 
 *** Description
-When there is code between a throwing function call and its catch block, that code runs unconditionally (on both success and error paths) instead of only on success.
+Code placed AFTER catch blocks (not between throw and catch) doesn't run when an error is caught.
 
 #+BEGIN_EXAMPLE til
-// Expected behavior:
-result = throwing_call()   // throws on error
-found = true               // Should only run on SUCCESS
-catch (err: E) { }         // Catches the error
-
-// Actual behavior:
-// found = true runs ALWAYS, regardless of success/failure
+bug34_map_get("missing", value)
+found = true  // Between throw and catch - correctly skipped on error
+catch (err: Bug34Error) {
+    // error caught
+}
+// Code AFTER catch - BUG: was not running when error was caught
+test(loc(), found.not(), "found should be false")
 #+END_EXAMPLE
 
 *** Root Cause
-The C code generator emits the if/else chain for error handling, then emits subsequent statements AFTER the chain:
+In the C code generator, statements after the last catch block were emitted BEFORE
+the ~goto _end_catches~ jump, so they only ran on the success path.
 
-#+BEGIN_SRC c
-int _status = throwing_call(...);
-if (_status == 0) {
-    // success case - maybe assign return value
-} else if (_status == 1) {
-    // catch body
-}
-found = true;  // BUG: runs always, not inside success block!
-#+END_SRC
+*** Fix
+- Track ~last_catch_index~ to know where catch blocks end
+- Break out of main loop when past last catch
+- Emit after-catch statements at the ~_end_catches~ label
+- Add ~emit_stmts_no_catches~ helper for proper throwing call handling
 
-The code generator only handles two patterns correctly:
-1. Immediate catch after throwing call (no intervening statements)
-2. Declaration/assignment with throwing call: ~result = throwing_call()~ followed by catch
-
-*** Workarounds
-Two patterns work correctly:
-
-*Pattern 1: Use contains_key before get (for Map lookups)*
-#+BEGIN_EXAMPLE til
-// Instead of:
-map.get(key, value)
-found = true
-catch (err: KeyNotFoundError) { }
-
-// Use:
-if map.contains_key(key) {
-    map.get(key, value)
-    catch (err: KeyNotFoundError) { }
-    return value
-}
-#+END_EXAMPLE
-
-*Pattern 2: Set flag INSIDE catch block*
-#+BEGIN_EXAMPLE til
-// Instead of:
-found = false
-lookup_call()
-found = true              // BUG: runs always
-catch (err: E) { }
-
-// Use:
-found = true              // Assume success
-lookup_call()
-catch (err: E) {
-    found = false         // Set to false only on error
-}
-#+END_EXAMPLE
-
-*** Proper Fix
-The code generator should detect statements between a throwing call and its catch block, and emit those statements inside the success branch of the if/else chain.
-
-*** Affected Files
-- src/rs/ccodegen.rs: emit_stmts, emit_throwing_call_with_goto
-- src/self/ccodegen.til: emit_stmts, emit_throwing_call_with_goto
-
-*** Workaround Locations
-These files contain workarounds for this bug (marked with TODO #34):
-- src/self/init.til: lookup_symbol, lookup_func, lookup_enum, lookup_struct, init_context Declaration check
+*** Files Modified
+- src/rs/ccodegen.rs: Rust implementation
+- src/self/ccodegen.til: TIL port
+- src/test/errors.til: Regression test (test_bug34)
 
 ** Bug #33: for-in loops don't work with enum collections
 :PROPERTIES:

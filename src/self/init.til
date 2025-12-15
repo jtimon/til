@@ -181,12 +181,10 @@ ScopeStack := struct {
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
-            // TODO #34: Use contains_key first to work around codegen bug
-            // (code between throw and catch runs unconditionally)
             if frame.symbols.contains_key(name) {
                 mut symbol := SymbolInfo()
                 frame.symbols.get(name, symbol)
-                catch (err: KeyNotFoundError) { }  // Won't happen since we checked
+                catch (err: KeyNotFoundError) { }
                 return symbol
             }
             i = i.sub(1)
@@ -305,12 +303,10 @@ ScopeStack := struct {
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
-            // TODO #34: Use contains_key first to work around codegen bug
-            // (code between throw and catch runs unconditionally)
             if frame.funcs.contains_key(name) {
                 mut func_def := SFuncDef()
                 frame.funcs.get(name, func_def)
-                catch (err: KeyNotFoundError) { }  // Won't happen since we checked
+                catch (err: KeyNotFoundError) { }
                 return func_def
             }
             i = i.sub(1)
@@ -346,12 +342,10 @@ ScopeStack := struct {
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
-            // TODO #34: Use contains_key first to work around codegen bug
-            // (code between throw and catch runs unconditionally)
             if frame.enums.contains_key(name) {
                 mut enum_def := SEnumDef()
                 frame.enums.get(name, enum_def)
-                catch (err: KeyNotFoundError) { }  // Won't happen since we checked
+                catch (err: KeyNotFoundError) { }
                 return enum_def
             }
             i = i.sub(1)
@@ -387,12 +381,10 @@ ScopeStack := struct {
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
-            // TODO #34: Use contains_key first to work around codegen bug
-            // (code between throw and catch runs unconditionally)
             if frame.structs.contains_key(name) {
                 mut struct_def := SStructDef()
                 frame.structs.get(name, struct_def)
-                catch (err: KeyNotFoundError) { }  // Won't happen since we checked
+                catch (err: KeyNotFoundError) { }
                 return struct_def
             }
             i = i.sub(1)
@@ -1348,20 +1340,20 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
 
     case NodeType.Declaration(decl):
         // Check if already declared as func
-        // TODO #34: Pattern workaround for codegen bug - set found=true before call,
-        // set found=false IN catch (code between throw and catch runs unconditionally)
-        mut found_as_func := true
+        mut found_as_func := false
         mut existing_func := SFuncDef()
         existing_func = context.scope_stack.lookup_func(decl.name)
+        found_as_func = true
         catch (err: KeyNotFoundError) {
-            found_as_func = false  // Not declared as func
+            // Not declared as func
         }
         // Check if already declared as symbol
-        mut found_as_symbol := true
+        mut found_as_symbol := false
         mut existing_symbol := SymbolInfo()
         existing_symbol = context.scope_stack.lookup_symbol(decl.name)
+        found_as_symbol = true
         catch (err: KeyNotFoundError) {
-            found_as_symbol = false  // Not declared as symbol
+            // Not declared as symbol
         }
         // Bug #35: Skip "already declared" check for "_" - it's special for discarding return values
         if not(decl.name.eq("_")).and(found_as_func.or(found_as_symbol)) {
