@@ -325,6 +325,48 @@ test_bug34_after_catch_error := proc() {
 test_bug34_after_catch_error()
 
 // ==============================================================================
+// Bug #34 remaining: code BETWEEN throwing call and catch must be skipped on error
+// ==============================================================================
+
+// Test that code BETWEEN throw and catch is skipped on error path
+// Bug #34: when there's code between a throwing call and its catch block,
+// ccodegen doesn't run the code after the catch.
+//
+// NOTE: This test FAILS with `rstil run` until Bug #34 is fixed!
+mut bug34_between_test_completed := false
+
+test_bug34_between_throw_and_catch := proc() {
+    mut caught := false
+
+    bug34_maybe_throw(true)
+    caught = false  // Code between - should NOT run on error path
+    catch (err: Bug34Error) {
+        caught = true
+    }
+
+    test(loc(), caught, "Bug #34: error should be caught")
+    bug34_between_test_completed = true
+}
+test_bug34_between_throw_and_catch()
+test(loc(), bug34_between_test_completed, "Bug #34: code after catch must run")
+
+// Test that code BETWEEN throw and catch DOES run on success path
+test_bug34_between_success := proc() {
+    mut between_ran := false
+    mut caught := false
+
+    bug34_maybe_throw(false)  // Does NOT throw
+    between_ran = true        // This SHOULD run when no error
+    catch (err: Bug34Error) {
+        caught = true
+    }
+
+    test(loc(), not(caught), "Bug #34: no error should be caught on success")
+    test(loc(), between_ran, "Bug #34: code between throw and catch must run on success")
+}
+test_bug34_between_success()
+
+// ==============================================================================
 // Bug #36: Throwing functions in struct literal parameters not recognized
 // ==============================================================================
 

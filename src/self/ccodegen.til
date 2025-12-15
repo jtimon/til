@@ -4283,6 +4283,22 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
     mut func_level_catches := prescan_func_level_catches(stmts)
     catch (err: AllocError) { throw err.msg }
 
+    // Bug #34 fix: find the index of the last catch block
+    // Statements after the last catch must be emitted AFTER _end_catches label
+    mut last_catch_index := sub(0, 1)
+    mut scan_i := 0
+    while lt(scan_i, stmts.len()) {
+        mut scan_stmt := Expr()
+        stmts.get(scan_i, scan_stmt)
+        switch scan_stmt.node_type {
+        case NodeType.Catch:
+            last_catch_index = scan_i
+        case:
+        }
+        scan_i = add(scan_i, 1)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
     // Hoist declarations from catch blocks to function level
     // (TIL has function-level scoping, not block-level scoping)
     for catch_block: Expr in func_level_catches {
@@ -4377,7 +4393,14 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
 
-    while lt(i, stmts.len()) {
+    // Bug #34 fix: only emit statements up to and including the last catch
+    // Statements after the last catch will be emitted after _end_catches
+    mut loop_end := stmts.len()
+    if gteq(last_catch_index, 0) {
+        loop_end = add(last_catch_index, 1)
+    }
+
+    while lt(i, loop_end) {
         mut stmt := Expr()
         stmts.get(i, stmt)
 
@@ -4632,6 +4655,24 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
         // End of catch blocks label
         result = result.concat(end_catches_label)
         result = result.concat(":;\n")
+
+        // Bug #34 fix: emit statements after the last catch
+        // Use emit_stmts recursively to properly handle throwing calls
+        // (emit_expr doesn't do throwing call detection)
+        if gteq(last_catch_index, 0) {
+            mut remaining := Vec.new(Expr)
+            mut after_i := add(last_catch_index, 1)
+            while lt(after_i, stmts.len()) {
+                mut after_stmt := Expr()
+                stmts.get(after_i, after_stmt)
+                remaining.push(after_stmt)
+                after_i = add(after_i, 1)
+            }
+            if gt(remaining.len(), 0) {
+                result = emit_stmts(remaining, result, indent, ctx, context)
+            }
+            remaining.delete()
+        }
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }

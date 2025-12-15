@@ -3043,6 +3043,10 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         }
     }
 
+    // Bug #34 fix: find the index of the last catch block
+    // Statements after the last catch must be emitted AFTER _end_catches label
+    let last_catch_index = stmts.iter().rposition(|s| matches!(s.node_type, NodeType::Catch));
+
     // Register function-level catches in ctx.local_catch_labels for throw statements
     // Generate unique labels for each catch block
     // Only register the FIRST catch for each error type (later ones will be unreachable for explicit throws)
@@ -3073,7 +3077,11 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         }
     }
 
-    while i < stmts.len() {
+    // Bug #34 fix: only emit statements up to and including the last catch
+    // Statements after the last catch will be emitted after _end_catches
+    let loop_end = last_catch_index.map(|idx| idx + 1).unwrap_or(stmts.len());
+
+    while i < loop_end {
         let stmt = &stmts[i];
 
         // Check if this statement is followed by catch blocks
@@ -3241,6 +3249,16 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         // End of catch blocks label
         output.push_str(&end_catches_label);
         output.push_str(":;\n");
+
+        // Bug #34 fix: emit statements after the last catch
+        // Use emit_stmts recursively to properly handle throwing calls
+        // (emit_expr doesn't do throwing call detection)
+        if let Some(last_idx) = last_catch_index {
+            let remaining = &stmts[last_idx + 1..];
+            if !remaining.is_empty() {
+                emit_stmts(remaining, output, indent, ctx, context)?;
+            }
+        }
     }
 
     // Clean up local_catch_labels for this block
