@@ -9,6 +9,41 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #41: mode liba not respected when file is imported
+:PROPERTIES:
+:DISCOVERED: 2025-12-16
+:IMPACT: Debugging, purity rules
+:STATUS: Open
+:END:
+
+*** Description
+When a file with `mode liba` is imported into another file (e.g., `mode cli`), the purity rules of the importing file apply instead of the imported file's mode. This means `func` definitions in `mode liba` files cannot call `print`/`println` when imported, even though `mode liba` is supposed to allow print in funcs for debugging.
+
+*** Example
+#+BEGIN_EXAMPLE
+// lexer.til (mode liba)
+print_lex_error := func(...) {
+    print(...)  // Should be allowed in mode liba
+}
+
+// til.til (mode cli)
+import("self.lexer")
+// Error: funcs cannot call procs (print_lex_error's print calls)
+#+END_EXAMPLE
+
+*** Expected Behavior
+The `mode liba` file should retain its relaxed purity rules when imported. A func in a `mode liba` file should be able to call print/println regardless of the importing file's mode.
+
+*** Current Behavior
+The importing file's mode (`cli`) takes precedence, causing "funcs cannot call procs" errors for print calls in the imported `mode liba` file.
+
+*** Workaround
+Change funcs that use print to procs, or avoid print in funcs entirely.
+
+*** Files to Investigate
+- src/rs/typer.rs: Mode handling during import
+- src/rs/init.rs: Import processing
+
 ** Bug #40: Precomp generates non-deterministic _for_i_ variable names
 :PROPERTIES:
 :DISCOVERED: 2025-12-16
