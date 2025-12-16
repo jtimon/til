@@ -60,8 +60,8 @@ Bool := struct {
     }
 }
 
-false := Bool.from_i64(0)
-true := Bool.from_i64(1)
+false := Bool(data=0)
+true := Bool(data=1)
 
 not := func(b: Bool) returns Bool {
     if b {
