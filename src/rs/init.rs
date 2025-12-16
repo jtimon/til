@@ -1167,13 +1167,6 @@ impl Context {
         return Ok(selfi.variants[position as usize].name.clone())
     }
 
-    // Bug #38 fix: Get payload type for a variant by name
-    pub fn get_variant_payload_type(selfi: &SEnumDef, variant_name: &str) -> Option<ValueType> {
-        selfi.variants.iter()
-            .find(|v| v.name == variant_name)
-            .and_then(|v| v.payload_type.clone())
-    }
-
     pub fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str, e: &Expr) -> Result<(), String> {
         let struct_def = self.scope_stack.lookup_struct(custom_type_name)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: definition for '{}' not found", custom_type_name)))?;

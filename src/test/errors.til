@@ -412,6 +412,152 @@ test_bug36 := proc() {
 test_bug36()
 
 // ==============================================================================
+// Complex multi-catch tests for goto simplification (better34)
+// ==============================================================================
+
+// Test A: Non-consecutive catches with code between
+TestErrorA := struct {}
+TestErrorB := struct {}
+
+throw_a_maybe := func(should_throw: Bool) throws TestErrorA {
+    if should_throw {
+        throw TestErrorA()
+    }
+}
+
+throw_b_maybe := func(should_throw: Bool) throws TestErrorB {
+    if should_throw {
+        throw TestErrorB()
+    }
+}
+
+test_non_consecutive_catches := proc() {
+    mut after_a_ran := false
+    mut after_b_ran := false
+    mut caught_a := false
+    mut caught_b := false
+
+    throw_a_maybe(true)  // throws TestErrorA
+    after_a_ran = true   // should NOT run on error path
+    catch (err: TestErrorA) {
+        caught_a = true
+    }
+
+    throw_b_maybe(true)  // throws TestErrorB
+    after_b_ran = true   // should NOT run on error path
+    catch (err: TestErrorB) {
+        caught_b = true
+    }
+
+    test(loc(), not(after_a_ran), "code after throwing call A should not run")
+    test(loc(), not(after_b_ran), "code after throwing call B should not run")
+    test(loc(), caught_a, "TestErrorA should be caught")
+    test(loc(), caught_b, "TestErrorB should be caught")
+}
+test_non_consecutive_catches()
+
+// Test B: Caller/callee with different throw signatures
+// callee2 throws A and B, callee1 only throws A (catches B internally)
+CallerCalleeErrorA := struct {}
+CallerCalleeErrorB := struct {}
+
+callee2_throws_both := func(throw_a: Bool, throw_b: Bool) throws CallerCalleeErrorA, CallerCalleeErrorB {
+    if throw_b {
+        throw CallerCalleeErrorB()
+    }
+    if throw_a {
+        throw CallerCalleeErrorA()
+    }
+}
+
+// callee1 only exposes ErrorA, must catch ErrorB internally
+callee1_throws_a_only := func(throw_a: Bool, throw_b: Bool) returns Bool throws CallerCalleeErrorA {
+    mut after_callee2_ran := false
+    mut caught_b := false
+
+    callee2_throws_both(throw_a, throw_b)
+    after_callee2_ran = true  // should NOT run if callee2 throws
+    catch (err: CallerCalleeErrorB) {
+        caught_b = true
+    }
+
+    // Return whether ErrorB was caught (for verification)
+    return caught_b
+}
+
+test_caller_callee_different_throws := proc() {
+    mut after_callee1_ran := false
+    mut caught_a := false
+
+    // Test 1: callee2 throws B, which callee1 catches internally
+    caught_b_internally := callee1_throws_a_only(false, true)
+    catch (err: CallerCalleeErrorA) {
+    }
+    test(loc(), caught_b_internally, "ErrorB should be caught internally by callee1")
+
+    // Test 2: callee2 throws A, which propagates to caller
+    after_callee1_ran = false
+    caught_a = false
+    _ := callee1_throws_a_only(true, false)  // callee1 propagates A
+    after_callee1_ran = true  // should NOT run
+    catch (err: CallerCalleeErrorA) {
+        caught_a = true
+    }
+
+    test(loc(), not(after_callee1_ran), "code after throwing call should not run")
+    test(loc(), caught_a, "CallerCalleeErrorA should be caught in caller")
+}
+test_caller_callee_different_throws()
+
+// Test C: Multiple throwing calls before single catch
+MultiThrowError := struct {}
+
+multi_throw_maybe := func(should_throw: Bool) throws MultiThrowError {
+    if should_throw {
+        throw MultiThrowError()
+    }
+}
+
+test_multi_throw_single_catch := proc() {
+    mut after_first_ran := false
+    mut after_second_ran := false
+    mut caught := false
+
+    multi_throw_maybe(true)   // throws MultiThrowError
+    after_first_ran = true    // should NOT run if first throws
+    multi_throw_maybe(false)  // does NOT throw
+    after_second_ran = true   // should NOT run because first already threw
+    catch (err: MultiThrowError) {
+        caught = true
+    }
+
+    test(loc(), not(after_first_ran), "code after first throw should not run")
+    test(loc(), not(after_second_ran), "second call should not run after first throws")
+    test(loc(), caught, "MultiThrowError should be caught")
+}
+test_multi_throw_single_catch()
+
+// Test C variant: success path - all code should run when nothing throws
+test_multi_throw_success := proc() {
+    mut after_first_ran := false
+    mut after_second_ran := false
+    mut caught := false
+
+    multi_throw_maybe(false)  // does NOT throw
+    after_first_ran = true    // SHOULD run
+    multi_throw_maybe(false)  // does NOT throw
+    after_second_ran = true   // SHOULD run
+    catch (err: MultiThrowError) {
+        caught = true
+    }
+
+    test(loc(), after_first_ran, "code after success should run")
+    test(loc(), after_second_ran, "second call should run after first succeeds")
+    test(loc(), not(caught), "no error should be caught")
+}
+test_multi_throw_success()
+
+// ==============================================================================
 // TODO: Features that could be added to error handling
 // ==============================================================================
 

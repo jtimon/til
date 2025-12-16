@@ -3043,46 +3043,119 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         }
     }
 
-    // Bug #34 fix: find the index of the last catch block
-    // Statements after the last catch must be emitted AFTER _end_catches label
-    let last_catch_index = stmts.iter().rposition(|s| matches!(s.node_type, NodeType::Catch));
-
-    // Register function-level catches in ctx.local_catch_labels for throw statements
-    // Generate unique labels for each catch block
-    // Only register the FIRST catch for each error type (later ones will be unreachable for explicit throws)
-    let catch_suffix = next_mangled();
-    let mut catch_label_info: Vec<(String, String, String, &Expr)> = Vec::new(); // (type_name, label, temp_var, catch_block)
-    let mut registered_types: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for catch_block in &func_level_catches {
-        if catch_block.params.len() >= 3 {
-            if let NodeType::Identifier(err_type_name) = &catch_block.params[1].node_type {
-                // Only register the first catch for each type
-                if registered_types.contains(err_type_name) {
-                    continue;
+    // Bug #39 fix: Give each catch block its own unique label using the global counter
+    // Store catch info with statement index so we can match calls to their NEXT catch
+    // Each catch gets: (stmt_index, type_name, label, temp_var, catch_block)
+    let mut all_catch_info: Vec<(usize, String, String, String, &Expr)> = Vec::new();
+    for (idx, stmt) in stmts.iter().enumerate() {
+        if let NodeType::Catch = stmt.node_type {
+            if stmt.params.len() >= 3 {
+                if let NodeType::Identifier(err_type_name) = &stmt.params[1].node_type {
+                    let catch_suffix = next_mangled(); // Unique suffix for EACH catch
+                    let label = format!("_catch_{}_{}", err_type_name, catch_suffix);
+                    let temp_var = format!("_thrown_{}_{}", err_type_name, catch_suffix);
+                    all_catch_info.push((idx, err_type_name.clone(), label, temp_var, stmt));
                 }
-                registered_types.insert(err_type_name.clone());
-
-                let label = format!("_catch_{}_{}", err_type_name, catch_suffix);
-                let temp_var = format!("_thrown_{}_{}", err_type_name, catch_suffix);
-                ctx.local_catch_labels.insert(err_type_name.clone(), (label.clone(), temp_var.clone()));
-                catch_label_info.push((err_type_name.clone(), label, temp_var.clone(), *catch_block));
-
-                // Declare temp variable to store thrown error value
-                output.push_str(&indent_str);
-                output.push_str(&til_name(err_type_name));
-                output.push_str(" ");
-                output.push_str(&temp_var);
-                output.push_str(";\n");
             }
         }
     }
 
-    // Bug #34 fix: only emit statements up to and including the last catch
-    // Statements after the last catch will be emitted after _end_catches
-    let loop_end = last_catch_index.map(|idx| idx + 1).unwrap_or(stmts.len());
+    // Declare temp variables for all catches at the start
+    for (_, type_name, _, temp_var, _) in &all_catch_info {
+        output.push_str(&indent_str);
+        output.push_str(&til_name(type_name));
+        output.push_str(" ");
+        output.push_str(temp_var);
+        output.push_str(";\n");
+    }
 
-    while i < loop_end {
+    // For backward compatibility, also populate local_catch_labels with first catch of each type
+    // This is used by throw statements and nested blocks
+    let mut registered_types: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for (_, type_name, label, temp_var, _) in &all_catch_info {
+        if !registered_types.contains(type_name) {
+            registered_types.insert(type_name.clone());
+            ctx.local_catch_labels.insert(type_name.clone(), (label.clone(), temp_var.clone()));
+        }
+    }
+
+    // Keep catch_label_info for cleanup at end
+    let catch_label_info: Vec<(String, String, String, &Expr)> = all_catch_info.iter()
+        .map(|(_, type_name, label, temp_var, catch_block)| {
+            (type_name.clone(), label.clone(), temp_var.clone(), *catch_block)
+        })
+        .collect();
+
+    // Track which catch labels have been emitted to avoid duplicates
+    // (when multiple catches of same type exist, only emit the label once)
+    let mut emitted_catch_labels: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // Process all statements
+    while i < stmts.len() {
         let stmt = &stmts[i];
+        let effective_indent = indent; // Use same indent for all statements (no if-block nesting)
+
+        // Bug #39 fix: Handle catch blocks inline with if(0) { label: ... }
+        // This keeps catches where they appear in source, and execution falls through after
+        if let NodeType::Catch = stmt.node_type {
+            // Get the error type this catch handles
+            if stmt.params.len() >= 3 {
+                if let NodeType::Identifier(err_type_name) = &stmt.params[1].node_type {
+                    // Look up this specific catch's label from all_catch_info by statement index
+                    if let Some((_, _, label, temp_var, _)) = all_catch_info.iter().find(|(idx, _, _, _, _)| *idx == i) {
+                        // Only emit if we haven't already emitted this label
+                        if !emitted_catch_labels.contains(label) {
+                            emitted_catch_labels.insert(label.clone());
+                            let label = label.clone();
+                            let temp_var = temp_var.clone();
+
+                            output.push_str(&indent_str);
+                            output.push_str("if (0) { ");
+                            output.push_str(&label);
+                            output.push_str(":\n");
+
+                            // Bind error variable
+                            if let NodeType::Identifier(err_var_name) = &stmt.params[0].node_type {
+                                let inner_indent = "    ".repeat(indent + 1);
+                                output.push_str(&inner_indent);
+                                output.push_str(&til_name(err_type_name));
+                                output.push_str(" ");
+                                output.push_str(&til_name(err_var_name));
+                                output.push_str(" = ");
+                                output.push_str(&temp_var);
+                                output.push_str(";\n");
+
+                                // Add error variable to scope for type resolution in catch body
+                                context.scope_stack.declare_symbol(
+                                    err_var_name.clone(),
+                                    SymbolInfo {
+                                        value_type: crate::rs::parser::ValueType::TCustom(err_type_name.clone()),
+                                        is_mut: false,
+                                        is_copy: false,
+                                        is_own: false,
+                                        is_comptime_const: false,
+                                    }
+                                );
+                            }
+
+                            // Emit catch body
+                            // IMPORTANT: Temporarily clear local_catch_labels so throwing calls inside
+                            // the catch body don't try to jump to catches - catches shouldn't catch
+                            // errors from their own body, only from code before them
+                            let saved_catch_labels = std::mem::take(&mut ctx.local_catch_labels);
+                            emit_expr(&stmt.params[2], output, indent + 1, ctx, context)?;
+                            ctx.local_catch_labels = saved_catch_labels;
+
+                            // Close the if(0) block - execution falls through to code after
+                            output.push_str(&indent_str);
+                            output.push_str("}\n");
+                        }
+                    }
+                }
+            }
+            i += 1;
+            continue;
+        }
 
         // Check if this statement is followed by catch blocks
         // And if it's a call to a throwing function (FCall, Declaration with FCall, or Assignment with FCall)
@@ -3134,34 +3207,44 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                         }
                     }
 
-                    if !catch_blocks.is_empty() {
-                        // Emit throwing call with catch handling
-                        emit_throwing_call(fcall, &throw_types, &catch_blocks, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
+                    if !catch_blocks.is_empty() && func_level_catches.is_empty() {
+                        // Immediate catches AND no function-level catches - handle inline
+                        // Only use this optimization if there are no earlier throwing calls that
+                        // need the catch labels (func_level_catches tracks all catches in the block)
+                        emit_throwing_call(fcall, &throw_types, &catch_blocks, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
                         i = j; // Skip past catch blocks
                         continue;
-                    } else if !ctx.current_throw_types.is_empty() {
-                        // No catch blocks, but we're inside a throwing function
+                    } else if !ctx.current_throw_types.is_empty() && ctx.local_catch_labels.is_empty() {
+                        // No catch blocks, we're inside a throwing function, and no local catches
                         // Emit error propagation pattern
-                        emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
+                        emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
                         i += 1;
                         continue;
-                    } else if !func_level_catches.is_empty() {
-                        // No immediate catch, not a throwing function, but has function-level catches
-                        // Use goto to jump to the catch labels (already registered in local_catch_labels)
-                        // This ensures that statements between the throwing call and the catch are skipped on error
-                        emit_throwing_call_with_goto(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
-                        i += 1;
-                        continue;
-                    } else if !ctx.local_catch_labels.is_empty() {
-                        // No catches in THIS block, but there are outer catches registered
-                        // Emit throwing call that jumps to catch labels on error
-                        emit_throwing_call_with_goto(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
+                    } else if !func_level_catches.is_empty() || !ctx.local_catch_labels.is_empty() {
+                        // Has function-level catches or outer catches registered
+                        // Bug #39 fix: Update local_catch_labels to point to NEXT catch for each type
+                        // This ensures each call jumps to the correct catch, not always the first one
+                        // Build map with only catches AFTER current position
+                        let mut next_catches: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
+                        for (catch_idx, type_name, label, temp_var, _) in &all_catch_info {
+                            if *catch_idx > i && !next_catches.contains_key(type_name) {
+                                // First catch of this type after current position
+                                next_catches.insert(type_name.clone(), (label.clone(), temp_var.clone()));
+                            }
+                        }
+                        // Replace local_catch_labels with only the next catches
+                        // This removes entries for types that have no more catches after this point
+                        ctx.local_catch_labels.clear();
+                        for (type_name, (label, temp_var)) in &next_catches {
+                            ctx.local_catch_labels.insert(type_name.clone(), (label.clone(), temp_var.clone()));
+                        }
+                        emit_throwing_call_with_goto(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
                         i += 1;
                         continue;
                     } else {
                         // No catches - typer should have caught this if we're in non-throwing context
                         // Just use propagate (will silently succeed on error if we're not throwing)
-                        emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
+                        emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
                         i += 1;
                         continue;
                     }
@@ -3181,7 +3264,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                     .unwrap_or(false);
 
                 if !is_throwing {
-                    emit_variadic_call(fcall, &elem_type, regular_count, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
+                    emit_variadic_call(fcall, &elem_type, regular_count, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
                     i += 1;
                     continue;
                 }
@@ -3189,76 +3272,8 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         }
 
         // Regular statement handling
-        emit_expr(stmt, output, indent, ctx, context)?;
+        emit_expr(stmt, output, effective_indent, ctx, context)?;
         i += 1;
-    }
-
-    // Emit function-level catch blocks with labels
-    // These are jumped to by explicit throw statements
-    // Each catch is wrapped in a block {} to allow same error var name with different types
-    if !catch_label_info.is_empty() {
-        // Jump over catch blocks in normal execution
-        let end_catches_label = format!("_end_catches_{}", catch_suffix);
-        output.push_str(&indent_str);
-        output.push_str("goto ");
-        output.push_str(&end_catches_label);
-        output.push_str(";\n");
-
-        for (type_name, label, temp_var, catch_block) in &catch_label_info {
-            // Emit label with a block scope to avoid C variable redefinition errors
-            output.push_str(label);
-            output.push_str(": {\n");
-
-            // Bind error variable from the temp storage
-            if let NodeType::Identifier(err_var_name) = &catch_block.params[0].node_type {
-                output.push_str(&indent_str);
-                output.push_str(&til_name(type_name));
-                output.push_str(" ");
-                output.push_str(&til_name(err_var_name));
-                output.push_str(" = ");
-                output.push_str(temp_var);
-                output.push_str(";\n");
-
-                // Add error variable to scope for type resolution in catch body
-                context.scope_stack.declare_symbol(
-                    err_var_name.clone(),
-                    SymbolInfo {
-                        value_type: crate::rs::parser::ValueType::TCustom(type_name.clone()),
-                        is_mut: false,
-                        is_copy: false,
-                        is_own: false,
-                        is_comptime_const: false,
-                    }
-                );
-            }
-
-            // Emit catch body
-            emit_expr(&catch_block.params[2], output, indent, ctx, context)?;
-
-            // Jump to end of catches to avoid falling through to next catch
-            output.push_str(&indent_str);
-            output.push_str("goto ");
-            output.push_str(&end_catches_label);
-            output.push_str(";\n");
-
-            // Close the block
-            output.push_str(&indent_str);
-            output.push_str("}\n");
-        }
-
-        // End of catch blocks label
-        output.push_str(&end_catches_label);
-        output.push_str(":;\n");
-
-        // Bug #34 fix: emit statements after the last catch
-        // Use emit_stmts recursively to properly handle throwing calls
-        // (emit_expr doesn't do throwing call detection)
-        if let Some(last_idx) = last_catch_index {
-            let remaining = &stmts[last_idx + 1..];
-            if !remaining.is_empty() {
-                emit_stmts(remaining, output, indent, ctx, context)?;
-            }
-        }
     }
 
     // Clean up local_catch_labels for this block
@@ -4225,29 +4240,54 @@ fn emit_throwing_call_with_goto(
 
     output.push_str(");\n");
 
-    // Generate goto for each error type that has a registered catch label
-    for (called_idx, throw_type) in throw_types.iter().enumerate() {
-        if let crate::rs::parser::ValueType::TCustom(called_type_name) = throw_type {
-            if let Some((label, temp_var)) = ctx.local_catch_labels.get(called_type_name) {
+    // Bug #39 fix: Use simple status checks with goto, not if-block nesting
+    // For each error type, emit a check that either jumps to local catch or propagates
+    for (err_idx, throw_type) in throw_types.iter().enumerate() {
+        if let crate::rs::parser::ValueType::TCustom(type_name) = throw_type {
+            // Check if there's a local catch for this error type
+            if let Some((label, temp_var)) = ctx.local_catch_labels.get(type_name) {
+                // Jump to local catch: copy error to temp var, then goto label
                 output.push_str(&indent_str);
                 output.push_str("if (_status_");
                 output.push_str(&temp_suffix);
                 output.push_str(" == ");
-                output.push_str(&(called_idx + 1).to_string());
+                output.push_str(&(err_idx + 1).to_string());
                 output.push_str(") { ");
                 output.push_str(temp_var);
                 output.push_str(" = _err");
-                output.push_str(&called_idx.to_string());
+                output.push_str(&err_idx.to_string());
                 output.push_str("_");
                 output.push_str(&temp_suffix);
                 output.push_str("; goto ");
                 output.push_str(label);
+                output.push_str("; }\n");
+            } else if ctx.current_throw_types.iter().any(|t| {
+                if let crate::rs::parser::ValueType::TCustom(n) = t { n == type_name } else { false }
+            }) {
+                // Propagate to caller: copy error to output param and return
+                let prop_idx = ctx.current_throw_types.iter().position(|t| {
+                    if let crate::rs::parser::ValueType::TCustom(n) = t { n == type_name } else { false }
+                }).unwrap_or(0);
+                output.push_str(&indent_str);
+                output.push_str("if (_status_");
+                output.push_str(&temp_suffix);
+                output.push_str(" == ");
+                output.push_str(&(err_idx + 1).to_string());
+                output.push_str(") { *_err");
+                output.push_str(&(prop_idx + 1).to_string());
+                output.push_str(" = _err");
+                output.push_str(&err_idx.to_string());
+                output.push_str("_");
+                output.push_str(&temp_suffix);
+                output.push_str("; return ");
+                output.push_str(&(prop_idx + 1).to_string());
                 output.push_str("; }\n");
             }
         }
     }
 
     // Success case: assign return value to target variable if needed
+    // This runs unconditionally after error checks - if we get here, status was 0
     // Skip for underscore _ which is just a discard
     if let Some(var_name) = decl_name {
         if var_name != "_" {

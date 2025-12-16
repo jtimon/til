@@ -9,6 +9,103 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #39: Non-consecutive catches fail - second catch never executes
+:PROPERTIES:
+:DISCOVERED: 2025-12-15
+:FIXED: 2025-12-16
+:IMPACT: Error handling semantics
+:STATUS: Fixed
+:END:
+
+Related: Bug #34 (same underlying goto structure issue)
+
+*** Description
+When a function has multiple throw+catch pairs separated by code, only the first catch works. The second catch block never executes because the code generator's goto structure jumps past subsequent throw+catch pairs after the first catch completes.
+
+#+BEGIN_EXAMPLE til
+throw_a_maybe(true)  // throws ErrorA
+after_a_ran = true   // correctly skipped
+catch (err: ErrorA) { caught_a = true }
+
+throw_b_maybe(true)  // throws ErrorB - NEVER EXECUTES!
+after_b_ran = true
+catch (err: ErrorB) { caught_b = true }  // NEVER EXECUTES!
+#+END_EXAMPLE
+
+*** Root Cause
+The C code generator groups ALL catches at the end with shared labels:
+
+#+BEGIN_SRC c
+if (_status_A == 1) { goto _catch_A; }
+if (_status_B == 1) { goto _catch_B; }
+goto _end_catches;
+
+_catch_A: { ... goto _end_catches; }  // BUG: jumps PAST throw_b_maybe!
+_catch_B: { ... }
+_end_catches:;
+#+END_SRC
+
+After catching ErrorA, ~goto _end_catches~ jumps past the second throw+catch entirely. The second throwing call never executes.
+
+*** Proposed Fix
+Instead of shared goto labels, use if-else blocks for each throw+catch pair:
+
+#+BEGIN_SRC c
+// First throw+catch
+int _status_A = call_a();
+if (_status_A == 0) {
+    after_a_ran = true;
+} else if (_status_A == 1) {
+    // catch A body
+}
+
+// Second throw+catch - executes regardless of first catch
+int _status_B = call_b();
+if (_status_B == 0) {
+    after_b_ran = true;
+} else if (_status_B == 1) {
+    // catch B body
+}
+#+END_SRC
+
+*** Files to Modify
+- src/rs/ccodegen.rs: emit_stmts, emit_throwing_call_with_goto
+- src/self/ccodegen.til: Same changes ported
+
+*** Test Coverage
+Tests added in src/test/errors.til:
+- test_non_consecutive_catches
+- test_caller_callee_different_throws
+- test_multi_throw_single_catch
+- test_multi_throw_success
+
+*** Fix Applied
+Key changes to ccodegen.rs and ccodegen.til:
+
+1. **Call ~next_mangled()~ inside the loop, not before** - Previously called once
+   before the loop, giving all catches the same suffix. Now called for EACH catch,
+   so multiple catches of the same error type get different labels.
+
+2. **Store statement index with each catch** - ~all_catch_info~ tracks
+   ~(stmt_index, type_name, label, temp_var, catch_block)~ to match throwing
+   calls to their NEXT catch by position in the source.
+
+3. **Emit catches inline with ~if(0) { label: }~** - Instead of grouping all
+   catches at the end with ~goto _end_catches~, catches are emitted inline where
+   they appear. The ~if(0)~ block is skipped in normal execution but ~goto~ can
+   jump into it. Execution falls through after the catch body.
+
+4. **Update ~local_catch_labels~ before each throwing call** - Clear and rebuild
+   with only catches AFTER current statement position. Each throwing call now
+   jumps to its correct NEXT catch, not always the first one.
+
+5. **Only use immediate-catch optimization when ~func_level_catches.is_empty()~** -
+   Prevents inline handling when the catch is also needed by earlier throwing calls
+   (which need the label to be emitted).
+
+Also added ~Map.clear()~ method to src/std/map.til, and removed unused
+~get_variant_payload_type~ function from init.rs.
+
 ** Bug #38: Vec.get doesn't preserve enum payload values
 :PROPERTIES:
 :DISCOVERED: 2025-12-15

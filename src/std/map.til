@@ -299,6 +299,13 @@ Map := struct {
         return self._size
     }
 
+    /** Clear all entries from map (reset to empty). */
+    clear := proc(mut self: Map) {
+        self._size = 0
+        self.keys._len = 0
+        self.values._len = 0
+    }
+
     /** Get total size in bytes (keys + values). */
     size := func(self: Map) returns I64 {
         mut keys_size := mul(self._size, self.key_type_size)

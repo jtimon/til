@@ -27,6 +27,7 @@ CatchLabelInfo := struct {
 
 // Full catch label info entry including the catch block
 CatchLabelInfoEntry := struct {
+    mut stmt_index: I64 = 0
     mut type_name: Str = ""
     mut label: Str = ""
     mut temp_var: Str = ""
@@ -4250,22 +4251,6 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
     mut func_level_catches := prescan_func_level_catches(stmts)
     catch (err: AllocError) { throw err.msg }
 
-    // Bug #34 fix: find the index of the last catch block
-    // Statements after the last catch must be emitted AFTER _end_catches label
-    mut last_catch_index := sub(0, 1)
-    mut scan_i := 0
-    while lt(scan_i, stmts.len()) {
-        mut scan_stmt := Expr()
-        stmts.get(scan_i, scan_stmt)
-        switch scan_stmt.node_type {
-        case NodeType.Catch:
-            last_catch_index = scan_i
-        case:
-        }
-        scan_i = add(scan_i, 1)
-    }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-
     // Hoist declarations from catch blocks to function level
     // (TIL has function-level scoping, not block-level scoping)
     for catch_block: Expr in func_level_catches {
@@ -4314,62 +4299,179 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
         catch (err: AllocError) { throw err.msg }
     }
 
-    // Register function-level catches in ctx.local_catch_labels for throw statements
-    // Generate unique labels for each catch block
-    // Only register the FIRST catch for each error type (later ones will be unreachable for explicit throws)
-    mut catch_suffix := next_mangled()
-    mut catch_label_info := Vec.new(CatchLabelInfoEntry)  // (type_name, label, temp_var, catch_block)
-    mut registered_types := Set.new(Str)
-    for catch_block: Expr in func_level_catches {
-        if lt(catch_block.params.len(), 3) {
-            continue
-        }
-        mut err_type_expr := Expr()
-        catch_block.params.get(1, err_type_expr)
-        switch err_type_expr.node_type {
-        case NodeType.Identifier(err_type_name):
-            // Only register the first catch for each type
-            if registered_types.contains(err_type_name) {
-                continue
+    // Bug #39 fix: Give each catch block its own unique label using the global counter
+    // Store catch info with statement index so we can match calls to their NEXT catch
+    mut all_catch_info := Vec.new(CatchLabelInfoEntry)
+    mut scan_idx := 0
+    while lt(scan_idx, stmts.len()) {
+        mut scan_stmt := Expr()
+        stmts.get(scan_idx, scan_stmt)
+        switch scan_stmt.node_type {
+        case NodeType.Catch:
+            if gteq(scan_stmt.params.len(), 3) {
+                mut err_type_expr := Expr()
+                scan_stmt.params.get(1, err_type_expr)
+                switch err_type_expr.node_type {
+                case NodeType.Identifier(err_type_name):
+                    mut catch_suffix := next_mangled()  // Unique suffix for EACH catch
+                    mut label := format("_catch_", err_type_name, "_", catch_suffix)
+                    mut temp_var := format("_thrown_", err_type_name, "_", catch_suffix)
+                    mut entry := CatchLabelInfoEntry()
+                    entry.stmt_index = scan_idx
+                    entry.type_name = err_type_name
+                    entry.label = label
+                    entry.temp_var = temp_var
+                    entry.catch_block = scan_stmt
+                    all_catch_info.push(entry)
+                case:
+                }
             }
-            _ := registered_types.insert(err_type_name)
-
-            mut label := format("_catch_", err_type_name, "_", catch_suffix)
-            mut temp_var := format("_thrown_", err_type_name, "_", catch_suffix)
-            mut info := CatchLabelInfo()
-            info.label = label
-            info.temp_var = temp_var
-            ctx.local_catch_labels.set(err_type_name, info)
-            mut entry := CatchLabelInfoEntry()
-            entry.type_name = err_type_name
-            entry.label = label
-            entry.temp_var = temp_var
-            entry.catch_block = catch_block
-            catch_label_info.push(entry)
-
-            // Declare temp variable to store thrown error value
-            result = result.concat(indent_str)
-            result = result.concat(til_name(err_type_name))
-            result = result.concat(" ")
-            result = result.concat(temp_var)
-            result = result.concat(";\n")
         case:
         }
+        scan_idx = add(scan_idx, 1)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
 
-    // Bug #34 fix: only emit statements up to and including the last catch
-    // Statements after the last catch will be emitted after _end_catches
-    mut loop_end := stmts.len()
-    if gteq(last_catch_index, 0) {
-        loop_end = add(last_catch_index, 1)
+    // Declare temp variables for all catches at the start
+    mut decl_idx := 0
+    while lt(decl_idx, all_catch_info.len()) {
+        mut entry := CatchLabelInfoEntry()
+        all_catch_info.get(decl_idx, entry)
+        result = result.concat(indent_str)
+        result = result.concat(til_name(entry.type_name))
+        result = result.concat(" ")
+        result = result.concat(entry.temp_var)
+        result = result.concat(";\n")
+        decl_idx = add(decl_idx, 1)
     }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-    while lt(i, loop_end) {
+    // For backward compatibility, populate local_catch_labels with first catch of each type
+    mut registered_types := Set.new(Str)
+    mut reg_idx := 0
+    while lt(reg_idx, all_catch_info.len()) {
+        mut entry := CatchLabelInfoEntry()
+        all_catch_info.get(reg_idx, entry)
+        if not(registered_types.contains(entry.type_name)) {
+            _ := registered_types.insert(entry.type_name)
+            mut info := CatchLabelInfo()
+            info.label = entry.label
+            info.temp_var = entry.temp_var
+            ctx.local_catch_labels.set(entry.type_name, info)
+        }
+        reg_idx = add(reg_idx, 1)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
+    // Keep catch_label_info for cleanup at end (copy from all_catch_info)
+    mut catch_label_info := Vec.new(CatchLabelInfoEntry)
+    mut copy_idx := 0
+    while lt(copy_idx, all_catch_info.len()) {
+        mut entry := CatchLabelInfoEntry()
+        all_catch_info.get(copy_idx, entry)
+        catch_label_info.push(entry)
+        copy_idx = add(copy_idx, 1)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
+    // Track which catch labels have been emitted to avoid duplicates
+    mut emitted_catch_labels := Set.new(Str)
+    catch (err: AllocError) { throw err.msg }
+
+    // Process all statements
+    while lt(i, stmts.len()) {
         mut stmt := Expr()
         stmts.get(i, stmt)
+
+        // Bug #39 fix: Handle catch blocks inline with if(0) { label: ... }
+        // This keeps catches where they appear in source, and execution falls through after
+        switch stmt.node_type {
+        case NodeType.Catch:
+            // Get the error type this catch handles
+            if gteq(stmt.params.len(), 3) {
+                mut err_type_expr := Expr()
+                stmt.params.get(1, err_type_expr)
+                switch err_type_expr.node_type {
+                case NodeType.Identifier(err_type_name):
+                    // Look up this specific catch's label from all_catch_info by statement index
+                    mut found_entry := false
+                    mut catch_entry := CatchLabelInfoEntry()
+                    mut find_idx := 0
+                    while lt(find_idx, all_catch_info.len()) {
+                        mut entry := CatchLabelInfoEntry()
+                        all_catch_info.get(find_idx, entry)
+                        if eq(entry.stmt_index, i) {
+                            catch_entry = entry
+                            found_entry = true
+                            break
+                        }
+                        find_idx = add(find_idx, 1)
+                    }
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+                    if found_entry {
+                        // Only emit if we haven't already emitted this label
+                        if not(emitted_catch_labels.contains(catch_entry.label)) {
+                            _ := emitted_catch_labels.insert(catch_entry.label)
+
+                            result = result.concat(indent_str)
+                            result = result.concat("if (0) { ")
+                            result = result.concat(catch_entry.label)
+                            result = result.concat(":\n")
+
+                            // Bind error variable
+                            mut err_var_expr := Expr()
+                            stmt.params.get(0, err_var_expr)
+                            switch err_var_expr.node_type {
+                            case NodeType.Identifier(err_var_name):
+                                mut inner_indent := ""
+                                mut inner_ind := 0
+                                while lt(inner_ind, add(indent, 1)) {
+                                    inner_indent = inner_indent.concat("    ")
+                                    inner_ind = add(inner_ind, 1)
+                                }
+                                result = result.concat(inner_indent)
+                                result = result.concat(til_name(err_type_name))
+                                result = result.concat(" ")
+                                result = result.concat(til_name(err_var_name))
+                                result = result.concat(" = ")
+                                result = result.concat(catch_entry.temp_var)
+                                result = result.concat(";\n")
+
+                                // Add error variable to scope for type resolution in catch body
+                                context.scope_stack.declare_symbol(err_var_name, SymbolInfo.new(ValueType.TCustom(err_type_name), false, false, false))
+                            case:
+                            }
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+                            // Emit catch body
+                            // IMPORTANT: Temporarily clear local_catch_labels so throwing calls inside
+                            // the catch body don't try to jump to catches
+                            mut saved_catch_labels := ctx.local_catch_labels
+                            ctx.local_catch_labels = Map.new(Str, CatchLabelInfo)
+                            catch (err: AllocError) { throw err.msg }
+                            mut catch_body := Expr()
+                            stmt.params.get(2, catch_body)
+                            result = emit_expr(catch_body, result, add(indent, 1), ctx, context)
+                            ctx.local_catch_labels = saved_catch_labels
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+                            // Close the if(0) block
+                            result = result.concat(indent_str)
+                            result = result.concat("}\n")
+                        }
+                    }
+                case:
+                }
+            }
+            i = add(i, 1)
+            continue
+        case:
+        }
 
         // Check if this statement is followed by catch blocks
         // And if it's a call to a throwing function (FCall, Declaration with FCall, or Assignment with FCall)
@@ -4456,8 +4558,8 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                         catch (err: IndexOutOfBoundsError) { throw next_stmt.lang_error(context.path, "ccodegen", err.msg) }
                     }
 
-                    if gt(catch_blocks.len(), 0) {
-                        // Emit throwing call with catch handling
+                    if and(gt(catch_blocks.len(), 0), eq(func_level_catches.len(), 0)) {
+                        // Immediate catches AND no function-level catches - handle inline
                         if has_decl {
                             result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, maybe_decl_name, "", result, indent, ctx, context)
                         } else {
@@ -4468,10 +4570,11 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                             }
                         }
                         i = add(i, add(1, catch_blocks.len()))  // Skip past catch blocks
+                        continue
                     } else {
-                        // No catch blocks - check if we're inside a throwing function
-                        if gt(ctx.current_throw_types.len(), 0) {
-                            // We're in a throwing function, propagate errors to caller
+                        if and(gt(ctx.current_throw_types.len(), 0), eq(ctx.local_catch_labels.len(), 0)) {
+                            // No catch blocks, we're inside a throwing function, and no local catches
+                            // Emit error propagation pattern
                             if has_decl {
                                 result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
                             } else {
@@ -4481,11 +4584,32 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                                     result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
                                 }
                             }
+                            i = add(i, 1)
+                            continue
                         } else {
-                            if gt(func_level_catches.len(), 0) {
-                                // No immediate catch, not a throwing function, but has function-level catches
-                                // Use goto to jump to the catch labels (already registered in local_catch_labels)
-                                // This ensures that statements between the throwing call and the catch are skipped on error
+                            if or(gt(func_level_catches.len(), 0), gt(ctx.local_catch_labels.len(), 0)) {
+                                // Has function-level catches or outer catches registered
+                                // Bug #39 fix: Update local_catch_labels to point to NEXT catch for each type
+                                // Build map with only catches AFTER current position
+                                ctx.local_catch_labels.clear()
+                                mut next_idx := 0
+                                while lt(next_idx, all_catch_info.len()) {
+                                    mut entry := CatchLabelInfoEntry()
+                                    all_catch_info.get(next_idx, entry)
+                                    if gt(entry.stmt_index, i) {
+                                        // First catch of this type after current position
+                                        if not(ctx.local_catch_labels.contains_key(entry.type_name)) {
+                                            mut info := CatchLabelInfo()
+                                            info.label = entry.label
+                                            info.temp_var = entry.temp_var
+                                            ctx.local_catch_labels.set(entry.type_name, info)
+                                        }
+                                    }
+                                    next_idx = add(next_idx, 1)
+                                }
+                                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                                catch (err: AllocError) { throw err.msg }
+
                                 if has_decl {
                                     result = emit_throwing_call_with_goto(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
                                 } else {
@@ -4495,35 +4619,24 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                                         result = emit_throwing_call_with_goto(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
                                     }
                                 }
+                                i = add(i, 1)
+                                continue
                             } else {
-                                if gt(ctx.local_catch_labels.len(), 0) {
-                                    // No catches in THIS block, but there are outer catches registered
-                                    // Emit throwing call that jumps to catch labels on error
-                                    if has_decl {
-                                        result = emit_throwing_call_with_goto(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
-                                    } else {
-                                        if has_assign {
-                                            result = emit_throwing_call_with_goto(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
-                                        } else {
-                                            result = emit_throwing_call_with_goto(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
-                                        }
-                                    }
+                                // No catches - typer should have caught this if we're in non-throwing context
+                                // Just use propagate (will silently succeed on error if we're not throwing)
+                                if has_decl {
+                                    result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
                                 } else {
-                                    // No catches - typer should have caught this if we're in non-throwing context
-                                    // Just use propagate (will silently succeed on error if we're not throwing)
-                                    if has_decl {
-                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
+                                    if has_assign {
+                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
                                     } else {
-                                        if has_assign {
-                                            result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
-                                        } else {
-                                            result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
-                                        }
+                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
                                     }
                                 }
+                                i = add(i, 1)
+                                continue
                             }
                         }
-                        i = add(i, 1)
                     }
                 } else {
                     // Not a throwing function - check for variadic call
@@ -4557,93 +4670,6 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
-
-    // Emit function-level catch blocks with labels
-    // These are jumped to by explicit throw statements
-    // Each catch is wrapped in a block {} to allow same error var name with different types
-    if gt(catch_label_info.len(), 0) {
-        // Jump over catch blocks in normal execution
-        mut end_catches_label := format("_end_catches_", catch_suffix)
-        result = result.concat(indent_str)
-        result = result.concat("goto ")
-        result = result.concat(end_catches_label)
-        result = result.concat(";\n")
-
-        mut cli := 0
-        while lt(cli, catch_label_info.len()) {
-            mut entry := CatchLabelInfoEntry()
-            catch_label_info.get(cli, entry)
-
-            // Emit label with a block scope to avoid C variable redefinition errors
-            result = result.concat(entry.label)
-            result = result.concat(": {\n")
-
-            // Bind error variable from the temp storage
-            if gt(entry.catch_block.params.len(), 0) {
-                mut err_var_expr := Expr()
-                entry.catch_block.params.get(0, err_var_expr)
-                switch err_var_expr.node_type {
-                case NodeType.Identifier(err_var_name):
-                    result = result.concat(indent_str)
-                    result = result.concat(til_name(entry.type_name))
-                    result = result.concat(" ")
-                    result = result.concat(til_name(err_var_name))
-                    result = result.concat(" = ")
-                    result = result.concat(entry.temp_var)
-                    result = result.concat(";\n")
-
-                    // Add error variable to scope for type resolution in catch body
-                    context.scope_stack.declare_symbol(err_var_name, SymbolInfo.new(ValueType.TCustom(entry.type_name), false, false, false))
-                case:
-                    // Skip non-identifier
-                }
-            }
-
-            // Emit catch body
-            if gteq(entry.catch_block.params.len(), 3) {
-                mut catch_body := Expr()
-                entry.catch_block.params.get(2, catch_body)
-                result = emit_expr(catch_body, result, indent, ctx, context)
-            }
-
-            // Jump to end of catches to avoid falling through to next catch
-            result = result.concat(indent_str)
-            result = result.concat("goto ")
-            result = result.concat(end_catches_label)
-            result = result.concat(";\n")
-
-            // Close the block
-            result = result.concat(indent_str)
-            result = result.concat("}\n")
-
-            cli = add(cli, 1)
-        }
-
-        // End of catch blocks label
-        result = result.concat(end_catches_label)
-        result = result.concat(":;\n")
-
-        // Bug #34 fix: emit statements after the last catch
-        // Use emit_stmts recursively to properly handle throwing calls
-        // (emit_expr doesn't do throwing call detection)
-        if gteq(last_catch_index, 0) {
-            mut remaining := Vec.new(Expr)
-            mut after_i := add(last_catch_index, 1)
-            while lt(after_i, stmts.len()) {
-                mut after_stmt := Expr()
-                stmts.get(after_i, after_stmt)
-                remaining.push(after_stmt)
-                after_i = add(after_i, 1)
-            }
-            if gt(remaining.len(), 0) {
-                result = emit_stmts(remaining, result, indent, ctx, context)
-            }
-            remaining.delete()
-        }
-    }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: I64_OverflowError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
 
     // Clean up local_catch_labels for this block
     mut clean_i := 0
