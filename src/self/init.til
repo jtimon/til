@@ -1240,10 +1240,6 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         context.path = original_path
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
     }
-    catch (err: IndexOutOfBoundsError) {
-        context.path = original_path
-        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
-    }
 
     # Parse mode
     mut parsed_mode := parse_mode(path, lexer)

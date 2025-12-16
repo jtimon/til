@@ -809,28 +809,33 @@ print_if_lex_error := proc(path: Str, tokens: Vec, index: I64, t: Token, mut err
     }
 }
 
-lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, IndexOutOfBoundsError {
+lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str {
     mut l := Lexer()
     l.path = path
     tokens := scan_tokens(source)
     l.tokens = tokens
 
-    if I64.eq(tokens.len(), 0) {
-        throw path.format(":1:0: compiler ERROR: End of file not found.")
+    if tokens.len().lt(1) {
+        throw format(path, ":1:0: ", LANG_NAME, " compiler ERROR: End of file not found.\nExplanation: This should never happen, this is a bug in the language.")
     }
 
     mut first := Token()
     tokens.get(0, first)
     switch first.token_type {
     case TokenType.Eof:
-        throw path.format(":0:0: compiler ERROR: Nothing to be done")
+        // Use the first token for the error
+        throw first.lang_error(path, "Nothing to be done")
     case:
     }
 
     errors := print_lex_errors(tokens, path)
     if errors.gt(0) {
-        throw format(loc(), "Compiler errors: ", I64.to_str(errors), " lexical errors found")
+        // Use the first token for the summary error
+        throw first.error(path, format(errors.to_str(), " lexical errors found"))
     }
 
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
     return l
 }

@@ -6,6 +6,7 @@ rstil: src/rstil.rs
 	rustc src/rstil.rs -o bin/rstil
 
 tests: rstil
+	@mkdir -p tmp
 	./bin/rstil src/tests.til
 
 # TODO run src/til.til with til.til

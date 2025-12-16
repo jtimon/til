@@ -3128,9 +3128,6 @@ main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str,
     catch (err: Str) {
         throw format(path, ":", err)
     }
-    catch (err: IndexOutOfBoundsError) {
-        throw format(path, ":", err.msg)
-    }
 
     // Parse mode
     mut parsed_mode := parse_mode(path, lexer)
