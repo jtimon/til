@@ -1050,10 +1050,12 @@ fn return_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     let initial_current = lexer.current;
     lexer.advance(1)?;
     let mut params : Vec<Expr> = Vec::new();
+    // Try to parse first primary expression
     match parse_primary(lexer) {
         Ok(prim) => {
             params.push(prim);
         },
+        // No primary expression found, that's okay for return statements
         Err(_err_str) => {},
     };
     let mut t = lexer.peek();
@@ -1085,12 +1087,9 @@ fn parse_throw_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     let initial_current = lexer.current;
     lexer.advance(1)?;
     let mut params : Vec<Expr> = Vec::new();
-    match parse_primary(lexer) {
-        Ok(prim) => {
-            params.push(prim);
-        },
-        Err(_err_str) => {},
-    };
+    // Parse first primary expression (required for throw)
+    let prim = parse_primary(lexer)?;
+    params.push(prim);
     let mut t = lexer.peek();
     while t.token_type == TokenType::Comma {
         lexer.advance(1)?;

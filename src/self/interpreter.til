@@ -2794,6 +2794,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         // This is a variable, not a constructor - save the enum value
                         saved_enum_value = Arena.get_enum(context, result_str, e)
                         has_saved_enum_value = true
+                        // May fail if not actually an enum - that's okay, has_saved_enum_value stays false
                         catch (err: Str) { }
                     }
                 }

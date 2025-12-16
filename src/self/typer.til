@@ -587,7 +587,6 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
     }
 
     _ := context.scope_stack.pop()
-    catch (err: Str) { }
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -1421,7 +1420,6 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo.new(payload_type, false, false, false))
                                 errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_types, return_found))
                                 _ := context.scope_stack.pop()
-                                catch (err: Str) { }
                                 handled = true
                             }
                         case:
@@ -2018,7 +2016,6 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
                     // Switch case body statements discard return values
                     errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded))
                     _ := context.scope_stack.pop()
-                    catch (err: Str) { }
                 } else if variant_found {
                     // Variant exists but has no payload (NULL pointer)
                     errors.push(case_expr.error(context.path, "type", format("Variant '", variant, "' has no payload, cannot use pattern matching")))

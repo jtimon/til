@@ -2481,6 +2481,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 if custom_symbol.value_type == ValueType::TType(TTypeDef::TEnumDef) {
                     if !result_str.contains('.') {
                         // This is a variable, not a constructor - save the enum value
+                        // May fail if not actually an enum - that's okay, .ok() returns None
                         Arena::get_enum(context, &result_str, e).ok()
                     } else {
                         None

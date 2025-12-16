@@ -3677,6 +3677,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     // Determine the type of the switch expression for proper comparison
     mut switch_type := ValueType.TCustom("")
     switch_type = get_value_type(context, switch_expr)
+    // Type inference may fail - that's okay, we'll use default empty type
     catch (err: Str) { }
     mut is_str_switch := false
     switch switch_type {

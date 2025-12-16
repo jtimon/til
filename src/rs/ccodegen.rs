@@ -5744,6 +5744,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     hoist_throwing_expr(switch_expr, output, indent, ctx, context)?;
 
     // Determine the type of the switch expression for proper comparison
+    // Type inference may fail - that's okay, we'll use None (default)
     let switch_type = get_value_type(context, switch_expr).ok();
     let is_str_switch = matches!(&switch_type, Some(ValueType::TCustom(t)) if t == "Str");
 

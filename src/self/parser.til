@@ -1365,12 +1365,9 @@ parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
     lexer.advance(1)
     mut params := Vec.new(Expr)
 
-    // Try to parse first primary expression
+    // Parse first primary expression (required for throw)
     prim := parse_primary(lexer)
     params.push(prim)
-    catch (err: Str) {
-        // No primary expression found, that's okay for throw statements
-    }
 
     mut t := lexer.peek()
     mut continue_loop := true
