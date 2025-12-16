@@ -2284,6 +2284,25 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             ctx.hoisted_struct_defaults = Map.new(Str, Str)
                             catch (err: AllocError) { throw err.msg }
 
+                            // Push a new scope frame for this function (like interpreter does)
+                            context.scope_stack.push(ScopeType.Function)
+                            // Register function parameters in the frame
+                            mut param_idx := 0
+                            while lt(param_idx, func_def.args.len()) {
+                                mut param := Declaration()
+                                func_def.args.get(param_idx, param)
+                                mut value_type := param.value_type
+                                switch param.value_type {
+                                case ValueType.TMulti(elem_type):
+                                    value_type = ValueType.TCustom("Array")
+                                case:
+                                }
+                                mut sym := SymbolInfo(value_type=value_type, is_mut=param.is_mut, is_copy=param.is_copy, is_own=param.is_own)
+                                context.scope_stack.declare_symbol(param.name, sym)
+                                param_idx = add(param_idx, 1)
+                            }
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
+
                             // Use emit_func_signature with mangled name
                             mut mangled_name := struct_name.concat("_").concat(member.name)
                             result = emit_func_signature(mangled_name, func_def, result, ctx)
@@ -2300,6 +2319,10 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             }
 
                             result = result.concat("}\n\n")
+
+                            // Pop the function scope frame
+                            _ := context.scope_stack.pop()
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
 
                             // Clear current function context
                             ctx.current_throw_types = Vec.new(ValueType)
@@ -2792,6 +2815,25 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 catch (err: AllocError) { throw err.msg }
                 catch (err: DuplicatedKeyError) { }  // Ignore duplicates
 
+                // Push a new scope frame for this function (like interpreter does)
+                context.scope_stack.push(ScopeType.Function)
+                // Register function parameters in the frame
+                mut param_idx := 0
+                while lt(param_idx, func_def.args.len()) {
+                    mut param := Declaration()
+                    func_def.args.get(param_idx, param)
+                    mut value_type := param.value_type
+                    switch param.value_type {
+                    case ValueType.TMulti(elem_type):
+                        value_type = ValueType.TCustom("Array")
+                    case:
+                    }
+                    mut sym := SymbolInfo(value_type=value_type, is_mut=param.is_mut, is_copy=param.is_copy, is_own=param.is_own)
+                    context.scope_stack.declare_symbol(param.name, sym)
+                    param_idx = add(param_idx, 1)
+                }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+
                 // Use emit_func_signature for both throwing and non-throwing functions
                 result = emit_func_signature(decl.name, func_def, result, ctx)
                 result = result.concat(" {\n")
@@ -2807,6 +2849,10 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 }
 
                 result = result.concat("}\n\n")
+
+                // Pop the function scope frame
+                _ := context.scope_stack.pop()
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
 
                 // Restore previous function name
                 ctx.current_function_name = prev_function_name
@@ -7134,6 +7180,23 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     arg_idx = add(arg_idx, 1)
                 }
 
+                // Push scope frame for function
+                context.scope_stack.push(ScopeType.Function)
+                mut param_idx := 0
+                while lt(param_idx, func_def.args.len()) {
+                    mut param := Declaration()
+                    func_def.args.get(param_idx, param)
+                    mut value_type := param.value_type
+                    switch param.value_type {
+                    case ValueType.TMulti(elem_type):
+                        value_type = ValueType.TCustom("Array")
+                    case:
+                    }
+                    mut sym := SymbolInfo(value_type=value_type, is_mut=param.is_mut, is_copy=param.is_copy, is_own=param.is_own)
+                    context.scope_stack.declare_symbol(param.name, sym)
+                    param_idx = add(param_idx, 1)
+                }
+
                 // Emit signature with mangled name
                 func_output = emit_func_signature(mangled_name, func_def, func_output, ctx)
                 func_output = func_output.concat(" {\n")
@@ -7150,6 +7213,10 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
 
                 func_output = func_output.concat("}\n\n")
 
+                // Pop scope frame
+                _ := context.scope_stack.pop()
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+
                 // Store in hoisted_functions
                 ctx.hoisted_functions.push(func_output)
 
@@ -7161,7 +7228,6 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 ctx.declared_vars = saved_declared_vars
                 ctx.current_function_name = saved_function_name
 
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
                 catch (err: AllocError) { throw err.msg }
                 catch (err: DuplicatedKeyError) { }
 
@@ -8947,6 +9013,46 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             result = result.concat(")})")
         }
         result = result.concat(")")
+        if gt(indent, 0) {
+            result = result.concat(";\n")
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: AllocError) { throw err.msg }
+        catch (err: I64_OverflowError) { throw err.msg }
+        return result
+    } else if orig_func_name.eq("type_as_str") {
+        // type_as_str(T) - get type name as string
+        // Can be called with a literal type name (type_as_str(Str)) or a Type variable (type_as_str(T))
+        // Type variables are passed as const char* at runtime
+        if lt(params_len, 2) {
+            throw "ccodegen: type_as_str requires 1 argument"
+        }
+        mut arg := Expr()
+        expr.params.get(1, arg)
+        switch arg.node_type {
+        case NodeType.Identifier(type_name):
+            // Check if this is a Type variable or a literal type name
+            // Type variables are declared with value_type TCustom("Type")
+            mut is_type_var := false
+            mut sym := context.scope_stack.lookup_symbol(type_name)
+            switch sym.value_type {
+            case ValueType.TCustom(t):
+                if t.eq("Type") {
+                    is_type_var = true
+                }
+            case:
+            }
+            catch (err: KeyNotFoundError) { }
+            if is_type_var {
+                // Type variable - already a const char*, wrap in Str struct literal
+                result = format(result, "((", TIL_PREFIX, "Str){(", TIL_PREFIX, "I64)", TIL_PREFIX, type_name, ", strlen(", TIL_PREFIX, type_name, ")})")
+            } else {
+                // Literal type name - create Str compound literal
+                result = emit_str_literal(type_name, result)
+            }
+        case:
+            result = emit_str_literal("unknown", result)
+        }
         if gt(indent, 0) {
             result = result.concat(";\n")
         }

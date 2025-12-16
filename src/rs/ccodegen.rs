@@ -6459,22 +6459,35 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // Hardcoded builtins (compile-time intrinsics that can't be implemented in TIL)
     match orig_func_name.as_str() {
         // loc() is now resolved in precomp phase, so it never reaches here
-        // type_as_str(T) - compile-time intrinsic to get type name as string
-        // TODO: This doesn't work correctly for Type parameters (T: Type) because
-        // we emit a single generic function, not monomorphized versions per type.
-        // For now it just emits the identifier name literally.
+        // type_as_str(T) - get type name as string
+        // Can be called with a literal type name (type_as_str(Str)) or a Type variable (type_as_str(T))
+        // Type variables are passed as const char* at runtime
         "type_as_str" => {
             if expr.params.len() < 2 {
                 return Err("ccodegen: type_as_str requires 1 argument".to_string());
             }
             // Get the type name from the argument
             if let NodeType::Identifier(type_name) = &expr.params[1].node_type {
-                if context.scope_stack.lookup_struct("Str").is_some() {
-                    emit_str_literal(type_name, output);
+                // Check if this is a Type variable or a literal type name
+                // Type variables are declared with value_type TCustom("Type")
+                let is_type_var = if let Some(sym) = context.scope_stack.lookup_symbol(type_name) {
+                    matches!(&sym.value_type, ValueType::TCustom(t) if t == "Type")
                 } else {
-                    output.push_str("\"");
-                    output.push_str(type_name);
-                    output.push_str("\"");
+                    false
+                };
+                if is_type_var {
+                    // Type variable - already a const char*, wrap in Str struct literal
+                    output.push_str(&format!("(({}Str){{({}I64){}{}, strlen({}{})}})",
+                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, type_name, TIL_PREFIX, type_name));
+                } else {
+                    // Literal type name - create Str compound literal
+                    if context.scope_stack.lookup_struct("Str").is_some() {
+                        emit_str_literal(type_name, output);
+                    } else {
+                        output.push_str("\"");
+                        output.push_str(type_name);
+                        output.push_str("\"");
+                    }
                 }
             } else {
                 emit_str_literal("unknown", output);
