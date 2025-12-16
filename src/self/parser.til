@@ -1044,7 +1044,8 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
         initial_token2 := lexer.get_token(initial_current)
         result = Expr.new_parse(NodeType.FCall, initial_token2, fcall_params)
 
-        // Handle chained method calls: a.method1().method2().method3()
+        // Handle chained method calls and field access: a.method1().method2().field.method3()
+        // Bug #32 fix: Support field access after method calls (not just method calls)
         mut continue_loop := true
         while continue_loop {
             peek_t := lexer.peek()
@@ -1054,7 +1055,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                 // Consume the dot
                 lexer.advance(1)
 
-                // Expect an identifier for the next method name
+                // Expect an identifier for the next method/field name
                 method_t := lexer.peek()
                 mtt := method_t.token_type
                 switch mtt {
@@ -1706,12 +1707,18 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
                 // Check if p1 is an Identifier using switch (tag() doesn't exist in TIL)
                 switch p1nt {
                     case NodeType.Identifier(binding_var):
-                        // Convert FCall to Pattern
-                        mut pattern_info := PatternInfo()
-                        pattern_info.variant_name = variant_name
-                        pattern_info.binding_var = binding_var
-                        // Bug #27 FIXED - can now inline Vec.new(Expr) as function argument
-                        return Expr.new_explicit(NodeType.Pattern(pattern_info), Vec.new(Expr), left.line, left.col)
+                        // Only treat as a binding variable if it's a simple identifier
+                        // (no nested params like TTypeDef.TEnumDef)
+                        if p1.params.len().eq(0) {
+                            // Convert FCall to Pattern
+                            mut pattern_info := PatternInfo()
+                            pattern_info.variant_name = variant_name
+                            pattern_info.binding_var = binding_var
+                            // Bug #27 FIXED - can now inline Vec.new(Expr) as function argument
+                            return Expr.new_explicit(NodeType.Pattern(pattern_info), Vec.new(Expr), left.line, left.col)
+                        }
+                        // Otherwise, it's a nested pattern like ValueType.TType(TTypeDef.TEnumDef)
+                        // Keep it as FCall for now (will be handled by interpreter)
                     case:
                 }
             }
