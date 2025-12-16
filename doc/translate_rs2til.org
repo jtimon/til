@@ -83,6 +83,30 @@ v.push(b)
 v.push(c)
 #+end_src
 
+** Struct literals
+
+Rust:
+#+begin_src rust
+let info = SymbolInfo {
+    value_type: some_type,
+    is_mut: true,
+    is_copy: false,
+    is_own: false,
+};
+#+end_src
+
+TIL uses constructor-style syntax with named arguments. Only specify fields that differ from defaults:
+#+begin_src til
+// Only set fields that differ from struct defaults
+info := SymbolInfo(value_type=some_type, is_mut=true)
+
+// All fields use defaults
+info := SymbolInfo()
+
+// Order doesn't matter
+p := Vec2(y=20, x=10)
+#+end_src
+
 * Init Patterns (init.rs -> init.til)
 
 ** Not-equal comparisons (ne -> not(eq()))

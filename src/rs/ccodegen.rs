@@ -2003,16 +2003,10 @@ fn emit_global_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
                 til_name(&decl.name)
             };
 
-            // Determine the type from the initializer expression
-            // Check for enum construction first (Color.Green(true) -> til_Color)
-            let c_type = if let Some(enum_type) = get_enum_construction_type(&expr.params[0], context) {
-                til_name(&enum_type)
-            } else if let Some(struct_type) = get_struct_construction_type(&expr.params[0], context) {
-                til_name(&struct_type)
-            } else if let Some(inferred) = infer_type_from_expr(&expr.params[0], context) {
-                til_type_to_c(&inferred).unwrap_or("int".to_string())
-            } else {
-                til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
+            // Determine the type from the initializer expression using get_value_type
+            let c_type = match get_value_type(context, &expr.params[0]) {
+                Ok(vt) => til_type_to_c(&vt).unwrap_or("int".to_string()),
+                Err(_) => til_type_to_c(&decl.value_type).unwrap_or("int".to_string()),
             };
 
             // Emit static declaration (no initializer - will be set in main)
@@ -3043,7 +3037,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                         output.push_str(&c_var_name);
                         output.push_str(";\n");
                         ctx.declared_vars.insert(c_var_name);
-                        // Also register in scope_stack so infer_type_from_expr can find it
+                        // Also register in scope_stack so get_value_type can find it
                         context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
                             value_type: value_type.clone(),
                             is_mut: false,
@@ -4488,22 +4482,14 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     };
 
     // Track variable type for method mangling
-    // Use the inferred type from struct/enum construction if available,
-    // or use get_value_type to get return type of function calls like Vec.new(Str)
+    // Prioritize struct/enum constructor types, then use get_value_type for other cases
     let var_type = if let Some(ref type_name) = struct_type {
         ValueType::TCustom(type_name.clone())
     } else if let Some(ref type_name) = enum_type {
         ValueType::TCustom(type_name.clone())
-    } else if let ValueType::TCustom(type_name) = &decl.value_type {
-        if type_name == INFER_TYPE && !expr.params.is_empty() {
-            // Try get_value_type first (handles function calls like Vec.new)
-            // then fall back to literal inference
-            get_value_type(context, &expr.params[0]).ok()
-                .or_else(|| infer_type_from_expr(&expr.params[0], context))
-                .unwrap_or_else(|| decl.value_type.clone())
-        } else {
-            decl.value_type.clone()
-        }
+    } else if !expr.params.is_empty() {
+        get_value_type(context, &expr.params[0]).ok()
+            .unwrap_or_else(|| decl.value_type.clone())
     } else {
         decl.value_type.clone()
     };
@@ -4707,13 +4693,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         }
         output.push_str(&indent_str);
         if !already_declared {
-            // Determine C type from inferred type or fall back to int
+            // Determine C type using get_value_type
             let c_type = if !expr.params.is_empty() {
-                if let Some(inferred) = infer_type_from_expr(&expr.params[0], context) {
-                    til_type_to_c(&inferred).unwrap_or("int".to_string())
-                } else {
-                    til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
-                }
+                get_value_type(context, &expr.params[0]).ok()
+                    .and_then(|vt| til_type_to_c(&vt))
+                    .unwrap_or_else(|| til_type_to_c(&decl.value_type).unwrap_or("int".to_string()))
             } else {
                 til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
             };
@@ -4756,13 +4740,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         }
         output.push_str(&indent_str);
         if !already_declared {
-            // Determine C type from inferred type or fall back to int
+            // Determine C type using get_value_type
             let c_type = if !expr.params.is_empty() {
-                if let Some(inferred) = infer_type_from_expr(&expr.params[0], context) {
-                    til_type_to_c(&inferred).unwrap_or("int".to_string())
-                } else {
-                    til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
-                }
+                get_value_type(context, &expr.params[0]).ok()
+                    .and_then(|vt| til_type_to_c(&vt))
+                    .unwrap_or_else(|| til_type_to_c(&decl.value_type).unwrap_or("int".to_string()))
             } else {
                 til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
             };
@@ -4843,237 +4825,6 @@ fn get_enum_construction_type(expr: &Expr, context: &Context) -> Option<String> 
     }
 
     None
-}
-
-// Infer type from a literal expression
-// Returns Some(ValueType) if type can be inferred, None otherwise
-fn infer_type_from_expr(expr: &Expr, context: &Context) -> Option<ValueType> {
-    match &expr.node_type {
-        NodeType::LLiteral(lit) => {
-            match lit {
-                Literal::Number(_) => Some(ValueType::TCustom("I64".to_string())),
-                Literal::Str(_) => Some(ValueType::TCustom("Str".to_string())),
-                Literal::List(_) => None, // Can't infer list element type from literal
-            }
-        },
-        NodeType::FCall => {
-            // Check for struct constructor first (e.g., Declaration())
-            if let Some(struct_name) = get_struct_construction_type(expr, context) {
-                return Some(ValueType::TCustom(struct_name));
-            }
-            // Check for enum constructor (e.g., Color.Red)
-            if let Some(enum_name) = get_enum_construction_type(expr, context) {
-                return Some(ValueType::TCustom(enum_name));
-            }
-            // Look up function return type from scope_stack
-            if let Some(func_name) = get_fcall_func_name(expr) {
-                if let Some(fd) = lookup_func_by_name(context, &func_name) {
-                    return fd.return_types.first().cloned();
-                }
-            }
-            None
-        },
-        NodeType::Identifier(name) => {
-            // Check for field access chain (var.field or var.field.subfield)
-            // AST structure is FLAT: Identifier("var") with params [Identifier("field1"), Identifier("field2"), ...]
-            if !expr.params.is_empty() {
-                // Look up the variable type first
-                if let Some(var_type) = context.scope_stack.lookup_symbol(name).map(|s| s.value_type.clone()) {
-                    // Walk through the field chain
-                    let mut current_type = var_type;
-                    for field_expr in &expr.params {
-                        if let NodeType::Identifier(field_name) = &field_expr.node_type {
-                            if let ValueType::TCustom(struct_name) = &current_type {
-                                if let Some(struct_def) = context.scope_stack.lookup_struct(struct_name) {
-                                    if let Some(member) = struct_def.get_member(field_name) {
-                                        current_type = member.value_type.clone();
-                                    } else {
-                                        // Field not found in struct
-                                        return None;
-                                    }
-                                } else {
-                                    // Struct not found
-                                    return None;
-                                }
-                            } else {
-                                // Current type is not a struct
-                                return None;
-                            }
-                        } else {
-                            // Field is not an identifier (might be a method call)
-                            return None;
-                        }
-                    }
-                    return Some(current_type);
-                }
-                // Fallback: if variable not in scope, try to find struct with this field
-                // ONLY use if exactly ONE struct has this field (to avoid ambiguity)
-                if let NodeType::Identifier(field_name) = &expr.params[0].node_type {
-                    let matching_structs: Vec<_> = context.scope_stack.all_structs()
-                        .into_iter()
-                        .filter(|s| s.get_member(field_name).is_some())
-                        .collect();
-
-                    // Only use fallback if exactly one struct has this field
-                    if matching_structs.len() == 1 {
-                        if let Some(member) = matching_structs[0].get_member(field_name) {
-                            // Walk through remaining fields if any
-                            if expr.params.len() > 1 {
-                                let mut current_type = member.value_type.clone();
-                                let mut all_resolved = true;
-                                for field_expr in &expr.params[1..] {
-                                    if let NodeType::Identifier(next_field_name) = &field_expr.node_type {
-                                        if let ValueType::TCustom(struct_name) = &current_type {
-                                            if let Some(next_struct_def) = context.scope_stack.lookup_struct(&struct_name) {
-                                                if let Some(next_member) = next_struct_def.get_member(next_field_name) {
-                                                    current_type = next_member.value_type.clone();
-                                                } else {
-                                                    all_resolved = false;
-                                                    break;
-                                                }
-                                            } else {
-                                                all_resolved = false;
-                                                break;
-                                            }
-                                        } else {
-                                            all_resolved = false;
-                                            break;
-                                        }
-                                    } else {
-                                        all_resolved = false;
-                                        break;
-                                    }
-                                }
-                                if all_resolved {
-                                    return Some(current_type);
-                                }
-                            } else {
-                                return Some(member.value_type.clone());
-                            }
-                        }
-                    }
-                }
-                return None;
-            }
-            // Look up variable type from scope_stack
-            context.scope_stack.lookup_symbol(name).map(|s| s.value_type.clone())
-        },
-        _ => None
-    }
-}
-
-/// Like infer_type_from_expr but also checks the collected declarations map
-/// This allows us to resolve types for variables that were declared earlier in the same body
-fn infer_type_from_expr_with_collected(expr: &Expr, context: &Context, collected: &std::collections::HashMap<String, ValueType>) -> Option<ValueType> {
-    match &expr.node_type {
-        NodeType::LLiteral(lit) => {
-            match lit {
-                Literal::Number(_) => Some(ValueType::TCustom("I64".to_string())),
-                Literal::Str(_) => Some(ValueType::TCustom("Str".to_string())),
-                Literal::List(_) => None,
-            }
-        },
-        NodeType::FCall => {
-            // Check for struct constructor first (e.g., Declaration())
-            if let Some(struct_name) = get_struct_construction_type(expr, context) {
-                return Some(ValueType::TCustom(struct_name));
-            }
-            // Check for enum constructor (e.g., Color.Red)
-            if let Some(enum_name) = get_enum_construction_type(expr, context) {
-                return Some(ValueType::TCustom(enum_name));
-            }
-            // Look up function return type from scope_stack
-            if let Some(func_name) = get_fcall_func_name(expr) {
-                if let Some(fd) = lookup_func_by_name(context, &func_name) {
-                    return fd.return_types.first().cloned();
-                }
-            }
-            None
-        },
-        NodeType::Identifier(name) => {
-            // Check for field access chain (var.field or var.field.subfield)
-            if !expr.params.is_empty() {
-                // First try scope_stack
-                let var_type = context.scope_stack.lookup_symbol(name).map(|s| s.value_type.clone())
-                    // Then try collected declarations
-                    .or_else(|| collected.get(name).cloned());
-
-                if let Some(var_type) = var_type {
-                    // Walk through the field chain
-                    let mut current_type = var_type;
-                    for field_expr in &expr.params {
-                        if let NodeType::Identifier(field_name) = &field_expr.node_type {
-                            if let ValueType::TCustom(struct_name) = &current_type {
-                                if let Some(struct_def) = context.scope_stack.lookup_struct(struct_name) {
-                                    if let Some(member) = struct_def.get_member(field_name) {
-                                        current_type = member.value_type.clone();
-                                    } else {
-                                        return None;
-                                    }
-                                } else {
-                                    return None;
-                                }
-                            } else {
-                                return None;
-                            }
-                        } else {
-                            return None;
-                        }
-                    }
-                    return Some(current_type);
-                }
-                // Fallback: if variable not in scope or collected, try to find struct with this field
-                if let NodeType::Identifier(field_name) = &expr.params[0].node_type {
-                    let matching_structs: Vec<_> = context.scope_stack.all_structs()
-                        .into_iter()
-                        .filter(|s| s.get_member(field_name).is_some())
-                        .collect();
-
-                    if matching_structs.len() == 1 {
-                        if let Some(member) = matching_structs[0].get_member(field_name) {
-                            if expr.params.len() > 1 {
-                                let mut current_type = member.value_type.clone();
-                                let mut all_resolved = true;
-                                for field_expr in &expr.params[1..] {
-                                    if let NodeType::Identifier(next_field_name) = &field_expr.node_type {
-                                        if let ValueType::TCustom(struct_name) = &current_type {
-                                            if let Some(next_struct_def) = context.scope_stack.lookup_struct(&struct_name) {
-                                                if let Some(next_member) = next_struct_def.get_member(next_field_name) {
-                                                    current_type = next_member.value_type.clone();
-                                                } else {
-                                                    all_resolved = false;
-                                                    break;
-                                                }
-                                            } else {
-                                                all_resolved = false;
-                                                break;
-                                            }
-                                        } else {
-                                            all_resolved = false;
-                                            break;
-                                        }
-                                    } else {
-                                        all_resolved = false;
-                                        break;
-                                    }
-                                }
-                                if all_resolved {
-                                    return Some(current_type);
-                                }
-                            } else {
-                                return Some(member.value_type.clone());
-                            }
-                        }
-                    }
-                }
-                return None;
-            }
-            // Look up variable type - first from scope_stack, then from collected
-            context.scope_stack.lookup_symbol(name).map(|s| s.value_type.clone())
-                .or_else(|| collected.get(name).cloned())
-        },
-        _ => None
-    }
 }
 
 fn emit_funcdef(_func_def: &SFuncDef, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
@@ -5669,7 +5420,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
                 output.push_str(&c_var_name);
                 output.push_str(";\n");
                 ctx.declared_vars.insert(c_var_name);
-                // Also register in scope_stack so infer_type_from_expr can find it
+                // Also register in scope_stack so get_value_type can find it
                 context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
                     value_type: value_type.clone(),
                     is_mut: false,
@@ -5692,7 +5443,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
                     output.push_str(&c_var_name);
                     output.push_str(";\n");
                     ctx.declared_vars.insert(c_var_name);
-                    // Also register in scope_stack so infer_type_from_expr can find it
+                    // Also register in scope_stack so get_value_type can find it
                     context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
                         value_type: value_type.clone(),
                         is_mut: false,
@@ -5769,7 +5520,7 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 output.push_str(&c_var_name);
                 output.push_str(";\n");
                 ctx.declared_vars.insert(c_var_name);
-                // Also register in scope_stack so infer_type_from_expr can find it
+                // Also register in scope_stack so get_value_type can find it
                 context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
                     value_type: value_type.clone(),
                     is_mut: false,
@@ -5901,7 +5652,7 @@ fn parse_pattern_variant_name(variant_name: &str) -> VariantInfo {
 
 /// Collect all variable declarations in a body (recursively) for hoisting
 /// Returns Vec of (var_name, ValueType) pairs
-fn collect_declarations_in_body(body: &Expr, context: &Context) -> Vec<(String, ValueType)> {
+fn collect_declarations_in_body(body: &Expr, context: &mut Context) -> Vec<(String, ValueType)> {
     let mut decls = Vec::new();
     // Track collected declarations for lookups during type inference
     let mut collected: std::collections::HashMap<String, ValueType> = std::collections::HashMap::new();
@@ -5917,22 +5668,30 @@ fn collect_declarations_in_body(body: &Expr, context: &Context) -> Vec<(String, 
     decls
 }
 
-fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<(String, ValueType)>, collected: &mut std::collections::HashMap<String, ValueType>, context: &Context) {
+fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<(String, ValueType)>, collected: &mut std::collections::HashMap<String, ValueType>, context: &mut Context) {
     match &expr.node_type {
         NodeType::Declaration(decl) => {
             // Add this declaration
             // If type is INFER_TYPE, try to infer from the expression
             let value_type = if let ValueType::TCustom(name) = &decl.value_type {
                 if name == INFER_TYPE && !expr.params.is_empty() {
-                    infer_type_from_expr_with_collected(&expr.params[0], context, collected).unwrap_or(decl.value_type.clone())
+                    get_value_type(context, &expr.params[0]).ok().unwrap_or(decl.value_type.clone())
                 } else {
                     decl.value_type.clone()
                 }
             } else {
                 decl.value_type.clone()
             };
-            // Track this declaration for future lookups
+            // Track this declaration for future lookups (both in collected and scope_stack)
             collected.insert(decl.name.clone(), value_type.clone());
+            // Also add to scope_stack so get_value_type can find it for subsequent declarations
+            context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
+                value_type: value_type.clone(),
+                is_mut: decl.is_mut,
+                is_copy: false,
+                is_own: false,
+                is_comptime_const: false,
+            });
             decls.push((decl.name.clone(), value_type));
         }
         NodeType::Body => {
@@ -5995,7 +5754,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     hoist_throwing_expr(switch_expr, output, indent, ctx, context)?;
 
     // Determine the type of the switch expression for proper comparison
-    let switch_type = infer_type_from_expr(switch_expr, context);
+    let switch_type = get_value_type(context, switch_expr).ok();
     let is_str_switch = matches!(&switch_type, Some(ValueType::TCustom(t)) if t == "Str");
 
     // Determine if this is an enum switch and if it has payloads
@@ -6079,7 +5838,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                         output.push_str(&c_var_name);
                         output.push_str(";\n");
                         ctx.declared_vars.insert(c_var_name);
-                        // Also register in scope_stack so infer_type_from_expr can find it
+                        // Also register in scope_stack so get_value_type can find it
                         context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
                             value_type: value_type.clone(),
                             is_mut: false,
@@ -6104,7 +5863,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     output.push_str(&c_var_name);
                     output.push_str(";\n");
                     ctx.declared_vars.insert(c_var_name);
-                    // Also register in scope_stack so infer_type_from_expr can find it
+                    // Also register in scope_stack so get_value_type can find it
                     context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
                         value_type: value_type.clone(),
                         is_mut: false,

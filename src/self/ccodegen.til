@@ -1717,23 +1717,15 @@ emit_global_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             // Determine the type from the initializer expression
             // Check for enum construction first (Color.Green(true) -> til_Color)
+            // Determine the type from the initializer expression using get_value_type
             mut c_type := ""
-            mut enum_type := get_enum_construction_type(first, context)
-            if gt(enum_type.len(), 0) {
-                c_type = til_name(enum_type)
-            } else {
-                mut struct_type := get_struct_construction_type(first, context)
-                if gt(struct_type.len(), 0) {
-                    c_type = til_name(struct_type)
-                } else {
-                    inferred := infer_type_from_expr(first, context)
-                    inferred_c := til_type_to_c(inferred)
-                    if gt(inferred_c.len(), 0) {
-                        c_type = inferred_c
-                    } else {
-                        c_type = til_type_to_c(decl.value_type)
-                    }
-                }
+            mut inferred_type := get_value_type(context, first)
+            c_type = til_type_to_c(inferred_type)
+            catch (err: Str) {
+                c_type = til_type_to_c(decl.value_type)
+            }
+            if eq(c_type.len(), 0) {
+                c_type = til_type_to_c(decl.value_type)
             }
             // Emit static declaration (no initializer - will be set in main)
             result = result.concat("static ").concat(c_type).concat(" ").concat(var_name).concat(";\n")
@@ -3219,7 +3211,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
                 result = result.concat(c_var_name)
                 result = result.concat(";\n")
                 _ := ctx.declared_vars.insert(c_var_name)
-                // Also register in scope_stack so infer_type_from_expr can find it
+                // Also register in scope_stack so get_value_type can find it
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
             }
         }
@@ -3246,7 +3238,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
                     result = result.concat(c_var_name)
                     result = result.concat(";\n")
                     _ := ctx.declared_vars.insert(c_var_name)
-                    // Also register in scope_stack so infer_type_from_expr can find it
+                    // Also register in scope_stack so get_value_type can find it
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
                 }
             }
@@ -3351,7 +3343,7 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 result = result.concat(c_var_name)
                 result = result.concat(";\n")
                 _ := ctx.declared_vars.insert(c_var_name)
-                // Also register in scope_stack so infer_type_from_expr can find it
+                // Also register in scope_stack so get_value_type can find it
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
             }
         }
@@ -3525,7 +3517,7 @@ parse_pattern_variant_name := func(variant_name: Str) returns VariantInfo {
 
 /// Collect all variable declarations in a body (recursively) for hoisting
 /// Returns Vec of (var_name, ValueType) pairs
-collect_declarations_in_body := proc(body: Expr, context: Context) returns Vec throws AllocError {
+collect_declarations_in_body := proc(body: Expr, mut context: Context) returns Vec throws Str {
     mut decls := Vec.new(Declaration)
     // Track collected declarations for lookups during type inference
     mut collected := Map.new(Str, ValueType)
@@ -3544,10 +3536,11 @@ collect_declarations_in_body := proc(body: Expr, context: Context) returns Vec t
         collect_declarations_recursive(body, decls, collected, context)
     }
 
+    catch (err: AllocError) { throw err.msg }
     return decls
 }
 
-collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected: Map, context: Context) throws AllocError {
+collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected: Map, mut context: Context) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         // Add this declaration
@@ -3559,13 +3552,18 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
                 mut first := Expr()
                 expr.params.get(0, first)
                 catch (err: IndexOutOfBoundsError) { }
-                value_type = infer_type_from_expr_with_collected(first, context, collected)
+                value_type = get_value_type(context, first)
+                catch (err: Str) {
+                    value_type = decl.value_type
+                }
             }
         case:
         }
-        // Track this declaration for future lookups
+        // Track this declaration for future lookups (both in collected and scope_stack)
         collected.insert(decl.name, value_type)
         catch (err: DuplicatedKeyError) { }
+        // Also add to scope_stack so get_value_type can find it for subsequent declarations
+        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut))
         mut new_decl := Declaration()
         new_decl.name = decl.name
         new_decl.value_type = value_type
@@ -3623,6 +3621,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         }
     case:
     }
+    catch (err: AllocError) { throw err.msg }
 }
 
 emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
@@ -3665,7 +3664,9 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Determine the type of the switch expression for proper comparison
-    switch_type := infer_type_from_expr(switch_expr, context)
+    mut switch_type := ValueType.TCustom("")
+    switch_type = get_value_type(context, switch_expr)
+    catch (err: Str) { }
     mut is_str_switch := false
     switch switch_type {
     case ValueType.TCustom(type_name):
@@ -3764,7 +3765,6 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         case_bodies.get(hoist_idx, case_body)
         catch (err: IndexOutOfBoundsError) { }
         decls := collect_declarations_in_body(case_body, context)
-        catch (err: AllocError) { throw err.msg }
         mut decl_idx := 0
         while lt(decl_idx, decls.len()) {
             mut decl := Declaration()
@@ -3781,7 +3781,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                     result = result.concat(c_var_name)
                     result = result.concat(";\n")
                     _ := ctx.declared_vars.insert(c_var_name)
-                    // Also register in scope_stack so infer_type_from_expr can find it
+                    // Also register in scope_stack so get_value_type can find it
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
                 }
             }
@@ -3808,7 +3808,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                     result = result.concat(c_var_name)
                     result = result.concat(";\n")
                     _ := ctx.declared_vars.insert(c_var_name)
-                    // Also register in scope_stack so infer_type_from_expr can find it
+                    // Also register in scope_stack so get_value_type can find it
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
                 }
             }
@@ -4333,7 +4333,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                         result = result.concat(c_var_name)
                         result = result.concat(";\n")
                         _ := ctx.declared_vars.insert(c_var_name)
-                        // Also register in scope_stack so infer_type_from_expr can find it
+                        // Also register in scope_stack so get_value_type can find it
                         context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
                     }
                 }
@@ -6688,396 +6688,6 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str {
     }
 }
 
-// Infer type from an expression (literal, function call, or identifier)
-// Returns the inferred ValueType, or ValueType.TCustom("") if unknown
-infer_type_from_expr := func(expr: Expr, context: Context) returns ValueType {
-    switch expr.node_type {
-    case NodeType.LLiteral(lit):
-        switch lit {
-        case Literal.Number(n):
-            return ValueType.TCustom("I64")
-        case Literal.Str(s):
-            return ValueType.TCustom("Str")
-        case Literal.List(l):
-            return ValueType.TCustom("")  // Can't infer list element type
-        }
-    case NodeType.FCall:
-        // Check for struct constructor first (e.g., Declaration())
-        mut struct_name := get_struct_construction_type(expr, context)
-        if gt(struct_name.len(), 0) {
-            return ValueType.TCustom(struct_name)
-        }
-        // Check for enum constructor (e.g., Color.Red)
-        mut enum_name := get_enum_construction_type(expr, context)
-        if gt(enum_name.len(), 0) {
-            return ValueType.TCustom(enum_name)
-        }
-        // Look up function return type from scope_stack
-        mut func_name := get_fcall_func_name(expr)
-        if gt(func_name.len(), 0) {
-            mut fd := context.scope_stack.lookup_func(func_name)
-            if gt(fd.return_types.len(), 0) {
-                mut first_ret := ValueType.TCustom("")
-                fd.return_types.get(0, first_ret)
-                catch (err: IndexOutOfBoundsError) { return ValueType.TCustom("") }
-                return first_ret
-            }
-            catch (err: KeyNotFoundError) { return ValueType.TCustom("") }
-        }
-        return ValueType.TCustom("")
-    case NodeType.Identifier(name):
-        // Check for field access chain (var.field or var.field.subfield)
-        // AST structure is FLAT: Identifier("var") with params [Identifier("field1"), Identifier("field2"), ...]
-        if gt(expr.params.len(), 0) {
-            // Look up the variable type first
-            mut sym := context.scope_stack.lookup_symbol(name)
-            // Walk through the field chain
-            mut current_type := sym.value_type
-            mut field_idx := 0
-            while lt(field_idx, expr.params.len()) {
-                mut field_expr := Expr()
-                expr.params.get(field_idx, field_expr)
-                switch field_expr.node_type {
-                case NodeType.Identifier(field_name):
-                    switch current_type {
-                    case ValueType.TCustom(struct_name):
-                        mut struct_def := context.scope_stack.lookup_struct(struct_name)
-                        // Find the field in the struct
-                        mut found_field := false
-                        mut m_idx := 0
-                        while lt(m_idx, struct_def.members.len()) {
-                            mut member := Declaration()
-                            struct_def.members.get(m_idx, member)
-                            if Str.eq(member.name, field_name) {
-                                current_type = member.value_type
-                                found_field = true
-                            }
-                            m_idx = add(m_idx, 1)
-                        }
-                        catch (err: IndexOutOfBoundsError) { return ValueType.TCustom("") }
-                        if not(found_field) {
-                            return ValueType.TCustom("")  // Field not found
-                        }
-                        catch (err: KeyNotFoundError) { return ValueType.TCustom("") }
-                    case:
-                        return ValueType.TCustom("")  // Current type is not a struct
-                    }
-                case:
-                    return ValueType.TCustom("")  // Field is not an identifier
-                }
-                field_idx = add(field_idx, 1)
-            }
-            catch (err: IndexOutOfBoundsError) { return ValueType.TCustom("") }
-            catch (err: KeyNotFoundError) {
-                // Fallback: if variable not in scope, try to find struct with this field
-                // ONLY use if exactly ONE struct has this field (to avoid ambiguity)
-                mut first_param := Expr()
-                expr.params.get(0, first_param)
-                switch first_param.node_type {
-                case NodeType.Identifier(first_field_name):
-                    // Count matching structs
-                    mut all_struct_defs := context.scope_stack.all_structs()
-                    catch (err: Str) { return ValueType.TCustom("") }
-                    mut matching_count := 0
-                    mut matching_struct := SStructDef()
-                    mut s_idx := 0
-                    while lt(s_idx, all_struct_defs.len()) {
-                        mut struct_def := SStructDef()
-                        all_struct_defs.get(s_idx, struct_def)
-                        mut m_idx := 0
-                        while lt(m_idx, struct_def.members.len()) {
-                            mut member := Declaration()
-                            struct_def.members.get(m_idx, member)
-                            if Str.eq(member.name, first_field_name) {
-                                matching_count = add(matching_count, 1)
-                                matching_struct = struct_def
-                            }
-                            m_idx = add(m_idx, 1)
-                        }
-                        s_idx = add(s_idx, 1)
-                    }
-                    catch (err: IndexOutOfBoundsError) { }
-
-                    // Only use fallback if exactly one struct has this field
-                    if eq(matching_count, 1) {
-                        // Find the member type
-                        mut m_idx := 0
-                        while lt(m_idx, matching_struct.members.len()) {
-                            mut member := Declaration()
-                            matching_struct.members.get(m_idx, member)
-                            if Str.eq(member.name, first_field_name) {
-                                // Walk through remaining fields if any
-                                if gt(expr.params.len(), 1) {
-                                    mut fallback_type := member.value_type
-                                    mut all_resolved := true
-                                    mut f_idx := 1
-                                    while lt(f_idx, expr.params.len()) {
-                                        mut next_field_expr := Expr()
-                                        expr.params.get(f_idx, next_field_expr)
-                                        switch next_field_expr.node_type {
-                                        case NodeType.Identifier(next_field_name):
-                                            switch fallback_type {
-                                            case ValueType.TCustom(next_struct_name):
-                                                mut next_struct_def := context.scope_stack.lookup_struct(next_struct_name)
-                                                mut found := false
-                                                mut nm_idx := 0
-                                                while lt(nm_idx, next_struct_def.members.len()) {
-                                                    mut next_member := Declaration()
-                                                    next_struct_def.members.get(nm_idx, next_member)
-                                                    if Str.eq(next_member.name, next_field_name) {
-                                                        fallback_type = next_member.value_type
-                                                        found = true
-                                                    }
-                                                    nm_idx = add(nm_idx, 1)
-                                                }
-                                                if not(found) {
-                                                    all_resolved = false
-                                                }
-                                                catch (err: KeyNotFoundError) { all_resolved = false }
-                                                catch (err: IndexOutOfBoundsError) { all_resolved = false }
-                                            case:
-                                                all_resolved = false
-                                            }
-                                        case:
-                                            all_resolved = false
-                                        }
-                                        f_idx = add(f_idx, 1)
-                                    }
-                                    catch (err: IndexOutOfBoundsError) { all_resolved = false }
-                                    if all_resolved {
-                                        return fallback_type
-                                    }
-                                } else {
-                                    return member.value_type
-                                }
-                            }
-                            m_idx = add(m_idx, 1)
-                        }
-                        catch (err: IndexOutOfBoundsError) { }
-                    }
-                case:
-                }
-                catch (err: IndexOutOfBoundsError) { }
-                return ValueType.TCustom("")
-            }
-            return current_type
-        }
-        // Look up variable type from scope_stack
-        mut var_type := ValueType.TCustom("")
-        mut symbol := context.scope_stack.lookup_symbol(name)
-        var_type = symbol.value_type
-        catch (err: KeyNotFoundError) { }
-        return var_type
-    case:
-        return ValueType.TCustom("")
-    }
-    return ValueType.TCustom("")
-}
-
-/// Like infer_type_from_expr but also checks the collected declarations map
-/// This allows us to resolve types for variables that were declared earlier in the same body
-infer_type_from_expr_with_collected := func(expr: Expr, context: Context, collected: Map) returns ValueType {
-    switch expr.node_type {
-    case NodeType.LLiteral(lit):
-        switch lit {
-        case Literal.Number(n):
-            return ValueType.TCustom("I64")
-        case Literal.Str(s):
-            return ValueType.TCustom("Str")
-        case Literal.List(l):
-            return ValueType.TCustom("")  // Can't infer list element type
-        }
-    case NodeType.FCall:
-        // Check for struct constructor first (e.g., Declaration())
-        mut struct_name := get_struct_construction_type(expr, context)
-        if gt(struct_name.len(), 0) {
-            return ValueType.TCustom(struct_name)
-        }
-        // Check for enum constructor (e.g., Color.Red)
-        mut enum_name := get_enum_construction_type(expr, context)
-        if gt(enum_name.len(), 0) {
-            return ValueType.TCustom(enum_name)
-        }
-        // Look up function return type from scope_stack
-        mut func_name := get_fcall_func_name(expr)
-        if gt(func_name.len(), 0) {
-            mut fd := context.scope_stack.lookup_func(func_name)
-            if gt(fd.return_types.len(), 0) {
-                mut first_ret := ValueType.TCustom("")
-                fd.return_types.get(0, first_ret)
-                catch (err: IndexOutOfBoundsError) { return ValueType.TCustom("") }
-                return first_ret
-            }
-            catch (err: KeyNotFoundError) { return ValueType.TCustom("") }
-        }
-        return ValueType.TCustom("")
-    case NodeType.Identifier(name):
-        // Check for field access chain (var.field or var.field.subfield)
-        if gt(expr.params.len(), 0) {
-            // First try scope_stack, then try collected declarations
-            mut var_type := ValueType.TCustom("")
-            mut found_type := false
-            mut sym := context.scope_stack.lookup_symbol(name)
-            var_type = sym.value_type
-            found_type = true
-            catch (err: KeyNotFoundError) {
-                // Try collected declarations
-                mut collected_type := ValueType.TCustom("")
-                collected.get(name, collected_type)
-                var_type = collected_type
-                found_type = true
-                catch (err: KeyNotFoundError) { }
-            }
-
-            if found_type {
-                // Walk through the field chain
-                mut current_type := var_type
-                mut field_idx := 0
-                while lt(field_idx, expr.params.len()) {
-                    mut field_expr := Expr()
-                    expr.params.get(field_idx, field_expr)
-                    switch field_expr.node_type {
-                    case NodeType.Identifier(field_name):
-                        switch current_type {
-                        case ValueType.TCustom(struct_name):
-                            mut struct_def := context.scope_stack.lookup_struct(struct_name)
-                            // Find the field in the struct
-                            mut found_field := false
-                            mut m_idx := 0
-                            while lt(m_idx, struct_def.members.len()) {
-                                mut member := Declaration()
-                                struct_def.members.get(m_idx, member)
-                                if Str.eq(member.name, field_name) {
-                                    current_type = member.value_type
-                                    found_field = true
-                                }
-                                m_idx = add(m_idx, 1)
-                            }
-                            catch (err: IndexOutOfBoundsError) { return ValueType.TCustom("") }
-                            if not(found_field) {
-                                return ValueType.TCustom("")  // Field not found
-                            }
-                            catch (err: KeyNotFoundError) { return ValueType.TCustom("") }
-                        case:
-                            return ValueType.TCustom("")  // Current type is not a struct
-                        }
-                    case:
-                        return ValueType.TCustom("")  // Field is not an identifier
-                    }
-                    field_idx = add(field_idx, 1)
-                }
-                catch (err: IndexOutOfBoundsError) { return ValueType.TCustom("") }
-                return current_type
-            }
-            // Fallback: if variable not in scope or collected, try to find struct with this field
-            // ONLY use if exactly ONE struct has this field (to avoid ambiguity)
-            mut first_param := Expr()
-            expr.params.get(0, first_param)
-            switch first_param.node_type {
-            case NodeType.Identifier(first_field_name):
-                // Count matching structs
-                mut all_struct_defs := context.scope_stack.all_structs()
-                catch (err: Str) { return ValueType.TCustom("") }
-                mut matching_count := 0
-                mut matching_struct := SStructDef()
-                mut s_idx := 0
-                while lt(s_idx, all_struct_defs.len()) {
-                    mut struct_def := SStructDef()
-                    all_struct_defs.get(s_idx, struct_def)
-                    mut m_idx := 0
-                    while lt(m_idx, struct_def.members.len()) {
-                        mut member := Declaration()
-                        struct_def.members.get(m_idx, member)
-                        if Str.eq(member.name, first_field_name) {
-                            matching_count = add(matching_count, 1)
-                            matching_struct = struct_def
-                        }
-                        m_idx = add(m_idx, 1)
-                    }
-                    s_idx = add(s_idx, 1)
-                }
-                catch (err: IndexOutOfBoundsError) { }
-
-                // Only use fallback if exactly one struct has this field
-                if eq(matching_count, 1) {
-                    // Find the member type
-                    mut m_idx := 0
-                    while lt(m_idx, matching_struct.members.len()) {
-                        mut member := Declaration()
-                        matching_struct.members.get(m_idx, member)
-                        if Str.eq(member.name, first_field_name) {
-                            // Walk through remaining fields if any
-                            if gt(expr.params.len(), 1) {
-                                mut fallback_type := member.value_type
-                                mut all_resolved := true
-                                mut f_idx := 1
-                                while lt(f_idx, expr.params.len()) {
-                                    mut next_field_expr := Expr()
-                                    expr.params.get(f_idx, next_field_expr)
-                                    switch next_field_expr.node_type {
-                                    case NodeType.Identifier(next_field_name):
-                                        switch fallback_type {
-                                        case ValueType.TCustom(next_struct_name):
-                                            mut next_struct_def := context.scope_stack.lookup_struct(next_struct_name)
-                                            mut found := false
-                                            mut nm_idx := 0
-                                            while lt(nm_idx, next_struct_def.members.len()) {
-                                                mut next_member := Declaration()
-                                                next_struct_def.members.get(nm_idx, next_member)
-                                                if Str.eq(next_member.name, next_field_name) {
-                                                    fallback_type = next_member.value_type
-                                                    found = true
-                                                }
-                                                nm_idx = add(nm_idx, 1)
-                                            }
-                                            if not(found) {
-                                                all_resolved = false
-                                            }
-                                            catch (err: KeyNotFoundError) { all_resolved = false }
-                                            catch (err: IndexOutOfBoundsError) { all_resolved = false }
-                                        case:
-                                            all_resolved = false
-                                        }
-                                    case:
-                                        all_resolved = false
-                                    }
-                                    f_idx = add(f_idx, 1)
-                                }
-                                catch (err: IndexOutOfBoundsError) { all_resolved = false }
-                                if all_resolved {
-                                    return fallback_type
-                                }
-                            } else {
-                                return member.value_type
-                            }
-                        }
-                        m_idx = add(m_idx, 1)
-                    }
-                    catch (err: IndexOutOfBoundsError) { }
-                }
-            case:
-            }
-            catch (err: IndexOutOfBoundsError) { }
-            return ValueType.TCustom("")
-        }
-        // Look up variable type - first from scope_stack, then from collected
-        mut var_type := ValueType.TCustom("")
-        mut symbol := context.scope_stack.lookup_symbol(name)
-        var_type = symbol.value_type
-        catch (err: KeyNotFoundError) {
-            // Try collected
-            mut collected_type := ValueType.TCustom("")
-            collected.get(name, collected_type)
-            var_type = collected_type
-            catch (err: KeyNotFoundError) { }
-        }
-        return var_type
-    case:
-        return ValueType.TCustom("")
-    }
-    return ValueType.TCustom("")
-}
-
 emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
     name := decl.name
@@ -7308,17 +6918,12 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         switch decl.value_type {
         case ValueType.TCustom(type_name):
             if Str.eq(type_name, "auto").and(gt(expr.params.len(), 0)) {
-                // Try get_value_type first (handles function calls like Vec.new)
-                // then fall back to literal inference
+                // Try get_value_type (handles function calls like Vec.new)
                 mut first := Expr()
                 expr.params.get(0, first)
-                mut got_type := false
-                mut inferred_type := get_value_type(context, first)
-                got_type = true
-                var_type = inferred_type
+                var_type = get_value_type(context, first)
                 catch (err: Str) {
-                    // get_value_type failed, try literal inference
-                    var_type = infer_type_from_expr(first, context)
+                    // get_value_type failed, keep decl.value_type
                 }
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
             }
@@ -7327,7 +6932,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         }
     }
     // Add to scope_stack so get_value_type can find it
-    context.scope_stack.declare_symbol(name, SymbolInfo.new(var_type, decl.is_mut, false, false))
+    context.scope_stack.declare_symbol(name, SymbolInfo(value_type=var_type, is_mut=decl.is_mut))
 
     // Check if variable already declared in this function (avoid C redefinition errors)
     // Use til_name() since that's what hoisting code uses when inserting into declared_vars
@@ -7599,7 +7204,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 mut first := Expr()
                 expr.params.get(0, first)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                inferred := infer_type_from_expr(first, context)
+                inferred := get_value_type(context, first)
                 switch inferred {
                 case ValueType.TCustom(inf_type):
                     if Str.eq(inf_type, "Str") {
@@ -7609,6 +7214,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     }
                 case:
                     // Keep default "int"
+                }
+                catch (err: Str) {
+                    // get_value_type failed, keep "int"
                 }
             }
             result = result.concat(c_type)
@@ -7670,7 +7278,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 mut first := Expr()
                 expr.params.get(0, first)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                inferred := infer_type_from_expr(first, context)
+                inferred := get_value_type(context, first)
                 switch inferred {
                 case ValueType.TCustom(inf_type):
                     if Str.eq(inf_type, "Str") {
@@ -7680,6 +7288,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     }
                 case:
                     // Keep default "int"
+                }
+                catch (err: Str) {
+                    // get_value_type failed, keep "int"
                 }
             }
             result = result.concat("const ")
