@@ -38,6 +38,12 @@ ParamTypeInfo := struct {
     mut is_mut: Bool = false
 }
 
+// Info about a struct member with a throwing default value
+ThrowingDefault := struct {
+    mut member_name: Str = ""
+    mut default_expr: Expr = Expr()
+}
+
 // Codegen context for tracking function info during code generation
 CodegenContext := struct {
     // Counter for generating unique temp variable names (deterministic per-compilation)
@@ -7012,8 +7018,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             } else {
                 // Has default values or named args - emit designated initializer
                 // First check if any default value is a throwing function call
-                mut throwing_defaults := Vec.new(Str)  // member names with throwing defaults
-                mut throwing_default_exprs := Vec.new(Expr)  // corresponding expressions
+                mut throwing_defaults := Vec.new(ThrowingDefault)
                 for member: Declaration in struct_def.members {
                     if not(member.is_mut) {
                         continue
@@ -7028,8 +7033,10 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     catch (err: KeyNotFoundError) { }
                     if has_default {
                         if is_throwing_fcall(default_expr, context) {
-                            throwing_defaults.push(member.name)
-                            throwing_default_exprs.push(default_expr)
+                            mut td := ThrowingDefault()
+                            td.member_name = member.name
+                            td.default_expr = default_expr
+                            throwing_defaults.push(td)
                         }
                     }
                 }
@@ -7041,16 +7048,14 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 if gt(indent, 0) {
                 mut td_idx := 0
                 while lt(td_idx, throwing_defaults.len()) {
-                    mut member_name := ""
-                    mut default_expr := Expr()
-                    throwing_defaults.get(td_idx, member_name)
-                    throwing_default_exprs.get(td_idx, default_expr)
+                    mut td := ThrowingDefault()
+                    throwing_defaults.get(td_idx, td)
 
                     // Get the function's throw types
                     mut throw_types := Vec.new(ValueType)
-                    if gt(default_expr.params.len(), 0) {
+                    if gt(td.default_expr.params.len(), 0) {
                         mut first_param := Expr()
-                        default_expr.params.get(0, first_param)
+                        td.default_expr.params.get(0, first_param)
                         mut fcall_func_name := get_func_name_string(first_param)
                         if fcall_func_name.found {
                             mut lookup_name := fcall_func_name.name.replace("_", ".")
@@ -7067,11 +7072,11 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     catch (err: AllocError) { throw err.msg }
 
                     mut temp_name := "_default_"
-                    temp_name = temp_name.concat(member_name).concat("_").concat(next_mangled(ctx))
+                    temp_name = temp_name.concat(td.member_name).concat("_").concat(next_mangled(ctx))
                     // Emit the function call with out-param using emit_throwing_call_propagate
-                    result = emit_throwing_call_propagate(default_expr, throw_types, temp_name, "", result, indent, ctx, context)
+                    result = emit_throwing_call_propagate(td.default_expr, throw_types, temp_name, "", result, indent, ctx, context)
                     // Record that this struct default was hoisted using "struct_name:member_name" key
-                    key := type_name.concat(":").concat(member_name)
+                    key := type_name.concat(":").concat(td.member_name)
                     ctx.hoisted_struct_defaults.insert(key, temp_name)
                     catch (err: DuplicatedKeyError) { }
                     catch (err: AllocError) { throw err.msg }
