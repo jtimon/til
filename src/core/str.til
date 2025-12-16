@@ -7,7 +7,7 @@ import("core.vec")
 /** Str - String type with c_string pointer and capacity. */
 // TODO get rid of special cases for Str besides literals
 Str := struct {
-    mut c_string : I64 = 0
+    mut c_string : I64 = 0  // Pointer to null-terminated C string
     mut cap      : I64 = 0
     // mut len : I64 = 0 // TODO make sure double declarations inside the same struct give type errors
 
@@ -382,11 +382,14 @@ get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBo
 
     mut substr := Str()
     substr.cap = end.sub(start)
-    substr.c_string = malloc(substr.cap)
+    substr.c_string = malloc(substr.cap.add(1))  // +1 for null terminator
     if NULL.eq(substr.c_string) {
-        throw AllocError(msg=format(loc(), "Str.get_substr: failed to allocate ", I64.to_str(substr.cap), " bytes"))
+        throw AllocError(msg=format(loc(), "Str.get_substr: failed to allocate ", I64.to_str(substr.cap.add(1)), " bytes"))
     }
     memcpy(substr.c_string, add(s.c_string, start), substr.cap)
+    // Null-terminate the string
+    zero : U8 = 0
+    memset(add(substr.c_string, substr.cap), zero, 1)
 
     return substr
 }
