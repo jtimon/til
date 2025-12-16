@@ -1358,10 +1358,10 @@ fn emit_fcall_name_and_args_for_throwing(
     } else {
         // Get function param info for Dynamic casting, mut handling
         let found_func = get_fcall_func_def(context, expr);
-        let param_info: Vec<(Option<ValueType>, bool)> = found_func
+        let param_info: Vec<ParamTypeInfo> = found_func
             .map(|fd| {
                 fd.args.iter()
-                    .map(|p| (Some(p.value_type.clone()), p.is_mut))
+                    .map(|p| ParamTypeInfo { value_type: Some(p.value_type.clone()), is_mut: p.is_mut })
                     .collect()
             })
             .unwrap_or_default();
@@ -1372,7 +1372,7 @@ fn emit_fcall_name_and_args_for_throwing(
 
             // Get expected param type and mutability
             let (param_type, param_is_mut) = param_info.get(arg_idx)
-                .map(|(t, m)| (t.as_ref(), *m))
+                .map(|info| (info.value_type.as_ref(), info.is_mut))
                 .unwrap_or((None, false));
 
             emit_arg_with_param_type(arg, arg_idx, nested_hoisted, param_type, param_is_mut, output, ctx, context)?;
@@ -5337,9 +5337,9 @@ fn emit_fcall_with_hoisted(
     output.push_str("(");
 
     // Look up param types for mut handling
-    let param_info: Vec<(Option<ValueType>, bool)> = {
+    let param_info: Vec<ParamTypeInfo> = {
         if let Some(fd) = get_fcall_func_def(context, expr) {
-            fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect()
+            fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), is_mut: a.is_mut }).collect()
         } else {
             Vec::new()
         }
@@ -5356,7 +5356,7 @@ fn emit_fcall_with_hoisted(
             output.push_str("\"");
         } else if !param_info.is_empty() {
             let (param_type, is_mut) = param_info.get(i)
-                .map(|(t, m)| (t.as_ref(), *m))
+                .map(|info| (info.value_type.as_ref(), info.is_mut))
                 .unwrap_or((None, false));
             emit_arg_with_param_type(arg, i, hoisted, param_type, is_mut, output, ctx, context)?;
         } else {
@@ -5593,6 +5593,12 @@ struct CatchLabelInfoEntry {
     type_name: String,      // Error type being caught (e.g., "Str", "IndexOutOfBoundsError")
     label: String,          // Goto label for this catch
     temp_var: String,       // Temp variable holding the thrown value
+}
+
+// Info about a function parameter's type and mutability
+struct ParamTypeInfo {
+    value_type: Option<ValueType>,
+    is_mut: bool,
 }
 
 // Extract enum type and variant names from a case pattern expression
@@ -6595,8 +6601,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 // Regular non-variadic function call
                 // Look up function to get parameter info (is_mut flags)
                 // For ext_func, don't pass mut params by reference (mut is just documentation)
-                let (param_info, is_ext_func): (Vec<(Option<ValueType>, bool)>, bool) = if let Some(fd) = get_fcall_func_def(context, expr) {
-                    (fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect(), fd.is_ext())
+                let (param_info, is_ext_func): (Vec<ParamTypeInfo>, bool) = if let Some(fd) = get_fcall_func_def(context, expr) {
+                    (fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), is_mut: a.is_mut }).collect(), fd.is_ext())
                 } else {
                     (Vec::new(), false)
                 };
@@ -6614,7 +6620,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         output.push_str("\"");
                     } else if !param_info.is_empty() {
                         let (param_type, is_mut) = param_info.get(i)
-                            .map(|(t, m)| (t.as_ref(), *m))
+                            .map(|info| (info.value_type.as_ref(), info.is_mut))
                             .unwrap_or((None, false));
                         // For ext_func, don't treat mut as pass-by-reference
                         let effective_is_mut = is_mut && !is_ext_func;

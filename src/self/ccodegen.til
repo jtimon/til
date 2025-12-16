@@ -31,6 +31,13 @@ CatchLabelInfoEntry := struct {
     mut catch_block: Expr = Expr()
 }
 
+// Info about a function parameter's type and mutability
+ParamTypeInfo := struct {
+    mut value_type: ValueType = ValueType.TCustom("")  // Placeholder when has_type is false
+    mut has_type: Bool = false   // Whether value_type is set (replaces Option<ValueType>)
+    mut is_mut: Bool = false
+}
+
 // Codegen context for tracking function info during code generation
 CodegenContext := struct {
     // Counter for generating unique temp variable names (deterministic per-compilation)
@@ -8931,14 +8938,26 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             // Non-variadic: emit args normally
             // Look up function to get parameter info (is_mut flags)
             // For ext_func, don't pass mut params by reference (mut is just documentation)
-            mut param_info := Vec.new(Declaration)
+            mut param_info := Vec.new(ParamTypeInfo)
             mut is_ext_func := false
             mut lookup_result := get_fcall_func_def(context, expr)
             if lookup_result.found {
-                param_info = lookup_result.func_def.args
+                // Build param_info from function args
+                mut arg_i := 0
+                while lt(arg_i, lookup_result.func_def.args.len()) {
+                    mut arg_decl := Declaration()
+                    lookup_result.func_def.args.get(arg_i, arg_decl)
+                    mut info := ParamTypeInfo()
+                    info.value_type = arg_decl.value_type
+                    info.has_type = true
+                    info.is_mut = arg_decl.is_mut
+                    param_info.push(info)
+                    arg_i = arg_i.add(1)
+                }
                 is_ext_func = lookup_result.func_def.is_ext()
             }
             catch (err: AllocError) { throw err.msg }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
 
             mut i := 1
             while lt(i, params_len) {
@@ -8953,9 +8972,9 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 mut should_add_ampersand := false
                 if gt(param_info.len(), 0).and(not(is_ext_func)) {
                     if lt(arg_idx, param_info.len()) {
-                        mut param_decl := Declaration()
-                        param_info.get(arg_idx, param_decl)
-                        if param_decl.is_mut {
+                        mut info := ParamTypeInfo()
+                        param_info.get(arg_idx, info)
+                        if info.is_mut {
                             // Check if arg is a simple identifier
                             switch arg.node_type {
                             case NodeType.Identifier(arg_name):
@@ -8971,7 +8990,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     result = result.concat("&")
                 }
                 result = emit_expr(arg, result, 0, ctx, context)
-                i = add(i, 1)
+                i = i.add(1)
             }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
