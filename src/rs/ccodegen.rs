@@ -138,6 +138,29 @@ fn get_func_name_string(first_param: &Expr) -> Option<String> {
     }
 }
 
+// Get TIL function name from FCall's first param (for scope lookups)
+// Returns the dot-separated name like "Vec.new" or "I64.inc"
+// This avoids the fragile .replacen('_', ".", 1) hack which breaks on type names with underscores
+fn get_til_func_name_string(first_param: &Expr) -> Option<String> {
+    if let NodeType::Identifier(name) = &first_param.node_type {
+        if first_param.params.is_empty() {
+            // Already has dots (from precomp) or is a simple name
+            Some(name.clone())
+        } else {
+            // Build dotted name from nested identifiers
+            let mut parts = vec![name.clone()];
+            for p in &first_param.params {
+                if let NodeType::Identifier(part) = &p.node_type {
+                    parts.push(part.clone());
+                }
+            }
+            Some(parts.join("."))
+        }
+    } else {
+        None
+    }
+}
+
 /// Check if an expression is a type identifier (a Type parameter at call site)
 /// Returns the type name if it is, so it can be emitted as a string literal
 /// Matches interpreter.rs behavior (line 1703-1713)
