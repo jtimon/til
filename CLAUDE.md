@@ -11,6 +11,7 @@ Read `doc/bot.org` for full guidelines. Key points below are frequently repeated
 5) If non-zero, read output and fix
 
 ## Various things
+- **ALWAYS** When running "make tests", run as normal: no wc, no head, no tail, no grep, no any other bullshit
 - **NEVER** Use weird unicode symbols anywhere, stay ASCII
 - **NEVER** Use cat, use read, write or echo instead
 - **NEVER** Use git checkout or git restore, always ask the user before reverting big chunks of work that could be valuable
