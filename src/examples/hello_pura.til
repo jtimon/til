@@ -1,0 +1,6 @@
+mode pura
+
+hello := func() returns Str {
+    println("Hello from pura mode on compile time, calls to this func will be constfolded")
+    return "Hello World!"
+}

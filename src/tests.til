@@ -627,6 +627,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/examples/hello_cli.til"))
     rs_common.push(TestEntry(path="src/examples/hello_lib.til"))
     rs_common.push(TestEntry(path="src/examples/hello_pure.til"))
+    rs_common.push(TestEntry(path="src/examples/hello_pura.til"))
     rs_common.push(TestEntry(path="src/examples/hello_script.til"))
     rs_common.push(TestEntry(path="src/examples/hello_test.til"))
     rs_common.push(TestEntry(path="src/test/args.til"))

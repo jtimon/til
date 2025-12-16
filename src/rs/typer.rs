@@ -2049,8 +2049,8 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         NodeType::FCall => {
             // Check if the function being called is a proc
             let f_name = get_func_name_in_call(e);
-            // TODO Temp: In the future, implement a special PanicError that's potentially  thrown implicitly everywhere
-            if f_name == "panic" {
+            // Check if this proc is allowed to be called from funcs in this mode
+            if context.mode_def.allowed_procs_in_funcs.contains(&f_name) {
                 return false
             }
             let func_is_proc = match context.scope_stack.lookup_func(&f_name) {

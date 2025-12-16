@@ -13,6 +13,7 @@ ModeDef := struct {
     mut allows_base_anything: Bool = false
     mut needs_main_proc: Bool = false
     mut imports: Vec = Vec.new(Str)
+    mut allowed_procs_in_funcs: Vec = Vec.new(Str)
 }
 
 can_be_imported := func(mode_def: ModeDef) returns Bool {
@@ -22,26 +23,96 @@ can_be_imported := func(mode_def: ModeDef) returns Bool {
     return true
 }
 
+// TODO: Add Vec literals so we can use vec!["panic"] instead of creating a Vec and pushing
 mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef throws Str, AllocError {
     if mode_name.eq("lib") {
-        return ModeDef(name=mode_name, allows_procs=true, allows_base_calls=false, allows_base_mut=true, allows_base_anything=false, needs_main_proc=false)
+        mut allowed_procs_in_funcs := Vec.new(Str)
+        allowed_procs_in_funcs.push("panic")
+        return ModeDef(
+            name                   = mode_name,
+            allows_procs           = true,
+            allows_base_calls      = false,
+            allows_base_mut        = true,
+            allows_base_anything   = false,
+            needs_main_proc        = false,
+            allowed_procs_in_funcs = allowed_procs_in_funcs)
     }
     if mode_name.eq("pure") {
-        return ModeDef(name=mode_name, allows_procs=false, allows_base_calls=false, allows_base_mut=false, allows_base_anything=false, needs_main_proc=false)
+        mut allowed_procs_in_funcs := Vec.new(Str)
+        allowed_procs_in_funcs.push("panic")
+        return ModeDef(
+            name                   = mode_name,
+            allows_procs           = false,
+            allows_base_calls      = false,
+            allows_base_mut        = false,
+            allows_base_anything   = false,
+            needs_main_proc        = false,
+            allowed_procs_in_funcs = allowed_procs_in_funcs)
+    }
+    if mode_name.eq("pura") {
+        mut allowed_procs_in_funcs := Vec.new(Str)
+        allowed_procs_in_funcs.push("panic")
+        allowed_procs_in_funcs.push("print")
+        allowed_procs_in_funcs.push("println")
+        return ModeDef(
+            name                   = mode_name,
+            allows_procs           = false,
+            allows_base_calls      = false,
+            allows_base_mut        = false,
+            allows_base_anything   = false,
+            needs_main_proc        = false,
+            allowed_procs_in_funcs = allowed_procs_in_funcs)
     }
     if mode_name.eq("script") {
-        return ModeDef(name=mode_name, allows_procs=true, allows_base_calls=true, allows_base_mut=true, allows_base_anything=true, needs_main_proc=false)
+        mut allowed_procs_in_funcs := Vec.new(Str)
+        allowed_procs_in_funcs.push("panic")
+        return ModeDef(
+            name                   = mode_name,
+            allows_procs           = true,
+            allows_base_calls      = true,
+            allows_base_mut        = true,
+            allows_base_anything   = true,
+            needs_main_proc        = false,
+            allowed_procs_in_funcs = allowed_procs_in_funcs)
     }
     if mode_name.eq("safe_script") {
-        return ModeDef(name=mode_name, allows_procs=true, allows_base_calls=true, allows_base_mut=true, allows_base_anything=true, needs_main_proc=false)
+        mut allowed_procs_in_funcs := Vec.new(Str)
+        allowed_procs_in_funcs.push("panic")
+        return ModeDef(
+            name                   = mode_name,
+            allows_procs           = true,
+            allows_base_calls      = true,
+            allows_base_mut        = true,
+            allows_base_anything   = true,
+            needs_main_proc        = false,
+            allowed_procs_in_funcs = allowed_procs_in_funcs)
     }
     if mode_name.eq("cli") {
-        return ModeDef(name=mode_name, allows_procs=true, allows_base_calls=false, allows_base_mut=true, allows_base_anything=false, needs_main_proc=true)
+        mut allowed_procs_in_funcs := Vec.new(Str)
+        allowed_procs_in_funcs.push("panic")
+        return ModeDef(
+            name                   = mode_name,
+            allows_procs           = true,
+            allows_base_calls      = false,
+            allows_base_mut        = true,
+            allows_base_anything   = false,
+            needs_main_proc        = true,
+            allowed_procs_in_funcs = allowed_procs_in_funcs)
     }
     if mode_name.eq("test") {
         mut test_imports := Vec.new(Str)
         test_imports.push("src/modes/test")
-        return ModeDef(name=mode_name, allows_procs=true, allows_base_calls=true, allows_base_mut=true, allows_base_anything=false, needs_main_proc=false, imports=test_imports)
+        mut allowed_procs_in_funcs := Vec.new(Str)
+        allowed_procs_in_funcs.push("panic")
+        return ModeDef(
+            name                   = mode_name,
+            allows_procs           = true,
+            allows_base_calls      = true,
+            allows_base_mut        = true,
+            allows_base_anything   = false,
+            needs_main_proc        = false,
+            imports                = test_imports,
+            allowed_procs_in_funcs = allowed_procs_in_funcs)
     }
 
     throw t.error(path, format(LANG_NAME, " interpreter implementation doesn't support mode '", mode_name, "'"))
