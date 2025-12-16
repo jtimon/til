@@ -2023,7 +2023,6 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                                 ctx.func_variadic_args.insert(
                                     decl.name.clone(),
                                     VariadicParamInfo {
-                                        arg_name: arg.name.clone(),
                                         elem_type: elem_type.clone(),
                                         regular_count: idx,
                                     }
@@ -2044,7 +2043,6 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                                         ctx.func_variadic_args.insert(
                                             mangled_name.clone(),
                                             VariadicParamInfo {
-                                                arg_name: arg.name.clone(),
                                                 elem_type: elem_type.clone(),
                                                 regular_count: idx,
                                             }
@@ -5602,7 +5600,6 @@ fn emit_continue(_expr: &Expr, output: &mut String, indent: usize) -> Result<(),
 
 // Info about a variadic parameter
 struct VariadicParamInfo {
-    arg_name: String,
     elem_type: String,
     regular_count: usize,
 }

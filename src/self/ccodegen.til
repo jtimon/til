@@ -11,7 +11,6 @@ TIL_PREFIX := "til_"
 
 // Info about a variadic parameter
 VariadicParamInfo := struct {
-    mut arg_name: Str = ""
     mut elem_type: Str = ""
     mut regular_count: I64 = 0
 }
@@ -832,9 +831,8 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                     func_def.args.get(ai, arg)
                     switch arg.value_type {
                     case ValueType.TMulti(elem_type_name):
-                        // Track: (arg_name, element_type, count of regular args before variadic)
+                        // Track: (element_type, count of regular args before variadic)
                         mut info := VariadicParamInfo()
-                        info.arg_name = arg.name
                         info.elem_type = elem_type_name
                         info.regular_count = ai  // number of args before variadic
                         ctx.func_variadic_args.insert(decl.name, info)
@@ -864,7 +862,6 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                             switch arg.value_type {
                             case ValueType.TMulti(elem_type_name):
                                 mut info := VariadicParamInfo()
-                                info.arg_name = arg.name
                                 info.elem_type = elem_type_name
                                 info.regular_count = ai
                                 ctx.func_variadic_args.insert(mangled_name, info)
