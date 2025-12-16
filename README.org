@@ -209,6 +209,12 @@ itself to C and compile and link itself.
  Only allow constant declarations, not mut declarations.
  Useful for defining libraries that can be imported by other files.
 
+*** liba
+
+ Like lib, but funcs can call print and println.
+ Useful for debugging pure functions - if the func calls are
+ constfolded, the prints will happen at compile time instead of runtime.
+
 *** TODO pure
 
  Like lib, but it doesn't allow proc declarations, calls or imports.
@@ -220,3 +226,9 @@ itself to C and compile and link itself.
  erlang; in the "pure functions only" sense.
 
  Not implemented yet.
+
+*** pura
+
+ Like pure, but funcs can call print and println.
+ Useful for debugging pure functions - if the func calls are
+ constfolded, the prints will happen at compile time instead of runtime.
