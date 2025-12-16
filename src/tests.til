@@ -626,6 +626,7 @@ main := proc(args: ..Str) {
     // Ideally we should benchmark against at least bash, python, roc, Rust, C and HolyC for this kind of mode, both interpreted and compiled
     rs_common.push(TestEntry(path="src/examples/hello_cli.til"))
     rs_common.push(TestEntry(path="src/examples/hello_lib.til"))
+    rs_common.push(TestEntry(path="src/examples/hello_liba.til"))
     rs_common.push(TestEntry(path="src/examples/hello_pure.til"))
     rs_common.push(TestEntry(path="src/examples/hello_pura.til"))
     rs_common.push(TestEntry(path="src/examples/hello_script.til"))
