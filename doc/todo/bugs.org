@@ -9,6 +9,51 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #40: Precomp generates non-deterministic _for_i_ variable names
+:PROPERTIES:
+:DISCOVERED: 2025-12-16
+:IMPACT: Build reproducibility
+:STATUS: Open
+:END:
+
+*** Description
+The precomp phase generates `_for_i_N` variable names for desugared for-in loops using a global counter (`Arena::g().temp_id_counter`). This counter accumulates across file compilations, causing the same source code to produce different C output depending on compilation order or what was compiled before.
+
+#+BEGIN_EXAMPLE
+// First compilation produces:
+til_I64 _for_i_159 = 0;
+
+// Second compilation (same source) produces:
+til_I64 _for_i_160 = 0;
+#+END_EXAMPLE
+
+This makes diffs between generated C files noisy and harder to review.
+
+*** Root Cause
+In precomp.rs (line 422-424), the `_for_i_` index variable name is generated using a global singleton counter:
+
+#+BEGIN_SRC rust
+let forin_id = Arena::g().temp_id_counter;
+Arena::g().temp_id_counter += 1;
+let index_var_name = format!("_for_i_{}", forin_id);
+#+END_SRC
+
+Unlike ccodegen's `next_mangled()` which was fixed to reset per-function and include function name prefix, precomp still uses this global counter.
+
+*** Related
+- ccodegen's `_tmp_` variables were fixed to be deterministic (counter moved to CodegenContext, reset per-function, includes function name prefix)
+- interpreter.rs also uses `Arena::g().temp_id_counter` for return instance names
+
+*** Proposed Fix
+Apply similar pattern as ccodegen fix:
+1. Add function name context to precomp (track current function being processed)
+2. Reset counter when entering each function in `precomp_func_def`
+3. Include function name in generated variable name: `_for_i_funcname_N`
+
+*** Files to Modify
+- src/rs/precomp.rs: Add counter reset in precomp_func_def, modify index_var_name format
+- src/self/precomp.til: Same changes ported
+
 ** Bug #39: Non-consecutive catches fail - second catch never executes
 :PROPERTIES:
 :DISCOVERED: 2025-12-15
