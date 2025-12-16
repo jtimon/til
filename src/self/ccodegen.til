@@ -9,9 +9,6 @@ import("self.init")    // Context, get_value_type, ScopeFrame, SymbolInfo, Scope
 // Prefix for all TIL-generated C names (structs, functions, etc.)
 TIL_PREFIX := "til_"
 
-// Global counter for generating unique mangled names
-mut MANGLING_COUNTER: I64 = 0
-
 // Info about a variadic parameter
 VariadicParamInfo := struct {
     mut arg_name: Str = ""
@@ -36,6 +33,8 @@ CatchLabelInfoEntry := struct {
 
 // Codegen context for tracking function info during code generation
 CodegenContext := struct {
+    // Counter for generating unique temp variable names (deterministic per-compilation)
+    mut mangling_counter: I64 = 0
     // Map function name -> variadic arg info (Map<Str, VariadicParamInfo>)
     mut func_variadic_args: Map = Map.new(Str, VariadicParamInfo)
     // Currently generating function's throw types (if any)
@@ -82,10 +81,10 @@ has_str := func(context: Context) returns Bool {
     return found
 }
 
-// Generate unique mangled name using global counter
-next_mangled := proc() returns Str {
-    mut name := concat("_tmp", MANGLING_COUNTER.to_str())
-    MANGLING_COUNTER = add(MANGLING_COUNTER, 1)
+// Generate unique mangled name using context counter (deterministic)
+next_mangled := proc(mut ctx: CodegenContext) returns Str {
+    mut name := concat("_tmp", ctx.mangling_counter.to_str())
+    ctx.mangling_counter = ctx.mangling_counter.add(1)
     return name
 }
 
@@ -467,7 +466,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
             }
         }
 
-        mut temp_var := next_mangled()
+        mut temp_var := next_mangled(ctx)
 
         // Determine the C type for the temp variable
         mut c_type := "int"
@@ -479,7 +478,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         result = result.concat(indent_str).concat(c_type).concat(" ").concat(temp_var).concat(";\n")
 
         // Declare error variables for each throw type
-        mut temp_suffix := next_mangled()
+        mut temp_suffix := next_mangled(ctx)
         mut err_idx := 0
         while lt(err_idx, throwing_info.throw_types.len()) {
             mut throw_type := ValueType.TCustom("")
@@ -606,7 +605,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                 }
             }
 
-            mut temp_var := next_mangled()
+            mut temp_var := next_mangled(ctx)
 
             // Determine return type from function
             mut c_type := "int"
@@ -752,7 +751,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                             mut default_throwing := check_throwing_fcall(default_expr, ctx, context)
                             if default_throwing.is_throwing {
                                 // Emit the throwing call as a temp var with unique name
-                                mut temp_name := next_mangled()
+                                mut temp_name := next_mangled(ctx)
 
                                 // Get C type for the temp variable
                                 mut c_type := "int"
@@ -1710,7 +1709,7 @@ emit_global_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext
             // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
             mut var_name := til_name(decl.name)
             if decl.name.eq("_") {
-                var_name = next_mangled()
+                var_name = next_mangled(ctx)
             }
 
             mut first := Expr()
@@ -1749,7 +1748,7 @@ emit_global_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext
 }
 
 // Emit a top-level constant declaration at file scope
-emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, context: Context) returns Str throws Str {
+emit_constant_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, context: Context) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
@@ -1757,7 +1756,7 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, 
             // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
             mut var_name := decl.name
             if decl.name.eq("_") {
-                var_name = next_mangled()
+                var_name = next_mangled(ctx)
             }
 
             mut first := Expr()
@@ -3714,7 +3713,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     }
 
     // Store switch expression in a temp variable to avoid re-evaluation
-    switch_var := next_mangled()
+    switch_var := next_mangled(ctx)
     result = result.concat(indent_str)
     result = result.concat("__auto_type ")
     result = result.concat(switch_var)
@@ -4359,7 +4358,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                 scan_stmt.params.get(1, err_type_expr)
                 switch err_type_expr.node_type {
                 case NodeType.Identifier(err_type_name):
-                    mut catch_suffix := next_mangled()  // Unique suffix for EACH catch
+                    mut catch_suffix := next_mangled(ctx)  // Unique suffix for EACH catch
                     mut label := format("_catch_", err_type_name, "_", catch_suffix)
                     mut temp_var := format("_thrown_", err_type_name, "_", catch_suffix)
                     mut entry := CatchLabelInfoEntry()
@@ -4992,7 +4991,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
 
     // Generate unique temp name for this call
-    mut temp_suffix := next_mangled()
+    mut temp_suffix := next_mangled(ctx)
 
     // Determine if we need a return value temp variable
     // Only if function actually returns something AND we're capturing it
@@ -5517,7 +5516,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Generate unique temp name for this call
-    mut temp_suffix := next_mangled()
+    mut temp_suffix := next_mangled(ctx)
 
     // Determine if we need a return value temp variable
     // Only if function actually returns something AND we're capturing it
@@ -5973,7 +5972,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Generate unique temp name for this call
-    mut temp_suffix := next_mangled()
+    mut temp_suffix := next_mangled(ctx)
 
     // Determine if we need a return value temp variable
     // Only if function actually returns something AND we're capturing it
@@ -7453,7 +7452,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     catch (err: AllocError) { throw err.msg }
 
                     mut temp_name := "_default_"
-                    temp_name = temp_name.concat(member_name).concat("_").concat(next_mangled())
+                    temp_name = temp_name.concat(member_name).concat("_").concat(next_mangled(ctx))
                     // Emit the function call with out-param using emit_throwing_call_propagate
                     result = emit_throwing_call_propagate(default_expr, throw_types, temp_name, "", result, indent, ctx, context)
                     // Record that this struct default was hoisted using "struct_name:member_name" key
@@ -7893,7 +7892,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                     catch (err: AllocError) { throw err.msg }
 
                     // Emit the function call storing result
-                    mut temp_var := next_mangled()
+                    mut temp_var := next_mangled(ctx)
                     mut ret_type := "int"
                     mut ret_vt := get_value_type(context, return_expr)
                     ret_type = til_type_to_c(ret_vt)
@@ -8209,7 +8208,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 }
             }
 
-            mut temp_var := next_mangled()
+            mut temp_var := next_mangled(ctx)
 
             // Determine C type for temp variable
             mut c_type := "int"
@@ -8225,7 +8224,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             output = output.concat(";\n")
 
             // Declare error variables for each throw type
-            mut temp_suffix := next_mangled()
+            mut temp_suffix := next_mangled(ctx)
             mut err_idx := 0
             while lt(err_idx, throwing_info.throw_types.len()) {
                 mut throw_type := ValueType.TCustom("")
@@ -8357,7 +8356,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 }
             }
 
-            mut temp_var := next_mangled()
+            mut temp_var := next_mangled(ctx)
 
             // Determine return type from function
             mut c_type := "int"
@@ -8644,7 +8643,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
             c_type = "int64_t"  // Default to int64_t for unknown types
         }
 
-        mut temp_var := next_mangled()
+        mut temp_var := next_mangled(ctx)
 
         // Emit: til_Str _tmpXX = <expression>;
         output = output.concat(indent_str)
@@ -8678,8 +8677,8 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         ind = add(ind, 1)
     }
 
-    mut arr_var := next_mangled()
-    mut err_suffix := next_mangled()
+    mut arr_var := next_mangled(ctx)
+    mut err_suffix := next_mangled(ctx)
     mut variadic_count := variadic_args.len()
 
     // Declare the array variable
@@ -8722,7 +8721,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
             arg_temps.push(temp)
         } else {
             // Need to hoist into a temp
-            mut temp_var := next_mangled()
+            mut temp_var := next_mangled(ctx)
             output = output.concat(indent_str)
             output = output.concat(c_elem_type)
             output = output.concat(" ")

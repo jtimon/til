@@ -4,16 +4,14 @@
 use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType, INFER_TYPE};
 use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType};
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-// Global counter for generating unique mangled names
-static MANGLING_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 // Prefix for all TIL-generated names in C code (structs, functions, types)
 const TIL_PREFIX: &str = "til_";
 
 // Codegen context for tracking function info
 struct CodegenContext {
+    // Counter for generating unique temp variable names (deterministic per-compilation)
+    mangling_counter: usize,
     // Map function name -> variadic arg info (arg_name, element_type, regular_arg_count)
     func_variadic_args: HashMap<String, (String, String, usize)>,
     // Currently generating function's throw types (if any)
@@ -51,6 +49,7 @@ struct CodegenContext {
 impl CodegenContext {
     fn new() -> Self {
         CodegenContext {
+            mangling_counter: 0,
             func_variadic_args: HashMap::new(),
             current_throw_types: Vec::new(),
             current_return_types: Vec::new(),
@@ -69,9 +68,10 @@ impl CodegenContext {
     }
 }
 
-// Generate unique mangled name using global counter
-fn next_mangled() -> String {
-    let n = MANGLING_COUNTER.fetch_add(1, Ordering::SeqCst);
+// Generate unique mangled name using context counter (deterministic)
+fn next_mangled(ctx: &mut CodegenContext) -> String {
+    let n = ctx.mangling_counter;
+    ctx.mangling_counter += 1;
     format!("_tmp{}", n)
 }
 
@@ -388,7 +388,7 @@ fn hoist_throwing_expr(
             std::collections::HashMap::new()
         };
 
-        let temp_var = next_mangled();
+        let temp_var = next_mangled(ctx);
 
         // Determine the C type for the temp variable
         let c_type = if let Some(ret_type) = &return_type {
@@ -405,7 +405,7 @@ fn hoist_throwing_expr(
         output.push_str(";\n");
 
         // Declare error variables for each throw type
-        let temp_suffix = next_mangled();
+        let temp_suffix = next_mangled(ctx);
         for (err_idx, throw_type) in throw_types.iter().enumerate() {
             if let ValueType::TCustom(type_name) = throw_type {
                 output.push_str(&indent_str);
@@ -541,7 +541,7 @@ fn hoist_throwing_expr(
                 std::collections::HashMap::new()
             };
 
-            let temp_var = next_mangled();
+            let temp_var = next_mangled(ctx);
 
             // Determine return type from function
             let c_type = if let Some(func_name) = get_fcall_func_name(expr) {
@@ -660,7 +660,7 @@ fn hoist_throwing_expr(
                                     Vec::new()
                                 };
 
-                                let temp_name = next_mangled();
+                                let temp_name = next_mangled(ctx);
                                 // Emit the function call with out-param using emit_throwing_call_propagate
                                 emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
                                 // Record that this struct default was hoisted using "struct_name:member_name" key
@@ -726,7 +726,7 @@ fn hoist_throwing_args(
                 std::collections::HashMap::new()
             };
 
-            let temp_var = next_mangled();
+            let temp_var = next_mangled(ctx);
 
             // Determine the C type for the temp variable
             let c_type = if let Some(ret_type) = &return_type {
@@ -743,7 +743,7 @@ fn hoist_throwing_args(
             output.push_str(";\n");
 
             // Declare error variables for each throw type
-            let temp_suffix = next_mangled();
+            let temp_suffix = next_mangled(ctx);
             for (err_idx, throw_type) in throw_types.iter().enumerate() {
                 if let ValueType::TCustom(type_name) = throw_type {
                     output.push_str(&indent_str);
@@ -843,7 +843,7 @@ fn hoist_throwing_args(
                 std::collections::HashMap::new()
             };
 
-            let temp_var = next_mangled();
+            let temp_var = next_mangled(ctx);
 
             // Determine return type from function
             let c_type = if let Some(func_name) = get_fcall_func_name(arg) {
@@ -1101,7 +1101,7 @@ fn hoist_for_dynamic_params(
             _ => "int64_t".to_string(),  // Default to int64_t for unknown types
         };
 
-        let temp_var = next_mangled();
+        let temp_var = next_mangled(ctx);
 
         // Emit: til_Str _tmpXX = <expression>;
         output.push_str(&indent_str);
@@ -1132,8 +1132,8 @@ fn hoist_variadic_args(
     context: &mut Context,
 ) -> Result<String, String> {
     let indent_str = "    ".repeat(indent);
-    let arr_var = next_mangled();
-    let err_suffix = next_mangled();
+    let arr_var = next_mangled(ctx);
+    let err_suffix = next_mangled(ctx);
     let variadic_count = variadic_args.len();
 
     // Declare the array variable
@@ -1166,7 +1166,7 @@ fn hoist_variadic_args(
             arg_temps.push(temp.clone());
         } else {
             // Need to hoist into a temp
-            let temp_var = next_mangled();
+            let temp_var = next_mangled(ctx);
             output.push_str(&indent_str);
             output.push_str(&c_elem_type);
             output.push_str(" ");
@@ -1720,7 +1720,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_constant_declaration(child) {
-                emit_constant_declaration(child, &mut output, context)?;
+                emit_constant_declaration(child, &mut output, &mut ctx, context)?;
             }
         }
     }
@@ -1901,12 +1901,12 @@ fn is_throwing_fcall(expr: &Expr, context: &Context) -> bool {
 }
 
 // Emit a top-level constant declaration at file scope
-fn emit_constant_declaration(expr: &Expr, output: &mut String, context: &Context) -> Result<(), String> {
+fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
             let var_name = if decl.name == "_" {
-                next_mangled()
+                next_mangled(ctx)
             } else {
                 til_name(&decl.name)
             };
@@ -1987,7 +1987,7 @@ fn emit_global_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
         if !expr.params.is_empty() {
             // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
             let var_name = if decl.name == "_" {
-                next_mangled()
+                next_mangled(ctx)
             } else {
                 til_name(&decl.name)
             };
@@ -3051,7 +3051,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         if let NodeType::Catch = stmt.node_type {
             if stmt.params.len() >= 3 {
                 if let NodeType::Identifier(err_type_name) = &stmt.params[1].node_type {
-                    let catch_suffix = next_mangled(); // Unique suffix for EACH catch
+                    let catch_suffix = next_mangled(ctx); // Unique suffix for EACH catch
                     let label = format!("_catch_{}_{}", err_type_name, catch_suffix);
                     let temp_var = format!("_thrown_{}_{}", err_type_name, catch_suffix);
                     all_catch_info.push((idx, err_type_name.clone(), label, temp_var, stmt));
@@ -3518,7 +3518,7 @@ fn emit_throwing_call(
     }
 
     // Generate unique temp names for this call
-    let temp_suffix = next_mangled();
+    let temp_suffix = next_mangled(ctx);
 
     // Determine if we need a return value temp variable
     // Only if function actually returns something AND we're capturing it
@@ -3822,7 +3822,7 @@ fn emit_throwing_call_propagate(
     }
 
     // Generate unique temp names for this call
-    let temp_suffix = next_mangled();
+    let temp_suffix = next_mangled(ctx);
 
     // Determine if we need a return value temp variable
     // Only if function actually returns something AND we're capturing it
@@ -4085,7 +4085,7 @@ fn emit_throwing_call_with_goto(
     }
 
     // Generate unique temp names for this call
-    let temp_suffix = next_mangled();
+    let temp_suffix = next_mangled(ctx);
 
     // Determine if we need a return value temp variable
     // Only if function actually returns something AND we're capturing it
@@ -4579,7 +4579,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                         Vec::new()
                     };
 
-                    let temp_name = format!("_default_{}_{}", member_name, next_mangled());
+                    let temp_name = format!("_default_{}_{}", member_name, next_mangled(ctx));
                     // Emit the function call with out-param using emit_throwing_call_propagate
                     emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
                     // Record that this struct default was hoisted using "struct_name:member_name" key
@@ -5177,7 +5177,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     let arr_var = hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?;
 
                     // Emit the function call storing result
-                    let temp_var = next_mangled();
+                    let temp_var = next_mangled(ctx);
                     let ret_type = get_value_type(context, return_expr).ok()
                         .map(|t| til_type_to_c(&t).unwrap_or_else(|| "int".to_string()))
                         .unwrap_or_else(|| "int".to_string());
@@ -5541,7 +5541,7 @@ fn emit_fcall_with_hoisted(
                         Vec::new()
                     };
 
-                    let temp_name = format!("_default_{}_{}", member_name, next_mangled());
+                    let temp_name = format!("_default_{}_{}", member_name, next_mangled(ctx));
                     // Emit the function call with out-param using emit_throwing_call_propagate
                     emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, 0, ctx, context)?;
                     // Record that this struct default was hoisted using "struct_name:member_name" key
@@ -6017,7 +6017,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     }
 
     // Store switch expression in a temp variable to avoid re-evaluation
-    let switch_var = next_mangled();
+    let switch_var = next_mangled(ctx);
     output.push_str(&indent_str);
     output.push_str("__auto_type ");
     output.push_str(&switch_var);
@@ -6700,7 +6700,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                                     Vec::new()
                                 };
 
-                                let temp_name = format!("_default_{}_{}", member_name, next_mangled());
+                                let temp_name = format!("_default_{}_{}", member_name, next_mangled(ctx));
                                 // Emit the function call with out-param using emit_throwing_call_propagate
                                 emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
                                 // Record that this struct default was hoisted using "struct_name:member_name" key
