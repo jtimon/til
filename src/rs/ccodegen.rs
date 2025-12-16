@@ -12,8 +12,8 @@ const TIL_PREFIX: &str = "til_";
 struct CodegenContext {
     // Counter for generating unique temp variable names (deterministic per-compilation)
     mangling_counter: usize,
-    // Map function name -> variadic arg info (arg_name, element_type, regular_arg_count)
-    func_variadic_args: HashMap<String, (String, String, usize)>,
+    // Map function name -> variadic arg info
+    func_variadic_args: HashMap<String, VariadicParamInfo>,
     // Currently generating function's throw types (if any)
     current_throw_types: Vec<ValueType>,
     // Currently generating function's return types (if any)
@@ -30,9 +30,9 @@ struct CodegenContext {
     // Map of hoisted expression addresses to their temp variable names
     // Used to track deeply nested variadic/throwing calls that have been hoisted
     hoisted_exprs: HashMap<usize, String>,
-    // Map of locally-caught error types to (catch label, temp variable name)
+    // Map of locally-caught error types to catch label info
     // For explicit throw statements that have a local catch block
-    local_catch_labels: HashMap<String, (String, String)>,
+    local_catch_labels: HashMap<String, CatchLabelInfo>,
     // Current function name for nested function name mangling (None at top-level)
     current_function_name: Option<String>,
     // C code for hoisted nested function definitions
@@ -410,7 +410,7 @@ fn hoist_throwing_expr(
         let nested_hoisted: std::collections::HashMap<usize, String> = if expr.params.len() > 1 {
             let nested_args = &expr.params[1..];
             let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
-            nested_vec.into_iter().collect()
+            nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
         } else {
             std::collections::HashMap::new()
         };
@@ -485,20 +485,20 @@ fn hoist_throwing_expr(
             // Use goto for local catches
             for (err_idx, throw_type) in throw_types.iter().enumerate() {
                 if let ValueType::TCustom(type_name) = throw_type {
-                    if let Some((label, catch_temp_var)) = ctx.local_catch_labels.get(type_name) {
+                    if let Some(catch_info) = ctx.local_catch_labels.get(type_name) {
                         output.push_str(&indent_str);
                         output.push_str("if (_status_");
                         output.push_str(&temp_suffix);
                         output.push_str(" == ");
                         output.push_str(&(err_idx + 1).to_string());
                         output.push_str(") { ");
-                        output.push_str(catch_temp_var);
+                        output.push_str(&catch_info.temp_var);
                         output.push_str(" = _err");
                         output.push_str(&err_idx.to_string());
                         output.push_str("_");
                         output.push_str(&temp_suffix);
                         output.push_str("; goto ");
-                        output.push_str(label);
+                        output.push_str(&catch_info.label);
                         output.push_str("; }\n");
                     }
                 }
@@ -563,7 +563,7 @@ fn hoist_throwing_expr(
             let nested_hoisted: std::collections::HashMap<usize, String> = if expr.params.len() > 1 {
                 let nested_args = &expr.params[1..];
                 let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
-                nested_vec.into_iter().collect()
+                nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
             } else {
                 std::collections::HashMap::new()
             };
@@ -719,14 +719,14 @@ fn hoist_throwing_expr(
 }
 
 /// Hoist throwing function calls from arguments (recursively)
-/// Returns a vector of (arg_index, temp_var_name) for arguments that were hoisted
+/// Returns a vector of HoistedArg for arguments that were hoisted
 fn hoist_throwing_args(
     args: &[Expr],  // The arguments (skip first param which is function name)
     output: &mut String,
     indent: usize,
     ctx: &mut CodegenContext,
     context: &mut Context,
-) -> Result<Vec<(usize, String)>, String> {
+) -> Result<Vec<HoistedArg>, String> {
     let mut hoisted = Vec::new();
     let indent_str = "    ".repeat(indent);
 
@@ -742,7 +742,7 @@ fn hoist_throwing_args(
             let nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
                 let nested_args = &arg.params[1..];
                 let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
-                nested_vec.into_iter().collect()
+                nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
             } else {
                 std::collections::HashMap::new()
             };
@@ -851,7 +851,7 @@ fn hoist_throwing_args(
             // Record in hoisted_exprs map using expression address
             let expr_addr = arg as *const Expr as usize;
             ctx.hoisted_exprs.insert(expr_addr, temp_var.clone());
-            hoisted.push((idx, temp_var));
+            hoisted.push(HoistedArg { index: idx, temp_var });
         }
         // Handle non-throwing variadic calls
         else if let Some((elem_type, regular_count)) = variadic_info {
@@ -859,7 +859,7 @@ fn hoist_throwing_args(
             let nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
                 let nested_args = &arg.params[1..];
                 let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
-                nested_vec.into_iter().collect()
+                nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
             } else {
                 std::collections::HashMap::new()
             };
@@ -935,7 +935,7 @@ fn hoist_throwing_args(
             // Record in hoisted_exprs map using expression address
             let expr_addr = arg as *const Expr as usize;
             ctx.hoisted_exprs.insert(expr_addr, temp_var.clone());
-            hoisted.push((idx, temp_var));
+            hoisted.push(HoistedArg { index: idx, temp_var });
         }
         // Handle non-throwing, non-variadic FCalls - still need to recurse into their arguments
         // to find deeply nested variadic/throwing calls (e.g., not(or(false)))
@@ -955,10 +955,10 @@ fn hoist_throwing_args(
                     let dynamic_hoisted = hoist_for_dynamic_params(nested_args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
                     // Record hoisted Dynamic params in hoisted_exprs with & prefix
                     // (needed because emit_expr won't know to add & for Dynamic params)
-                    for (nested_idx, temp_var) in dynamic_hoisted {
-                        if let Some(nested_arg) = nested_args.get(nested_idx) {
+                    for h in dynamic_hoisted {
+                        if let Some(nested_arg) = nested_args.get(h.index) {
                             let expr_addr = nested_arg as *const Expr as usize;
-                            ctx.hoisted_exprs.insert(expr_addr, format!("&{}", temp_var));
+                            ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
                         }
                     }
                 }
@@ -990,7 +990,7 @@ fn hoist_for_dynamic_params(
     indent: usize,
     ctx: &mut CodegenContext,
     context: &mut Context,
-) -> Result<Vec<(usize, String)>, String> {
+) -> Result<Vec<HoistedArg>, String> {
     let mut hoisted = Vec::new();
     let indent_str = "    ".repeat(indent);
 
@@ -1123,7 +1123,7 @@ fn hoist_for_dynamic_params(
         emit_expr(arg, output, 0, ctx, context)?;
         output.push_str(";\n");
 
-        hoisted.push((idx, temp_var));
+        hoisted.push(HoistedArg { index: idx, temp_var });
     }
 
     Ok(hoisted)
@@ -1289,7 +1289,7 @@ fn detect_variadic_fcall(
     let orig_func_name = get_til_func_name_string(&expr.params[0])?;
 
     ctx.func_variadic_args.get(&orig_func_name)
-        .map(|(_, elem_type, regular_count)| (elem_type.clone(), *regular_count))
+        .map(|info| (info.elem_type.clone(), info.regular_count))
 }
 
 /// Emit a throwing function call's name and arguments for hoisting
@@ -1340,7 +1340,8 @@ fn emit_fcall_name_and_args_for_throwing(
     }
 
     // Check if this is a variadic function call
-    if let Some((_variadic_name, _elem_type, regular_count)) = ctx.func_variadic_args.get(&orig_func_name).cloned() {
+    if let Some(variadic_info) = ctx.func_variadic_args.get(&orig_func_name) {
+        let regular_count = variadic_info.regular_count;
         // Emit regular args first (skip first param which is function name)
         let args: Vec<_> = expr.params.iter().skip(1).collect();
         for (arg_idx, arg) in args.iter().take(regular_count).enumerate() {
@@ -2019,10 +2020,13 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                         // Top-level function - check for variadic args (TMulti)
                         for (idx, arg) in func_def.args.iter().enumerate() {
                             if let ValueType::TMulti(elem_type) = &arg.value_type {
-                                // Track: (arg_name, element_type, count of regular args before variadic)
                                 ctx.func_variadic_args.insert(
                                     decl.name.clone(),
-                                    (arg.name.clone(), elem_type.clone(), idx)
+                                    VariadicParamInfo {
+                                        arg_name: arg.name.clone(),
+                                        elem_type: elem_type.clone(),
+                                        regular_count: idx,
+                                    }
                                 );
                                 break; // Only one variadic arg per function
                             }
@@ -2039,7 +2043,11 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                                     if let ValueType::TMulti(elem_type) = &arg.value_type {
                                         ctx.func_variadic_args.insert(
                                             mangled_name.clone(),
-                                            (arg.name.clone(), elem_type.clone(), idx)
+                                            VariadicParamInfo {
+                                                arg_name: arg.name.clone(),
+                                                elem_type: elem_type.clone(),
+                                                regular_count: idx,
+                                            }
                                         );
                                         break;
                                     }
@@ -3072,7 +3080,10 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
     for catch_entry in &all_catch_info {
         if !registered_types.contains(&catch_entry.type_name) {
             registered_types.insert(catch_entry.type_name.clone());
-            ctx.local_catch_labels.insert(catch_entry.type_name.clone(), (catch_entry.label.clone(), catch_entry.temp_var.clone()));
+            ctx.local_catch_labels.insert(catch_entry.type_name.clone(), CatchLabelInfo {
+                label: catch_entry.label.clone(),
+                temp_var: catch_entry.temp_var.clone(),
+            });
         }
     }
 
@@ -3215,18 +3226,24 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                         // Bug #39 fix: Update local_catch_labels to point to NEXT catch for each type
                         // This ensures each call jumps to the correct catch, not always the first one
                         // Build map with only catches AFTER current position
-                        let mut next_catches: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
+                        let mut next_catches: std::collections::HashMap<String, CatchLabelInfo> = std::collections::HashMap::new();
                         for catch_entry in &all_catch_info {
                             if catch_entry.stmt_index > i && !next_catches.contains_key(&catch_entry.type_name) {
                                 // First catch of this type after current position
-                                next_catches.insert(catch_entry.type_name.clone(), (catch_entry.label.clone(), catch_entry.temp_var.clone()));
+                                next_catches.insert(catch_entry.type_name.clone(), CatchLabelInfo {
+                                    label: catch_entry.label.clone(),
+                                    temp_var: catch_entry.temp_var.clone(),
+                                });
                             }
                         }
                         // Replace local_catch_labels with only the next catches
                         // This removes entries for types that have no more catches after this point
                         ctx.local_catch_labels.clear();
-                        for (type_name, (label, temp_var)) in &next_catches {
-                            ctx.local_catch_labels.insert(type_name.clone(), (label.clone(), temp_var.clone()));
+                        for (type_name, catch_info) in &next_catches {
+                            ctx.local_catch_labels.insert(type_name.clone(), CatchLabelInfo {
+                                label: catch_info.label.clone(),
+                                temp_var: catch_info.temp_var.clone(),
+                            });
                         }
                         emit_throwing_call_with_goto(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
                         i += 1;
@@ -3331,7 +3348,7 @@ fn emit_variadic_call(
     let hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
         let args = &fcall.params[1..];
         let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-        hoisted_vec.into_iter().collect()
+        hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
     } else {
         std::collections::HashMap::new()
     };
@@ -3536,7 +3553,7 @@ fn emit_throwing_call(
     let mut hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
         let args = &fcall.params[1..];
         let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-        hoisted_vec.into_iter().collect()
+        hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
     } else {
         std::collections::HashMap::new()
     };
@@ -3545,8 +3562,8 @@ fn emit_throwing_call(
     if fcall.params.len() > 1 {
         let args = &fcall.params[1..];
         let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &hoisted, output, indent, ctx, context)?;
-        for (idx, temp_var) in dynamic_hoisted {
-            hoisted.insert(idx, temp_var);
+        for h in dynamic_hoisted {
+            hoisted.insert(h.index, h.temp_var);
         }
     }
 
@@ -3840,7 +3857,7 @@ fn emit_throwing_call_propagate(
     let mut hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
         let args = &fcall.params[1..];
         let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-        hoisted_vec.into_iter().collect()
+        hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
     } else {
         std::collections::HashMap::new()
     };
@@ -3849,8 +3866,8 @@ fn emit_throwing_call_propagate(
     if fcall.params.len() > 1 {
         let args = &fcall.params[1..];
         let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &hoisted, output, indent, ctx, context)?;
-        for (idx, temp_var) in dynamic_hoisted {
-            hoisted.insert(idx, temp_var);
+        for h in dynamic_hoisted {
+            hoisted.insert(h.index, h.temp_var);
         }
     }
 
@@ -4102,7 +4119,7 @@ fn emit_throwing_call_with_goto(
     let mut hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
         let args = &fcall.params[1..];
         let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-        hoisted_vec.into_iter().collect()
+        hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
     } else {
         std::collections::HashMap::new()
     };
@@ -4111,8 +4128,8 @@ fn emit_throwing_call_with_goto(
     if fcall.params.len() > 1 {
         let args = &fcall.params[1..];
         let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &hoisted, output, indent, ctx, context)?;
-        for (idx, temp_var) in dynamic_hoisted {
-            hoisted.insert(idx, temp_var);
+        for h in dynamic_hoisted {
+            hoisted.insert(h.index, h.temp_var);
         }
     }
 
@@ -4235,7 +4252,7 @@ fn emit_throwing_call_with_goto(
     for (err_idx, throw_type) in throw_types.iter().enumerate() {
         if let crate::rs::parser::ValueType::TCustom(type_name) = throw_type {
             // Check if there's a local catch for this error type
-            if let Some((label, temp_var)) = ctx.local_catch_labels.get(type_name) {
+            if let Some(catch_info) = ctx.local_catch_labels.get(type_name) {
                 // Jump to local catch: copy error to temp var, then goto label
                 output.push_str(&indent_str);
                 output.push_str("if (_status_");
@@ -4243,13 +4260,13 @@ fn emit_throwing_call_with_goto(
                 output.push_str(" == ");
                 output.push_str(&(err_idx + 1).to_string());
                 output.push_str(") { ");
-                output.push_str(temp_var);
+                output.push_str(&catch_info.temp_var);
                 output.push_str(" = _err");
                 output.push_str(&err_idx.to_string());
                 output.push_str("_");
                 output.push_str(&temp_suffix);
                 output.push_str("; goto ");
-                output.push_str(label);
+                output.push_str(&catch_info.label);
                 output.push_str("; }\n");
             } else if ctx.current_throw_types.iter().any(|t| {
                 if let crate::rs::parser::ValueType::TCustom(n) = t { n == type_name } else { false }
@@ -4662,10 +4679,10 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                             let empty_hoisted = std::collections::HashMap::new();
                             let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
                             // Record hoisted Dynamic params in hoisted_exprs with & prefix
-                            for (idx, temp_var) in dynamic_hoisted {
-                                if let Some(arg) = args.get(idx) {
+                            for h in dynamic_hoisted {
+                                if let Some(arg) = args.get(h.index) {
                                     let expr_addr = arg as *const Expr as usize;
-                                    ctx.hoisted_exprs.insert(expr_addr, format!("&{}", temp_var));
+                                    ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
                                 }
                             }
                         }
@@ -4710,10 +4727,10 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                             let empty_hoisted = std::collections::HashMap::new();
                             let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
                             // Record hoisted Dynamic params in hoisted_exprs with & prefix
-                            for (idx, temp_var) in dynamic_hoisted {
-                                if let Some(arg) = args.get(idx) {
+                            for h in dynamic_hoisted {
+                                if let Some(arg) = args.get(h.index) {
                                     let expr_addr = arg as *const Expr as usize;
-                                    ctx.hoisted_exprs.insert(expr_addr, format!("&{}", temp_var));
+                                    ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
                                 }
                             }
                         }
@@ -4923,7 +4940,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     // First, hoist any nested throwing/variadic calls in the arguments
                     let all_args: Vec<_> = return_expr.params.iter().skip(1).collect();
                     let hoisted_vec = hoist_throwing_args(&all_args.iter().map(|a| (*a).clone()).collect::<Vec<_>>(), output, indent, ctx, context)?;
-                    let hoisted: std::collections::HashMap<usize, String> = hoisted_vec.into_iter().collect();
+                    let hoisted: std::collections::HashMap<usize, String> = hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect();
                     let variadic_args: Vec<_> = return_expr.params.iter().skip(1 + regular_count).collect();
                     let arr_var = hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?;
 
@@ -5027,7 +5044,9 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         };
 
         // Check if this type is locally caught
-        if let Some((label, temp_var)) = ctx.local_catch_labels.get(&thrown_type_name).cloned() {
+        if let Some(catch_info) = ctx.local_catch_labels.get(&thrown_type_name) {
+            let label = catch_info.label.clone();
+            let temp_var = catch_info.temp_var.clone();
             output.push_str(&indent_str);
             output.push_str(&temp_var);
             output.push_str(" = ");
@@ -5128,13 +5147,15 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     };
 
     // Check if this type is locally caught (has a catch block at function level)
-    if let Some((label, temp_var)) = ctx.local_catch_labels.get(&thrown_type_name).cloned() {
+    if let Some(catch_info) = ctx.local_catch_labels.get(&thrown_type_name) {
+        let label = catch_info.label.clone();
+        let temp_var = catch_info.temp_var.clone();
         // Hoist any throwing function calls in the thrown expression
         let hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall = &thrown_expr.node_type {
             if thrown_expr.params.len() > 1 {
                 let args = &thrown_expr.params[1..];
                 let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-                hoisted_vec.into_iter().collect()
+                hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
             } else {
                 std::collections::HashMap::new()
             }
@@ -5180,7 +5201,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if thrown_expr.params.len() > 1 {
                     let args = &thrown_expr.params[1..];
                     let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-                    hoisted_vec.into_iter().collect()
+                    hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
                 } else {
                     std::collections::HashMap::new()
                 }
@@ -5577,6 +5598,25 @@ fn emit_continue(_expr: &Expr, output: &mut String, indent: usize) -> Result<(),
     output.push_str(&indent_str);
     output.push_str("continue;\n");
     Ok(())
+}
+
+// Info about a variadic parameter
+struct VariadicParamInfo {
+    arg_name: String,
+    elem_type: String,
+    regular_count: usize,
+}
+
+// Info about a catch label for local throw/catch
+struct CatchLabelInfo {
+    label: String,
+    temp_var: String,
+}
+
+// Result type for hoisted arguments
+struct HoistedArg {
+    index: usize,
+    temp_var: String,
 }
 
 // Result struct for variant info extraction
@@ -6204,7 +6244,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     let mut hoisted: std::collections::HashMap<usize, String> = if indent > 0 && expr.params.len() > 1 {
         let args = &expr.params[1..];
         let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-        hoisted_vec.into_iter().collect()
+        hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
     } else {
         std::collections::HashMap::new()
     };
@@ -6218,8 +6258,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 .collect();
             let args = &expr.params[1..];
             let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &hoisted, output, indent, ctx, context)?;
-            for (idx, temp_var) in dynamic_hoisted {
-                hoisted.insert(idx, temp_var);
+            for h in dynamic_hoisted {
+                hoisted.insert(h.index, h.temp_var);
             }
         }
     }
@@ -6528,7 +6568,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // Detect and construct variadic array if needed (only at statement level)
             // At expression level (indent == 0), variadic calls are not supported directly
             let variadic_arr_var: Option<String> = if indent > 0 {
-                if let Some((elem_type, regular_count)) = ctx.func_variadic_args.get(&orig_func_name).map(|(_, e, r)| (e.clone(), *r)) {
+                if let Some(variadic_info) = ctx.func_variadic_args.get(&orig_func_name) {
+                    let elem_type = variadic_info.elem_type.clone();
+                    let regular_count = variadic_info.regular_count;
                     let variadic_args: Vec<_> = expr.params.iter().skip(1 + regular_count).collect();
                     Some(hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?)
                 } else {
@@ -6569,7 +6611,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             output.push_str("(");
 
             // Check if this is a variadic function call
-            if let Some((_variadic_name, _elem_type, regular_count)) = ctx.func_variadic_args.get(&orig_func_name).cloned() {
+            if let Some(variadic_info) = ctx.func_variadic_args.get(&orig_func_name) {
+                let regular_count = variadic_info.regular_count;
                 // Emit regular args first (skip first param which is function name)
                 let args: Vec<_> = expr.params.iter().skip(1).collect();
                 for (i, arg) in args.iter().take(regular_count).enumerate() {
