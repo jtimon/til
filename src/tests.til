@@ -159,7 +159,51 @@ format_expected := func(cmd_args: Str, exit_code: I64, output: Str) returns Str 
     return result
 }
 
-run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
+test_til_interpreted := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
+    out_path := get_out_path(entry.path, "interpreted", entry.cmd_args)
+    ensure_out_file(entry.path, entry.cmd_args, out_path, "interpreted")
+
+    // Run with compiled til.til interpreter: ./bin/rstil run src/til.til interpret <path> [args]
+    mut til_output := ""
+    mut til_time := 0
+    mut cmd := "./bin/rstil run src/til.til interpret "
+    cmd = cmd.concat(entry.path)
+    if not(entry.cmd_args.eq("")) {
+        cmd = cmd.concat(" ").concat(entry.cmd_args)
+    }
+    actual_exit_code := run_timed(til_output, til_time, cmd)
+    time_ms = til_time
+
+    // Check exit code
+    if not(actual_exit_code.eq(entry.expected_status)) {
+        println("FAIL (til interpret exit code): ", entry.path)
+        println("  expected: ", entry.expected_status.to_str())
+        println("  actual: ", actual_exit_code.to_str())
+        if not(til_output.eq("")) {
+            println("  output: ", til_output)
+        }
+        return true
+    }
+
+    // Check output via diff
+    tmp_actual := "src/test/tmp/actual.out"
+    _ := writefile(tmp_actual, format_expected(entry.cmd_args, actual_exit_code, til_output))
+    mut diff_result := ""
+    _ := diff_result.run_cmd("diff", out_path, tmp_actual)
+    mut rm_result := ""
+    _ := rm_result.run_cmd("rm", tmp_actual)
+    if not(diff_result.eq("")) {
+        println("FAIL (til interpret output): ", entry.path)
+        println(diff_result)
+        return true
+    }
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+
+    return false
+}
+
+run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec, til_interpreted: Vec) {
     mut errors_found := false
     mut total_interpret_ms := 0
     mut total_compile_ms := 0
@@ -233,18 +277,40 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
         benchmark_content = benchmark_content.concat("- ").concat(entry.path).concat(" :: interpreted: ").concat(format_time(time_ms)).concat("\n")
     }
 
+    mut total_til_ms := 0
+    println("\n=== til_interpreted (", til_interpreted.len().to_str(), " tests) ===\n")
+    benchmark_content = benchmark_content.concat("\n* til_interpreted\n")
+    for i in 0..til_interpreted.len() {
+        mut entry := TestEntry()
+        til_interpreted.get(i, entry)
+        mut time_ms := 0
+        if test_til_interpreted(entry, time_ms) {
+            errors_found = true
+        }
+        total_til_ms = total_til_ms.add(time_ms)
+        // Show args if present
+        mut args_display := ""
+        if not(entry.cmd_args.eq("")) {
+            args_display = concat(" ", entry.cmd_args)
+        }
+        println("[", i.add(1).to_str(), "/", til_interpreted.len().to_str(), "] ", entry.path, args_display, " (til interpreted: ", format_time(time_ms), ")")
+        benchmark_content = benchmark_content.concat("- ").concat(entry.path).concat(" :: til interpreted: ").concat(format_time(time_ms)).concat("\n")
+    }
+
     // Print and write totals
     println("")
     println("=== Totals ===")
-    println("Total interpreted: ", format_time(total_interpret_ms))
-    println("Total compiled:    ", format_time(total_compile_ms))
-    println("Total:             ", format_time(total_interpret_ms.add(total_compile_ms)))
+    println("Total interpreted:     ", format_time(total_interpret_ms))
+    println("Total compiled:        ", format_time(total_compile_ms))
+    println("Total til interpreted: ", format_time(total_til_ms))
+    println("Total:                 ", format_time(total_interpret_ms.add(total_compile_ms).add(total_til_ms)))
 
     // Build totals section and prepend it
     mut totals := "* Totals\n"
     totals = totals.concat("- Total interpreted :: ").concat(format_time(total_interpret_ms)).concat("\n")
     totals = totals.concat("- Total compiled :: ").concat(format_time(total_compile_ms)).concat("\n")
-    totals = totals.concat("- Total :: ").concat(format_time(total_interpret_ms.add(total_compile_ms))).concat("\n\n")
+    totals = totals.concat("- Total til interpreted :: ").concat(format_time(total_til_ms)).concat("\n")
+    totals = totals.concat("- Total :: ").concat(format_time(total_interpret_ms.add(total_compile_ms).add(total_til_ms))).concat("\n\n")
 
     _ := writefile("gen/benchmark.org", totals.concat(benchmark_content))
 
@@ -256,6 +322,7 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
 }
 
 regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
+    // Note: til_interpreted uses same .out files as rs_interpreted, no separate regen needed
     if files.len().eq(0) {
         // regen all
         for entry: TestEntry in rs_common {
@@ -627,16 +694,21 @@ main := proc(args: ..Str) {
     // Input must end with exit(0) to break out of the infinite while loop
     // rs_interpreted.push(TestEntry(path="src/modes/repl.til"))
 
+    // til_interpreted: tests run with the self-hosted TIL interpreter (til.til)
+    // Uses compiled til.til (rstil run til.til) for speed
+    mut til_interpreted := Vec.new(TestEntry)
+    // til_interpreted.push(TestEntry(path="src/examples/hello_script.til"))  // TODO: Fix "func 'Bool' returns multiple values" error
+
     // Parse args
     if args.len().eq(0) {
         // Default: run tests
-        run_all_tests(rs_common, rs_compiled, rs_interpreted)
+        run_all_tests(rs_common, rs_compiled, rs_interpreted, til_interpreted)
     } else {
         mut cmd := ""
         args.get(0, cmd)
         switch cmd {
         case "test":
-            run_all_tests(rs_common, rs_compiled, rs_interpreted)
+            run_all_tests(rs_common, rs_compiled, rs_interpreted, til_interpreted)
         case "regen":
             mut files := Vec.new(Str)
             for i in 1..args.len() {
