@@ -3040,46 +3040,41 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 
     // Bug #39 fix: Give each catch block its own unique label using the global counter
     // Store catch info with statement index so we can match calls to their NEXT catch
-    // Each catch gets: (stmt_index, type_name, label, temp_var, catch_block)
-    let mut all_catch_info: Vec<(usize, String, String, String, &Expr)> = Vec::new();
+    let mut all_catch_info: Vec<CatchLabelInfoEntry> = Vec::new();
     for (idx, stmt) in stmts.iter().enumerate() {
         if let NodeType::Catch = stmt.node_type {
             if stmt.params.len() >= 3 {
                 if let NodeType::Identifier(err_type_name) = &stmt.params[1].node_type {
                     let catch_suffix = next_mangled(ctx); // Unique suffix for EACH catch
-                    let label = format!("_catch_{}_{}", err_type_name, catch_suffix);
-                    let temp_var = format!("_thrown_{}_{}", err_type_name, catch_suffix);
-                    all_catch_info.push((idx, err_type_name.clone(), label, temp_var, stmt));
+                    all_catch_info.push(CatchLabelInfoEntry {
+                        stmt_index: idx,
+                        type_name: err_type_name.clone(),
+                        label: format!("_catch_{}_{}", err_type_name, catch_suffix),
+                        temp_var: format!("_thrown_{}_{}", err_type_name, catch_suffix),
+                    });
                 }
             }
         }
     }
 
     // Declare temp variables for all catches at the start
-    for (_, type_name, _, temp_var, _) in &all_catch_info {
+    for catch_entry in &all_catch_info {
         output.push_str(&indent_str);
-        output.push_str(&til_name(type_name));
+        output.push_str(&til_name(&catch_entry.type_name));
         output.push_str(" ");
-        output.push_str(temp_var);
+        output.push_str(&catch_entry.temp_var);
         output.push_str(";\n");
     }
 
     // For backward compatibility, also populate local_catch_labels with first catch of each type
     // This is used by throw statements and nested blocks
     let mut registered_types: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for (_, type_name, label, temp_var, _) in &all_catch_info {
-        if !registered_types.contains(type_name) {
-            registered_types.insert(type_name.clone());
-            ctx.local_catch_labels.insert(type_name.clone(), (label.clone(), temp_var.clone()));
+    for catch_entry in &all_catch_info {
+        if !registered_types.contains(&catch_entry.type_name) {
+            registered_types.insert(catch_entry.type_name.clone());
+            ctx.local_catch_labels.insert(catch_entry.type_name.clone(), (catch_entry.label.clone(), catch_entry.temp_var.clone()));
         }
     }
-
-    // Keep catch_label_info for cleanup at end
-    let catch_label_info: Vec<(String, String, String, &Expr)> = all_catch_info.iter()
-        .map(|(_, type_name, label, temp_var, catch_block)| {
-            (type_name.clone(), label.clone(), temp_var.clone(), *catch_block)
-        })
-        .collect();
 
     // Track which catch labels have been emitted to avoid duplicates
     // (when multiple catches of same type exist, only emit the label once)
@@ -3097,12 +3092,12 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
             if stmt.params.len() >= 3 {
                 if let NodeType::Identifier(err_type_name) = &stmt.params[1].node_type {
                     // Look up this specific catch's label from all_catch_info by statement index
-                    if let Some((_, _, label, temp_var, _)) = all_catch_info.iter().find(|(idx, _, _, _, _)| *idx == i) {
+                    if let Some(catch_entry) = all_catch_info.iter().find(|e| e.stmt_index == i) {
                         // Only emit if we haven't already emitted this label
-                        if !emitted_catch_labels.contains(label) {
-                            emitted_catch_labels.insert(label.clone());
-                            let label = label.clone();
-                            let temp_var = temp_var.clone();
+                        if !emitted_catch_labels.contains(&catch_entry.label) {
+                            emitted_catch_labels.insert(catch_entry.label.clone());
+                            let label = catch_entry.label.clone();
+                            let temp_var = catch_entry.temp_var.clone();
 
                             output.push_str(&indent_str);
                             output.push_str("if (0) { ");
@@ -3221,10 +3216,10 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                         // This ensures each call jumps to the correct catch, not always the first one
                         // Build map with only catches AFTER current position
                         let mut next_catches: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
-                        for (catch_idx, type_name, label, temp_var, _) in &all_catch_info {
-                            if *catch_idx > i && !next_catches.contains_key(type_name) {
+                        for catch_entry in &all_catch_info {
+                            if catch_entry.stmt_index > i && !next_catches.contains_key(&catch_entry.type_name) {
                                 // First catch of this type after current position
-                                next_catches.insert(type_name.clone(), (label.clone(), temp_var.clone()));
+                                next_catches.insert(catch_entry.type_name.clone(), (catch_entry.label.clone(), catch_entry.temp_var.clone()));
                             }
                         }
                         // Replace local_catch_labels with only the next catches
@@ -3272,8 +3267,8 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
     }
 
     // Clean up local_catch_labels for this block
-    for (type_name, _, _, _) in &catch_label_info {
-        ctx.local_catch_labels.remove(type_name);
+    for catch_entry in &all_catch_info {
+        ctx.local_catch_labels.remove(&catch_entry.type_name);
     }
 
     Ok(())
@@ -5588,6 +5583,15 @@ fn emit_continue(_expr: &Expr, output: &mut String, indent: usize) -> Result<(),
 struct VariantInfo {
     type_name: String,
     variant_name: String,
+}
+
+// Info about a catch block for code generation
+// Note: TIL version also has catch_block field, but Rust accesses stmts[i] directly
+struct CatchLabelInfoEntry {
+    stmt_index: usize,      // Index in stmts array
+    type_name: String,      // Error type being caught (e.g., "Str", "IndexOutOfBoundsError")
+    label: String,          // Goto label for this catch
+    temp_var: String,       // Temp variable holding the thrown value
 }
 
 // Extract enum type and variant names from a case pattern expression
