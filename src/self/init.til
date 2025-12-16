@@ -300,22 +300,26 @@ ScopeStack := struct {
 
     lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
         mut i := self.frames.len().sub(1)
-        while i.gteq(0) {
+        while i.gteq(0) { // TODO: replace with reverse range loop when implemented
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
+
             if frame.funcs.contains_key(name) {
                 mut func_def := SFuncDef()
                 frame.funcs.get(name, func_def)
-                catch (err: KeyNotFoundError) { }
+                catch (err: KeyNotFoundError) {
+                    // Function not found, continue searching
+                }
                 return func_def
             }
-            i = i.sub(1)
+
+            i.dec()
         }
+
         catch (err: IndexOutOfBoundsError) {
-            // Internal error - should never happen
+            panic(loc(), "IndexOutOfBoundsError in lookup_func: ", err.msg)
         }
-        // Like Rust's None - caller provides error message
-        throw KeyNotFoundError()
+        throw KeyNotFoundError(msg="lookup_func: Function not found in Context")
     }
 
     declare_func := proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) throws Str {
