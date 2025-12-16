@@ -69,10 +69,14 @@ impl CodegenContext {
 }
 
 // Generate unique mangled name using context counter (deterministic)
+// Includes function name prefix for uniqueness across functions
 fn next_mangled(ctx: &mut CodegenContext) -> String {
     let n = ctx.mangling_counter;
     ctx.mangling_counter += 1;
-    format!("_tmp{}", n)
+    match &ctx.current_function_name {
+        Some(func_name) => format!("_tmp_{}_{}", func_name, n),
+        None => format!("_tmp_{}", n),
+    }
 }
 
 // Returns the C name for a TIL identifier - adds TIL_PREFIX
@@ -671,8 +675,7 @@ fn hoist_throwing_expr(
                             if is_throwing_fcall(default_expr, context) {
                                 // Get the function's throw types
                                 let throw_types = if let Some(first_param) = default_expr.params.first() {
-                                    if let Some(fcall_func_name) = get_func_name_string(first_param) {
-                                        let lookup_name = fcall_func_name.replacen('_', ".", 1);
+                                    if let Some(lookup_name) = get_til_func_name_string(first_param) {
                                         context.scope_stack.lookup_func(&lookup_name)
                                             .map(|fd| fd.throw_types.clone())
                                             .unwrap_or_default()
@@ -1297,19 +1300,8 @@ fn detect_variadic_fcall(
         return None;
     }
 
-    // Get function name with dots (for lookup in variadic map)
-    let func_name = get_func_name_string(&expr.params[0])?;
-    // For simple identifiers (after precomp), use the name directly
-    // For nested identifiers (Type.method), convert underscores back to dots
-    let orig_func_name = if expr.params[0].params.is_empty() {
-        if let NodeType::Identifier(name) = &expr.params[0].node_type {
-            name.clone()
-        } else {
-            func_name.replace('_', ".")
-        }
-    } else {
-        func_name.replace('_', ".")
-    };
+    // Get original TIL function name (with dots) for variadic map lookup
+    let orig_func_name = get_til_func_name_string(&expr.params[0])?;
 
     ctx.func_variadic_args.get(&orig_func_name)
         .map(|(_, elem_type, regular_count)| (elem_type.clone(), *regular_count))
@@ -1340,10 +1332,8 @@ fn emit_fcall_name_and_args_for_throwing(
     };
 
     // For lookups, we need the original name with dots
-    let orig_func_name = match &expr.params[0].node_type {
-        NodeType::Identifier(name) if expr.params[0].params.is_empty() => name.clone(),
-        _ => func_name.replace('_', "."),
-    };
+    let orig_func_name = get_til_func_name_string(&expr.params[0])
+        .unwrap_or_else(|| func_name.clone());
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
     if let Some(mangled_name) = ctx.nested_func_names.get(&orig_func_name) {
@@ -1911,9 +1901,7 @@ fn is_constant_declaration(expr: &Expr) -> bool {
 fn is_throwing_fcall(expr: &Expr, context: &Context) -> bool {
     if let NodeType::FCall = &expr.node_type {
         if let Some(first_param) = expr.params.first() {
-            if let Some(func_name) = get_func_name_string(first_param) {
-                // Convert underscore to dot for lookup (e.g., "Vec_new" -> "Vec.new")
-                let lookup_name = func_name.replacen('_', ".", 1);
+            if let Some(lookup_name) = get_til_func_name_string(first_param) {
                 if let Some(func_def) = context.scope_stack.lookup_func(&lookup_name) {
                     return !func_def.throw_types.is_empty();
                 }
@@ -2865,7 +2853,9 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
 
                 // Save and set current function name for nested function mangling
                 let prev_function_name = ctx.current_function_name.clone();
+                let prev_mangling_counter = ctx.mangling_counter;
                 ctx.current_function_name = Some(decl.name.clone());
+                ctx.mangling_counter = 0;  // Reset counter per-function for determinism
 
                 emit_func_signature(&func_name, func_def, output);
                 output.push_str(" {\n");
@@ -2883,8 +2873,9 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 // Pop the function scope frame
                 context.scope_stack.frames.pop();
 
-                // Restore previous function name
+                // Restore previous function name and counter
                 ctx.current_function_name = prev_function_name;
+                ctx.mangling_counter = prev_mangling_counter;
 
                 // Clear current function context
                 ctx.current_throw_types.clear();
@@ -4385,10 +4376,12 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 let prev_mut_params = std::mem::take(&mut ctx.current_mut_params);
                 let prev_variadic_params = std::mem::take(&mut ctx.current_variadic_params);
                 let prev_function_name = ctx.current_function_name.clone();
+                let prev_mangling_counter = ctx.mangling_counter;
 
                 ctx.current_throw_types = func_def.throw_types.clone();
                 ctx.current_return_types = func_def.return_types.clone();
                 ctx.current_function_name = Some(mangled_name.clone());
+                ctx.mangling_counter = 0;  // Reset counter per-function for determinism
 
                 // Track mut and variadic params
                 for arg in &func_def.args {
@@ -4444,6 +4437,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 ctx.current_mut_params = prev_mut_params;
                 ctx.current_variadic_params = prev_variadic_params;
                 ctx.current_function_name = prev_function_name;
+                ctx.mangling_counter = prev_mangling_counter;
 
                 ctx.hoisted_functions.push(func_output);
 
@@ -4590,8 +4584,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 for (member_name, default_expr) in &throwing_defaults {
                     // Get the function's throw types
                     let throw_types = if let Some(first_param) = default_expr.params.first() {
-                        if let Some(fcall_func_name) = get_func_name_string(first_param) {
-                            let lookup_name = fcall_func_name.replacen('_', ".", 1);
+                        if let Some(lookup_name) = get_til_func_name_string(first_param) {
                             context.scope_stack.lookup_func(&lookup_name)
                                 .map(|fd| fd.throw_types.clone())
                                 .unwrap_or_default()
@@ -5552,8 +5545,7 @@ fn emit_fcall_with_hoisted(
                 for (member_name, default_expr) in &throwing_defaults {
                     // Get the function's throw types
                     let throw_types = if let Some(first_param) = default_expr.params.first() {
-                        if let Some(fcall_func_name) = get_func_name_string(first_param) {
-                            let lookup_name = fcall_func_name.replacen('_', ".", 1);
+                        if let Some(lookup_name) = get_til_func_name_string(first_param) {
                             context.scope_stack.lookup_func(&lookup_name)
                                 .map(|fd| fd.throw_types.clone())
                                 .unwrap_or_default()
@@ -5623,10 +5615,12 @@ fn emit_fcall_with_hoisted(
 
     // Look up param types for mut handling
     let param_info: Vec<(Option<ValueType>, bool)> = {
-        // Convert underscore back to dot for lookup (e.g., "I64_inc" -> "I64.inc")
-        let lookup_name = func_name.replacen('_', ".", 1);
-        if let Some(fd) = lookup_func_by_name(context, &lookup_name) {
-            fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect()
+        if let Some(lookup_name) = get_til_func_name_string(&expr.params[0]) {
+            if let Some(fd) = lookup_func_by_name(context, &lookup_name) {
+                fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect()
+            } else {
+                Vec::new()
+            }
         } else {
             Vec::new()
         }
@@ -6377,11 +6371,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         None => return Err("ccodegen: FCall first param not Identifier".to_string()),
     };
 
-    // For builtins, we need the original name without underscore conversion
-    let orig_func_name = match &expr.params[0].node_type {
-        NodeType::Identifier(name) if expr.params[0].params.is_empty() => name.clone(),
-        _ => func_name.replacen('_', ".", 1),  // Convert back for lookup (only first underscore)
-    };
+    // For builtins, we need the original name with dots
+    let orig_func_name = get_til_func_name_string(&expr.params[0])
+        .unwrap_or_else(|| func_name.clone());
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
     if let Some(mangled_name) = ctx.nested_func_names.get(&orig_func_name) {
@@ -6466,8 +6458,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // Hoist non-lvalue args when param type is Dynamic (only at statement level)
     // Need to look up param types first
     if indent > 0 && expr.params.len() > 1 {
-        let lookup_name = orig_func_name.replace('_', ".");
-        if let Some(fd) = lookup_func_by_name(context, &lookup_name) {
+        if let Some(fd) = lookup_func_by_name(context, &orig_func_name) {
             let param_types: Vec<Option<ValueType>> = fd.args.iter()
                 .map(|a| Some(a.value_type.clone()))
                 .collect();
@@ -6711,8 +6702,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                             for (member_name, default_expr) in &throwing_defaults {
                                 // Get the function's throw types
                                 let throw_types = if let Some(first_param) = default_expr.params.first() {
-                                    if let Some(fcall_func_name) = get_func_name_string(first_param) {
-                                        let lookup_name = fcall_func_name.replacen('_', ".", 1);
+                                    if let Some(lookup_name) = get_til_func_name_string(first_param) {
                                         context.scope_stack.lookup_func(&lookup_name)
                                             .map(|fd| fd.throw_types.clone())
                                             .unwrap_or_default()
