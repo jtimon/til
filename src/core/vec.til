@@ -14,7 +14,7 @@ Vec := struct {
     mut cap       : I64  = 0
 
     INIT_CAP : I64 = 16
-    MAX_CAP  : I64 = 1024
+    MAX_CAP  : I64 = 1048576  // 1M elements - needed for large programs like til.til
 
     /** Get number of elements in vec. */
     len := func(self: Vec) returns I64 {
@@ -126,7 +126,7 @@ Vec := struct {
         self.cap = 0
     }
 
-    /** Clone the vec. */
+    /** Clone the vec (allocates new memory, copies elements). */
     clone := func(self: Vec) returns Vec throws AllocError {
         mut cloned := Vec()
         cloned.type_name = self.type_name
