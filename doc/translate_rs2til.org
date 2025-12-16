@@ -169,13 +169,44 @@ Rust: ~items.iter().rev()~
 
 TIL:
 #+begin_src til
-mut i := items.len()
-while i.gt(0) {
-    i = i.sub(1)
-    item := items.get(i)
+mut i := items.len().sub(1)
+while i.gteq(0) {  // TODO: use reverse range when implemented: for i in items.len().sub(1)..0
+    mut item := T()
+    items.get(i, item)
     // use item
+    i.dec()
 }
 #+end_src
+
+Note: Start at ~len().sub(1)~, loop while ~i.gteq(0)~ to include index 0, decrement at end with ~i.dec()~.
+
+** For-in loops
+
+Rust:
+#+begin_src rust
+for item in &items {
+    // use item
+}
+
+for (i, item) in items.iter().enumerate() {
+    // use i and item
+}
+#+end_src
+
+TIL:
+#+begin_src til
+for item: T in items {
+    // use item
+}
+
+for i in 0..items.len() {
+    mut item := T()
+    items.get(i, item)
+    // use i and item
+}
+#+end_src
+
+Note: TIL's ~for item: T in vec~ iterates by value. For indexed access, use range loop with ~get~.
 
 ** Return type and error translation patterns
 
@@ -307,39 +338,70 @@ map.get(key, val)  // out-parameter, throws KeyNotFoundError
 
 ** Catch blocks placement
 
-In TIL, catch blocks must come BEFORE the final return/throw:
+Catch blocks CANNOT be placed in unreachable code (after the final return/throw of a function).
+Placement depends on the error type:
+
+*** KeyNotFoundError (like Rust's Option::None)
+
+Place catch immediately after the throwing call, before using the result:
 
 #+begin_src til
-proc my_proc() throws Str {
-    do_something()  // may throw IndexOutOfBoundsError
+lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
+    mut i := self.frames.len().sub(1)
+    while i.gteq(0) {
+        mut frame := ScopeFrame()
+        self.frames.get(i, frame)
 
-    catch (err: IndexOutOfBoundsError) {
-        throw format("Index error: ", err.msg)
+        if frame.funcs.contains_key(name) {
+            mut func_def := SFuncDef()
+            frame.funcs.get(name, func_def)
+            catch (err: KeyNotFoundError) {
+                // Function not found, continue searching
+            }
+            return func_def
+        }
+
+        i.dec()
     }
 
-    return result  // return comes AFTER catch blocks
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), "IndexOutOfBoundsError in lookup_func: ", err.msg)
+    }
+    throw KeyNotFoundError(msg="lookup_func: Function not found in Context")
 }
 #+end_src
 
-** Simplified error handling with throws Str
+*** Panic-like errors (IndexOutOfBoundsError, AllocError, etc.)
 
-Complex functions often declare ~throws Str~ only, converting typed errors:
+Can be grouped at the end of the function to avoid repetition:
 
 #+begin_src til
 my_func := func() returns T throws Str {
     // ... code that may throw various errors ...
 
-    catch (err: IndexOutOfBoundsError) {
-        throw format("Index error: ", err.msg)
-    }
-    catch (err: KeyNotFoundError) {
-        throw format("Key error: ", err.msg)
-    }
-    catch (err: AllocError) {
-        throw "Allocation failed"
-    }
+    result := compute_result()
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
 
     return result
+}
+#+end_src
+
+*** panic for impossible errors
+
+Use ~panic(loc(), "message")~ for errors that should never happen (e.g., index errors when iterating within known bounds):
+
+#+begin_src til
+mut i := vec.len().sub(1)
+while i.gteq(0) {
+    mut item := T()
+    vec.get(i, item)
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), "vec.get can't fail: i is always within bounds: ", err.msg)
+    }
+    // use item
+    i.dec()
 }
 #+end_src
 
