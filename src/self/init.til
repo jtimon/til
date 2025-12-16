@@ -13,8 +13,6 @@ MAIN_SEPARATOR_STR := "/"
 // Init phase: Declaration indexing and import processing
 // This module handles the "context priming" phase that runs before type checking.
 // No eval, no arena access - declarations only.
-//
-// Translated from src/rs/init.rs
 
 SymbolInfo := struct {
     mut value_type: ValueType = ValueType.TFunction(FunctionType.FTFunc)
@@ -23,9 +21,6 @@ SymbolInfo := struct {
     mut is_own: Bool = false
     mut is_comptime_const: Bool = false  // true if value was comptime-evaluable at declaration
 
-    // TODO: These helper methods are no longer needed since we have parametrized constructors.
-    // Can use SymbolInfo(value_type=..., is_mut=true) directly instead of SymbolInfo.new(...).
-    // Remove these methods and update all call sites.
     new := func(value_type: ValueType, is_mut: Bool, is_copy: Bool, is_own: Bool) returns SymbolInfo {
         return SymbolInfo(value_type=value_type, is_mut=is_mut, is_copy=is_copy, is_own=is_own, is_comptime_const=false)
     }
@@ -67,7 +62,7 @@ ScopeType := enum {
 
 ScopeFrame := struct {
     // maps variable names to their offsets in the arena
-    mut arena_index: Map = Map.new(Str, I64)  // HashMap<String, usize> in Rust (stores offsets)
+    mut arena_index: Map = Map.new(Str, I64) // stores offsets
 
     // All declared symbols (types, constants, variables, and function names)
     // This is necessary for so called "context priming" or "declaration indexing"
@@ -146,7 +141,6 @@ ScopeStack := struct {
         return self.frames.size()
     }
 
-    // REM TODO Use this approach instead of the other workaround in files other than interpreter.til
     last_frame := func(self: ScopeStack) returns ScopeFrame throws IndexOutOfBoundsError {
         mut out := ScopeFrame()
         self.frames.get(self.frames.len().sub(1), out)
@@ -167,12 +161,9 @@ ScopeStack := struct {
             i = i.sub(1)
         }
         catch (err: IndexOutOfBoundsError) {
-            // Internal error - should never happen
         }
         catch (err: KeyNotFoundError) {
-            // Internal error from contains_key - should never happen
         }
-        // Like Rust's None - caller provides error message
         throw KeyNotFoundError()
     }
 
@@ -190,9 +181,7 @@ ScopeStack := struct {
             i = i.sub(1)
         }
         catch (err: IndexOutOfBoundsError) {
-            // Internal error - should never happen
         }
-        // Like Rust's None - caller provides error message
         throw KeyNotFoundError()
     }
 
@@ -355,9 +344,7 @@ ScopeStack := struct {
             i = i.sub(1)
         }
         catch (err: IndexOutOfBoundsError) {
-            // Internal error - should never happen
         }
-        // Like Rust's None - caller provides error message
         throw KeyNotFoundError()
     }
 
@@ -394,9 +381,7 @@ ScopeStack := struct {
             i = i.sub(1)
         }
         catch (err: IndexOutOfBoundsError) {
-            // Internal error - should never happen
         }
-        // Like Rust's None - caller provides error message
         throw KeyNotFoundError()
     }
 
@@ -1592,12 +1577,10 @@ Context := struct {
     mut imports_typer_done: Set = Set.new(Str)
     mut imports_precomp_done: Set = Set.new(Str)
     mut imports_eval_done: Set = Set.new(Str)
-    # REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
-    # REM: This would enable: std := import("src/std") and then std.panic(), std.format(), etc.
-    # REM: TODO change the cached type to support import as returning a struct_def
-    # REM: TODO change the cached type to support import as returning a struct_def
+    // REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
+    // REM: This would enable: std := import("src/std") and then std.panic(), std.format(), etc.
+    // REM: TODO change the cached type to support import as returning a struct_def
 
-    # Context methods (insert/get/copy methods moved to Arena in interpreter.til)
     new := func(path: Str, mode_name: Str) returns Context throws Str {
         mut scope_stack := ScopeStack.new()
         scope_stack.push(ScopeType.Global) # Initialize global scope
