@@ -172,6 +172,41 @@ get_func_name_string := func(first_param: Expr) returns FuncNameResult {
     return result
 }
 
+// Get TIL function name from FCall's first param (for scope lookups)
+// Returns the dot-separated name like "Vec.new" or "I64.inc"
+// This avoids the fragile .replacen('_', ".", 1) hack which breaks on type names with underscores
+get_til_func_name_string := func(first_param: Expr) returns FuncNameResult throws Str {
+    mut result := FuncNameResult()
+    switch first_param.node_type {
+    case NodeType.Identifier(name):
+        if first_param.params.len().eq(0) {
+            // Already has dots (from precomp) or is a simple name
+            result.found = true
+            result.name = name
+        } else {
+            // Build dotted name from nested identifiers
+            mut parts := name
+            mut i := 0
+            while lt(i, first_param.params.len()) {
+                mut p := Expr()
+                first_param.params.get(i, p)
+                switch p.node_type {
+                case NodeType.Identifier(part):
+                    parts = parts.concat(".").concat(part)
+                case:
+                }
+                i = i.add(1)
+            }
+            result.found = true
+            result.name = parts
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    return result
+}
+
 // Result type for get_type_arg_name
 TypeArgResult := struct {
     mut found: Bool = false
@@ -213,27 +248,15 @@ add_var_declared := proc(mut ctx: CodegenContext, name: Str) throws AllocError {
 
 // Check if an expression is a function call that uses out-params (i.e., the function throws)
 // Such calls cannot be used inline in struct initializers - they need separate statements
-is_throwing_fcall := func(expr: Expr, context: Context) returns Bool {
+is_throwing_fcall := proc(expr: Expr, context: Context) returns Bool {
     switch expr.node_type {
     case NodeType.FCall:
-        if gt(expr.params.len(), 0) {
-            mut first_param := Expr()
-            expr.params.get(0, first_param)
-            mut func_name_result := get_func_name_string(first_param)
-            if func_name_result.found {
-                // Convert underscore to dot for lookup (e.g., "Vec_new" -> "Vec.new")
-                mut lookup_name := func_name_result.name.replacen("_", ".", 1)
-                mut func_lookup := lookup_func_by_name(context, lookup_name)
-                if func_lookup.found {
-                    return gt(func_lookup.func_def.throw_types.len(), 0)
-                }
-            }
+        mut func_lookup := get_fcall_func_def(context, expr)
+        if func_lookup.found {
+            return gt(func_lookup.func_def.throw_types.len(), 0)
         }
     case:
     }
-
-    catch (err: IndexOutOfBoundsError) { }
-    catch (err: AllocError) { }
     return false
 }
 
@@ -275,37 +298,24 @@ til_type_to_c := func(til_type: ValueType) returns Str throws Str {
     }
 }
 
-// Result type for lookup_func_by_name
+// Result type for get_fcall_func_def
 FuncLookupResult := struct {
     mut found: Bool = false
     mut func_def: SFuncDef = SFuncDef()
 }
 
-// Lookup function in scope_stack, trying both underscore and dot notation
-// get_fcall_func_name returns underscore format (Str_clone) but scope_stack uses dots (Str.clone)
-lookup_func_by_name := func(context: Context, func_name: Str) returns FuncLookupResult {
+// Get function definition for an FCall expression
+// Uses get_func_def_for_fcall from typer.til which handles all cases correctly
+// (regular functions, struct methods, UFCS - though UFCS is already resolved by precomp)
+// Returns found=false for struct/enum constructors
+get_fcall_func_def := proc(context: Context, fcall_expr: Expr) returns FuncLookupResult {
     mut result := FuncLookupResult()
-    // Try exact name first (for regular functions)
-    mut fd := context.scope_stack.lookup_func(func_name)
+    mut fd := get_func_def_for_fcall(context, fcall_expr)
     result.found = true
     result.func_def = fd
 
-    catch (err: KeyNotFoundError) {
-        // First lookup failed, try converting first underscore to dot (for struct methods)
-        mut idx := func_name.find("_")
-        if idx.gteq(0) {
-            mut dot_name := func_name.get_substr(0, idx)
-            dot_name = dot_name.concat(".")
-            dot_name = dot_name.concat(func_name.get_substr(add(idx, 1), func_name.len()))
-            mut fd2 := context.scope_stack.lookup_func(dot_name)
-            result.found = true
-            result.func_def = fd2
-
-            catch (err2: KeyNotFoundError) { }
-            catch (err2: IndexOutOfBoundsError) { }
-            catch (err2: AllocError) { }
-        }
-    }
+    catch (err: Str) { }
+    catch (err: KeyNotFoundError) { }
 
     return result
 }
@@ -425,7 +435,7 @@ check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) 
             catch (err: IndexOutOfBoundsError) { }
 
             if gt(func_name.len(), 0) {
-                mut lookup_result := lookup_func_by_name(context, func_name)
+                mut lookup_result := get_fcall_func_def(context, expr)
                 if lookup_result.found {
                     if gt(lookup_result.func_def.throw_types.len(), 0) {
                         result.is_throwing = true
@@ -450,7 +460,7 @@ check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) 
 
 // Hoist a single expression if it's a throwing call, or recursively hoist throwing calls within it.
 // Returns the output string with hoisted code prepended.
-hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str, AllocError, IndexOutOfBoundsError, KeyNotFoundError {
+hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
     mut indent_str := ""
     mut ind := 0
@@ -463,18 +473,20 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
     mut throwing_info := check_throwing_fcall(expr, ctx, context)
     if throwing_info.is_throwing {
         // First, recursively hoist any throwing calls in this call's arguments
+        mut nested_hoisted := Map.new(I64, Str)
+        catch (err: AllocError) { throw err.msg }
         if gt(expr.params.len(), 1) {
-            mut arg_idx := 1
-            while lt(arg_idx, expr.params.len()) {
-                mut arg := Expr()
-                expr.params.get(arg_idx, arg)
-                mut arg_info := check_throwing_fcall(arg, ctx, context)
-                if arg_info.is_throwing {
-                    // Recursively hoist this argument
-                    result = hoist_throwing_expr(arg, result, indent, ctx, context)
-                }
-                arg_idx = add(arg_idx, 1)
+            mut nested_vec := hoist_throwing_args(expr.params, result, indent, ctx, context)
+            // Convert Vec<HoistedArg> to Map<I64, Str>
+            mut nhi := 0
+            while lt(nhi, nested_vec.len()) {
+                mut entry := HoistedArg()
+                nested_vec.get(nhi, entry)
+                nested_hoisted.set(entry.index, entry.temp_var)
+                nhi = add(nhi, 1)
             }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            catch (err: AllocError) { throw err.msg }
         }
 
         mut temp_var := next_mangled(ctx)
@@ -500,14 +512,34 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
             case:
             }
             err_idx = add(err_idx, 1)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+        }
+
+        // Detect and construct variadic array if needed
+        mut variadic_info := detect_variadic_fcall(expr, ctx)
+        mut variadic_arr_var := ""
+        mut has_variadic_arr := false
+        if variadic_info.is_variadic {
+            mut variadic_args := Vec.new(Expr)
+            catch (err: AllocError) { throw err.msg }
+            mut vi := add(1, variadic_info.regular_count)
+            while lt(vi, expr.params.len()) {
+                mut varg := Expr()
+                expr.params.get(vi, varg)
+                variadic_args.push(varg)
+                vi = add(vi, 1)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                catch (err: AllocError) { throw err.msg }
+            }
+            variadic_arr_var = hoist_variadic_args(variadic_info.elem_type, variadic_args, nested_hoisted, variadic_info.regular_count, result, indent, ctx, context)
+            has_variadic_arr = true
         }
 
         // Emit the function call with output pointers
         result = result.concat(indent_str).concat("int _status_").concat(temp_suffix).concat(" = ")
 
-        // Emit the function name and args
-        mut nested_hoisted := Map.new(I64, Str)
-        result = emit_fcall_name_and_args_for_throwing(expr, temp_var, temp_suffix, throwing_info.throw_types, nested_hoisted, "", result, ctx, context)
+        // Emit the function name and args (using nested hoisted temps)
+        result = emit_fcall_name_and_args_for_throwing(expr, temp_var, temp_suffix, throwing_info.throw_types, nested_hoisted, variadic_arr_var, result, ctx, context)
 
         result = result.concat(";\n")
 
@@ -515,18 +547,19 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         // Check if there are local catch labels for these error types
         mut has_local_catch := false
         mut throw_check_idx := 0
-        while throw_check_idx.lt(throwing_info.throw_types.len()) {
+        while lt(throw_check_idx, throwing_info.throw_types.len()) {
             mut throw_type := ValueType.TCustom("")
             throwing_info.throw_types.get(throw_check_idx, throw_type)
             switch throw_type {
             case ValueType.TCustom(type_name):
-                if Map.contains_key(ctx.local_catch_labels, type_name) {
+                if ctx.local_catch_labels.contains_key(type_name) {
                     has_local_catch = true
                     break
                 }
             case:
             }
-            throw_check_idx.inc()
+            throw_check_idx = add(throw_check_idx, 1)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
 
         if has_local_catch {
@@ -537,9 +570,9 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                 throwing_info.throw_types.get(err_idx, throw_type)
                 switch throw_type {
                 case ValueType.TCustom(type_name):
-                    if Map.contains_key(ctx.local_catch_labels, type_name) {
+                    if ctx.local_catch_labels.contains_key(type_name) {
                         mut catch_info := CatchLabelInfo()
-                        Map.get(ctx.local_catch_labels, type_name, catch_info)
+                        ctx.local_catch_labels.get(type_name, catch_info)
                         result = result.concat(indent_str).concat("if (_status_").concat(temp_suffix).concat(" == ").concat(add(err_idx, 1).to_str()).concat(") { ")
                         result = result.concat(catch_info.temp_var).concat(" = _err").concat(err_idx.to_str()).concat("_").concat(temp_suffix)
                         result = result.concat("; goto ").concat(catch_info.label).concat("; }\n")
@@ -547,6 +580,8 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                 case:
                 }
                 err_idx = add(err_idx, 1)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                catch (err: KeyNotFoundError) { throw err.msg }
             }
         } else {
             // Propagate errors
@@ -573,18 +608,25 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                         case:
                         }
                         curr_idx = add(curr_idx, 1)
+                        catch (err: IndexOutOfBoundsError) { throw err.msg }
                     }
                 case:
                 }
                 err_idx = add(err_idx, 1)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
             }
 
             result = result.concat(indent_str).concat("}\n")
         }
 
-        // Store temp var in hoisted_exprs for caller to use
-        mut hoisted_key := ctx.hoisted_exprs.len()
-        Map.set(ctx.hoisted_exprs, hoisted_key, temp_var)
+        // Emit Array.delete if variadic array was constructed
+        if has_variadic_arr {
+            result = result.concat(indent_str).concat(TIL_PREFIX).concat("Array_delete(&").concat(variadic_arr_var).concat(");\n")
+        }
+
+        // Record in hoisted_exprs map using line:col as key
+        mut expr_key := expr.line.to_str().concat(":").concat(expr.col.to_str())
+        ctx.hoisted_exprs.set(expr_key, temp_var)
 
         return result
     }
@@ -596,16 +638,9 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         if variadic_info.is_variadic {
             // Recursively hoist any throwing/variadic calls in this call's arguments first
             mut nested_hoisted := Map.new(I64, Str)
+            catch (err: AllocError) { throw err.msg }
             if gt(expr.params.len(), 1) {
-                mut nested_args := Vec.new(Expr)
-                mut ni := 1
-                while lt(ni, expr.params.len()) {
-                    mut narg := Expr()
-                    expr.params.get(ni, narg)
-                    nested_args.push(narg)
-                    ni = add(ni, 1)
-                }
-                mut nested_vec := hoist_throwing_args(nested_args, result, indent, ctx, context)
+                mut nested_vec := hoist_throwing_args(expr.params, result, indent, ctx, context)
                 // Convert Vec<HoistedArg> to Map<I64, Str>
                 mut nhi := 0
                 while lt(nhi, nested_vec.len()) {
@@ -614,36 +649,40 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                     nested_hoisted.set(entry.index, entry.temp_var)
                     nhi = add(nhi, 1)
                 }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                catch (err: AllocError) { throw err.msg }
             }
 
             mut temp_var := next_mangled(ctx)
 
             // Determine return type from function
-            mut c_type := "int"
             mut func_name := get_fcall_func_name(expr)
-            if gt(func_name.len(), 0) {
-                mut fd_result := lookup_func_by_name(context, func_name)
-                if fd_result.found {
-                    if gt(fd_result.func_def.return_types.len(), 0) {
-                        mut ret_type := ValueType.TCustom("")
-                        fd_result.func_def.return_types.get(0, ret_type)
-                        c_type = til_type_to_c(ret_type)
-                        catch (err: IndexOutOfBoundsError) { }
-                    }
-                }
+            mut fd_result := get_fcall_func_def(context, expr)
+            if not(fd_result.found) {
+                throw expr.lang_error(context.path, "ccodegen", concat("Function not found: ", func_name))
             }
+            if eq(fd_result.func_def.return_types.len(), 0) {
+                throw expr.lang_error(context.path, "ccodegen", "Function has no return type")
+            }
+            mut ret_type := ValueType.TCustom("")
+            fd_result.func_def.return_types.get(0, ret_type)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            mut c_type := til_type_to_c(ret_type)
 
             // Declare temp variable
             result = result.concat(indent_str).concat(c_type).concat(" ").concat(temp_var).concat(";\n")
 
             // Construct variadic array
             mut variadic_args := Vec.new(Expr)
+            catch (err: AllocError) { throw err.msg }
             mut vi := add(1, variadic_info.regular_count)
             while lt(vi, expr.params.len()) {
                 mut varg := Expr()
                 expr.params.get(vi, varg)
                 variadic_args.push(varg)
                 vi = add(vi, 1)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                catch (err: AllocError) { throw err.msg }
             }
             mut variadic_arr_var := hoist_variadic_args(variadic_info.elem_type, variadic_args, nested_hoisted, variadic_info.regular_count, result, indent, ctx, context)
 
@@ -675,6 +714,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                 } else {
                     mut param := Expr()
                     expr.params.get(add(ri, 1), param)
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
                     result = emit_expr(param, result, 0, ctx, context)
                 }
                 ri = add(ri, 1)
@@ -686,101 +726,113 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
             }
             result = result.concat("&").concat(variadic_arr_var).concat(");\n")
 
-            // Delete the variadic array
+            // Emit Array.delete for the variadic array
             result = result.concat(indent_str).concat(TIL_PREFIX).concat("Array_delete(&").concat(variadic_arr_var).concat(");\n")
 
-            // Store temp var in hoisted_exprs for caller to use
+            // Record in hoisted_exprs map using line:col as key
             mut expr_key := expr.line.to_str().concat(":").concat(expr.col.to_str())
             ctx.hoisted_exprs.set(expr_key, temp_var)
 
             return result
         }
     case:
-        // Not an FCall
     }
 
     // Check if this is a struct literal with throwing default values
     switch expr.node_type {
     case NodeType.FCall:
-        mut func_name := get_fcall_func_name(expr)
-        if gt(func_name.len(), 0) {
-            mut has_named_args := false
-            mut nai := 1
-            while lt(nai, expr.params.len()) {
-                mut narg := Expr()
-                expr.params.get(nai, narg)
-                switch narg.node_type {
-                case NodeType.NamedArg(field_name):
-                    has_named_args = true
-                case:
-                }
-                nai = add(nai, 1)
-            }
-            catch (err: IndexOutOfBoundsError) { }
-
-            // Check if func_name is a known struct
-            mut found_struct := false
-            mut struct_def := context.scope_stack.lookup_struct(func_name)
-            found_struct = true
-            catch (err: KeyNotFoundError) { }
-
-            if found_struct {
-                if eq(expr.params.len(), 1).or(has_named_args) {
-                    // This is a struct literal - check for throwing defaults
-                    // Build set of named arg names that are provided
-                    mut provided_names := Set.new(Str)
-                    mut pai := 1
-                    while lt(pai, expr.params.len()) {
-                        mut parg := Expr()
-                        expr.params.get(pai, parg)
-                        switch parg.node_type {
-                        case NodeType.NamedArg(field_name):
-                            _ := provided_names.insert(field_name)
-                        case:
-                        }
-                        pai = add(pai, 1)
+        if gt(expr.params.len(), 0) {
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            mut func_name_result := get_func_name_string(first_param)
+            if func_name_result.found {
+                mut func_name := func_name_result.name
+                mut has_named_args := false
+                mut nai := 1
+                while lt(nai, expr.params.len()) {
+                    mut narg := Expr()
+                    expr.params.get(nai, narg)
+                    switch narg.node_type {
+                    case NodeType.NamedArg(field_name):
+                        has_named_args = true
+                    case:
                     }
-                    catch (err: IndexOutOfBoundsError) { }
+                    nai = add(nai, 1)
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
+                }
 
-                    // For each member with a default that's a throwing call and not overridden, emit temp var
-                    for member: Declaration in struct_def.members {
-                        if not(member.is_mut) {
-                            continue
+                // Check if func_name is a known struct
+                mut found_struct := false
+                mut struct_def := context.scope_stack.lookup_struct(func_name)
+                found_struct = true
+                catch (err: KeyNotFoundError) { }
+
+                if found_struct {
+                    if or(eq(expr.params.len(), 1), has_named_args) {
+                        // This is a struct literal - check for throwing defaults
+                        // Build set of named arg names that are provided
+                        mut provided_names := Set.new(Str)
+                        catch (err: AllocError) { throw err.msg }
+                        mut pai := 1
+                        while lt(pai, expr.params.len()) {
+                            mut parg := Expr()
+                            expr.params.get(pai, parg)
+                            switch parg.node_type {
+                            case NodeType.NamedArg(field_name):
+                                _ := provided_names.insert(field_name)
+                                catch (err: AllocError) { throw err.msg }
+                            case:
+                            }
+                            pai = add(pai, 1)
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
                         }
-                        if provided_names.contains(member.name) {
-                            continue  // Named arg overrides default
-                        }
-                        // Check if there's a default value for this member
-                        mut default_expr := Expr()
-                        mut has_default := false
-                        struct_def.default_values.get(member.name, default_expr)
-                        has_default = true
-                        catch (err: KeyNotFoundError) { }
 
-                        if has_default {
-                            // Check if the default is a throwing function call
-                            mut default_throwing := check_throwing_fcall(default_expr, ctx, context)
-                            if default_throwing.is_throwing {
-                                // Emit the throwing call as a temp var with unique name
-                                mut temp_name := next_mangled(ctx)
+                        // For each member with a default that's a throwing call and not overridden, emit temp var
+                        for member: Declaration in struct_def.members {
+                            if not(member.is_mut) {
+                                continue
+                            }
+                            if provided_names.contains(member.name) {
+                                continue  // Named arg overrides default
+                            }
+                            // Check if there's a default value for this member
+                            mut default_expr := Expr()
+                            mut has_default := false
+                            struct_def.default_values.get(member.name, default_expr)
+                            has_default = true
+                            catch (err: KeyNotFoundError) { }
 
-                                // Get C type for the temp variable
-                                mut c_type := "int"
-                                if default_throwing.has_return_type {
-                                    c_type = til_type_to_c(default_throwing.return_type)
+                            if has_default {
+                                if is_throwing_fcall(default_expr, context) {
+                                    // Get the function's throw types
+                                    mut throw_types := Vec.new(ValueType)
+                                    catch (err: AllocError) { throw err.msg }
+                                    if gt(default_expr.params.len(), 0) {
+                                        mut def_first := Expr()
+                                        default_expr.params.get(0, def_first)
+                                        catch (err: IndexOutOfBoundsError) { throw err.msg }
+                                        mut lookup_name_result := get_til_func_name_string(def_first)
+                                        if lookup_name_result.found {
+                                            mut fd := context.scope_stack.lookup_func(lookup_name_result.name)
+                                            throw_types = fd.throw_types
+                                            catch (err: KeyNotFoundError) { }
+                                        }
+                                    }
+
+                                    mut temp_name := next_mangled(ctx)
+                                    // Emit the function call with out-param using emit_throwing_call_propagate
+                                    result = emit_throwing_call_propagate(default_expr, throw_types, temp_name, "", result, indent, ctx, context)
+                                    // Record that this struct default was hoisted using "struct_name:member_name" key
+                                    mut key := func_name.concat(":").concat(member.name)
+                                    ctx.hoisted_struct_defaults.insert(key, temp_name)
+                                    catch (err: DuplicatedKeyError) { }  // Ignore if already hoisted
+                                    catch (err: AllocError) { throw err.msg }
+                                } else {
+                                    // Also recursively hoist any throwing expressions in the default
+                                    // This handles nested struct constructors with throwing defaults
+                                    result = hoist_throwing_expr(default_expr, result, indent, ctx, context)
                                 }
-
-                                // Emit the temp var using emit_throwing_call_propagate
-                                result = emit_throwing_call_propagate(default_expr, default_throwing.throw_types, temp_name, "", result, indent, ctx, context)
-
-                                // Record that this struct default was hoisted using "struct_name:member_name" key
-                                key := func_name.concat(":").concat(member.name)
-                                ctx.hoisted_struct_defaults.insert(key, temp_name)
-                                catch (err: DuplicatedKeyError) { }  // Ignore if already hoisted
-                            } else {
-                                // Also recursively hoist any throwing expressions in the default
-                                // This handles nested struct constructors with throwing defaults
-                                result = hoist_throwing_expr(default_expr, result, indent, ctx, context)
                             }
                         }
                     }
@@ -791,6 +843,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
     }
 
     // Not a throwing call or variadic call - recursively check sub-expressions
+    // For FCall, check all arguments
     switch expr.node_type {
     case NodeType.FCall:
         if gt(expr.params.len(), 1) {
@@ -798,20 +851,24 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
             while lt(arg_idx, expr.params.len()) {
                 mut arg := Expr()
                 expr.params.get(arg_idx, arg)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
                 result = hoist_throwing_expr(arg, result, indent, ctx, context)
                 arg_idx = add(arg_idx, 1)
             }
         }
     case:
+        // For other expression types with sub-expressions, recurse into them
         mut param_idx := 0
         while lt(param_idx, expr.params.len()) {
             mut param := Expr()
             expr.params.get(param_idx, param)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
             result = hoist_throwing_expr(param, result, indent, ctx, context)
             param_idx = add(param_idx, 1)
         }
     }
 
+    catch (err: AllocError) { throw err.msg }
     return result
 }
 
@@ -3143,9 +3200,7 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: Str, mut ctx: 
     result = result.concat(TIL_PREFIX).concat(func_name).concat("(")
 
     // Look up param types for mut handling
-    // Convert underscore back to dot for lookup (e.g., "I64_inc" -> "I64.inc")
-    mut lookup_name := func_name.replacen("_", ".", 1)
-    mut func_lookup := lookup_func_by_name(context, lookup_name)
+    mut func_lookup := get_fcall_func_def(context, expr)
 
     mut i := 0
     mut params_len := expr.params.len()
@@ -3180,7 +3235,6 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: Str, mut ctx: 
     result = result.concat(")")
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
     return result
 }
 
@@ -3191,20 +3245,17 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
     }
 
     mut result := output
-
-    // Generate indentation string
     mut indent_str := ""
     mut ind := 0
     while lt(ind, indent) {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
+        ind = ind.add(1)
     }
 
     // Hoist declarations from both branches to before the if statement
     // (TIL has function-level scoping, not block-level scoping)
     mut then_body := Expr()
     expr.params.get(1, then_body)
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     then_decls := collect_declarations_in_body(then_body, context)
     mut decl_idx := 0
     while lt(decl_idx, then_decls.len()) {
@@ -3225,9 +3276,6 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
             }
         }
         decl_idx = add(decl_idx, 1)
-
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        catch (err: AllocError) { throw err.msg }
     }
     if gt(expr.params.len(), 2) {
         mut else_body := Expr()
@@ -3252,20 +3300,13 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
                 }
             }
             decl_idx = add(decl_idx, 1)
-
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: AllocError) { throw err.msg }
         }
     }
 
     // Hoist any throwing function calls in the condition
     mut cond := Expr()
     expr.params.get(0, cond)
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     result = hoist_throwing_expr(cond, result, indent, ctx, context)
-    catch (err: AllocError) { throw "emit_if: AllocError in hoist_throwing_expr" }
-    catch (err: KeyNotFoundError) { throw "emit_if: KeyNotFoundError in hoist_throwing_expr" }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     result = result.concat(indent_str)
     result = result.concat("if (")
@@ -3284,7 +3325,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
 
     // Don't save/restore declared_vars - TIL has function-level scoping
     // Variables declared in if branches stay declared for the rest of the function
-    result = emit_body(then_body, result, add(indent, 1), ctx, context)
+    result = emit_body(then_body, result, indent.add(1), ctx, context)
 
     result = result.concat(indent_str)
     result = result.concat("}")
@@ -3298,13 +3339,13 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
             // Always wrap else-if in braces to ensure hoisted temp vars
             // from nested if conditions have proper scope
             result = result.concat(" else {\n")
-            result = emit_if(else_part, result, add(indent, 1), ctx, context)
+            result = emit_if(else_part, result, indent.add(1), ctx, context)
             result = result.concat(indent_str)
             result = result.concat("}\n")
         case:
             // else block
             result = result.concat(" else {\n")
-            result = emit_body(else_part, result, add(indent, 1), ctx, context)
+            result = emit_body(else_part, result, indent.add(1), ctx, context)
             result = result.concat(indent_str)
             result = result.concat("}\n")
         }
@@ -3313,6 +3354,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
     return result
 }
 
@@ -3323,20 +3365,17 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     }
 
     mut result := output
-
-    // Generate indentation string
     mut indent_str := ""
     mut ind := 0
     while lt(ind, indent) {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
+        ind = ind.add(1)
     }
 
     // Hoist declarations from loop body to before the while statement
     // (TIL has function-level scoping, not block-level scoping)
     mut body := Expr()
     expr.params.get(1, body)
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     body_decls := collect_declarations_in_body(body, context)
     mut decl_idx := 0
     while lt(decl_idx, body_decls.len()) {
@@ -3357,24 +3396,17 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             }
         }
         decl_idx = add(decl_idx, 1)
-
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        catch (err: AllocError) { throw err.msg }
     }
 
     // Check if condition contains throwing calls by trying to hoist to a temp buffer
     mut cond := Expr()
     expr.params.get(0, cond)
     mut hoist_output := hoist_throwing_expr(cond, "", indent.add(1), ctx, context)
-    catch (err: AllocError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw err.msg }
 
     if hoist_output.len().eq(0) {
         // No throwing calls in condition - use simple while
         result = result.concat(indent_str)
         result = result.concat("while (")
-
         result = emit_expr(cond, result, 0, ctx, context)
         // Bool is a struct with .data field - extract for C truthiness
         mut cond_type := get_value_type(context, cond)
@@ -3396,8 +3428,14 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         result = result.concat(hoist_output)
 
         // Emit condition check with break
-        result = result.concat(indent_str)
-        result = result.concat("    if (!(")
+        mut inner_indent_str := ""
+        mut inner_ind := 0
+        while lt(inner_ind, indent.add(1)) {
+            inner_indent_str = inner_indent_str.concat("    ")
+            inner_ind = inner_ind.add(1)
+        }
+        result = result.concat(inner_indent_str)
+        result = result.concat("if (!(")
         result = emit_expr(cond, result, 0, ctx, context)
         // Bool is a struct with .data field - extract for C truthiness
         mut cond_type := get_value_type(context, cond)
@@ -3419,6 +3457,8 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     result = result.concat(indent_str)
     result = result.concat("}\n")
 
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
     return result
 }
 
@@ -3668,9 +3708,6 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
     // Hoist any throwing function calls in the switch expression
     result = hoist_throwing_expr(switch_expr, result, indent, ctx, context)
-    catch (err: AllocError) { throw "emit_switch: AllocError in hoist_throwing_expr" }
-    catch (err: KeyNotFoundError) { throw "emit_switch: KeyNotFoundError in hoist_throwing_expr" }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Determine the type of the switch expression for proper comparison
     mut switch_type := ValueType.TCustom("")
@@ -4566,23 +4603,12 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
         }
 
         if has_fcall {
-            // Get function name from the FCall
-            mut func_name := get_fcall_func_name(maybe_fcall)
-
             // Check if this function is a throwing function
-            if gt(func_name.len(), 0) {
-                mut throw_types := Vec.new(ValueType)
-                catch (err: AllocError) { throw err.msg }
-                mut is_throwing := false
-                mut lookup_result := lookup_func_by_name(context, func_name)
-                if lookup_result.found {
-                    if gt(lookup_result.func_def.throw_types.len(), 0) {
-                        throw_types = lookup_result.func_def.throw_types
-                        is_throwing = true
-                    }
-                }
+            mut lookup_result := get_fcall_func_def(context, maybe_fcall)
+            if lookup_result.found {
+                if gt(lookup_result.func_def.throw_types.len(), 0) {
+                    mut throw_types := lookup_result.func_def.throw_types
 
-                if is_throwing {
                     // Collect subsequent catch blocks
                     mut catch_blocks := Vec.new(Expr)
                     catch (err: AllocError) { throw err.msg }
@@ -4605,112 +4631,102 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                         // Immediate catches AND no function-level catches - handle inline
                         if has_decl {
                             result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, maybe_decl_name, "", result, indent, ctx, context)
+                        } else if has_assign {
+                            result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, "", maybe_assign_name, result, indent, ctx, context)
                         } else {
-                            if has_assign {
-                                result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, "", maybe_assign_name, result, indent, ctx, context)
-                            } else {
-                                result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, "", "", result, indent, ctx, context)
-                            }
+                            result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, "", "", result, indent, ctx, context)
                         }
-                        i = add(i, add(1, catch_blocks.len()))  // Skip past catch blocks
+                        i = j  // Skip past catch blocks
+                        continue
+                    } else if and(gt(ctx.current_throw_types.len(), 0), eq(ctx.local_catch_labels.len(), 0)) {
+                        // No catch blocks, we're inside a throwing function, and no local catches
+                        // Emit error propagation pattern
+                        if has_decl {
+                            result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
+                        } else if has_assign {
+                            result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
+                        } else {
+                            result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
+                        }
+                        i = add(i, 1)
+                        continue
+                    } else if or(gt(func_level_catches.len(), 0), gt(ctx.local_catch_labels.len(), 0)) {
+                        // Has function-level catches or outer catches registered
+                        // Bug #39 fix: Update local_catch_labels to point to NEXT catch for each type
+                        // Build map with only catches AFTER current position
+                        ctx.local_catch_labels.clear()
+                        mut next_idx := 0
+                        while lt(next_idx, all_catch_info.len()) {
+                            mut catch_entry := CatchLabelInfoEntry()
+                            all_catch_info.get(next_idx, catch_entry)
+                            if gt(catch_entry.stmt_index, i) {
+                                // First catch of this type after current position
+                                if not(ctx.local_catch_labels.contains_key(catch_entry.type_name)) {
+                                    mut info := CatchLabelInfo()
+                                    info.label = catch_entry.label
+                                    info.temp_var = catch_entry.temp_var
+                                    ctx.local_catch_labels.set(catch_entry.type_name, info)
+                                }
+                            }
+                            next_idx = add(next_idx, 1)
+                        }
+                        catch (err: IndexOutOfBoundsError) { throw err.msg }
+                        catch (err: AllocError) { throw err.msg }
+
+                        if has_decl {
+                            result = emit_throwing_call_with_goto(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
+                        } else if has_assign {
+                            result = emit_throwing_call_with_goto(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
+                        } else {
+                            result = emit_throwing_call_with_goto(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
+                        }
+                        i = add(i, 1)
                         continue
                     } else {
-                        if and(gt(ctx.current_throw_types.len(), 0), eq(ctx.local_catch_labels.len(), 0)) {
-                            // No catch blocks, we're inside a throwing function, and no local catches
-                            // Emit error propagation pattern
-                            if has_decl {
-                                result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
-                            } else {
-                                if has_assign {
-                                    result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
-                                } else {
-                                    result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
-                                }
-                            }
-                            i = add(i, 1)
-                            continue
-                        } else {
-                            if or(gt(func_level_catches.len(), 0), gt(ctx.local_catch_labels.len(), 0)) {
-                                // Has function-level catches or outer catches registered
-                                // Bug #39 fix: Update local_catch_labels to point to NEXT catch for each type
-                                // Build map with only catches AFTER current position
-                                ctx.local_catch_labels.clear()
-                                mut next_idx := 0
-                                while lt(next_idx, all_catch_info.len()) {
-                                    mut catch_entry := CatchLabelInfoEntry()
-                                    all_catch_info.get(next_idx, catch_entry)
-                                    if gt(catch_entry.stmt_index, i) {
-                                        // First catch of this type after current position
-                                        if not(ctx.local_catch_labels.contains_key(catch_entry.type_name)) {
-                                            mut info := CatchLabelInfo()
-                                            info.label = catch_entry.label
-                                            info.temp_var = catch_entry.temp_var
-                                            ctx.local_catch_labels.set(catch_entry.type_name, info)
-                                        }
-                                    }
-                                    next_idx = add(next_idx, 1)
-                                }
-                                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                                catch (err: AllocError) { throw err.msg }
-
-                                if has_decl {
-                                    result = emit_throwing_call_with_goto(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
-                                } else {
-                                    if has_assign {
-                                        result = emit_throwing_call_with_goto(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
-                                    } else {
-                                        result = emit_throwing_call_with_goto(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
-                                    }
-                                }
-                                i = add(i, 1)
-                                continue
-                            } else {
-                                // No catches - typer should have caught this if we're in non-throwing context
-                                // Just use propagate (will silently succeed on error if we're not throwing)
-                                if has_decl {
-                                    result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
-                                } else {
-                                    if has_assign {
-                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
-                                    } else {
-                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
-                                    }
-                                }
-                                i = add(i, 1)
-                                continue
-                            }
-                        }
-                    }
-                } else {
-                    // Not a throwing function - check for variadic call
-                    mut variadic_info := detect_variadic_fcall(maybe_fcall, ctx)
-                    if variadic_info.is_variadic {
-                        // Emit variadic call with proper array construction
+                        // No catches - typer should have caught this if we're in non-throwing context
+                        // Just use propagate (will silently succeed on error if we're not throwing)
                         if has_decl {
-                            result = emit_variadic_call(maybe_fcall, variadic_info.elem_type, variadic_info.regular_count, maybe_decl_name, "", result, indent, ctx, context)
+                            result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
+                        } else if has_assign {
+                            result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
                         } else {
-                            if has_assign {
-                                result = emit_variadic_call(maybe_fcall, variadic_info.elem_type, variadic_info.regular_count, "", maybe_assign_name, result, indent, ctx, context)
-                            } else {
-                                result = emit_variadic_call(maybe_fcall, variadic_info.elem_type, variadic_info.regular_count, "", "", result, indent, ctx, context)
-                            }
+                            result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
                         }
+                        i = add(i, 1)
+                        continue
+                    }
+                }
+            }
+        }
+
+        // Check for non-throwing variadic calls in declarations/assignments
+        if has_fcall {
+            mut variadic_info := detect_variadic_fcall(maybe_fcall, ctx)
+            if variadic_info.is_variadic {
+                // Check that this is NOT a throwing function (those are handled above)
+                mut is_throwing := false
+                mut lookup_result := get_fcall_func_def(context, maybe_fcall)
+                if lookup_result.found {
+                    is_throwing = gt(lookup_result.func_def.throw_types.len(), 0)
+                }
+
+                if not(is_throwing) {
+                    if has_decl {
+                        result = emit_variadic_call(maybe_fcall, variadic_info.elem_type, variadic_info.regular_count, maybe_decl_name, "", result, indent, ctx, context)
+                    } else if has_assign {
+                        result = emit_variadic_call(maybe_fcall, variadic_info.elem_type, variadic_info.regular_count, "", maybe_assign_name, result, indent, ctx, context)
                     } else {
-                        // Regular non-throwing, non-variadic statement
-                        result = emit_expr(stmt, result, indent, ctx, context)
+                        result = emit_variadic_call(maybe_fcall, variadic_info.elem_type, variadic_info.regular_count, "", "", result, indent, ctx, context)
                     }
                     i = add(i, 1)
+                    continue
                 }
-            } else {
-                // Couldn't get function name, emit regular statement
-                result = emit_expr(stmt, result, indent, ctx, context)
-                i = add(i, 1)
             }
-        } else {
-            // Regular statement handling
-            result = emit_expr(stmt, result, indent, ctx, context)
-            i = add(i, 1)
         }
+
+        // Regular statement handling
+        result = emit_expr(stmt, result, indent, ctx, context)
+        i = add(i, 1)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
 
@@ -4748,7 +4764,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
 
     // Calculate param info for mut param handling
     mut param_is_mut := Vec.new(Bool)
-    mut lookup_result := lookup_func_by_name(context, func_name)
+    mut lookup_result := get_fcall_func_def(context, fcall)
     mut pi := 0
     while lt(pi, sub(fcall.params.len(), 1)) {
         mut is_mut := false
@@ -6406,9 +6422,6 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     mut hoisted_key := ctx.hoisted_exprs.len()
     mut result := output
     result = hoist_throwing_expr(thrown_expr, result, indent, ctx, context)
-    catch (err: AllocError) { throw "emit_throw: AllocError in hoist_throwing_expr" }
-    catch (err: KeyNotFoundError) { throw "emit_throw: KeyNotFoundError in hoist_throwing_expr" }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     mut hoisted_temp := ""
     mut was_hoisted := gt(ctx.hoisted_exprs.len(), hoisted_key)
     if was_hoisted {
@@ -6431,29 +6444,24 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             case NodeType.Identifier(name):
                 // Check if this is a constructor (struct/enum) or a function call
                 // If it's a function that returns a type, use the return type
-                mut func_name := get_fcall_func_name(thrown_expr)
-                if gt(func_name.len(), 0) {
-                    mut lookup_result := lookup_func_by_name(context, func_name)
-                    if lookup_result.found {
-                        // It's a function - use its return type as the thrown type
-                        if gt(lookup_result.func_def.return_types.len(), 0) {
-                            mut ret_type := ValueType.TFunction(FunctionType.FTFunc)
-                            lookup_result.func_def.return_types.get(0, ret_type)
-                            switch ret_type {
-                            case ValueType.TCustom(type_name):
-                                thrown_type_name = type_name
-                            case:
-                                thrown_type_name = value_type_to_str(ret_type)
-                            }
-                        } else {
-                            // No return type, assume it's a constructor
-                            thrown_type_name = name
+                mut lookup_result := get_fcall_func_def(context, thrown_expr)
+                if lookup_result.found {
+                    // It's a function - use its return type as the thrown type
+                    if gt(lookup_result.func_def.return_types.len(), 0) {
+                        mut ret_type := ValueType.TFunction(FunctionType.FTFunc)
+                        lookup_result.func_def.return_types.get(0, ret_type)
+                        switch ret_type {
+                        case ValueType.TCustom(type_name):
+                            thrown_type_name = type_name
+                        case:
+                            thrown_type_name = value_type_to_str(ret_type)
                         }
                     } else {
-                        // Not a function, assume it's a constructor
+                        // No return type, assume it's a constructor
                         thrown_type_name = name
                     }
                 } else {
+                    // Not a function, assume it's a constructor
                     thrown_type_name = name
                 }
             case:
@@ -6858,9 +6866,6 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         result = hoist_throwing_expr(first, result, indent, ctx, context)
-        catch (err: AllocError) { throw "emit_declaration: AllocError in hoist_throwing_expr" }
-        catch (err: KeyNotFoundError) { throw "emit_declaration: KeyNotFoundError in hoist_throwing_expr" }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
 
     // For underscore declarations, just emit the expression (discard result)
@@ -7165,27 +7170,24 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             switch rhs_fcall.node_type {
             case NodeType.FCall:
                 if gt(rhs_fcall.params.len(), 1) {
-                    func_name := get_fcall_func_name(rhs_fcall)
-                    if gt(func_name.len(), 0) {
-                        fd_result := lookup_func_by_name(context, func_name)
-                        if fd_result.found {
-                            mut param_types := Vec.new(ValueType)
-                            for arg: Declaration in fd_result.func_def.args {
-                                param_types.push(arg.value_type)
-                            }
-                            args := rhs_fcall.params
-                            empty_hoisted := Map.new(I64, Str)
-                            dynamic_hoisted := hoist_for_dynamic_params(args, param_types, empty_hoisted, result, indent, ctx, context)
-                            // Record hoisted Dynamic params in hoisted_exprs with & prefix
-                            for h: HoistedArg in dynamic_hoisted {
-                                if lt(h.index, args.len()) {
-                                    mut arg_for_key := Expr()
-                                    args.get(h.index, arg_for_key)
-                                    arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
-                                    mut amp_str := "&"
-                                    hoisted_val := amp_str.concat(h.temp_var)
-                                    ctx.hoisted_exprs.set(arg_key, hoisted_val)
-                                }
+                    fd_result := get_fcall_func_def(context, rhs_fcall)
+                    if fd_result.found {
+                        mut param_types := Vec.new(ValueType)
+                        for arg: Declaration in fd_result.func_def.args {
+                            param_types.push(arg.value_type)
+                        }
+                        args := rhs_fcall.params
+                        empty_hoisted := Map.new(I64, Str)
+                        dynamic_hoisted := hoist_for_dynamic_params(args, param_types, empty_hoisted, result, indent, ctx, context)
+                        // Record hoisted Dynamic params in hoisted_exprs with & prefix
+                        for h: HoistedArg in dynamic_hoisted {
+                            if lt(h.index, args.len()) {
+                                mut arg_for_key := Expr()
+                                args.get(h.index, arg_for_key)
+                                arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
+                                mut amp_str := "&"
+                                hoisted_val := amp_str.concat(h.temp_var)
+                                ctx.hoisted_exprs.set(arg_key, hoisted_val)
                             }
                         }
                     }
@@ -7239,27 +7241,24 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             switch rhs_fcall.node_type {
             case NodeType.FCall:
                 if gt(rhs_fcall.params.len(), 1) {
-                    func_name := get_fcall_func_name(rhs_fcall)
-                    if gt(func_name.len(), 0) {
-                        fd_result := lookup_func_by_name(context, func_name)
-                        if fd_result.found {
-                            mut param_types := Vec.new(ValueType)
-                            for arg: Declaration in fd_result.func_def.args {
-                                param_types.push(arg.value_type)
-                            }
-                            args := rhs_fcall.params
-                            empty_hoisted := Map.new(I64, Str)
-                            dynamic_hoisted := hoist_for_dynamic_params(args, param_types, empty_hoisted, result, indent, ctx, context)
-                            // Record hoisted Dynamic params in hoisted_exprs with & prefix
-                            for h: HoistedArg in dynamic_hoisted {
-                                if lt(h.index, args.len()) {
-                                    mut arg_for_key := Expr()
-                                    args.get(h.index, arg_for_key)
-                                    arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
-                                    mut amp_str := "&"
-                                    hoisted_val := amp_str.concat(h.temp_var)
-                                    ctx.hoisted_exprs.set(arg_key, hoisted_val)
-                                }
+                    fd_result := get_fcall_func_def(context, rhs_fcall)
+                    if fd_result.found {
+                        mut param_types := Vec.new(ValueType)
+                        for arg: Declaration in fd_result.func_def.args {
+                            param_types.push(arg.value_type)
+                        }
+                        args := rhs_fcall.params
+                        empty_hoisted := Map.new(I64, Str)
+                        dynamic_hoisted := hoist_for_dynamic_params(args, param_types, empty_hoisted, result, indent, ctx, context)
+                        // Record hoisted Dynamic params in hoisted_exprs with & prefix
+                        for h: HoistedArg in dynamic_hoisted {
+                            if lt(h.index, args.len()) {
+                                mut arg_for_key := Expr()
+                                args.get(h.index, arg_for_key)
+                                arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
+                                mut amp_str := "&"
+                                hoisted_val := amp_str.concat(h.temp_var)
+                                ctx.hoisted_exprs.set(arg_key, hoisted_val)
                             }
                         }
                     }
@@ -7348,9 +7347,6 @@ emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx
         expr.params.get(0, rhs_expr)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         result = hoist_throwing_expr(rhs_expr, result, indent, ctx, context)
-        catch (err: AllocError) { throw "emit_assignment: AllocError in hoist_throwing_expr" }
-        catch (err: KeyNotFoundError) { throw "emit_assignment: KeyNotFoundError in hoist_throwing_expr" }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
 
     mut ind := 0
@@ -7427,18 +7423,15 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             mut handled_throw := false
             switch return_expr.node_type {
             case NodeType.FCall:
-                mut func_name := get_fcall_func_name(return_expr)
-                if gt(func_name.len(), 0) {
-                    mut lookup_result := lookup_func_by_name(context, func_name)
-                    if lookup_result.found {
-                        if gt(lookup_result.func_def.throw_types.len(), 0) {
-                            // Return expression is a throwing function call - emit with error propagation
-                            // The result will be stored via the assign_name "*_ret"
-                            result = emit_throwing_call_propagate(return_expr, lookup_result.func_def.throw_types, "", "*_ret", result, indent, ctx, context)
-                            result = result.concat(indent_str)
-                            result = result.concat("return 0;\n")
-                            handled_throw = true
-                        }
+                mut lookup_result := get_fcall_func_def(context, return_expr)
+                if lookup_result.found {
+                    if gt(lookup_result.func_def.throw_types.len(), 0) {
+                        // Return expression is a throwing function call - emit with error propagation
+                        // The result will be stored via the assign_name "*_ret"
+                        result = emit_throwing_call_propagate(return_expr, lookup_result.func_def.throw_types, "", "*_ret", result, indent, ctx, context)
+                        result = result.concat(indent_str)
+                        result = result.concat("return 0;\n")
+                        handled_throw = true
                     }
                 }
             case:
@@ -7448,9 +7441,6 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             if not(handled_throw) {
                 // Hoist any throwing function calls nested in the return expression
                 result = hoist_throwing_expr(return_expr, result, indent, ctx, context)
-                catch (err: AllocError) { throw "emit_return: AllocError in hoist_throwing_expr" }
-                catch (err: KeyNotFoundError) { throw "emit_return: KeyNotFoundError in hoist_throwing_expr" }
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
 
                 // Regular return value - just emit it
                 result = result.concat("*_ret = ")
@@ -7565,9 +7555,6 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             expr.params.get(0, return_expr)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             result = hoist_throwing_expr(return_expr, result, indent, ctx, context)
-            catch (err: AllocError) { throw "emit_return: AllocError in hoist_throwing_expr (non-throwing)" }
-            catch (err: KeyNotFoundError) { throw "emit_return: KeyNotFoundError in hoist_throwing_expr (non-throwing)" }
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
 
         // Regular non-variadic return
@@ -7695,9 +7682,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
             switch symbol.value_type {
             case ValueType.TCustom(tname):
                 type_name = tname
-                mut mangled := concat(type_name, ".")
-                mangled = mangled.concat(func_name)
-                mut lookup_result := lookup_func_by_name(context, mangled)
+                mut lookup_result := get_fcall_func_def(context, expr)
                 if lookup_result.found {
                     if gt(lookup_result.func_def.args.len(), 0) {
                         mut first_arg := Declaration()
@@ -7969,16 +7954,13 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             // Determine return type from function
             mut c_type := "int"
-            mut func_name := get_fcall_func_name(arg)
-            if gt(func_name.len(), 0) {
-                mut fd_result := lookup_func_by_name(context, func_name)
-                if fd_result.found {
-                    if gt(fd_result.func_def.return_types.len(), 0) {
-                        mut ret_type := ValueType.TCustom("")
-                        fd_result.func_def.return_types.get(0, ret_type)
-                        c_type = til_type_to_c(ret_type)
-                        catch (err: IndexOutOfBoundsError) { }
-                    }
+            mut fd_result := get_fcall_func_def(context, arg)
+            if fd_result.found {
+                if gt(fd_result.func_def.return_types.len(), 0) {
+                    mut ret_type := ValueType.TCustom("")
+                    fd_result.func_def.return_types.get(0, ret_type)
+                    c_type = til_type_to_c(ret_type)
+                    catch (err: IndexOutOfBoundsError) { }
                 }
             }
 
@@ -8006,6 +7988,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             output = output.concat(" = ")
 
             // Emit function name
+            mut func_name := get_fcall_func_name(arg)
             if gt(func_name.len(), 0) {
                 output = output.concat(til_func_name(func_name))
             }
@@ -8082,7 +8065,6 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                         if is_struct {
                             // This is a struct literal - hoist its throwing defaults
                             _ := hoist_throwing_expr(arg, output, indent, ctx, context)
-                            catch (err: KeyNotFoundError) { }
                         }
                     }
                 }
@@ -8230,18 +8212,18 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                 }
             } else {
                 // Non-throwing function call - look up return type
-                mut func_name := get_fcall_func_name(arg)
-                if gt(func_name.len(), 0) {
-                    mut fd_result := lookup_func_by_name(context, func_name)
-                    if fd_result.found {
-                        if gt(fd_result.func_def.return_types.len(), 0) {
-                            mut ret_type := ValueType.TCustom("")
-                            fd_result.func_def.return_types.get(0, ret_type)
-                            c_type = til_type_to_c(ret_type)
-                            catch (err: IndexOutOfBoundsError) { }
-                        }
-                    } else {
-                        // Check if this is a struct constructor like Ptr()
+                mut fd_result := get_fcall_func_def(context, arg)
+                if fd_result.found {
+                    if gt(fd_result.func_def.return_types.len(), 0) {
+                        mut ret_type := ValueType.TCustom("")
+                        fd_result.func_def.return_types.get(0, ret_type)
+                        c_type = til_type_to_c(ret_type)
+                        catch (err: IndexOutOfBoundsError) { }
+                    }
+                } else {
+                    // Check if this is a struct constructor like Ptr()
+                    mut func_name := get_fcall_func_name(arg)
+                    if gt(func_name.len(), 0) {
                         mut struct_def := context.scope_stack.lookup_struct(func_name)
                         c_type = til_name(func_name)
                         catch (err: KeyNotFoundError) { }
@@ -8948,11 +8930,10 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         } else {
             // Non-variadic: emit args normally
             // Look up function to get parameter info (is_mut flags)
-            // Use orig_func_name which is the canonical name for scope lookup
             // For ext_func, don't pass mut params by reference (mut is just documentation)
             mut param_info := Vec.new(Declaration)
             mut is_ext_func := false
-            mut lookup_result := lookup_func_by_name(context, orig_func_name)
+            mut lookup_result := get_fcall_func_def(context, expr)
             if lookup_result.found {
                 param_info = lookup_result.func_def.args
                 is_ext_func = lookup_result.func_def.is_ext()

@@ -478,6 +478,37 @@ copy := my_enum
 IMPORTANT: When a struct contains other structs that need cloning, call their
 clone methods recursively.
 
+* func vs proc
+
+~func~ and ~proc~ indicate function purity, NOT whether a function can throw:
+
+- ~func~ = pure function (no side effects, deterministic output based only on inputs)
+- ~proc~ = procedure (may have side effects like I/O, mutation of external state, etc.)
+
+The ~throws~ section is completely independent of func/proc. Both can throw:
+
+#+begin_src til
+// Pure function that can throw
+get_value := func(map: Map, key: Str) returns Str throws KeyNotFoundError {
+    mut result := ""
+    map.get(key, result)
+    return result
+}
+
+// Procedure that can throw
+read_file := proc(path: Str) returns Str throws Str {
+    // Has side effects (I/O), so it's a proc
+    return file_read(path)
+}
+
+// Pure function that doesn't throw
+add := func(a: I64, b: I64) returns I64 {
+    return a.add(b)
+}
+#+end_src
+
+IMPORTANT: Do NOT assume ~func~ means "cannot throw". The distinction is purely about purity/side effects.
+
 * Summary
 
 The translation is mechanical:

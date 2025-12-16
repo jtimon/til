@@ -3,6 +3,7 @@
 
 use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType, INFER_TYPE};
 use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType};
+use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::{HashMap, HashSet};
 
 // Prefix for all TIL-generated names in C code (structs, functions, types)
@@ -185,21 +186,16 @@ fn get_type_arg_name(expr: &Expr, context: &Context) -> Option<String> {
     None
 }
 
-// Lookup function in scope_stack, trying both underscore and dot notation
-// get_fcall_func_name returns underscore format (Str_clone) but scope_stack uses dots (Str.clone)
-fn lookup_func_by_name<'a>(context: &'a Context, func_name: &str) -> Option<&'a SFuncDef> {
-    // Try exact name first (for regular functions)
-    if let Some(fd) = context.scope_stack.lookup_func(func_name) {
-        return Some(fd);
+// Get function definition for an FCall expression
+// Uses get_func_def_for_fcall_with_expr from typer.rs which handles all cases correctly
+// (regular functions, struct methods, UFCS - though UFCS is already resolved by precomp)
+// Returns None for struct/enum constructors
+fn get_fcall_func_def(context: &Context, fcall_expr: &Expr) -> Option<SFuncDef> {
+    let mut expr_clone = fcall_expr.clone();
+    match get_func_def_for_fcall_with_expr(&context, &mut expr_clone) {
+        Ok(Some(fd)) => Some(fd),
+        _ => None,
     }
-    // Try converting first underscore to dot (for struct methods)
-    if let Some(idx) = func_name.find('_') {
-        let dot_name = format!("{}.{}", &func_name[..idx], &func_name[idx+1..]);
-        if let Some(fd) = context.scope_stack.lookup_func(&dot_name) {
-            return Some(fd);
-        }
-    }
-    None
 }
 
 /// Extract struct field type dependencies for topological sorting
@@ -381,7 +377,7 @@ fn topological_sort_types(types: &[&Expr]) -> Vec<usize> {
 fn check_throwing_fcall(expr: &Expr, _ctx: &CodegenContext, context: &Context) -> Option<(String, Vec<ValueType>, Option<ValueType>)> {
     if let NodeType::FCall = &expr.node_type {
         if let Some(func_name) = get_fcall_func_name(expr) {
-            if let Some(fd) = lookup_func_by_name(context, &func_name) {
+            if let Some(fd) = get_fcall_func_def(context, expr) {
                 if !fd.throw_types.is_empty() {
                     let return_type = fd.return_types.first().cloned();
                     return Some((func_name, fd.throw_types.clone(), return_type));
@@ -573,7 +569,7 @@ fn hoist_throwing_expr(
             // Determine return type from function
             let func_name = get_fcall_func_name(expr)
                 .ok_or_else(|| expr.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
-            let fd = lookup_func_by_name(context, &func_name)
+            let fd = get_fcall_func_def(context, expr)
                 .ok_or_else(|| expr.lang_error(&context.path, "ccodegen", &format!("Function not found: {}", func_name)))?;
             let ret_type = fd.return_types.first()
                 .ok_or_else(|| expr.lang_error(&context.path, "ccodegen", "Function has no return type"))?;
@@ -869,7 +865,7 @@ fn hoist_throwing_args(
             // Determine return type from function
             let func_name = get_fcall_func_name(arg)
                 .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
-            let fd = lookup_func_by_name(context, &func_name)
+            let fd = get_fcall_func_def(context, arg)
                 .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", &format!("Function not found: {}", func_name)))?;
             let ret_type = fd.return_types.first()
                 .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Function has no return type"))?;
@@ -946,20 +942,18 @@ fn hoist_throwing_args(
             let _ = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
 
             // Also hoist Dynamic params for this nested FCall
-            if let Some(func_name) = get_fcall_func_name(arg) {
-                if let Some(fd) = lookup_func_by_name(context, &func_name) {
-                    let param_types: Vec<Option<ValueType>> = fd.args.iter()
-                        .map(|a| Some(a.value_type.clone()))
-                        .collect();
-                    let empty_hoisted = std::collections::HashMap::new();
-                    let dynamic_hoisted = hoist_for_dynamic_params(nested_args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
-                    // Record hoisted Dynamic params in hoisted_exprs with & prefix
-                    // (needed because emit_expr won't know to add & for Dynamic params)
-                    for h in dynamic_hoisted {
-                        if let Some(nested_arg) = nested_args.get(h.index) {
-                            let expr_addr = nested_arg as *const Expr as usize;
-                            ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
-                        }
+            if let Some(fd) = get_fcall_func_def(context, arg) {
+                let param_types: Vec<Option<ValueType>> = fd.args.iter()
+                    .map(|a| Some(a.value_type.clone()))
+                    .collect();
+                let empty_hoisted = std::collections::HashMap::new();
+                let dynamic_hoisted = hoist_for_dynamic_params(nested_args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
+                // Record hoisted Dynamic params in hoisted_exprs with & prefix
+                // (needed because emit_expr won't know to add & for Dynamic params)
+                for h in dynamic_hoisted {
+                    if let Some(nested_arg) = nested_args.get(h.index) {
+                        let expr_addr = nested_arg as *const Expr as usize;
+                        ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
                     }
                 }
             }
@@ -1078,7 +1072,7 @@ fn hoist_for_dynamic_params(
                     til_type_to_c(&ret).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
                 } else if let Some(func_name) = get_fcall_func_name(arg) {
                     // Non-throwing function call - look up return type
-                    if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                    if let Some(fd) = get_fcall_func_def(context, arg) {
                         let ret_type = fd.return_types.first()
                             .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Function has no return type"))?;
                         til_type_to_c(ret_type).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
@@ -1363,8 +1357,7 @@ fn emit_fcall_name_and_args_for_throwing(
         }
     } else {
         // Get function param info for Dynamic casting, mut handling
-        // Use orig_func_name (with dots) for lookup
-        let found_func = lookup_func_by_name(context, &orig_func_name);
+        let found_func = get_fcall_func_def(context, expr);
         let param_info: Vec<(Option<ValueType>, bool)> = found_func
             .map(|fd| {
                 fd.args.iter()
@@ -3189,70 +3182,66 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 
         if let Some(fcall) = maybe_fcall {
             // Get function name from the FCall
-            let func_name = get_fcall_func_name(fcall);
-
             // Check if this function is a throwing function
-            if let Some(func_name) = func_name {
-                if let Some(throw_types) = lookup_func_by_name(context, &func_name).map(|fd| fd.throw_types.clone()).filter(|t| !t.is_empty()) {
-                    // Collect subsequent catch blocks
-                    let mut catch_blocks = Vec::new();
-                    let mut j = i + 1;
-                    while j < stmts.len() {
-                        if let NodeType::Catch = stmts[j].node_type {
-                            catch_blocks.push(&stmts[j]);
-                            j += 1;
-                        } else {
-                            break;
-                        }
+            if let Some(throw_types) = get_fcall_func_def(context, fcall).map(|fd| fd.throw_types).filter(|t| !t.is_empty()) {
+                // Collect subsequent catch blocks
+                let mut catch_blocks = Vec::new();
+                let mut j = i + 1;
+                while j < stmts.len() {
+                    if let NodeType::Catch = stmts[j].node_type {
+                        catch_blocks.push(&stmts[j]);
+                        j += 1;
+                    } else {
+                        break;
                     }
+                }
 
-                    if !catch_blocks.is_empty() && func_level_catches.is_empty() {
-                        // Immediate catches AND no function-level catches - handle inline
-                        // Only use this optimization if there are no earlier throwing calls that
-                        // need the catch labels (func_level_catches tracks all catches in the block)
-                        emit_throwing_call(fcall, &throw_types, &catch_blocks, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
-                        i = j; // Skip past catch blocks
-                        continue;
-                    } else if !ctx.current_throw_types.is_empty() && ctx.local_catch_labels.is_empty() {
-                        // No catch blocks, we're inside a throwing function, and no local catches
-                        // Emit error propagation pattern
-                        emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
-                        i += 1;
-                        continue;
-                    } else if !func_level_catches.is_empty() || !ctx.local_catch_labels.is_empty() {
-                        // Has function-level catches or outer catches registered
-                        // Bug #39 fix: Update local_catch_labels to point to NEXT catch for each type
-                        // This ensures each call jumps to the correct catch, not always the first one
-                        // Build map with only catches AFTER current position
-                        let mut next_catches: std::collections::HashMap<String, CatchLabelInfo> = std::collections::HashMap::new();
-                        for catch_entry in &all_catch_info {
-                            if catch_entry.stmt_index > i && !next_catches.contains_key(&catch_entry.type_name) {
-                                // First catch of this type after current position
-                                next_catches.insert(catch_entry.type_name.clone(), CatchLabelInfo {
-                                    label: catch_entry.label.clone(),
-                                    temp_var: catch_entry.temp_var.clone(),
-                                });
-                            }
-                        }
-                        // Replace local_catch_labels with only the next catches
-                        // This removes entries for types that have no more catches after this point
-                        ctx.local_catch_labels.clear();
-                        for (type_name, catch_info) in &next_catches {
-                            ctx.local_catch_labels.insert(type_name.clone(), CatchLabelInfo {
-                                label: catch_info.label.clone(),
-                                temp_var: catch_info.temp_var.clone(),
+                if !catch_blocks.is_empty() && func_level_catches.is_empty() {
+                    // Immediate catches AND no function-level catches - handle inline
+                    // Only use this optimization if there are no earlier throwing calls that
+                    // need the catch labels (func_level_catches tracks all catches in the block)
+                    emit_throwing_call(fcall, &throw_types, &catch_blocks, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
+                    i = j; // Skip past catch blocks
+                    continue;
+                } else if !ctx.current_throw_types.is_empty() && ctx.local_catch_labels.is_empty() {
+                    // No catch blocks, we're inside a throwing function, and no local catches
+                    // Emit error propagation pattern
+                    emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
+                    i += 1;
+                    continue;
+                } else if !func_level_catches.is_empty() || !ctx.local_catch_labels.is_empty() {
+                    // Has function-level catches or outer catches registered
+                    // Bug #39 fix: Update local_catch_labels to point to NEXT catch for each type
+                    // This ensures each call jumps to the correct catch, not always the first one
+                    // Build map with only catches AFTER current position
+                    let mut next_catches: std::collections::HashMap<String, CatchLabelInfo> = std::collections::HashMap::new();
+                    for catch_entry in &all_catch_info {
+                        if catch_entry.stmt_index > i && !next_catches.contains_key(&catch_entry.type_name) {
+                            // First catch of this type after current position
+                            next_catches.insert(catch_entry.type_name.clone(), CatchLabelInfo {
+                                label: catch_entry.label.clone(),
+                                temp_var: catch_entry.temp_var.clone(),
                             });
                         }
-                        emit_throwing_call_with_goto(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
-                        i += 1;
-                        continue;
-                    } else {
-                        // No catches - typer should have caught this if we're in non-throwing context
-                        // Just use propagate (will silently succeed on error if we're not throwing)
-                        emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
-                        i += 1;
-                        continue;
                     }
+                    // Replace local_catch_labels with only the next catches
+                    // This removes entries for types that have no more catches after this point
+                    ctx.local_catch_labels.clear();
+                    for (type_name, catch_info) in &next_catches {
+                        ctx.local_catch_labels.insert(type_name.clone(), CatchLabelInfo {
+                            label: catch_info.label.clone(),
+                            temp_var: catch_info.temp_var.clone(),
+                        });
+                    }
+                    emit_throwing_call_with_goto(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
+                    i += 1;
+                    continue;
+                } else {
+                    // No catches - typer should have caught this if we're in non-throwing context
+                    // Just use propagate (will silently succeed on error if we're not throwing)
+                    emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
+                    i += 1;
+                    continue;
                 }
             }
         }
@@ -3262,9 +3251,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         if let Some(fcall) = maybe_fcall {
             if let Some((elem_type, regular_count)) = detect_variadic_fcall(fcall, ctx) {
                 // Check that this is NOT a throwing function (those are handled above)
-                let func_name = get_fcall_func_name(fcall);
-                let is_throwing = func_name.as_ref()
-                    .and_then(|name| lookup_func_by_name(context, name))
+                let is_throwing = get_fcall_func_def(context, fcall)
                     .map(|fd| !fd.throw_types.is_empty())
                     .unwrap_or(false);
 
@@ -3336,9 +3323,9 @@ fn emit_variadic_call(
 
     // Calculate param info for mut param handling
     let param_is_mut: Vec<bool> = {
-        let func_def = lookup_func_by_name(context, &func_name);
+        let func_def = get_fcall_func_def(context, fcall);
         fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
+            .map(|(i, _)| func_def.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
             .collect()
     };
 
@@ -3357,9 +3344,9 @@ fn emit_variadic_call(
 
     // Determine return type if we need to declare a variable
     let ret_type = if decl_name.is_some() || assign_name.is_some() {
-        lookup_func_by_name(context, &func_name)
-            .and_then(|fd| fd.return_types.first())
-            .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
+        get_fcall_func_def(context, fcall)
+            .and_then(|fd| fd.return_types.first().cloned())
+            .map(|t| til_type_to_c(&t).unwrap_or("int".to_string()))
             .unwrap_or("int".to_string())
     } else {
         "int".to_string()
@@ -3398,7 +3385,7 @@ fn emit_variadic_call(
         output.push_str(");\n");
 
         // Add variable to scope
-        if let Some(fd) = lookup_func_by_name(context, &func_name) {
+        if let Some(fd) = get_fcall_func_def(context, fcall) {
             if let Some(first_type) = fd.return_types.first() {
                 context.scope_stack.declare_symbol(
                     var_name.to_string(),
@@ -3527,23 +3514,22 @@ fn emit_throwing_call(
 
     // Determine if we need a return value temp variable
     // Only if function actually returns something AND we're capturing it
-    let func_has_return = lookup_func_by_name(context, &func_name)
+    let func_def_opt = get_fcall_func_def(context, fcall);
+    let func_has_return = func_def_opt.as_ref()
         .map(|fd| !fd.return_types.is_empty())
         .unwrap_or(false);
     let needs_ret = func_has_return && (decl_name.is_some() || assign_name.is_some());
 
     // Calculate param_types early for Dynamic hoisting
     let param_types: Vec<Option<ValueType>> = {
-        let func_def = lookup_func_by_name(context, &func_name);
         fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
+            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
             .collect()
     };
     // Calculate param_is_mut for pointer passing
     let param_is_mut: Vec<bool> = {
-        let func_def = lookup_func_by_name(context, &func_name);
         fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
+            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
             .collect()
     };
 
@@ -3568,7 +3554,7 @@ fn emit_throwing_call(
     // Declare local variables for return value and errors
     // Look up the actual return type from scope_stack
     let ret_type = if needs_ret {
-        lookup_func_by_name(context, &func_name)
+        func_def_opt.as_ref()
             .and_then(|fd| fd.return_types.first())
             .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
             .unwrap_or("int".to_string())
@@ -3595,7 +3581,7 @@ fn emit_throwing_call(
             output.push_str(";\n");
             ctx.declared_vars.insert(til_name(var_name));
             // Add to scope_stack for type resolution
-            if let Some(fd) = lookup_func_by_name(context, &func_name) {
+            if let Some(fd) = func_def_opt.as_ref() {
                 if let Some(first_type) = fd.return_types.first() {
                     context.scope_stack.declare_symbol(
                         var_name.to_string(),
@@ -3831,23 +3817,22 @@ fn emit_throwing_call_propagate(
 
     // Determine if we need a return value temp variable
     // Only if function actually returns something AND we're capturing it
-    let func_has_return = lookup_func_by_name(context, &func_name)
+    let func_def_opt = get_fcall_func_def(context, fcall);
+    let func_has_return = func_def_opt.as_ref()
         .map(|fd| !fd.return_types.is_empty())
         .unwrap_or(false);
     let needs_ret = func_has_return && (decl_name.is_some() || assign_name.is_some());
 
     // Calculate param_types early for Dynamic hoisting
     let param_types: Vec<Option<ValueType>> = {
-        let func_def = lookup_func_by_name(context, &func_name);
         fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
+            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
             .collect()
     };
     // Calculate param_is_mut for pointer passing
     let param_is_mut: Vec<bool> = {
-        let func_def = lookup_func_by_name(context, &func_name);
         fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
+            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
             .collect()
     };
 
@@ -3871,7 +3856,7 @@ fn emit_throwing_call_propagate(
 
     // Look up the actual return type from scope_stack
     let ret_type = if needs_ret {
-        lookup_func_by_name(context, &func_name)
+        func_def_opt.as_ref()
             .and_then(|fd| fd.return_types.first())
             .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
             .unwrap_or("int".to_string())
@@ -3899,7 +3884,7 @@ fn emit_throwing_call_propagate(
             output.push_str(";\n");
             ctx.declared_vars.insert(til_name(var_name));
             // Add to scope_stack for type resolution
-            if let Some(fd) = lookup_func_by_name(context, &func_name) {
+            if let Some(fd) = func_def_opt.as_ref() {
                 if let Some(first_type) = fd.return_types.first() {
                     context.scope_stack.declare_symbol(
                         var_name.to_string(),
@@ -4094,22 +4079,21 @@ fn emit_throwing_call_with_goto(
 
     // Determine if we need a return value temp variable
     // Only if function actually returns something AND we're capturing it
-    let func_has_return = lookup_func_by_name(context, &func_name)
+    let func_def_opt = get_fcall_func_def(context, fcall);
+    let func_has_return = func_def_opt.as_ref()
         .map(|fd| !fd.return_types.is_empty())
         .unwrap_or(false);
     let needs_ret = func_has_return && (decl_name.is_some() || assign_name.is_some());
 
     // Calculate param_types and param_is_mut
     let param_types: Vec<Option<ValueType>> = {
-        let func_def = lookup_func_by_name(context, &func_name);
         fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
+            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
             .collect()
     };
     let param_is_mut: Vec<bool> = {
-        let func_def = lookup_func_by_name(context, &func_name);
         fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
+            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
             .collect()
     };
 
@@ -4133,7 +4117,7 @@ fn emit_throwing_call_with_goto(
 
     // Look up the actual return type
     let ret_type = if needs_ret {
-        lookup_func_by_name(context, &func_name)
+        func_def_opt.as_ref()
             .and_then(|fd| fd.return_types.first())
             .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
             .unwrap_or("int".to_string())
@@ -4160,7 +4144,7 @@ fn emit_throwing_call_with_goto(
             output.push_str(&til_name(var_name));
             output.push_str(";\n");
             ctx.declared_vars.insert(til_name(var_name));
-            if let Some(fd) = lookup_func_by_name(context, &func_name) {
+            if let Some(fd) = func_def_opt.as_ref() {
                 if let Some(first_type) = fd.return_types.first() {
                     context.scope_stack.declare_symbol(
                         var_name.to_string(),
@@ -4668,20 +4652,18 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             if let NodeType::FCall = &expr.params[0].node_type {
                 let rhs_fcall = &expr.params[0];
                 if rhs_fcall.params.len() > 1 {
-                    if let Some(func_name) = get_fcall_func_name(rhs_fcall) {
-                        if let Some(fd) = lookup_func_by_name(context, &func_name) {
-                            let param_types: Vec<Option<ValueType>> = fd.args.iter()
-                                .map(|a| Some(a.value_type.clone()))
-                                .collect();
-                            let args = &rhs_fcall.params[1..];
-                            let empty_hoisted = std::collections::HashMap::new();
-                            let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
-                            // Record hoisted Dynamic params in hoisted_exprs with & prefix
-                            for h in dynamic_hoisted {
-                                if let Some(arg) = args.get(h.index) {
-                                    let expr_addr = arg as *const Expr as usize;
-                                    ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
-                                }
+                    if let Some(fd) = get_fcall_func_def(context, rhs_fcall) {
+                        let param_types: Vec<Option<ValueType>> = fd.args.iter()
+                            .map(|a| Some(a.value_type.clone()))
+                            .collect();
+                        let args = &rhs_fcall.params[1..];
+                        let empty_hoisted = std::collections::HashMap::new();
+                        let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
+                        // Record hoisted Dynamic params in hoisted_exprs with & prefix
+                        for h in dynamic_hoisted {
+                            if let Some(arg) = args.get(h.index) {
+                                let expr_addr = arg as *const Expr as usize;
+                                ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
                             }
                         }
                     }
@@ -4716,20 +4698,18 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             if let NodeType::FCall = &expr.params[0].node_type {
                 let rhs_fcall = &expr.params[0];
                 if rhs_fcall.params.len() > 1 {
-                    if let Some(func_name) = get_fcall_func_name(rhs_fcall) {
-                        if let Some(fd) = lookup_func_by_name(context, &func_name) {
-                            let param_types: Vec<Option<ValueType>> = fd.args.iter()
-                                .map(|a| Some(a.value_type.clone()))
-                                .collect();
-                            let args = &rhs_fcall.params[1..];
-                            let empty_hoisted = std::collections::HashMap::new();
-                            let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
-                            // Record hoisted Dynamic params in hoisted_exprs with & prefix
-                            for h in dynamic_hoisted {
-                                if let Some(arg) = args.get(h.index) {
-                                    let expr_addr = arg as *const Expr as usize;
-                                    ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
-                                }
+                    if let Some(fd) = get_fcall_func_def(context, rhs_fcall) {
+                        let param_types: Vec<Option<ValueType>> = fd.args.iter()
+                            .map(|a| Some(a.value_type.clone()))
+                            .collect();
+                        let args = &rhs_fcall.params[1..];
+                        let empty_hoisted = std::collections::HashMap::new();
+                        let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
+                        // Record hoisted Dynamic params in hoisted_exprs with & prefix
+                        for h in dynamic_hoisted {
+                            if let Some(arg) = args.get(h.index) {
+                                let expr_addr = arg as *const Expr as usize;
+                                ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
                             }
                         }
                     }
@@ -4848,14 +4828,12 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
 
         // Check if RHS is a call to a throwing function
         if let NodeType::FCall = rhs_expr.node_type {
-            if let Some(func_name) = get_fcall_func_name(rhs_expr) {
-                if let Some(throw_types) = lookup_func_by_name(context, &func_name).map(|fd| fd.throw_types.clone()).filter(|t| !t.is_empty()) {
-                    // RHS is a throwing function call - emit with error propagation
-                    // (typer should ensure non-throwing context doesn't call throwing functions without catch)
-                    // Pass raw name so function can properly handle field access on mut params
-                    emit_throwing_call_propagate(rhs_expr, &throw_types, None, Some(name), output, indent, ctx, context)?;
-                    return Ok(());
-                }
+            if let Some(throw_types) = get_fcall_func_def(context, rhs_expr).map(|fd| fd.throw_types).filter(|t| !t.is_empty()) {
+                // RHS is a throwing function call - emit with error propagation
+                // (typer should ensure non-throwing context doesn't call throwing functions without catch)
+                // Pass raw name so function can properly handle field access on mut params
+                emit_throwing_call_propagate(rhs_expr, &throw_types, None, Some(name), output, indent, ctx, context)?;
+                return Ok(());
             }
         }
 
@@ -4904,15 +4882,13 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
 
             // Check if return expression is a call to a throwing function
             if let NodeType::FCall = return_expr.node_type {
-                if let Some(func_name) = get_fcall_func_name(return_expr) {
-                    if let Some(throw_types) = lookup_func_by_name(context, &func_name).map(|fd| fd.throw_types.clone()).filter(|t| !t.is_empty()) {
-                        // Return expression is a throwing function call - emit with error propagation
-                        // The result will be stored via the assign_name "*_ret"
-                        emit_throwing_call_propagate(return_expr, &throw_types, None, Some("*_ret"), output, indent, ctx, context)?;
-                        output.push_str(&indent_str);
-                        output.push_str("return 0;\n");
-                        return Ok(());
-                    }
+                if let Some(throw_types) = get_fcall_func_def(context, return_expr).map(|fd| fd.throw_types).filter(|t| !t.is_empty()) {
+                    // Return expression is a throwing function call - emit with error propagation
+                    // The result will be stored via the assign_name "*_ret"
+                    emit_throwing_call_propagate(return_expr, &throw_types, None, Some("*_ret"), output, indent, ctx, context)?;
+                    output.push_str(&indent_str);
+                    output.push_str("return 0;\n");
+                    return Ok(());
                 }
             }
 
@@ -5023,22 +4999,18 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         // The thrown expression was hoisted to a temp variable
         // Now we just need to throw the temp variable value
         // Get the type of the hoisted value
-        let thrown_type_name = if let Some(func_name) = get_fcall_func_name(thrown_expr) {
-            if let Some(fd) = lookup_func_by_name(context, &func_name) {
-                if let Some(ret_type) = fd.return_types.first() {
-                    if let crate::rs::parser::ValueType::TCustom(type_name) = ret_type {
-                        type_name.clone()
-                    } else {
-                        crate::rs::parser::value_type_to_str(ret_type)
-                    }
+        let thrown_type_name = if let Some(fd) = get_fcall_func_def(context, thrown_expr) {
+            if let Some(ret_type) = fd.return_types.first() {
+                if let crate::rs::parser::ValueType::TCustom(type_name) = ret_type {
+                    type_name.clone()
                 } else {
-                    return Err("ccodegen: throwing function has no return type".to_string());
+                    crate::rs::parser::value_type_to_str(ret_type)
                 }
             } else {
-                return Err("ccodegen: could not find throwing function definition".to_string());
+                return Err("ccodegen: throwing function has no return type".to_string());
             }
         } else {
-            return Err("ccodegen: could not get throwing function name".to_string());
+            return Err("ccodegen: could not find throwing function definition".to_string());
         };
 
         // Check if this type is locally caught
@@ -5092,25 +5064,21 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if let NodeType::Identifier(name) = &thrown_expr.params[0].node_type {
                     // Check if this is a constructor (struct/enum) or a function call
                     // If it's a function that returns a type, use the return type
-                    if let Some(func_name) = get_fcall_func_name(thrown_expr) {
-                        if let Some(fd) = lookup_func_by_name(context, &func_name) {
-                            // It's a function - use its return type as the thrown type
-                            if let Some(ret_type) = fd.return_types.first() {
-                                if let crate::rs::parser::ValueType::TCustom(type_name) = ret_type {
-                                    type_name.clone()
-                                } else {
-                                    // Return type is a primitive (like Str) - convert to name
-                                    crate::rs::parser::value_type_to_str(ret_type)
-                                }
+                    if let Some(fd) = get_fcall_func_def(context, thrown_expr) {
+                        // It's a function - use its return type as the thrown type
+                        if let Some(ret_type) = fd.return_types.first() {
+                            if let crate::rs::parser::ValueType::TCustom(type_name) = ret_type {
+                                type_name.clone()
                             } else {
-                                // No return type, assume it's a constructor
-                                name.clone()
+                                // Return type is a primitive (like Str) - convert to name
+                                crate::rs::parser::value_type_to_str(ret_type)
                             }
                         } else {
-                            // Not a function, assume it's a constructor
+                            // No return type, assume it's a constructor
                             name.clone()
                         }
                     } else {
+                        // Not a function, assume it's a constructor
                         name.clone()
                     }
                 } else {
@@ -5370,12 +5338,8 @@ fn emit_fcall_with_hoisted(
 
     // Look up param types for mut handling
     let param_info: Vec<(Option<ValueType>, bool)> = {
-        if let Some(lookup_name) = get_til_func_name_string(&expr.params[0]) {
-            if let Some(fd) = lookup_func_by_name(context, &lookup_name) {
-                fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect()
-            } else {
-                Vec::new()
-            }
+        if let Some(fd) = get_fcall_func_def(context, expr) {
+            fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect()
         } else {
             Vec::new()
         }
@@ -6249,7 +6213,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // Hoist non-lvalue args when param type is Dynamic (only at statement level)
     // Need to look up param types first
     if indent > 0 && expr.params.len() > 1 {
-        if let Some(fd) = lookup_func_by_name(context, &orig_func_name) {
+        if let Some(fd) = get_fcall_func_def(context, expr) {
             let param_types: Vec<Option<ValueType>> = fd.args.iter()
                 .map(|a| Some(a.value_type.clone()))
                 .collect();
@@ -6630,9 +6594,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             } else {
                 // Regular non-variadic function call
                 // Look up function to get parameter info (is_mut flags)
-                // Use orig_func_name which is the canonical name for scope lookup
                 // For ext_func, don't pass mut params by reference (mut is just documentation)
-                let (param_info, is_ext_func): (Vec<(Option<ValueType>, bool)>, bool) = if let Some(fd) = lookup_func_by_name(context, &orig_func_name) {
+                let (param_info, is_ext_func): (Vec<(Option<ValueType>, bool)>, bool) = if let Some(fd) = get_fcall_func_def(context, expr) {
                     (fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect(), fd.is_ext())
                 } else {
                     (Vec::new(), false)
