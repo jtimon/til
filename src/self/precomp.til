@@ -892,7 +892,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     mut value_type := decl.value_type
     switch decl.value_type {
     case ValueType.TCustom(type_name):
-        if type_name.eq("auto") {
+        if type_name.eq(INFER_TYPE) {
             if new_params.len().gt(0) {
                 mut first_param := Expr()
                 new_params.get(0, first_param)

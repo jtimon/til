@@ -419,9 +419,9 @@ fn hoist_throwing_expr(
 
         // Determine the C type for the temp variable
         let c_type = if let Some(ret_type) = &return_type {
-            til_type_to_c(ret_type).unwrap_or_else(|| "int".to_string())
+            til_type_to_c(ret_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
         } else {
-            "int".to_string()
+            return Err(expr.lang_error(&context.path, "ccodegen", "Cannot hoist throwing call with no return type"));
         };
 
         // Declare temp variable
@@ -571,19 +571,14 @@ fn hoist_throwing_expr(
             let temp_var = next_mangled(ctx);
 
             // Determine return type from function
-            let c_type = if let Some(func_name) = get_fcall_func_name(expr) {
-                if let Some(fd) = lookup_func_by_name(context, &func_name) {
-                    if let Some(ret_type) = fd.return_types.first() {
-                        til_type_to_c(ret_type).unwrap_or_else(|| "int".to_string())
-                    } else {
-                        "int".to_string()
-                    }
-                } else {
-                    "int".to_string()
-                }
-            } else {
-                "int".to_string()
-            };
+            let func_name = get_fcall_func_name(expr)
+                .ok_or_else(|| expr.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
+            let fd = lookup_func_by_name(context, &func_name)
+                .ok_or_else(|| expr.lang_error(&context.path, "ccodegen", &format!("Function not found: {}", func_name)))?;
+            let ret_type = fd.return_types.first()
+                .ok_or_else(|| expr.lang_error(&context.path, "ccodegen", "Function has no return type"))?;
+            let c_type = til_type_to_c(ret_type)
+                .map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
 
             // Declare temp variable
             output.push_str(&indent_str);
@@ -756,9 +751,9 @@ fn hoist_throwing_args(
 
             // Determine the C type for the temp variable
             let c_type = if let Some(ret_type) = &return_type {
-                til_type_to_c(ret_type).unwrap_or_else(|| "int".to_string())
+                til_type_to_c(ret_type).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))?
             } else {
-                "int".to_string()
+                return Err(arg.lang_error(&context.path, "ccodegen", "Cannot hoist throwing call with no return type"));
             };
 
             // Declare temp variable
@@ -872,19 +867,14 @@ fn hoist_throwing_args(
             let temp_var = next_mangled(ctx);
 
             // Determine return type from function
-            let c_type = if let Some(func_name) = get_fcall_func_name(arg) {
-                if let Some(fd) = lookup_func_by_name(context, &func_name) {
-                    if let Some(ret_type) = fd.return_types.first() {
-                        til_type_to_c(ret_type).unwrap_or_else(|| "int".to_string())
-                    } else {
-                        "int".to_string()
-                    }
-                } else {
-                    "int".to_string()
-                }
-            } else {
-                "int".to_string()
-            };
+            let func_name = get_fcall_func_name(arg)
+                .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
+            let fd = lookup_func_by_name(context, &func_name)
+                .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", &format!("Function not found: {}", func_name)))?;
+            let ret_type = fd.return_types.first()
+                .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Function has no return type"))?;
+            let c_type = til_type_to_c(ret_type)
+                .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))?;
 
             // Declare temp variable
             output.push_str(&indent_str);
@@ -1038,66 +1028,60 @@ fn hoist_for_dynamic_params(
         }
 
         // Determine the C type of the arg based on what it is
-        let c_type = match &arg.node_type {
-            NodeType::LLiteral(Literal::Str(_)) => format!("{}Str", TIL_PREFIX),
-            NodeType::LLiteral(Literal::Number(_)) => "int64_t".to_string(),
-            NodeType::LLiteral(Literal::List(_)) => "int64_t".to_string(), // TODO: proper list type
+        let c_type: Result<String, String> = match &arg.node_type {
+            NodeType::LLiteral(Literal::Str(_)) => Ok(format!("{}Str", TIL_PREFIX)),
+            NodeType::LLiteral(Literal::Number(_)) => Ok("int64_t".to_string()),
+            NodeType::LLiteral(Literal::List(_)) => Ok("int64_t".to_string()), // TODO: proper list type
             NodeType::Identifier(var_name) if !arg.params.is_empty() => {
                 // Could be: enum constructor (Type.Variant), field access (var.field), or method call
-                if let Some(NodeType::Identifier(field_or_variant)) = arg.params.first().map(|p| &p.node_type) {
+                let first_param = arg.params.first()
+                    .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Expected param"))?;
+                if let NodeType::Identifier(field_or_variant) = &first_param.node_type {
                     // Check if this is an enum constructor
                     if context.scope_stack.lookup_enum(var_name)
                         .map(|e| e.contains_key(field_or_variant))
                         .unwrap_or(false) {
                         // Enum constructor returns the enum type
-                        til_name(var_name)
+                        Ok(til_name(var_name))
                     } else if let Some(sym) = context.scope_stack.lookup_symbol(var_name) {
                         // Field access - look up variable's type, then field's type
                         if let ValueType::TCustom(struct_name) = &sym.value_type {
-                            if let Some(struct_def) = context.scope_stack.lookup_struct(struct_name) {
-                                // Find the field in the struct
-                                if let Some(member) = struct_def.members.iter().find(|m| &m.name == field_or_variant) {
-                                    til_type_to_c(&member.value_type).unwrap_or_else(|| "int64_t".to_string())
-                                } else {
-                                    "int64_t".to_string()
-                                }
-                            } else {
-                                "int64_t".to_string()
-                            }
+                            let struct_def = context.scope_stack.lookup_struct(struct_name)
+                                .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", &format!("Struct not found: {}", struct_name)))?;
+                            let member = struct_def.members.iter().find(|m| &m.name == field_or_variant)
+                                .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", &format!("Field not found: {}", field_or_variant)))?;
+                            til_type_to_c(&member.value_type)
+                                .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
                         } else {
-                            "int64_t".to_string()
+                            Err(arg.lang_error(&context.path, "ccodegen", &format!("Expected struct type for field access on {}", var_name)))
                         }
                     } else {
-                        "int64_t".to_string()
+                        Err(arg.lang_error(&context.path, "ccodegen", &format!("Symbol not found: {}", var_name)))
                     }
                 } else {
-                    "int64_t".to_string()
+                    Err(arg.lang_error(&context.path, "ccodegen", "Expected identifier for field/variant"))
                 }
             }
             NodeType::Identifier(type_name) if arg.params.is_empty() => {
                 // Struct constructor like Ptr() - identifier with no params
                 if context.scope_stack.lookup_struct(type_name).is_some() {
-                    til_name(type_name)
+                    Ok(til_name(type_name))
                 } else {
-                    "int64_t".to_string()
+                    Err(arg.lang_error(&context.path, "ccodegen", &format!("Unknown type: {}", type_name)))
                 }
             }
             NodeType::FCall => {
                 // For function calls, try to determine return type
                 if let Some((_func_name, _throw_types, return_type)) = check_throwing_fcall(arg, ctx, context) {
-                    if let Some(ret) = return_type {
-                        til_type_to_c(&ret).unwrap_or_else(|| "int64_t".to_string())
-                    } else {
-                        "int64_t".to_string()
-                    }
+                    let ret = return_type
+                        .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Throwing call has no return type"))?;
+                    til_type_to_c(&ret).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
                 } else if let Some(func_name) = get_fcall_func_name(arg) {
                     // Non-throwing function call - look up return type
                     if let Some(fd) = lookup_func_by_name(context, &func_name) {
-                        if let Some(ret_type) = fd.return_types.first() {
-                            til_type_to_c(ret_type).unwrap_or_else(|| "int64_t".to_string())
-                        } else {
-                            "int64_t".to_string()
-                        }
+                        let ret_type = fd.return_types.first()
+                            .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Function has no return type"))?;
+                        til_type_to_c(ret_type).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
                     } else if func_name.contains('_') {
                         // Check if this is an enum constructor (Type_Variant)
                         let parts: Vec<&str> = func_name.splitn(2, '_').collect();
@@ -1107,25 +1091,26 @@ fn hoist_for_dynamic_params(
                                 .map(|e| e.contains_key(parts[1]))
                                 .unwrap_or(false) {
                                 // Enum constructor returns the enum type
-                                til_name(type_name)
+                                Ok(til_name(type_name))
                             } else {
-                                "int64_t".to_string()
+                                Err(arg.lang_error(&context.path, "ccodegen", &format!("Unknown enum variant: {}", func_name)))
                             }
                         } else {
-                            "int64_t".to_string()
+                            Err(arg.lang_error(&context.path, "ccodegen", &format!("Unknown function: {}", func_name)))
                         }
                     } else if context.scope_stack.lookup_struct(&func_name).is_some() {
                         // Struct constructor like Ptr() - returns the struct type
-                        til_name(&func_name)
+                        Ok(til_name(&func_name))
                     } else {
-                        "int64_t".to_string()
+                        Err(arg.lang_error(&context.path, "ccodegen", &format!("Unknown function: {}", func_name)))
                     }
                 } else {
-                    "int64_t".to_string()
+                    Err(arg.lang_error(&context.path, "ccodegen", "Cannot determine function name"))
                 }
             }
-            _ => "int64_t".to_string(),  // Default to int64_t for unknown types
+            _ => Err(arg.lang_error(&context.path, "ccodegen", "Cannot determine type for dynamic param")),
         };
+        let c_type = c_type?;
 
         let temp_var = next_mangled(ctx);
 
@@ -1602,7 +1587,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // Pass 0a: collect nested function info for hoisting (populates hoisted_prototypes and nested_func_names)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            collect_nested_func_info(child, &mut ctx, None);
+            collect_nested_func_info(child, &mut ctx, None)?;
         }
     }
 
@@ -2072,7 +2057,7 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
 
 // Collect nested function info (for hoisting): scan function bodies for nested FuncDef declarations
 // This populates ctx.nested_func_names and ctx.hoisted_prototypes before we emit function bodies
-fn collect_nested_func_info(expr: &Expr, ctx: &mut CodegenContext, parent_func_name: Option<&str>) {
+fn collect_nested_func_info(expr: &Expr, ctx: &mut CodegenContext, parent_func_name: Option<&str>) -> Result<(), String> {
     match &expr.node_type {
         NodeType::Declaration(decl) => {
             if !expr.params.is_empty() {
@@ -2084,19 +2069,19 @@ fn collect_nested_func_info(expr: &Expr, ctx: &mut CodegenContext, parent_func_n
 
                         // Generate prototype using emit_func_signature (handles throwing functions properly)
                         let mut proto = String::new();
-                        emit_func_signature(&til_name(&mangled_name), func_def, &mut proto);
+                        emit_func_signature(&til_name(&mangled_name), func_def, &mut proto)?;
                         proto.push_str(";\n");
                         ctx.hoisted_prototypes.push(proto);
 
                         // Recursively check for nested functions within this nested function
                         let new_parent = mangled_name.clone();
                         for body_expr in &func_def.body {
-                            collect_nested_func_info(body_expr, ctx, Some(&new_parent));
+                            collect_nested_func_info(body_expr, ctx, Some(&new_parent))?;
                         }
                     } else {
                         // Top-level function - scan its body for nested functions
                         for body_expr in &func_def.body {
-                            collect_nested_func_info(body_expr, ctx, Some(&decl.name));
+                            collect_nested_func_info(body_expr, ctx, Some(&decl.name))?;
                         }
                     }
                 }
@@ -2104,37 +2089,38 @@ fn collect_nested_func_info(expr: &Expr, ctx: &mut CodegenContext, parent_func_n
         },
         NodeType::Body => {
             for child in &expr.params {
-                collect_nested_func_info(child, ctx, parent_func_name);
+                collect_nested_func_info(child, ctx, parent_func_name)?;
             }
         },
         NodeType::If => {
             // Check then and else branches (params[0] = condition, params[1] = then, params[2] = else)
             if expr.params.len() > 1 {
-                collect_nested_func_info(&expr.params[1], ctx, parent_func_name);
+                collect_nested_func_info(&expr.params[1], ctx, parent_func_name)?;
             }
             if expr.params.len() > 2 {
-                collect_nested_func_info(&expr.params[2], ctx, parent_func_name);
+                collect_nested_func_info(&expr.params[2], ctx, parent_func_name)?;
             }
         },
         NodeType::While => {
             // Check loop body (params[0] = condition, params[1] = body)
             if expr.params.len() > 1 {
-                collect_nested_func_info(&expr.params[1], ctx, parent_func_name);
+                collect_nested_func_info(&expr.params[1], ctx, parent_func_name)?;
             }
         },
         NodeType::Switch => {
             // Check all case bodies (params[0] = value, rest are cases)
             for i in 1..expr.params.len() {
-                collect_nested_func_info(&expr.params[i], ctx, parent_func_name);
+                collect_nested_func_info(&expr.params[i], ctx, parent_func_name)?;
             }
         },
         _ => {
             // Recursively check all params for other node types
             for child in &expr.params {
-                collect_nested_func_info(child, ctx, parent_func_name);
+                collect_nested_func_info(child, ctx, parent_func_name)?;
             }
         }
     }
+    Ok(())
 }
 
 // Emit a struct declaration as a C struct (only mut fields become struct fields)
@@ -2155,7 +2141,7 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), Strin
                     // Only emit mut fields as struct members
                     // Skip functions and non-mut fields (constants)
                     if member.is_mut {
-                        if let Some(c_type) = til_type_to_c(&member.value_type) {
+                        if let Ok(c_type) = til_type_to_c(&member.value_type) {
                             output.push_str("    ");
                             output.push_str(&c_type);
                             output.push_str(" ");
@@ -2182,7 +2168,7 @@ fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 for member in &struct_def.members {
                     // Only emit non-mut, non-function fields as constants
                     if !member.is_mut {
-                        if let Some(c_type) = til_type_to_c(&member.value_type) {
+                        if let Ok(c_type) = til_type_to_c(&member.value_type) {
                             // Get the default value
                             if let Some(default_val) = struct_def.default_values.get(&member.name) {
                                 output.push_str("const ");
@@ -2317,7 +2303,7 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
         output.push_str("typedef union {\n");
         for (variant_name, payload_type) in &variants {
             if let Some(pt) = payload_type {
-                if let Some(c_type) = til_type_to_c(pt) {
+                if let Ok(c_type) = til_type_to_c(pt) {
                     output.push_str("    ");
                     output.push_str(&c_type);
                     output.push_str(" ");
@@ -2359,7 +2345,7 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
 
         // Parameter for payload (if any)
         if let Some(pt) = payload_type {
-            if let Some(c_type) = til_type_to_c(pt) {
+            if let Ok(c_type) = til_type_to_c(pt) {
                 output.push_str(&c_type);
                 output.push_str(" value");
             }
@@ -2529,7 +2515,7 @@ fn emit_struct_func_prototypes(expr: &Expr, output: &mut String) -> Result<(), S
                     if let Some(func_expr) = struct_def.default_values.get(&member.name) {
                         if let NodeType::FuncDef(func_def) = &func_expr.node_type {
                             let mangled_name = format!("{}_{}", struct_name, member.name);
-                            emit_func_signature(&mangled_name, func_def, output);
+                            emit_func_signature(&mangled_name, func_def, output)?;
                             output.push_str(";\n");
                         }
                     }
@@ -2590,7 +2576,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     ctx.hoisted_struct_defaults.clear();
 
     let mangled_name = format!("{}_{}", struct_name, member.name);
-    emit_func_signature(&mangled_name, func_def, output);
+    emit_func_signature(&mangled_name, func_def, output)?;
     output.push_str(" {\n");
 
     // Emit function body with catch pattern detection
@@ -2633,31 +2619,31 @@ fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
     Ok(())
 }
 
-// Convert TIL type to C type. Returns None if the type can't be represented in C (e.g., functions)
-fn til_type_to_c(til_type: &crate::rs::parser::ValueType) -> Option<String> {
+// Convert TIL type to C type. Returns Err if the type can't be represented in C (e.g., functions, infer)
+fn til_type_to_c(til_type: &crate::rs::parser::ValueType) -> Result<String, String> {
     match til_type {
         crate::rs::parser::ValueType::TCustom(name) => {
             if name == INFER_TYPE {
-                None // Skip inferred types
+                Err(format!("Cannot convert inferred type to C"))
             } else {
                 // All types get TIL_PREFIX
-                Some(format!("{}{}", TIL_PREFIX, name))
+                Ok(format!("{}{}", TIL_PREFIX, name))
             }
         },
-        crate::rs::parser::ValueType::TFunction(_) => None,
-        crate::rs::parser::ValueType::TType(_) => None,
-        crate::rs::parser::ValueType::TMulti(_) => None,
+        crate::rs::parser::ValueType::TFunction(_) => Err("Cannot convert function type to C".to_string()),
+        crate::rs::parser::ValueType::TType(_) => Err("Cannot convert Type to C".to_string()),
+        crate::rs::parser::ValueType::TMulti(_) => Err("Cannot convert multi-type to C".to_string()),
     }
 }
 
 // Helper to get C type name for a ValueType (for error struct definitions)
-fn value_type_to_c_name(vt: &ValueType) -> String {
+fn value_type_to_c_name(vt: &ValueType) -> Result<String, String> {
     match vt {
         ValueType::TCustom(name) => {
             // All types get TIL_PREFIX
-            format!("{}{}", TIL_PREFIX, name)
+            Ok(format!("{}{}", TIL_PREFIX, name))
         },
-        _ => "int".to_string(),
+        _ => Err(format!("Cannot convert {:?} to C type name", vt)),
     }
 }
 
@@ -2666,7 +2652,7 @@ fn value_type_to_c_name(vt: &ValueType) -> String {
 //   int func_name(RetType* _ret, Error1* _err1, Error2* _err2, args...)
 // For non-throwing:
 //   RetType func_name(args...)
-fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String) {
+fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String) -> Result<(), String> {
     let is_throwing = !func_def.throw_types.is_empty();
 
     if is_throwing {
@@ -2677,7 +2663,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
         if func_def.return_types.is_empty() {
             output.push_str("void ");
         } else {
-            let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
+            let ret_type = til_type_to_c(&func_def.return_types[0])?;
             output.push_str(&ret_type);
             output.push_str(" ");
         }
@@ -2691,7 +2677,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
     if is_throwing {
         // Output params first: return value pointer, then error pointers
         if !func_def.return_types.is_empty() {
-            let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
+            let ret_type = til_type_to_c(&func_def.return_types[0])?;
             output.push_str(&ret_type);
             output.push_str("* _ret");
             param_count += 1;
@@ -2701,7 +2687,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
             if param_count > 0 {
                 output.push_str(", ");
             }
-            let err_type = value_type_to_c_name(throw_type);
+            let err_type = value_type_to_c_name(throw_type)?;
             output.push_str(&err_type);
             output.push_str("* _err");
             output.push_str(&(i + 1).to_string());
@@ -2724,7 +2710,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
             param_count += 1;
             break; // Variadic must be last
         } else {
-            let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
+            let arg_type = til_type_to_c(&arg.value_type)?;
 
             if arg.is_mut {
                 // mut: use pointer so mutations are visible to caller
@@ -2751,6 +2737,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
     }
 
     output.push_str(")");
+    Ok(())
 }
 
 // Emit a function prototype (forward declaration)
@@ -2764,7 +2751,7 @@ fn emit_func_prototype(expr: &Expr, output: &mut String) -> Result<(), String> {
                 }
 
                 let func_name = til_name(&decl.name);
-                emit_func_signature(&func_name, func_def, output);
+                emit_func_signature(&func_name, func_def, output)?;
                 output.push_str(";\n");
                 return Ok(());
             }
@@ -2851,7 +2838,7 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 ctx.current_function_name = Some(decl.name.clone());
                 ctx.mangling_counter = 0;  // Reset counter per-function for determinism
 
-                emit_func_signature(&func_name, func_def, output);
+                emit_func_signature(&func_name, func_def, output)?;
                 output.push_str(" {\n");
 
                 // Emit function body with catch pattern detection
@@ -3030,7 +3017,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
             for (var_name, value_type) in decls {
                 let c_var_name = til_name(&var_name);
                 if !ctx.declared_vars.contains(&c_var_name) {
-                    if let Some(c_type) = til_type_to_c(&value_type) {
+                    if let Ok(c_type) = til_type_to_c(&value_type) {
                         output.push_str(&indent_str);
                         output.push_str(&c_type);
                         output.push_str(" ");
@@ -4356,7 +4343,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
                 // Generate the hoisted function prototype
                 let mut proto_output = String::new();
-                emit_func_signature(&til_name(&mangled_name), func_def, &mut proto_output);
+                emit_func_signature(&til_name(&mangled_name), func_def, &mut proto_output)?;
                 proto_output.push_str(";\n");
                 ctx.hoisted_prototypes.push(proto_output);
 
@@ -4413,7 +4400,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 context.scope_stack.frames.push(function_frame);
 
                 // Emit the function
-                emit_func_signature(&til_name(&mangled_name), func_def, &mut func_output);
+                emit_func_signature(&til_name(&mangled_name), func_def, &mut func_output)?;
                 func_output.push_str(" {\n");
                 emit_stmts(&func_def.body, &mut func_output, 1, ctx, context)?;
                 if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
@@ -4695,11 +4682,12 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         if !already_declared {
             // Determine C type using get_value_type
             let c_type = if !expr.params.is_empty() {
-                get_value_type(context, &expr.params[0]).ok()
-                    .and_then(|vt| til_type_to_c(&vt))
-                    .unwrap_or_else(|| til_type_to_c(&decl.value_type).unwrap_or("int".to_string()))
+                match get_value_type(context, &expr.params[0]) {
+                    Ok(vt) => til_type_to_c(&vt).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?,
+                    Err(_) => til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?,
+                }
             } else {
-                til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
+                til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
             };
             output.push_str(&c_type);
             output.push_str(" ");
@@ -4742,11 +4730,12 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         if !already_declared {
             // Determine C type using get_value_type
             let c_type = if !expr.params.is_empty() {
-                get_value_type(context, &expr.params[0]).ok()
-                    .and_then(|vt| til_type_to_c(&vt))
-                    .unwrap_or_else(|| til_type_to_c(&decl.value_type).unwrap_or("int".to_string()))
+                match get_value_type(context, &expr.params[0]) {
+                    Ok(vt) => til_type_to_c(&vt).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?,
+                    Err(_) => til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?,
+                }
             } else {
-                til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
+                til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
             };
             output.push_str("const ");
             output.push_str(&c_type);
@@ -4945,9 +4934,10 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
 
                     // Emit the function call storing result
                     let temp_var = next_mangled(ctx);
-                    let ret_type = get_value_type(context, return_expr).ok()
-                        .map(|t| til_type_to_c(&t).unwrap_or_else(|| "int".to_string()))
-                        .unwrap_or_else(|| "int".to_string());
+                    let ret_type = match get_value_type(context, return_expr) {
+                        Ok(t) => til_type_to_c(&t).map_err(|e| return_expr.lang_error(&context.path, "ccodegen", &e))?,
+                        Err(e) => return Err(return_expr.lang_error(&context.path, "ccodegen", &e)),
+                    };
                     output.push_str(&indent_str);
                     output.push_str(&ret_type);
                     output.push_str(" ");
@@ -5413,7 +5403,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
     for (var_name, value_type) in then_decls {
         let c_var_name = til_name(&var_name);
         if !ctx.declared_vars.contains(&c_var_name) {
-            if let Some(c_type) = til_type_to_c(&value_type) {
+            if let Ok(c_type) = til_type_to_c(&value_type) {
                 output.push_str(&indent_str);
                 output.push_str(&c_type);
                 output.push_str(" ");
@@ -5436,7 +5426,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
         for (var_name, value_type) in else_decls {
             let c_var_name = til_name(&var_name);
             if !ctx.declared_vars.contains(&c_var_name) {
-                if let Some(c_type) = til_type_to_c(&value_type) {
+                if let Ok(c_type) = til_type_to_c(&value_type) {
                     output.push_str(&indent_str);
                     output.push_str(&c_type);
                     output.push_str(" ");
@@ -5513,7 +5503,7 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     for (var_name, value_type) in body_decls {
         let c_var_name = til_name(&var_name);
         if !ctx.declared_vars.contains(&c_var_name) {
-            if let Some(c_type) = til_type_to_c(&value_type) {
+            if let Ok(c_type) = til_type_to_c(&value_type) {
                 output.push_str(&indent_str);
                 output.push_str(&c_type);
                 output.push_str(" ");
@@ -5831,7 +5821,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 // Only emit if not already declared
                 let c_var_name = til_name(&var_name);
                 if !ctx.declared_vars.contains(&c_var_name) {
-                    if let Some(c_type) = til_type_to_c(&value_type) {
+                    if let Ok(c_type) = til_type_to_c(&value_type) {
                         output.push_str(&indent_str);
                         output.push_str(&c_type);
                         output.push_str(" ");
@@ -5856,7 +5846,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         for (var_name, value_type) in decls {
             let c_var_name = til_name(&var_name);
             if !ctx.declared_vars.contains(&c_var_name) {
-                if let Some(c_type) = til_type_to_c(&value_type) {
+                if let Ok(c_type) = til_type_to_c(&value_type) {
                     output.push_str(&indent_str);
                     output.push_str(&c_type);
                     output.push_str(" ");

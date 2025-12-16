@@ -253,14 +253,25 @@ lookup_receiver_type := func(context: Context, name: Str) returns ReceiverTypeRe
     return result
 }
 
-// Convert TIL type to C type
-til_type_to_c := func(til_type: ValueType) returns Str {
+// Convert TIL type to C type. Returns Err if the type can't be represented in C (e.g., functions, infer)
+til_type_to_c := func(til_type: ValueType) returns Str throws Str {
     switch til_type {
     case ValueType.TCustom(name):
-        if name.eq("Str") { return "const char*" }
-        else { return concat(TIL_PREFIX, name) }  // All types get til_ prefix
+        if name.eq(INFER_TYPE) {
+            throw "Cannot convert inferred type to C"
+        } else if name.eq("Str") {
+            return "const char*"
+        } else {
+            return concat(TIL_PREFIX, name)  // All types get til_ prefix
+        }
+    case ValueType.TFunction:
+        throw "Cannot convert function type to C"
+    case ValueType.TType:
+        throw "Cannot convert Type to C"
+    case ValueType.TMulti:
+        throw "Cannot convert multi-type to C"
     case:
-        return "int"  // Default
+        throw "Cannot convert unknown type to C"
     }
 }
 
@@ -300,13 +311,13 @@ lookup_func_by_name := func(context: Context, func_name: Str) returns FuncLookup
 }
 
 // Helper to get C type name for a ValueType (same as til_type_to_c but for error struct definitions)
-value_type_to_c_name := func(vt: ValueType) returns Str {
+value_type_to_c_name := func(vt: ValueType) returns Str throws Str {
     switch vt {
     case ValueType.TCustom(name):
-        if name.eq("Str") { return "const char*" }
-        else { return concat(TIL_PREFIX, name) }  // All types get til_ prefix
+        // All types get TIL_PREFIX
+        return concat(TIL_PREFIX, name)
     case:
-        return "int"
+        throw concat("Cannot convert ", value_type_to_str(vt)).concat(" to C type name")
     }
 }
 
@@ -1162,7 +1173,7 @@ get_struct_dependencies := func(expr: Expr) returns Vec {
                     switch member.value_type {
                     case ValueType.TCustom(type_name):
                         // I64 and U8 are primitives, not struct deps
-                        if not(Str.eq(type_name, "I64")).and(not(Str.eq(type_name, "U8"))).and(not(Str.eq(type_name, "auto"))) {
+                        if not(Str.eq(type_name, "I64")).and(not(Str.eq(type_name, "U8"))).and(not(Str.eq(type_name, INFER_TYPE))) {
                             deps.push(type_name)
                         }
                     case:
@@ -6917,7 +6928,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     } else {
         switch decl.value_type {
         case ValueType.TCustom(type_name):
-            if Str.eq(type_name, "auto").and(gt(expr.params.len(), 0)) {
+            if Str.eq(type_name, INFER_TYPE).and(gt(expr.params.len(), 0)) {
                 // Try get_value_type (handles function calls like Vec.new)
                 mut first := Expr()
                 expr.params.get(0, first)

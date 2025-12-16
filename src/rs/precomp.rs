@@ -752,7 +752,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     };
 
     // Determine the type from the value if it's 'auto'
-    let value_type = if decl.value_type == ValueType::TCustom("auto".to_string()) && !new_params.is_empty() {
+    let value_type = if decl.value_type == ValueType::TCustom(INFER_TYPE.to_string()) && !new_params.is_empty() {
         get_value_type(context, &new_params[0]).unwrap_or(decl.value_type.clone())
     } else {
         decl.value_type.clone()
