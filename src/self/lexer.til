@@ -197,7 +197,7 @@ Lexer := struct {
             self.advance(1)
             return p
         case:
-            throw p.error(self.path, format(
+            throw p.lang_error(self.path, format(
                 "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'"))
         }
         catch (err: IndexOutOfBoundsError) {
@@ -439,7 +439,7 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                 start_line_pos = pos.sub(1)
                 should_process_token = false
 
-                // open/close. left/right parentheses, craces and brackets
+                // open/close. left/right
             case "(":
                 token_type = TokenType.LeftParen
             case ")":
@@ -523,14 +523,12 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                 should_process_token = false
             case "/":
                 if source.get_substr(pos.add(1), pos.add(2)).eq("/") {
-                    // Single-line comment
                     pos.inc()
                     while lt(pos.add(1), eof_pos).and(not(source.get_substr(pos, pos.add(1)).eq("\n"))) {
                         pos.inc()
                     }
                     should_process_token = false
                 } else if source.get_substr(pos.add(1), pos.add(2)).eq("*") {
-                    // Nested block comment
                     pos = pos.add(2)
                     mut depth := 1
                     mut should_continue_parsing := true
@@ -568,7 +566,6 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
             case "\"":
                 mut lit_string := ""
                 pos.inc()
-                // while pos + 1 < eof_pos && &source[pos..pos+1] != "\""
                 mut continue_string_scan := true
                 while continue_string_scan {
                     if not(lt(pos.add(1), eof_pos)) {
@@ -634,8 +631,6 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
             } // switch
 
             if should_process_token {
-                // Note: token_type for String is set but token already pushed inside the case
-                // so we check and skip pushing again
                 mut is_string := false
                 switch token_type {
                 case TokenType.String:
