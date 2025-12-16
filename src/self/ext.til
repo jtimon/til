@@ -1,4 +1,4 @@
-mode lib
+mode liba
 
 // External/Core functions for TIL interpreter
 // This module contains all built-in core functions and procedures.

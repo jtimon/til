@@ -1,4 +1,4 @@
-mode lib
+mode liba
 
 // C code generator for TIL
 // Translates TIL AST to C source code

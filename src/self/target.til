@@ -1,4 +1,4 @@
-mode lib
+mode liba
 
 // Target and Lang definitions for cross-compilation support
 // Mirrors src/rs/target.rs

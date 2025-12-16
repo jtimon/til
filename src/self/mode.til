@@ -1,4 +1,4 @@
-mode lib
+mode liba
 
 import("core.vec")
 import("self.lexer")

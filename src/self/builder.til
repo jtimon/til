@@ -1,4 +1,4 @@
-mode lib
+mode liba
 
 import("self.interpreter")
 import("self.precomp")
