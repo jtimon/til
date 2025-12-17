@@ -443,12 +443,12 @@ fn hoist_throwing_expr(
 
         // Detect and construct variadic array if needed
         let variadic_info = detect_variadic_fcall(expr, ctx);
-        let variadic_arr_var: Option<String> = if let Some((elem_type, regular_count)) = variadic_info.clone() {
-            let variadic_args: Vec<_> = expr.params.iter().skip(1 + regular_count).collect();
+        let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
+            let variadic_args: Vec<_> = expr.params.iter().skip(1 + vi.regular_count).collect();
             if !variadic_args.is_empty() {
-                Some(hoist_variadic_args(&elem_type, &variadic_args, &nested_hoisted, regular_count, output, indent, ctx, context)?)
+                Some(hoist_variadic_args(&vi.elem_type, &variadic_args, &nested_hoisted, vi.regular_count, output, indent, ctx, context)?)
             } else {
-                Some(hoist_variadic_args(&elem_type, &[], &nested_hoisted, regular_count, output, indent, ctx, context)?)
+                Some(hoist_variadic_args(&vi.elem_type, &[], &nested_hoisted, vi.regular_count, output, indent, ctx, context)?)
             }
         } else {
             None
@@ -554,7 +554,7 @@ fn hoist_throwing_expr(
 
     // Check if this is a non-throwing variadic call - also needs hoisting
     if let NodeType::FCall = &expr.node_type {
-        if let Some((elem_type, regular_count)) = detect_variadic_fcall(expr, ctx) {
+        if let Some(variadic_fcall_info) = detect_variadic_fcall(expr, ctx) {
             // Recursively hoist any throwing/variadic calls in this call's arguments first
             let nested_hoisted: std::collections::HashMap<usize, String> = if expr.params.len() > 1 {
                 let nested_args = &expr.params[1..];
@@ -584,11 +584,11 @@ fn hoist_throwing_expr(
             output.push_str(";\n");
 
             // Construct variadic array
-            let variadic_args: Vec<_> = expr.params.iter().skip(1 + regular_count).collect();
+            let variadic_args: Vec<_> = expr.params.iter().skip(1 + variadic_fcall_info.regular_count).collect();
             let variadic_arr_var = if !variadic_args.is_empty() {
-                hoist_variadic_args(&elem_type, &variadic_args, &nested_hoisted, regular_count, output, indent, ctx, context)?
+                hoist_variadic_args(&variadic_fcall_info.elem_type, &variadic_args, &nested_hoisted, variadic_fcall_info.regular_count, output, indent, ctx, context)?
             } else {
-                hoist_variadic_args(&elem_type, &[], &nested_hoisted, regular_count, output, indent, ctx, context)?
+                hoist_variadic_args(&variadic_fcall_info.elem_type, &[], &nested_hoisted, variadic_fcall_info.regular_count, output, indent, ctx, context)?
             };
 
             // Emit the function call (non-throwing, so direct assignment)
@@ -604,7 +604,7 @@ fn hoist_throwing_expr(
 
             // Emit regular args (using nested hoisted temps)
             let mut first = true;
-            for (i, param) in expr.params.iter().skip(1).take(regular_count).enumerate() {
+            for (i, param) in expr.params.iter().skip(1).take(variadic_fcall_info.regular_count).enumerate() {
                 if !first {
                     output.push_str(", ");
                 }
@@ -774,13 +774,13 @@ fn hoist_throwing_args(
             }
 
             // Detect and construct variadic array if needed
-            let variadic_arr_var: Option<String> = if let Some((elem_type, regular_count)) = variadic_info.clone() {
-                let variadic_args: Vec<_> = arg.params.iter().skip(1 + regular_count).collect();
+            let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
+                let variadic_args: Vec<_> = arg.params.iter().skip(1 + vi.regular_count).collect();
                 if !variadic_args.is_empty() {
-                    Some(hoist_variadic_args(&elem_type, &variadic_args, &nested_hoisted, regular_count, output, indent, ctx, context)?)
+                    Some(hoist_variadic_args(&vi.elem_type, &variadic_args, &nested_hoisted, vi.regular_count, output, indent, ctx, context)?)
                 } else {
                     // Empty variadic - still need an array (with 0 elements)
-                    Some(hoist_variadic_args(&elem_type, &[], &nested_hoisted, regular_count, output, indent, ctx, context)?)
+                    Some(hoist_variadic_args(&vi.elem_type, &[], &nested_hoisted, vi.regular_count, output, indent, ctx, context)?)
                 }
             } else {
                 None
@@ -850,7 +850,7 @@ fn hoist_throwing_args(
             hoisted.push(HoistedArg { index: idx, temp_var });
         }
         // Handle non-throwing variadic calls
-        else if let Some((elem_type, regular_count)) = variadic_info {
+        else if let Some(vi) = variadic_info {
             // RECURSIVELY hoist any throwing/variadic calls in this call's arguments first
             let nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
                 let nested_args = &arg.params[1..];
@@ -880,11 +880,11 @@ fn hoist_throwing_args(
             output.push_str(";\n");
 
             // Construct variadic array
-            let variadic_args: Vec<_> = arg.params.iter().skip(1 + regular_count).collect();
+            let variadic_args: Vec<_> = arg.params.iter().skip(1 + vi.regular_count).collect();
             let variadic_arr_var = if !variadic_args.is_empty() {
-                hoist_variadic_args(&elem_type, &variadic_args, &nested_hoisted, regular_count, output, indent, ctx, context)?
+                hoist_variadic_args(&vi.elem_type, &variadic_args, &nested_hoisted, vi.regular_count, output, indent, ctx, context)?
             } else {
-                hoist_variadic_args(&elem_type, &[], &nested_hoisted, regular_count, output, indent, ctx, context)?
+                hoist_variadic_args(&vi.elem_type, &[], &nested_hoisted, vi.regular_count, output, indent, ctx, context)?
             };
 
             // Emit the function call (non-throwing, so direct assignment)
@@ -900,7 +900,7 @@ fn hoist_throwing_args(
 
             // Emit regular args (using nested hoisted temps)
             let mut first = true;
-            for (i, param) in arg.params.iter().skip(1).take(regular_count).enumerate() {
+            for (i, param) in arg.params.iter().skip(1).take(vi.regular_count).enumerate() {
                 if !first {
                     output.push_str(", ");
                 }
@@ -1270,11 +1270,11 @@ fn hoist_variadic_args(
 }
 
 /// Detect if an expression is a variadic function call
-/// Returns (elem_type, regular_count) if it's a variadic call
+/// Returns VariadicFCallInfo if it's a variadic call
 fn detect_variadic_fcall(
     expr: &Expr,
     ctx: &CodegenContext,
-) -> Option<(String, usize)> {
+) -> Option<VariadicFCallInfo> {
     if expr.params.is_empty() {
         return None;
     }
@@ -1283,7 +1283,7 @@ fn detect_variadic_fcall(
     let orig_func_name = get_til_func_name_string(&expr.params[0])?;
 
     ctx.func_variadic_args.get(&orig_func_name)
-        .map(|info| (info.elem_type.clone(), info.regular_count))
+        .map(|info| VariadicFCallInfo { elem_type: info.elem_type.clone(), regular_count: info.regular_count })
 }
 
 /// Emit a throwing function call's name and arguments for hoisting
@@ -3249,14 +3249,14 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         // Check for non-throwing variadic calls in declarations/assignments
         // These need special handling because variadic array must be constructed first
         if let Some(fcall) = maybe_fcall {
-            if let Some((elem_type, regular_count)) = detect_variadic_fcall(fcall, ctx) {
+            if let Some(variadic_fcall_info) = detect_variadic_fcall(fcall, ctx) {
                 // Check that this is NOT a throwing function (those are handled above)
                 let is_throwing = get_fcall_func_def(context, fcall)
                     .map(|fd| !fd.throw_types.is_empty())
                     .unwrap_or(false);
 
                 if !is_throwing {
-                    emit_variadic_call(fcall, &elem_type, regular_count, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
+                    emit_variadic_call(fcall, &variadic_fcall_info.elem_type, variadic_fcall_info.regular_count, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
                     i += 1;
                     continue;
                 }
@@ -3609,9 +3609,9 @@ fn emit_throwing_call(
 
     // Check if this is a variadic function call and construct array BEFORE the call
     let variadic_info = detect_variadic_fcall(fcall, ctx);
-    let variadic_arr_var: Option<String> = if let Some((elem_type, regular_count)) = variadic_info.clone() {
-        let variadic_args: Vec<_> = fcall.params.iter().skip(1 + regular_count).collect();
-        Some(hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?)
+    let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
+        let variadic_args: Vec<_> = fcall.params.iter().skip(1 + vi.regular_count).collect();
+        Some(hoist_variadic_args(&vi.elem_type, &variadic_args, &hoisted, vi.regular_count, output, indent, ctx, context)?)
     } else {
         None
     };
@@ -3642,9 +3642,9 @@ fn emit_throwing_call(
     }
 
     // Emit arguments - handle variadic separately from regular args
-    if let Some((_, regular_count)) = variadic_info {
+    if let Some(ref vi) = variadic_info {
         // Variadic call: emit regular args first, then variadic array pointer
-        for (arg_idx, arg) in fcall.params.iter().skip(1).take(regular_count).enumerate() {
+        for (arg_idx, arg) in fcall.params.iter().skip(1).take(vi.regular_count).enumerate() {
             if needs_ret || !throw_types.is_empty() || arg_idx > 0 {
                 output.push_str(", ");
             }
@@ -3655,7 +3655,7 @@ fn emit_throwing_call(
 
         // Emit variadic array pointer
         if let Some(ref arr_var) = variadic_arr_var {
-            if needs_ret || !throw_types.is_empty() || regular_count > 0 {
+            if needs_ret || !throw_types.is_empty() || vi.regular_count > 0 {
                 output.push_str(", ");
             }
             output.push_str("&");
@@ -3910,9 +3910,9 @@ fn emit_throwing_call_propagate(
 
     // Check if this is a variadic function call and construct array BEFORE the call
     let variadic_info = detect_variadic_fcall(fcall, ctx);
-    let variadic_arr_var: Option<String> = if let Some((elem_type, regular_count)) = variadic_info.clone() {
-        let variadic_args: Vec<_> = fcall.params.iter().skip(1 + regular_count).collect();
-        Some(hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?)
+    let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
+        let variadic_args: Vec<_> = fcall.params.iter().skip(1 + vi.regular_count).collect();
+        Some(hoist_variadic_args(&vi.elem_type, &variadic_args, &hoisted, vi.regular_count, output, indent, ctx, context)?)
     } else {
         None
     };
@@ -3943,9 +3943,9 @@ fn emit_throwing_call_propagate(
     }
 
     // Emit arguments - handle variadic separately from regular args
-    if let Some((_, regular_count)) = variadic_info {
+    if let Some(ref vi) = variadic_info {
         // Variadic call: emit regular args first, then variadic array pointer
-        for (arg_idx, arg) in fcall.params.iter().skip(1).take(regular_count).enumerate() {
+        for (arg_idx, arg) in fcall.params.iter().skip(1).take(vi.regular_count).enumerate() {
             if needs_ret || !throw_types.is_empty() || arg_idx > 0 {
                 output.push_str(", ");
             }
@@ -3956,7 +3956,7 @@ fn emit_throwing_call_propagate(
 
         // Emit variadic array pointer
         if let Some(ref arr_var) = variadic_arr_var {
-            if needs_ret || !throw_types.is_empty() || regular_count > 0 {
+            if needs_ret || !throw_types.is_empty() || vi.regular_count > 0 {
                 output.push_str(", ");
             }
             output.push_str("&");
@@ -4170,9 +4170,9 @@ fn emit_throwing_call_with_goto(
 
     // Check for variadic function call
     let variadic_info = detect_variadic_fcall(fcall, ctx);
-    let variadic_arr_var: Option<String> = if let Some((elem_type, regular_count)) = variadic_info.clone() {
-        let variadic_args: Vec<_> = fcall.params.iter().skip(1 + regular_count).collect();
-        Some(hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?)
+    let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
+        let variadic_args: Vec<_> = fcall.params.iter().skip(1 + vi.regular_count).collect();
+        Some(hoist_variadic_args(&vi.elem_type, &variadic_args, &hoisted, vi.regular_count, output, indent, ctx, context)?)
     } else {
         None
     };
@@ -4204,7 +4204,7 @@ fn emit_throwing_call_with_goto(
 
     // Emit arguments
     let mut args_started = false;
-    let regular_arg_count = variadic_info.as_ref().map(|(_, c)| *c).unwrap_or(usize::MAX);
+    let regular_arg_count = variadic_info.as_ref().map(|vi| vi.regular_count).unwrap_or(usize::MAX);
     for (arg_idx, arg) in fcall.params.iter().skip(1).enumerate() {
         if arg_idx >= regular_arg_count {
             break;
@@ -4909,14 +4909,14 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         if !expr.params.is_empty() {
             let return_expr = &expr.params[0];
             if let NodeType::FCall = return_expr.node_type {
-                if let Some((elem_type, regular_count)) = detect_variadic_fcall(return_expr, ctx) {
+                if let Some(variadic_fcall_info) = detect_variadic_fcall(return_expr, ctx) {
                     // Variadic call in return - need to hoist it
                     // First, hoist any nested throwing/variadic calls in the arguments
                     let all_args: Vec<_> = return_expr.params.iter().skip(1).collect();
                     let hoisted_vec = hoist_throwing_args(&all_args.iter().map(|a| (*a).clone()).collect::<Vec<_>>(), output, indent, ctx, context)?;
                     let hoisted: std::collections::HashMap<usize, String> = hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect();
-                    let variadic_args: Vec<_> = return_expr.params.iter().skip(1 + regular_count).collect();
-                    let arr_var = hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?;
+                    let variadic_args: Vec<_> = return_expr.params.iter().skip(1 + variadic_fcall_info.regular_count).collect();
+                    let arr_var = hoist_variadic_args(&variadic_fcall_info.elem_type, &variadic_args, &hoisted, variadic_fcall_info.regular_count, output, indent, ctx, context)?;
 
                     // Emit the function call storing result
                     let temp_var = next_mangled(ctx);
@@ -4936,14 +4936,14 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     output.push_str("(");
                     // Emit regular args
                     let args: Vec<_> = return_expr.params.iter().skip(1).collect();
-                    for (i, arg) in args.iter().take(regular_count).enumerate() {
+                    for (i, arg) in args.iter().take(variadic_fcall_info.regular_count).enumerate() {
                         if i > 0 {
                             output.push_str(", ");
                         }
                         emit_expr(arg, output, 0, ctx, context)?;
                     }
                     // Emit variadic array pointer
-                    if regular_count > 0 {
+                    if variadic_fcall_info.regular_count > 0 {
                         output.push_str(", ");
                     }
                     output.push_str("&");
@@ -5624,6 +5624,13 @@ struct ThrowingFCallInfo {
     func_name: String,
     throw_types: Vec<ValueType>,
     return_type: Option<ValueType>,
+}
+
+// Info about a variadic function call
+#[derive(Clone)]
+struct VariadicFCallInfo {
+    elem_type: String,
+    regular_count: usize,
 }
 
 // Extract enum type and variant names from a case pattern expression
