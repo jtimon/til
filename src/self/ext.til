@@ -153,7 +153,7 @@ func_free := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     return EvalResult.new("")
 }
 
-func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str, IndexOutOfBoundsError, U8_OverflowError {
+func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str, U8_OverflowError {
     validate_arg_count(context.path, e, "memset", 3, false)
 
     dest_result := eval_expr(context, e.get(1))
@@ -173,13 +173,13 @@ func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     }
 
     for i in 0..size {
-        arena.memory.set(dest.add(i), value)
+        arena.set(dest.add(i), to_ptr(value), 1)
     }
 
     return EvalResult.new("")
 }
 
-func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str, IndexOutOfBoundsError {
+func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "memcpy", 3, false)
 
     dest_result := eval_expr(context, e.get(1))
@@ -200,8 +200,8 @@ func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 
     for i in 0..size {
         mut src_byte := U8.from_i64(0)
-        arena.memory.get(src.add(i), src_byte)
-        arena.memory.set(dest.add(i), src_byte)
+        memcpy(to_ptr(src_byte), arena.get(src.add(i), 1), 1)
+        arena.set(dest.add(i), to_ptr(src_byte), 1)
     }
 
     catch (err: U8_OverflowError) { throw err.msg }
@@ -231,8 +231,8 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     for i in 0..size {
         mut byte1 := U8.from_i64(0)
         mut byte2 := U8.from_i64(0)
-        arena.memory.get(ptr1.add(i), byte1)
-        arena.memory.get(ptr2.add(i), byte2)
+        memcpy(to_ptr(byte1), arena.get(ptr1.add(i), 1), 1)
+        memcpy(to_ptr(byte2), arena.get(ptr2.add(i), 1), 1)
         if U8.to_i64(byte1).lt(U8.to_i64(byte2)) {
             return EvalResult.new("-1")
         } else if U8.to_i64(byte1).gt(U8.to_i64(byte2)) {
@@ -242,7 +242,6 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 
     // All bytes equal
     catch (err: U8_OverflowError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     return EvalResult.new("0")
 }
 

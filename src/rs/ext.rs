@@ -131,7 +131,7 @@ pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     }
 
     for i in 0..size {
-        Arena::g().memory[dest + i] = value;
+        Arena::g().set(dest + i, &[value]);
     }
 
     Ok(EvalResult::new(""))
@@ -178,7 +178,8 @@ pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     }
 
     for i in 0..size {
-        Arena::g().memory[dest + i] = Arena::g().memory[src + i];
+        let byte = Arena::g().get(src + i, 1)[0];
+        Arena::g().set(dest + i, &[byte]);
     }
 
     Ok(EvalResult::new(""))
@@ -226,8 +227,8 @@ pub fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
     // Compare bytes
     for i in 0..size {
-        let byte1 = Arena::g().memory[ptr1 + i];
-        let byte2 = Arena::g().memory[ptr2 + i];
+        let byte1 = Arena::g().get(ptr1 + i, 1)[0];
+        let byte2 = Arena::g().get(ptr2 + i, 1)[0];
         if byte1 < byte2 {
             return Ok(EvalResult::new("-1"));
         } else if byte1 > byte2 {

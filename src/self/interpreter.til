@@ -3107,7 +3107,6 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
             throw e.lang_error(context.path, "eval", format("Core function '", name, "' not implemented."))
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: U8_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
