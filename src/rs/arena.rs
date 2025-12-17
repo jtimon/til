@@ -63,6 +63,13 @@ impl Arena {
         self.memory.len()
     }
 
+    /// Append bytes to arena, return offset where they were placed
+    pub fn put(&mut self, bytes: &[u8]) -> usize {
+        let offset = self.memory.len();
+        self.memory.extend_from_slice(bytes);
+        offset
+    }
+
     // === EVAL-PHASE MEMORY OPERATIONS ===
     // These methods manage runtime memory allocation and access
     // They take Context as parameter to access type info and arena_index
@@ -120,7 +127,8 @@ impl Arena {
 
         if Self::is_instance_field(ctx, id) {
             // For instance field paths, calculate offset dynamically
-            let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+            // REM renamed to field_offset (vs Rust's offset) due to C scope flattening
+            let field_offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
                 // Pre-registered field (old path)
                 offset
             } else {
@@ -131,18 +139,17 @@ impl Arena {
             };
 
             // Ensure arena has enough space
-            let required_len = offset + 8;
+            let required_len = field_offset + 8;
             if Arena::g().len() < required_len {
                 Arena::g().memory.resize(required_len, 0);
             }
 
-            Arena::g().memory[offset..offset + 8].copy_from_slice(&bytes);
+            Arena::g().memory[field_offset..field_offset + 8].copy_from_slice(&bytes);
             return Ok(None)
         }
 
         // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
-        let offset = Arena::g().len();
-        Arena::g().memory.extend_from_slice(&bytes);
+        let offset = Arena::g().put(&bytes);
         Ok(Some(offset))
     }
 
@@ -167,7 +174,8 @@ impl Arena {
 
         if Self::is_instance_field(ctx, id) {
             // For instance field paths, calculate offset dynamically
-            let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+            // REM renamed to field_offset (vs Rust's offset) due to C scope flattening
+            let field_offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
                 // Pre-registered field (old path)
                 offset
             } else {
@@ -176,12 +184,11 @@ impl Arena {
                     e.lang_error(&ctx.path, "context", &format!("insert_u8: {}", err))
                 })?
             };
-            Arena::g().memory[offset] = v;
+            Arena::g().memory[field_offset] = v;
             return Ok(None)
         }
 
-        let offset = Arena::g().len();
-        Arena::g().memory.push(v);
+        let offset = Arena::g().put(&[v]);
         Ok(Some(offset))
     }
 
@@ -575,9 +582,8 @@ impl Arena {
         let is_field = Self::is_instance_field(ctx, id);
 
         // Allocate string data
-        let string_offset = Arena::g().len();
-        Arena::g().memory.extend_from_slice(value_str.as_bytes());
-        Arena::g().memory.push(0); // null terminator
+        let string_offset = Arena::g().put(value_str.as_bytes());
+        Arena::g().put(&[0]); // null terminator
         let string_offset_bytes = (string_offset as i64).to_ne_bytes();
         let len_bytes = (value_str.len() as i64).to_ne_bytes();
 
@@ -910,11 +916,10 @@ impl Arena {
                     }
                     None
                 } else {
-                    let offset = Arena::g().len();
                     // Allocate max enum size, write tag and payload, then zero-pad remaining
-                    Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
+                    let offset = Arena::g().put(&enum_value.to_le_bytes());
                     if let Some(payload_bytes) = &payload_data {
-                        Arena::g().memory.extend_from_slice(&payload_bytes);
+                        Arena::g().put(&payload_bytes);
                     }
                     // Pad with zeros to reach max_enum_size
                     if actual_size < max_enum_size {
@@ -923,11 +928,10 @@ impl Arena {
                     Some(ArenaMapping { name: id.to_string(), offset })
                 }
             } else {
-                let offset = Arena::g().len();
                 // Allocate max enum size, write tag and payload, then zero-pad remaining
-                Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
+                let offset = Arena::g().put(&enum_value.to_le_bytes());
                 if let Some(payload_bytes) = &payload_data {
-                    Arena::g().memory.extend_from_slice(&payload_bytes);
+                    Arena::g().put(&payload_bytes);
                 }
                 // Pad with zeros to reach max_enum_size
                 if actual_size < max_enum_size {
