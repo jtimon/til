@@ -900,8 +900,9 @@ pub fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str
         return Err(error_msg);
     }
 
-    // Store AST for typer and eval phases
+    // Store AST and mode for typer and eval phases
     context.imported_asts.insert(path.clone(), imported_ast);
+    context.imported_modes.insert(path.clone(), context.mode_def.clone());
 
     // Restore context state
     context.mode_def = previous_mode;
@@ -1110,6 +1111,7 @@ pub struct Context {
     // Import tracking - per-phase to allow circular imports
     // Add to done at START of processing (not end) - handles both circular and re-imports
     pub imported_asts: HashMap<String, Expr>,  // path → parsed AST (stored after init, used by typer and eval)
+    pub imported_modes: HashMap<String, ModeDef>,  // path → mode (stored after init, used by typer)
     pub imports_init_done: HashSet<String>,
     pub imports_typer_done: HashSet<String>,
     pub imports_precomp_done: HashSet<String>,
@@ -1141,6 +1143,7 @@ impl Context {
             scope_stack,
             temp_enum_payload: None,
             imported_asts: HashMap::new(),
+            imported_modes: HashMap::new(),
             imports_init_done: HashSet::new(),
             imports_typer_done: HashSet::new(),
             imports_precomp_done: HashSet::new(),

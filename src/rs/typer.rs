@@ -47,14 +47,26 @@ pub fn typer_import_declarations(context: &mut Context, import_path_str: &str) -
         }
     };
 
-    // Save and restore context path
+    // Get stored mode from init phase (Bug #41 fix)
+    let file_mode = match context.imported_modes.get(&path) {
+        Some(file_mode) => file_mode.clone(),
+        None => {
+            // This shouldn't happen - init phase should have stored the mode
+            return vec![format!("typer: Import {} not found in stored modes - init phase should have stored it", path)];
+        }
+    };
+
+    // Save and restore context path and mode (Bug #41 fix: respect imported file's mode)
     let original_path = context.path.clone();
+    let original_mode = context.mode_def.clone();
     context.path = path.clone();
+    context.mode_def = file_mode;
 
     // Run type checking on the imported AST
     let errors = check_types(context, &ast);
 
     context.path = original_path;
+    context.mode_def = original_mode;
     return errors;
 }
 

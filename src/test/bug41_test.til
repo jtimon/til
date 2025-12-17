@@ -1,0 +1,15 @@
+mode test
+
+// Bug #41: mode liba not respected when file is imported
+// When a file with mode liba is imported into a file with mode test (or cli),
+// the imported file's mode should still be respected.
+
+import("test.bug41_liba_helper")
+
+test_bug41 := proc() {
+    result := print_debug("hello from bug41 test")
+    assert_eq(loc(), 42, result)
+    println("Bug #41 test passed!")
+}
+
+test_bug41()

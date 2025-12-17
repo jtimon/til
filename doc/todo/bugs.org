@@ -9,41 +9,6 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #41: mode liba not respected when file is imported
-:PROPERTIES:
-:DISCOVERED: 2025-12-16
-:IMPACT: Debugging, purity rules
-:STATUS: Open
-:END:
-
-*** Description
-When a file with `mode liba` is imported into another file (e.g., `mode cli`), the purity rules of the importing file apply instead of the imported file's mode. This means `func` definitions in `mode liba` files cannot call `print`/`println` when imported, even though `mode liba` is supposed to allow print in funcs for debugging.
-
-*** Example
-#+BEGIN_EXAMPLE
-// lexer.til (mode liba)
-print_lex_error := func(...) {
-    print(...)  // Should be allowed in mode liba
-}
-
-// til.til (mode cli)
-import("self.lexer")
-// Error: funcs cannot call procs (print_lex_error's print calls)
-#+END_EXAMPLE
-
-*** Expected Behavior
-The `mode liba` file should retain its relaxed purity rules when imported. A func in a `mode liba` file should be able to call print/println regardless of the importing file's mode.
-
-*** Current Behavior
-The importing file's mode (`cli`) takes precedence, causing "funcs cannot call procs" errors for print calls in the imported `mode liba` file.
-
-*** Workaround
-Change funcs that use print to procs, or avoid print in funcs entirely.
-
-*** Files to Investigate
-- src/rs/typer.rs: Mode handling during import
-- src/rs/init.rs: Import processing
-
 ** Bug #40: Precomp generates non-deterministic _for_i_ variable names
 :PROPERTIES:
 :DISCOVERED: 2025-12-16
@@ -157,6 +122,45 @@ the ~goto _end_catches~ jump, so they only ran on the success path.
 - src/test/errors.til: Regression test (test_bug34 - only tests simple case)
 
 * Fixed Bugs Summary
+
+** Bug #41: mode liba not respected when file is imported
+:PROPERTIES:
+:DISCOVERED: 2025-12-16
+:FIXED: 2025-12-17
+:IMPACT: Debugging, purity rules
+:STATUS: Fixed
+:END:
+
+*** Description
+When a file with `mode liba` is imported into another file (e.g., `mode cli`), the purity rules of the importing file apply instead of the imported file's mode. This means `func` definitions in `mode liba` files cannot call `print`/`println` when imported, even though `mode liba` is supposed to allow print in funcs for debugging.
+
+*** Root Cause
+The typer phase's `typer_import_declarations` function only saved and restored `context.path` when type-checking imported files, but did not save and restore `context.mode_def`. This caused the importing file's mode to be used for type checking the imported file.
+
+*** Fix Applied (2025-12-17)
+Two-part fix:
+
+1. *Store mode during init phase* (src/rs/init.rs, src/self/init.til):
+   - Added `imported_modes: HashMap<String, ModeDef>` to Context struct
+   - In `init_import_declarations`, store the imported file's mode alongside its AST
+
+2. *Use stored mode during type checking* (src/rs/typer.rs, src/self/typer.til):
+   - In `typer_import_declarations`, retrieve stored mode and set `context.mode_def`
+   - Save and restore both `context.path` AND `context.mode_def`
+
+Also added `ModeDef.clone()` method to src/self/mode.til for proper mode copying.
+
+*** Test Coverage
+Regression test: src/test/bug41_test.til
+
+*** Files Modified
+- src/rs/init.rs: Added imported_modes field, store mode during import
+- src/rs/typer.rs: Save/restore mode_def in typer_import_declarations
+- src/self/init.til: Same changes ported
+- src/self/typer.til: Same changes ported
+- src/self/mode.til: Added ModeDef.clone() method
+- src/test/bug41_test.til: Regression test
+- src/test/bug41_liba_helper.til: Helper file for test
 
 ** Bug #39: Non-consecutive catches fail - second catch never executes
 :PROPERTIES:

@@ -1309,8 +1309,9 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         throw error_msg
     }
 
-    # Store AST for typer and eval phases
+    # Store AST and mode for typer and eval phases
     Map.insert(context.imported_asts, path, imported_ast)
+    Map.insert(context.imported_modes, path, context.mode_def.clone())
 
     # Restore context state
     context.mode_def = previous_mode
@@ -1592,6 +1593,7 @@ Context := struct {
     # Import tracking - per-phase to allow circular imports
     # Add to done at START of processing (not end) - handles both circular and re-imports
     mut imported_asts: Map = Map.new(Str, Expr)  # path -> parsed AST (stored after init, used by typer and eval)
+    mut imported_modes: Map = Map.new(Str, ModeDef)  # path -> mode (stored after init, used by typer)
     mut imports_init_done: Set = Set.new(Str)
     mut imports_typer_done: Set = Set.new(Str)
     mut imports_precomp_done: Set = Set.new(Str)
@@ -1620,6 +1622,7 @@ Context := struct {
             scope_stack=scope_stack,
             temp_enum_payload=Ptr(),
             imported_asts=Map.new(Str, Expr),
+            imported_modes=Map.new(Str, ModeDef),
             imports_init_done=Set.new(Str),
             imports_typer_done=Set.new(Str),
             imports_precomp_done=Set.new(Str),
@@ -2129,6 +2132,7 @@ Context := struct {
             scope_stack=self.scope_stack.clone(),
             temp_enum_payload=self.temp_enum_payload,
             imported_asts=self.imported_asts.clone(),
+            imported_modes=self.imported_modes.clone(),
             imports_init_done=self.imports_init_done.clone(),
             imports_typer_done=self.imports_typer_done.clone(),
             imports_precomp_done=self.imports_precomp_done.clone(),
