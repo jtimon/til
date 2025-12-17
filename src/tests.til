@@ -575,6 +575,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/lists.til"))
     rs_common.push(TestEntry(path="src/test/loops.til"))
     rs_common.push(TestEntry(path="src/test/loop_struct_init.til"))
+    rs_common.push(TestEntry(path="src/test/loop_map_struct.til"))
     rs_common.push(TestEntry(path="src/test/maps.til"))
     rs_common.push(TestEntry(path="src/test/modes.til"))
     rs_common.push(TestEntry(path="src/test/mut_test.til"))

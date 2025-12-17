@@ -14,12 +14,12 @@ rstil: src/rstil.rs
 
 # TODO Self hosting
 til: rstil
-	./bin/rstil build src/til.til
+	timeout 90 ./bin/rstil build src/til.til
 	@cp gen/c/til.c bootstrap/til.c 2>/dev/null || true
 	# ./bin/til build src/til.til
 
 tests: rstil til
-	./bin/rstil src/tests.til
+	timeout 90 ./bin/rstil src/tests.til
 	@cp gen/c/test/constfold.c src/test/constfold.c 2>/dev/null || true
 	@echo "Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c, doc/benchmark.org"
 

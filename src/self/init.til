@@ -156,8 +156,8 @@ ScopeStack := struct {
     lookup_var := func(self: ScopeStack, name: Str) returns I64 throws KeyNotFoundError {
         // Walk up the stack from innermost to outermost
         mut i := self.frames.len().sub(1)
+        mut frame := ScopeFrame()  // Declare outside loop to avoid allocating Maps every iteration
         while i.gteq(0) {
-            mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.arena_index.contains_key(name) {
                 mut offset_str := ""
@@ -178,11 +178,11 @@ ScopeStack := struct {
 
     lookup_symbol := func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError {
         mut i := self.frames.len().sub(1)
+        mut frame := ScopeFrame()  // Declare outside loop to avoid allocating Maps every iteration
+        mut symbol := SymbolInfo()
         while i.gteq(0) {
-            mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.symbols.contains_key(name) {
-                mut symbol := SymbolInfo()
                 frame.symbols.get(name, symbol)
                 catch (err: KeyNotFoundError) { }
                 return symbol
@@ -301,8 +301,8 @@ ScopeStack := struct {
     /** Check if a function exists by name (no throw) */
     has_func := func(self: ScopeStack, name: Str) returns Bool {
         mut i := self.frames.len().sub(1)
+        mut frame := ScopeFrame()  // Declare outside loop to avoid allocating Maps every iteration
         while i.gteq(0) {
-            mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.funcs.contains_key(name) {
                 return true
@@ -317,11 +317,11 @@ ScopeStack := struct {
 
     lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
         mut i := self.frames.len().sub(1)
+        mut frame := ScopeFrame()  // Declare outside loop to avoid allocating Maps every iteration
+        mut func_def := SFuncDef()
         while i.gteq(0) { // TODO: replace with reverse range loop when implemented
-            mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.funcs.contains_key(name) {
-                mut func_def := SFuncDef()
                 frame.funcs.get(name, func_def)
                 catch (err: KeyNotFoundError) {
                     // Function not found, continue searching
@@ -358,11 +358,11 @@ ScopeStack := struct {
 
     lookup_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws KeyNotFoundError {
         mut i := self.frames.len().sub(1)
+        mut frame := ScopeFrame()  // Declare outside loop to avoid allocating Maps every iteration
+        mut enum_def := SEnumDef()
         while i.gteq(0) {
-            mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.enums.contains_key(name) {
-                mut enum_def := SEnumDef()
                 frame.enums.get(name, enum_def)
                 catch (err: KeyNotFoundError) { }
                 return enum_def
@@ -397,11 +397,11 @@ ScopeStack := struct {
 
     lookup_struct := func(self: ScopeStack, name: Str) returns SStructDef throws KeyNotFoundError {
         mut i := self.frames.len().sub(1)
+        mut frame := ScopeFrame()  // Declare outside loop to avoid allocating Maps every iteration
+        mut struct_def := SStructDef()
         while i.gteq(0) {
-            mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.structs.contains_key(name) {
-                mut struct_def := SStructDef()
                 frame.structs.get(name, struct_def)
                 catch (err: KeyNotFoundError) { }
                 return struct_def
@@ -418,13 +418,13 @@ ScopeStack := struct {
     all_structs := func(self: ScopeStack) returns Vec throws Str {
         mut result := Vec.new(SStructDef)
         mut i := self.frames.len().sub(1)
+        mut frame := ScopeFrame()  // Declare outside loop to avoid allocating Maps every iteration
+        mut struct_def := SStructDef()
         while i.gteq(0) {
-            mut frame := ScopeFrame()
             self.frames.get(i, frame)
             mut values := frame.structs.values
             mut j := 0
             while j.lt(values.len()) {
-                mut struct_def := SStructDef()
                 values.get(j, struct_def)
                 result.push(struct_def)
                 j.inc()
@@ -661,9 +661,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
     }
 
     // Original logic: check for standalone function
-    println("DEBUG get_fcall_value_type checking:", f_name)
     if context.scope_stack.has_func(f_name) {
-        println("DEBUG found func:", f_name)
         mut standalone_func_def := SFuncDef()
         standalone_func_def = context.scope_stack.lookup_func(f_name)
         catch (err: KeyNotFoundError) {
@@ -671,7 +669,6 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         }
         return value_type_func_proc(context.path, e, f_name, standalone_func_def)
     }
-    println("DEBUG func not found:", f_name)
 
     // Not a standalone function, check if it's a symbol (type, enum, struct, etc)
     mut symbol := context.scope_stack.lookup_symbol(f_name)

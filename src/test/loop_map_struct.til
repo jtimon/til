@@ -1,0 +1,86 @@
+mode test
+
+import("core.vec")
+import("std.map")
+
+// Test for struct-with-Maps inside while loop bug
+// Bug: When declaring a struct with Map fields inside a while loop,
+// the generated C code allocates new Maps every iteration.
+// This causes massive memory allocation and slow execution.
+
+FrameWithMaps := struct {
+    mut index: Map = Map.new(Str, I64)
+    mut symbols: Map = Map.new(Str, I64)
+    mut funcs: Map = Map.new(Str, I64)
+}
+
+ContainerWithFrames := struct {
+    mut frames: Vec = Vec.new(FrameWithMaps)
+}
+
+// This simulates the buggy pattern we had in has_func
+// Before fix: mut frame := FrameWithMaps() was INSIDE the loop
+buggy_lookup := func(container: ContainerWithFrames, name: Str) returns Bool {
+    mut i := container.frames.len().sub(1)
+    while i.gteq(0) {
+        mut frame := FrameWithMaps()  // BUG: Creates 3 new Maps every iteration!
+        container.frames.get(i, frame)
+        if frame.index.contains_key(name) {
+            return true
+        }
+        i.dec()
+    }
+    catch (err: IndexOutOfBoundsError) { }
+    return false
+}
+
+// This is the fixed pattern - struct declared OUTSIDE the loop
+fixed_lookup := func(container: ContainerWithFrames, name: Str) returns Bool {
+    mut i := container.frames.len().sub(1)
+    mut frame := FrameWithMaps()  // FIXED: Only create Maps once
+    while i.gteq(0) {
+        container.frames.get(i, frame)
+        if frame.index.contains_key(name) {
+            return true
+        }
+        i.dec()
+    }
+    catch (err: IndexOutOfBoundsError) { }
+    return false
+}
+
+test_loop_map_struct := proc() {
+    mut container := ContainerWithFrames()
+
+    // Add some frames with data - use many iterations to trigger the bug
+    for i in 0..100 {
+        mut f := FrameWithMaps()
+        f.index.insert(format("key", i.to_str()), i)
+        container.frames.push(f)
+    }
+
+    // The fixed version should work fine
+    mut found := fixed_lookup(container, "key50")
+    test(loc(), found, "fixed_lookup should find key50")
+
+    // The buggy version may be slow or OOM with many frames
+    // For small counts it works, but the memory allocation is wasteful
+    found = buggy_lookup(container, "key50")
+    test(loc(), found, "buggy_lookup should find key50")
+
+    println("loop_map_struct: PASSED")
+
+    catch (err: AllocError) {
+        println("AllocError:", err.msg)
+        exit(1)
+    }
+    catch (err: DuplicatedKeyError) {
+        println("DuplicatedKeyError:", err.msg)
+        exit(1)
+    }
+}
+
+main := proc() {
+    test_loop_map_struct()
+    exit(0)
+}
