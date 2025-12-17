@@ -63,11 +63,21 @@ impl Arena {
         self.memory.len()
     }
 
+    /// Get size of arena memory (same as len for Arena)
+    pub fn size(&self) -> usize {
+        self.memory.len()
+    }
+
     /// Append bytes to arena, return offset where they were placed
     pub fn put(&mut self, bytes: &[u8]) -> usize {
         let offset = self.memory.len();
         self.memory.extend_from_slice(bytes);
         offset
+    }
+
+    /// Read bytes from arena at offset
+    pub fn get(&self, offset: usize, len: usize) -> &[u8] {
+        &self.memory[offset..offset + len]
     }
 
     // === EVAL-PHASE MEMORY OPERATIONS ===
@@ -113,7 +123,7 @@ impl Arena {
             return Err(e.lang_error(&ctx.path, "context", &format!("i64 not found for id '{}'", id)));
         };
 
-        match Arena::g().memory[offset..offset + 8].try_into() {
+        match Arena::g().get(offset, 8).try_into() {
             Ok(bytes) => Ok(i64::from_ne_bytes(bytes)),
             Err(_) => Err(e.lang_error(&ctx.path, "context", &format!("Invalid i64 read for id '{}'", id))),
         }
@@ -709,7 +719,7 @@ impl Arena {
     pub fn get_enum_at_offset(ctx: &Context, enum_type: &str, offset: usize, e: &Expr) -> Result<EnumVal, String> {
 
         // Read enum from a specific offset (used for nested enum payloads)
-        let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
+        let enum_value_bytes = Arena::g().get(offset, 8);
         let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
                                             .map_err(|_| e.lang_error(&ctx.path, "context", "get_enum_at_offset: Failed to convert bytes to i64"))?);
 
@@ -728,7 +738,7 @@ impl Arena {
                     let payload_offset = offset + 8;
                     let payload_end = payload_offset + payload_size;
                     if payload_end <= Arena::g().len() {
-                        let payload_bytes = Arena::g().memory[payload_offset..payload_end].to_vec();
+                        let payload_bytes = Arena::g().get(payload_offset, payload_size).to_vec();
                         (Some(payload_bytes), Some(vtype.clone()))
                     } else {
                         (None, None)
@@ -806,7 +816,7 @@ impl Arena {
             return Err(e.lang_error(&ctx.path, "context", &format!("get_enum: Arena index for '{}' not found", id)))
         };
 
-        let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
+        let enum_value_bytes = Arena::g().get(offset, 8);
         let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
                                             .map_err(|_| e.lang_error(&ctx.path, "context", &format!("get_enum: Failed to convert bytes to i64 for '{}'", id)))?);
 
@@ -856,7 +866,7 @@ impl Arena {
                     let payload_offset = offset + 8;
                     let payload_end = payload_offset + payload_size;
                     if payload_end <= Arena::g().len() {
-                        let payload_bytes = Arena::g().memory[payload_offset..payload_end].to_vec();
+                        let payload_bytes = Arena::g().get(payload_offset, payload_size).to_vec();
                         (Some(payload_bytes), Some(vtype.clone()))
                     } else {
                         (None, None)
@@ -1034,14 +1044,14 @@ impl Arena {
                     let str_offset = frame.arena_index.get(&temp_id).copied()
                         .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing Str offset for '{}'", temp_id)))?;
                     Arena::g().memory[offset..offset + elem_size]
-                        .copy_from_slice(&Arena::g().memory[str_offset..str_offset + elem_size]);
+                        .copy_from_slice(Arena::g().get(str_offset, elem_size));
                 },
                 _ => {
                     // Struct element - val is identifier, copy from source
                     let src_offset = ctx.scope_stack.lookup_var(val)
                         .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("struct source '{}' not found", val)))?;
                     Arena::g().memory[offset..offset + elem_size]
-                        .copy_from_slice(&Arena::g().memory[src_offset..src_offset + elem_size]);
+                        .copy_from_slice(Arena::g().get(src_offset, elem_size));
                 }
             }
         }
@@ -1076,7 +1086,7 @@ impl Arena {
             .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing '{}'", type_name_field)))?;
         let str_size = ctx.get_type_size("Str")?;
         Arena::g().memory[type_name_offset..type_name_offset + str_size]
-            .copy_from_slice(&Arena::g().memory[temp_str_offset..temp_str_offset + str_size]);
+            .copy_from_slice(Arena::g().get(temp_str_offset, str_size));
 
         Ok(())
     }

@@ -56,6 +56,11 @@ Arena := struct {
         return self.memory.len()
     }
 
+    /// Get size of arena memory (same as len for Arena)
+    size := func(self: Arena) returns I64 {
+        return self.memory.len()
+    }
+
     /// Append bytes to arena, return offset where they were placed
     put := proc(mut self: Arena, src_ptr: I64, num_bytes: I64) returns I64 throws AllocError {
         offset := self.memory.len()
@@ -67,6 +72,11 @@ Arena := struct {
             i = add(i, 1)
         }
         return offset
+    }
+
+    /// Read bytes from arena at offset (returns pointer to data)
+    get := func(self: Arena, offset: I64, num_bytes: I64) returns I64 {
+        return add(self.memory.ptr, offset)
     }
 
     // === EVAL-PHASE MEMORY OPERATIONS ===
@@ -138,7 +148,7 @@ Arena := struct {
         }
 
         mut val : I64 = 0
-        memcpy(to_ptr(val), add(arena.memory.ptr, offset), 8)
+        memcpy(to_ptr(val), arena.get(offset, 8), 8)
         return val
     }
 
@@ -308,7 +318,7 @@ Arena := struct {
                     ctx.scope_stack.insert_var(dest_key, dest_offset)
                     ctx.scope_stack.declare_symbol(dest_key, SymbolInfo.new(decl.value_type, is_mut, false, false))
 
-                    memcpy(add(arena.memory.ptr, dest_offset), add(arena.memory.ptr, src_offset), field_size)
+                    memcpy(add(arena.memory.ptr, dest_offset), arena.get(src_offset, field_size), field_size)
 
                     switch decl.value_type {
                     case ValueType.TCustom(type_name):
@@ -678,7 +688,7 @@ Arena := struct {
         }
 
         // memcpy from template
-        memcpy(add(arena.memory.ptr, new_offset), add(arena.memory.ptr, template_offset), struct_size)
+        memcpy(add(arena.memory.ptr, new_offset), arena.get(template_offset, struct_size), struct_size)
 
         // Generate and apply mappings
         result := Arena.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)
@@ -717,7 +727,7 @@ Arena := struct {
         }
 
         // memcpy from template
-        memcpy(add(arena.memory.ptr, new_offset), add(arena.memory.ptr, template_offset), struct_size)
+        memcpy(add(arena.memory.ptr, new_offset), arena.get(template_offset, struct_size), struct_size)
 
         // Temporarily push frame for generate_struct_mappings
         ctx.scope_stack.frames.push(frame)
@@ -948,7 +958,7 @@ Arena := struct {
     get_enum_at_offset := func(ctx: Context, enum_type: Str, offset: I64, e: Expr) returns EnumVal throws Str {
         // Read enum from a specific offset (used for nested enum payloads)
         mut enum_value : I64 = 0
-        memcpy(to_ptr(enum_value), add(arena.memory.ptr, offset), 8)
+        memcpy(to_ptr(enum_value), arena.get(offset, 8), 8)
 
         mut enum_def := ctx.scope_stack.lookup_enum(enum_type)
         catch (err: KeyNotFoundError) {
@@ -988,7 +998,7 @@ Arena := struct {
                         mut pi := 0
                         while pi.lt(payload_size) {
                             mut byte_val : U8 = 0
-                            memcpy(to_ptr(byte_val), add(arena.memory.ptr, add(payload_offset, pi)), 1)
+                            memcpy(to_ptr(byte_val), arena.get(add(payload_offset, pi), 1), 1)
                             payload_bytes.push(byte_val)
                             pi = add(pi, 1)
                         }
@@ -1088,7 +1098,7 @@ Arena := struct {
         }
 
         mut enum_value : I64 = 0
-        memcpy(to_ptr(enum_value), add(arena.memory.ptr, offset), 8)
+        memcpy(to_ptr(enum_value), arena.get(offset, 8), 8)
 
         mut enum_def := ctx.scope_stack.lookup_enum(enum_type)
         catch (err: KeyNotFoundError) {
@@ -1164,7 +1174,7 @@ Arena := struct {
                         mut pi := 0
                         while pi.lt(payload_size) {
                             mut byte_val : U8 = 0
-                            memcpy(to_ptr(byte_val), add(arena.memory.ptr, add(payload_offset, pi)), 1)
+                            memcpy(to_ptr(byte_val), arena.get(add(payload_offset, pi), 1), 1)
                             payload_bytes.push(byte_val)
                             pi = add(pi, 1)
                         }
@@ -1388,7 +1398,7 @@ Arena := struct {
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "insert_array", format("missing Str offset for '", temp_id, "'"))
                 }
-                memcpy(add(arena.memory.ptr, offset), add(arena.memory.ptr, str_offset), elem_size)
+                memcpy(add(arena.memory.ptr, offset), arena.get(str_offset, elem_size), elem_size)
             } else {
                 // Struct element - val is identifier, copy from source
                 mut src_offset := 0
@@ -1396,7 +1406,7 @@ Arena := struct {
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "insert_array", format("struct source '", val, "' not found"))
                 }
-                memcpy(add(arena.memory.ptr, offset), add(arena.memory.ptr, src_offset), elem_size)
+                memcpy(add(arena.memory.ptr, offset), arena.get(src_offset, elem_size), elem_size)
             }
 
             i = add(i, 1)
@@ -1448,7 +1458,7 @@ Arena := struct {
         }
 
         str_size := ctx.get_type_size("Str")
-        memcpy(add(arena.memory.ptr, type_name_offset), add(arena.memory.ptr, temp_str_offset), str_size)
+        memcpy(add(arena.memory.ptr, type_name_offset), arena.get(temp_str_offset, str_size), str_size)
 
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "IndexOutOfBoundsError")
