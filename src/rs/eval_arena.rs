@@ -6,37 +6,48 @@ use crate::rs::parser::{Expr, ValueType, TTypeDef, value_type_to_str, NodeType, 
 // EvalArena: Memory management for the TIL interpreter
 // Extracted from interpreter.rs to enable incremental translation to TIL.
 
+const ARENA_SIZE: usize = 8388608; // 8MB
+
+static mut ARENA_MEMORY: [u8; ARENA_SIZE] = [0; ARENA_SIZE];
+
 pub struct Arena {
-    _memory: Vec<u8>,
+    _len: usize,
 }
 
 impl Arena {
     /// Get current used length of arena memory
     pub fn len(&self) -> usize {
-        return self._memory.len();
+        return self._len;
     }
 
     /// Append bytes to arena, return offset where they were placed
     pub fn put(&mut self, bytes: &[u8]) -> usize {
-        let offset = self._memory.len();
-        self._memory.extend_from_slice(bytes);
+        let offset = self._len;
+        unsafe {
+            ARENA_MEMORY[offset..offset + bytes.len()].copy_from_slice(bytes);
+        }
+        self._len += bytes.len();
         return offset;
     }
 
     /// Read bytes from arena at offset
     pub fn get(&self, offset: usize, len: usize) -> &[u8] {
-        return &self._memory[offset..offset + len];
+        unsafe {
+            return &ARENA_MEMORY[offset..offset + len];
+        }
     }
 
     /// Write bytes to arena at offset
     pub fn set(&mut self, offset: usize, bytes: &[u8]) {
-        self._memory[offset..offset + bytes.len()].copy_from_slice(bytes);
+        unsafe {
+            ARENA_MEMORY[offset..offset + bytes.len()].copy_from_slice(bytes);
+        }
     }
 
     /// Reserve space in arena, return offset where space was allocated
     pub fn reserve(&mut self, size: usize) -> usize {
-        let offset = self._memory.len();
-        self._memory.resize(offset + size, 0);
+        let offset = self._len;
+        self._len += size;
         return offset;
     }
 }
@@ -86,7 +97,9 @@ impl EvalArena {
 
             // Lazy initialization of the singleton instance
             INSTANCE.get_or_insert_with(|| EvalArena {
-                _arena: Arena { _memory: vec![0] }, // REM: first address 0 is reserved (invalid), malloc always >0
+                _arena: Arena {
+                    _len: 1, // REM: first address 0 is reserved (invalid), malloc always >0
+                },
                 temp_id_counter: 0, // A temporary ugly hack for return values
                 default_instances: HashMap::new(),
             })
