@@ -34,7 +34,7 @@ arena_memory_slice := func(arena: Arena, offset: I64, size: I64) returns Vec thr
     for _ in 0..size {
         bytes.push(0)
     }
-    memcpy(bytes.ptr, add(arena.memory.ptr, offset), size)
+    memcpy(bytes.ptr, arena.get(offset, size), size)
     return bytes
 }
 

@@ -159,7 +159,7 @@ pub fn string_from_context(context: &Context, id: &str, e: &Expr) -> Result<Stri
     }
 
     // Read string bytes from Arena and convert to String
-    let bytes = &Arena::g().memory[c_string_ptr..c_string_ptr + length];
+    let bytes = Arena::g().get(c_string_ptr, length);
     Ok(String::from_utf8_lossy(bytes).to_string())
 }
 
@@ -494,7 +494,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                             if ptr + len > Arena::g().len() {
                                                 return Err(case.error(&context.path, "eval", "String payload pointer out of bounds"));
                                             }
-                                            let str_bytes = &Arena::g().memory[ptr..ptr + len];
+                                            let str_bytes = Arena::g().get(ptr, len);
                                             let string_value = String::from_utf8_lossy(str_bytes).to_string();
                                             Arena::insert_string(context, binding_var, &string_value, &case)?;
                                         } else {
@@ -542,8 +542,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 }
 
                                                 // Copy payload bytes directly into arena
-                                                Arena::g().memory[dest_offset..dest_offset + struct_size]
-                                                    .copy_from_slice(&payload_bytes);
+                                                Arena::g().set(dest_offset, &payload_bytes);
                                             },
                                             ValueType::TType(TTypeDef::TEnumDef) => {
                                                 // Handle enum payloads
@@ -963,7 +962,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                     })?;
 
                                     // Copy struct bytes from arena
-                                    let struct_bytes = Arena::g().memory[offset..offset + struct_size].to_vec();
+                                    let struct_bytes = Arena::g().get(offset, struct_size).to_vec();
                                     struct_bytes
                                 },
                                 ValueType::TType(TTypeDef::TEnumDef) => {

@@ -86,7 +86,7 @@ string_from_context := proc(context: Context, id: Str, e: Expr) returns Str thro
     mut result := ""
     for i in 0..length {
         mut byte := U8.from_i64(0)
-        arena.memory.get(c_string_ptr.add(i), byte)
+        memcpy(to_ptr(byte), arena.get(c_string_ptr.add(i), 1), 1)
         result = format(result, byte_to_str(byte))
     }
     catch (err: AllocError) { throw err.msg }

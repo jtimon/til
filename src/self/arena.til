@@ -38,13 +38,13 @@ EnumInsertResult := struct {
 }
 
 Arena := struct {
-    mut memory: Vec = Vec.new(U8)
+    mut _memory: Vec = Vec.new(U8)
     mut temp_id_counter: I64 = 0
     mut default_instances: Map = Map.new(Str, I64)  // type name -> arena offset of default template
 
     new := proc() returns Arena {
         mut a := Arena()
-        a.memory.push(0)  // Reserve first address 0 (invalid), malloc always >0
+        a._memory.push(0)  // Reserve first address 0 (invalid), malloc always >0
         catch (err: AllocError) {
             panic(loc(), err.msg)
         }
@@ -53,22 +53,22 @@ Arena := struct {
 
     /// Get current used length of arena memory
     len := func(self: Arena) returns I64 {
-        return self.memory.len()
+        return self._memory.len()
     }
 
     /// Get size of arena memory (same as len for Arena)
     size := func(self: Arena) returns I64 {
-        return self.memory.len()
+        return self._memory.len()
     }
 
     /// Append bytes to arena, return offset where they were placed
     put := proc(mut self: Arena, src_ptr: I64, num_bytes: I64) returns I64 throws AllocError {
-        offset := self.memory.len()
+        offset := self._memory.len()
         mut i := 0
         while i.lt(num_bytes) {
             mut byte_val : U8 = 0
             memcpy(to_ptr(byte_val), add(src_ptr, i), 1)
-            self.memory.push(byte_val)
+            self._memory.push(byte_val)
             i = add(i, 1)
         }
         return offset
@@ -76,19 +76,19 @@ Arena := struct {
 
     /// Read bytes from arena at offset (returns pointer to data)
     get := func(self: Arena, offset: I64, num_bytes: I64) returns I64 {
-        return add(self.memory.ptr, offset)
+        return add(self._memory.ptr, offset)
     }
 
     /// Write bytes to arena at offset
     set := proc(mut self: Arena, offset: I64, src_ptr: I64, num_bytes: I64) {
-        memcpy(add(self.memory.ptr, offset), src_ptr, num_bytes)
+        memcpy(add(self._memory.ptr, offset), src_ptr, num_bytes)
     }
 
     /// Reserve space in arena, return offset where space was allocated
     reserve := proc(mut self: Arena, size: I64) returns I64 throws AllocError {
-        offset := self.memory.len()
+        offset := self._memory.len()
         for _ in 0..size {
-            self.memory.push(0)
+            self._memory.push(0)
         }
         return offset
     }
@@ -139,10 +139,7 @@ Arena := struct {
         }
 
         mut val : U8 = 0
-        arena.memory.get(offset, val)
-        catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "context", format("Invalid u8 read for id '", id, "'"))
-        }
+        memcpy(to_ptr(val), arena.get(offset, 1), 1)
         return val
     }
 
@@ -244,10 +241,7 @@ Arena := struct {
                     throw e.lang_error(ctx.path, "context", format("insert_u8: ", err2))
                 }
             }
-            arena.memory.set(field_offset, v)
-            catch (err: IndexOutOfBoundsError) {
-                throw err.msg
-            }
+            arena.set(field_offset, to_ptr(v), 1)
             throw KeyNotFoundError(msg="already handled")
         }
 

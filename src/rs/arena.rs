@@ -7,7 +7,7 @@ use crate::rs::parser::{Expr, ValueType, TTypeDef, value_type_to_str, NodeType, 
 // Extracted from interpreter.rs to enable incremental translation to TIL.
 
 pub struct Arena {
-    pub memory: Vec<u8>,
+    _memory: Vec<u8>,
     pub temp_id_counter: usize,
     pub default_instances: HashMap<String, usize>,  // type name -> arena offset of default template
 }
@@ -51,7 +51,7 @@ impl Arena {
 
             // Lazy initialization of the singleton instance
             INSTANCE.get_or_insert_with(|| Arena {
-                memory: vec![0], // REM: first address 0 is reserved (invalid), malloc always >0
+                _memory: vec![0], // REM: first address 0 is reserved (invalid), malloc always >0
                 temp_id_counter: 0, // A temporary ugly hack for return values
                 default_instances: HashMap::new(),
             })
@@ -60,35 +60,35 @@ impl Arena {
 
     /// Get current used length of arena memory
     pub fn len(&self) -> usize {
-        self.memory.len()
+        self._memory.len()
     }
 
     /// Get size of arena memory (same as len for Arena)
     pub fn size(&self) -> usize {
-        self.memory.len()
+        self._memory.len()
     }
 
     /// Append bytes to arena, return offset where they were placed
     pub fn put(&mut self, bytes: &[u8]) -> usize {
-        let offset = self.memory.len();
-        self.memory.extend_from_slice(bytes);
+        let offset = self._memory.len();
+        self._memory.extend_from_slice(bytes);
         offset
     }
 
     /// Read bytes from arena at offset
     pub fn get(&self, offset: usize, len: usize) -> &[u8] {
-        &self.memory[offset..offset + len]
+        &self._memory[offset..offset + len]
     }
 
     /// Write bytes to arena at offset
     pub fn set(&mut self, offset: usize, bytes: &[u8]) {
-        self.memory[offset..offset + bytes.len()].copy_from_slice(bytes);
+        self._memory[offset..offset + bytes.len()].copy_from_slice(bytes);
     }
 
     /// Reserve space in arena, return offset where space was allocated
     pub fn reserve(&mut self, size: usize) -> usize {
-        let offset = self.memory.len();
-        self.memory.resize(offset + size, 0);
+        let offset = self._memory.len();
+        self._memory.resize(offset + size, 0);
         offset
     }
 
@@ -118,8 +118,7 @@ impl Arena {
             return Err(e.lang_error(&ctx.path, "context", &format!("u8 not found for id '{}'", id)));
         };
 
-        Arena::g().memory.get(offset).copied()
-            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("Invalid u8 read for id '{}'", id)))
+        Ok(Arena::g().get(offset, 1)[0])
     }
 
     pub fn get_i64(ctx: &Context, id: &str, e: &Expr) -> Result<i64, String> {
@@ -280,7 +279,8 @@ impl Arena {
                         is_comptime_const: false,
                     });
 
-                    Arena::g().memory.copy_within(src_offset..src_offset + field_size, dest_offset);
+                    let data = Arena::g().get(src_offset, field_size).to_vec();
+                    Arena::g().set(dest_offset, &data);
 
                     if let ValueType::TCustom(type_name) = &decl.value_type {
                         if ctx.scope_stack.lookup_struct(type_name).is_some() {
