@@ -6,8 +6,43 @@ use crate::rs::parser::{Expr, ValueType, TTypeDef, value_type_to_str, NodeType, 
 // EvalArena: Memory management for the TIL interpreter
 // Extracted from interpreter.rs to enable incremental translation to TIL.
 
-pub struct EvalArena {
+pub struct Arena {
     _memory: Vec<u8>,
+}
+
+impl Arena {
+    /// Get current used length of arena memory
+    pub fn len(&self) -> usize {
+        return self._memory.len();
+    }
+
+    /// Append bytes to arena, return offset where they were placed
+    pub fn put(&mut self, bytes: &[u8]) -> usize {
+        let offset = self._memory.len();
+        self._memory.extend_from_slice(bytes);
+        return offset;
+    }
+
+    /// Read bytes from arena at offset
+    pub fn get(&self, offset: usize, len: usize) -> &[u8] {
+        return &self._memory[offset..offset + len];
+    }
+
+    /// Write bytes to arena at offset
+    pub fn set(&mut self, offset: usize, bytes: &[u8]) {
+        self._memory[offset..offset + bytes.len()].copy_from_slice(bytes);
+    }
+
+    /// Reserve space in arena, return offset where space was allocated
+    pub fn reserve(&mut self, size: usize) -> usize {
+        let offset = self._memory.len();
+        self._memory.resize(offset + size, 0);
+        return offset;
+    }
+}
+
+pub struct EvalArena {
+    _arena: Arena,
     pub temp_id_counter: usize,
     pub default_instances: HashMap<String, usize>,  // type name -> arena offset of default template
 }
@@ -51,7 +86,7 @@ impl EvalArena {
 
             // Lazy initialization of the singleton instance
             INSTANCE.get_or_insert_with(|| EvalArena {
-                _memory: vec![0], // REM: first address 0 is reserved (invalid), malloc always >0
+                _arena: Arena { _memory: vec![0] }, // REM: first address 0 is reserved (invalid), malloc always >0
                 temp_id_counter: 0, // A temporary ugly hack for return values
                 default_instances: HashMap::new(),
             })
@@ -60,36 +95,27 @@ impl EvalArena {
 
     /// Get current used length of arena memory
     pub fn len(&self) -> usize {
-        self._memory.len()
-    }
-
-    /// Get size of arena memory (same as len for EvalArena)
-    pub fn size(&self) -> usize {
-        self._memory.len()
+        return self._arena.len();
     }
 
     /// Append bytes to arena, return offset where they were placed
     pub fn put(&mut self, bytes: &[u8]) -> usize {
-        let offset = self._memory.len();
-        self._memory.extend_from_slice(bytes);
-        offset
+        return self._arena.put(bytes);
     }
 
     /// Read bytes from arena at offset
     pub fn get(&self, offset: usize, len: usize) -> &[u8] {
-        &self._memory[offset..offset + len]
+        return self._arena.get(offset, len);
     }
 
     /// Write bytes to arena at offset
     pub fn set(&mut self, offset: usize, bytes: &[u8]) {
-        self._memory[offset..offset + bytes.len()].copy_from_slice(bytes);
+        self._arena.set(offset, bytes);
     }
 
     /// Reserve space in arena, return offset where space was allocated
     pub fn reserve(&mut self, size: usize) -> usize {
-        let offset = self._memory.len();
-        self._memory.resize(offset + size, 0);
-        offset
+        return self._arena.reserve(size);
     }
 
     // === EVAL-PHASE MEMORY OPERATIONS ===

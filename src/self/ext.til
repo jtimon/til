@@ -6,7 +6,7 @@ mode liba
 import("self.parser")       // Expr, NodeType, Literal, ValueType, get_combined_name
 import("self.init")         // Context
 import("self.interpreter")  // EvalResult, eval_expr, string_from_context
-import("self.arena")        // arena (global)
+import("self.arena")        // g_arena (global)
 import("std.sys")            // run_cmd
 import("std.io")            // readfile, input_read_line
 
@@ -78,7 +78,7 @@ string_from_context := proc(context: Context, id: Str, e: Expr) returns Str thro
     length := EvalArena.get_i64(context, format(id, ".cap"), e)
 
     // Bounds check
-    if c_string_ptr.add(length).gt(arena.len()) {
+    if c_string_ptr.add(length).gt(g_arena.len()) {
         throw e.lang_error(context.path, "string_from_context", format("string content out of bounds for '", id, "'"))
     }
 
@@ -86,7 +86,7 @@ string_from_context := proc(context: Context, id: Str, e: Expr) returns Str thro
     mut result := ""
     for i in 0..length {
         mut byte := U8.from_i64(0)
-        memcpy(to_ptr(byte), arena.get(c_string_ptr.add(i), 1), 1)
+        memcpy(to_ptr(byte), g_arena.get(c_string_ptr.add(i), 1), 1)
         result = format(result, byte_to_str(byte))
     }
     catch (err: AllocError) { throw err.msg }
@@ -131,9 +131,9 @@ func_malloc := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     size := I64.from_str(size_result.value)
     mut offset := 0
     if size.gt(0) {
-        offset = arena.reserve(size)
+        offset = g_arena.reserve(size)
     } else {
-        offset = arena.len()
+        offset = g_arena.len()
     }
     catch (err: AllocError) { throw err.msg }
 
@@ -167,13 +167,13 @@ func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     value := U8.from_str(value_result.value)
     size := I64.from_str(size_result.value)
 
-    arena_len := arena.len()
+    arena_len := g_arena.len()
     if dest.add(size).gt(arena_len) {
         throw e.error(context.path, "eval", format("memset out of bounds: dest=", dest.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
 
     for i in 0..size {
-        arena.set(dest.add(i), to_ptr(value), 1)
+        g_arena.set(dest.add(i), to_ptr(value), 1)
     }
 
     return EvalResult.new("")
@@ -193,15 +193,15 @@ func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     src := I64.from_str(src_result.value)
     size := I64.from_str(size_result.value)
 
-    arena_len := arena.len()
+    arena_len := g_arena.len()
     if dest.add(size).gt(arena_len).or(src.add(size).gt(arena_len)) {
         throw e.error(context.path, "eval", format("memcpy out of bounds: src=", src.to_str(), " dest=", dest.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
 
     for i in 0..size {
         mut src_byte := U8.from_i64(0)
-        memcpy(to_ptr(src_byte), arena.get(src.add(i), 1), 1)
-        arena.set(dest.add(i), to_ptr(src_byte), 1)
+        memcpy(to_ptr(src_byte), g_arena.get(src.add(i), 1), 1)
+        g_arena.set(dest.add(i), to_ptr(src_byte), 1)
     }
 
     catch (err: U8_OverflowError) { throw err.msg }
@@ -222,7 +222,7 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     ptr2 := I64.from_str(ptr2_result.value)
     size := I64.from_str(size_result.value)
 
-    arena_len := arena.len()
+    arena_len := g_arena.len()
     if ptr1.add(size).gt(arena_len).or(ptr2.add(size).gt(arena_len)) {
         throw e.error(context.path, "eval", format("memcmp out of bounds: ptr1=", ptr1.to_str(), " ptr2=", ptr2.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
@@ -231,8 +231,8 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     for i in 0..size {
         mut byte1 := U8.from_i64(0)
         mut byte2 := U8.from_i64(0)
-        memcpy(to_ptr(byte1), arena.get(ptr1.add(i), 1), 1)
-        memcpy(to_ptr(byte2), arena.get(ptr2.add(i), 1), 1)
+        memcpy(to_ptr(byte1), g_arena.get(ptr1.add(i), 1), 1)
+        memcpy(to_ptr(byte2), g_arena.get(ptr2.add(i), 1), 1)
         if U8.to_i64(byte1).lt(U8.to_i64(byte2)) {
             return EvalResult.new("-1")
         } else if U8.to_i64(byte1).gt(U8.to_i64(byte2)) {

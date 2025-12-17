@@ -139,7 +139,7 @@ EvalArena := struct {
         }
 
         mut val : U8 = 0
-        memcpy(to_ptr(val), arena.get(offset, 1), 1)
+        memcpy(to_ptr(val), g_arena.get(offset, 1), 1)
         return val
     }
 
@@ -159,7 +159,7 @@ EvalArena := struct {
         }
 
         mut val : I64 = 0
-        memcpy(to_ptr(val), arena.get(offset, 8), 8)
+        memcpy(to_ptr(val), g_arena.get(offset, 8), 8)
         return val
     }
 
@@ -182,19 +182,19 @@ EvalArena := struct {
 
             // Ensure arena has enough space
             required_len := add(field_offset, 8)
-            if arena.len().lt(required_len) {
-                _ := arena.reserve(sub(required_len, arena.len()))
+            if g_arena.len().lt(required_len) {
+                _ := g_arena.reserve(sub(required_len, g_arena.len()))
                 catch (err: AllocError) {
                     throw err.msg
                 }
             }
 
-            arena.set(field_offset, to_ptr(v), 8)
+            g_arena.set(field_offset, to_ptr(v), 8)
             throw KeyNotFoundError(msg="already handled")
         }
 
         // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
-        offset := arena.put(to_ptr(v), 8)
+        offset := g_arena.put(to_ptr(v), 8)
         catch (err: AllocError) {
             throw err.msg
         }
@@ -241,11 +241,11 @@ EvalArena := struct {
                     throw e.lang_error(ctx.path, "context", format("insert_u8: ", err2))
                 }
             }
-            arena.set(field_offset, to_ptr(v), 1)
+            g_arena.set(field_offset, to_ptr(v), 1)
             throw KeyNotFoundError(msg="already handled")
         }
 
-        offset := arena.put(to_ptr(v), 1)
+        offset := g_arena.put(to_ptr(v), 1)
         catch (err: AllocError) {
             throw err.msg
         }
@@ -326,7 +326,7 @@ EvalArena := struct {
                     ctx.scope_stack.insert_var(dest_key, dest_offset)
                     ctx.scope_stack.declare_symbol(dest_key, SymbolInfo.new(decl.value_type, is_mut, false, false))
 
-                    arena.set(dest_offset, arena.get(src_offset, field_size), field_size)
+                    g_arena.set(dest_offset, g_arena.get(src_offset, field_size), field_size)
 
                     switch decl.value_type {
                     case ValueType.TCustom(type_name):
@@ -400,7 +400,7 @@ EvalArena := struct {
         // Either use existing offset (for nested structs) or allocate new memory
         mut offset := existing_offset
         if existing_offset.lt(0) {
-            offset = arena.reserve(total_size)
+            offset = g_arena.reserve(total_size)
         }
         mut base_mapping := EvalArenaMapping()
         base_mapping.name = id
@@ -459,18 +459,18 @@ EvalArena := struct {
                         if not(found_variant) {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Unknown enum variant '", variant, "' for field '", decl.name, "'"))
                         }
-                        arena.set(add(offset, field_offset), to_ptr(index), 8)
+                        g_arena.set(add(offset, field_offset), to_ptr(index), 8)
                     } else {
                         if type_name.eq("U8") {
                             v := U8.from_str(default_value)
                             // Note: U8.from_str panics on invalid input, doesn't throw
                             mut dest_u8 : U8 = v
-                            arena.set(add(offset, field_offset), to_ptr(dest_u8), 1)
+                            g_arena.set(add(offset, field_offset), to_ptr(dest_u8), 1)
                         } else {
                             if type_name.eq("I64") {
                                 v := I64.from_str(default_value)
                                 // Note: I64.from_str panics on invalid input, doesn't throw
-                                arena.set(add(offset, field_offset), to_ptr(v), 8)
+                                g_arena.set(add(offset, field_offset), to_ptr(v), 8)
                             } else {
                                 // Check if it's a struct
                                 mut is_struct := true
@@ -684,10 +684,10 @@ EvalArena := struct {
         struct_size := ctx.get_type_size(custom_type_name)
 
         // Allocate new memory
-        new_offset := arena.reserve(struct_size)
+        new_offset := g_arena.reserve(struct_size)
 
         // memcpy from template
-        arena.set(new_offset, arena.get(template_offset, struct_size), struct_size)
+        g_arena.set(new_offset, g_arena.get(template_offset, struct_size), struct_size)
 
         // Generate and apply mappings
         result := EvalArena.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)
@@ -720,10 +720,10 @@ EvalArena := struct {
         struct_size := ctx.get_type_size(custom_type_name)
 
         // Allocate new memory
-        new_offset := arena.reserve(struct_size)
+        new_offset := g_arena.reserve(struct_size)
 
         // memcpy from template
-        arena.set(new_offset, arena.get(template_offset, struct_size), struct_size)
+        g_arena.set(new_offset, g_arena.get(template_offset, struct_size), struct_size)
 
         // Temporarily push frame for generate_struct_mappings
         ctx.scope_stack.frames.push(frame)
@@ -766,9 +766,9 @@ EvalArena := struct {
         is_field := EvalArena.is_instance_field(ctx, id)
 
         // Allocate string data
-        string_offset := arena.put(value_str.c_string, value_str.len())
+        string_offset := g_arena.put(value_str.c_string, value_str.len())
         mut null_byte : U8 = 0
-        _ := arena.put(to_ptr(null_byte), 1)  // null terminator
+        _ := g_arena.put(to_ptr(null_byte), 1)  // null terminator
         str_len := value_str.len()
 
         catch (err: AllocError) {
@@ -799,10 +799,10 @@ EvalArena := struct {
                         absolute_offset := add(base_offset, current_offset)
 
                         if decl.name.eq("c_string") {
-                            arena.set(absolute_offset, to_ptr(string_offset), 8)
+                            g_arena.set(absolute_offset, to_ptr(string_offset), 8)
                         } else {
                             if decl.name.eq("cap") {
-                                arena.set(absolute_offset, to_ptr(str_len), 8)
+                                g_arena.set(absolute_offset, to_ptr(str_len), 8)
                             }
                         }
 
@@ -820,7 +820,7 @@ EvalArena := struct {
                 throw e.lang_error(ctx.path, "context", "'Str' struct definition not found")
             }
 
-            struct_offset := arena.len()
+            struct_offset := g_arena.len()
             mut current_offset := 0
 
             mut mi := 0
@@ -832,16 +832,16 @@ EvalArena := struct {
                     type_size := ctx.get_type_size(value_type_to_str(decl.value_type))
                     // Ensure space
                     required_len := add(add(struct_offset, current_offset), type_size)
-                    if arena.len().lt(required_len) {
-                        _ := arena.reserve(sub(required_len, arena.len()))
+                    if g_arena.len().lt(required_len) {
+                        _ := g_arena.reserve(sub(required_len, g_arena.len()))
                     }
 
                     field_offset := add(struct_offset, current_offset)
                     if decl.name.eq("c_string") {
-                        arena.set(field_offset, to_ptr(string_offset), 8)
+                        g_arena.set(field_offset, to_ptr(string_offset), 8)
                     } else {
                         if decl.name.eq("cap") {
-                            arena.set(field_offset, to_ptr(str_len), 8)
+                            g_arena.set(field_offset, to_ptr(str_len), 8)
                         }
                     }
 
@@ -876,7 +876,7 @@ EvalArena := struct {
         }
         // Create Str struct from template
         mut template_offset := 0
-        arena.default_instances.get("Str", template_offset)
+        g_arena.default_instances.get("Str", template_offset)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_string", "Str template not found - ensure str.til is imported")
         }
@@ -889,8 +889,8 @@ EvalArena := struct {
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "context", format("insert_string: missing '", id, ".cap'"))
         }
-        arena.set(c_string_offset, to_ptr(info.string_offset), 8)
-        arena.set(cap_offset, to_ptr(info.str_len), 8)
+        g_arena.set(c_string_offset, to_ptr(info.string_offset), 8)
+        g_arena.set(cap_offset, to_ptr(info.str_len), 8)
 
         catch (err: AllocError) {
             throw err.msg
@@ -910,7 +910,7 @@ EvalArena := struct {
         }
         // Create Str struct from template
         mut template_offset := 0
-        arena.default_instances.get("Str", template_offset)
+        g_arena.default_instances.get("Str", template_offset)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_string_into_frame", "Str template not found - ensure str.til is imported")
         }
@@ -925,8 +925,8 @@ EvalArena := struct {
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "context", format("insert_string_into_frame: missing '", id, ".cap'"))
         }
-        arena.set(c_string_offset, to_ptr(info.string_offset), 8)
-        arena.set(cap_offset, to_ptr(info.str_len), 8)
+        g_arena.set(c_string_offset, to_ptr(info.string_offset), 8)
+        g_arena.set(cap_offset, to_ptr(info.str_len), 8)
     }
 
     // Helper function to insert primitive types (I64, U8, Str) based on value_type
@@ -954,7 +954,7 @@ EvalArena := struct {
     get_enum_at_offset := func(ctx: Context, enum_type: Str, offset: I64, e: Expr) returns EnumVal throws Str {
         // Read enum from a specific offset (used for nested enum payloads)
         mut enum_value : I64 = 0
-        memcpy(to_ptr(enum_value), arena.get(offset, 8), 8)
+        memcpy(to_ptr(enum_value), g_arena.get(offset, 8), 8)
 
         mut enum_def := ctx.scope_stack.lookup_enum(enum_type)
         catch (err: KeyNotFoundError) {
@@ -988,13 +988,13 @@ EvalArena := struct {
                 if payload_size.gt(0) {
                     payload_offset := add(offset, 8)
                     payload_end := add(payload_offset, payload_size)
-                    if payload_end.lteq(arena.len()) {
+                    if payload_end.lteq(g_arena.len()) {
                         // Copy payload bytes
                         mut payload_bytes := Vec.new(U8)
                         mut pi := 0
                         while pi.lt(payload_size) {
                             mut byte_val : U8 = 0
-                            memcpy(to_ptr(byte_val), arena.get(add(payload_offset, pi), 1), 1)
+                            memcpy(to_ptr(byte_val), g_arena.get(add(payload_offset, pi), 1), 1)
                             payload_bytes.push(byte_val)
                             pi = add(pi, 1)
                         }
@@ -1094,7 +1094,7 @@ EvalArena := struct {
         }
 
         mut enum_value : I64 = 0
-        memcpy(to_ptr(enum_value), arena.get(offset, 8), 8)
+        memcpy(to_ptr(enum_value), g_arena.get(offset, 8), 8)
 
         mut enum_def := ctx.scope_stack.lookup_enum(enum_type)
         catch (err: KeyNotFoundError) {
@@ -1165,12 +1165,12 @@ EvalArena := struct {
                 if payload_size.gt(0) {
                     payload_offset := add(offset, 8)
                     payload_end := add(payload_offset, payload_size)
-                    if payload_end.lteq(arena.len()) {
+                    if payload_end.lteq(g_arena.len()) {
                         mut payload_bytes := Vec.new(U8)
                         mut pi := 0
                         while pi.lt(payload_size) {
                             mut byte_val : U8 = 0
-                            memcpy(to_ptr(byte_val), arena.get(add(payload_offset, pi), 1), 1)
+                            memcpy(to_ptr(byte_val), g_arena.get(add(payload_offset, pi), 1), 1)
                             payload_bytes.push(byte_val)
                             pi = add(pi, 1)
                         }
@@ -1236,31 +1236,31 @@ EvalArena := struct {
 
             if have_offset {
                 // Update existing enum value (no new mapping needed)
-                arena.set(offset, to_ptr(enum_value), 8)
+                g_arena.set(offset, to_ptr(enum_value), 8)
                 if payload_data.len().gt(0) {
                     payload_offset := add(offset, 8)
                     payload_end := add(payload_offset, payload_data.len())
-                    if arena.len().lt(payload_end) {
-                        _ := arena.reserve(sub(payload_end, arena.len()))
+                    if g_arena.len().lt(payload_end) {
+                        _ := g_arena.reserve(sub(payload_end, g_arena.len()))
                     }
                     mut pi := 0
                     while pi.lt(payload_data.len()) {
                         mut byte_val : U8 = 0
                         payload_data.get(pi, byte_val)
-                        arena.set(add(payload_offset, pi), to_ptr(byte_val), 1)
+                        g_arena.set(add(payload_offset, pi), to_ptr(byte_val), 1)
                         pi = add(pi, 1)
                     }
                 }
                 result.has_mapping = false
             } else {
                 // Allocate max enum size, write tag and payload, then zero-pad remaining
-                offset = arena.put(to_ptr(enum_value), 8)
+                offset = g_arena.put(to_ptr(enum_value), 8)
                 if payload_data.len().gt(0) {
-                    _ := arena.put(payload_data.ptr, payload_data.len())
+                    _ := g_arena.put(payload_data.ptr, payload_data.len())
                 }
                 // Bug #38 fix: Pad with zeros to reach max_enum_size
                 if actual_size.lt(max_enum_size) {
-                    _ := arena.reserve(sub(max_enum_size, actual_size))
+                    _ := g_arena.reserve(sub(max_enum_size, actual_size))
                 }
                 result.has_mapping = true
                 result.mapping_name = id
@@ -1268,13 +1268,13 @@ EvalArena := struct {
             }
         } else {
             // Allocate max enum size, write tag and payload, then zero-pad remaining
-            offset := arena.put(to_ptr(enum_value), 8)
+            offset := g_arena.put(to_ptr(enum_value), 8)
             if payload_data.len().gt(0) {
-                _ := arena.put(payload_data.ptr, payload_data.len())
+                _ := g_arena.put(payload_data.ptr, payload_data.len())
             }
             // Bug #38 fix: Pad with zeros to reach max_enum_size
             if actual_size.lt(max_enum_size) {
-                _ := arena.reserve(sub(max_enum_size, actual_size))
+                _ := g_arena.reserve(sub(max_enum_size, actual_size))
             }
             result.has_mapping = true
             result.mapping_name = id
@@ -1344,7 +1344,7 @@ EvalArena := struct {
     insert_array_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, name: Str, elem_type: Str, values: Vec, e: Expr) throws Str {
         // Create Array struct using template
         mut template_offset := 0
-        arena.default_instances.get("Array", template_offset)
+        g_arena.default_instances.get("Array", template_offset)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "Array template not found - ensure array.til is imported")
         }
@@ -1355,7 +1355,7 @@ EvalArena := struct {
         total_size := mul(len, elem_size)
 
         // Allocate memory for elements
-        ptr := arena.reserve(total_size)
+        ptr := g_arena.reserve(total_size)
 
         // Write values into allocated buffer
         mut i := 0
@@ -1366,10 +1366,10 @@ EvalArena := struct {
 
             if Str.eq(elem_type, "U8") {
                 byte := U8.from_str(val)
-                arena.set(offset, to_ptr(byte), 1)
+                g_arena.set(offset, to_ptr(byte), 1)
             } else if Str.eq(elem_type, "I64") {
                 n := I64.from_str(val)
-                arena.set(offset, to_ptr(n), 8)
+                g_arena.set(offset, to_ptr(n), 8)
             } else if Str.eq(elem_type, "Str") {
                 // For Str elements, create temp Str and copy bytes to array slot
                 temp_id := format(name, "_", I64.to_str(i))
@@ -1383,7 +1383,7 @@ EvalArena := struct {
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "insert_array", format("missing Str offset for '", temp_id, "'"))
                 }
-                arena.set(offset, arena.get(str_offset, elem_size), elem_size)
+                g_arena.set(offset, g_arena.get(str_offset, elem_size), elem_size)
             } else {
                 // Struct element - val is identifier, copy from source
                 mut src_offset := 0
@@ -1391,7 +1391,7 @@ EvalArena := struct {
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "insert_array", format("struct source '", val, "' not found"))
                 }
-                arena.set(offset, arena.get(src_offset, elem_size), elem_size)
+                g_arena.set(offset, g_arena.get(src_offset, elem_size), elem_size)
             }
 
             i = add(i, 1)
@@ -1404,7 +1404,7 @@ EvalArena := struct {
             throw e.lang_error(ctx.path, "insert_array", format("missing '", name, ".ptr'"))
         }
         mut ptr_val := ptr
-        arena.set(ptr_offset, to_ptr(ptr_val), 8)
+        g_arena.set(ptr_offset, to_ptr(ptr_val), 8)
 
         mut len_offset := 0
         frame.arena_index.get(format(name, "._len"), len_offset)
@@ -1412,7 +1412,7 @@ EvalArena := struct {
             throw e.lang_error(ctx.path, "insert_array", format("missing '", name, "._len'"))
         }
         mut len_val := len
-        arena.set(len_offset, to_ptr(len_val), 8)
+        g_arena.set(len_offset, to_ptr(len_val), 8)
 
         mut type_size_offset := 0
         frame.arena_index.get(format(name, ".type_size"), type_size_offset)
@@ -1420,7 +1420,7 @@ EvalArena := struct {
             throw e.lang_error(ctx.path, "insert_array", format("missing '", name, ".type_size'"))
         }
         mut elem_size_val := elem_size
-        arena.set(type_size_offset, to_ptr(elem_size_val), 8)
+        g_arena.set(type_size_offset, to_ptr(elem_size_val), 8)
 
         // Set type_name field (it's a Str)
         type_name_field := format(name, ".type_name")
@@ -1443,7 +1443,7 @@ EvalArena := struct {
         }
 
         str_size := ctx.get_type_size("Str")
-        arena.set(type_name_offset, arena.get(temp_str_offset, str_size), str_size)
+        g_arena.set(type_name_offset, g_arena.get(temp_str_offset, str_size), str_size)
 
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "IndexOutOfBoundsError")
@@ -1544,4 +1544,4 @@ EvalArena := struct {
 }
 
 // Global arena instance
-mut arena := EvalArena.new()
+mut g_arena := EvalArena.new()

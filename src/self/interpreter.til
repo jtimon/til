@@ -235,9 +235,9 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
 /// Called eagerly when struct declarations are evaluated.
 create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) returns I64 throws Str {
     // Check if template already exists (e.g., from a previous import)
-    if arena.default_instances.contains_key(struct_type) {
+    if g_arena.default_instances.contains_key(struct_type) {
         mut offset := 0
-        arena.default_instances.get(struct_type, offset)
+        g_arena.default_instances.get(struct_type, offset)
         catch (err: KeyNotFoundError) { throw err.msg }
         return offset
     }
@@ -263,7 +263,7 @@ create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) ret
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Cache the template offset
-    arena.default_instances.insert(struct_type, template_offset)
+    g_arena.default_instances.insert(struct_type, template_offset)
     catch (err: DuplicatedKeyError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
@@ -274,11 +274,11 @@ create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) ret
 /// Insert a struct instance using cached template.
 /// Template is guaranteed to exist - created eagerly on eval_declaration.
 insert_struct_instance := proc(mut ctx: Context, id: Str, type_name: Str, e: Expr) throws Str {
-    if not(arena.default_instances.contains_key(type_name)) {
+    if not(g_arena.default_instances.contains_key(type_name)) {
         throw e.lang_error(ctx.path, "insert_struct_instance", format("template for '", type_name, "' not found"))
     }
     mut template_offset := 0
-    arena.default_instances.get(type_name, template_offset)
+    g_arena.default_instances.get(type_name, template_offset)
     catch (err: KeyNotFoundError) { throw err.msg }
     EvalArena.insert_struct(ctx, id, type_name, template_offset, e)
 }
@@ -286,11 +286,11 @@ insert_struct_instance := proc(mut ctx: Context, id: Str, type_name: Str, e: Exp
 /// Insert a struct instance into a specific frame using cached template.
 /// Template is guaranteed to exist - created eagerly on eval_declaration.
 insert_struct_instance_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, id: Str, type_name: Str, e: Expr) throws Str {
-    if not(arena.default_instances.contains_key(type_name)) {
+    if not(g_arena.default_instances.contains_key(type_name)) {
         throw e.lang_error(ctx.path, "insert_struct_instance_into_frame", format("template for '", type_name, "' not found"))
     }
     mut template_offset := 0
-    arena.default_instances.get(type_name, template_offset)
+    g_arena.default_instances.get(type_name, template_offset)
     catch (err: KeyNotFoundError) { throw err.msg }
     EvalArena.insert_struct_into_frame(ctx, frame, id, type_name, template_offset, e)
 }
@@ -597,8 +597,8 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
             if has_named_args {
                 // Struct literal: Vec2(x=10, y=20)
                 // Create a temp instance, set field values, return temp name
-                temp_id := arena.temp_id_counter
-                arena.temp_id_counter = arena.temp_id_counter.add(1)
+                temp_id := g_arena.temp_id_counter
+                g_arena.temp_id_counter = g_arena.temp_id_counter.add(1)
                 temp_name := format(RETURN_INSTANCE_NAME, I64.to_str(temp_id))
 
                 // Declare the temp symbol
@@ -837,7 +837,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                 }
 
                                 // Copy struct bytes from arena
-                                payload_bytes = arena_memory_slice(arena, offset, struct_size)
+                                payload_bytes = arena_memory_slice(g_arena, offset, struct_size)
                                 handled_payload = true
 
                             case ValueType.TType(TTypeDef.TEnumDef):
@@ -2962,8 +2962,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     case:
                     }
                     if is_struct_def {
-                        return_instance := format(RETURN_INSTANCE_NAME, I64.to_str(arena.temp_id_counter))
-                        arena.temp_id_counter = arena.temp_id_counter.add(1)
+                        return_instance := format(RETURN_INSTANCE_NAME, I64.to_str(g_arena.temp_id_counter))
+                        g_arena.temp_id_counter = g_arena.temp_id_counter.add(1)
 
                         // Use saved offset (saved before popping)
                         if not(has_saved_return_offset) {
@@ -2994,8 +2994,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             throw e.lang_error(context.path, "eval", format("Missing enum value for return value '", result_str, "'"))
                         }
 
-                        return_instance := format(RETURN_INSTANCE_NAME, I64.to_str(arena.temp_id_counter))
-                        arena.temp_id_counter = arena.temp_id_counter.add(1)
+                        return_instance := format(RETURN_INSTANCE_NAME, I64.to_str(g_arena.temp_id_counter))
+                        g_arena.temp_id_counter = g_arena.temp_id_counter.add(1)
 
                         // Set temp_enum_payload if the enum has a payload
                         if not(NULL.eq(saved_enum_value.payload.data)) {

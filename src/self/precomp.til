@@ -969,7 +969,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
 
     // Determine if this is a compile-time constant
     // Must be truly immutable (not mut, copy, or own) and have a comptime-evaluable value.
-    // Also, only I64 and U8 types are currently supported for comptime storage in arena.
+    // Also, only I64 and U8 types are currently supported for comptime storage in g_arena.
     // Str, structs, enums require infrastructure not available during precomp.
     mut is_supported_type := false
     switch value_type {
