@@ -1,16 +1,20 @@
 mode lib
 
-import("core.vec")
-
 // Arena: Low-level memory management
 // Simple bump allocator with get/set/put/reserve operations.
+// Rust EvalArena must be 2x TIL EvalArena for `rstil interpret src/til.til interpret`.
+
+ARENA_SIZE := 8388608  // 8MB
 
 Arena := struct {
-    mut _memory: Vec = Vec.new(U8)
+    mut _memory : Array = Array()
+    mut _len : I64 = 0
 
     new := proc() returns Arena {
         mut a := Arena()
-        a._memory.push(0)  // Reserve first address 0 (invalid), malloc always >0
+        a._memory = Array.new(U8, ARENA_SIZE)
+        a._len = 1  // Reserve first address 0 (invalid), malloc always >0
+
         catch (err: AllocError) {
             panic(loc(), err.msg)
         }
@@ -19,24 +23,21 @@ Arena := struct {
 
     /** Get current used length of arena memory */
     len := func(self: Arena) returns I64 {
-        return self._memory.len()
+        return self._len
     }
 
-    /** Get size of arena memory (same as len for Arena) */
+    /** Get size in bytes (same as len for Arena) */
     size := func(self: Arena) returns I64 {
-        return self._memory.len()
+        return self._len
     }
 
     /** Append bytes to arena, return offset where they were placed */
-    put := proc(mut self: Arena, src_ptr: I64, num_bytes: I64) returns I64 throws AllocError {
-        offset := self._memory.len()
-        mut i := 0
-        while i.lt(num_bytes) {
-            mut byte_val : U8 = 0
-            memcpy(to_ptr(byte_val), add(src_ptr, i), 1)
-            self._memory.push(byte_val)
-            i = add(i, 1)
-        }
+    put := proc(mut self: Arena, src_ptr: I64, num_bytes: I64) returns I64 {
+        offset := self._len
+        new_len := add(offset, num_bytes)
+        if gt(new_len, ARENA_SIZE) { panic(loc(), "arena overflow") }
+        memcpy(add(self._memory.ptr, offset), src_ptr, num_bytes)
+        self._len = new_len
         return offset
     }
 
@@ -47,15 +48,17 @@ Arena := struct {
 
     /** Write bytes to arena at offset */
     set := proc(mut self: Arena, offset: I64, src_ptr: I64, num_bytes: I64) {
+        end := add(offset, num_bytes)
+        if gt(end, ARENA_SIZE) { panic(loc(), "arena overflow") }
         memcpy(add(self._memory.ptr, offset), src_ptr, num_bytes)
     }
 
     /** Reserve space in arena, return offset where space was allocated */
-    reserve := proc(mut self: Arena, size: I64) returns I64 throws AllocError {
-        offset := self._memory.len()
-        for _ in 0..size {
-            self._memory.push(0)
-        }
+    reserve := proc(mut self: Arena, size: I64) returns I64 {
+        offset := self._len
+        new_len := add(offset, size)
+        if gt(new_len, ARENA_SIZE) { panic(loc(), "arena overflow") }
+        self._len = new_len
         return offset
     }
 }

@@ -4,9 +4,9 @@ use crate::rs::init::{Context, SymbolInfo, EnumVal, ScopeFrame, ScopeType};
 use crate::rs::parser::{Expr, ValueType, TTypeDef, value_type_to_str, NodeType, Literal};
 
 // EvalArena: Memory management for the TIL interpreter
-// Extracted from interpreter.rs to enable incremental translation to TIL.
+// Rust EvalArena must be 2x TIL EvalArena for `rstil interpret src/til.til interpret`.
 
-const ARENA_SIZE: usize = 8388608; // 8MB
+const ARENA_SIZE: usize = 16777216;  // 16MB
 
 static mut ARENA_MEMORY: [u8; ARENA_SIZE] = [0; ARENA_SIZE];
 
@@ -23,10 +23,12 @@ impl Arena {
     /// Append bytes to arena, return offset where they were placed
     pub fn put(&mut self, bytes: &[u8]) -> usize {
         let offset = self._len;
+        let new_len = offset + bytes.len();
+        if new_len > ARENA_SIZE { panic!("arena overflow"); }
         unsafe {
-            ARENA_MEMORY[offset..offset + bytes.len()].copy_from_slice(bytes);
+            ARENA_MEMORY[offset..new_len].copy_from_slice(bytes);
         }
-        self._len += bytes.len();
+        self._len = new_len;
         return offset;
     }
 
@@ -39,15 +41,19 @@ impl Arena {
 
     /// Write bytes to arena at offset
     pub fn set(&mut self, offset: usize, bytes: &[u8]) {
+        let end = offset + bytes.len();
+        if end > ARENA_SIZE { panic!("arena overflow"); }
         unsafe {
-            ARENA_MEMORY[offset..offset + bytes.len()].copy_from_slice(bytes);
+            ARENA_MEMORY[offset..end].copy_from_slice(bytes);
         }
     }
 
     /// Reserve space in arena, return offset where space was allocated
     pub fn reserve(&mut self, size: usize) -> usize {
         let offset = self._len;
-        self._len += size;
+        let new_len = offset + size;
+        if new_len > ARENA_SIZE { panic!("arena overflow"); }
+        self._len = new_len;
         return offset;
     }
 }
