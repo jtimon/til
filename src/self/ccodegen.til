@@ -50,6 +50,13 @@ CollectedDeclaration := struct {
     mut value_type: ValueType = ValueType.TCustom("")
 }
 
+// Info about a switch case pattern and its body
+SwitchCaseInfo := struct {
+    mut case_pattern: Expr = Expr()
+    mut case_body: Expr = Expr()
+    mut has_case_body: Bool = false  // Whether case_body is set (replaces Option<&Expr>)
+}
+
 // Codegen context for tracking function info during code generation
 CodegenContext := struct {
     // Counter for generating unique temp variable names (deterministic per-compilation)
@@ -3776,10 +3783,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     result = result.concat(";\n")
 
     // Collect cases, separating default case
-    // We use two lists: case patterns and case bodies, plus a separate default_body
-    mut case_patterns := Vec.new(Expr)
-    catch (err: AllocError) { throw err.msg }
-    mut case_bodies := Vec.new(Expr)
+    mut cases := Vec.new(SwitchCaseInfo)
     catch (err: AllocError) { throw err.msg }
     mut default_body := Expr()
     mut has_default := false
@@ -3791,9 +3795,11 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         catch (err: IndexOutOfBoundsError) { throw err.msg }
 
         mut case_body := Expr()
+        mut has_case_body := false
         if lt(add(i, 1), expr.params.len()) {
             expr.params.get(add(i, 1), case_body)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
+            has_case_body = true
         }
 
         switch case_pattern.node_type {
@@ -3801,9 +3807,11 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             default_body = case_body
             has_default = true
         case:
-            case_patterns.push(case_pattern)
-            catch (err: AllocError) { throw err.msg }
-            case_bodies.push(case_body)
+            mut case_info := SwitchCaseInfo()
+            case_info.case_pattern = case_pattern
+            case_info.case_body = case_body
+            case_info.has_case_body = has_case_body
+            cases.push(case_info)
             catch (err: AllocError) { throw err.msg }
         }
         i = add(i, 2)
@@ -3812,30 +3820,27 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     // Hoist declarations from all case bodies to before the if/else chain
     // This ensures variables declared in switch cases are visible after the switch
     // (TIL has function-level scoping, not block-level scoping)
-    mut hoist_idx := 0
-    while lt(hoist_idx, case_bodies.len()) {
-        mut case_body := Expr()
-        case_bodies.get(hoist_idx, case_body)
-        catch (err: IndexOutOfBoundsError) { }
-        decls := collect_declarations_in_body(case_body, context)
-        for decl: CollectedDeclaration in decls {
-            // Only emit if not already declared
-            c_var_name := til_name(decl.name)
-            if not(ctx.declared_vars.contains(c_var_name)) {
-                c_type := til_type_to_c(decl.value_type)
-                if gt(c_type.len(), 0) {
-                    result = result.concat(indent_str)
-                    result = result.concat(c_type)
-                    result = result.concat(" ")
-                    result = result.concat(c_var_name)
-                    result = result.concat(";\n")
-                    _ := ctx.declared_vars.insert(c_var_name)
-                    // Also register in scope_stack so get_value_type can find it
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
+    for switch_case: SwitchCaseInfo in cases {
+        if switch_case.has_case_body {
+            decls := collect_declarations_in_body(switch_case.case_body, context)
+            for decl: CollectedDeclaration in decls {
+                // Only emit if not already declared
+                c_var_name := til_name(decl.name)
+                if not(ctx.declared_vars.contains(c_var_name)) {
+                    c_type := til_type_to_c(decl.value_type)
+                    if gt(c_type.len(), 0) {
+                        result = result.concat(indent_str)
+                        result = result.concat(c_type)
+                        result = result.concat(" ")
+                        result = result.concat(c_var_name)
+                        result = result.concat(";\n")
+                        _ := ctx.declared_vars.insert(c_var_name)
+                        // Also register in scope_stack so get_value_type can find it
+                        context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
+                    }
                 }
             }
         }
-        hoist_idx = hoist_idx.add(1)
 
         catch (err: AllocError) { throw err.msg }
     }
@@ -3863,13 +3868,9 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
     // Emit if/else if chain for non-default cases
     mut case_idx := 0
-    while lt(case_idx, case_patterns.len()) {
-        mut case_pattern := Expr()
-        case_patterns.get(case_idx, case_pattern)
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-
-        mut case_body := Expr()
-        case_bodies.get(case_idx, case_body)
+    while lt(case_idx, cases.len()) {
+        mut switch_case := SwitchCaseInfo()
+        cases.get(case_idx, switch_case)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
 
         result = result.concat(indent_str)
@@ -3880,7 +3881,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         }
 
         // Emit the condition based on pattern type
-        switch case_pattern.node_type {
+        switch switch_case.case_pattern.node_type {
         case NodeType.Pattern(pattern_info):
             // Enum pattern with payload binding: compare tag
             info := parse_pattern_variant_name(pattern_info.variant_name)
@@ -3902,14 +3903,14 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             result = result.concat(";\n")
         case NodeType.Range:
             // Range: low <= val && val <= high
-            if lt(case_pattern.params.len(), 2) {
+            if lt(switch_case.case_pattern.params.len(), 2) {
                 throw "ccodegen: Range requires start and end values"
             }
             mut range_start := Expr()
-            case_pattern.params.get(0, range_start)
+            switch_case.case_pattern.params.get(0, range_start)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             mut range_end := Expr()
-            case_pattern.params.get(1, range_end)
+            switch_case.case_pattern.params.get(1, range_end)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
 
             if is_str_switch {
@@ -3934,7 +3935,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             }
             result = result.concat(") {\n")
         case NodeType.Identifier(name):
-            info := get_case_variant_info(case_pattern)
+            info := get_case_variant_info(switch_case.case_pattern)
             if gt(info.variant_name.len(), 0) {
                 // Enum variant without payload
                 result = result.concat(switch_var)
@@ -3953,13 +3954,13 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 result = result.concat("til_Str_eq(")
                 result = result.concat(switch_var)
                 result = result.concat(", ")
-                result = emit_expr(case_pattern, result, 0, ctx, context)
+                result = emit_expr(switch_case.case_pattern, result, 0, ctx, context)
                 result = result.concat(").data")
             } else {
                 // Regular value comparison
                 result = result.concat(switch_var)
                 result = result.concat(" == ")
-                result = emit_expr(case_pattern, result, 0, ctx, context)
+                result = emit_expr(switch_case.case_pattern, result, 0, ctx, context)
             }
             result = result.concat(") {\n")
         case NodeType.LLiteral(lit):
@@ -3968,19 +3969,19 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 result = result.concat("til_Str_eq(")
                 result = result.concat(switch_var)
                 result = result.concat(", ")
-                result = emit_expr(case_pattern, result, 0, ctx, context)
+                result = emit_expr(switch_case.case_pattern, result, 0, ctx, context)
                 result = result.concat(").data")
             } else {
                 // Regular literal comparison
                 result = result.concat(switch_var)
                 result = result.concat(" == ")
-                result = emit_expr(case_pattern, result, 0, ctx, context)
+                result = emit_expr(switch_case.case_pattern, result, 0, ctx, context)
             }
             result = result.concat(") {\n")
         case NodeType.FCall:
             // FCall pattern: Type.Variant(payload) - enum variant with payload argument
             // For example: ValueType.TType(TTypeDef.TEnumDef)
-            info := get_case_variant_info(case_pattern)
+            info := get_case_variant_info(switch_case.case_pattern)
             if gt(info.variant_name.len(), 0).and(enum_has_payloads_flag) {
                 // Compare tag first
                 result = result.concat(switch_var)
@@ -3991,9 +3992,9 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
                 // Check if there's a payload argument to compare
                 // params[0] is Type.Variant identifier, params[1+] are arguments
-                if gt(case_pattern.params.len(), 1) {
+                if gt(switch_case.case_pattern.params.len(), 1) {
                     mut payload_expr := Expr()
-                    case_pattern.params.get(1, payload_expr)
+                    switch_case.case_pattern.params.get(1, payload_expr)
                     catch (err: IndexOutOfBoundsError) { }
                     // Check if payload is also an enum variant (Type.Variant pattern)
                     payload_info := get_case_variant_info(payload_expr)
@@ -4023,7 +4024,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 // Not an enum pattern - fall through to generic comparison
                 result = result.concat(switch_var)
                 result = result.concat(" == ")
-                result = emit_expr(case_pattern, result, 0, ctx, context)
+                result = emit_expr(switch_case.case_pattern, result, 0, ctx, context)
                 result = result.concat(") {\n")
             }
         case:
@@ -4032,12 +4033,12 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 result = result.concat("til_Str_eq(")
                 result = result.concat(switch_var)
                 result = result.concat(", ")
-                result = emit_expr(case_pattern, result, 0, ctx, context)
+                result = emit_expr(switch_case.case_pattern, result, 0, ctx, context)
                 result = result.concat(").data")
             } else {
                 result = result.concat(switch_var)
                 result = result.concat(" == ")
-                result = emit_expr(case_pattern, result, 0, ctx, context)
+                result = emit_expr(switch_case.case_pattern, result, 0, ctx, context)
             }
             result = result.concat(") {\n")
         }
@@ -4048,52 +4049,54 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         saved_declared_vars := ctx.declared_vars.clone()
         catch (err: AllocError) { throw err.msg }
 
-        switch case_pattern.node_type {
-        case NodeType.Pattern(pattern_info):
-            // For pattern bindings, we need to declare the binding variable in scope
-            // so that get_value_type can find it during body emission
-            info := parse_pattern_variant_name(pattern_info.variant_name)
+        if switch_case.has_case_body {
+            switch switch_case.case_pattern.node_type {
+            case NodeType.Pattern(pattern_info):
+                // For pattern bindings, we need to declare the binding variable in scope
+                // so that get_value_type can find it during body emission
+                info := parse_pattern_variant_name(pattern_info.variant_name)
 
-            // Look up the payload type from the enum definition
-            mut payload_type := ValueType.TCustom("")
-            mut have_payload_type := false
-            switch switch_type {
-            case ValueType.TCustom(enum_name):
-                mut found_enum := false
-                enum_def := context.scope_stack.lookup_enum(enum_name)
-                found_enum = true
-                catch (err: KeyNotFoundError) { }
-                if found_enum {
-                    // Found the enum, look up the variant's payload type (Ptr to ValueType, NULL = None)
-                    // Bug #38 fix: use helper method
-                    mut payload_ptr := Ptr()
-                    payload_ptr = enum_def.get(info.variant_name)
+                // Look up the payload type from the enum definition
+                mut payload_type := ValueType.TCustom("")
+                mut have_payload_type := false
+                switch switch_type {
+                case ValueType.TCustom(enum_name):
+                    mut found_enum := false
+                    enum_def := context.scope_stack.lookup_enum(enum_name)
+                    found_enum = true
                     catch (err: KeyNotFoundError) { }
-                    // Check if payload exists (not NULL)
-                    if not(NULL.eq(payload_ptr.data)) {
-                        memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
-                        have_payload_type = true
+                    if found_enum {
+                        // Found the enum, look up the variant's payload type (Ptr to ValueType, NULL = None)
+                        // Bug #38 fix: use helper method
+                        mut payload_ptr := Ptr()
+                        payload_ptr = enum_def.get(info.variant_name)
+                        catch (err: KeyNotFoundError) { }
+                        // Check if payload exists (not NULL)
+                        if not(NULL.eq(payload_ptr.data)) {
+                            memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
+                            have_payload_type = true
+                        }
                     }
+                case:
+                }
+
+                if have_payload_type {
+                    // Push a new scope and declare the binding variable
+                    context.scope_stack.push(ScopeType.Block)
+                    sym_info := SymbolInfo(
+                        symbol_type = SymbolType.Variable,
+                        value_type = payload_type,
+                        is_mutable = false,
+                    )
+                    context.scope_stack.declare_symbol(pattern_info.binding_var, sym_info)
+                    result = emit_body(switch_case.case_body, result, add(indent, 1), ctx, context)
+                    _ := context.scope_stack.pop()
+                } else {
+                    result = emit_body(switch_case.case_body, result, add(indent, 1), ctx, context)
                 }
             case:
+                result = emit_body(switch_case.case_body, result, add(indent, 1), ctx, context)
             }
-
-            if have_payload_type {
-                // Push a new scope and declare the binding variable
-                context.scope_stack.push(ScopeType.Block)
-                sym_info := SymbolInfo(
-                    symbol_type = SymbolType.Variable,
-                    value_type = payload_type,
-                    is_mutable = false,
-                )
-                context.scope_stack.declare_symbol(pattern_info.binding_var, sym_info)
-                result = emit_body(case_body, result, add(indent, 1), ctx, context)
-                _ := context.scope_stack.pop()
-            } else {
-                result = emit_body(case_body, result, add(indent, 1), ctx, context)
-            }
-        case:
-            result = emit_body(case_body, result, add(indent, 1), ctx, context)
         }
 
         // Restore declared_vars after case body
@@ -4104,7 +4107,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
     // Emit default case as final else (if present)
     if has_default {
-        if gt(case_patterns.len(), 0) {
+        if gt(cases.len(), 0) {
             result = result.concat(indent_str)
             result = result.concat("} else {\n")
         }
@@ -4116,7 +4119,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     }
 
     // Close the if/else chain
-    if gt(case_patterns.len(), 0).or(has_default) {
+    if gt(cases.len(), 0).or(has_default) {
         result = result.concat(indent_str)
         result = result.concat("}\n")
     }
