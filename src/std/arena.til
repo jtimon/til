@@ -1,0 +1,61 @@
+mode lib
+
+import("core.vec")
+
+// Arena: Low-level memory management
+// Simple bump allocator with get/set/put/reserve operations.
+
+Arena := struct {
+    mut _memory: Vec = Vec.new(U8)
+
+    new := proc() returns Arena {
+        mut a := Arena()
+        a._memory.push(0)  // Reserve first address 0 (invalid), malloc always >0
+        catch (err: AllocError) {
+            panic(loc(), err.msg)
+        }
+        return a
+    }
+
+    /** Get current used length of arena memory */
+    len := func(self: Arena) returns I64 {
+        return self._memory.len()
+    }
+
+    /** Get size of arena memory (same as len for Arena) */
+    size := func(self: Arena) returns I64 {
+        return self._memory.len()
+    }
+
+    /** Append bytes to arena, return offset where they were placed */
+    put := proc(mut self: Arena, src_ptr: I64, num_bytes: I64) returns I64 throws AllocError {
+        offset := self._memory.len()
+        mut i := 0
+        while i.lt(num_bytes) {
+            mut byte_val : U8 = 0
+            memcpy(to_ptr(byte_val), add(src_ptr, i), 1)
+            self._memory.push(byte_val)
+            i = add(i, 1)
+        }
+        return offset
+    }
+
+    /** Read bytes from arena at offset (returns pointer to data) */
+    get := func(self: Arena, offset: I64, num_bytes: I64) returns I64 {
+        return add(self._memory.ptr, offset)
+    }
+
+    /** Write bytes to arena at offset */
+    set := proc(mut self: Arena, offset: I64, src_ptr: I64, num_bytes: I64) {
+        memcpy(add(self._memory.ptr, offset), src_ptr, num_bytes)
+    }
+
+    /** Reserve space in arena, return offset where space was allocated */
+    reserve := proc(mut self: Arena, size: I64) returns I64 throws AllocError {
+        offset := self._memory.len()
+        for _ in 0..size {
+            self._memory.push(0)
+        }
+        return offset
+    }
+}

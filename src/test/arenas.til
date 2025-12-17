@@ -1,0 +1,115 @@
+mode test
+
+import("std.arena")
+
+// Global Arena instance - interpreted mode requires global for struct mutations to persist
+mut g_test_arena := Arena.new()
+
+test_arena_new := proc() {
+    assert_eq(loc(), 1, g_test_arena.len())  // First byte reserved (invalid address 0)
+}
+test_arena_new()
+
+test_arena_put := proc() {
+    initial_len := g_test_arena.len()
+
+    mut val : I64 = 12345
+    offset := g_test_arena.put(to_ptr(val), 8)
+    assert_eq(loc(), initial_len, offset)
+    assert_eq(loc(), add(initial_len, 8), g_test_arena.len())
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_arena_put()
+
+test_arena_get := proc() {
+    mut val : I64 = 42
+    offset := g_test_arena.put(to_ptr(val), 8)
+
+    mut result : I64 = 0
+    memcpy(to_ptr(result), g_test_arena.get(offset, 8), 8)
+    assert_eq(loc(), 42, result)
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_arena_get()
+
+test_arena_set := proc() {
+    mut val : I64 = 100
+    offset := g_test_arena.put(to_ptr(val), 8)
+
+    mut new_val : I64 = 999
+    g_test_arena.set(offset, to_ptr(new_val), 8)
+
+    mut result : I64 = 0
+    memcpy(to_ptr(result), g_test_arena.get(offset, 8), 8)
+    assert_eq(loc(), 999, result)
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_arena_set()
+
+test_arena_reserve := proc() {
+    initial_len := g_test_arena.len()
+
+    offset := g_test_arena.reserve(16)
+    assert_eq(loc(), initial_len, offset)
+    assert_eq(loc(), add(initial_len, 16), g_test_arena.len())
+
+    // Write to reserved space
+    mut val : I64 = 777
+    g_test_arena.set(offset, to_ptr(val), 8)
+
+    mut result : I64 = 0
+    memcpy(to_ptr(result), g_test_arena.get(offset, 8), 8)
+    assert_eq(loc(), 777, result)
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_arena_reserve()
+
+test_arena_multiple_values := proc() {
+    mut v1 : I64 = 111
+    mut v2 : I64 = 222
+    mut v3 : I64 = 333
+
+    off1 := g_test_arena.put(to_ptr(v1), 8)
+    off2 := g_test_arena.put(to_ptr(v2), 8)
+    off3 := g_test_arena.put(to_ptr(v3), 8)
+
+    mut r1 : I64 = 0
+    mut r2 : I64 = 0
+    mut r3 : I64 = 0
+    memcpy(to_ptr(r1), g_test_arena.get(off1, 8), 8)
+    memcpy(to_ptr(r2), g_test_arena.get(off2, 8), 8)
+    memcpy(to_ptr(r3), g_test_arena.get(off3, 8), 8)
+
+    assert_eq(loc(), 111, r1)
+    assert_eq(loc(), 222, r2)
+    assert_eq(loc(), 333, r3)
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_arena_multiple_values()
+
+println("arenas.til: all tests passed")
