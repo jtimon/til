@@ -376,12 +376,10 @@ fn topological_sort_types(types: &[&Expr]) -> Vec<usize> {
 /// Returns Some(ThrowingFCallInfo) if it is, None otherwise
 fn check_throwing_fcall(expr: &Expr, _ctx: &CodegenContext, context: &Context) -> Option<ThrowingFCallInfo> {
     if let NodeType::FCall = &expr.node_type {
-        if let Some(func_name) = get_fcall_func_name(expr) {
-            if let Some(fd) = get_fcall_func_def(context, expr) {
-                if !fd.throw_types.is_empty() {
-                    let return_type = fd.return_types.first().cloned();
-                    return Some(ThrowingFCallInfo { func_name, throw_types: fd.throw_types.clone(), return_type });
-                }
+        if let Some(fd) = get_fcall_func_def(context, expr) {
+            if !fd.throw_types.is_empty() {
+                let return_type = fd.return_types.first().cloned();
+                return Some(ThrowingFCallInfo { throw_types: fd.throw_types.clone(), return_type });
             }
         }
     }
@@ -5621,7 +5619,6 @@ struct SwitchCaseInfo<'a> {
 
 // Info about a throwing function call
 struct ThrowingFCallInfo {
-    func_name: String,
     throw_types: Vec<ValueType>,
     return_type: Option<ValueType>,
 }

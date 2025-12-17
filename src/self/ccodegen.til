@@ -412,7 +412,6 @@ detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext) returns VariadicF
 // Result type for check_throwing_fcall
 ThrowingFCallInfo := struct {
     mut is_throwing: Bool = false
-    mut func_name: Str = ""
     mut throw_types: Vec = Vec.new(ValueType)
     mut return_type: ValueType = ValueType.TCustom("")
     mut has_return_type: Bool = false
@@ -465,7 +464,6 @@ check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) 
                 if lookup_result.found {
                     if gt(lookup_result.func_def.throw_types.len(), 0) {
                         result.is_throwing = true
-                        result.func_name = func_name
                         result.throw_types = lookup_result.func_def.throw_types
                         if gt(lookup_result.func_def.return_types.len(), 0) {
                             mut first_ret := ValueType.TCustom("")
