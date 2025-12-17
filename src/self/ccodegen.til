@@ -44,6 +44,12 @@ ThrowingDefault := struct {
     mut default_expr: Expr = Expr()
 }
 
+// Info about a collected variable declaration for hoisting
+CollectedDeclaration := struct {
+    mut name: Str = ""
+    mut value_type: ValueType = ValueType.TCustom("")
+}
+
 // Codegen context for tracking function info during code generation
 CodegenContext := struct {
     // Counter for generating unique temp variable names (deterministic per-compilation)
@@ -3270,10 +3276,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
     mut then_body := Expr()
     expr.params.get(1, then_body)
     then_decls := collect_declarations_in_body(then_body, context)
-    mut decl_idx := 0
-    while lt(decl_idx, then_decls.len()) {
-        mut decl := Declaration()
-        then_decls.get(decl_idx, decl)
+    for decl: CollectedDeclaration in then_decls {
         c_var_name := til_name(decl.name)
         if not(ctx.declared_vars.contains(c_var_name)) {
             c_type := til_type_to_c(decl.value_type)
@@ -3288,16 +3291,12 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
             }
         }
-        decl_idx = add(decl_idx, 1)
     }
     if gt(expr.params.len(), 2) {
         mut else_body := Expr()
         expr.params.get(2, else_body)
         else_decls := collect_declarations_in_body(else_body, context)
-        decl_idx = 0
-        while lt(decl_idx, else_decls.len()) {
-            mut decl := Declaration()
-            else_decls.get(decl_idx, decl)
+        for decl: CollectedDeclaration in else_decls {
             c_var_name := til_name(decl.name)
             if not(ctx.declared_vars.contains(c_var_name)) {
                 c_type := til_type_to_c(decl.value_type)
@@ -3312,7 +3311,6 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
                 }
             }
-            decl_idx = add(decl_idx, 1)
         }
     }
 
@@ -3390,10 +3388,7 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     mut body := Expr()
     expr.params.get(1, body)
     body_decls := collect_declarations_in_body(body, context)
-    mut decl_idx := 0
-    while lt(decl_idx, body_decls.len()) {
-        mut decl := Declaration()
-        body_decls.get(decl_idx, decl)
+    for decl: CollectedDeclaration in body_decls {
         c_var_name := til_name(decl.name)
         if not(ctx.declared_vars.contains(c_var_name)) {
             c_type := til_type_to_c(decl.value_type)
@@ -3408,7 +3403,6 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
             }
         }
-        decl_idx = add(decl_idx, 1)
     }
 
     // Check if condition contains throwing calls by trying to hoist to a temp buffer
@@ -3578,9 +3572,9 @@ parse_pattern_variant_name := func(variant_name: Str) returns VariantInfo {
 }
 
 /// Collect all variable declarations in a body (recursively) for hoisting
-/// Returns Vec of (var_name, ValueType) pairs
+/// Returns Vec of CollectedDeclaration structs
 collect_declarations_in_body := proc(body: Expr, mut context: Context) returns Vec throws Str {
-    mut decls := Vec.new(Declaration)
+    mut decls := Vec.new(CollectedDeclaration)
     // Track collected declarations for lookups during type inference
     mut collected := Map.new(Str, ValueType)
 
@@ -3592,7 +3586,7 @@ collect_declarations_in_body := proc(body: Expr, mut context: Context) returns V
             body.params.get(i, stmt)
             catch (err: IndexOutOfBoundsError) { }
             collect_declarations_recursive(stmt, decls, collected, context)
-            i = add(i, 1)
+            i = i.add(1)
         }
     case:
         collect_declarations_recursive(body, decls, collected, context)
@@ -3626,11 +3620,10 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         catch (err: DuplicatedKeyError) { }
         // Also add to scope_stack so get_value_type can find it for subsequent declarations
         context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut))
-        mut new_decl := Declaration()
-        new_decl.name = decl.name
-        new_decl.value_type = value_type
-        new_decl.is_mut = decl.is_mut
-        decls.push(new_decl)
+        mut collected_decl := CollectedDeclaration()
+        collected_decl.name = decl.name
+        collected_decl.value_type = value_type
+        decls.push(collected_decl)
     case NodeType.Body:
         mut i := 0
         while lt(i, expr.params.len()) {
@@ -3825,11 +3818,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         case_bodies.get(hoist_idx, case_body)
         catch (err: IndexOutOfBoundsError) { }
         decls := collect_declarations_in_body(case_body, context)
-        mut decl_idx := 0
-        while lt(decl_idx, decls.len()) {
-            mut decl := Declaration()
-            decls.get(decl_idx, decl)
-            catch (err: IndexOutOfBoundsError) { }
+        for decl: CollectedDeclaration in decls {
             // Only emit if not already declared
             c_var_name := til_name(decl.name)
             if not(ctx.declared_vars.contains(c_var_name)) {
@@ -3845,19 +3834,14 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
                 }
             }
-            decl_idx = add(decl_idx, 1)
         }
-        hoist_idx = add(hoist_idx, 1)
+        hoist_idx = hoist_idx.add(1)
 
         catch (err: AllocError) { throw err.msg }
     }
     if has_default {
         decls := collect_declarations_in_body(default_body, context)
-        mut decl_idx := 0
-        while lt(decl_idx, decls.len()) {
-            mut decl := Declaration()
-            decls.get(decl_idx, decl)
-            catch (err: IndexOutOfBoundsError) { }
+        for decl: CollectedDeclaration in decls {
             c_var_name := til_name(decl.name)
             if not(ctx.declared_vars.contains(c_var_name)) {
                 c_type := til_type_to_c(decl.value_type)
@@ -3872,7 +3856,6 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
                 }
             }
-            decl_idx = add(decl_idx, 1)
         }
 
         catch (err: AllocError) { throw err.msg }
@@ -4382,7 +4365,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
             mut catch_body := Expr()
             catch_block.params.get(2, catch_body)
             decls := collect_declarations_in_body(catch_body, context)
-            for decl: Declaration in decls {
+            for decl: CollectedDeclaration in decls {
                 c_var_name := til_name(decl.name)
                 if not(ctx.declared_vars.contains(c_var_name)) {
                     c_type := til_type_to_c(decl.value_type)

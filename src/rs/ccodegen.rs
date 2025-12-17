@@ -3013,10 +3013,10 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 
             let catch_body = &catch_block.params[2];
             let decls = collect_declarations_in_body(catch_body, context);
-            for (var_name, value_type) in decls {
-                let c_var_name = til_name(&var_name);
+            for decl in decls {
+                let c_var_name = til_name(&decl.name);
                 if !ctx.declared_vars.contains(&c_var_name) {
-                    if let Ok(c_type) = til_type_to_c(&value_type) {
+                    if let Ok(c_type) = til_type_to_c(&decl.value_type) {
                         output.push_str(&indent_str);
                         output.push_str(&c_type);
                         output.push_str(" ");
@@ -3024,8 +3024,8 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                         output.push_str(";\n");
                         ctx.declared_vars.insert(c_var_name);
                         // Also register in scope_stack so get_value_type can find it
-                        context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
-                            value_type: value_type.clone(),
+                        context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
+                            value_type: decl.value_type.clone(),
                             is_mut: false,
                             is_copy: false,
                             is_own: false,
@@ -5378,10 +5378,10 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
     // Hoist declarations from both branches to before the if statement
     // (TIL has function-level scoping, not block-level scoping)
     let then_decls = collect_declarations_in_body(&expr.params[1], context);
-    for (var_name, value_type) in then_decls {
-        let c_var_name = til_name(&var_name);
+    for decl in then_decls {
+        let c_var_name = til_name(&decl.name);
         if !ctx.declared_vars.contains(&c_var_name) {
-            if let Ok(c_type) = til_type_to_c(&value_type) {
+            if let Ok(c_type) = til_type_to_c(&decl.value_type) {
                 output.push_str(&indent_str);
                 output.push_str(&c_type);
                 output.push_str(" ");
@@ -5389,8 +5389,8 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
                 output.push_str(";\n");
                 ctx.declared_vars.insert(c_var_name);
                 // Also register in scope_stack so get_value_type can find it
-                context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
-                    value_type: value_type.clone(),
+                context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
+                    value_type: decl.value_type.clone(),
                     is_mut: false,
                     is_copy: false,
                     is_own: false,
@@ -5401,10 +5401,10 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
     }
     if expr.params.len() > 2 {
         let else_decls = collect_declarations_in_body(&expr.params[2], context);
-        for (var_name, value_type) in else_decls {
-            let c_var_name = til_name(&var_name);
+        for decl in else_decls {
+            let c_var_name = til_name(&decl.name);
             if !ctx.declared_vars.contains(&c_var_name) {
-                if let Ok(c_type) = til_type_to_c(&value_type) {
+                if let Ok(c_type) = til_type_to_c(&decl.value_type) {
                     output.push_str(&indent_str);
                     output.push_str(&c_type);
                     output.push_str(" ");
@@ -5412,8 +5412,8 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
                     output.push_str(";\n");
                     ctx.declared_vars.insert(c_var_name);
                     // Also register in scope_stack so get_value_type can find it
-                    context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
-                        value_type: value_type.clone(),
+                    context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
+                        value_type: decl.value_type.clone(),
                         is_mut: false,
                         is_copy: false,
                         is_own: false,
@@ -5478,10 +5478,10 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // Hoist declarations from loop body to before the while statement
     // (TIL has function-level scoping, not block-level scoping)
     let body_decls = collect_declarations_in_body(&expr.params[1], context);
-    for (var_name, value_type) in body_decls {
-        let c_var_name = til_name(&var_name);
+    for decl in body_decls {
+        let c_var_name = til_name(&decl.name);
         if !ctx.declared_vars.contains(&c_var_name) {
-            if let Ok(c_type) = til_type_to_c(&value_type) {
+            if let Ok(c_type) = til_type_to_c(&decl.value_type) {
                 output.push_str(&indent_str);
                 output.push_str(&c_type);
                 output.push_str(" ");
@@ -5489,8 +5489,8 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 output.push_str(";\n");
                 ctx.declared_vars.insert(c_var_name);
                 // Also register in scope_stack so get_value_type can find it
-                context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
-                    value_type: value_type.clone(),
+                context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
+                    value_type: decl.value_type.clone(),
                     is_mut: false,
                     is_copy: false,
                     is_own: false,
@@ -5607,6 +5607,12 @@ struct ThrowingDefault<'a> {
     default_expr: &'a Expr,
 }
 
+// Info about a collected variable declaration for hoisting
+struct CollectedDeclaration {
+    name: String,
+    value_type: ValueType,
+}
+
 // Extract enum type and variant names from a case pattern expression
 // For FCall: Type.Variant -> VariantInfo { type_name: "Type", variant_name: "Variant" }
 fn get_case_variant_info(expr: &Expr) -> VariantInfo {
@@ -5658,8 +5664,8 @@ fn parse_pattern_variant_name(variant_name: &str) -> VariantInfo {
 }
 
 /// Collect all variable declarations in a body (recursively) for hoisting
-/// Returns Vec of (var_name, ValueType) pairs
-fn collect_declarations_in_body(body: &Expr, context: &mut Context) -> Vec<(String, ValueType)> {
+/// Returns Vec of CollectedDeclaration structs
+fn collect_declarations_in_body(body: &Expr, context: &mut Context) -> Vec<CollectedDeclaration> {
     let mut decls = Vec::new();
     // Track collected declarations for lookups during type inference
     let mut collected: std::collections::HashMap<String, ValueType> = std::collections::HashMap::new();
@@ -5675,7 +5681,7 @@ fn collect_declarations_in_body(body: &Expr, context: &mut Context) -> Vec<(Stri
     decls
 }
 
-fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<(String, ValueType)>, collected: &mut std::collections::HashMap<String, ValueType>, context: &mut Context) {
+fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<CollectedDeclaration>, collected: &mut std::collections::HashMap<String, ValueType>, context: &mut Context) {
     match &expr.node_type {
         NodeType::Declaration(decl) => {
             // Add this declaration
@@ -5699,7 +5705,7 @@ fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<(String, ValueTyp
                 is_own: false,
                 is_comptime_const: false,
             });
-            decls.push((decl.name.clone(), value_type));
+            decls.push(CollectedDeclaration { name: decl.name.clone(), value_type });
         }
         NodeType::Body => {
             for stmt in &expr.params {
@@ -5835,11 +5841,11 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     for (_, case_body) in &cases {
         if let Some(body) = case_body {
             let decls = collect_declarations_in_body(body, context);
-            for (var_name, value_type) in decls {
+            for decl in decls {
                 // Only emit if not already declared
-                let c_var_name = til_name(&var_name);
+                let c_var_name = til_name(&decl.name);
                 if !ctx.declared_vars.contains(&c_var_name) {
-                    if let Ok(c_type) = til_type_to_c(&value_type) {
+                    if let Ok(c_type) = til_type_to_c(&decl.value_type) {
                         output.push_str(&indent_str);
                         output.push_str(&c_type);
                         output.push_str(" ");
@@ -5847,8 +5853,8 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                         output.push_str(";\n");
                         ctx.declared_vars.insert(c_var_name);
                         // Also register in scope_stack so get_value_type can find it
-                        context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
-                            value_type: value_type.clone(),
+                        context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
+                            value_type: decl.value_type.clone(),
                             is_mut: false,
                             is_copy: false,
                             is_own: false,
@@ -5861,10 +5867,10 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     }
     if let Some(body) = &default_body {
         let decls = collect_declarations_in_body(body, context);
-        for (var_name, value_type) in decls {
-            let c_var_name = til_name(&var_name);
+        for decl in decls {
+            let c_var_name = til_name(&decl.name);
             if !ctx.declared_vars.contains(&c_var_name) {
-                if let Ok(c_type) = til_type_to_c(&value_type) {
+                if let Ok(c_type) = til_type_to_c(&decl.value_type) {
                     output.push_str(&indent_str);
                     output.push_str(&c_type);
                     output.push_str(" ");
@@ -5872,8 +5878,8 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     output.push_str(";\n");
                     ctx.declared_vars.insert(c_var_name);
                     // Also register in scope_stack so get_value_type can find it
-                    context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
-                        value_type: value_type.clone(),
+                    context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
+                        value_type: decl.value_type.clone(),
                         is_mut: false,
                         is_copy: false,
                         is_own: false,
