@@ -6,7 +6,7 @@ use crate::rs::parser::{
     Expr, NodeType, Literal, ValueType,
     get_combined_name,
 };
-use crate::rs::arena::Arena;
+use crate::rs::arena::EvalArena;
 use crate::rs::interpreter::{EvalResult, eval_expr, string_from_context};
 use std::io;
 use std::io::{ErrorKind, Write};
@@ -84,7 +84,7 @@ pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     let size = size_str.parse::<usize>().map_err(|err| {
         e.lang_error(&context.path, "eval", &format!("Invalid size for 'malloc': {}", err))
     })?;
-    let offset = if size > 0 { Arena::g().reserve(size) } else { Arena::g().len() };
+    let offset = if size > 0 { EvalArena::g().reserve(size) } else { EvalArena::g().len() };
 
     if offset == 0 { // TODO: REM: throw AllocError instead of return NULL pointer
         return Err(e.lang_error(&context.path, "eval", "Core func 'malloc' was about to produce a NULL pointer"))
@@ -123,15 +123,15 @@ pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String
         Err(err) => return Err(e.error(&context.path, "eval", &format!("Invalid size (I64): '{}': {}", size_str, err))),
     };
 
-    if dest + size > Arena::g().len() {
+    if dest + size > EvalArena::g().len() {
         return Err(e.error(&context.path, "eval", &format!(
             "memset out of bounds: dest={} size={} arena_len={}",
-            dest, size, Arena::g().len()
+            dest, size, EvalArena::g().len()
         )));
     }
 
     for i in 0..size {
-        Arena::g().set(dest + i, &[value]);
+        EvalArena::g().set(dest + i, &[value]);
     }
 
     Ok(EvalResult::new(""))
@@ -172,14 +172,14 @@ pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String
         Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcpy: Invalid size (usize): '{}': {}", size_str, err))),
     };
 
-    if dest + size > Arena::g().len() || src + size > Arena::g().len() {
+    if dest + size > EvalArena::g().len() || src + size > EvalArena::g().len() {
         return Err(e.error(&context.path, "eval", &format!("memcpy out of bounds: src={} dest={} size={} arena_len={}",
-                                            src, dest, size, Arena::g().len())));
+                                            src, dest, size, EvalArena::g().len())));
     }
 
     for i in 0..size {
-        let byte = Arena::g().get(src + i, 1)[0];
-        Arena::g().set(dest + i, &[byte]);
+        let byte = EvalArena::g().get(src + i, 1)[0];
+        EvalArena::g().set(dest + i, &[byte]);
     }
 
     Ok(EvalResult::new(""))
@@ -220,15 +220,15 @@ pub fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String
         Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcmp: Invalid size (usize): '{}': {}", size_str, err))),
     };
 
-    if ptr1 + size > Arena::g().len() || ptr2 + size > Arena::g().len() {
+    if ptr1 + size > EvalArena::g().len() || ptr2 + size > EvalArena::g().len() {
         return Err(e.error(&context.path, "eval", &format!("memcmp out of bounds: ptr1={} ptr2={} size={} arena_len={}",
-                                            ptr1, ptr2, size, Arena::g().len())));
+                                            ptr1, ptr2, size, EvalArena::g().len())));
     }
 
     // Compare bytes
     for i in 0..size {
-        let byte1 = Arena::g().get(ptr1 + i, 1)[0];
-        let byte2 = Arena::g().get(ptr2 + i, 1)[0];
+        let byte1 = EvalArena::g().get(ptr1 + i, 1)[0];
+        let byte2 = EvalArena::g().get(ptr2 + i, 1)[0];
         if byte1 < byte2 {
             return Ok(EvalResult::new("-1"));
         } else if byte1 > byte2 {
@@ -639,7 +639,7 @@ pub fn proc_run_cmd(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
                 NodeType::Identifier(name) => name.clone(),
                 _ => return Err(e.error(&context.path, "eval", "run_cmd first argument must be an identifier")),
             };
-            Arena::insert_primitive(context, &var_name, &ValueType::TCustom("Str".to_string()), &stdout, e)?;
+            EvalArena::insert_primitive(context, &var_name, &ValueType::TCustom("Str".to_string()), &stdout, e)?;
 
             Ok(EvalResult::new(&code.to_string()))
         },

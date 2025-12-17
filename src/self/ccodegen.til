@@ -1779,7 +1779,7 @@ is_global_declaration := func(expr: Expr) returns Bool {
                 // Everything else is a global
                 return true
             case:
-                // Everything else (function calls like Arena.new(), etc.) is a global
+                // Everything else (function calls like EvalArena.new(), etc.) is a global
                 return true
             }
         }

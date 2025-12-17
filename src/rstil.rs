@@ -18,7 +18,7 @@ mod rs {
 use rs::lexer::LANG_NAME;
 use rs::interpreter::run_file;
 use rs::builder;
-use rs::arena::Arena;
+use rs::arena::EvalArena;
 use rs::target::{Target, Lang, target_from_str, lang_from_str, detect_current_target, default_lang_for_target};
 
 const SELF_HOSTED_PATH     : &str = "src/til.til";
@@ -84,7 +84,7 @@ fn interpret_file_or_exit(path: &String, args: Vec<String>) {
         },
     };
     if path.ends_with("tests.til") {
-        println!("Total memory used by interpreted program: {} bytes", Arena::g().len());
+        println!("Total memory used by interpreted program: {} bytes", EvalArena::g().len());
     }
 }
 

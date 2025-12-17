@@ -10,7 +10,7 @@ use crate::rs::parser::{
     Declaration, str_to_value_type, INFER_TYPE,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration};
-use crate::rs::arena::Arena;
+use crate::rs::arena::EvalArena;
 
 // Called when precomp encounters an import() call.
 // Runs precomp on the imported file to set up struct templates.
@@ -308,7 +308,7 @@ fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         ValueType::TCustom(ref type_name) => {
             // Check if it's a struct type - result.value is the instance name
             if context.scope_stack.lookup_struct(type_name).is_some() {
-                return Arena::to_struct_literal(context, &result.value, type_name, e);
+                return EvalArena::to_struct_literal(context, &result.value, type_name, e);
             }
             Err(format!("Cannot convert comptime result type: {:?}", value_type))
         },
@@ -826,11 +826,11 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         }
     }
 
-    // For struct definitions, run eval_declaration to register templates in Arena
+    // For struct definitions, run eval_declaration to register templates in EvalArena
     if let ValueType::TType(TTypeDef::TStructDef) = &value_type {
         if let NodeType::StructDef(struct_def) = &new_params[0].node_type {
             context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
-            // Run the declaration through interpreter to set up Arena templates
+            // Run the declaration through interpreter to set up EvalArena templates
             let saved_path = context.path.clone();
             eval_declaration(decl, context, e)?;
             context.path = saved_path;
@@ -846,7 +846,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
                 "I64" | "U8" => {
                     let result = eval_expr(context, inner_e)?;
                     if !result.is_throw {
-                        Arena::insert_primitive(context, &decl.name, &value_type, &result.value, e)?;
+                        EvalArena::insert_primitive(context, &decl.name, &value_type, &result.value, e)?;
                     }
                 },
                 _ => {
@@ -858,7 +858,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     }
 
     // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
-    // run eval_declaration to store the instance in Arena so ccodegen can find it.
+    // run eval_declaration to store the instance in EvalArena so ccodegen can find it.
     // Only do this if the value is comptime-evaluable (doesn't depend on runtime values).
     if !decl.is_mut && !decl.is_copy && !decl.is_own && is_comptime_evaluable(context, &new_params[0]) {
         if let ValueType::TCustom(ref custom_type_name) = &value_type {

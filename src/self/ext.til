@@ -71,18 +71,18 @@ validate_arg_count := proc(path: Str, e: Expr, func_name: Str, expected: I64, is
 
 // Read a Str value from context (reads c_string and cap from arena)
 string_from_context := proc(context: Context, id: Str, e: Expr) returns Str throws Str {
-    // Read the c_string field (I64 pointer to string data in Arena)
-    c_string_ptr := Arena.get_i64(context, format(id, ".c_string"), e)
+    // Read the c_string field (I64 pointer to string data in EvalArena)
+    c_string_ptr := EvalArena.get_i64(context, format(id, ".c_string"), e)
 
     // Read the cap field (I64 length)
-    length := Arena.get_i64(context, format(id, ".cap"), e)
+    length := EvalArena.get_i64(context, format(id, ".cap"), e)
 
     // Bounds check
     if c_string_ptr.add(length).gt(arena.len()) {
         throw e.lang_error(context.path, "string_from_context", format("string content out of bounds for '", id, "'"))
     }
 
-    // Read string bytes from Arena and convert to String
+    // Read string bytes from EvalArena and convert to String
     mut result := ""
     for i in 0..length {
         mut byte := U8.from_i64(0)

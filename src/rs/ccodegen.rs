@@ -1960,7 +1960,7 @@ fn is_global_declaration(expr: &Expr) -> bool {
                 // Skip true/false RHS - they're handled by is_constant_declaration
                 // (only non-mut booleans are constants)
                 NodeType::Identifier(name) if (name == "true" || name == "false") && !decl.is_mut => return false,
-                // Everything else (function calls like Arena.new(), etc.) is a global
+                // Everything else (function calls like EvalArena.new(), etc.) is a global
                 _ => return true,
             }
         }

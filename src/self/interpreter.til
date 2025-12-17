@@ -29,7 +29,7 @@ i64_to_le_bytes := func(val: I64) returns Vec throws AllocError {
 }
 
 /// Copy bytes from arena memory into a Vec<U8>
-arena_memory_slice := func(arena: Arena, offset: I64, size: I64) returns Vec throws AllocError {
+arena_memory_slice := func(arena: EvalArena, offset: I64, size: I64) returns Vec throws AllocError {
     mut bytes := Vec.new(U8)
     for _ in 0..size {
         bytes.push(0)
@@ -40,7 +40,7 @@ arena_memory_slice := func(arena: Arena, offset: I64, size: I64) returns Vec thr
 
 /// Saved offsets for struct copy when source and dest have the same name
 SavedOffsets := struct {
-    mut offsets: Vec = Vec.new(ArenaMapping)
+    mut offsets: Vec = Vec.new(EvalArenaMapping)
     mut temp_src_key: Str = ""
 }
 
@@ -124,7 +124,7 @@ eval_condition_to_bool := proc(context: Context, result: EvalResult, expr: Expr)
     // Otherwise it's a Bool struct identifier - read its .data field
     bool_id := result.value
     data_field_id := format(bool_id, ".data")
-    u8_val := Arena.get_u8(context, data_field_id, expr)
+    u8_val := EvalArena.get_u8(context, data_field_id, expr)
     u8_zero := U8.from_i64(0)
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: U8_OverflowError) { throw err.msg }
@@ -251,13 +251,13 @@ create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) ret
 
     // Evaluate defaults and create template
     defaults := eval_struct_defaults(ctx, struct_type, e)
-    result := Arena.insert_struct_core(ctx, template_id, struct_type, 0, defaults, e)
+    result := EvalArena.insert_struct_core(ctx, template_id, struct_type, 0, defaults, e)
 
     // Get the template's arena offset (first mapping is the base struct)
     if result.arena_mappings.len().eq(0) {
         throw e.lang_error(ctx.path, "create_default_instance", "No arena mapping for template")
     }
-    mut first_mapping := ArenaMapping()
+    mut first_mapping := EvalArenaMapping()
     result.arena_mappings.get(0, first_mapping)
     template_offset := first_mapping.offset
     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -280,7 +280,7 @@ insert_struct_instance := proc(mut ctx: Context, id: Str, type_name: Str, e: Exp
     mut template_offset := 0
     arena.default_instances.get(type_name, template_offset)
     catch (err: KeyNotFoundError) { throw err.msg }
-    Arena.insert_struct(ctx, id, type_name, template_offset, e)
+    EvalArena.insert_struct(ctx, id, type_name, template_offset, e)
 }
 
 /// Insert a struct instance into a specific frame using cached template.
@@ -292,7 +292,7 @@ insert_struct_instance_into_frame := proc(mut ctx: Context, mut frame: ScopeFram
     mut template_offset := 0
     arena.default_instances.get(type_name, template_offset)
     catch (err: KeyNotFoundError) { throw err.msg }
-    Arena.insert_struct_into_frame(ctx, frame, id, type_name, template_offset, e)
+    EvalArena.insert_struct_into_frame(ctx, frame, id, type_name, template_offset, e)
 }
 
 eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
@@ -429,7 +429,7 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                     throw case_expr.error(context.path, "eval", "Pattern matching requires switch value to be a variable")
                 }
 
-                enum_val := Arena.get_enum(context, enum_var_name, case_expr)
+                enum_val := EvalArena.get_enum(context, enum_var_name, case_expr)
                 full_variant := format(enum_val.enum_type, ".", enum_val.enum_name)
 
                 // Check if variant matches
@@ -441,10 +441,10 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                     if not(NULL.eq(enum_val.payload_type.data)) {
                         // TODO: Full payload extraction - simplified for now
                         // The Rust version handles I64, Str, struct, and enum payloads
-                        // This is complex byte manipulation that needs Arena support
+                        // This is complex byte manipulation that needs EvalArena support
                         sym_info := SymbolInfo(value_type=ValueType.TCustom("I64"), is_mut=false, is_copy=false, is_own=false)
                         context.scope_stack.declare_symbol(pattern_binding, sym_info)
-                        // TODO: Arena.insert_* based on payload type
+                        // TODO: EvalArena.insert_* based on payload type
                     }
 
                     // Execute the case body with the bound variable available
@@ -649,19 +649,19 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                         switch field_type {
                         case ValueType.TCustom(type_name):
                             if type_name.eq("I64") {
-                                Arena.insert_i64(context, field_id.clone(), value_result.value.clone(), arg)
+                                EvalArena.insert_i64(context, field_id.clone(), value_result.value.clone(), arg)
                             } else if type_name.eq("U8") {
-                                Arena.insert_u8(context, field_id.clone(), value_result.value.clone(), arg)
+                                EvalArena.insert_u8(context, field_id.clone(), value_result.value.clone(), arg)
                             } else if type_name.eq("Str") {
-                                Arena.insert_string(context, field_id.clone(), value_result.value.clone(), arg)
+                                EvalArena.insert_string(context, field_id.clone(), value_result.value.clone(), arg)
                             } else {
                                 // Could be enum or nested struct
                                 custom_symbol := context.scope_stack.lookup_symbol(type_name.clone())
                                 switch custom_symbol.value_type {
                                 case ValueType.TType(TTypeDef.TEnumDef):
-                                    _ := Arena.insert_enum(context, field_id.clone(), type_name.clone(), value_result.value.clone(), arg)
+                                    _ := EvalArena.insert_enum(context, field_id.clone(), type_name.clone(), value_result.value.clone(), arg)
                                 case ValueType.TType(TTypeDef.TStructDef):
-                                    Arena.copy_fields(context, type_name.clone(), value_result.value.clone(), field_id.clone(), arg)
+                                    EvalArena.copy_fields(context, type_name.clone(), value_result.value.clone(), field_id.clone(), arg)
                                 case:
                                     throw arg.error(context.path, "eval", format("Unsupported field type '", type_name, "' for field '", field_name, "'"))
                                 }
@@ -783,7 +783,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                         // Add symbol entry before calling insert_string
                                         context.scope_stack.declare_symbol(temp_var_name, SymbolInfo.new(ValueType.TCustom("Str"), false, false, false))
 
-                                        Arena.insert_string(context, temp_var_name, string_value, e)
+                                        EvalArena.insert_string(context, temp_var_name, string_value, e)
                                         struct_var_name = temp_var_name
                                         struct_var_set = true
                                     } else {
@@ -802,7 +802,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                             // Add symbol entry before calling insert_string
                                             context.scope_stack.declare_symbol(temp_var_name, SymbolInfo.new(ValueType.TCustom("Str"), false, false, false))
 
-                                            Arena.insert_string(context, temp_var_name, string_value, e)
+                                            EvalArena.insert_string(context, temp_var_name, string_value, e)
                                             struct_var_name = temp_var_name
                                             struct_var_set = true
                                         }
@@ -816,7 +816,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                             // Add symbol entry before calling insert_i64
                                             context.scope_stack.declare_symbol(temp_var_name, SymbolInfo.new(ValueType.TCustom("I64"), false, false, false))
 
-                                            Arena.insert_i64(context, temp_var_name, i64_value, e)
+                                            EvalArena.insert_i64(context, temp_var_name, i64_value, e)
                                             struct_var_name = temp_var_name
                                             struct_var_set = true
                                         }
@@ -862,7 +862,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
                                         context.scope_stack.declare_symbol(temp_var_name, SymbolInfo.new(ValueType.TCustom(struct_type_name), false, false, false))
 
-                                        _ := Arena.insert_enum(context, temp_var_name, struct_type_name, nested_result.value, e)
+                                        _ := EvalArena.insert_enum(context, temp_var_name, struct_type_name, nested_result.value, e)
                                         enum_var_name = temp_var_name
                                         enum_var_set = true
                                     }
@@ -878,7 +878,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
                                     context.scope_stack.declare_symbol(temp_var_name, SymbolInfo.new(ValueType.TCustom(struct_type_name), false, false, false))
 
-                                    _ := Arena.insert_enum(context, temp_var_name, struct_type_name, nested_result.value, e)
+                                    _ := EvalArena.insert_enum(context, temp_var_name, struct_type_name, nested_result.value, e)
                                     enum_var_name = temp_var_name
                                     enum_var_set = true
                                 case:
@@ -889,7 +889,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                 }
 
                                 // Get the full enum value including its payload
-                                enum_val := Arena.get_enum(context, enum_var_name, e)
+                                enum_val := EvalArena.get_enum(context, enum_var_name, e)
 
                                 // Calculate total enum size: 8 bytes tag + payload bytes
                                 mut enum_bytes := Vec.new(U8)
@@ -1027,7 +1027,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             }
             expr_result_str := result.value
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
-            Arena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
+            EvalArena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
             return EvalResult.new("")
         } else if s.eq("U8") {
             result := eval_expr(context, inner_e)
@@ -1036,7 +1036,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             }
             expr_result_str := result.value
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
-            Arena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
+            EvalArena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
             return EvalResult.new("")
         } else if s.eq("Str") {
             result := eval_expr(context, inner_e)
@@ -1045,7 +1045,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             }
             expr_result_str := result.value
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
-            Arena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
+            EvalArena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
             return EvalResult.new("")
         } else {
             // Custom type (not I64/U8/Str)
@@ -1073,7 +1073,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                     return result
                 }
                 enum_expr_result_str := result.value
-                _ := Arena.insert_enum(context, declaration.name, custom_type_name, enum_expr_result_str, e)
+                _ := EvalArena.insert_enum(context, declaration.name, custom_type_name, enum_expr_result_str, e)
             } else if is_struct_def {
                 // Special case for instantiation
                 mut is_fcall := false
@@ -1120,7 +1120,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                     if not(is_temp_return_val) {
                         // Allocate space and copy fields for mut declaration (independent copy)
                         insert_struct_instance(context, declaration.name, custom_type_name, e)
-                        Arena.copy_fields(context, custom_type_name, expr_result_str, declaration.name, e)
+                        EvalArena.copy_fields(context, custom_type_name, expr_result_str, declaration.name, e)
                     } else {
                         // Share offset for temp return value (zero-copy transfer)
                         offset := context.scope_stack.lookup_var(expr_result_str)
@@ -1214,14 +1214,14 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                         }
                         expr_result_str := result.value
                         if type_name.eq("I64") {
-                            Arena.insert_primitive(context, combined_name, member_value_type, expr_result_str, e)
+                            EvalArena.insert_primitive(context, combined_name, member_value_type, expr_result_str, e)
                         } else if type_name.eq("U8") {
-                            Arena.insert_primitive(context, combined_name, member_value_type, expr_result_str, e)
+                            EvalArena.insert_primitive(context, combined_name, member_value_type, expr_result_str, e)
                         } else if type_name.eq("Str") {
-                            Arena.insert_primitive(context, combined_name, member_value_type, expr_result_str, e)
+                            EvalArena.insert_primitive(context, combined_name, member_value_type, expr_result_str, e)
                         } else {
                             insert_struct_instance(context, combined_name, type_name, e)
-                            Arena.copy_fields(context, type_name, expr_result_str, combined_name, e)
+                            EvalArena.copy_fields(context, type_name, expr_result_str, combined_name, e)
                         }
                     case ValueType.TFunction(func_type):
                         switch default_value.node_type {
@@ -1306,21 +1306,21 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                 return result
             }
             expr_result_str := result.value
-            Arena.insert_primitive(context, var_name, value_type, expr_result_str, e)
+            EvalArena.insert_primitive(context, var_name, value_type, expr_result_str, e)
         } else if s.eq("U8") {
             result := eval_expr(context, inner_e)
             if result.is_throw {
                 return result
             }
             expr_result_str := result.value
-            Arena.insert_primitive(context, var_name, value_type, expr_result_str, e)
+            EvalArena.insert_primitive(context, var_name, value_type, expr_result_str, e)
         } else if s.eq("Str") {
             result := eval_expr(context, inner_e)
             if result.is_throw {
                 return result
             }
             expr_result_str := result.value
-            Arena.insert_primitive(context, var_name, value_type, expr_result_str, e)
+            EvalArena.insert_primitive(context, var_name, value_type, expr_result_str, e)
         } else {
             // Custom type
             custom_type_name := s
@@ -1336,14 +1336,14 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                     return result
                 }
                 expr_result_str := result.value
-                _ := Arena.insert_enum(context, var_name, custom_type_name, expr_result_str, e)
+                _ := EvalArena.insert_enum(context, var_name, custom_type_name, expr_result_str, e)
             case ValueType.TType(TTypeDef.TStructDef):
                 result := eval_expr(context, inner_e)
                 if result.is_throw {
                     return result
                 }
                 expr_result_str := result.value
-                Arena.copy_fields(context, custom_type_name, expr_result_str, var_name, inner_e)
+                EvalArena.copy_fields(context, custom_type_name, expr_result_str, var_name, inner_e)
             case:
                 throw inner_e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of custom type '", custom_type_name, "' of value type '", value_type_to_str(custom_symbol_info.value_type), "'."))
             }
@@ -1376,10 +1376,10 @@ eval_identifier_expr_struct_member := proc(name: Str, inner_name: Str, mut conte
     case ValueType.TCustom(custom_type_name):
         combined := format(name, ".", inner_name)
         if custom_type_name.eq("I64") {
-            i64_result := Arena.get_i64(context, combined, inner_e)
+            i64_result := EvalArena.get_i64(context, combined, inner_e)
             return EvalResult.new(I64.to_str(i64_result))
         } else if custom_type_name.eq("U8") {
-            u8_result : U8 = Arena.get_u8(context, combined, inner_e)
+            u8_result : U8 = EvalArena.get_u8(context, combined, inner_e)
             return EvalResult.new(U8.to_str(u8_result))
         } else if custom_type_name.eq("Str") {
             result := string_from_context(context, combined, inner_e)
@@ -1424,7 +1424,7 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
         if name.eq(custom_type_name) {
             throw e.lang_error(context.path, "eval", format("Cannot use enum type '", name, "' as a value"))
         }
-        enum_val := Arena.get_enum(context, name, e)
+        enum_val := EvalArena.get_enum(context, name, e)
         // Set temp_enum_payload so that if this enum is assigned to another variable,
         // the payload will be preserved
         if not(NULL.eq(enum_val.payload.data)) {
@@ -1493,10 +1493,10 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
         switch current_type {
         case ValueType.TCustom(curr_type_name):
             if curr_type_name.eq("I64") {
-                i64_result := Arena.get_i64(context, current_name, e)
+                i64_result := EvalArena.get_i64(context, current_name, e)
                 return EvalResult.new(I64.to_str(i64_result))
             } else if curr_type_name.eq("U8") {
-                u8_result : U8 = Arena.get_u8(context, current_name, e)
+                u8_result : U8 = EvalArena.get_u8(context, current_name, e)
                 return EvalResult.new(U8.to_str(u8_result))
             } else if curr_type_name.eq("Str") {
                 result := string_from_context(context, current_name, e)
@@ -1509,7 +1509,7 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
                 }
                 switch custom_symbol_info.value_type {
                 case ValueType.TType(TTypeDef.TEnumDef):
-                    enum_val := Arena.get_enum(context, current_name, last_inner_e)
+                    enum_val := EvalArena.get_enum(context, current_name, last_inner_e)
                     // Set temp_enum_payload if this enum has a payload
                     if not(NULL.eq(enum_val.payload.data)) {
                         // Read payload vec from Ptr
@@ -1608,10 +1608,10 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
 
                 // Now get the value based on the final type
                 if current_type.eq("I64") {
-                    i64_val := Arena.get_i64(context, current_name, e)
+                    i64_val := EvalArena.get_i64(context, current_name, e)
                     return EvalResult.new(I64.to_str(i64_val))
                 } else if current_type.eq("U8") {
-                    u8_val : U8 = Arena.get_u8(context, current_name, e)
+                    u8_val : U8 = EvalArena.get_u8(context, current_name, e)
                     return EvalResult.new(U8.to_str(u8_val))
                 } else if current_type.eq("Str") {
                     val := string_from_context(context, current_name, e)
@@ -1654,10 +1654,10 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
         if s.eq(INFER_TYPE) {
             throw e.lang_error(context.path, "eval", format("Can't infer the type of identifier '", name, "'."))
         } else if s.eq("I64") {
-            i64_val := Arena.get_i64(context, name, e)
+            i64_val := EvalArena.get_i64(context, name, e)
             return EvalResult.new(I64.to_str(i64_val))
         } else if s.eq("U8") {
-            u8_val : U8 = Arena.get_u8(context, name, e)
+            u8_val : U8 = EvalArena.get_u8(context, name, e)
             return EvalResult.new(U8.to_str(u8_val))
         } else if s.eq("Str") {
             if e.params.len().eq(0) {
@@ -1807,7 +1807,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                 if thrown_type.eq("Str") {
                                     // The thrown value is the actual string content, not a struct instance name
                                     // Create a proper Str struct for the catch variable
-                                    Arena.insert_string(context, var_name, throw_result.value, stmt)
+                                    EvalArena.insert_string(context, var_name, throw_result.value, stmt)
                                 } else {
                                     mut struct_def := SStructDef()
                                     mut has_struct := false
@@ -2004,7 +2004,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
                 array_type_name := "Array"
                 function_frame.symbols.insert(arg.name, SymbolInfo.new(ValueType.TCustom(array_type_name), arg.is_mut, arg.is_copy, arg.is_own))
-                Arena.insert_array_into_frame(context, function_frame, arg.name, multi_value_type, values, e)
+                EvalArena.insert_array_into_frame(context, function_frame, arg.name, multi_value_type, values, e)
                 params_consumed = true
 
             case ValueType.TCustom(custom_type_name):
@@ -2026,7 +2026,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             case ValueType.TType(tdef):
                                 // This is a type identifier - store the type name as a string
                                 function_frame.symbols.insert(arg.name, SymbolInfo.new(ValueType.TCustom("Str"), false, false, false))
-                                Arena.insert_string_into_frame(context, function_frame, arg.name, id_name, e)
+                                EvalArena.insert_string_into_frame(context, function_frame, arg.name, id_name, e)
                                 param_index.inc()
                                 continue  // Skip eval_expr for this parameter
                             case:
@@ -2052,7 +2052,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             type_sym = context.scope_stack.lookup_symbol(arg_type_name)
                             switch type_sym.value_type {
                             case ValueType.TType(TTypeDef.TEnumDef):
-                                enum_val := Arena.get_enum(context, id_name, e)
+                                enum_val := EvalArena.get_enum(context, id_name, e)
                                 if not(NULL.eq(enum_val.payload.data)) {
                                     mut payload_vec := Vec.new(U8)
                                     memcpy(to_ptr(payload_vec), enum_val.payload.data, size_of(Vec))
@@ -2214,7 +2214,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 // Must search ALL frames because globals like `true` are in frame 0
                                 prefix := format(source_var, ".")
                                 replacement_prefix := format(arg.name, ".")
-                                mut field_offsets_to_copy := Vec.new(ArenaMapping)
+                                mut field_offsets_to_copy := Vec.new(EvalArenaMapping)
                                 mut field_symbols_to_copy := Vec.new(SymbolEntry)
                                 for fi in 0..context.scope_stack.frames.len() {
                                     mut caller_frame := ScopeFrame()
@@ -2228,7 +2228,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             mut value := 0
                                             caller_frame.arena_index.get(key, value)
                                             mut new_key := key.replace(prefix, replacement_prefix)
-                                            mut mapping := ArenaMapping()
+                                            mut mapping := EvalArenaMapping()
                                             mapping.name = new_key
                                             mapping.offset = value
                                             field_offsets_to_copy.push(mapping)
@@ -2251,7 +2251,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     }
                                 }
                                 for foi in 0..field_offsets_to_copy.len() {
-                                    mut mapping := ArenaMapping()
+                                    mut mapping := EvalArenaMapping()
                                     field_offsets_to_copy.get(foi, mapping)
                                     function_frame.arena_index.insert(mapping.name, mapping.offset)
                                 }
@@ -2277,11 +2277,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     {
                         switch custom_type_name {
                         case "I64":
-                            Arena.insert_i64_into_frame(context, function_frame, arg.name, result_str, e)
+                            EvalArena.insert_i64_into_frame(context, function_frame, arg.name, result_str, e)
                         case "U8":
-                            Arena.insert_u8_into_frame(context, function_frame, arg.name, result_str, e)
+                            EvalArena.insert_u8_into_frame(context, function_frame, arg.name, result_str, e)
                         case "Str":
-                            Arena.insert_string_into_frame(context, function_frame, arg.name, result_str, e)
+                            EvalArena.insert_string_into_frame(context, function_frame, arg.name, result_str, e)
                         case:
                             // Custom type (enum or struct)
                             mut custom_symbol := SymbolInfo()
@@ -2306,7 +2306,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             }
                             if is_enum_def {
                                 // Transfer payload from outer context if present (temp_enum_payload already on context)
-                                _ := Arena.insert_enum_into_frame(context, function_frame, arg.name, custom_type_name, result_str, e)
+                                _ := EvalArena.insert_enum_into_frame(context, function_frame, arg.name, custom_type_name, result_str, e)
                             } else if is_struct_def {
                                 // Bug #10 fix: Handle field access chains like s.items
                                 mut source_id := ""
@@ -2356,7 +2356,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     mut saved_offsets := SavedOffsets()
                                     mut has_saved_offsets := false
                                     if id_.eq(arg.name) {
-                                        mut offsets := Vec.new(ArenaMapping)
+                                        mut offsets := Vec.new(EvalArenaMapping)
                                         // Save all arena_index entries that start with the struct name
                                         // This includes the base offset and all nested field offsets
                                         prefix := format(id_, ".")
@@ -2374,7 +2374,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             if should_copy {
                                                 mut offset_val := 0
                                                 last_frame.arena_index.get(key, offset_val)
-                                                mut mapping := ArenaMapping()
+                                                mut mapping := EvalArenaMapping()
                                                 mapping.name = key.clone()
                                                 mapping.offset = offset_val
                                                 offsets.push(mapping)
@@ -2419,7 +2419,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         // Must search ALL frames because globals like `true` are in frame 0
                                         prefix := format(id_, ".")
                                         replacement_prefix := format(arg.name, ".")
-                                        mut field_offsets_to_copy := Vec.new(ArenaMapping)
+                                        mut field_offsets_to_copy := Vec.new(EvalArenaMapping)
                                         mut field_symbols_to_copy := Vec.new(SymbolEntry)
                                         for fi in 0..context.scope_stack.frames.len() {
                                             mut caller_frame := ScopeFrame()
@@ -2433,7 +2433,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                     mut value := 0
                                                     caller_frame.arena_index.get(key, value)
                                                     mut new_key := key.replace(prefix, replacement_prefix)
-                                                    mut mapping := ArenaMapping()
+                                                    mut mapping := EvalArenaMapping()
                                                     mapping.name = new_key
                                                     mapping.offset = value
                                                     field_offsets_to_copy.push(mapping)
@@ -2457,7 +2457,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         }
                                         // Insert collected offsets
                                         for foi in 0..field_offsets_to_copy.len() {
-                                            mut mapping := ArenaMapping()
+                                            mut mapping := EvalArenaMapping()
                                             field_offsets_to_copy.get(foi, mapping)
                                             function_frame.arena_index.insert(mapping.name, mapping.offset)
                                         }
@@ -2481,7 +2481,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         // If we saved offsets, restore them with temp keys for copy_fields
                                         if has_saved_offsets {
                                             for mi in 0..saved_offsets.offsets.len() {
-                                                mut mapping := ArenaMapping()
+                                                mut mapping := EvalArenaMapping()
                                                 saved_offsets.offsets.get(mi, mapping)
                                                 mut new_key := ""
                                                 if mapping.name.eq(id_) {
@@ -2498,11 +2498,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                 context.scope_stack.frames.set(lf9_idx, lf9)
                                             }
 
-                                            Arena.copy_fields(context, custom_type_name, saved_offsets.temp_src_key, arg.name, e)
+                                            EvalArena.copy_fields(context, custom_type_name, saved_offsets.temp_src_key, arg.name, e)
 
                                             // Clean up temp keys
                                             for ci in 0..saved_offsets.offsets.len() {
-                                                mut mapping := ArenaMapping()
+                                                mut mapping := EvalArenaMapping()
                                                 saved_offsets.offsets.get(ci, mapping)
                                                 mut new_key := ""
                                                 if mapping.name.eq(id_) {
@@ -2545,7 +2545,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             lf10.arena_index.insert(id_.clone(), src_offset)
                                             context.scope_stack.frames.set(lf10_idx, lf10)
                                             context.scope_stack.declare_symbol(id_.clone(), src_symbol.clone())
-                                            Arena.copy_fields(context, custom_type_name, id_, arg.name, e)
+                                            EvalArena.copy_fields(context, custom_type_name, id_, arg.name, e)
                                             _ := context.scope_stack.remove_var(id_)
                                             _ := context.scope_stack.remove_symbol(id_)
                                         }
@@ -2582,7 +2582,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     lf11.arena_index.insert(source_id.clone(), src_offset)
                                     context.scope_stack.frames.set(lf11_idx, lf11)
                                     context.scope_stack.declare_symbol(source_id.clone(), src_symbol.clone())
-                                    Arena.copy_fields(context, custom_type_name, source_id, arg.name, e)
+                                    EvalArena.copy_fields(context, custom_type_name, source_id, arg.name, e)
                                     _ := context.scope_stack.remove_var(source_id)
                                     _ := context.scope_stack.remove_symbol(source_id)
 
@@ -2792,7 +2792,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 if is_enum_def {
                     if not(result_str.contains(".")) {
                         // This is a variable, not a constructor - save the enum value
-                        saved_enum_value = Arena.get_enum(context, result_str, e)
+                        saved_enum_value = EvalArena.get_enum(context, result_str, e)
                         has_saved_enum_value = true
                         // May fail if not actually an enum - that's okay, has_saved_enum_value stays false
                         catch (err: Str) { }
@@ -2832,10 +2832,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         if is_tcustom {
             switch type_name {
             case "I64":
-                i64_val := Arena.get_i64(context, m.arg_name, e)
+                i64_val := EvalArena.get_i64(context, m.arg_name, e)
                 collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.I64(i64_val)))
             case "U8":
-                u8_val : U8 = Arena.get_u8(context, m.arg_name, e)
+                u8_val : U8 = EvalArena.get_u8(context, m.arg_name, e)
                 collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.U8(u8_val)))
             case "Str":
                 val := string_from_context(context, m.arg_name, e)
@@ -2865,7 +2865,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 case:
                 }
                 if is_enum_def {
-                    enum_val := Arena.get_enum(context, m.arg_name, e)
+                    enum_val := EvalArena.get_enum(context, m.arg_name, e)
                     collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.Enum(enum_val)))
                 } else if is_struct_def {
                     mut offset := 0
@@ -2903,13 +2903,13 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         collected_mut_args.get(ci, c)
         switch c.value {
         case MutArgValue.I64(val):
-            _ := Arena.insert_i64(context, c.source_name, I64.to_str(val), e)
+            _ := EvalArena.insert_i64(context, c.source_name, I64.to_str(val), e)
         case MutArgValue.U8(val):
-            _ := Arena.insert_u8(context, c.source_name, U8.to_str(val), e)
+            _ := EvalArena.insert_u8(context, c.source_name, U8.to_str(val), e)
         case MutArgValue.Str(val):
-            _ := Arena.insert_string(context, c.source_name, val, e)
+            _ := EvalArena.insert_string(context, c.source_name, val, e)
         case MutArgValue.Enum(enum_val):
-            _ := Arena.insert_enum(context, c.source_name, enum_val.enum_type, format(enum_val.enum_type, ".", enum_val.enum_name), e)
+            _ := EvalArena.insert_enum(context, c.source_name, enum_val.enum_type, format(enum_val.enum_type, ".", enum_val.enum_name), e)
         case MutArgValue.Struct(struct_data):
             mut lf12_idx := context.scope_stack.frames.len().sub(1)
             mut lf12 := ScopeFrame()
@@ -3009,7 +3009,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             }
                         }
 
-                        _ := Arena.insert_enum(context, return_instance, saved_enum_value.enum_type, format(saved_enum_value.enum_type, ".", saved_enum_value.enum_name), e)
+                        _ := EvalArena.insert_enum(context, return_instance, saved_enum_value.enum_type, format(saved_enum_value.enum_type, ".", saved_enum_value.enum_name), e)
                         return EvalResult.new_return(return_instance) // CLEANUP SITE 6: Return enum variable
                     }
                 }
