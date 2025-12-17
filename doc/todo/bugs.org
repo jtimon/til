@@ -47,8 +47,9 @@ Change funcs that use print to procs, or avoid print in funcs entirely.
 ** Bug #40: Precomp generates non-deterministic _for_i_ variable names
 :PROPERTIES:
 :DISCOVERED: 2025-12-16
+:FIXED: 2025-12-17
 :IMPACT: Build reproducibility
-:STATUS: Open
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -88,6 +89,24 @@ Apply similar pattern as ccodegen fix:
 *** Files to Modify
 - src/rs/precomp.rs: Add counter reset in precomp_func_def, modify index_var_name format
 - src/self/precomp.til: Same changes ported
+
+*** Fix Details
+Added two new fields to Context:
+- `current_precomp_func`: Tracks the current function being processed (Option<String> in Rust, Str in TIL)
+- `precomp_forin_counter`: Per-function counter for _for_i_ variable names
+
+Modified three functions:
+1. `precomp_declaration`: Sets function name and resets counter BEFORE processing function body
+2. `precomp_struct_def`: Sets function name for struct method definitions (default values)
+3. `precomp_forin`: Uses context fields instead of global counter, generates names like `_for_i_funcname_N`
+
+Files modified:
+- src/rs/init.rs: Added fields to Context struct
+- src/rs/precomp.rs: Bug #40 fix in precomp_declaration, precomp_struct_def, precomp_forin
+- src/self/init.til: Added fields to Context struct
+- src/self/precomp.til: Same fixes ported
+
+Test: src/test/deterministic.til
 
 ** Bug #34: Code after catch blocks doesn't run in error path
 :PROPERTIES:

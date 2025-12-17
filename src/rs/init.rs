@@ -1117,6 +1117,9 @@ pub struct Context {
     // REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
     // REM: This would enable: std := import("src/std") and then std.panic(), std.format(), etc.
     // REM: TODO change the cached type to support import as returning a struct_def
+    // Bug #40 fix: Track current function name and forin counter for deterministic _for_i_ names
+    pub current_precomp_func: Option<String>,
+    pub precomp_forin_counter: usize,
 }
 
 impl Context {
@@ -1142,6 +1145,9 @@ impl Context {
             imports_typer_done: HashSet::new(),
             imports_precomp_done: HashSet::new(),
             imports_eval_done: HashSet::new(),
+            // Bug #40 fix: Initialize precomp tracking fields
+            current_precomp_func: None,
+            precomp_forin_counter: 0,
         });
     }
 

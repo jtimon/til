@@ -1600,6 +1600,9 @@ Context := struct {
     # REM: This would enable: std := import("src/std") and then std.panic(), std.format(), etc.
     # REM: TODO change the cached type to support import as returning a struct_def
     # REM: TODO change the cached type to support import as returning a struct_def
+    # Bug #40 fix: Track current function name and forin counter for deterministic _for_i_ names
+    mut current_precomp_func: Str = ""  # Empty string means None/global scope
+    mut precomp_forin_counter: I64 = 0
 
     # Context methods (insert/get/copy methods moved to Arena in interpreter.til)
     new := func(path: Str, mode_name: Str) returns Context throws Str {

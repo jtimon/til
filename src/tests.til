@@ -642,6 +642,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/comparisons.til"))
     rs_common.push(TestEntry(path="src/test/constfold.til"))
     rs_common.push(TestEntry(path="src/test/cross_file_forward.til"))
+    rs_common.push(TestEntry(path="src/test/deterministic.til"))
     rs_common.push(TestEntry(path="src/test/editor_mode_test.til"))
     rs_common.push(TestEntry(path="src/test/enums.til"))
     rs_common.push(TestEntry(path="src/test/errors.til"))

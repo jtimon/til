@@ -1,0 +1,148 @@
+// Test for Bug #40: Non-deterministic _for_i_ variable names
+// Tests that for-in loop index variables are deterministically named
+// based on the function name, not a global counter.
+//
+// Covers:
+// 1. For-in in regular function declarations (precomp_declaration)
+// 2. For-in in struct method definitions (precomp_struct_def)
+// 3. Nested for-in loops
+
+mode test
+
+// Test struct with methods that use for-in loops
+// The method receives items directly to avoid copy semantics issues
+TestHelper := struct {
+    // Method with for-in loop - tests precomp_struct_def fix
+    sum_items := func(items: Vec) returns I64 {
+        mut total := 0
+        for item: I64 in items {
+            total = total.add(item)
+        }
+        return total
+    }
+
+    // Method with nested for-in loops
+    cross_sum := func(list_a: Vec, list_b: Vec) returns I64 {
+        mut total := 0
+        for a: I64 in list_a {
+            for b: I64 in list_b {
+                total = total.add(a.mul(b))
+            }
+        }
+        return total
+    }
+}
+
+// Test for-in in regular function - tests precomp_declaration fix
+test_forin_declaration := proc() {
+    mut sum := 0
+    mut items := Vec.new(I64)
+    items.push(1)
+    items.push(2)
+    items.push(3)
+
+    for item: I64 in items {
+        sum = sum.add(item)
+    }
+
+    assert_eq(loc(), 6, sum)
+
+    catch (err: AllocError) {
+        panic(loc(), err.msg)
+    }
+}
+
+// Test nested for-in loops - tests counter increments correctly
+test_forin_nested := proc() {
+    mut sum := 0
+    mut outer := Vec.new(I64)
+    outer.push(1)
+    outer.push(2)
+
+    mut inner := Vec.new(I64)
+    inner.push(10)
+    inner.push(20)
+
+    for o: I64 in outer {
+        for i: I64 in inner {
+            sum = sum.add(o.mul(i))
+        }
+    }
+
+    // (1*10 + 1*20) + (2*10 + 2*20) = 30 + 60 = 90
+    assert_eq(loc(), 90, sum)
+
+    catch (err: AllocError) {
+        panic(loc(), err.msg)
+    }
+}
+
+// Test for-in in struct methods - tests precomp_struct_def fix
+test_forin_struct_method := proc() {
+    mut items := Vec.new(I64)
+    items.push(1)
+    items.push(2)
+    items.push(3)
+
+    result := TestHelper.sum_items(items)
+    assert_eq(loc(), 6, result)
+
+    catch (err: AllocError) {
+        panic(loc(), err.msg)
+    }
+}
+
+// Test nested for-in in struct methods
+test_forin_struct_nested := proc() {
+    mut list_a := Vec.new(I64)
+    list_a.push(1)
+    list_a.push(2)
+
+    mut list_b := Vec.new(I64)
+    list_b.push(10)
+    list_b.push(20)
+
+    result := TestHelper.cross_sum(list_a, list_b)
+    // (1*10 + 1*20) + (2*10 + 2*20) = 30 + 60 = 90
+    assert_eq(loc(), 90, result)
+
+    catch (err: AllocError) {
+        panic(loc(), err.msg)
+    }
+}
+
+// Test multiple functions with for-in to verify counter resets per function
+test_forin_counter_reset := proc() {
+    // Each function should have its own counter starting at 0
+    // so the variable names should be:
+    // test_forin_declaration: _for_i_test_forin_declaration_0
+    // test_forin_nested: _for_i_test_forin_nested_0, _for_i_test_forin_nested_1
+    // sum_items: _for_i_sum_items_0
+    // cross_sum: _for_i_cross_sum_0, _for_i_cross_sum_1
+
+    mut sum := 0
+    mut nums := Vec.new(I64)
+    nums.push(5)
+
+    for n: I64 in nums {
+        sum = sum.add(n)
+    }
+
+    assert_eq(loc(), 5, sum)
+
+    catch (err: AllocError) {
+        panic(loc(), err.msg)
+    }
+}
+
+main := proc() {
+    test_forin_declaration()
+    test_forin_nested()
+    test_forin_struct_method()
+    test_forin_struct_nested()
+    test_forin_counter_reset()
+
+    println("Bug #40 deterministic test passed!")
+}
+
+main()

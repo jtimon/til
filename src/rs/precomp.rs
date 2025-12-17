@@ -418,10 +418,14 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
         None => return Err(e.lang_error(&context.path, "precomp", "ForIn: missing body")),
     };
 
-    // Build: mut _for_i_N := 0 (unique name to avoid conflicts with nested loops)
-    let forin_id = Arena::g().temp_id_counter;
-    Arena::g().temp_id_counter += 1;
-    let index_var_name = format!("_for_i_{}", forin_id);
+    // Build: mut _for_i_funcname_N := 0 (unique name to avoid conflicts with nested loops)
+    // Bug #40 fix: Use per-function counter and include function name for deterministic output
+    let forin_id = context.precomp_forin_counter;
+    context.precomp_forin_counter += 1;
+    let index_var_name = match &context.current_precomp_func {
+        Some(func_name) => format!("_for_i_{}_{}", func_name, forin_id),
+        None => format!("_for_i_{}", forin_id),
+    };
     let index_decl = Declaration {
         name: index_var_name.clone(),
         value_type: str_to_value_type(INFER_TYPE),
@@ -695,7 +699,22 @@ fn precomp_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 fn precomp_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) -> Result<Expr, String> {
     let mut new_default_values = HashMap::new();
     for (name, value_expr) in &struct_def.default_values {
+        // Bug #40 fix: For method definitions, set function name context
+        let is_func = matches!(&value_expr.node_type, NodeType::FuncDef(_));
+        let saved_func = context.current_precomp_func.clone();
+        let saved_counter = context.precomp_forin_counter;
+        if is_func {
+            context.current_precomp_func = Some(name.clone());
+            context.precomp_forin_counter = 0;
+        }
+
         new_default_values.insert(name.clone(), precomp_expr(context, value_expr)?);
+
+        // Bug #40 fix: Restore previous function context
+        if is_func {
+            context.current_precomp_func = saved_func;
+            context.precomp_forin_counter = saved_counter;
+        }
     }
     let new_struct_def = SStructDef {
         members: struct_def.members.clone(),
@@ -740,6 +759,16 @@ fn precomp_func_def(context: &mut Context, e: &Expr, func_def: SFuncDef) -> Resu
 
 /// Transform Declaration - register the declared variable in scope, then transform value
 fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser::Declaration) -> Result<Expr, String> {
+    // Bug #40 fix: For function declarations, set the function name and reset counter
+    // BEFORE processing the body so for-in loops get deterministic names
+    let is_func_decl = !e.params.is_empty() && matches!(&e.params[0].node_type, NodeType::FuncDef(_));
+    let saved_func = context.current_precomp_func.clone();
+    let saved_counter = context.precomp_forin_counter;
+    if is_func_decl {
+        context.current_precomp_func = Some(decl.name.clone());
+        context.precomp_forin_counter = 0;
+    }
+
     // First transform the value expression (if any)
     let new_params = if !e.params.is_empty() {
         let mut new_params = Vec::new();
@@ -750,6 +779,12 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     } else {
         Vec::new()
     };
+
+    // Bug #40 fix: Restore previous function context
+    if is_func_decl {
+        context.current_precomp_func = saved_func;
+        context.precomp_forin_counter = saved_counter;
+    }
 
     // Determine the type from the value if it's 'auto'
     let value_type = if decl.value_type == ValueType::TCustom(INFER_TYPE.to_string()) && !new_params.is_empty() {
