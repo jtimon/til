@@ -19,6 +19,7 @@ build_file_or_exit := proc(path: Str) {
     _ := build(path)
     catch (err: Str) {
         println("Build error: ", err)
+        exit(1)
     }
 }
 
@@ -26,13 +27,14 @@ run_file_or_exit := proc(path: Str) {
     _ := build(path)
     catch (err: Str) {
         println("Build error: ", err)
-        return
+        exit(1)
     }
     // Run the compiled binary
     mut exe_path := path.replace(".til", "")
     _ := run_cmd(exe_path)
     catch (err: AllocError) {
         println("Failed to run binary: ", err.msg)
+        exit(1)
     }
 }
 
