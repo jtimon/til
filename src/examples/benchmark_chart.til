@@ -1,0 +1,126 @@
+mode safe_script
+
+// Benchmark chart - shows Total time history from git commits
+
+import("core.str")
+import("core.vec")
+import("std.sys")
+
+main := proc() {
+    // Get commits that touched benchmark.org
+    mut git_log := ""
+    _ := run_cmd(git_log, "git", "log", "--oneline", "--follow", "doc/benchmark.org")
+    lines := git_log.split("\n")
+
+    // Collect data: (hash, msg, total)
+    mut hashes := Vec.new(Str)
+    mut msgs := Vec.new(Str)
+    mut totals := Vec.new(I64)
+
+    mut max_total := 0
+    mut i := 0
+    while i.lt(lines.len()) {
+        mut line : Str = ""
+        lines.get(i, line)
+        if line.len().gt(0) {
+            // Parse "abc1234 commit message"
+            space_idx := line.find(" ")
+            if space_idx.gt(0) {
+                hash := get_substr(line, 0, space_idx)
+                msg := get_substr(line, add(space_idx, 1), line.len())
+
+                // Get benchmark.org content at this commit (try paths due to renames)
+                mut content := ""
+                ret := run_cmd(content, "git", "show", concat(hash, ":doc/benchmark.org"))
+                if ret.gt(0) {
+                    ret2 := run_cmd(content, "git", "show", concat(hash, ":benchmark.org"))
+                    if ret2.gt(0) {
+                        _ := run_cmd(content, "git", "show", concat(hash, ":docs/benchmark.org"))
+                    }
+                }
+
+                // Find "Total :: X.XXXs"
+                total_idx := content.find("Total :: ")
+                if total_idx.gt(sub(0, 1)) {
+                    // Extract the number after "Total :: "
+                    start := add(total_idx, 9)
+                    rest := get_substr(content, start, content.len())
+                    s_idx := rest.find("s")
+                    if s_idx.gt(0) {
+                        total_str := get_substr(rest, 0, s_idx)
+                        // Parse as milliseconds (multiply by 1000)
+                        // Format is like "24.167"
+                        dot_idx := total_str.find(".")
+                        if dot_idx.gt(0) {
+                            secs_str := get_substr(total_str, 0, dot_idx)
+                            ms_str := get_substr(total_str, add(dot_idx, 1), total_str.len())
+                            secs := secs_str.to_i64()
+                            ms := ms_str.to_i64()
+                            total_ms := add(mul(secs, 1000), ms)
+
+                            hashes.push(hash)
+                            if msg.len().gt(40) {
+                                msgs.push(concat(get_substr(msg, 0, 40), "..."))
+                            } else {
+                                msgs.push(msg)
+                            }
+                            totals.push(total_ms)
+
+                            if total_ms.gt(max_total) {
+                                max_total = total_ms
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        i = add(i, 1)
+    }
+
+    // Print chart (oldest first, so reverse)
+    println("")
+    println("Benchmark Total Time History (", totals.len().to_str(), " commits)")
+    println("================================================================================")
+    println("")
+
+    mut j := sub(totals.len(), 1)
+    mut out_hash := ""
+    mut out_msg := ""
+    mut out_total := 0
+    while j.gt(sub(0, 1)) {
+        hashes.get(j, out_hash)
+        msgs.get(j, out_msg)
+        totals.get(j, out_total)
+
+        // Format as seconds
+        secs := div(out_total, 1000)
+        ms := mod(out_total, 1000)
+
+        // Calculate bar length (50 chars max)
+        bar_len := div(mul(out_total, 50), max_total)
+
+        // Print bar
+        print(out_hash, " ", secs.to_str(), ".", ms.to_str(), "s |")
+        mut k := 0
+        while k.lt(bar_len) {
+            print("#")
+            k = add(k, 1)
+        }
+        println("")
+        println("         ", out_msg)
+        println("")
+
+        j = sub(j, 1)
+    }
+
+    catch (err: AllocError) {
+        println("AllocError:", err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("IndexOutOfBoundsError:", err.msg)
+        exit(1)
+    }
+}
+
+main()
