@@ -80,6 +80,11 @@ impl Arena {
         &self.memory[offset..offset + len]
     }
 
+    /// Write bytes to arena at offset
+    pub fn set(&mut self, offset: usize, bytes: &[u8]) {
+        self.memory[offset..offset + bytes.len()].copy_from_slice(bytes);
+    }
+
     // === EVAL-PHASE MEMORY OPERATIONS ===
     // These methods manage runtime memory allocation and access
     // They take Context as parameter to access type info and arena_index
@@ -154,7 +159,7 @@ impl Arena {
                 Arena::g().memory.resize(required_len, 0);
             }
 
-            Arena::g().memory[field_offset..field_offset + 8].copy_from_slice(&bytes);
+            Arena::g().set(field_offset, &bytes);
             return Ok(None)
         }
 
@@ -194,7 +199,7 @@ impl Arena {
                     e.lang_error(&ctx.path, "context", &format!("insert_u8: {}", err))
                 })?
             };
-            Arena::g().memory[field_offset] = v;
+            Arena::g().set(field_offset, &[v]);
             return Ok(None)
         }
 
@@ -357,22 +362,20 @@ impl Arena {
                             Some(i) => i as i64,
                             None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Unknown enum variant '{}' for field '{}'", variant, decl.name))),
                         };
-                        Arena::g().memory[offset + field_offset..offset + field_offset + 8]
-                            .copy_from_slice(&index.to_ne_bytes());
+                        Arena::g().set(offset + field_offset, &index.to_ne_bytes());
                     } else {
                         match type_name.as_str() {
                             "U8" => {
                                 let v = default_value.parse::<u8>().map_err(|_| {
                                     e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid U8 default value '{}' for field '{}'", default_value, decl.name))
                                 })?;
-                                Arena::g().memory[offset + field_offset] = v;
+                                Arena::g().set(offset + field_offset, &[v]);
                             },
                             "I64" => {
                                 let v = default_value.parse::<i64>().map_err(|_| {
                                     e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid I64 default value '{}' for field '{}'", default_value, decl.name))
                                 })?;
-                                Arena::g().memory[offset + field_offset..offset + field_offset + 8]
-                                    .copy_from_slice(&v.to_ne_bytes());
+                                Arena::g().set(offset + field_offset, &v.to_ne_bytes());
                             },
                             _ => {
                                 if ctx.scope_stack.lookup_struct(type_name).is_some() {
@@ -527,10 +530,8 @@ impl Arena {
         Arena::g().memory.resize(new_offset + struct_size, 0);
 
         // memcpy from template
-        let arena = Arena::g();
-        for i in 0..struct_size {
-            arena.memory[new_offset + i] = arena.memory[template_offset + i];
-        }
+        let data = Arena::g().get(template_offset, struct_size).to_vec();
+        Arena::g().set(new_offset, &data);
 
         // Generate and apply mappings
         let result = Arena::generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)?;
@@ -554,10 +555,8 @@ impl Arena {
         Arena::g().memory.resize(new_offset + struct_size, 0);
 
         // memcpy from template
-        let arena = Arena::g();
-        for i in 0..struct_size {
-            arena.memory[new_offset + i] = arena.memory[template_offset + i];
-        }
+        let data = Arena::g().get(template_offset, struct_size).to_vec();
+        Arena::g().set(new_offset, &data);
 
         // Temporarily push frame for generate_struct_mappings
         let empty_frame = ScopeFrame {
@@ -607,12 +606,10 @@ impl Arena {
                         if decl.is_mut {
                             let type_size = ctx.get_type_size( &value_type_to_str(&decl.value_type))?;
                             let absolute_offset = base_offset + current_offset;
-                            let target_slice = &mut Arena::g().memory[absolute_offset..absolute_offset + type_size];
-
                             if decl.name == "c_string" {
-                                target_slice.copy_from_slice(&string_offset_bytes);
+                                Arena::g().set(absolute_offset, &string_offset_bytes);
                             } else if decl.name == "cap" {
-                                target_slice.copy_from_slice(&len_bytes);
+                                Arena::g().set(absolute_offset, &len_bytes);
                             }
 
                             ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, decl.name), absolute_offset);
@@ -637,11 +634,10 @@ impl Arena {
                             Arena::g().memory.resize(struct_offset + current_offset + type_size, 0);
                         }
 
-                        let field_slice = &mut Arena::g().memory[struct_offset + current_offset..struct_offset + current_offset + type_size];
                         if decl.name == "c_string" {
-                            field_slice.copy_from_slice(&string_offset_bytes);
+                            Arena::g().set(struct_offset + current_offset, &string_offset_bytes);
                         } else if decl.name == "cap" {
-                            field_slice.copy_from_slice(&len_bytes);
+                            Arena::g().set(struct_offset + current_offset, &len_bytes);
                         }
 
                         ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, decl.name), struct_offset + current_offset);
@@ -669,8 +665,8 @@ impl Arena {
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.c_string'", id)))?;
             let cap_offset = ctx.scope_stack.lookup_var(&format!("{}.cap", id))
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.cap'", id)))?;
-            Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&info.string_offset_bytes);
-            Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&info.len_bytes);
+            Arena::g().set(c_string_offset, &info.string_offset_bytes);
+            Arena::g().set(cap_offset, &info.len_bytes);
         }
         Ok(())
     }
@@ -688,8 +684,8 @@ impl Arena {
             let cap_offset = frame.arena_index.get(&format!("{}.cap", id))
                 .copied()
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string_into_frame: missing '{}.cap'", id)))?;
-            Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&info.string_offset_bytes);
-            Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&info.len_bytes);
+            Arena::g().set(c_string_offset, &info.string_offset_bytes);
+            Arena::g().set(cap_offset, &info.len_bytes);
         }
         Ok(())
     }
@@ -915,14 +911,14 @@ impl Arena {
             if is_field {
                 if let Some(offset) = ctx.scope_stack.lookup_var(id) {
                     // Update existing enum value (no new mapping needed)
-                    Arena::g().memory[offset..offset + 8].copy_from_slice(&enum_value.to_le_bytes());
+                    Arena::g().set(offset, &enum_value.to_le_bytes());
                     if let Some(payload_bytes) = &payload_data {
                         let payload_offset = offset + 8;
                         let payload_end = payload_offset + payload_bytes.len();
                         if Arena::g().len() < payload_end {
                             Arena::g().memory.resize(payload_end, 0);
                         }
-                        Arena::g().memory[payload_offset..payload_end].copy_from_slice(&payload_bytes);
+                        Arena::g().set(payload_offset, &payload_bytes);
                     }
                     None
                 } else {
@@ -1023,12 +1019,12 @@ impl Arena {
                 "U8" => {
                     let byte = val.parse::<u8>()
                         .map_err(|err| e.lang_error(&ctx.path, "insert_array", &format!("invalid U8 '{}'", err)))?;
-                    Arena::g().memory[offset] = byte;
+                    Arena::g().set(offset, &[byte]);
                 },
                 "I64" => {
                     let n = val.parse::<i64>()
                         .map_err(|err| e.lang_error(&ctx.path, "insert_array", &format!("invalid I64 '{}'", err)))?;
-                    Arena::g().memory[offset..offset+8].copy_from_slice(&n.to_ne_bytes());
+                    Arena::g().set(offset, &n.to_ne_bytes());
                 },
                 "Str" => {
                     // For Str elements, create temp Str and copy bytes to array slot
@@ -1043,15 +1039,15 @@ impl Arena {
                     Self::insert_string_into_frame(ctx, frame, &temp_id, val, e)?;
                     let str_offset = frame.arena_index.get(&temp_id).copied()
                         .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing Str offset for '{}'", temp_id)))?;
-                    Arena::g().memory[offset..offset + elem_size]
-                        .copy_from_slice(Arena::g().get(str_offset, elem_size));
+                    let data = Arena::g().get(str_offset, elem_size).to_vec();
+                    Arena::g().set(offset, &data);
                 },
                 _ => {
                     // Struct element - val is identifier, copy from source
                     let src_offset = ctx.scope_stack.lookup_var(val)
                         .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("struct source '{}' not found", val)))?;
-                    Arena::g().memory[offset..offset + elem_size]
-                        .copy_from_slice(Arena::g().get(src_offset, elem_size));
+                    let data = Arena::g().get(src_offset, elem_size).to_vec();
+                    Arena::g().set(offset, &data);
                 }
             }
         }
@@ -1059,15 +1055,15 @@ impl Arena {
         // Update Array fields from frame.arena_index
         let ptr_offset = frame.arena_index.get(&format!("{}.ptr", name)).copied()
             .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing '{}.ptr'", name)))?;
-        Arena::g().memory[ptr_offset..ptr_offset+8].copy_from_slice(&(ptr as i64).to_ne_bytes());
+        Arena::g().set(ptr_offset, &(ptr as i64).to_ne_bytes());
 
         let len_offset = frame.arena_index.get(&format!("{}._len", name)).copied()
             .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing '{}._len'", name)))?;
-        Arena::g().memory[len_offset..len_offset+8].copy_from_slice(&len.to_ne_bytes());
+        Arena::g().set(len_offset, &len.to_ne_bytes());
 
         let type_size_offset = frame.arena_index.get(&format!("{}.type_size", name)).copied()
             .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing '{}.type_size'", name)))?;
-        Arena::g().memory[type_size_offset..type_size_offset+8].copy_from_slice(&(elem_size as i64).to_ne_bytes());
+        Arena::g().set(type_size_offset, &(elem_size as i64).to_ne_bytes());
 
         // Set type_name field (it's a Str)
         let type_name_field = format!("{}.type_name", name);
@@ -1085,8 +1081,8 @@ impl Arena {
         let type_name_offset = frame.arena_index.get(&type_name_field).copied()
             .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing '{}'", type_name_field)))?;
         let str_size = ctx.get_type_size("Str")?;
-        Arena::g().memory[type_name_offset..type_name_offset + str_size]
-            .copy_from_slice(Arena::g().get(temp_str_offset, str_size));
+        let data = Arena::g().get(temp_str_offset, str_size).to_vec();
+        Arena::g().set(type_name_offset, &data);
 
         Ok(())
     }
