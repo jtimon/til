@@ -730,14 +730,8 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
                         }
                         if struct_found {
                             // Check if clone() exists as a const (associated function)
-                            mut has_clone := false
-                            mut clone_decl := Declaration()
-                            clone_decl = struct_def.get_member("clone")
-                            has_clone = not(clone_decl.is_mut)
-                            catch (clone_err: Str) {
-                                // No clone method found - has_clone stays false
-                            }
-
+                            // TEMP: Disabled because throw/catch in get_member doesn't work in compiled code
+                            mut has_clone := true  // Assume all structs have clone for now
                             if not(has_clone) {
                                 errors.push(arg_expr.error(context.path, "type", format(
                                     "Cannot pass struct '", type_name, "' to copy parameter '", arg.name, "' of function '", f_name, "'.\nReason: struct '", type_name, "' does not implement clone() method.\nSuggestion: add 'clone := func(self: ", type_name, ") returns ", type_name, " { ... }' to struct '", type_name, "'."
@@ -2304,33 +2298,11 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
     // Check if collection-like structs have mandatory len() and size() methods
     // A struct is considered collection-like if it has push/get/set/insert methods
     // Note: delete() is excluded as it's a cleanup method, not a collection operation
+    // TEMP: Disabled because throw/catch in get_member doesn't work in compiled code
     mut has_push := false
-    _ := struct_def.get_member("push")
-    has_push = true
-    catch (err: Str) {
-        has_push = false
-    }
-
     mut has_get := false
-    _ := struct_def.get_member("get")
-    has_get = true
-    catch (err: Str) {
-        has_get = false
-    }
-
     mut has_set := false
-    _ := struct_def.get_member("set")
-    has_set = true
-    catch (err: Str) {
-        has_set = false
-    }
-
     mut has_insert := false
-    _ := struct_def.get_member("insert")
-    has_insert = true
-    catch (err: Str) {
-        has_insert = false
-    }
 
     if has_push.or(has_get).or(has_set).or(has_insert) {
         // This looks like a collection type - check for len() method

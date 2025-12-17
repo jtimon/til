@@ -574,6 +574,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/introspections.til"))
     rs_common.push(TestEntry(path="src/test/lists.til"))
     rs_common.push(TestEntry(path="src/test/loops.til"))
+    rs_common.push(TestEntry(path="src/test/loop_struct_init.til"))
     rs_common.push(TestEntry(path="src/test/maps.til"))
     rs_common.push(TestEntry(path="src/test/modes.til"))
     rs_common.push(TestEntry(path="src/test/mut_test.til"))
@@ -617,7 +618,7 @@ main := proc(args: ..Str) {
 
     // til_interpreted: tests run with the self-hosted TIL interpreter only
     mut til_interpreted := Vec.new(TestEntry)
-    // til_interpreted.push(TestEntry(path="src/examples/empty.til", expected_status=0)) // TODO: Fix "func 'Bool' returns multiple values" error
+    til_interpreted.push(TestEntry(path="src/examples/empty.til", expected_status=0)) // TODO: Fix "func 'Bool' returns multiple values" error
     // til_interpreted.push(TestEntry(path="src/examples/hello_script.til"))  // TODO: Fix "func 'Bool' returns multiple values" error
 
     // til_compiled: tests run with the self-hosted TIL compiler only

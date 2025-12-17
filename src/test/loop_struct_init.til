@@ -1,0 +1,59 @@
+mode test
+
+// Test for loop struct initialization bug
+// Bug: When declaring a struct with Vec fields inside a loop,
+// the generated C code creates new Vecs every iteration,
+// even when Vec.get immediately overwrites the struct.
+// This causes massive memory allocation and potential infinite loops.
+
+InnerStruct := struct {
+    mut data: Vec = Vec.new(I64)
+    mut value: I64 = 0
+}
+
+OuterContainer := struct {
+    mut items: Vec = Vec.new(InnerStruct)
+}
+
+test_loop_struct_init := proc() {
+    // Create a container with some items
+    mut container := OuterContainer()
+
+    // Add a few items
+    for i in 0..3 {
+        mut item := InnerStruct()
+        item.value = i
+        item.data.push(i)
+        container.items.push(item)
+    }
+
+    // Now iterate and access - this is where the bug manifests
+    // The loop variable `item` gets full default initialization
+    // (including Vec.new()) every iteration, which is wasteful
+    mut i := 0
+    while i.lt(container.items.len()) {
+        mut item := InnerStruct()  // Bug: This allocates new Vec every iteration
+        container.items.get(i, item)  // This overwrites everything
+
+        // Verify the data is correct
+        assert_eq(loc(), i, item.value)
+
+        i = i.add(1)
+    }
+
+    println("loop_struct_init: PASSED")
+
+    catch (err: AllocError) {
+        println("AllocError:", err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("IndexOutOfBoundsError:", err.msg)
+        exit(1)
+    }
+}
+
+main := proc() {
+    test_loop_struct_init()
+    exit(0)
+}

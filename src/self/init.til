@@ -298,12 +298,28 @@ ScopeStack := struct {
         }
     }
 
+    /** Check if a function exists by name (no throw) */
+    has_func := func(self: ScopeStack, name: Str) returns Bool {
+        mut i := self.frames.len().sub(1)
+        while i.gteq(0) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)
+            if frame.funcs.contains_key(name) {
+                return true
+            }
+            i.dec()
+        }
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "IndexOutOfBoundsError in has_func: ", err.msg)
+        }
+        return false
+    }
+
     lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
         mut i := self.frames.len().sub(1)
         while i.gteq(0) { // TODO: replace with reverse range loop when implemented
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
-
             if frame.funcs.contains_key(name) {
                 mut func_def := SFuncDef()
                 frame.funcs.get(name, func_def)
@@ -312,7 +328,6 @@ ScopeStack := struct {
                 }
                 return func_def
             }
-
             i.dec()
         }
 
@@ -646,16 +661,17 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
     }
 
     // Original logic: check for standalone function
-    mut found_standalone := false
-    mut standalone_func_def := SFuncDef()
-    standalone_func_def = context.scope_stack.lookup_func(f_name)
-    found_standalone = true
-    catch (err: KeyNotFoundError) {
-        // Not a standalone function
-    }
-    if found_standalone {
+    println("DEBUG get_fcall_value_type checking:", f_name)
+    if context.scope_stack.has_func(f_name) {
+        println("DEBUG found func:", f_name)
+        mut standalone_func_def := SFuncDef()
+        standalone_func_def = context.scope_stack.lookup_func(f_name)
+        catch (err: KeyNotFoundError) {
+            panic(loc(), "has_func returned true but lookup_func failed for: ", f_name)
+        }
         return value_type_func_proc(context.path, e, f_name, standalone_func_def)
     }
+    println("DEBUG func not found:", f_name)
 
     // Not a standalone function, check if it's a symbol (type, enum, struct, etc)
     mut symbol := context.scope_stack.lookup_symbol(f_name)
@@ -895,14 +911,12 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                                 }
 
                                 # Try UFCS: standalone function with intermediate type as first arg
-                                mut found_standalone := false
-                                mut standalone_def := SFuncDef()
-                                standalone_def = context.scope_stack.lookup_func(final_member_name)
-                                found_standalone = true
-                                catch (standalone_err: KeyNotFoundError) {
-                                    // Standalone not found
-                                }
-                                if found_standalone {
+                                if context.scope_stack.has_func(final_member_name) {
+                                    mut standalone_def := SFuncDef()
+                                    standalone_def = context.scope_stack.lookup_func(final_member_name)
+                                    catch (standalone_err: KeyNotFoundError) {
+                                        panic(loc(), "has_func returned true but lookup_func failed for: ", final_member_name)
+                                    }
                                     return value_type_func_proc(context.path, e, final_member_name, standalone_def)
                                 }
 
@@ -1462,20 +1476,15 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
 
         switch value_type {
         case ValueType.TFunction(ftype):
-            switch ftype {
-            case FunctionType.FTFunc:
-            case FunctionType.FTFuncExt:
-            case FunctionType.FTProc:
-            case FunctionType.FTProcExt:
-            case FunctionType.FTMacro:
-                switch inner_e.node_type {
-                case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
-                    context.scope_stack.declare_func(decl.name, func_def)
-                case:
-                    errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
-                    return errors
-                }
+            // All function types (FTFunc, FTFuncExt, FTProc, FTProcExt, FTMacro) need declaration
+            // Note: TIL doesn't support switch fall-through, so we handle all function types together
+            switch inner_e.node_type {
+            case NodeType.FuncDef(func_def):
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+                context.scope_stack.declare_func(decl.name, func_def)
+            case:
+                errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
+                return errors
             }
 
         case ValueType.TType(TTypeDef.TEnumDef):
