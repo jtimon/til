@@ -9,6 +9,33 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #42: Temp variable naming inconsistency causes undeclared _tmp_N errors
+:PROPERTIES:
+:DISCOVERED: 2025-12-17
+:IMPACT: Compilation fails
+:STATUS: Active
+:END:
+
+*** Description
+After commit 5707c2d (Make _for_i_ variable names deterministic), some code paths generate temp variables with old-style names (_tmp_N) while others use new-style names (_tmp_funcname_N). This causes gcc errors for undeclared variables.
+
+#+BEGIN_EXAMPLE
+gcc error: '_tmp_13' undeclared (first use in this function)
+In til_Vec_clone:
+til_Vec til_cloned = {..., .ptr = _tmp_13, ...};
+#+END_EXAMPLE
+
+*** Root Cause
+The deterministic naming commit (5707c2d) updated many code paths to use function-prefixed temp names like _tmp_funcname_N, but at least one code path still uses the old _tmp_N naming without function prefix. The declaration uses the new style while the reference uses the old style, or vice versa.
+
+*** Related
+- Commit 5707c2d: Fix Bug #40: Make _for_i_ variable names deterministic
+- The commit changed next_mangled() to include function name prefix
+
+*** Files to Investigate
+- src/rs/ccodegen.rs: Check all code paths that generate temp variables
+- src/self/ccodegen.til: Same for TIL version
+
 ** Bug #40: Precomp generates non-deterministic _for_i_ variable names
 :PROPERTIES:
 :DISCOVERED: 2025-12-16
