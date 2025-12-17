@@ -9,7 +9,7 @@ mod rs {
     pub mod typer;
     pub mod precomp;
     pub mod scavenger;
-    pub mod arena;
+    pub mod eval_arena;
     pub mod interpreter;
     pub mod ext;
     pub mod ccodegen;
@@ -18,7 +18,7 @@ mod rs {
 use rs::lexer::LANG_NAME;
 use rs::interpreter::run_file;
 use rs::builder;
-use rs::arena::EvalArena;
+use rs::eval_arena::EvalArena;
 use rs::target::{Target, Lang, target_from_str, lang_from_str, detect_current_target, default_lang_for_target};
 
 const SELF_HOSTED_PATH     : &str = "src/til.til";

@@ -5,7 +5,7 @@ import("self.parser")
 import("self.typer")
 import("self.precomp")
 import("self.ext")
-import("self.arena")
+import("self.eval_arena")
 import("self.mode")         // parse_mode, can_be_imported
 import("self.lexer")        // lexer_from_source, parse_tokens
 import("std.io")            // readfile

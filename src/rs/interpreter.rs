@@ -101,7 +101,7 @@ fn to_ast_str(e: &Expr) -> String {
     }
 }
 
-use crate::rs::arena::{EvalArena, EvalArenaMapping, SymbolEntry};
+use crate::rs::eval_arena::{EvalArena, EvalArenaMapping, SymbolEntry};
 
 /// Saved offsets for struct copy when source and dest have the same name
 struct SavedOffsets {

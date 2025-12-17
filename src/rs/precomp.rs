@@ -10,7 +10,7 @@ use crate::rs::parser::{
     Declaration, str_to_value_type, INFER_TYPE,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration};
-use crate::rs::arena::EvalArena;
+use crate::rs::eval_arena::EvalArena;
 
 // Called when precomp encounters an import() call.
 // Runs precomp on the imported file to set up struct templates.

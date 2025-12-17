@@ -6,7 +6,7 @@ mode liba
 import("self.parser")       // Expr, NodeType, Literal, ValueType, get_combined_name
 import("self.init")         // Context
 import("self.interpreter")  // EvalResult, eval_expr, string_from_context
-import("self.arena")        // g_arena (global)
+import("self.eval_arena")   // g_arena (global)
 import("std.sys")            // run_cmd
 import("std.io")            // readfile, input_read_line
 

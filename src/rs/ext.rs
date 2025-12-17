@@ -6,7 +6,7 @@ use crate::rs::parser::{
     Expr, NodeType, Literal, ValueType,
     get_combined_name,
 };
-use crate::rs::arena::EvalArena;
+use crate::rs::eval_arena::EvalArena;
 use crate::rs::interpreter::{EvalResult, eval_expr, string_from_context};
 use std::io;
 use std::io::{ErrorKind, Write};
