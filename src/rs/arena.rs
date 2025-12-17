@@ -85,6 +85,13 @@ impl Arena {
         self.memory[offset..offset + bytes.len()].copy_from_slice(bytes);
     }
 
+    /// Reserve space in arena, return offset where space was allocated
+    pub fn reserve(&mut self, size: usize) -> usize {
+        let offset = self.memory.len();
+        self.memory.resize(offset + size, 0);
+        offset
+    }
+
     // === EVAL-PHASE MEMORY OPERATIONS ===
     // These methods manage runtime memory allocation and access
     // They take Context as parameter to access type info and arena_index
@@ -156,7 +163,7 @@ impl Arena {
             // Ensure arena has enough space
             let required_len = field_offset + 8;
             if Arena::g().len() < required_len {
-                Arena::g().memory.resize(required_len, 0);
+                Arena::g().reserve(required_len - Arena::g().len());
             }
 
             Arena::g().set(field_offset, &bytes);
@@ -329,11 +336,7 @@ impl Arena {
         // Either use existing offset (for nested structs) or allocate new memory
         let offset = match existing_offset {
             Some(off) => off,
-            None => {
-                let off = Arena::g().len();
-                Arena::g().memory.resize(off + total_size, 0);
-                off
-            }
+            None => Arena::g().reserve(total_size),
         };
         result.arena_mappings.push(ArenaMapping { name: id.to_string(), offset });
 
@@ -526,8 +529,7 @@ impl Arena {
         let struct_size = ctx.get_type_size(custom_type_name)?;
 
         // Allocate new memory
-        let new_offset = Arena::g().len();
-        Arena::g().memory.resize(new_offset + struct_size, 0);
+        let new_offset = Arena::g().reserve(struct_size);
 
         // memcpy from template
         let data = Arena::g().get(template_offset, struct_size).to_vec();
@@ -551,8 +553,7 @@ impl Arena {
         let struct_size = ctx.get_type_size(custom_type_name)?;
 
         // Allocate new memory
-        let new_offset = Arena::g().len();
-        Arena::g().memory.resize(new_offset + struct_size, 0);
+        let new_offset = Arena::g().reserve(struct_size);
 
         // memcpy from template
         let data = Arena::g().get(template_offset, struct_size).to_vec();
@@ -630,8 +631,9 @@ impl Arena {
                 for decl in members.iter() {
                     if decl.is_mut {
                         let type_size = ctx.get_type_size( &value_type_to_str(&decl.value_type))?;
-                        if Arena::g().len() < struct_offset + current_offset + type_size {
-                            Arena::g().memory.resize(struct_offset + current_offset + type_size, 0);
+                        let required_len = struct_offset + current_offset + type_size;
+                        if Arena::g().len() < required_len {
+                            Arena::g().reserve(required_len - Arena::g().len());
                         }
 
                         if decl.name == "c_string" {
@@ -916,7 +918,7 @@ impl Arena {
                         let payload_offset = offset + 8;
                         let payload_end = payload_offset + payload_bytes.len();
                         if Arena::g().len() < payload_end {
-                            Arena::g().memory.resize(payload_end, 0);
+                            Arena::g().reserve(payload_end - Arena::g().len());
                         }
                         Arena::g().set(payload_offset, &payload_bytes);
                     }
@@ -929,7 +931,7 @@ impl Arena {
                     }
                     // Pad with zeros to reach max_enum_size
                     if actual_size < max_enum_size {
-                        Arena::g().memory.resize(offset + max_enum_size, 0);
+                        Arena::g().reserve(max_enum_size - actual_size);
                     }
                     Some(ArenaMapping { name: id.to_string(), offset })
                 }
@@ -941,7 +943,7 @@ impl Arena {
                 }
                 // Pad with zeros to reach max_enum_size
                 if actual_size < max_enum_size {
-                    Arena::g().memory.resize(offset + max_enum_size, 0);
+                    Arena::g().reserve(max_enum_size - actual_size);
                 }
                 Some(ArenaMapping { name: id.to_string(), offset })
             }
@@ -1009,8 +1011,7 @@ impl Arena {
         let total_size = (len as usize) * elem_size;
 
         // Allocate memory for elements
-        let ptr = Arena::g().len();
-        Arena::g().memory.resize(ptr + total_size, 0);
+        let ptr = Arena::g().reserve(total_size);
 
         // Write values into allocated buffer
         for (i, val) in values.iter().enumerate() {

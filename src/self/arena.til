@@ -84,6 +84,15 @@ Arena := struct {
         memcpy(add(self.memory.ptr, offset), src_ptr, num_bytes)
     }
 
+    /// Reserve space in arena, return offset where space was allocated
+    reserve := proc(mut self: Arena, size: I64) returns I64 throws AllocError {
+        offset := self.memory.len()
+        for _ in 0..size {
+            self.memory.push(0)
+        }
+        return offset
+    }
+
     // === EVAL-PHASE MEMORY OPERATIONS ===
     // These methods manage runtime memory allocation and access
     // They take Context as parameter to access type info and arena_index
@@ -176,8 +185,8 @@ Arena := struct {
 
             // Ensure arena has enough space
             required_len := add(field_offset, 8)
-            while arena.len().lt(required_len) {
-                arena.memory.push(0)
+            if arena.len().lt(required_len) {
+                _ := arena.reserve(sub(required_len, arena.len()))
                 catch (err: AllocError) {
                     throw err.msg
                 }
@@ -397,13 +406,7 @@ Arena := struct {
         // Either use existing offset (for nested structs) or allocate new memory
         mut offset := existing_offset
         if existing_offset.lt(0) {
-            offset = arena.len()
-            // Resize by pushing zeros
-            mut ri := 0
-            while ri.lt(total_size) {
-                arena.memory.push(0)
-                ri = add(ri, 1)
-            }
+            offset = arena.reserve(total_size)
         }
         mut base_mapping := ArenaMapping()
         base_mapping.name = id
@@ -687,10 +690,7 @@ Arena := struct {
         struct_size := ctx.get_type_size(custom_type_name)
 
         // Allocate new memory
-        new_offset := arena.len()
-        for _ in 0..struct_size {
-            arena.memory.push(0)
-        }
+        new_offset := arena.reserve(struct_size)
 
         // memcpy from template
         arena.set(new_offset, arena.get(template_offset, struct_size), struct_size)
@@ -726,10 +726,7 @@ Arena := struct {
         struct_size := ctx.get_type_size(custom_type_name)
 
         // Allocate new memory
-        new_offset := arena.len()
-        for _ in 0..struct_size {
-            arena.memory.push(0)
-        }
+        new_offset := arena.reserve(struct_size)
 
         // memcpy from template
         arena.set(new_offset, arena.get(template_offset, struct_size), struct_size)
@@ -841,8 +838,8 @@ Arena := struct {
                     type_size := ctx.get_type_size(value_type_to_str(decl.value_type))
                     // Ensure space
                     required_len := add(add(struct_offset, current_offset), type_size)
-                    while arena.len().lt(required_len) {
-                        arena.memory.push(0)
+                    if arena.len().lt(required_len) {
+                        _ := arena.reserve(sub(required_len, arena.len()))
                     }
 
                     field_offset := add(struct_offset, current_offset)
@@ -1249,8 +1246,8 @@ Arena := struct {
                 if payload_data.len().gt(0) {
                     payload_offset := add(offset, 8)
                     payload_end := add(payload_offset, payload_data.len())
-                    while arena.len().lt(payload_end) {
-                        arena.memory.push(0)
+                    if arena.len().lt(payload_end) {
+                        _ := arena.reserve(sub(payload_end, arena.len()))
                     }
                     mut pi := 0
                     while pi.lt(payload_data.len()) {
@@ -1269,10 +1266,7 @@ Arena := struct {
                 }
                 // Bug #38 fix: Pad with zeros to reach max_enum_size
                 if actual_size.lt(max_enum_size) {
-                    target_len := add(offset, max_enum_size)
-                    while arena.len().lt(target_len) {
-                        arena.memory.push(0)
-                    }
+                    _ := arena.reserve(sub(max_enum_size, actual_size))
                 }
                 result.has_mapping = true
                 result.mapping_name = id
@@ -1286,10 +1280,7 @@ Arena := struct {
             }
             // Bug #38 fix: Pad with zeros to reach max_enum_size
             if actual_size.lt(max_enum_size) {
-                target_len := add(offset, max_enum_size)
-                while arena.len().lt(target_len) {
-                    arena.memory.push(0)
-                }
+                _ := arena.reserve(sub(max_enum_size, actual_size))
             }
             result.has_mapping = true
             result.mapping_name = id
@@ -1370,12 +1361,7 @@ Arena := struct {
         total_size := mul(len, elem_size)
 
         // Allocate memory for elements
-        ptr := arena.len()
-        mut j := 0
-        while j.lt(total_size) {
-            arena.memory.push(0)
-            j = add(j, 1)
-        }
+        ptr := arena.reserve(total_size)
 
         // Write values into allocated buffer
         mut i := 0

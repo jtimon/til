@@ -129,13 +129,11 @@ func_malloc := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     size_result := eval_expr(context, e.get(1))
     if size_result.is_throw { return size_result }
     size := I64.from_str(size_result.value)
-    offset := arena.len()  // take *current* end of arena
-
+    mut offset := 0
     if size.gt(0) {
-        // extend arena by pushing bytes
-        for _ in 0..size {
-            arena.memory.push(U8.from_i64(0))
-        }
+        offset = arena.reserve(size)
+    } else {
+        offset = arena.len()
     }
     catch (err: AllocError) { throw err.msg }
 

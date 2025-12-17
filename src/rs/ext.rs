@@ -84,11 +84,7 @@ pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     let size = size_str.parse::<usize>().map_err(|err| {
         e.lang_error(&context.path, "eval", &format!("Invalid size for 'malloc': {}", err))
     })?;
-    let offset = Arena::g().len(); // take *current* end of arena
-
-    if size > 0 {
-        Arena::g().memory.resize(offset + size, 0); // extend safely
-    }
+    let offset = if size > 0 { Arena::g().reserve(size) } else { Arena::g().len() };
 
     if offset == 0 { // TODO: REM: throw AllocError instead of return NULL pointer
         return Err(e.lang_error(&context.path, "eval", "Core func 'malloc' was about to produce a NULL pointer"))
