@@ -135,7 +135,6 @@ func_malloc := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     } else {
         offset = g_arena.len()
     }
-    catch (err: AllocError) { throw err.msg }
 
     if offset.eq(0) {  // TODO: REM: throw AllocError instead of return NULL pointer
         throw e.lang_error(context.path, "eval", "Core func 'malloc' was about to produce a NULL pointer")

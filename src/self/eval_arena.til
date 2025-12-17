@@ -1,5 +1,6 @@
 mode liba
 
+import("std.arena")
 import("self.init")
 import("self.parser")
 
@@ -38,59 +39,44 @@ EnumInsertResult := struct {
 }
 
 EvalArena := struct {
-    mut _memory: Vec = Vec.new(U8)
+    mut _arena: Arena = Arena()
     mut temp_id_counter: I64 = 0
     mut default_instances: Map = Map.new(Str, I64)  // type name -> arena offset of default template
 
     new := proc() returns EvalArena {
         mut a := EvalArena()
-        a._memory.push(0)  // Reserve first address 0 (invalid), malloc always >0
-        catch (err: AllocError) {
-            panic(loc(), err.msg)
-        }
+        a._arena = Arena.new()
         return a
     }
 
     /// Get current used length of arena memory
     len := func(self: EvalArena) returns I64 {
-        return self._memory.len()
+        return self._arena.len()
     }
 
     /// Get size of arena memory (same as len for EvalArena)
     size := func(self: EvalArena) returns I64 {
-        return self._memory.len()
+        return self._arena.len()
     }
 
     /// Append bytes to arena, return offset where they were placed
-    put := proc(mut self: EvalArena, src_ptr: I64, num_bytes: I64) returns I64 throws AllocError {
-        offset := self._memory.len()
-        mut i := 0
-        while i.lt(num_bytes) {
-            mut byte_val : U8 = 0
-            memcpy(to_ptr(byte_val), add(src_ptr, i), 1)
-            self._memory.push(byte_val)
-            i = add(i, 1)
-        }
-        return offset
+    put := proc(mut self: EvalArena, src_ptr: I64, num_bytes: I64) returns I64 {
+        return self._arena.put(src_ptr, num_bytes)
     }
 
     /// Read bytes from arena at offset (returns pointer to data)
     get := func(self: EvalArena, offset: I64, num_bytes: I64) returns I64 {
-        return add(self._memory.ptr, offset)
+        return self._arena.get(offset, num_bytes)
     }
 
     /// Write bytes to arena at offset
     set := proc(mut self: EvalArena, offset: I64, src_ptr: I64, num_bytes: I64) {
-        memcpy(add(self._memory.ptr, offset), src_ptr, num_bytes)
+        self._arena.set(offset, src_ptr, num_bytes)
     }
 
     /// Reserve space in arena, return offset where space was allocated
-    reserve := proc(mut self: EvalArena, size: I64) returns I64 throws AllocError {
-        offset := self._memory.len()
-        for _ in 0..size {
-            self._memory.push(0)
-        }
-        return offset
+    reserve := proc(mut self: EvalArena, size: I64) returns I64 {
+        return self._arena.reserve(size)
     }
 
     // === EVAL-PHASE MEMORY OPERATIONS ===
@@ -184,9 +170,6 @@ EvalArena := struct {
             required_len := add(field_offset, 8)
             if g_arena.len().lt(required_len) {
                 _ := g_arena.reserve(sub(required_len, g_arena.len()))
-                catch (err: AllocError) {
-                    throw err.msg
-                }
             }
 
             g_arena.set(field_offset, to_ptr(v), 8)
@@ -195,9 +178,6 @@ EvalArena := struct {
 
         // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
         offset := g_arena.put(to_ptr(v), 8)
-        catch (err: AllocError) {
-            throw err.msg
-        }
         return offset
     }
 
@@ -246,9 +226,6 @@ EvalArena := struct {
         }
 
         offset := g_arena.put(to_ptr(v), 1)
-        catch (err: AllocError) {
-            throw err.msg
-        }
         return offset
     }
 
@@ -709,9 +686,6 @@ EvalArena := struct {
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "insert_struct", "IndexOutOfBoundsError")
         }
-        catch (err: AllocError) {
-            throw e.lang_error(ctx.path, "insert_struct", "AllocError")
-        }
     }
 
     // Insert a struct from template into a specific frame (for function parameters).
@@ -770,10 +744,6 @@ EvalArena := struct {
         mut null_byte : U8 = 0
         _ := g_arena.put(to_ptr(null_byte), 1)  // null terminator
         str_len := value_str.len()
-
-        catch (err: AllocError) {
-            throw err.msg
-        }
 
         if is_field {
             mut have_base_offset := true
@@ -861,9 +831,6 @@ EvalArena := struct {
 
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "insert_string_core", "IndexOutOfBoundsError")
-        }
-        catch (err: AllocError) {
-            throw e.lang_error(ctx.path, "insert_string_core", "AllocError")
         }
 
         return result
