@@ -89,6 +89,56 @@ Apply similar pattern as ccodegen fix:
 - src/rs/precomp.rs: Add counter reset in precomp_func_def, modify index_var_name format
 - src/self/precomp.til: Same changes ported
 
+** Bug #34: Code after catch blocks doesn't run in error path
+:PROPERTIES:
+:DISCOVERED: 2025-12-14
+:IMPACT: Error handling semantics
+:STATUS: Partially Fixed
+:END:
+
+*** Description
+Code placed AFTER catch blocks doesn't run when an error is caught.
+
+*** Partial Fix (2025-12-15)
+A fix was attempted that works ONLY when there's no code between the throwing
+call and the catch block:
+
+#+BEGIN_EXAMPLE til
+// This case WORKS after the partial fix:
+throwing_call()
+catch (err: Error) { }
+code_after_catch()  // Runs correctly in both paths
+#+END_EXAMPLE
+
+*** Remaining Bug
+When there IS code between the throwing call and the catch block, the code
+AFTER the catch block does NOT run on the error path:
+
+#+BEGIN_EXAMPLE til
+// This case is BROKEN:
+throwing_call()
+between = true      // Between throw and catch - correctly skipped
+catch (err: Error) {
+    // error caught
+}
+code_after_catch()  // BUG: Does NOT run when error was caught!
+#+END_EXAMPLE
+
+*** Workaround
+Do not put any code between a throwing call and its catch block. Move such
+code either before the throwing call or after the catch block.
+
+*** Root Cause (partial fix)
+In the C code generator, statements after the last catch block were emitted BEFORE
+the ~goto _end_catches~ jump, so they only ran on the success path.
+
+*** Files Modified (partial fix)
+- src/rs/ccodegen.rs: Rust implementation
+- src/self/ccodegen.til: TIL port
+- src/test/errors.til: Regression test (test_bug34 - only tests simple case)
+
+* Fixed Bugs Summary
+
 ** Bug #39: Non-consecutive catches fail - second catch never executes
 :PROPERTIES:
 :DISCOVERED: 2025-12-15
@@ -345,54 +395,6 @@ _ := context.imports_typer_done.insert(path)
 - src/self/init.til: declare_var, init_context
 - src/self/ccodegen.til: emit_constant_declaration, emit_global_declaration, emit_declaration
 
-** Bug #34: Code after catch blocks doesn't run in error path
-:PROPERTIES:
-:DISCOVERED: 2025-12-14
-:IMPACT: Error handling semantics
-:STATUS: Partially Fixed
-:END:
-
-*** Description
-Code placed AFTER catch blocks doesn't run when an error is caught.
-
-*** Partial Fix (2025-12-15)
-A fix was attempted that works ONLY when there's no code between the throwing
-call and the catch block:
-
-#+BEGIN_EXAMPLE til
-// This case WORKS after the partial fix:
-throwing_call()
-catch (err: Error) { }
-code_after_catch()  // Runs correctly in both paths
-#+END_EXAMPLE
-
-*** Remaining Bug
-When there IS code between the throwing call and the catch block, the code
-AFTER the catch block does NOT run on the error path:
-
-#+BEGIN_EXAMPLE til
-// This case is BROKEN:
-throwing_call()
-between = true      // Between throw and catch - correctly skipped
-catch (err: Error) {
-    // error caught
-}
-code_after_catch()  // BUG: Does NOT run when error was caught!
-#+END_EXAMPLE
-
-*** Workaround
-Do not put any code between a throwing call and its catch block. Move such
-code either before the throwing call or after the catch block.
-
-*** Root Cause (partial fix)
-In the C code generator, statements after the last catch block were emitted BEFORE
-the ~goto _end_catches~ jump, so they only ran on the success path.
-
-*** Files Modified (partial fix)
-- src/rs/ccodegen.rs: Rust implementation
-- src/self/ccodegen.til: TIL port
-- src/test/errors.til: Regression test (test_bug34 - only tests simple case)
-
 ** Bug #33: for-in loops don't work with enum collections
 :PROPERTIES:
 :DISCOVERED: 2025-12-14
@@ -478,8 +480,6 @@ Tests added to src/test/structs.til.
 
 *** Affected Code
 - src/self/parser.til: parse_for_statement (workaround removed)
-
-* Fixed Bugs Summary
 
 ** Bug #36: Throwing functions in struct literal parameters not recognized :FIXED:
 :PROPERTIES:
