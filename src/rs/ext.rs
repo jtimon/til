@@ -84,7 +84,7 @@ pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     let size = size_str.parse::<usize>().map_err(|err| {
         e.lang_error(&context.path, "eval", &format!("Invalid size for 'malloc': {}", err))
     })?;
-    let offset = Arena::g().memory.len(); // take *current* end of arena
+    let offset = Arena::g().len(); // take *current* end of arena
 
     if size > 0 {
         Arena::g().memory.resize(offset + size, 0); // extend safely
@@ -127,10 +127,10 @@ pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String
         Err(err) => return Err(e.error(&context.path, "eval", &format!("Invalid size (I64): '{}': {}", size_str, err))),
     };
 
-    if dest + size > Arena::g().memory.len() {
+    if dest + size > Arena::g().len() {
         return Err(e.error(&context.path, "eval", &format!(
             "memset out of bounds: dest={} size={} arena_len={}",
-            dest, size, Arena::g().memory.len()
+            dest, size, Arena::g().len()
         )));
     }
 
@@ -176,9 +176,9 @@ pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String
         Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcpy: Invalid size (usize): '{}': {}", size_str, err))),
     };
 
-    if dest + size > Arena::g().memory.len() || src + size > Arena::g().memory.len() {
+    if dest + size > Arena::g().len() || src + size > Arena::g().len() {
         return Err(e.error(&context.path, "eval", &format!("memcpy out of bounds: src={} dest={} size={} arena_len={}",
-                                            src, dest, size, Arena::g().memory.len())));
+                                            src, dest, size, Arena::g().len())));
     }
 
     for i in 0..size {
@@ -223,9 +223,9 @@ pub fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String
         Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcmp: Invalid size (usize): '{}': {}", size_str, err))),
     };
 
-    if ptr1 + size > Arena::g().memory.len() || ptr2 + size > Arena::g().memory.len() {
+    if ptr1 + size > Arena::g().len() || ptr2 + size > Arena::g().len() {
         return Err(e.error(&context.path, "eval", &format!("memcmp out of bounds: ptr1={} ptr2={} size={} arena_len={}",
-                                            ptr1, ptr2, size, Arena::g().memory.len())));
+                                            ptr1, ptr2, size, Arena::g().len())));
     }
 
     // Compare bytes

@@ -78,7 +78,7 @@ string_from_context := proc(context: Context, id: Str, e: Expr) returns Str thro
     length := Arena.get_i64(context, format(id, ".cap"), e)
 
     // Bounds check
-    if c_string_ptr.add(length).gt(arena.memory.len()) {
+    if c_string_ptr.add(length).gt(arena.len()) {
         throw e.lang_error(context.path, "string_from_context", format("string content out of bounds for '", id, "'"))
     }
 
@@ -129,7 +129,7 @@ func_malloc := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     size_result := eval_expr(context, e.get(1))
     if size_result.is_throw { return size_result }
     size := I64.from_str(size_result.value)
-    offset := arena.memory.len()  // take *current* end of arena
+    offset := arena.len()  // take *current* end of arena
 
     if size.gt(0) {
         // extend arena by pushing bytes
@@ -169,7 +169,7 @@ func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     value := U8.from_str(value_result.value)
     size := I64.from_str(size_result.value)
 
-    arena_len := arena.memory.len()
+    arena_len := arena.len()
     if dest.add(size).gt(arena_len) {
         throw e.error(context.path, "eval", format("memset out of bounds: dest=", dest.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
@@ -195,7 +195,7 @@ func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     src := I64.from_str(src_result.value)
     size := I64.from_str(size_result.value)
 
-    arena_len := arena.memory.len()
+    arena_len := arena.len()
     if dest.add(size).gt(arena_len).or(src.add(size).gt(arena_len)) {
         throw e.error(context.path, "eval", format("memcpy out of bounds: src=", src.to_str(), " dest=", dest.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
@@ -224,7 +224,7 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     ptr2 := I64.from_str(ptr2_result.value)
     size := I64.from_str(size_result.value)
 
-    arena_len := arena.memory.len()
+    arena_len := arena.len()
     if ptr1.add(size).gt(arena_len).or(ptr2.add(size).gt(arena_len)) {
         throw e.error(context.path, "eval", format("memcmp out of bounds: ptr1=", ptr1.to_str(), " ptr2=", ptr2.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }

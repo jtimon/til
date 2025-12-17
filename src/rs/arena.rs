@@ -58,6 +58,11 @@ impl Arena {
         }
     }
 
+    /// Get current used length of arena memory
+    pub fn len(&self) -> usize {
+        self.memory.len()
+    }
+
     // === EVAL-PHASE MEMORY OPERATIONS ===
     // These methods manage runtime memory allocation and access
     // They take Context as parameter to access type info and arena_index
@@ -127,7 +132,7 @@ impl Arena {
 
             // Ensure arena has enough space
             let required_len = offset + 8;
-            if Arena::g().memory.len() < required_len {
+            if Arena::g().len() < required_len {
                 Arena::g().memory.resize(required_len, 0);
             }
 
@@ -136,7 +141,7 @@ impl Arena {
         }
 
         // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
-        let offset = Arena::g().memory.len();
+        let offset = Arena::g().len();
         Arena::g().memory.extend_from_slice(&bytes);
         Ok(Some(offset))
     }
@@ -175,7 +180,7 @@ impl Arena {
             return Ok(None)
         }
 
-        let offset = Arena::g().memory.len();
+        let offset = Arena::g().len();
         Arena::g().memory.push(v);
         Ok(Some(offset))
     }
@@ -303,7 +308,7 @@ impl Arena {
         let offset = match existing_offset {
             Some(off) => off,
             None => {
-                let off = Arena::g().memory.len();
+                let off = Arena::g().len();
                 Arena::g().memory.resize(off + total_size, 0);
                 off
             }
@@ -501,7 +506,7 @@ impl Arena {
         let struct_size = ctx.get_type_size(custom_type_name)?;
 
         // Allocate new memory
-        let new_offset = Arena::g().memory.len();
+        let new_offset = Arena::g().len();
         Arena::g().memory.resize(new_offset + struct_size, 0);
 
         // memcpy from template
@@ -528,7 +533,7 @@ impl Arena {
         let struct_size = ctx.get_type_size(custom_type_name)?;
 
         // Allocate new memory
-        let new_offset = Arena::g().memory.len();
+        let new_offset = Arena::g().len();
         Arena::g().memory.resize(new_offset + struct_size, 0);
 
         // memcpy from template
@@ -570,7 +575,7 @@ impl Arena {
         let is_field = Self::is_instance_field(ctx, id);
 
         // Allocate string data
-        let string_offset = Arena::g().memory.len();
+        let string_offset = Arena::g().len();
         Arena::g().memory.extend_from_slice(value_str.as_bytes());
         Arena::g().memory.push(0); // null terminator
         let string_offset_bytes = (string_offset as i64).to_ne_bytes();
@@ -606,13 +611,13 @@ impl Arena {
             // Not yet inserted - insert fresh inlined Str
             if let Some(str_def) = ctx.scope_stack.lookup_struct("Str") {
                 let members = str_def.members.clone();
-                let struct_offset = Arena::g().memory.len();
+                let struct_offset = Arena::g().len();
                 let mut current_offset = 0;
 
                 for decl in members.iter() {
                     if decl.is_mut {
                         let type_size = ctx.get_type_size( &value_type_to_str(&decl.value_type))?;
-                        if Arena::g().memory.len() < struct_offset + current_offset + type_size {
+                        if Arena::g().len() < struct_offset + current_offset + type_size {
                             Arena::g().memory.resize(struct_offset + current_offset + type_size, 0);
                         }
 
@@ -716,7 +721,7 @@ impl Arena {
                 if payload_size > 0 {
                     let payload_offset = offset + 8;
                     let payload_end = payload_offset + payload_size;
-                    if payload_end <= Arena::g().memory.len() {
+                    if payload_end <= Arena::g().len() {
                         let payload_bytes = Arena::g().memory[payload_offset..payload_end].to_vec();
                         (Some(payload_bytes), Some(vtype.clone()))
                     } else {
@@ -844,7 +849,7 @@ impl Arena {
                 if payload_size > 0 {
                     let payload_offset = offset + 8;
                     let payload_end = payload_offset + payload_size;
-                    if payload_end <= Arena::g().memory.len() {
+                    if payload_end <= Arena::g().len() {
                         let payload_bytes = Arena::g().memory[payload_offset..payload_end].to_vec();
                         (Some(payload_bytes), Some(vtype.clone()))
                     } else {
@@ -898,14 +903,14 @@ impl Arena {
                     if let Some(payload_bytes) = &payload_data {
                         let payload_offset = offset + 8;
                         let payload_end = payload_offset + payload_bytes.len();
-                        if Arena::g().memory.len() < payload_end {
+                        if Arena::g().len() < payload_end {
                             Arena::g().memory.resize(payload_end, 0);
                         }
                         Arena::g().memory[payload_offset..payload_end].copy_from_slice(&payload_bytes);
                     }
                     None
                 } else {
-                    let offset = Arena::g().memory.len();
+                    let offset = Arena::g().len();
                     // Allocate max enum size, write tag and payload, then zero-pad remaining
                     Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
                     if let Some(payload_bytes) = &payload_data {
@@ -918,7 +923,7 @@ impl Arena {
                     Some(ArenaMapping { name: id.to_string(), offset })
                 }
             } else {
-                let offset = Arena::g().memory.len();
+                let offset = Arena::g().len();
                 // Allocate max enum size, write tag and payload, then zero-pad remaining
                 Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
                 if let Some(payload_bytes) = &payload_data {
@@ -994,7 +999,7 @@ impl Arena {
         let total_size = (len as usize) * elem_size;
 
         // Allocate memory for elements
-        let ptr = Arena::g().memory.len();
+        let ptr = Arena::g().len();
         Arena::g().memory.resize(ptr + total_size, 0);
 
         // Write values into allocated buffer

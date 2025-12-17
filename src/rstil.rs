@@ -84,7 +84,7 @@ fn interpret_file_or_exit(path: &String, args: Vec<String>) {
         },
     };
     if path.ends_with("tests.til") {
-        println!("Total memory used by interpreted program: {} bytes", Arena::g().memory.len());
+        println!("Total memory used by interpreted program: {} bytes", Arena::g().len());
     }
 }
 

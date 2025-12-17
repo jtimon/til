@@ -51,6 +51,11 @@ Arena := struct {
         return a
     }
 
+    /// Get current used length of arena memory
+    len := func(self: Arena) returns I64 {
+        return self.memory.len()
+    }
+
     // === EVAL-PHASE MEMORY OPERATIONS ===
     // These methods manage runtime memory allocation and access
     // They take Context as parameter to access type info and arena_index
@@ -142,7 +147,7 @@ Arena := struct {
 
             // Ensure arena has enough space
             required_len := add(offset, 8)
-            while arena.memory.len().lt(required_len) {
+            while arena.len().lt(required_len) {
                 arena.memory.push(0)
                 catch (err: AllocError) {
                     throw err.msg
@@ -154,7 +159,7 @@ Arena := struct {
         }
 
         // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
-        offset := arena.memory.len()
+        offset := arena.len()
         // Extend memory by 8 bytes
         mut i := 0
         while i.lt(8) {
@@ -213,7 +218,7 @@ Arena := struct {
             throw KeyNotFoundError(msg="already handled")
         }
 
-        offset := arena.memory.len()
+        offset := arena.len()
         arena.memory.push(v)
         catch (err: AllocError) {
             throw err.msg
@@ -372,7 +377,7 @@ Arena := struct {
         // Either use existing offset (for nested structs) or allocate new memory
         mut offset := existing_offset
         if existing_offset.lt(0) {
-            offset = arena.memory.len()
+            offset = arena.len()
             // Resize by pushing zeros
             mut ri := 0
             while ri.lt(total_size) {
@@ -662,7 +667,7 @@ Arena := struct {
         struct_size := ctx.get_type_size(custom_type_name)
 
         // Allocate new memory
-        new_offset := arena.memory.len()
+        new_offset := arena.len()
         for _ in 0..struct_size {
             arena.memory.push(0)
         }
@@ -701,7 +706,7 @@ Arena := struct {
         struct_size := ctx.get_type_size(custom_type_name)
 
         // Allocate new memory
-        new_offset := arena.memory.len()
+        new_offset := arena.len()
         for _ in 0..struct_size {
             arena.memory.push(0)
         }
@@ -750,7 +755,7 @@ Arena := struct {
         is_field := Arena.is_instance_field(ctx, id)
 
         // Allocate string data
-        string_offset := arena.memory.len()
+        string_offset := arena.len()
         // Push string bytes
         mut si := 0
         while si.lt(value_str.len()) {
@@ -807,7 +812,7 @@ Arena := struct {
                 throw e.lang_error(ctx.path, "context", "'Str' struct definition not found")
             }
 
-            struct_offset := arena.memory.len()
+            struct_offset := arena.len()
             mut current_offset := 0
 
             mut mi := 0
@@ -819,7 +824,7 @@ Arena := struct {
                     type_size := ctx.get_type_size(value_type_to_str(decl.value_type))
                     // Ensure space
                     required_len := add(add(struct_offset, current_offset), type_size)
-                    while arena.memory.len().lt(required_len) {
+                    while arena.len().lt(required_len) {
                         arena.memory.push(0)
                     }
 
@@ -975,7 +980,7 @@ Arena := struct {
                 if payload_size.gt(0) {
                     payload_offset := add(offset, 8)
                     payload_end := add(payload_offset, payload_size)
-                    if payload_end.lteq(arena.memory.len()) {
+                    if payload_end.lteq(arena.len()) {
                         // Copy payload bytes
                         mut payload_bytes := Vec.new(U8)
                         mut pi := 0
@@ -1152,7 +1157,7 @@ Arena := struct {
                 if payload_size.gt(0) {
                     payload_offset := add(offset, 8)
                     payload_end := add(payload_offset, payload_size)
-                    if payload_end.lteq(arena.memory.len()) {
+                    if payload_end.lteq(arena.len()) {
                         mut payload_bytes := Vec.new(U8)
                         mut pi := 0
                         while pi.lt(payload_size) {
@@ -1227,7 +1232,7 @@ Arena := struct {
                 if payload_data.len().gt(0) {
                     payload_offset := add(offset, 8)
                     payload_end := add(payload_offset, payload_data.len())
-                    while arena.memory.len().lt(payload_end) {
+                    while arena.len().lt(payload_end) {
                         arena.memory.push(0)
                     }
                     mut pi := 0
@@ -1240,7 +1245,7 @@ Arena := struct {
                 }
                 result.has_mapping = false
             } else {
-                offset = arena.memory.len()
+                offset = arena.len()
                 // Allocate max enum size, write tag and payload, then zero-pad remaining
                 mut ei := 0
                 while ei.lt(8) {
@@ -1261,7 +1266,7 @@ Arena := struct {
                 // Bug #38 fix: Pad with zeros to reach max_enum_size
                 if actual_size.lt(max_enum_size) {
                     target_len := add(offset, max_enum_size)
-                    while arena.memory.len().lt(target_len) {
+                    while arena.len().lt(target_len) {
                         arena.memory.push(0)
                     }
                 }
@@ -1270,7 +1275,7 @@ Arena := struct {
                 result.mapping_offset = offset
             }
         } else {
-            offset := arena.memory.len()
+            offset := arena.len()
             // Allocate max enum size, write tag and payload, then zero-pad remaining
             mut ei := 0
             while ei.lt(8) {
@@ -1291,7 +1296,7 @@ Arena := struct {
             // Bug #38 fix: Pad with zeros to reach max_enum_size
             if actual_size.lt(max_enum_size) {
                 target_len := add(offset, max_enum_size)
-                while arena.memory.len().lt(target_len) {
+                while arena.len().lt(target_len) {
                     arena.memory.push(0)
                 }
             }
@@ -1374,7 +1379,7 @@ Arena := struct {
         total_size := mul(len, elem_size)
 
         // Allocate memory for elements
-        ptr := arena.memory.len()
+        ptr := arena.len()
         mut j := 0
         while j.lt(total_size) {
             arena.memory.push(0)

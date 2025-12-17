@@ -154,7 +154,7 @@ pub fn string_from_context(context: &Context, id: &str, e: &Expr) -> Result<Stri
     let length = Arena::get_i64(context, &format!("{}.cap", id), e)? as usize;
 
     // Bounds check
-    if c_string_ptr + length > Arena::g().memory.len() {
+    if c_string_ptr + length > Arena::g().len() {
         return Err(e.lang_error(&context.path, "string_from_context", &format!("string content out of bounds for '{}'", id)));
     }
 
@@ -491,7 +491,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                             // Read the actual string from the global arena
                                             let ptr = ptr_offset as usize;
                                             let len = size as usize;
-                                            if ptr + len > Arena::g().memory.len() {
+                                            if ptr + len > Arena::g().len() {
                                                 return Err(case.error(&context.path, "eval", "String payload pointer out of bounds"));
                                             }
                                             let str_bytes = &Arena::g().memory[ptr..ptr + len];
