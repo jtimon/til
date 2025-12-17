@@ -1,25 +1,29 @@
-.PHONY: all tests repl til clean copy_gen
+.PHONY: all tests repl til clean
 all: rstil
 
-rstil: src/rstil.rs
-	@mkdir -p bin
-	rustc src/rstil.rs -o bin/rstil
-
-tests: rstil
-	./bin/rstil src/tests.til
-
-# TODO run src/til.til with til.til
-til: rstil tests
-	./bin/rstil interpret src/til.til src/test/self/lexer/premode.til
-	# ./bin/rstil interpret src/til.til help
-	# ./bin/rstil interpret src/til.til src/test/strings.til
-	# ./bin/rstil interpret src/til.til src/core/lexer.til
+clean:
+	rm -rf bin/* gen/*
 
 # REPL = Read-Eval-Print-Loop
 repl: rstil
 	rlwrap ./bin/rstil src/core/repl.til
 
-test-cross: rstil
+rstil: src/rstil.rs
+	@mkdir -p bin
+	rustc src/rstil.rs -o bin/rstil
+
+# TODO Self hosting
+til: rstil
+	./bin/rstil build src/til.til
+	@cp gen/c/til.c bootstrap/til.c 2>/dev/null || true
+	# ./bin/til build src/til.til
+
+tests: rstil til
+	./bin/rstil src/tests.til
+	@cp gen/c/test/constfold.c src/test/constfold.c 2>/dev/null || true
+	@echo "Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c, doc/benchmark.org"
+
+test-cross: rstil til
 	@echo "=== Cross-compilation tests ==="
 	@echo "linux-arm64..."
 	./bin/rstil build src/examples/hello_script.til --target=linux-arm64
@@ -33,13 +37,3 @@ test-cross: rstil
 	# TODO: macos-x64, macos-arm64 (no emulator available)
 	# TODO: wasm32 (needs libc/wasi support)
 	@echo "=== All cross-compilation tests passed ==="
-
-clean:
-	rm -rf bin/* gen/*
-
-copy_gen:
-	@echo "Copying generated files to tracked locations..."
-	@mkdir -p bootstrap
-	cp gen/c/til.c bootstrap/til.c
-	cp gen/benchmark.org doc/benchmark.org
-	@echo "Done. You can now commit these files."

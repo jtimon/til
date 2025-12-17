@@ -357,12 +357,6 @@ build := proc(path: Str) returns Str throws Str {
     }
     _ := writefile(output_path, c_code)
 
-    // Special case: auto-copy constfold.c to src/test/ to keep near constfold.til
-    if output_path.eq("gen/c/test/constfold.c") {
-        mut cp_output := ""
-        _ := run_cmd(cp_output, "cp", "gen/c/test/constfold.c", "src/test/constfold.c")
-    }
-
     // TODO: Compile with gcc (run_cmd not available in lib mode yet)
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }

@@ -285,11 +285,6 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
         Err(e) => return Err(format!("Failed to write '{}': {}", source_output_path, e)),
     }
 
-    // Special case: auto-copy constfold.c to src/test/ to keep near constfold.til
-    if source_output_path == "gen/c/test/constfold.c" {
-        let _ = fs::copy("gen/c/test/constfold.c", "src/test/constfold.c");
-    }
-
     // If translate_only, return the source file path
     if translate_only {
         return Ok(source_output_path);
