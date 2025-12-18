@@ -135,6 +135,88 @@ eval_condition_to_bool := proc(context: Context, result: EvalResult, expr: Expr)
 
 // validate_func_arg_count is in typer.til
 
+/// Read PRIMITIVE field values from an already-evaluated struct instance.
+/// This reads ACTUAL primitive values (I64, U8, Str) from the arena.
+/// For nested struct fields, recursively reads primitive values but skips
+/// ptr/c_string fields to avoid copying pointers to temp instance memory.
+/// Bug #43 fix: Recursively read primitive fields from nested structs.
+read_struct_primitive_fields := proc(ctx: Context, instance_id: Str, struct_type: Str, prefix: Str, e: Expr) returns Map throws Str, I64_OverflowError {
+    mut struct_def := ctx.scope_stack.lookup_struct(struct_type)
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(ctx.path, "read_struct_primitive_fields", format("struct '", struct_type, "' not found"))
+    }
+
+    mut values := Map.new(Str, Str)
+    for decl: Declaration in struct_def.members {
+        if decl.is_mut {
+            field_id := format(instance_id, ".", decl.name)
+            mut key := ""
+            if prefix.eq("") {
+                key = decl.name
+            } else {
+                key = format(prefix, ".", decl.name)
+            }
+
+            mut type_name := ""
+            mut is_custom := false
+            switch decl.value_type {
+            case ValueType.TCustom(tn):
+                type_name = tn
+                is_custom = true
+            case:
+                // Not a custom type
+            }
+
+            if is_custom {
+                if type_name.eq("I64") {
+                    // Skip 'ptr' and 'c_string' fields - these point to temp instance memory
+                    if decl.name.eq("ptr").or(decl.name.eq("c_string")) {
+                        // Skip - let these use static default (0)
+                    } else {
+                        // Read actual I64 value from evaluated instance
+                        val := EvalArena.get_i64(ctx, field_id, e)
+                        values.insert(key, val.to_str())
+                    }
+                } else if type_name.eq("U8") {
+                    // Read actual U8 value from evaluated instance
+                    u8_val := EvalArena.get_u8(ctx, field_id, e)
+                    values.insert(key, u8_val.to_str())
+                } else if type_name.eq("Str") {
+                    // Bug #43 fix: Read actual string VALUE, not pointer
+                    str_val := string_from_context(ctx, field_id, e)
+                    values.insert(key, str_val)
+                } else {
+                    // For nested structs (Vec, etc.), recursively read primitive fields
+                    mut dummy_struct := ctx.scope_stack.lookup_struct(type_name)
+                    mut nested_key := ""
+                    if prefix.eq("") {
+                        nested_key = decl.name
+                    } else {
+                        nested_key = format(prefix, ".", decl.name)
+                    }
+                    mut nested_values := read_struct_primitive_fields(ctx, field_id, type_name, nested_key, e)
+                    // Copy nested values to values map
+                    mut keys := nested_values.keys
+                    for j in 0..nested_values.len() {
+                        mut k := ""
+                        keys.get(j, k)
+                        mut v := ""
+                        nested_values.get(k, v)
+                        values.insert(k, v)
+                    }
+                    catch (err: KeyNotFoundError) {
+                        // struct not found, skip
+                    }
+                }
+            }
+        }
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: DuplicatedKeyError) { throw err.msg }
+    return values
+}
+
 /// Pre-evaluate all default values for a struct type, including nested structs.
 /// Returns a map from field name (with dotted paths for nested) to evaluated string value.
 eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) returns Map throws Str {
@@ -204,6 +286,8 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                         }
                         if not(is_enum2) {
                             mut dummy_struct2 := ctx.scope_stack.lookup_struct(type_name)
+
+                            // First, get static defaults for nested structs (Str, Vec fields)
                             mut nested := Map.new(Str, Str)
                             nested = eval_struct_defaults(ctx, type_name, e)
                             // Iterate nested map and insert with prefix
@@ -215,6 +299,20 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                                 nested.get(k, v)
                                 defaults.insert(format(decl.name, ".", k), v)
                             }
+
+                            // Bug #43 fix: Then, override with actual primitive values from evaluated instance
+                            // This ensures cap, _len, key_type_name, etc. are correctly copied to template
+                            instance_id := res.value
+                            mut primitive_values := read_struct_primitive_fields(ctx, instance_id, type_name, decl.name, e)
+                            mut pkeys := primitive_values.keys
+                            for j in 0..primitive_values.len() {
+                                mut k := ""
+                                pkeys.get(j, k)
+                                mut v := ""
+                                primitive_values.get(k, v)
+                                defaults.insert(k, v)
+                            }
+
                             catch (err: KeyNotFoundError) {
                                 // struct not found, skip
                             }
@@ -228,6 +326,7 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
     catch (err: AllocError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
     catch (err: DuplicatedKeyError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return defaults
 }
 
