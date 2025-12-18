@@ -141,6 +141,48 @@ This happens in init.til's =infer_identifier_type= function when iterating over
 ./bin/til interpret src/examples/empty.til    # FAIL
 #+END_SRC
 
+** Bug #48: Typer missing validation that mut arguments must be lvalues
+:PROPERTIES:
+:DISCOVERED: 2025-12-18
+:IMPACT: No clear error message when passing literals to mut params
+:STATUS: Open
+:END:
+
+*** Description
+The typer phase is missing a validation check: arguments to =mut= parameters
+must be lvalues (identifiers or field access). This affects both interpreter
+and compiler paths - both should catch this in the typer phase.
+
+*** Example
+#+BEGIN_SRC til
+test_mut := proc(mut n: I64) {
+    n = 99
+}
+test_mut(42)  // Should be rejected by typer
+#+END_SRC
+
+*** Expected Behavior
+Typer should reject =test_mut(42)= with an error like:
+"mut arguments must be passed as identifiers or field access"
+
+*** Actual Behavior
+- Typer: No validation (the bug)
+- Interpreter: Happens to catch it later during eval (wrong phase)
+- Compiler: No catch at all - GCC rejects generated C code
+
+*** Fix Required
+Add validation in typer.rs and typer.til to check that arguments passed to
+=mut= parameters are lvalues. Should catch all literal types: I64, U8, Str.
+Will need a new error type or message.
+
+*** Reproducing Test
+src/test/bug48_test.til
+
+#+BEGIN_SRC bash
+./bin/rstil interpret src/test/bug48_test.til  # FAIL - eval error (should be typer)
+./bin/rstil run src/test/bug48_test.til        # FAIL - GCC error (should be typer)
+#+END_SRC
+
 ** Bug #45: init.til uses invalid fallthrough switch syntax
 :PROPERTIES:
 :DISCOVERED: 2025-12-18
