@@ -4298,7 +4298,14 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
 }
 
 emit_body := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
-    return emit_stmts(expr.params, output, indent, ctx, context)
+    // Bug #44 fix: Save and restore local_catch_labels around nested blocks
+    // Without this, nested blocks clear the outer catches when processing their
+    // own throwing calls, causing missing status checks for outer throwing calls.
+    mut saved_catch_labels := ctx.local_catch_labels.clone()
+    catch (err: AllocError) { throw "AllocError in emit_body" }
+    mut result := emit_stmts(expr.params, output, indent, ctx, context)
+    ctx.local_catch_labels = saved_catch_labels
+    return result
 }
 
 // Pre-scan function body to collect function-level catch blocks

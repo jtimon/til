@@ -2976,7 +2976,13 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
 }
 
 fn emit_body(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
-    emit_stmts(&expr.params, output, indent, ctx, context)
+    // Bug #44 fix: Save and restore local_catch_labels around nested blocks
+    // Without this, nested blocks clear the outer catches when processing their
+    // own throwing calls, causing missing status checks for outer throwing calls.
+    let saved_catch_labels = ctx.local_catch_labels.clone();
+    let result = emit_stmts(&expr.params, output, indent, ctx, context);
+    ctx.local_catch_labels = saved_catch_labels;
+    result
 }
 
 /// Emit a sequence of statements with catch pattern detection
@@ -5567,6 +5573,7 @@ struct VariadicParamInfo {
 }
 
 // Info about a catch label for local throw/catch
+#[derive(Clone)]
 struct CatchLabelInfo {
     label: String,
     temp_var: String,
