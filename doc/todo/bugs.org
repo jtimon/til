@@ -9,6 +9,75 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #44: Codegen missing status check for throwing call after block with catches
+:PROPERTIES:
+:DISCOVERED: 2025-12-18
+:IMPACT: Wrong code execution - statements after throwing call run when they shouldn't
+:STATUS: Active
+:END:
+
+*** Description
+When a throwing function call is followed by catch, but there's a preceding block
+(if/switch) that also contains catches, the status check for the later throwing call
+is sometimes missing from the generated C code.
+
+This causes the "func 'Bool' returns multiple values" error when til processes
+bool.til, because get_fcall_value_type incorrectly finds Bool as a function (due
+to lookup_func not properly short-circuiting on KeyNotFoundError).
+
+*** Example Problem
+#+BEGIN_EXAMPLE til
+test_func := func() returns I64 throws Str {
+    // Block with catches
+    if true {
+        mut val := maybe_throw_A(false)
+        catch (err: ErrorA) { }
+    }
+
+    // After the block - status check is MISSING for this call!
+    mut found := false
+    mut result := maybe_throw_C(true)  // This throws
+    found = true  // BUG: This runs even though C threw!
+    catch (err: ErrorC) { }
+
+    if found { throw "found should be false!" }
+    return 0
+}
+#+END_EXAMPLE
+
+*** Generated C Code (broken)
+The call at line 10488 in til.c is missing the status check:
+#+BEGIN_EXAMPLE c
+int _status_... = til_ScopeStack_lookup_func(...);
+// MISSING: if (_status_... == 1) { goto _catch_...; }
+til_standalone_func_def = _ret_...;
+til_found_standalone = true;  // Runs unconditionally!
+if (0) { _catch_KeyNotFoundError_...: ... }
+#+END_EXAMPLE
+
+Compare with line 24060 which is correct:
+#+BEGIN_EXAMPLE c
+int _status_... = til_ScopeStack_lookup_func(...);
+if (_status_... == 1) { _thrown_... = _err0_...; goto _catch_...; }  // Correct!
+til_func_def = _ret_...;
+#+END_EXAMPLE
+
+*** Root Cause (Likely)
+In ccodegen.rs, the `local_catch_labels` map is being cleared/repopulated
+incorrectly when processing blocks with catches, causing the catch for the
+later throwing call to not be registered when the call is processed.
+
+The bug affects get_fcall_value_type in init.til (line 651) but NOT
+is_expr_calling_procs in typer.til (same pattern, but generates correctly).
+
+*** Reproducing Test
+src/test/bug44_test.til
+
+*** Files to Investigate
+- src/rs/ccodegen.rs: emit_stmts, local_catch_labels handling
+- Specifically the logic at lines 3215-3233 where next_catches is built
+- Compare what's different about init.til vs typer.til that causes only one to fail
+
 ** Bug #43: Map.get returns wrong value when Map is field inside struct (rstil interpreter)
 :PROPERTIES:
 :DISCOVERED: 2025-12-18
