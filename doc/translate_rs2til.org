@@ -153,12 +153,29 @@ if is_infer { ... }
 if not(is_infer) { ... }
 #+end_src
 
-For enum comparisons where you need to compare two enum values, use ~enum_to_str()~:
+For enum comparisons where you need to compare two enum values, prefer ~switch~ or use
+a type-specific ~_to_str~ function if one exists (e.g., ~value_type_to_str~ for ValueType):
 #+begin_src til
-if enum_to_str(enum_a).eq(enum_to_str(enum_b)) { ... }
+// Preferred: use switch
+mut types_match := false
+switch type_a {
+case ValueType.TCustom(name_a):
+    switch type_b {
+    case ValueType.TCustom(name_b):
+        types_match = name_a.eq(name_b)
+    case:
+    }
+case:
+    // handle other cases
+}
+
+// Alternative: use type-specific _to_str function if available
+if value_type_to_str(type_a).eq(value_type_to_str(type_b)) { ... }
 #+end_src
 
-IMPORTANT: Do NOT use ~.eq()~ on enums - it doesn't exist. Use ~switch~ or ~enum_to_str()~.
+IMPORTANT: Do NOT use ~.eq()~ on enums - it doesn't exist. Do NOT use ~enum_to_str()~ for
+comparisons - it only returns the variant name without payloads. Use ~switch~ or type-specific
+~_to_str~ functions that include payload information.
 
 ** Pattern variable scoping in switch/case
 
@@ -577,5 +594,5 @@ The translation is mechanical:
 10. ~vec.get(i)~ -> out-parameter: ~vec.get(i, out_val)~
 11. Catch blocks come before final return/throw
 12. Not-equal: ~!=~ or ~.ne()~ -> ~not(eq())~ or ~not(x.eq(y))~ (TIL has no ~ne~ function)
-13. Enum comparison: ~==~ on enums -> use ~switch~ with boolean flag, or ~enum_to_str()~ (enums have no ~eq~ method)
+13. Enum comparison: ~==~ on enums -> use ~switch~ or type-specific ~_to_str~ functions (enums have no ~eq~ method, ~enum_to_str~ ignores payloads)
 14. Pattern variables in switch/case are scoped to the case block - do ALL work with payloads inside the case

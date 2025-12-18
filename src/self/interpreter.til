@@ -1106,7 +1106,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             if value_is_i64 {
                 value_type = declaration.value_type
             }
-        } else if not(enum_to_str(value_type).eq(enum_to_str(declaration.value_type))) {
+        } else if not(value_type_to_str(value_type).eq(value_type_to_str(declaration.value_type))) {
             throw e.lang_error(context.path, "eval", format("'", declaration.name, "' declared of type ", value_type_to_str(declaration.value_type), " but initialized to type ", value_type_to_str(value_type), "."))
         }
     }
