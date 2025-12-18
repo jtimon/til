@@ -22,7 +22,7 @@
   "Syntax table for `til-mode'.")
 
 (defconst til-keywords
-  '("mode" "mut" "struct" "enum" "main"
+  '("mode" "mut" "copy" "own" "struct" "enum" "main"
     "func" "proc" "ext_func" "ext_proc" "macro"
     "returns" "return" "throws" "catch"
     "if" "else" "while" "for" "in" "switch" "case" "true" "false"
