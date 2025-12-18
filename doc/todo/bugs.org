@@ -104,6 +104,43 @@ ctx.local_catch_labels.remove(err_type_name)
 - src/rs/ccodegen.rs: Added removal of catch from local_catch_labels after processing
 - src/self/ccodegen.til: Same fix ported
 
+** Bug #47: Self-hosted TIL interpreter fails with "NodeType.?" error
+:PROPERTIES:
+:DISCOVERED: 2025-12-18
+:IMPACT: ./bin/til interpret fails on any file
+:STATUS: In Progress - Root cause unknown
+:END:
+
+*** Description
+The compiled self-hosted TIL interpreter (./bin/til) fails immediately when trying
+to interpret any file, including empty.til. The error occurs during core library
+initialization (vec.til:63).
+
+*** Error Message
+#+BEGIN_EXAMPLE
+Error during file execution: src/core/core.til:src/core/vec.til:63:63: til init ERROR: Identifiers can only contain identifiers, found 'NodeType.?'
+Explanation: This should never happen, this is a bug in the language.
+#+END_EXAMPLE
+
+*** Analysis
+The "NodeType.?" indicates an invalid enum tag value is being read from memory.
+This happens in init.til's =infer_identifier_type= function when iterating over
+=e.params= (a Vec of Expr) - some Expr has a corrupted NodeType field.
+
+*** Investigation Notes
+- rstil interpret works fine, only til (compiled self-hosted) fails
+- The error is consistent - always at vec.til:63 during init
+- Investigated Dynamic parameter casting in ccodegen - found cosmetic issue but
+  NOT the root cause (both cast and non-cast versions produce same pointer value)
+- Struct sizes match between TIL calculation and C sizeof for Expr (288 bytes)
+- Suspect memory corruption during Vec operations or struct copying
+
+*** Reproducing
+#+BEGIN_SRC bash
+./bin/rstil interpret src/examples/empty.til  # PASS
+./bin/til interpret src/examples/empty.til    # FAIL
+#+END_SRC
+
 ** Bug #45: init.til uses invalid fallthrough switch syntax
 :PROPERTIES:
 :DISCOVERED: 2025-12-18
