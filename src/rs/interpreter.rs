@@ -211,6 +211,73 @@ fn validate_func_arg_count(path: &str, e: &Expr, name: &str, func_def: &SFuncDef
     Ok(())
 }
 
+/// Read PRIMITIVE field values from an already-evaluated struct instance.
+/// This reads ACTUAL primitive values (I64, U8) from the arena.
+/// For nested struct fields (Str, Vec, etc.), recursively reads primitive values
+/// but skips ptr fields to avoid copying pointers to temp instance memory.
+/// Bug #43 fix: Recursively read primitive fields from nested structs to get
+/// correct cap, _len values while skipping ptr. Also reads Str values as strings.
+fn read_struct_primitive_fields(ctx: &Context, instance_id: &str, struct_type: &str, prefix: &str, e: &Expr) -> Result<HashMap<String, String>, String> {
+    let struct_def = match ctx.scope_stack.lookup_struct(struct_type) {
+        Some(def) => def.clone(),
+        None => return Err(e.lang_error(&ctx.path, "read_struct_primitive_fields", &format!("struct '{}' not found", struct_type))),
+    };
+
+    let mut values = HashMap::new();
+    for decl in struct_def.members.iter() {
+        if decl.is_mut {
+            let field_id = format!("{}.{}", instance_id, decl.name);
+            let key = if prefix.is_empty() {
+                decl.name.clone()
+            } else {
+                format!("{}.{}", prefix, decl.name)
+            };
+
+            if let ValueType::TCustom(type_name) = &decl.value_type {
+                match type_name.as_str() {
+                    "I64" => {
+                        // Skip 'ptr' and 'c_string' fields - these point to temp instance memory
+                        // and must use static default (0) so each instance gets fresh allocation
+                        if decl.name == "ptr" || decl.name == "c_string" {
+                            continue;
+                        }
+                        // Read actual I64 value from evaluated instance
+                        let val = EvalArena::get_i64(ctx, &field_id, e)?;
+                        values.insert(key, val.to_string());
+                    },
+                    "U8" => {
+                        // Read actual U8 value from evaluated instance
+                        let val = EvalArena::get_u8(ctx, &field_id, e)?;
+                        values.insert(key, val.to_string());
+                    },
+                    "Str" => {
+                        // Bug #43 fix: Read actual string VALUE, not pointer
+                        // This ensures key_type_name = "Str" is correctly copied to template
+                        let str_val = string_from_context(ctx, &field_id, e)?;
+                        values.insert(key, str_val);
+                    },
+                    _ => {
+                        // For nested structs (Vec, etc.), recursively read primitive fields
+                        // This ensures we get actual cap, _len values from Vec.new while skipping ptr
+                        if ctx.scope_stack.lookup_struct(type_name).is_some() {
+                            let nested_key = if prefix.is_empty() {
+                                decl.name.clone()
+                            } else {
+                                format!("{}.{}", prefix, decl.name)
+                            };
+                            let nested_values = read_struct_primitive_fields(ctx, &field_id, type_name, &nested_key, e)?;
+                            for (k, v) in nested_values {
+                                values.insert(k, v);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(values)
+}
+
 /// Pre-evaluate all default values for a struct type, including nested structs.
 /// Returns a map from field name (with dotted paths for nested) to evaluated string value.
 fn eval_struct_defaults(ctx: &mut Context, struct_type: &str, e: &Expr) -> Result<HashMap<String, String>, String> {
@@ -242,15 +309,29 @@ fn eval_struct_defaults(ctx: &mut Context, struct_type: &str, e: &Expr) -> Resul
                 if res.is_throw {
                     return Err(e.lang_error(&ctx.path, "eval_struct_defaults", &format!("thrown '{}' while evaluating default for field '{}'", res.thrown_type.unwrap_or_default(), decl.name)));
                 }
+                // Clone res.value before move so we can use it later for nested structs
+                let instance_id = res.value.clone();
                 defaults.insert(decl.name.clone(), res.value);
 
-                // Handle nested structs recursively (get their defaults)
+                // Handle nested structs: Bug #43 fix
+                // 1. Read PRIMITIVE fields (I64, U8) from the evaluated instance to get actual values
+                //    (e.g., Map.value_type_size = 8 from Map.new(Str, I64))
+                // 2. Get STATIC defaults for nested struct fields (Str, Vec) to avoid copying ptr values
+                //    that point to temp instance memory
                 if let ValueType::TCustom(type_name) = &decl.value_type {
                     if type_name != "U8" && type_name != "I64" && type_name != "Str" {
                         if ctx.scope_stack.lookup_enum(type_name).is_none() {
                             if ctx.scope_stack.lookup_struct(type_name).is_some() {
-                                let nested = eval_struct_defaults(ctx, type_name, e)?;
-                                for (k, v) in nested {
+                                // First, get static defaults for nested structs (Str, Vec fields)
+                                let static_defaults = eval_struct_defaults(ctx, type_name, e)?;
+                                for (k, v) in static_defaults {
+                                    defaults.insert(format!("{}.{}", decl.name, k), v);
+                                }
+
+                                // Then, override with actual primitive values from evaluated instance
+                                // This ensures value_type_size=8 instead of the static default 0
+                                let primitive_values = read_struct_primitive_fields(ctx, &instance_id, type_name, "", e)?;
+                                for (k, v) in primitive_values {
                                     defaults.insert(format!("{}.{}", decl.name, k), v);
                                 }
                             }
@@ -2604,9 +2685,29 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 EvalArena::insert_enum(context, &c.source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
             },
             MutArgValue::Struct(MutArgStructData { offset, type_name, was_passed_by_ref }) => {
-                context.scope_stack.frames.last_mut().unwrap().arena_index.insert(c.source_name.to_string(), offset);
-                if !was_passed_by_ref {
-                    context.map_instance_fields(&type_name, &c.source_name, e)?;
+                if was_passed_by_ref {
+                    // Pass-by-ref: just update arena_index (data already modified in-place)
+                    context.scope_stack.frames.last_mut().unwrap().arena_index.insert(c.source_name.to_string(), offset);
+                } else {
+                    // Bug #43 fix: For non-pass-by-ref (struct was copied), we need to copy
+                    // the modified data back to the original location, especially for field
+                    // access chains like "frame.funcs" where just updating arena_index won't
+                    // update the actual bytes in the parent struct.
+                    if c.source_name.contains('.') {
+                        // Field access: copy data back to original location
+                        let dest_offset = context.get_field_offset(&c.source_name)
+                            .map_err(|err| e.lang_error(&context.path, "eval", &format!("mut struct write-back: {}", err)))?;
+                        let struct_size = context.get_type_size(&type_name)?;
+                        // Copy from callee's offset to original location
+                        for i in 0..struct_size {
+                            let byte = EvalArena::g().get(offset + i, 1)[0];
+                            EvalArena::g().set(dest_offset + i, &[byte]);
+                        }
+                    } else {
+                        // Simple identifier: update arena_index and map fields
+                        context.scope_stack.frames.last_mut().unwrap().arena_index.insert(c.source_name.to_string(), offset);
+                        context.map_instance_fields(&type_name, &c.source_name, e)?;
+                    }
                 }
             },
         }

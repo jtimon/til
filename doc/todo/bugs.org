@@ -140,8 +140,9 @@ src/test/bug44_test.til
 ** Bug #43: Map.get returns wrong value when Map is field inside struct (rstil interpreter)
 :PROPERTIES:
 :DISCOVERED: 2025-12-18
+:FIXED: 2025-12-18
 :IMPACT: Data corruption in interpreter
-:STATUS: Active
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -165,21 +166,68 @@ test_map_in_struct := proc() {
 }
 #+END_EXAMPLE
 
-*** Test Results
+*** Test Results (Before Fix)
 - =rstil interpret tmp/test_scope_pattern.til= -> val = 0 (WRONG)
 - =rstil run tmp/test_scope_pattern.til= -> val = 42 (CORRECT)
 
-*** Root Cause (Likely)
-The bug is in src/rs/interpreter.rs. When Map.get writes back to the =val= parameter, the field access chain (frame.funcs) is not being resolved correctly, causing the out parameter to write to wrong location or be lost.
+*** Root Cause
+Three issues were discovered when structs have nested struct defaults like =Map.new(Str, I64)=:
 
-This is similar to Bug #24 (struct field access returns copy instead of reference), but specifically affects the interpreter's handling of mut parameters in method calls on struct fields.
+1. *Vec.ptr not initialized*: When struct templates were created, ptr fields were
+   skipped (to avoid dangling pointers), but Vec.push didn't check for ptr=0.
+   This caused pushes to write to NULL memory when Vec was part of a struct default.
+
+2. *Str fields not copied*: read_struct_primitive_fields only read I64/U8 values.
+   Str fields like =key_type_name= weren't being read from the evaluated instance,
+   causing Map to have empty type names and fail key comparisons.
+
+3. *Vec.cap not preserved*: The Vec's capacity from Vec.new was lost because nested
+   struct fields weren't being recursively read. This caused malloc(0) in Vec.push.
+
+*** Fix Applied (2025-12-18)
+
+*Part 1: Vec.push null pointer check* (src/core/vec.til lines 60-71)
+Added check at start of push to allocate if ptr=0:
+#+BEGIN_SRC til
+if self.ptr.eq(0) {
+    if self.cap.eq(0) {
+        self.cap = Vec.INIT_CAP
+    }
+    self.ptr = malloc(mul(self.cap, self.type_size))
+    if NULL.eq(self.ptr) {
+        throw AllocError(msg=format(loc(), "Vec.push: malloc failed"))
+    }
+}
+#+END_SRC
+
+*Part 2: read_struct_primitive_fields* (src/rs/interpreter.rs lines 214-279)
+New function that reads primitive values from evaluated struct instances:
+- Reads I64 values (skipping ptr/c_string to avoid dangling pointers)
+- Reads U8 values
+- Reads Str values using string_from_context (gets actual string content)
+- Recursively reads nested struct primitive fields (Vec, etc.)
+
+*Part 3: eval_struct_defaults* (src/rs/interpreter.rs lines 303-319)
+After getting static defaults for nested structs, override with actual primitive
+values from the evaluated instance:
+#+BEGIN_SRC rust
+let primitive_values = read_struct_primitive_fields(ctx, &instance_id, type_name, "", e)?;
+for (k, v) in primitive_values {
+    defaults.insert(format!("{}.{}", decl.name, k), v);
+}
+#+END_SRC
+
+*Part 4: TIL port* (src/self/interpreter.til lines 138-219, 304-316)
+Same changes ported to the self-hosted interpreter.
 
 *** Reproducing Test
-src/test/bug43_test.til
+src/test/bug43_test.til (now passes both interpret and run)
 
-*** Files to Investigate
-- src/rs/interpreter.rs: Handle mut parameter write-back for struct field method calls
-- src/self/interpreter.til: Same (must match after fix)
+*** Files Modified
+- src/rs/interpreter.rs: Added read_struct_primitive_fields, modified eval_struct_defaults
+- src/rs/eval_arena.rs: Minor cleanup
+- src/core/vec.til: Added null pointer check in Vec.push
+- src/self/interpreter.til: Ported fix to TIL version
 
 ** Bug #42: Temp variable naming inconsistency causes undeclared _tmp_N errors
 :PROPERTIES:

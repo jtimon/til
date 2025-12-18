@@ -2,21 +2,36 @@ mode test
 
 import("std.map")
 
-// Map inside a struct - this is where the bug manifests
+// Bug #43: Map.get returns wrong value when Map is field inside struct (interpreter)
+// - rstil interpret: val = 0 (WRONG)
+// - rstil run: val = 42 (CORRECT)
+
 Frame := struct {
     mut funcs: Map = Map.new(Str, I64)
 }
 
-test_map_in_struct := proc() {
+test_map_get_in_struct := proc() {
+    println("test_map_get_in_struct")
+
     mut frame := Frame()
-    println("1. Created frame, funcs.len = ", frame.funcs.len().to_str())
-
+    assert_eq(loc(), 0, frame.funcs._size) // Should be 0 initially
+    assert_eq(loc(), 0, frame.funcs.keys._len) // Should be 0 initially
     frame.funcs.insert("test", 42)
-    println("2. After insert, funcs.len = ", frame.funcs.len().to_str())
+    assert_eq(loc(), 1, frame.funcs._size) // Should be 1 after insert
+    assert_eq(loc(), 1, frame.funcs.keys._len) // Should be 1 after insert
 
+    // Try direct Map (not in struct) to isolate the issue
+    mut direct_map := Map.new(Str, I64)
+    direct_map.insert("direct_test", 99)
+    mut direct_val := 0
+    direct_map.get("direct_test", direct_val)
+    assert_eq(loc(), 99, direct_val)  // Does direct Map work?
+    direct_map.delete()
+
+    // Now try the struct field Map
     mut val := 0
     frame.funcs.get("test", val)
-    println("3. Got value = ", val.to_str())  // Bug: interpreter returns 0
+    assert_eq(loc(), 42, val)
 
     frame.funcs.delete()
 
@@ -24,4 +39,6 @@ test_map_in_struct := proc() {
     catch (err: DuplicatedKeyError) { println("DuplicatedKeyError: ", err.msg); exit(1) }
     catch (err: KeyNotFoundError) { println("KeyNotFoundError: ", err.msg); exit(1) }
 }
-test_map_in_struct()
+test_map_get_in_struct()
+
+println("All tests passed")

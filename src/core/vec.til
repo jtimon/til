@@ -57,6 +57,19 @@ Vec := struct {
         //     throw format(loc(), "Vec.push: value type mismatch")
         // }
 
+        // Bug #43 fix: If ptr is 0, allocate initial memory.
+        // This handles Vecs created from struct templates where ptr was skipped
+        // to avoid dangling pointers but cap was preserved.
+        if self.ptr.eq(0) {
+            if self.cap.eq(0) {
+                self.cap = Vec.INIT_CAP
+            }
+            self.ptr = malloc(mul(self.cap, self.type_size))
+            if NULL.eq(self.ptr) {
+                throw AllocError(msg=format(loc(), "Vec.push: malloc failed"))
+            }
+        }
+
         if self._len.eq(self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, Vec.MAX_CAP) {

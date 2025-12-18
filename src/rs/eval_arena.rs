@@ -180,7 +180,10 @@ impl EvalArena {
         };
 
         match EvalArena::g().get(offset, 8).try_into() {
-            Ok(bytes) => Ok(i64::from_ne_bytes(bytes)),
+            Ok(bytes) => {
+                let result = i64::from_ne_bytes(bytes);
+                Ok(result)
+            },
             Err(_) => Err(e.lang_error(&ctx.path, "context", &format!("Invalid i64 read for id '{}'", id))),
         }
     }
@@ -302,7 +305,7 @@ impl EvalArena {
                     Some(offset)
                 } else {
                     // Calculate offset dynamically from struct definition
-                    match ctx.get_field_offset( &src_key) {
+                    match ctx.get_field_offset(&src_key) {
                         Ok(offset) => Some(offset),
                         Err(_) => {
                             // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
