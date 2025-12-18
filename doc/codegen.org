@@ -1,0 +1,288 @@
+* C Code Generation Design
+
+This document describes how TIL code is translated to C.
+
+** Parameter Passing Semantics
+
+TIL has four parameter modes. In C, we use pass-by-reference (pointers) for most
+non-primitive types to avoid copying large structs.
+
+| TIL Keyword | TIL Semantics        | C Signature          | At Call Site           |
+|-------------+----------------------+----------------------+------------------------|
+| (none)      | Read-only reference  | =const Type* x=      | =&arg= or forward ptr  |
+| =mut=       | Mutable reference    | =Type* x=            | =&arg= or forward ptr  |
+| =own=       | Ownership transfer   | =Type* x=            | =&arg= or forward ptr  |
+| =copy=      | Local mutable copy   | =Type x= (by value)  | =arg= (copied)         |
+
+Primitive types (I64, U8, Bool, Type, Dynamic) are always passed by value for efficiency.
+
+** Argument Translation
+
+When calling a function with by-ref parameters, the argument translation depends on
+what kind of expression the argument is:
+
+| Argument Type               | C Translation                                   |
+|-----------------------------+-------------------------------------------------|
+| Variable                    | =foo(&til_my_var)=                              |
+| Field access                | =foo(&til_obj->field)= or =foo(&til_obj.field)= |
+| Forward param (already ptr) | =foo(x)= - no =&= needed                        |
+| String literal              | =foo(&((til_Str){(til_I64)"hello", 5}))=        |
+| Numeric literal             | =foo(&((til_I64){42}))=                         |
+| Bool literal                | =foo(&((til_Bool){1}))=                         |
+| Throwing function call      | Hoisted first (see below)                       |
+
+Key insight: Compound literals are lvalues in C99+, so we can take their address
+directly without creating temporary variables.
+
+** Throwing Function Calls
+
+TIL functions can throw errors. In C, these become functions that return an int
+status code, with the actual return value and error values passed via out-parameters.
+
+*** Simple Declaration (no hoisting needed)
+
+#+begin_src til
+  v := Vec.new(I64)
+  catch (err: AllocError) {
+      // AllocError was thrown - handle or propagate
+  }
+#+end_src
+
+Becomes:
+
+#+begin_src c
+  til_Vec til_v;
+  til_AllocError _err1;
+  int _status = til_Vec_new(&til_v, &_err1, "I64");
+  if (_status == 0) {
+      // success path - continue execution
+   } else if (_status == 1) {
+      // AllocError was thrown - handle or propagate
+  }
+#+end_src
+
+*** Nested Throwing Call (hoisting required)
+
+When a throwing function call appears as an argument to another function, we must
+"hoist" it out to handle the status code before proceeding.
+
+#+begin_src til
+  print(Vec.new(I64))
+#+end_src
+
+We CANNOT generate =print(til_Vec_new(...))= because =til_Vec_new= returns an int
+status code, not a Vec. We must hoist:
+
+#+begin_src c
+  // Hoisted: Vec.new extracted from argument position
+  til_Vec _tmp;
+  til_AllocError _err1;
+  int _status = til_Vec_new(&_tmp, &_err1, "I64");
+  if (_status != 0) {
+      // handle error before calling print
+  }
+  // Now safe to use the result
+  print(&_tmp);
+#+end_src
+
+*** What "Hoisting" Means
+
+Hoisting = extracting a nested throwing call from an argument position so we can
+check its status code before the outer call proceeds.
+
+The =hoist_throwing_args= function handles this automatically for all throwing calls.
+
+** What Does NOT Need Hoisting
+
+Most argument types do NOT need hoisting - they can be handled directly in
+=emit_arg_with_param_type= by adding =&= prefix:
+
+| Situation                          | Why No Hoisting Needed                   |
+|------------------------------------+------------------------------------------|
+| Declaration =v := throwing_call()= | Not nested, normal status-check code     |
+| Variable =foo(my_var)=             | Just emit =foo(&til_my_var)=             |
+| Forward param =foo(x)=             | =x= is already a pointer, just pass it   |
+| Literal =foo("hello")=             | Compound literal is lvalue, =&= works    |
+| Nested throwing =foo(bar())=       | Already hoisted by =hoist_throwing_args= |
+
+** Error Propagation Pattern
+
+When a function calls another function that can throw, and the caller also declares
+those throw types, errors are propagated:
+
+#+begin_src til
+  my_func := proc() throws AllocError {
+      v := Vec.new(I64)  // can throw AllocError
+      // use v
+  }
+#+end_src
+
+Becomes:
+
+#+begin_src c
+  int til_my_func(til_AllocError* _err1) {
+    til_Vec til_v;
+    til_AllocError _local_err1;
+    int _status = til_Vec_new(&til_v, &_local_err1, "I64");
+    if (_status == 0) {
+      // success - continue
+    } else if (_status == 1) {
+      // propagate AllocError to caller
+      ,*_err1 = _local_err1;
+      return 1;
+    }
+    // use til_v...
+    return 0;  // success
+  }
+#+end_src
+
+** Catch Blocks
+
+Catch blocks in TIL become =if= checks on the status code:
+
+#+begin_src til
+  v := Vec.new(I64)
+
+  catch (e: AllocError) {
+      println("Allocation failed")
+  }
+#+end_src
+
+Becomes:
+
+#+begin_src c
+  til_Vec til_v;
+  til_AllocError _err1;
+  int _status = til_Vec_new(&til_v, &_err1, "I64");
+  if (_status == 0) {
+    // success path
+  } else if (_status == 1) {
+      // catch block for AllocError
+      til_println(...);
+  }
+#+end_src
+
+*** Multiple Calls Sharing One Catch (goto required)
+
+When multiple throwing calls can throw the same error type, they can share a catch block.
+Goto is needed because there's success-path code between the calls.
+
+#+begin_src til
+  // Both get_substr calls can throw IndexOutOfBoundsError
+  prefix := get_substr(self, 0, idx)
+  suffix := get_substr(self, idx + from.len(), self.len())
+  mut result := concat(prefix, to, suffix)
+
+  catch (err: IndexOutOfBoundsError) {
+      result = self.clone()  // fallback on error
+  }
+  return result
+#+end_src
+
+Becomes (from actual generated code):
+
+#+begin_src c
+  til_Str til_prefix;
+  til_Str til_suffix;
+  til_Str til_result;
+  til_IndexOutOfBoundsError _thrown_err = {};
+
+  // First call
+  til_Str _ret1;
+  til_IndexOutOfBoundsError _err1 = {};
+  int _status1 = til_get_substr(&_ret1, &_err1, til_self, 0, til_idx);
+  if (_status1 == 1) { _thrown_err = _err1; goto _catch_IndexOutOfBoundsError; }
+  til_prefix = _ret1;  // success: assign result
+
+  // Second call - shares same catch
+  til_Str _ret2;
+  til_IndexOutOfBoundsError _err2 = {};
+  int _status2 = til_get_substr(&_ret2, &_err2, til_self, til_idx + til_from_len, til_self_len);
+  if (_status2 == 1) { _thrown_err = _err2; goto _catch_IndexOutOfBoundsError; }
+  til_suffix = _ret2;  // success: assign result
+
+  // Success path - only runs if both calls succeeded
+  til_result = til_concat(&til_prefix, &til_to, &til_suffix);
+
+  // Catch block - reached via goto from either call
+  if (0) { _catch_IndexOutOfBoundsError:
+      til_result = til_Str_clone(til_self);
+  }
+
+  *_ret = til_result;
+  return 0;
+#+end_src
+
+The =if (0) { label:= pattern defines a block only reachable via goto.
+
+*** Simple Case: If/Else Would Suffice
+
+For a single throwing call with immediate catch, if/else works fine:
+
+#+begin_src til
+  v := Vec.new(I64)
+  catch (e: AllocError) {
+      println("failed")
+  }
+#+end_src
+
+Could be:
+
+#+begin_src c
+  int _status = til_Vec_new(&til_v, &_err, "I64");
+  if (_status == 0) {
+      // success path continues...
+  } else if (_status == 1) {
+      til_println(&((til_Str){(til_I64)"failed", 6}));
+  }
+#+end_src
+
+The current codegen may use goto even in simple cases for consistency. This could
+be optimized in the future.
+
+*** Mixed: Some Caught, Some Rethrown
+
+When a function handles some errors locally but rethrows others:
+
+#+begin_src til
+  my_func := proc() throws AllocError {
+      // parse() throws ParseError and AllocError
+      result := parse(input)
+
+      // Handle ParseError locally
+      catch (e: ParseError) {
+          println("Parse failed, using default")
+          result = default_value
+      }
+      // AllocError is NOT caught here - it propagates to caller
+  }
+#+end_src
+
+Becomes:
+
+#+begin_src c
+  int til_my_func(til_AllocError* _err1) {
+      til_ParseError _local_parse_err;
+      til_AllocError _local_alloc_err;
+      til_Result til_result;
+
+      int _status = til_parse(&til_result, &_local_parse_err, &_local_alloc_err, til_input);
+      if (_status == 0) {
+          // success - continue
+      } else if (_status == 1) {
+          // ParseError - handle locally
+          til_println(&((til_Str){(til_I64)"Parse failed, using default", 27}));
+          til_result = til_default_value;
+      } else if (_status == 2) {
+          // AllocError - rethrow to caller
+          *_err1 = _local_alloc_err;
+          return 1;  // caller's error position for AllocError
+      }
+
+      // use til_result...
+      return 0;
+  }
+#+end_src
+
+Note: The rethrow case is simple - just copy the error to the caller's out-param
+and return the appropriate status code. No goto needed since we return immediately.
