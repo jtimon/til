@@ -102,11 +102,11 @@ with `ref` keyword. TIL's approach is arguably simpler.
 | Default param           | read (ref)     | Copy                | Phase 3: will become ref            |
 | Mutable param           | mut (ref)      | mut (ref)           | ✅ Same                             |
 | Copy param              | var (copy)     | copy                | ✅ Same concept                     |
-| Ownership transfer      | var with ^     | own (at call site)  | TIL: opt-in at call, not signature  |
+| Ownership transfer      | var with ^     | own (in signature)  | TIL: in sig, Mojo: at call site     |
 | Mut local               | var x = y      | mut x := y          | ✅ Equivalent (both copy)           |
 | Immut local             | (REMOVED)      | x := y (ref)        | TIL simpler: default is ref         |
 | Explicit ref            | ref x = y      | x := y              | TIL: no keyword needed (is default) |
-| Move at call site       | foo(x^)        | foo(own x)          | TIL: uses own keyword               |
+| Move at call site       | foo(x^)        | foo(x) to own param | TIL: implicit, Mojo: explicit ^     |
 
 * Key Differences
 
@@ -116,15 +116,11 @@ with `ref` keyword. TIL's approach is arguably simpler.
    - Mojo: `ref x = y` (explicit)
    - TIL: `x := y` (implicit, cleaner)
 
-2. **Consistent ownership transfer**: Uses `own` keyword everywhere
-   - Mojo: `^` sigil (punctuation)
-   - TIL: `own` keyword (readable)
+2. **Readable ownership keyword**: Uses `own` in signature
+   - Mojo: `^` sigil at call site (punctuation)
+   - TIL: `own n: T` in function signature (readable)
 
-3. **Opt-in at call site**: Caller decides ownership transfer
-   - `func(mut x: T)` can receive `func(own my_var)` - caller chooses transfer
-   - More flexible than requiring signature change
-
-4. **Simpler local variables**: Only two cases
+3. **Simpler local variables**: Only two cases
    - `mut x := y` = mutable copy
    - `x := y` = immutable reference
    - No need to learn separate `ref` keyword
@@ -139,7 +135,7 @@ with `ref` keyword. TIL's approach is arguably simpler.
 
 TIL is currently missing:
 1. **Phase 3**: Default params should be references (blocked by arena issues)
-2. **own keyword**: Ownership transfer not implemented yet
+2. **Bug #49**: Typer doesn't track use-after-move (interpreter does at eval)
 3. **Lifetime tracking**: Would need for move-only types
 
 * TIL's Design Philosophy (Refined Understanding)
@@ -172,18 +168,29 @@ func(mut x: T)       // Mutable reference
 func(copy x: T)      // Explicit copy
 ```
 
-** Ownership Transfer Design (Future)
+** Ownership Transfer Design (Current)
 
-Use `own` at **call site**, not in signature:
+Use `own` in **signature** (declaration):
 ```til
-func(mut x: String)      // Function declared with mut
+consume := proc(own n: I64) returns I64 { return mul(n, 2) }
 // ...
-func(own my_string)      // Caller chooses to transfer ownership
-// my_string is now invalid in caller's context
+mut x := 42
+result := consume(x)    // x is invalidated after this call
+// x is now undefined - use-after-move error
 ```
 
-Key insight: Ownership transfer is opt-in by **caller**, not required by signature.
-This is more flexible than Mojo's approach where signature must declare `var`.
+The function signature declares it takes ownership. Caller doesn't need special syntax.
+Variable is automatically invalidated after being passed to an `own` parameter.
+
+** Call-site own syntax (Optional/Future)
+
+Call-site syntax like `func(own x)` could be added for code clarity:
+```til
+result := consume(own x)    // Explicit: reader sees ownership transfer
+```
+
+This would be purely aesthetic - making the transfer visible at the call site.
+The mechanism works without it since the signature already declares `own`.
 
 ** Comparison with Mojo's Equivalents
 
@@ -191,7 +198,7 @@ This is more flexible than Mojo's approach where signature must declare `var`.
 |--------------------+---------------------+------------------------------------|
 | x := y             | ref x = y           | **TIL's default ≡ Mojo's ref**     |
 | mut x := y         | var x = y           | Both copy                          |
-| func(own x)        | func(x^)            | TIL: keyword vs sigil              |
+| own n: T (in sig)  | var with ^          | TIL: in signature, Mojo: at call   |
 | func(mut x: T)     | func(mut x: T)      | Same (mutable reference)           |
 
 **Key Equivalence**: TIL's default (no keyword) is equivalent to Mojo's `ref`.
@@ -221,27 +228,30 @@ because the default behavior IS reference binding.
 - Can revisit post self-hosting with better debugging tools
 
 ** ⚠️ In Progress: Ownership Transfer (Partial Implementation)
-Status: Basic implementation done, but has bugs
+Status: Basic implementation done, use-after-move check needs typer fix
 
-Completed (2025-11-12):
+Completed (2025-12-18 update):
 - ✅ Lexer: Added `own` token
 - ✅ Parser: Accepts `own` in parameter declarations (mutually exclusive with mut/copy)
 - ✅ Type checker: Allows modification of `own` parameters
-- ✅ Interpreter: Basic ownership transfer logic for identifiers
+- ✅ Interpreter: Invalidates caller's variable after passing to own param
+- ✅ All own tests in src/test/args.til passing (lines 494-621)
 
-Bugs found:
-- ❌ Infinite loop when running own parameter tests
-- ❌ Field access on own parameters doesn't work (v.x fails to resolve)
-- ❌ Use-after-move checking not implemented
+Still missing:
+- ❌ Use-after-move at typer phase: Interpreter catches at eval, compiler doesn't catch at all
+  - Fix: Mirror interpreter - remove symbol from scope when passed to own param (Bug #49)
+- ⚪ Call-site `own` syntax: `func(own x)` not parsed (optional - for code clarity only)
 
 Current behavior:
 ```til
-consume_i64 := proc(own n: I64) { ... }  // Compiles
-x := 42
-consume_i64(x)  // Transfers ownership (when bugs are fixed)
+consume := proc(own n: I64) returns I64 { return mul(n, 2) }
+mut x := 42
+result := consume(x)
+// Interpreter: x is now undefined (use-after-move works at eval)
+// Compiler: x still accessible (bug - should be caught by typer)
 ```
 
-Tests added but disabled in src/test/args.til (lines 500-636)
+Tests in src/test/args.til (lines 494-621) - all passing
 
 ** 🔮 Future: Move-Only Types (Maybe)
 Needs more research and real-world examples to determine necessity.
@@ -258,12 +268,11 @@ TIL's ownership model has **remarkable convergence with Mojo**:
 
 **Where TIL is simpler:**
 - No explicit `ref` keyword needed (default behavior)
-- Readable `own` keyword instead of `^` sigil
-- Opt-in ownership transfer at call site (more flexible)
+- Readable `own` keyword in signature instead of `^` sigil at call site
 
 **Where TIL needs work:**
 - Phase 3: Default params should be refs (currently copy)
-- Implement `own` keyword
+- Bug #49: Typer use-after-move tracking
 - Lifetime tracking for move-only types (if needed)
 
 The key insight: **const copy vs const reference is an implementation detail**.

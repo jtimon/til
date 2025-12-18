@@ -175,6 +175,9 @@ Add validation in typer.rs and typer.til to check that arguments passed to
 =mut= parameters are lvalues. Should catch all literal types: I64, U8, Str.
 Will need a new error type or message.
 
+*** Related
+- Bug #49: Similar issue for =own= parameters (use-after-move check)
+
 *** Reproducing Test
 src/test/bug48_test.til
 
@@ -182,6 +185,70 @@ src/test/bug48_test.til
 ./bin/rstil interpret src/test/bug48_test.til  # FAIL - eval error (should be typer)
 ./bin/rstil run src/test/bug48_test.til        # FAIL - GCC error (should be typer)
 #+END_SRC
+
+** Bug #49: Typer missing use-after-move check for own parameters
+:PROPERTIES:
+:DISCOVERED: 2025-12-18
+:IMPACT: Compiled code allows use of moved variable
+:STATUS: Open
+:END:
+
+*** Description
+When a variable is passed to an =own= parameter, the variable should be
+invalidated in the caller's scope. The interpreter catches this at eval time,
+but the typer doesn't track it - so compiled code allows using the variable.
+
+*** Example
+#+BEGIN_SRC til
+consume := proc(own n: I64) returns I64 {
+    return mul(n, 2)
+}
+
+test := proc() {
+    mut x := 42
+    result := consume(x)
+    println(I64.to_str(x))  // Should be rejected - x was moved
+}
+#+END_SRC
+
+*** Expected Behavior
+Typer should reject use of =x= after it was passed to =own= parameter:
+"Variable 'x' was moved and can no longer be used"
+
+*** Actual Behavior
+- Typer: No tracking of moved variables (the bug)
+- Interpreter: Catches at eval - "Undefined symbol 'x'" (wrong phase)
+- Compiler: No catch at all - x still usable with original value
+
+*** Fix Required
+Mirror what interpreter already does: remove the symbol from scope when passed to =own= param.
+
+*Implementation plan:*
+
+1. In typer's function call checking (where we iterate over args)
+2. If param has =is_own=, and arg is an identifier:
+   - Remove the symbol from scope (like interpreter does)
+3. Subsequent uses automatically get "undefined symbol" error
+
+No new data structures needed - reuses existing scope/symbol machinery.
+
+*** Call-site own syntax (optional/aesthetic)
+Call-site =own= syntax (=func(own x)=) is not implemented in parser.
+Currently only declaration syntax (=own n: I64=) is supported.
+This would be purely for code clarity - making ownership transfer explicit to readers.
+The mechanism works without it.
+
+*** Reproducing Test
+src/test/bug49_test.til
+
+#+BEGIN_SRC bash
+./bin/rstil interpret src/test/bug49_test.til  # FAIL - eval error (should be typer)
+./bin/rstil run src/test/bug49_test.til        # PASS - bug: x still accessible
+#+END_SRC
+
+*** Related
+- Bug #48: Similar issue for =mut= parameters (lvalue check)
+- See doc/ownership.org for full ownership design
 
 ** Bug #45: init.til uses invalid fallthrough switch syntax
 :PROPERTIES:
