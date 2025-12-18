@@ -160,6 +160,56 @@ if enum_to_str(enum_a).eq(enum_to_str(enum_b)) { ... }
 
 IMPORTANT: Do NOT use ~.eq()~ on enums - it doesn't exist. Use ~switch~ or ~enum_to_str()~.
 
+** Pattern variable scoping in switch/case
+
+CRITICAL: Pattern variables in ~switch/case~ are scoped to the case block only, just like
+Rust's ~match~ arms. This means you CANNOT use a flag pattern when extracting payloads.
+
+Rust:
+#+begin_src rust
+for p in body.params {
+    match p.node_type {
+        NodeType::Declaration(decl) => {
+            members.push(decl.clone());
+            default_values.insert(decl.name.clone(), val.clone());
+        },
+        _ => return Err("expected declaration"),
+    }
+}
+#+end_src
+
+TIL (CORRECT):
+#+begin_src til
+for p: Expr in body.params {
+    switch p.node_type {
+    case NodeType.Declaration(decl):
+        members.push(decl)
+        default_values.insert(decl.name, val)
+    case:
+        throw "expected declaration"
+    }
+}
+#+end_src
+
+TIL (WRONG - DO NOT DO THIS):
+#+begin_src til
+for p: Expr in body.params {
+    // BUG: This does NOT work!
+    mut is_declaration := false
+    mut decl := Declaration()  // outer empty decl
+    switch p.node_type {
+    case NodeType.Declaration(decl):  // shadows outer, gets payload
+        is_declaration = true
+    case:
+    }
+    if is_declaration {
+        members.push(decl)  // BUG: uses outer empty decl, NOT the pattern variable!
+    }
+}
+#+end_src
+
+The pattern variable ~decl~ only exists inside the case block. All logic using it must be there.
+
 ** if let Some(x) = ...
 
 Rust uses ~if let~ for Option destructuring. TIL checks for default/empty value or uses catch blocks:
@@ -528,3 +578,4 @@ The translation is mechanical:
 11. Catch blocks come before final return/throw
 12. Not-equal: ~!=~ or ~.ne()~ -> ~not(eq())~ or ~not(x.eq(y))~ (TIL has no ~ne~ function)
 13. Enum comparison: ~==~ on enums -> use ~switch~ with boolean flag, or ~enum_to_str()~ (enums have no ~eq~ method)
+14. Pattern variables in switch/case are scoped to the case block - do ALL work with payloads inside the case

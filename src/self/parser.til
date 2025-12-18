@@ -955,16 +955,8 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
         body.params.get(i, p)
         nt := p.node_type
 
-        // Use switch to check if it's a Declaration
-        mut is_declaration := false
-        mut decl := Declaration()
         switch nt {
-            case NodeType.Declaration(decl):
-                is_declaration = true
-            case:
-        }
-
-        if is_declaration {
+        case NodeType.Declaration(decl):
             members.push(decl)
 
             if p.params.len().eq(1) {
@@ -975,7 +967,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
                 // TODO allow not setting default values in struct members
                 throw t.error(lexer.path, "all declarations inside struct definitions must have a value for now")
             }
-        } else {
+        case:
             throw t.error(lexer.path, "expected only declarations inside struct definition")
         }
     }

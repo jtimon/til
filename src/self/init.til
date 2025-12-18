@@ -942,7 +942,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                     // member not found, try UFCS
                     mut ufcs_result := get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
                     catch (ufcs_err: Str) {
-                        throw e.error(context.path, "init", format("struct '", custom_type_name, "' has no member '", after_dot_name, "' c"))
+                        throw e.error(context.path, "init", format("struct '", custom_type_name, "' has no member '", after_dot_name, "'"))
                     }
                     return ufcs_result
                 }
