@@ -21,8 +21,8 @@ struct CodegenContext {
     current_return_types: Vec<ValueType>,
     // Set of declared variable names in current function (to avoid redefinition)
     declared_vars: HashSet<String>,
-    // Set of mut param names in current function - for using -> instead of . for field access
-    current_mut_params: HashSet<String>,
+    // Set of by-ref param names in current function - for using -> instead of . for field access
+    current_ref_params: HashSet<String>,
     // Map of variadic param names to their element type (e.g., "args" -> "Bool")
     // Passed as til_Array* so need dereference, and need type info for Array.get casting
     current_variadic_params: HashMap<String, String>,
@@ -55,7 +55,7 @@ impl CodegenContext {
             current_throw_types: Vec::new(),
             current_return_types: Vec::new(),
             declared_vars: HashSet::new(),
-            current_mut_params: HashSet::new(),
+            current_ref_params: HashSet::new(),
             current_variadic_params: HashMap::new(),
             known_types: Vec::new(),
             hoisted_exprs: HashMap::new(),
@@ -1359,7 +1359,7 @@ fn emit_fcall_name_and_args_for_throwing(
         let param_info: Vec<ParamTypeInfo> = found_func
             .map(|fd| {
                 fd.args.iter()
-                    .map(|p| ParamTypeInfo { value_type: Some(p.value_type.clone()), is_mut: p.is_mut })
+                    .map(|p| ParamTypeInfo { value_type: Some(p.value_type.clone()), by_ref: p.is_mut })
                     .collect()
             })
             .unwrap_or_default();
@@ -1369,11 +1369,11 @@ fn emit_fcall_name_and_args_for_throwing(
             output.push_str(", ");
 
             // Get expected param type and mutability
-            let (param_type, param_is_mut) = param_info.get(arg_idx)
-                .map(|info| (info.value_type.as_ref(), info.is_mut))
+            let (param_type, param_by_ref) = param_info.get(arg_idx)
+                .map(|info| (info.value_type.as_ref(), info.by_ref))
                 .unwrap_or((None, false));
 
-            emit_arg_with_param_type(arg, arg_idx, nested_hoisted, param_type, param_is_mut, output, ctx, context)?;
+            emit_arg_with_param_type(arg, arg_idx, nested_hoisted, param_type, param_by_ref, output, ctx, context)?;
         }
     }
 
@@ -1394,21 +1394,21 @@ fn emit_arg_or_hoisted(
     emit_arg_with_param_type(arg, arg_idx, hoisted, None, false, output, ctx, context)
 }
 
-/// Emit an argument with knowledge of expected parameter type and mutability
-/// Handles: Type args as string literals, Dynamic args with &, mut args with &
+/// Emit an argument with knowledge of expected parameter type and by-ref flag
+/// Handles: Type args as string literals, Dynamic args with &, by-ref args with &
 fn emit_arg_with_param_type(
     arg: &Expr,
     arg_idx: usize,
     hoisted: &std::collections::HashMap<usize, String>,
     param_type: Option<&ValueType>,
-    param_is_mut: bool,
+    param_by_ref: bool,
     output: &mut String,
     ctx: &mut CodegenContext,
     context: &mut Context,
 ) -> Result<(), String> {
     if let Some(temp_var) = hoisted.get(&arg_idx) {
-        // Hoisted temp var is an lvalue - add & if param is Dynamic or mut
-        if param_is_mut {
+        // Hoisted temp var is an lvalue - add & if param is Dynamic or by-ref
+        if param_by_ref {
             output.push_str("&");
         } else if let Some(ValueType::TCustom(param_type_name)) = param_type {
             if param_type_name == "Dynamic" {
@@ -1438,7 +1438,7 @@ fn emit_arg_with_param_type(
                 // - mut params are passed as pointers
                 // - variadic params are passed as Array pointers
                 // - Dynamic params are already void* (no need to take address)
-                let is_already_pointer = ctx.current_mut_params.contains(name)
+                let is_already_pointer = ctx.current_ref_params.contains(name)
                     || ctx.current_variadic_params.contains_key(name)
                     || context.scope_stack.lookup_symbol(name)
                         .map(|sym| matches!(&sym.value_type, ValueType::TCustom(t) if t == "Dynamic"))
@@ -1460,7 +1460,7 @@ fn emit_arg_with_param_type(
             } else {
                 // Field access like member.name - need (til_Dynamic*)&(var.field)
                 // Check if base is a mut param (pointer) or regular variable
-                let base_is_pointer = ctx.current_mut_params.contains(name);
+                let base_is_pointer = ctx.current_ref_params.contains(name);
                 output.push_str("(");
                 output.push_str(TIL_PREFIX);
                 output.push_str("Dynamic*)&");
@@ -1499,12 +1499,12 @@ fn emit_arg_with_param_type(
     }
 
     // Check if param is mut (but not Dynamic) - emit &arg for pointer
-    if param_is_mut {
+    if param_by_ref {
         if let NodeType::Identifier(name) = &arg.node_type {
             if arg.params.is_empty() {
                 // Check if this identifier is already a mut param (already a pointer)
                 // or a variadic param (also a pointer) - don't add & again
-                let is_already_pointer = ctx.current_mut_params.contains(name)
+                let is_already_pointer = ctx.current_ref_params.contains(name)
                     || ctx.current_variadic_params.contains_key(name);
                 if is_already_pointer {
                     // Already a pointer - just emit the name
@@ -1518,7 +1518,7 @@ fn emit_arg_with_param_type(
             } else {
                 // Field access like self.type_names - need &(self->field) or &(var.field)
                 // Check if base is a mut param (pointer) or regular variable
-                let base_is_pointer = ctx.current_mut_params.contains(name);
+                let base_is_pointer = ctx.current_ref_params.contains(name);
                 output.push_str("&");
                 output.push_str(&til_name(name));
                 for (i, param) in arg.params.iter().enumerate() {
@@ -2534,12 +2534,12 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     ctx.current_throw_types = func_def.throw_types.clone();
     ctx.current_return_types = func_def.return_types.clone();
     // Track mut params for pointer dereference (-> vs .)
-    ctx.current_mut_params.clear();
+    ctx.current_ref_params.clear();
     // Track variadic params - they're passed as til_Array* so need dereference
     ctx.current_variadic_params.clear();
     for arg in &func_def.args {
         if arg.is_mut {
-            ctx.current_mut_params.insert(arg.name.clone());
+            ctx.current_ref_params.insert(arg.name.clone());
         }
         if let ValueType::TMulti(elem_type) = &arg.value_type {
             // elem_type is the type name string like "Bool"
@@ -2783,12 +2783,12 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 ctx.current_throw_types = func_def.throw_types.clone();
                 ctx.current_return_types = func_def.return_types.clone();
                 // Track mut params for pointer dereference (-> vs .)
-                ctx.current_mut_params.clear();
+                ctx.current_ref_params.clear();
                 // Track variadic params - they're passed as til_Array* so need dereference
                 ctx.current_variadic_params.clear();
                 for arg in &func_def.args {
                     if arg.is_mut {
-                        ctx.current_mut_params.insert(arg.name.clone());
+                        ctx.current_ref_params.insert(arg.name.clone());
                     }
                     if let ValueType::TMulti(elem_type) = &arg.value_type {
                         // elem_type is the type name string like "Bool"
@@ -2922,10 +2922,10 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
                 }
             }
             // Regular identifier or field access (b.val -> til_b.val)
-            // For mut params (which are pointers in C), use -> for field access
-            let is_mut_param = ctx.current_mut_params.contains(name);
-            if is_mut_param && !expr.params.is_empty() {
-                // Mut param with field access: til_self->field1.field2.field3
+            // For ref params (which are pointers in C), use -> for field access
+            let is_ref_param = ctx.current_ref_params.contains(name);
+            if is_ref_param && !expr.params.is_empty() {
+                // Ref param with field access: til_self->field1.field2.field3
                 // First field uses -> (self is a pointer), rest use . (struct values)
                 output.push_str(&til_name(name));
                 for (i, param) in expr.params.iter().enumerate() {
@@ -2938,8 +2938,8 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
                         output.push_str(field);
                     }
                 }
-            } else if is_mut_param {
-                // Mut param used as value: dereference with *
+            } else if is_ref_param {
+                // Ref param used as value: dereference with *
                 output.push_str("(*");
                 output.push_str(&til_name(name));
                 output.push_str(")");
@@ -3332,7 +3332,7 @@ fn emit_variadic_call(
         .ok_or_else(|| "emit_variadic_call: could not get function name".to_string())?;
 
     // Calculate param info for mut param handling
-    let param_is_mut: Vec<bool> = {
+    let param_by_ref: Vec<bool> = {
         let func_def = get_fcall_func_def(context, fcall);
         fcall.params.iter().skip(1).enumerate()
             .map(|(i, _)| func_def.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
@@ -3381,8 +3381,8 @@ fn emit_variadic_call(
             if i > 0 {
                 output.push_str(", ");
             }
-            let is_mut = param_is_mut.get(i).copied().unwrap_or(false);
-            emit_arg_with_mut(arg, i, &hoisted, is_mut, output, ctx, context)?;
+            let by_ref = param_by_ref.get(i).copied().unwrap_or(false);
+            emit_arg_with_mut(arg, i, &hoisted, by_ref, output, ctx, context)?;
         }
 
         // Emit variadic array pointer
@@ -3421,8 +3421,8 @@ fn emit_variadic_call(
             if i > 0 {
                 output.push_str(", ");
             }
-            let is_mut = param_is_mut.get(i).copied().unwrap_or(false);
-            emit_arg_with_mut(arg, i, &hoisted, is_mut, output, ctx, context)?;
+            let by_ref = param_by_ref.get(i).copied().unwrap_or(false);
+            emit_arg_with_mut(arg, i, &hoisted, by_ref, output, ctx, context)?;
         }
 
         // Emit variadic array pointer
@@ -3446,8 +3446,8 @@ fn emit_variadic_call(
             if i > 0 {
                 output.push_str(", ");
             }
-            let is_mut = param_is_mut.get(i).copied().unwrap_or(false);
-            emit_arg_with_mut(arg, i, &hoisted, is_mut, output, ctx, context)?;
+            let by_ref = param_by_ref.get(i).copied().unwrap_or(false);
+            emit_arg_with_mut(arg, i, &hoisted, by_ref, output, ctx, context)?;
         }
 
         // Emit variadic array pointer
@@ -3470,24 +3470,24 @@ fn emit_variadic_call(
     Ok(())
 }
 
-/// Helper to emit an argument with mut parameter handling
+/// Helper to emit an argument with by-ref parameter handling
 fn emit_arg_with_mut(
     arg: &Expr,
     idx: usize,
     hoisted: &std::collections::HashMap<usize, String>,
-    is_mut: bool,
+    by_ref: bool,
     output: &mut String,
     ctx: &mut CodegenContext,
     context: &mut Context,
 ) -> Result<(), String> {
     if let Some(temp_var) = hoisted.get(&idx) {
         // Use hoisted temp var
-        if is_mut {
+        if by_ref {
             output.push_str("&");
         }
         output.push_str(temp_var);
-    } else if is_mut {
-        // Mut param - emit as pointer
+    } else if by_ref {
+        // By-ref param - emit as pointer
         output.push_str("&");
         emit_expr(arg, output, 0, ctx, context)?;
     } else {
@@ -3536,8 +3536,8 @@ fn emit_throwing_call(
             .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
             .collect()
     };
-    // Calculate param_is_mut for pointer passing
-    let param_is_mut: Vec<bool> = {
+    // Calculate param_by_ref for pointer passing
+    let param_by_ref: Vec<bool> = {
         fcall.params.iter().skip(1).enumerate()
             .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
             .collect()
@@ -3659,8 +3659,8 @@ fn emit_throwing_call(
                 output.push_str(", ");
             }
             let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-            let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
-            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
+            let by_ref = param_by_ref.get(arg_idx).copied().unwrap_or(false);
+            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, by_ref, output, ctx, context)?;
         }
 
         // Emit variadic array pointer
@@ -3680,8 +3680,8 @@ fn emit_throwing_call(
             }
             // Get parameter type and mutability for this argument
             let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-            let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
-            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
+            let by_ref = param_by_ref.get(arg_idx).copied().unwrap_or(false);
+            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, by_ref, output, ctx, context)?;
             args_started = true;
         }
     }
@@ -3715,7 +3715,7 @@ fn emit_throwing_call(
         if let Some(dot_pos) = var_name.find('.') {
             let base = &var_name[..dot_pos];
             let rest = &var_name[dot_pos + 1..];
-            if ctx.current_mut_params.contains(base) {
+            if ctx.current_ref_params.contains(base) {
                 // Mut param field access: til_self->field
                 output.push_str(&til_name(base));
                 output.push_str("->");
@@ -3723,7 +3723,7 @@ fn emit_throwing_call(
             } else {
                 output.push_str(&til_name(var_name));
             }
-        } else if ctx.current_mut_params.contains(var_name) {
+        } else if ctx.current_ref_params.contains(var_name) {
             // Direct assignment to mut param: *til_var = value
             output.push_str("*");
             output.push_str(&til_name(var_name));
@@ -3839,8 +3839,8 @@ fn emit_throwing_call_propagate(
             .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
             .collect()
     };
-    // Calculate param_is_mut for pointer passing
-    let param_is_mut: Vec<bool> = {
+    // Calculate param_by_ref for pointer passing
+    let param_by_ref: Vec<bool> = {
         fcall.params.iter().skip(1).enumerate()
             .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
             .collect()
@@ -3960,8 +3960,8 @@ fn emit_throwing_call_propagate(
                 output.push_str(", ");
             }
             let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-            let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
-            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
+            let by_ref = param_by_ref.get(arg_idx).copied().unwrap_or(false);
+            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, by_ref, output, ctx, context)?;
         }
 
         // Emit variadic array pointer
@@ -3981,8 +3981,8 @@ fn emit_throwing_call_propagate(
             }
             // Get parameter type and mutability for this argument
             let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-            let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
-            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
+            let by_ref = param_by_ref.get(arg_idx).copied().unwrap_or(false);
+            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, by_ref, output, ctx, context)?;
             args_started = true;
         }
     }
@@ -4038,7 +4038,7 @@ fn emit_throwing_call_propagate(
         if let Some(dot_pos) = var_name.find('.') {
             let base = &var_name[..dot_pos];
             let rest = &var_name[dot_pos + 1..];
-            if ctx.current_mut_params.contains(base) {
+            if ctx.current_ref_params.contains(base) {
                 // Mut param field access: til_self->field
                 output.push_str(&til_name(base));
                 output.push_str("->");
@@ -4046,7 +4046,7 @@ fn emit_throwing_call_propagate(
             } else {
                 output.push_str(&til_name(var_name));
             }
-        } else if ctx.current_mut_params.contains(var_name) {
+        } else if ctx.current_ref_params.contains(var_name) {
             // Direct assignment to mut param: *til_var = value
             output.push_str("*");
             output.push_str(&til_name(var_name));
@@ -4095,13 +4095,13 @@ fn emit_throwing_call_with_goto(
         .unwrap_or(false);
     let needs_ret = func_has_return && (decl_name.is_some() || assign_name.is_some());
 
-    // Calculate param_types and param_is_mut
+    // Calculate param_types and param_by_ref
     let param_types: Vec<Option<ValueType>> = {
         fcall.params.iter().skip(1).enumerate()
             .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
             .collect()
     };
-    let param_is_mut: Vec<bool> = {
+    let param_by_ref: Vec<bool> = {
         fcall.params.iter().skip(1).enumerate()
             .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
             .collect()
@@ -4223,8 +4223,8 @@ fn emit_throwing_call_with_goto(
             output.push_str(", ");
         }
         let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-        let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
-        emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
+        let by_ref = param_by_ref.get(arg_idx).copied().unwrap_or(false);
+        emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, by_ref, output, ctx, context)?;
         args_started = true;
     }
 
@@ -4303,7 +4303,7 @@ fn emit_throwing_call_with_goto(
         if let Some(dot_pos) = var_name.find('.') {
             let base = &var_name[..dot_pos];
             let rest = &var_name[dot_pos + 1..];
-            if ctx.current_mut_params.contains(base) {
+            if ctx.current_ref_params.contains(base) {
                 // Mut param field access: til_self->field
                 output.push_str(&til_name(base));
                 output.push_str("->");
@@ -4311,7 +4311,7 @@ fn emit_throwing_call_with_goto(
             } else {
                 output.push_str(&til_name(var_name));
             }
-        } else if ctx.current_mut_params.contains(var_name) {
+        } else if ctx.current_ref_params.contains(var_name) {
             // Direct assignment to mut param: *til_var = value
             output.push_str("*");
             output.push_str(&til_name(var_name));
@@ -4358,7 +4358,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 let prev_throw_types = std::mem::take(&mut ctx.current_throw_types);
                 let prev_return_types = std::mem::take(&mut ctx.current_return_types);
                 let prev_declared_vars = std::mem::take(&mut ctx.declared_vars);
-                let prev_mut_params = std::mem::take(&mut ctx.current_mut_params);
+                let prev_mut_params = std::mem::take(&mut ctx.current_ref_params);
                 let prev_variadic_params = std::mem::take(&mut ctx.current_variadic_params);
                 let prev_function_name = ctx.current_function_name.clone();
                 let prev_mangling_counter = ctx.mangling_counter;
@@ -4371,7 +4371,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 // Track mut and variadic params
                 for arg in &func_def.args {
                     if arg.is_mut {
-                        ctx.current_mut_params.insert(arg.name.clone());
+                        ctx.current_ref_params.insert(arg.name.clone());
                     }
                     if let ValueType::TMulti(elem_type) = &arg.value_type {
                         ctx.current_variadic_params.insert(arg.name.clone(), til_name(elem_type));
@@ -4419,7 +4419,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 ctx.current_throw_types = prev_throw_types;
                 ctx.current_return_types = prev_return_types;
                 ctx.declared_vars = prev_declared_vars;
-                ctx.current_mut_params = prev_mut_params;
+                ctx.current_ref_params = prev_mut_params;
                 ctx.current_variadic_params = prev_variadic_params;
                 ctx.current_function_name = prev_function_name;
                 ctx.mangling_counter = prev_mangling_counter;
@@ -4858,7 +4858,7 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
     if let Some(dot_pos) = name.find('.') {
         let base = &name[..dot_pos];
         let rest = &name[dot_pos + 1..];
-        if ctx.current_mut_params.contains(base) {
+        if ctx.current_ref_params.contains(base) {
             // Mut param field access: til_self->field
             output.push_str(&til_name(base));
             output.push_str("->");
@@ -4866,7 +4866,7 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
         } else {
             output.push_str(&til_name(name));
         }
-    } else if ctx.current_mut_params.contains(name) {
+    } else if ctx.current_ref_params.contains(name) {
         // Direct assignment to mut param: *til_self = value
         output.push_str("*");
         output.push_str(&til_name(name));
@@ -5346,10 +5346,10 @@ fn emit_fcall_with_hoisted(
     output.push_str(&func_name);
     output.push_str("(");
 
-    // Look up param types for mut handling
+    // Look up param types for by-ref handling
     let param_info: Vec<ParamTypeInfo> = {
         if let Some(fd) = get_fcall_func_def(context, expr) {
-            fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), is_mut: a.is_mut }).collect()
+            fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), by_ref: a.is_mut }).collect()
         } else {
             Vec::new()
         }
@@ -5365,10 +5365,10 @@ fn emit_fcall_with_hoisted(
             output.push_str(&type_name);
             output.push_str("\"");
         } else if !param_info.is_empty() {
-            let (param_type, is_mut) = param_info.get(i)
-                .map(|info| (info.value_type.as_ref(), info.is_mut))
+            let (param_type, by_ref) = param_info.get(i)
+                .map(|info| (info.value_type.as_ref(), info.by_ref))
                 .unwrap_or((None, false));
-            emit_arg_with_param_type(arg, i, hoisted, param_type, is_mut, output, ctx, context)?;
+            emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)?;
         } else {
             emit_arg_or_hoisted(arg, i, hoisted, output, ctx, context)?;
         }
@@ -5606,10 +5606,10 @@ struct CatchLabelInfoEntry {
     temp_var: String,       // Temp variable holding the thrown value
 }
 
-// Info about a function parameter's type and mutability
+// Info about a function parameter's type and whether passed by reference
 struct ParamTypeInfo {
     value_type: Option<ValueType>,
-    is_mut: bool,
+    by_ref: bool,
 }
 
 // Info about a struct member with a throwing default value
@@ -6641,10 +6641,10 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 }
             } else {
                 // Regular non-variadic function call
-                // Look up function to get parameter info (is_mut flags)
-                // For ext_func, don't pass mut params by reference (mut is just documentation)
+                // Look up function to get parameter info (by_ref flags)
+                // For ext_func, don't pass by-ref params by reference (mut is just documentation)
                 let (param_info, is_ext_func): (Vec<ParamTypeInfo>, bool) = if let Some(fd) = get_fcall_func_def(context, expr) {
-                    (fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), is_mut: a.is_mut }).collect(), fd.is_ext())
+                    (fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), by_ref: a.is_mut }).collect(), fd.is_ext())
                 } else {
                     (Vec::new(), false)
                 };
@@ -6661,12 +6661,12 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         output.push_str(&type_name);
                         output.push_str("\"");
                     } else if !param_info.is_empty() {
-                        let (param_type, is_mut) = param_info.get(i)
-                            .map(|info| (info.value_type.as_ref(), info.is_mut))
+                        let (param_type, by_ref) = param_info.get(i)
+                            .map(|info| (info.value_type.as_ref(), info.by_ref))
                             .unwrap_or((None, false));
-                        // For ext_func, don't treat mut as pass-by-reference
-                        let effective_is_mut = is_mut && !is_ext_func;
-                        emit_arg_with_param_type(arg, i, &hoisted, param_type, effective_is_mut, output, ctx, context)?;
+                        // For ext_func, don't treat by-ref as pass-by-reference
+                        let effective_by_ref = by_ref && !is_ext_func;
+                        emit_arg_with_param_type(arg, i, &hoisted, param_type, effective_by_ref, output, ctx, context)?;
                     } else {
                         emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
                     }

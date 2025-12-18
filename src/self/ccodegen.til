@@ -31,11 +31,11 @@ CatchLabelInfoEntry := struct {
     mut catch_block: Expr = Expr()
 }
 
-// Info about a function parameter's type and mutability
+// Info about a function parameter's type and whether passed by reference
 ParamTypeInfo := struct {
     mut value_type: ValueType = ValueType.TCustom("")  // Placeholder when has_type is false
     mut has_type: Bool = false   // Whether value_type is set (replaces Option<ValueType>)
-    mut is_mut: Bool = false
+    mut by_ref: Bool = false
 }
 
 // Info about a struct member with a throwing default value
@@ -69,8 +69,8 @@ CodegenContext := struct {
     mut current_return_types: Vec = Vec.new(ValueType)
     // Set of declared variable names in current function (to avoid redefinition)
     mut declared_vars: Set = Set.new(Str)
-    // Set of mut param names in current function - for using -> instead of . for field access
-    mut current_mut_params: Vec = Vec.new(Str)
+    // Set of by-ref param names in current function - for using -> instead of . for field access
+    mut current_ref_params: Vec = Vec.new(Str)
     // Map of variadic param names to their element type (e.g., "args" -> "til_Bool")
     // Passed as til_Array* so need dereference, and need type info for Array.get casting
     mut current_variadic_params: Map = Map.new(Str, Str)
@@ -2338,7 +2338,7 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             ctx.current_throw_types = func_def.throw_types
                             ctx.current_return_types = func_def.return_types
                             // Track mut params for pointer dereference (-> vs .)
-                            ctx.current_mut_params = Vec.new(Str)
+                            ctx.current_ref_params = Vec.new(Str)
                             // Track variadic params - they're passed as til_Array* so need dereference
                             ctx.current_variadic_params = Map.new(Str, Str)
                             mut arg_idx := 0
@@ -2346,7 +2346,7 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                                 mut arg := Declaration()
                                 func_def.args.get(arg_idx, arg)
                                 if arg.is_mut {
-                                    ctx.current_mut_params.push(arg.name)
+                                    ctx.current_ref_params.push(arg.name)
                                 }
                                 switch arg.value_type {
                                 case ValueType.TMulti(elem_type_name):
@@ -2408,7 +2408,7 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             // Clear current function context
                             ctx.current_throw_types = Vec.new(ValueType)
                             ctx.current_return_types = Vec.new(ValueType)
-                            ctx.current_mut_params = Vec.new(Str)
+                            ctx.current_ref_params = Vec.new(Str)
                             catch (err: AllocError) { throw err.msg }
                         }
                     case:
@@ -2867,7 +2867,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 ctx.current_throw_types = func_def.throw_types
                 ctx.current_return_types = func_def.return_types
                 // Track mut params for pointer dereference (-> vs .)
-                ctx.current_mut_params = Vec.new(Str)
+                ctx.current_ref_params = Vec.new(Str)
                 // Track variadic params - they're passed as til_Array* so need dereference
                 ctx.current_variadic_params = Map.new(Str, Str)
 
@@ -2881,7 +2881,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                     func_def.args.get(arg_idx, arg)
                     // Track mut params
                     if arg.is_mut {
-                        ctx.current_mut_params.push(arg.name)
+                        ctx.current_ref_params.push(arg.name)
                     }
                     switch arg.value_type {
                     case ValueType.TMulti(elem_type_name):
@@ -2961,16 +2961,16 @@ emit_arg_or_hoisted := proc(arg: Expr, arg_idx: I64, hoisted: Map, output: Str, 
     return emit_arg_with_param_type(arg, arg_idx, hoisted, no_param_type, false, false, output, ctx, context)
 }
 
-/// Emit an argument with knowledge of expected parameter type and mutability
-/// Handles: Type args as string literals, Dynamic args with &, mut args with &
-emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_type: ValueType, has_param_type: Bool, param_is_mut: Bool, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+/// Emit an argument with knowledge of expected parameter type and by-ref flag
+/// Handles: Type args as string literals, Dynamic args with &, by-ref args with &
+emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_type: ValueType, has_param_type: Bool, param_by_ref: Bool, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
 
     // Check if hoisted temp var exists for this arg index
     mut idx_str := I64.to_str(arg_idx)
     if hoisted.contains_key(idx_str) {
-        // Hoisted temp var is an lvalue - add & if param is Dynamic or mut
-        if param_is_mut {
+        // Hoisted temp var is an lvalue - add & if param is Dynamic or by-ref
+        if param_by_ref {
             result = result.concat("&")
         } else if has_param_type {
             switch param_type {
@@ -3015,7 +3015,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                 // - mut params are passed as pointers
                 // - variadic params are passed as Array pointers
                 // - Dynamic params are already void* (no need to take address)
-                mut is_already_pointer := ctx.current_mut_params.contains(name).or(Map.contains_key(ctx.current_variadic_params, name))
+                mut is_already_pointer := ctx.current_ref_params.contains(name).or(Map.contains_key(ctx.current_variadic_params, name))
                 // Also check if the symbol is a Dynamic-typed parameter
                 if not(is_already_pointer) {
                     mut sym := context.scope_stack.lookup_symbol(name)
@@ -3039,7 +3039,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
             } else {
                 // Field access like member.name - need (til_Dynamic*)&(var.field)
                 // Check if base is a mut param (pointer) or regular variable
-                mut base_is_pointer := ctx.current_mut_params.contains(name)
+                mut base_is_pointer := ctx.current_ref_params.contains(name)
                 result = result.concat("(").concat(TIL_PREFIX).concat("Dynamic*)&").concat(til_name(name))
                 mut param_idx := 0
                 for param: Expr in arg.params {
@@ -3081,13 +3081,13 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
     }
 
     // Check if param is mut (but not Dynamic) - emit &arg for pointer
-    if param_is_mut {
+    if param_by_ref {
         switch arg.node_type {
         case NodeType.Identifier(name):
             if arg.params.len().eq(0) {
                 // Check if this identifier is already a mut param (already a pointer)
                 // or a variadic param (also a pointer) - don't add & again
-                mut is_already_pointer := ctx.current_mut_params.contains(name).or(Map.contains_key(ctx.current_variadic_params, name))
+                mut is_already_pointer := ctx.current_ref_params.contains(name).or(Map.contains_key(ctx.current_variadic_params, name))
                 if is_already_pointer {
                     // Already a pointer - just emit the name
                     result = result.concat(til_name(name))
@@ -3099,7 +3099,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
             } else {
                 // Field access like self.type_names - need &(self->field) or &(var.field)
                 // Check if base is a mut param (pointer) or regular variable
-                mut base_is_pointer := ctx.current_mut_params.contains(name)
+                mut base_is_pointer := ctx.current_ref_params.contains(name)
                 result = result.concat("&").concat(til_name(name))
                 mut i := 0
                 while lt(i, arg.params.len()) {
@@ -3242,15 +3242,15 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: Str, mut ctx: 
         } else if func_lookup.found {
             mut param_type := ValueType.TCustom("")  // Empty TCustom represents None
             mut has_param_type := false
-            mut is_mut := false
+            mut by_ref := false
             if lt(i, func_lookup.func_def.args.len()) {
                 mut arg_def := Declaration()
                 func_lookup.func_def.args.get(i, arg_def)
                 param_type = arg_def.value_type
                 has_param_type = true
-                is_mut = arg_def.is_mut
+                by_ref = arg_def.is_mut
             }
-            result = emit_arg_with_param_type(arg, i, hoisted, param_type, has_param_type, is_mut, result, ctx, context)
+            result = emit_arg_with_param_type(arg, i, hoisted, param_type, has_param_type, by_ref, result, ctx, context)
         } else {
             result = emit_arg_or_hoisted(arg, i, hoisted, result, ctx, context)
         }
@@ -4209,10 +4209,10 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
             catch (err: AllocError) { throw err.msg }
         }
         // Regular identifier or field access (b.val -> til_b.val)
-        // For mut params (which are pointers in C), use -> for field access
-        mut is_mut_param := ctx.current_mut_params.contains(name)
-        if is_mut_param.and(gt(expr.params.len(), 0)) {
-            // Mut param with field access: til_self->field1.field2.field3
+        // For ref params (which are pointers in C), use -> for field access
+        mut is_ref_param := ctx.current_ref_params.contains(name)
+        if is_ref_param.and(gt(expr.params.len(), 0)) {
+            // Ref param with field access: til_self->field1.field2.field3
             // First field uses -> (self is a pointer), rest use . (struct values)
             mut result := concat(output, til_name(name))
             mut i := 0
@@ -4234,8 +4234,8 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
             }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             return result
-        } else if is_mut_param {
-            // Mut param used as value: dereference with *
+        } else if is_ref_param {
+            // Ref param used as value: dereference with *
             mut result := concat(output, "(*")
             result = result.concat(til_name(name))
             result = result.concat(")")
@@ -4773,19 +4773,19 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
     }
 
     // Calculate param info for mut param handling
-    mut param_is_mut := Vec.new(Bool)
+    mut param_by_ref := Vec.new(Bool)
     mut lookup_result := get_fcall_func_def(context, fcall)
     mut pi := 0
     while lt(pi, sub(fcall.params.len(), 1)) {
-        mut is_mut := false
+        mut by_ref := false
         if lookup_result.found {
             if lt(pi, lookup_result.func_def.args.len()) {
                 mut arg_decl := Declaration()
                 lookup_result.func_def.args.get(pi, arg_decl)
-                is_mut = arg_decl.is_mut
+                by_ref = arg_decl.is_mut
             }
         }
-        param_is_mut.push(is_mut)
+        param_by_ref.push(by_ref)
         pi = add(pi, 1)
     }
 
@@ -4856,10 +4856,10 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             if gt(rai, 0) {
                 result = result.concat(", ")
             }
-            mut is_mut := false
-            param_is_mut.get(rai, is_mut)
+            mut by_ref := false
+            param_by_ref.get(rai, by_ref)
             catch (err: IndexOutOfBoundsError) { }
-            result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, is_mut, result, ctx, context)
+            result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, by_ref, result, ctx, context)
             rai = add(rai, 1)
         }
 
@@ -4898,10 +4898,10 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 if gt(rai, 0) {
                     result = result.concat(", ")
                 }
-                mut is_mut := false
-                param_is_mut.get(rai, is_mut)
+                mut by_ref := false
+                param_by_ref.get(rai, by_ref)
                 catch (err: IndexOutOfBoundsError) { }
-                result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, is_mut, result, ctx, context)
+                result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, by_ref, result, ctx, context)
                 rai = add(rai, 1)
             }
 
@@ -4925,10 +4925,10 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 if gt(rai, 0) {
                     result = result.concat(", ")
                 }
-                mut is_mut := false
-                param_is_mut.get(rai, is_mut)
+                mut by_ref := false
+                param_by_ref.get(rai, by_ref)
                 catch (err: IndexOutOfBoundsError) { }
-                result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, is_mut, result, ctx, context)
+                result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, by_ref, result, ctx, context)
                 rai = add(rai, 1)
             }
 
@@ -4955,8 +4955,8 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
     return result
 }
 
-/// Helper to emit an argument with mut parameter handling
-emit_arg_with_mut := proc(fcall: Expr, arg_idx: I64, hoisted: Map, is_mut: Bool, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+/// Helper to emit an argument with by-ref parameter handling
+emit_arg_with_mut := proc(fcall: Expr, arg_idx: I64, hoisted: Map, by_ref: Bool, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
 
     // Check if this arg was hoisted
@@ -4968,7 +4968,7 @@ emit_arg_with_mut := proc(fcall: Expr, arg_idx: I64, hoisted: Map, is_mut: Bool,
 
     if was_hoisted {
         // Use hoisted temp var
-        if is_mut {
+        if by_ref {
             result = result.concat("&")
         }
         result = result.concat(hoisted_var)
@@ -4976,7 +4976,7 @@ emit_arg_with_mut := proc(fcall: Expr, arg_idx: I64, hoisted: Map, is_mut: Bool,
         // Emit the argument expression
         mut arg := Expr()
         fcall.params.get(arg_idx, arg)
-        if is_mut {
+        if by_ref {
             result = result.concat("&")
         }
         result = emit_expr(arg, result, 0, ctx, context)
@@ -5051,23 +5051,23 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     catch (err: IndexOutOfBoundsError) { }
     catch (err: AllocError) { throw "emit_throwing_call: AllocError in param_types" }
 
-    // Calculate param_is_mut for pointer passing
-    mut param_is_mut := Vec.new(Bool)
+    // Calculate param_by_ref for pointer passing
+    mut param_by_ref := Vec.new(Bool)
     func_def_lookup = context.scope_stack.lookup_func(func_name)
     arg_i = 0
     while lt(arg_i, sub(fcall.params.len(), 1)) {
         if lt(arg_i, func_def_lookup.args.len()) {
             mut arg_decl := Declaration()
             func_def_lookup.args.get(arg_i, arg_decl)
-            param_is_mut.push(arg_decl.is_mut)
+            param_by_ref.push(arg_decl.is_mut)
         } else {
-            param_is_mut.push(false)
+            param_by_ref.push(false)
         }
         arg_i = add(arg_i, 1)
     }
     catch (err: KeyNotFoundError) { }
     catch (err: IndexOutOfBoundsError) { }
-    catch (err: AllocError) { throw "emit_throwing_call: AllocError in param_is_mut" }
+    catch (err: AllocError) { throw "emit_throwing_call: AllocError in param_by_ref" }
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
     mut hoisted := Map.new(I64, Str)
@@ -5234,7 +5234,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
             // Get param type and mutability for this argument
             mut is_dynamic_param := false
-            mut is_mut := false
+            mut by_ref := false
             if lt(arg_idx, param_types.len()) {
                 mut pt := ValueType.TCustom("")
                 param_types.get(arg_idx, pt)
@@ -5246,8 +5246,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                 case:
                 }
             }
-            if lt(arg_idx, param_is_mut.len()) {
-                param_is_mut.get(arg_idx, is_mut)
+            if lt(arg_idx, param_by_ref.len()) {
+                param_by_ref.get(arg_idx, by_ref)
             }
 
             if found_hoisted {
@@ -5255,7 +5255,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             } else if is_dynamic_param {
                 result = result.concat("(til_Dynamic*)&")
                 result = emit_expr(arg, result, 0, ctx, context)
-            } else if is_mut {
+            } else if by_ref {
                 result = result.concat("&")
                 result = emit_expr(arg, result, 0, ctx, context)
             } else {
@@ -5392,7 +5392,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             if dot_pos.gteq(0) {
                 mut base := assign_name.get_substr(0, dot_pos)
                 mut rest := assign_name.get_substr(add(dot_pos, 1), assign_name.len())
-                if ctx.current_mut_params.contains(base) {
+                if ctx.current_ref_params.contains(base) {
                     // Mut param field access: til_self->field
                     result = result.concat(til_name(base))
                     result = result.concat("->")
@@ -5401,7 +5401,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                     result = result.concat(til_name(assign_name))
                 }
             } else {
-                if ctx.current_mut_params.contains(assign_name) {
+                if ctx.current_ref_params.contains(assign_name) {
                     // Direct assignment to mut param: *til_var = value
                     result = result.concat("*")
                     result = result.concat(til_name(assign_name))
@@ -5576,23 +5576,23 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     catch (err: IndexOutOfBoundsError) { }
     catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in param_types" }
 
-    // Calculate param_is_mut for pointer passing
-    mut param_is_mut := Vec.new(Bool)
+    // Calculate param_by_ref for pointer passing
+    mut param_by_ref := Vec.new(Bool)
     func_def_lookup = context.scope_stack.lookup_func(func_name)
     arg_i = 0
     while lt(arg_i, sub(fcall.params.len(), 1)) {
         if lt(arg_i, func_def_lookup.args.len()) {
             mut arg_decl := Declaration()
             func_def_lookup.args.get(arg_i, arg_decl)
-            param_is_mut.push(arg_decl.is_mut)
+            param_by_ref.push(arg_decl.is_mut)
         } else {
-            param_is_mut.push(false)
+            param_by_ref.push(false)
         }
         arg_i = add(arg_i, 1)
     }
     catch (err: KeyNotFoundError) { }
     catch (err: IndexOutOfBoundsError) { }
-    catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in param_is_mut" }
+    catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in param_by_ref" }
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
     mut hoisted := Map.new(I64, Str)
@@ -5939,7 +5939,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             if dot_pos.gteq(0) {
                 mut base := assign_name.get_substr(0, dot_pos)
                 mut rest := assign_name.get_substr(add(dot_pos, 1), assign_name.len())
-                if ctx.current_mut_params.contains(base) {
+                if ctx.current_ref_params.contains(base) {
                     // Mut param field access: til_self->field
                     result = result.concat(til_name(base))
                     result = result.concat("->")
@@ -5948,7 +5948,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
                     result = result.concat(til_name(assign_name))
                 }
             } else {
-                if ctx.current_mut_params.contains(assign_name) {
+                if ctx.current_ref_params.contains(assign_name) {
                     // Direct assignment to mut param: *til_var = value
                     result = result.concat("*")
                     result = result.concat(til_name(assign_name))
@@ -6032,23 +6032,23 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     catch (err: IndexOutOfBoundsError) { }
     catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in param_types" }
 
-    // Calculate param_is_mut for pointer passing
-    mut param_is_mut := Vec.new(Bool)
+    // Calculate param_by_ref for pointer passing
+    mut param_by_ref := Vec.new(Bool)
     func_def_lookup = context.scope_stack.lookup_func(func_name)
     arg_i = 0
     while lt(arg_i, sub(fcall.params.len(), 1)) {
         if lt(arg_i, func_def_lookup.args.len()) {
             mut arg_decl := Declaration()
             func_def_lookup.args.get(arg_i, arg_decl)
-            param_is_mut.push(arg_decl.is_mut)
+            param_by_ref.push(arg_decl.is_mut)
         } else {
-            param_is_mut.push(false)
+            param_by_ref.push(false)
         }
         arg_i = add(arg_i, 1)
     }
     catch (err: KeyNotFoundError) { }
     catch (err: IndexOutOfBoundsError) { }
-    catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in param_is_mut" }
+    catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in param_by_ref" }
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
     mut hoisted := Map.new(I64, Str)
@@ -6386,7 +6386,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             if dot_pos.gteq(0) {
                 mut base := assign_name.get_substr(0, dot_pos)
                 mut rest := assign_name.get_substr(add(dot_pos, 1), assign_name.len())
-                if ctx.current_mut_params.contains(base) {
+                if ctx.current_ref_params.contains(base) {
                     // Mut param field access: til_self->field
                     result = result.concat(til_name(base))
                     result = result.concat("->")
@@ -6395,7 +6395,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
                     result = result.concat(til_name(assign_name))
                 }
             } else {
-                if ctx.current_mut_params.contains(assign_name) {
+                if ctx.current_ref_params.contains(assign_name) {
                     // Direct assignment to mut param: *til_var = value
                     result = result.concat("*")
                     result = result.concat(til_name(assign_name))
@@ -6775,7 +6775,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 // Save and set context for nested function
                 mut saved_throw_types := ctx.current_throw_types
                 mut saved_return_types := ctx.current_return_types
-                mut saved_mut_params := ctx.current_mut_params
+                mut saved_mut_params := ctx.current_ref_params
                 mut saved_variadic_params := ctx.current_variadic_params
                 mut saved_declared_vars := ctx.declared_vars
                 mut saved_function_name := ctx.current_function_name
@@ -6783,7 +6783,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 ctx.current_throw_types = func_def.throw_types
                 ctx.current_return_types = func_def.return_types
                 ctx.current_function_name = mangled_name
-                ctx.current_mut_params = Vec.new(Str)
+                ctx.current_ref_params = Vec.new(Str)
                 ctx.current_variadic_params = Map.new(Str, Str)
                 // Clear declared_vars and hoisted_struct_defaults for new function scope
                 ctx.declared_vars = Set.new(Str)
@@ -6795,7 +6795,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     mut arg := Declaration()
                     func_def.args.get(arg_idx, arg)
                     if arg.is_mut {
-                        ctx.current_mut_params.push(arg.name)
+                        ctx.current_ref_params.push(arg.name)
                     }
                     switch arg.value_type {
                     case ValueType.TMulti(elem_type_name):
@@ -6848,7 +6848,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 // Restore context
                 ctx.current_throw_types = saved_throw_types
                 ctx.current_return_types = saved_return_types
-                ctx.current_mut_params = saved_mut_params
+                ctx.current_ref_params = saved_mut_params
                 ctx.current_variadic_params = saved_variadic_params
                 ctx.declared_vars = saved_declared_vars
                 ctx.current_function_name = saved_function_name
@@ -7384,7 +7384,7 @@ emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx
         mut rest := name.get_substr(add(dot_pos, 1), name.len())
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         catch (err: AllocError) { throw err.msg }
-        if ctx.current_mut_params.contains(base) {
+        if ctx.current_ref_params.contains(base) {
             // Mut param field access: til_self->field
             result = result.concat(til_name(base))
             result = result.concat("->")
@@ -7392,7 +7392,7 @@ emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx
         } else {
             result = result.concat(til_name(name))
         }
-    } else if ctx.current_mut_params.contains(name) {
+    } else if ctx.current_ref_params.contains(name) {
         // Direct assignment to mut param: *til_self = value
         result = result.concat("*")
         result = result.concat(til_name(name))
@@ -7704,9 +7704,9 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
                 // Not a custom type
             }
             catch (err: KeyNotFoundError) { }
-            mut receiver_is_mut_param := ctx.current_mut_params.contains(type_receiver_name)
+            mut receiver_is_ref_param := ctx.current_ref_params.contains(type_receiver_name)
             mut receiver_is_variadic_param := Map.contains_key(ctx.current_variadic_params, type_receiver_name)
-            mut receiver_is_pointer := receiver_is_mut_param.or(receiver_is_variadic_param)
+            mut receiver_is_pointer := receiver_is_ref_param.or(receiver_is_variadic_param)
             mut needs_deref_close := false
             if called_self_is_mut.and(not(receiver_is_pointer)) {
                 // Called function takes mut self, receiver is not a pointer - add &
@@ -8952,7 +8952,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     mut info := ParamTypeInfo()
                     info.value_type = arg_decl.value_type
                     info.has_type = true
-                    info.is_mut = arg_decl.is_mut
+                    info.by_ref = arg_decl.is_mut
                     param_info.push(info)
                     arg_i = arg_i.add(1)
                 }
@@ -8976,7 +8976,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     if lt(arg_idx, param_info.len()) {
                         mut info := ParamTypeInfo()
                         param_info.get(arg_idx, info)
-                        if info.is_mut {
+                        if info.by_ref {
                             // Check if arg is a simple identifier
                             switch arg.node_type {
                             case NodeType.Identifier(arg_name):
