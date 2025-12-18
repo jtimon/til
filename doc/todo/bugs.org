@@ -9,6 +9,101 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #46: Infinite loop in typer.til due to catch catching later throw
+:PROPERTIES:
+:DISCOVERED: 2025-12-18
+:FIXED: 2025-12-18
+:IMPACT: til interpret/run hangs indefinitely
+:STATUS: Fixed
+:END:
+
+*** Description
+When running =./bin/til interpret= or =./bin/til run=, the self-hosted compiler hangs
+in an infinite loop. Debug output shows "struct_found=true" printing infinitely in
+typer.til's struct/enum lookup code.
+
+*** Root Cause
+In typer.til around lines 2500-2520, a catch block catches a throw that comes AFTER it
+lexically, creating an infinite loop:
+
+#+BEGIN_EXAMPLE til
+// typer.til lines ~2500-2520 (approximate)
+struct_def = context.scope_stack.lookup_struct(combined_name)
+struct_found = true
+catch (err: KeyNotFoundError) {  // Line ~2508 - catches lookup_struct errors
+    // Struct not found, continue to enum check
+}
+
+if struct_found {
+    // Line ~2515 - THIS throw gets caught by the catch at line ~2508!
+    throw KeyNotFoundError(msg=format("Struct instantiation: ", combined_name))
+}
+#+END_EXAMPLE
+
+The flow:
+1. lookup_struct throws KeyNotFoundError
+2. Catch at ~2508 handles it, struct_found remains false
+3. Code continues, struct_found is set true later
+4. Throw at ~2515 is caught by the catch at ~2508 (wrong!)
+5. Execution continues after catch, loops back, struct_found=true prints
+6. Infinite loop
+
+*** Expected Behavior
+The throw at line ~2515 should propagate UP to the caller, not be caught by
+the catch at ~2508 which is meant only for lookup_struct errors.
+
+*** Actual Behavior
+The catch block's scope extends beyond just the lookup_struct call, incorrectly
+catching throws that come after it in the source code.
+
+*** Reproducing Test
+src/test/bug46_test.til - Passes with interpreter, fails with compiler:
+#+BEGIN_SRC bash
+./bin/rstil interpret src/test/bug46_test.til  # PASS
+./bin/rstil run src/test/bug46_test.til        # FAIL - Bug #46 present
+#+END_SRC
+
+Self-hosted compiler hangs:
+#+BEGIN_SRC bash
+timeout 30 ./bin/rstil build src/til.til && timeout 10 ./bin/til interpret src/examples/empty.til
+# Times out (exit code 124)
+#+END_SRC
+
+*** Related
+- Bug #34: Code after catch blocks doesn't run in error path (partially fixed)
+- Bug #39: Non-consecutive catches fail (fixed)
+- Bug #44: Codegen missing status check after blocks with catches (fixed)
+
+All these bugs relate to catch block scope/semantics in generated C code.
+
+*** Fix Applied (2025-12-18)
+The issue was in ccodegen's emit_stmts function. When processing catch blocks,
+they were added to =local_catch_labels= at the START of statement processing.
+This meant ALL throws anywhere in the function could jump to ANY catch, even
+catches that appeared BEFORE the throw lexically.
+
+The fix: After emitting a catch block, remove it from =local_catch_labels=.
+This ensures only throws that come BEFORE a catch can use it, mirroring the
+interpreter's behavior where =pending_throw= is set by statements and only
+subsequent catches can handle it.
+
+*Rust* (src/rs/ccodegen.rs lines 3149-3153):
+#+BEGIN_SRC rust
+// Bug #46 fix: Remove this catch from local_catch_labels
+// Catches should only handle throws from BEFORE them, not after.
+ctx.local_catch_labels.remove(err_type_name);
+#+END_SRC
+
+*TIL* (src/self/ccodegen.til lines 4551-4555):
+#+BEGIN_SRC til
+// Bug #46 fix: Remove this catch from local_catch_labels
+ctx.local_catch_labels.remove(err_type_name)
+#+END_SRC
+
+*** Files Modified
+- src/rs/ccodegen.rs: Added removal of catch from local_catch_labels after processing
+- src/self/ccodegen.til: Same fix ported
+
 ** Bug #45: init.til uses invalid fallthrough switch syntax
 :PROPERTIES:
 :DISCOVERED: 2025-12-18

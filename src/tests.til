@@ -554,6 +554,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/branchless.til"))
     rs_common.push(TestEntry(path="src/test/bug41_test.til"))
     rs_common.push(TestEntry(path="src/test/bug43_test.til"))
+    rs_common.push(TestEntry(path="src/test/bug46_test.til"))
     rs_common.push(TestEntry(path="src/test/c_mem.til"))
     rs_common.push(TestEntry(path="src/test/circular_test.til"))
     rs_common.push(TestEntry(path="src/test/clone.til"))

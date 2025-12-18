@@ -3145,6 +3145,12 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                             // Close the if(0) block - execution falls through to code after
                             output.push_str(&indent_str);
                             output.push_str("}\n");
+
+                            // Bug #46 fix: Remove this catch from local_catch_labels
+                            // Catches should only handle throws from BEFORE them, not after.
+                            // This mirrors the interpreter's behavior where pending_throw is
+                            // set by statements and only subsequent catches can handle it.
+                            ctx.local_catch_labels.remove(err_type_name);
                         }
                     }
                 }

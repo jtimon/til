@@ -1,0 +1,113 @@
+mode cli
+
+/**
+ * Bug #46: Catch block catches throw that comes AFTER it
+ *
+ * Expected: The throw at the end should propagate to caller, not be caught
+ * by the earlier catch block.
+ *
+ * Actual: The catch block catches the later throw, causing unexpected behavior.
+ */
+
+KeyNotFoundError := struct {
+    mut msg: Str = ""
+}
+
+maybe_throw := proc(should_throw: Bool) throws KeyNotFoundError {
+    if should_throw {
+        throw KeyNotFoundError(msg="from maybe_throw")
+    }
+}
+
+/**
+ * This pattern mirrors typer.til's problematic code.
+ * The throw inside the if-block should propagate UP to caller,
+ * NOT be caught by the catch block above it.
+ */
+test_catch_scope := proc() throws KeyNotFoundError {
+    mut found := false
+
+    // Call that might throw
+    maybe_throw(true)  // This throws KeyNotFoundError
+    found = true       // Should be skipped when throw happens
+    catch (err: KeyNotFoundError) {
+        // Handle the lookup error - found stays false
+        // This catch is ONLY for the maybe_throw call above
+    }
+
+    // At this point, found should be false (throw happened, caught above)
+    // The throw below should propagate to caller, NOT be caught above
+    if not(found) {
+        // BUG: This throw gets caught by the catch block above!
+        throw KeyNotFoundError(msg="not found - should propagate to caller")
+    }
+}
+
+/** Simpler test - throw after catch should propagate */
+test_throw_after_catch := proc() throws KeyNotFoundError {
+    mut val := 0
+
+    maybe_throw(false)  // Does not throw
+    val = 1
+    catch (err: KeyNotFoundError) {
+        val = 2
+    }
+
+    // val should be 1 here (no error was thrown)
+    // This throw should NOT be caught by the catch above
+    if val.eq(1) {
+        throw KeyNotFoundError(msg="deliberate throw after catch")
+    }
+}
+
+main := proc() {
+    println("Testing Bug #46: Catch scope extends beyond intended statements")
+
+    // Test 1: throw after catch should propagate to this catch
+    mut test1_caught := false
+    mut test1_msg := ""
+
+    test_throw_after_catch()
+    catch (err: KeyNotFoundError) {
+        test1_caught = true
+        test1_msg = err.msg
+    }
+
+    println("Test 1: throw after catch")
+    if test1_caught {
+        if test1_msg.eq("deliberate throw after catch") {
+            println("  PASS: throw propagated correctly to caller")
+        } else {
+            println("  FAIL: wrong message: ", test1_msg)
+            exit(1)
+        }
+    } else {
+        println("  FAIL: Bug #46 - throw was caught by earlier catch block")
+        exit(1)
+    }
+
+    // Test 2: the typer.til pattern
+    mut test2_caught := false
+    mut test2_msg := ""
+
+    test_catch_scope()
+    catch (err: KeyNotFoundError) {
+        test2_caught = true
+        test2_msg = err.msg
+    }
+
+    println("Test 2: typer.til pattern (throw in if-block after catch)")
+    if test2_caught {
+        if test2_msg.eq("not found - should propagate to caller") {
+            println("  PASS: throw propagated correctly to caller")
+        } else {
+            println("  FAIL: wrong message: ", test2_msg)
+            exit(1)
+        }
+    } else {
+        println("  FAIL: Bug #46 - throw was caught by earlier catch block")
+        exit(1)
+    }
+
+    println("All Bug #46 tests passed")
+}

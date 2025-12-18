@@ -1,0 +1,6 @@
+Testing Bug #46: Catch scope extends beyond intended statements
+Test 1: throw after catch
+  PASS: throw propagated correctly to caller
+Test 2: typer.til pattern (throw in if-block after catch)
+  PASS: throw propagated correctly to caller
+All Bug #46 tests passed
