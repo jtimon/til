@@ -576,6 +576,17 @@ add := func(a: I64, b: I64) returns I64 {
 
 IMPORTANT: Do NOT assume ~func~ means "cannot throw". The distinction is purely about purity/side effects.
 
+* Porting Workflow
+
+When porting changes from Rust to TIL:
+
+1. First make and test all changes in the Rust files
+2. Run ~git diff 'src/**/*.rs'~ to see exactly what changed
+3. For each changed file (e.g. ~ccodegen.rs~), apply the same changes to the TIL equivalent (~ccodegen.til~)
+4. Run ~make tests~ to verify the port is correct
+
+The git diff shows exactly what lines changed, making the translation mechanical - just convert the Rust syntax to TIL syntax for each change.
+
 * Summary
 
 The translation is mechanical:
