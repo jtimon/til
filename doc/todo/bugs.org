@@ -9,6 +9,50 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #43: Map.get returns wrong value when Map is field inside struct (rstil interpreter)
+:PROPERTIES:
+:DISCOVERED: 2025-12-18
+:IMPACT: Data corruption in interpreter
+:STATUS: Active
+:END:
+
+*** Description
+When a Map is stored as a field inside a struct, the rstil interpreter's Map.get returns incorrect values (0 instead of actual stored value). The compiled version (rstil run) works correctly.
+
+*** Example Problem
+#+BEGIN_EXAMPLE til
+import("std.map")
+
+Frame := struct {
+    mut funcs: Map = Map.new(Str, I64)
+}
+
+test_map_in_struct := proc() {
+    mut frame := Frame()
+    frame.funcs.insert("test", 42)
+
+    mut val := 0
+    frame.funcs.get("test", val)
+    println("Got value = ", val.to_str())  // BUG: prints 0, should print 42
+}
+#+END_EXAMPLE
+
+*** Test Results
+- =rstil interpret tmp/test_scope_pattern.til= -> val = 0 (WRONG)
+- =rstil run tmp/test_scope_pattern.til= -> val = 42 (CORRECT)
+
+*** Root Cause (Likely)
+The bug is in src/rs/interpreter.rs. When Map.get writes back to the =val= parameter, the field access chain (frame.funcs) is not being resolved correctly, causing the out parameter to write to wrong location or be lost.
+
+This is similar to Bug #24 (struct field access returns copy instead of reference), but specifically affects the interpreter's handling of mut parameters in method calls on struct fields.
+
+*** Reproducing Test
+src/test/bug43_test.til
+
+*** Files to Investigate
+- src/rs/interpreter.rs: Handle mut parameter write-back for struct field method calls
+- src/self/interpreter.til: Same (must match after fix)
+
 ** Bug #42: Temp variable naming inconsistency causes undeclared _tmp_N errors
 :PROPERTIES:
 :DISCOVERED: 2025-12-17

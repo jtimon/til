@@ -1,0 +1,27 @@
+mode test
+
+import("std.map")
+
+// Map inside a struct - this is where the bug manifests
+Frame := struct {
+    mut funcs: Map = Map.new(Str, I64)
+}
+
+test_map_in_struct := proc() {
+    mut frame := Frame()
+    println("1. Created frame, funcs.len = ", frame.funcs.len().to_str())
+
+    frame.funcs.insert("test", 42)
+    println("2. After insert, funcs.len = ", frame.funcs.len().to_str())
+
+    mut val := 0
+    frame.funcs.get("test", val)
+    println("3. Got value = ", val.to_str())  // Bug: interpreter returns 0
+
+    frame.funcs.delete()
+
+    catch (err: AllocError) { println("AllocError: ", err.msg); exit(1) }
+    catch (err: DuplicatedKeyError) { println("DuplicatedKeyError: ", err.msg); exit(1) }
+    catch (err: KeyNotFoundError) { println("KeyNotFoundError: ", err.msg); exit(1) }
+}
+test_map_in_struct()
