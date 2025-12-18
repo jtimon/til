@@ -9,11 +9,70 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #45: init.til uses invalid fallthrough switch syntax
+:PROPERTIES:
+:DISCOVERED: 2025-12-18
+:FIXED: 2025-12-18
+:IMPACT: Functions not registered - til fails with "Undefined symbol 'sub'"
+:STATUS: Fixed
+:END:
+
+*** Description
+init.til incorrectly uses C-style switch fallthrough syntax, which TIL does not support.
+TIL requires each case to have its own body - there is no fallthrough.
+
+This causes functions (FTFunc, FTProc, etc.) to not be registered in init_context, since
+only the FTMacro case has the declare_func call.
+
+*** Wrong TIL Source (init.til lines 1466-1474)
+#+BEGIN_EXAMPLE til
+switch ftype {
+case FunctionType.FTFunc:
+case FunctionType.FTFuncExt:
+case FunctionType.FTProc:
+case FunctionType.FTProcExt:
+case FunctionType.FTMacro:
+    // WRONG: only FTMacro case has the body!
+    context.scope_stack.declare_func(decl.name, func_def)
+}
+#+END_EXAMPLE
+
+*** Correct TIL (bodies must be repeated)
+Per doc/translate_rs2til.org lines 39-50, TIL requires separate case arms:
+#+BEGIN_EXAMPLE til
+switch ftype {
+case FunctionType.FTFunc:
+    context.scope_stack.declare_func(decl.name, func_def)
+case FunctionType.FTFuncExt:
+    context.scope_stack.declare_func(decl.name, func_def)
+case FunctionType.FTProc:
+    context.scope_stack.declare_func(decl.name, func_def)
+case FunctionType.FTProcExt:
+    context.scope_stack.declare_func(decl.name, func_def)
+case FunctionType.FTMacro:
+    context.scope_stack.declare_func(decl.name, func_def)
+}
+#+END_EXAMPLE
+
+*** Root Cause
+Translation error from Rust to TIL. Rust uses | to combine patterns, TIL requires
+repeated bodies. See doc/translate_rs2til.org for the translation rules.
+
+*** Fix Applied (2025-12-18)
+Fixed init.til lines 1465-1511 to repeat the switch body for each FunctionType case:
+- FTFunc, FTFuncExt, FTProc, FTProcExt, FTMacro all now have identical bodies
+- Each case calls declare_symbol and declare_func
+
+Searched all other .til files in src/self/ for similar patterns - none found.
+Other consecutive case patterns are either:
+1. Cases with bodies on same line (e.g., `case X: return "x"`)
+2. Intentional "do nothing" cases with comments (e.g., skip primitives I64/U8/Str)
+
 ** Bug #44: Codegen missing status check for throwing call after block with catches
 :PROPERTIES:
 :DISCOVERED: 2025-12-18
 :IMPACT: Wrong code execution - statements after throwing call run when they shouldn't
-:STATUS: Active
+:STATUS: Fixed
 :END:
 
 *** Description
