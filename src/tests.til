@@ -185,14 +185,15 @@ test_with_cmd := proc(entry: TestEntry, cmd_prefix: Str, fail_label: Str, out_mo
 
     // Check output via diff
     tmp_actual := "gen/out/actual.out"
-    _ := writefile(tmp_actual, format_expected(entry.cmd_args, actual_exit_code, output))
-    mut diff_result := ""
-    _ := diff_result.run_cmd("diff", out_path, tmp_actual)
+    actual_content := format_expected(entry.cmd_args, actual_exit_code, output)
+    _ := writefile(tmp_actual, actual_content)
+    mut diff_u_result := ""
+    _ := diff_u_result.run_cmd("diff", "-u", out_path, tmp_actual)
     mut rm_result := ""
     _ := rm_result.run_cmd("rm", tmp_actual)
-    if not(diff_result.eq("")) {
+    if not(diff_u_result.eq("")) {
         println("FAIL (", fail_label, " output): ", entry.path)
-        println(diff_result)
+        println(diff_u_result)
         return true
     }
 
@@ -604,6 +605,7 @@ main := proc(args: ..Str) {
     rs_compiled.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     rs_compiled.push(TestEntry(path="src/test/throw_simple.til"))
     rs_compiled.push(TestEntry(path="src/test/undefined.til", expected_status=1)) // in both rs_interpreted and rs_compiled because interpret/run produce different output wrappers
+    rs_compiled.push(TestEntry(path="src/test/bug48_test.til", expected_status=1)) // in both because different error wrappers
 
     mut rs_interpreted := Vec.new(TestEntry)
 
@@ -611,6 +613,7 @@ main := proc(args: ..Str) {
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
     rs_interpreted.push(TestEntry(path="src/test/undefined.til", expected_status=1)) // in both rs_interpreted and rs_compiled because interpret/run produce different output wrappers
+    rs_interpreted.push(TestEntry(path="src/test/bug48_test.til", expected_status=1)) // in both because different error wrappers
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
     // run_cmd doesn't support stdin, would need bash -c wrapper or new ext_proc

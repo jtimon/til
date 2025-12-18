@@ -520,11 +520,16 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
                         }
                     }
                 },
+                NodeType::LLiteral(_) => {
+                    // Bug #48: Literals cannot be passed to mut parameters
+                    errors.push(arg_expr.error(&context.path, "type", &format!(
+                        "Cannot pass literal to mut parameter '{}'. Use a variable instead.",
+                        arg.name
+                    )));
+                },
                 _ => {
-                    // For other expressions (literals, function calls, field access, etc.)
-                    // Try to determine if it's a valid mut target
-                    // For now, we allow non-identifier expressions (this could be tightened later)
-                    // TODO: add stricter checking for field access and other complex expressions
+                    // FCall: Allow - function results like ptr_add() are valid for mut pointer params
+                    // Other node types: Shouldn't happen, but allow to avoid false positives
                 }
             }
         }
