@@ -1,0 +1,93 @@
+mode test
+
+/**
+ * Generate all 4-syllable permutations of s1 and s2
+ * Plus variants with "lei" as the third syllable
+ */
+make_poem_recursive := func(s1: Str, s2: Str) returns Str {
+
+    /** Recursively build all permutations.
+     *  At depth 2 (third syllable), include "lei" as third option. */
+    poem := func(depth: I64, current: Str) returns Str {
+        if depth.eq(4) {
+            return current.concat("\n")
+        }
+
+        mut result := ""
+        result = result.concat(poem(depth.add(1), current.concat(s1)))
+        result = result.concat(poem(depth.add(1), current.concat(s2)))
+
+        if depth.eq(2) {
+            result = result.concat(poem(depth.add(1), current.concat("lei")))
+        }
+
+        return result
+    }
+
+    return poem(0, "")
+}
+
+make_poem_iterative := func(s1: Str, s2: Str) returns Str {
+    mut poem := ""
+    mut silabes := Array.new(Str, 2)
+    silabes.set(0, s1)
+    silabes.set(1, s2)
+
+    verse := func(i0: I64, i1: I64, i2: I64, i3: I64) returns Str {
+        mut s0 := ""
+        mut s1_v := ""
+        mut s2_v := ""
+        mut s3 := ""
+        silabes.get(i0, s0)
+        silabes.get(i1, s1_v)
+        if i2.eq(2) {
+            s2_v = "lei"
+        } else {
+            silabes.get(i2, s2_v)
+        }
+        silabes.get(i3, s3)
+
+        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+
+        return s0.concat(s1_v).concat(s2_v).concat(s3).concat("\n")
+    }
+
+    /** All permutations with "lei" interleaved at position 2 */
+    for i0 in 0..2 {
+        for i1 in 0..2 {
+            for i2 in 0..3 {
+                for i3 in 0..2 {
+                    poem = poem.concat(verse(i0, i1, i2, i3))
+                }
+            }
+        }
+    }
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+
+    return poem
+}
+
+test_equal := proc(s1: Str, s2: Str) {
+    recursive := make_poem_recursive(s1, s2)
+    iterative := make_poem_iterative(s1, s2)
+
+    preffix := "\nPara "
+    for_whom := preffix.concat(s1).concat(s2)
+
+    if Str.eq(recursive, iterative) {
+        println("PASS: recursive and iterative produce same output for ", s1, s2)
+        for_whom.concat(":\n").println()
+        println(recursive)
+    } else {
+        println("FAIL: outputs differ for ", s1, s2)
+        println("=== Recursive ===")
+        println(recursive)
+        println("=== Iterative ===")
+        println(iterative)
+    }
+}
+
+test_equal("lo", "la")
+test_equal("la", "lo")
