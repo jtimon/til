@@ -682,6 +682,68 @@ Cons: Breaking change, less ergonomic for users
 Use the interpreter instead of the compiler for files with nested functions that
 capture outer variables. The file is in rs_interpreted instead of rs_common.
 
+** Bug #51: Precomp doesn't propagate constants through function parameters
+:PROPERTIES:
+:DISCOVERED: 2025-12-19
+:IMPACT: Missed compile-time optimizations, larger generated code
+:STATUS: Open
+:END:
+
+*** Description
+When a function is called with literal arguments, the parameters inside the
+function body are not treated as compile-time constants, preventing constfolding.
+
+*** Example
+#+BEGIN_SRC til
+test_equal := proc(s1: Str, s2: Str) {
+    preffix := "\nPara "
+    for_whom := preffix.concat(s1).concat(s2)  // NOT folded
+    ...
+}
+test_equal("lo", "la")  // Called with literals
+#+END_SRC
+
+Even though ~test_equal("lo", "la")~ passes literals, inside the function:
+- ~preffix~ is a literal -> comptime
+- ~s1~, ~s2~ are parameters -> NOT comptime
+- ~preffix.concat(s1)~ cannot fold because ~s1~ isn't comptime
+
+*** Reproducing
+#+BEGIN_SRC bash
+./bin/rstil run src/examples/lolalalo.til
+# Inspect gen/c/examples/lolalalo.c line 771:
+# til_for_whom = til_concat(til_concat(til_preffix, til_s1), til_s2);
+# Should be: til_for_whom = ((til_Str){(til_I64)"\nPara lola", 10});
+#+END_SRC
+
+*** Root Cause
+In ~precomp_func_def~ (src/rs/precomp.rs:736):
+#+BEGIN_SRC rust
+is_comptime_const: false,  // Function args are not comptime constants
+#+END_SRC
+
+Function parameters are unconditionally marked as non-comptime, even when
+the function is called exclusively with literal arguments.
+
+*** Potential Solutions
+
+**** 1. Function Specialization (Recommended)
+When a function is called with all-literal arguments, create a specialized
+copy with those values inlined and marked as comptime, then constfold it.
+
+Pros: Full optimization, works for any function
+Cons: Can cause code bloat if many call sites with different literals
+
+**** 2. Inline Small Functions
+Inline functions called with literal arguments, then constfold the inlined body.
+
+Pros: Simple, leverages existing constfolding
+Cons: Code bloat, doesn't work for recursive functions
+
+*** Workaround
+None - this is an optimization issue, not a correctness bug. Code runs correctly
+but with more runtime computation than necessary.
+
 * Fixed Bugs Summary
 
 ** Bug #41: mode liba not respected when file is imported
