@@ -137,6 +137,25 @@ but run fails" = codegen issue in ccodegen.rs
 - Struct sizes match between TIL calculation and C sizeof for Expr (288 bytes)
 - Invalid NodeType tag value found: 840973088 (0x32202E32) - looks like ASCII data
 
+*** Key Discovery (2025-12-19)
+Added =Expr.to_str()= and debug prints to =get_value_type= in init.til.
+
+The expression =self.ptr= at vec.til:63 is processed 3 times:
+#+BEGIN_EXAMPLE
+1st call: e.params = [Expr{Identifier("ptr"), ...}]  <- correct
+2nd call: e.params = [Expr{Identifier("ptr"), ...}]  <- correct
+3rd call: e.params = [Expr{NodeType.?, ...}]         <- CORRUPTED
+#+END_EXAMPLE
+
+*Critical*: The corruption is visible in =e.to_str()= BEFORE iterating over params.
+This means corruption happens BETWEEN calls to get_value_type, not during the
+for-in loop or Vec.get. Something external is corrupting the Expr data.
+
+*** What Was Ruled Out
+- Bug #52 (static buffer in ext.c) - fixed, didn't solve this
+- Bug #53 (missing null termination in str.til) - fixed, didn't solve this
+- for-in vs while+Vec.get - both show same corruption
+
 *** Reproducing
 #+BEGIN_SRC bash
 ./bin/rstil interpret src/examples/empty.til  # PASS
@@ -144,9 +163,28 @@ but run fails" = codegen issue in ccodegen.rs
 #+END_SRC
 
 *** Notes
-Bug #52 was discovered while investigating this issue (static buffer in ext.c
-causing string corruption in debug output), but fixing it did not resolve the
-NodeType memory corruption.
+Bug #52 and #53 were discovered while investigating this issue. Both are now fixed
+but did not resolve the NodeType memory corruption.
+
+*** Narrowed Down Location (2025-12-19)
+The corruption happens in =check_types_with_context= function in typer.til:
+- Specifically in the =NodeType.Identifier(name)= case (lines 237-272)
+- Around the =lookup_symbol= call (lines 259-265)
+
+Call tracing showed:
+- get_value_type calls #477 and #478 share the same =params.ptr=
+- Call #477 sees valid data: =self.ptr line=63=
+- Call #478 sees corrupted data: =? line=26726118198=
+- Corruption happens BETWEEN these calls, during check_types_with_context
+
+*** Debug Strategy
+To find the exact line causing corruption:
+1. Add debug print with =e.to_str()= after EVERY line in check_types_with_context
+2. Run test once
+3. Find where output changes from valid to corrupted
+4. That line (or function called on that line) is the culprit
+5. Drill into that function with more prints
+6. Repeat until exact codegen bug found in ccodegen.rs
 
 ** Bug #48: Typer missing validation that mut arguments must be lvalues
 :PROPERTIES:

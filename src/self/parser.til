@@ -251,6 +251,31 @@ Expr := struct {
         return self.params.len()
     }
 
+    to_str := func(self: Expr) returns Str {
+        mut s := "Expr{"
+        switch self.node_type {
+        case NodeType.Identifier(name):
+            s = s.concat("Identifier(\"")
+            s = s.concat(name)
+            s = s.concat("\")")
+        case:
+            s = s.concat(enum_to_str(self.node_type))
+        }
+        s = s.concat(", line=")
+        s = s.concat(self.line.to_str())
+        s = s.concat(", params=[")
+        mut i := 0
+        for p: Expr in self.params {
+            if gt(i, 0) {
+                s = s.concat(", ")
+            }
+            s = s.concat(p.to_str())
+            i = add(i, 1)
+        }
+        s = s.concat("]}")
+        return s
+    }
+
     size := func(self: Expr) returns I64 {
         return size_of(Expr)
     }
