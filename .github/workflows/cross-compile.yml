@@ -82,6 +82,8 @@ jobs:
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
+      - name: Install coreutils (for timeout)
+        run: brew install coreutils && echo "$(brew --prefix coreutils)/libexec/gnubin" >> $GITHUB_PATH
       - name: Build rstil
         run: make rstil
       - name: Create test tmp directory
@@ -98,6 +100,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install coreutils (for timeout)
+        run: brew install coreutils && echo "$(brew --prefix coreutils)/libexec/gnubin" >> $GITHUB_PATH
       - name: Build rstil
         run: make rstil
       - name: Create test tmp directory
