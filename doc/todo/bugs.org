@@ -682,6 +682,24 @@ Cons: Breaking change, less ergonomic for users
 Use the interpreter instead of the compiler for files with nested functions that
 capture outer variables. The file is in rs_interpreted instead of rs_common.
 
+*** Work In Progress (2025-12-19)
+Prerequisite refactor "Phase A: Const Args by Reference" is in progress in the
+=wio= branch. This changes all non-copy params to pointers (const Type*) which
+simplifies the lambda lifting implementation.
+
+Phase A completed items:
+- emit_func_signature: all non-copy params now const Type*
+- by_ref calculations: changed from is_mut to !is_copy (7 locations)
+- current_ref_params: now includes all non-copy params
+- Variadic handling: fixed in emit_fcall_name_and_args_for_throwing and emit_fcall
+- Compound literals: added for number/string literals
+
+Phase A remaining issue:
+- Nested struct-returning function calls passed to by-ref params need hoisting
+- Current hoisting only works at statement level (indent > 0)
+- Need recursive hoisting before emitting expressions
+- See =wio= branch for debug output and partial implementation
+
 ** Bug #51: Precomp doesn't propagate constants through function parameters
 :PROPERTIES:
 :DISCOVERED: 2025-12-19
