@@ -41,11 +41,14 @@ Str := struct {
     clone := func(self: Str) returns Str throws AllocError {
         mut cloned := Str()
         cloned.cap = self.cap
-        cloned.c_string = malloc(cloned.cap)
+        cloned.c_string = malloc(cloned.cap.add(1))  // +1 for null terminator
         if NULL.eq(cloned.c_string) {
-            throw AllocError(msg=format(loc(), "Str.clone: malloc failed for ", I64.to_str(cloned.cap), " bytes"))
+            throw AllocError(msg=format(loc(), "Str.clone: malloc failed for ", I64.to_str(cloned.cap.add(1)), " bytes"))
         }
         memcpy(cloned.c_string, self.c_string, self.cap)
+        // Null-terminate the string
+        zero : U8 = 0
+        memset(add(cloned.c_string, cloned.cap), zero, 1)
         return cloned
     }
 
@@ -219,9 +222,9 @@ Str := struct {
 
         mut result := Str()
         result.cap = new_len
-        result.c_string = malloc(new_len)
+        result.c_string = malloc(new_len.add(1))  // +1 for null terminator
         if NULL.eq(result.c_string) {
-            throw AllocError(msg=format(loc(), "Str.replace: malloc failed for ", I64.to_str(new_len), " bytes"))
+            throw AllocError(msg=format(loc(), "Str.replace: malloc failed for ", I64.to_str(new_len.add(1)), " bytes"))
         }
 
         # Now build the result
@@ -256,6 +259,10 @@ Str := struct {
                 src_idx.inc()
             }
         }
+
+        // Null-terminate the string
+        zero : U8 = 0
+        memset(add(result.c_string, result.cap), zero, 1)
 
         return result
     }
@@ -450,13 +457,16 @@ concat := func(a: Str, b: Str) returns Str {
         panic(loc(), "concat: integer overflow")
     }
 
-    result.c_string = malloc(result.cap)
+    result.c_string = malloc(result.cap.add(1))  // +1 for null terminator
     if NULL.eq(result.c_string) {
         panic(loc(), "concat: malloc failed")
     }
 
     memcpy(result.c_string, a.c_string, a.cap)
     memcpy(add(result.c_string, a.cap), b.c_string, b.cap)
+    // Null-terminate the string
+    zero : U8 = 0
+    memset(add(result.c_string, result.cap), zero, 1)
 
     catch (err: AllocError) {
         panic(loc(), err.msg)
@@ -479,9 +489,9 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
         }
     }
 
-    result.c_string = malloc(result.cap)
+    result.c_string = malloc(result.cap.add(1))  // +1 for null terminator
     if NULL.eq(result.c_string) {
-        throw AllocError(msg=format(loc(), "format: malloc failed for cap = ", I64.to_str(result.cap)))
+        throw AllocError(msg=format(loc(), "format: malloc failed for cap = ", I64.to_str(result.cap.add(1))))
     }
 
     mut offset := 0
@@ -492,6 +502,10 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
         memcpy(add(result.c_string, offset), s.c_string, s.cap)
         offset = add(offset, s.cap)
     }
+
+    // Null-terminate the string
+    zero : U8 = 0
+    memset(add(result.c_string, result.cap), zero, 1)
 
     return result
 }

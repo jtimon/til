@@ -7,7 +7,7 @@ Either of these should work (whichever is easier to achieve):
 
 Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 
-## Progress (2025-12-18)
+## Progress (2025-12-19)
 
 ### Fixed Bugs
 - **Bug #43** (Fixed): Map.get returns wrong value when Map is field inside struct
@@ -21,6 +21,15 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 - **Bug #46** (Fixed): Catch blocks catching throws that come after them
   - Root cause: local_catch_labels populated with ALL catches at start
   - Fix: Remove catch from local_catch_labels after processing it
+
+- **Bug #52** (Fixed): Static buffer in ext.c til_i64_to_str caused string corruption
+  - Root cause: Multiple to_str() calls shared same static buffer
+  - Fix: Allocate memory with malloc() instead of using static buffer
+
+- **Bug #53** (Fixed): String functions missing null termination
+  - Root cause: clone/concat/format/replace used malloc(cap) instead of malloc(cap+1)
+  - Fix: Allocate +1 byte and null-terminate with memset
+  - Note: No regression test - bug only manifests with fragmented heap
 
 ### Current Issue
 **Bug #47: NodeType.? memory corruption**:

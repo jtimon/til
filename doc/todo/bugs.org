@@ -805,6 +805,44 @@ Discovered while investigating Bug #47 (NodeType corruption). The static buffer
 issue explained why debug output showed wrong values, but Bug #47 itself is a
 different issue that remains open.
 
+** Bug #53: String functions missing null termination
+:PROPERTIES:
+:DISCOVERED: 2025-12-19
+:FIXED: 2025-12-19
+:IMPACT: Garbage characters in string output, potential memory corruption
+:STATUS: Fixed (no regression test - see notes)
+:END:
+
+*** Description
+String functions =clone()=, =concat()=, =format()=, and =replace()= in str.til
+allocated memory without +1 for the null terminator and didn't write the null
+byte. This caused garbage characters when strings were printed via C's printf.
+
+*** Root Cause
+All four functions used =malloc(cap)= instead of =malloc(cap.add(1))= and didn't
+call =memset= to write the null terminator at position =cap=.
+
+*** Fix Applied (2025-12-19)
+Changed all four functions in src/core/str.til:
+- =clone()=: malloc(cap.add(1)), memset null at cap
+- =concat()=: malloc(cap.add(1)), memset null at cap
+- =format()=: malloc(cap.add(1)), memset null at cap
+- =replace()=: malloc(new_len.add(1)), memset null at cap
+
+*** Regression Test
+No regression test was created because the bug cannot be reliably reproduced in
+a unit test. The issue only manifests when malloc returns memory with non-zero
+bytes at position =cap= (outside the allocated region without the fix). Modern
+allocators typically return zeroed memory, making the bug appear to not exist
+even without the fix.
+
+The bug was discovered during Bug #47 investigation when "NodeType.?" garbage
+appeared in debug output. This occurred because the heap was heavily fragmented
+during ./bin/til execution, causing non-zero bytes to appear at string boundaries.
+
+*** Files Modified
+- src/core/str.til: Fixed clone, concat, format, replace functions
+
 * Fixed Bugs Summary
 
 ** Bug #41: mode liba not respected when file is imported
