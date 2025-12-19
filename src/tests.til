@@ -372,7 +372,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     totals = totals.concat("- Total til compiled :: ").concat(format_time(total_til_compile_ms)).concat("\n")
     totals = totals.concat("- Total :: ").concat(format_time(total_interpret_ms.add(total_compile_ms).add(total_til_interp_ms).add(total_til_compile_ms))).concat("\n\n")
 
-    _ := writefile("doc/benchmark.org", totals.concat(benchmark_content))
+    _ := writefile("gen/benchmark.org", totals.concat(benchmark_content))
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 

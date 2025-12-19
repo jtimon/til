@@ -1,4 +1,4 @@
-.PHONY: all tests repl til clean
+.PHONY: all tests repl til clean track_benchmark
 all: rstil
 
 clean:
@@ -21,7 +21,11 @@ til: rstil
 tests: rstil til
 	timeout 300 ./bin/rstil src/tests.til
 	@cp gen/c/test/constfold.c src/test/constfold.c 2>/dev/null || true
-	@echo "Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c, doc/benchmark.org"
+	@echo "Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c"
+
+track_benchmark: tests
+	@cp gen/benchmark.org doc/benchmark.org
+	@echo "Benchmark saved to doc/benchmark.org, can be committed"
 
 test-cross: rstil til
 	@echo "=== Cross-compilation tests ==="
