@@ -1121,6 +1121,177 @@ fn hoist_for_dynamic_params(
     Ok(hoisted)
 }
 
+/// Recursively hoist struct-returning function calls when passed to by-ref params.
+/// These can't use compound literals in C, so we need temp vars.
+/// This function walks the expression tree depth-first to hoist nested fcalls first.
+fn hoist_nested_byref_fcalls(
+    expr: &Expr,
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<(), String> {
+    // Only process FCall nodes
+    if !matches!(&expr.node_type, NodeType::FCall) {
+        return Ok(());
+    }
+
+    // Get function def to know param types
+    let fd = match get_fcall_func_def(context, expr) {
+        Some(fd) => fd,
+        None => return Ok(()),
+    };
+
+    // Skip if no args beyond the function name
+    if expr.params.len() <= 1 {
+        return Ok(());
+    }
+
+    let args = &expr.params[1..];
+
+    // First, recursively process all nested fcalls in our args
+    for arg in args {
+        hoist_nested_byref_fcalls(arg, output, indent, ctx, context)?;
+    }
+
+    // Now hoist any struct-returning fcalls that are passed to by-ref params
+    let indent_str = "    ".repeat(indent);
+
+    for (idx, arg) in args.iter().enumerate() {
+        // Skip if already hoisted
+        let arg_addr = arg as *const Expr as usize;
+        if ctx.hoisted_exprs.contains_key(&arg_addr) {
+            continue;
+        }
+
+        // Check if param is by-ref (non-copy)
+        let is_byref = fd.args.get(idx).map(|a| !a.is_copy).unwrap_or(false);
+        if !is_byref {
+            continue;
+        }
+
+        // Only hoist FCall nodes
+        if !matches!(&arg.node_type, NodeType::FCall) {
+            continue;
+        }
+
+        // Get return type - only hoist if it's a struct (not primitive)
+        let ret_type = if let Some(arg_fd) = get_fcall_func_def(context, arg) {
+            arg_fd.return_types.first().cloned()
+        } else {
+            continue;
+        };
+
+        let is_struct = match &ret_type {
+            Some(ValueType::TCustom(name)) => !matches!(name.as_str(), "I64" | "U8" | "Bool"),
+            _ => false,
+        };
+
+        if !is_struct {
+            continue;
+        }
+
+        // Get C type for the return value
+        let c_type = ret_type.as_ref()
+            .and_then(|t| til_type_to_c(t).ok())
+            .unwrap_or_else(|| "int".to_string());
+
+        let temp_var = next_mangled(ctx);
+
+        // Emit: til_Str _tmpXX = func_call();
+        output.push_str(&indent_str);
+        output.push_str(&c_type);
+        output.push_str(" ");
+        output.push_str(&temp_var);
+        output.push_str(" = ");
+        emit_expr(arg, output, 0, ctx, context)?;
+        output.push_str(";\n");
+
+        // Record in hoisted_exprs with & prefix so emit_expr uses it
+        ctx.hoisted_exprs.insert(arg_addr, format!("&{}", temp_var));
+    }
+
+    Ok(())
+}
+
+/// Hoist struct-returning function calls when passed to by-ref (non-copy) params
+/// These can't use compound literals, so we need temp vars
+fn hoist_for_byref_fcalls(
+    args: &[Expr],
+    param_by_ref: &[bool],
+    already_hoisted: &std::collections::HashMap<usize, String>,
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<Vec<HoistedArg>, String> {
+    let mut hoisted = Vec::new();
+    let indent_str = "    ".repeat(indent);
+
+    for (idx, arg) in args.iter().enumerate() {
+        // Skip if already hoisted
+        let arg_addr = arg as *const Expr as usize;
+        if already_hoisted.contains_key(&idx) || ctx.hoisted_exprs.contains_key(&arg_addr) {
+            eprintln!("  DEBUG skip idx={} (already hoisted)", idx);
+            continue;
+        }
+
+        let is_byref = param_by_ref.get(idx).copied().unwrap_or(false);
+        if !is_byref {
+            eprintln!("  DEBUG skip idx={} (not byref)", idx);
+            continue;
+        }
+
+        // Only hoist FCall nodes that return struct types
+        if !matches!(&arg.node_type, NodeType::FCall) {
+            eprintln!("  DEBUG skip idx={} (not fcall, is {:?})", idx, &arg.node_type);
+            continue;
+        }
+        eprintln!("  DEBUG idx={} is fcall that is byref", idx);
+
+        // First, recursively hoist nested fcalls within this arg
+        hoist_nested_byref_fcalls(arg, output, indent, ctx, context)?;
+
+        // Get return type - only hoist if it's a struct (not primitive)
+        let ret_type = if let Some(fd) = get_fcall_func_def(context, arg) {
+            fd.return_types.first().cloned()
+        } else {
+            continue;
+        };
+
+        let is_struct = match &ret_type {
+            Some(ValueType::TCustom(name)) => !matches!(name.as_str(), "I64" | "U8" | "Bool"),
+            _ => false,
+        };
+
+        if !is_struct {
+            continue;
+        }
+
+        // Get C type for the return value
+        let c_type = ret_type.as_ref()
+            .and_then(|t| til_type_to_c(t).ok())
+            .unwrap_or_else(|| "int".to_string());
+
+        let temp_var = next_mangled(ctx);
+
+        // Emit: til_Str _tmpXX = func_call();
+        output.push_str(&indent_str);
+        output.push_str(&c_type);
+        output.push_str(" ");
+        output.push_str(&temp_var);
+        output.push_str(" = ");
+        emit_expr(arg, output, 0, ctx, context)?;
+        output.push_str(";\n");
+
+        // Record in hoisted_exprs with & prefix
+        ctx.hoisted_exprs.insert(arg_addr, format!("&{}", temp_var));
+        hoisted.push(HoistedArg { index: idx, temp_var });
+    }
+
+    Ok(hoisted)
+}
+
 /// Hoist variadic arguments into a til_Array
 /// Returns the array variable name, or None if no variadic args
 /// Also returns the element type for use in Array.delete
@@ -1192,11 +1363,15 @@ fn hoist_variadic_args(
     output.push_str(&arr_var);
     output.push_str(", &_err_alloc_");
     output.push_str(&err_suffix);
-    output.push_str(", \"");
+    output.push_str(", &(");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Type){\"");
     output.push_str(elem_type);
-    output.push_str("\", ");
+    output.push_str("\"}, &(");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64){");
     output.push_str(&variadic_count.to_string());
-    output.push_str(");\n");
+    output.push_str("});\n");
 
     // Emit error check for Array.new (AllocError -> propagate if current function throws it)
     output.push_str(&indent_str);
@@ -1234,9 +1409,11 @@ fn hoist_variadic_args(
         output.push_str(&err_suffix);
         output.push_str(", &");
         output.push_str(&arr_var);
-        output.push_str(", ");
+        output.push_str(", &(");
+        output.push_str(TIL_PREFIX);
+        output.push_str("I64){");
         output.push_str(&i.to_string());
-        output.push_str(", &");
+        output.push_str("}, &");
         output.push_str(temp);
         output.push_str(");\n");
 
@@ -1334,15 +1511,28 @@ fn emit_fcall_name_and_args_for_throwing(
     // Check if this is a variadic function call
     if let Some(variadic_info) = ctx.func_variadic_args.get(&orig_func_name) {
         let regular_count = variadic_info.regular_count;
+
+        // Get function param info for regular args (just like non-variadic case)
+        let found_func = get_fcall_func_def(context, expr);
+        let param_info: Vec<ParamTypeInfo> = found_func
+            .map(|fd| {
+                fd.args.iter()
+                    .map(|p| ParamTypeInfo { value_type: Some(p.value_type.clone()), by_ref: !p.is_copy })
+                    .collect()
+            })
+            .unwrap_or_default();
+
         // Emit regular args first (skip first param which is function name)
         let args: Vec<_> = expr.params.iter().skip(1).collect();
         for (arg_idx, arg) in args.iter().take(regular_count).enumerate() {
             output.push_str(", ");
-            if let Some(temp) = nested_hoisted.get(&arg_idx) {
-                output.push_str(temp);
-            } else {
-                emit_expr(arg, output, 0, ctx, context)?;
-            }
+
+            // Get expected param type and by_ref flag
+            let (param_type, param_by_ref) = param_info.get(arg_idx)
+                .map(|info| (info.value_type.as_ref(), info.by_ref))
+                .unwrap_or((None, false));
+
+            emit_arg_with_param_type(arg, arg_idx, nested_hoisted, param_type, param_by_ref, output, ctx, context)?;
         }
 
         // Emit variadic array pointer
@@ -1359,7 +1549,7 @@ fn emit_fcall_name_and_args_for_throwing(
         let param_info: Vec<ParamTypeInfo> = found_func
             .map(|fd| {
                 fd.args.iter()
-                    .map(|p| ParamTypeInfo { value_type: Some(p.value_type.clone()), by_ref: p.is_mut })
+                    .map(|p| ParamTypeInfo { value_type: Some(p.value_type.clone()), by_ref: !p.is_copy })
                     .collect()
             })
             .unwrap_or_default();
@@ -1421,9 +1611,18 @@ fn emit_arg_with_param_type(
 
     // Check if arg is a type identifier - emit as string literal (matches interpreter.rs)
     if let Some(type_name) = get_type_arg_name(arg, context) {
-        output.push_str("\"");
-        output.push_str(&type_name);
-        output.push_str("\"");
+        if param_by_ref {
+            // Use compound literal for type string passed by reference
+            output.push_str("&(");
+            output.push_str(TIL_PREFIX);
+            output.push_str("Type){\"");
+            output.push_str(&type_name);
+            output.push_str("\"}");
+        } else {
+            output.push_str("\"");
+            output.push_str(&type_name);
+            output.push_str("\"");
+        }
         return Ok(());
     }
 
@@ -1534,8 +1733,83 @@ fn emit_arg_with_param_type(
                 return Ok(());
             }
         }
-        // For non-identifier args, emit as-is
-        emit_expr(arg, output, 0, ctx, context)?;
+        // For non-identifier args (literals, function calls, etc.)
+        // Need to handle literals specially - can't take address directly
+        if let NodeType::LLiteral(lit) = &arg.node_type {
+            match lit {
+                Literal::Number(n) => {
+                    // Use compound literal: &(til_I64){n}
+                    output.push_str("&(");
+                    output.push_str(TIL_PREFIX);
+                    output.push_str("I64){");
+                    output.push_str(n);
+                    output.push_str("}");
+                }
+                Literal::Str(s) => {
+                    // Use compound literal: &(til_Str){(til_I64)"s", len}
+                    output.push_str("&(");
+                    output.push_str(TIL_PREFIX);
+                    output.push_str("Str){(");
+                    output.push_str(TIL_PREFIX);
+                    output.push_str("I64)\"");
+                    // Escape special characters
+                    for c in s.chars() {
+                        match c {
+                            '\n' => output.push_str("\\n"),
+                            '\r' => output.push_str("\\r"),
+                            '\t' => output.push_str("\\t"),
+                            '\\' => output.push_str("\\\\"),
+                            '"' => output.push_str("\\\""),
+                            _ => output.push(c),
+                        }
+                    }
+                    output.push_str("\", ");
+                    output.push_str(&s.len().to_string());
+                    output.push_str("}");
+                }
+                _ => {
+                    // Other literals - just emit as-is (may fail)
+                    emit_expr(arg, output, 0, ctx, context)?;
+                }
+            }
+        } else if let NodeType::FCall = &arg.node_type {
+            // Function call - check if already hoisted first
+            let arg_addr = arg as *const Expr as usize;
+            if ctx.hoisted_exprs.contains_key(&arg_addr) {
+                // Already hoisted with & prefix - emit_expr will use it
+                emit_expr(arg, output, 0, ctx, context)?;
+                return Ok(());
+            }
+
+            // For primitives, use compound literal: &(Type){func_call()}
+            // For structs, this doesn't work (would initialize first field only)
+            if let Some(fd) = get_fcall_func_def(context, arg) {
+                if let Some(ret_type) = fd.return_types.first() {
+                    let is_primitive = match ret_type {
+                        ValueType::TCustom(name) => matches!(name.as_str(), "I64" | "U8" | "Bool"),
+                        _ => false,
+                    };
+
+                    if is_primitive {
+                        if let Ok(c_type) = til_type_to_c(ret_type) {
+                            output.push_str("&(");
+                            output.push_str(&c_type);
+                            output.push_str("){");
+                            emit_expr(arg, output, 0, ctx, context)?;
+                            output.push_str("}");
+                            return Ok(());
+                        }
+                    }
+                    // For structs, should have been hoisted - emit inline (may error)
+                }
+            }
+            // Fallback: emit inline
+            emit_expr(arg, output, 0, ctx, context)?;
+        } else {
+            // Other expressions - try taking address
+            output.push_str("&");
+            emit_expr(arg, output, 0, ctx, context)?;
+        }
         return Ok(());
     }
 
@@ -1808,11 +2082,11 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             // Skip argv[0] (exe path) to match interpreter behavior
             output.push_str("    til_Array _main_args;\n");
             output.push_str("    til_AllocError _main_args_err;\n");
-            output.push_str("    til_Array_new(&_main_args, &_main_args_err, \"Str\", argc - 1);\n");
+            output.push_str("    til_Array_new(&_main_args, &_main_args_err, &(til_Type){\"Str\"}, &(til_I64){argc - 1});\n");
             output.push_str("    for (int i = 1; i < argc; i++) {\n");
             output.push_str("        til_Str _arg = {(til_I64)argv[i], strlen(argv[i])};\n");
             output.push_str("        til_IndexOutOfBoundsError _set_err;\n");
-            output.push_str("        til_Array_set(&_set_err, &_main_args, i - 1, &_arg);\n");
+            output.push_str("        til_Array_set(&_set_err, &_main_args, &(til_I64){i - 1}, &_arg);\n");
             output.push_str("    }\n");
             output.push_str("    til_main(&_main_args);\n");
         } else {
@@ -2538,7 +2812,8 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     // Track variadic params - they're passed as til_Array* so need dereference
     ctx.current_variadic_params.clear();
     for arg in &func_def.args {
-        if arg.is_mut {
+        if !arg.is_copy {
+            // All non-copy params are pointers (mut, own, const)
             ctx.current_ref_params.insert(arg.name.clone());
         }
         if let ValueType::TMulti(elem_type) = &arg.value_type {
@@ -2709,19 +2984,18 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
         } else {
             let arg_type = til_type_to_c(&arg.value_type)?;
 
-            if arg.is_mut {
-                // mut: use pointer so mutations are visible to caller
-                output.push_str(&arg_type);
-                output.push_str("* ");
-            } else if arg.is_copy || arg.is_own {
-                // copy/own: pass by value, can be modified locally
+            if arg.is_copy {
+                // copy: pass by value (the only exception)
                 output.push_str(&arg_type);
                 output.push_str(" ");
             } else {
-                // const: pass by value, read-only
-                output.push_str("const ");
+                // mut/own/const: all pass by pointer
+                if !arg.is_mut && !arg.is_own {
+                    // only default (const) gets const modifier
+                    output.push_str("const ");
+                }
                 output.push_str(&arg_type);
-                output.push_str(" ");
+                output.push_str("* ");
             }
             output.push_str(TIL_PREFIX);
             output.push_str(&arg.name);
@@ -2787,7 +3061,8 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 // Track variadic params - they're passed as til_Array* so need dereference
                 ctx.current_variadic_params.clear();
                 for arg in &func_def.args {
-                    if arg.is_mut {
+                    if !arg.is_copy {
+                        // All non-copy params are pointers (mut, own, const)
                         ctx.current_ref_params.insert(arg.name.clone());
                     }
                     if let ValueType::TMulti(elem_type) = &arg.value_type {
@@ -3335,7 +3610,7 @@ fn emit_variadic_call(
     let param_by_ref: Vec<bool> = {
         let func_def = get_fcall_func_def(context, fcall);
         fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
+            .map(|(i, _)| func_def.as_ref().and_then(|fd| fd.args.get(i)).map(|a| !a.is_copy).unwrap_or(false))
             .collect()
     };
 
@@ -3539,7 +3814,7 @@ fn emit_throwing_call(
     // Calculate param_by_ref for pointer passing
     let param_by_ref: Vec<bool> = {
         fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
+            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| !a.is_copy).unwrap_or(false))
             .collect()
     };
 
@@ -3842,7 +4117,7 @@ fn emit_throwing_call_propagate(
     // Calculate param_by_ref for pointer passing
     let param_by_ref: Vec<bool> = {
         fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
+            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| !a.is_copy).unwrap_or(false))
             .collect()
     };
 
@@ -4103,7 +4378,7 @@ fn emit_throwing_call_with_goto(
     };
     let param_by_ref: Vec<bool> = {
         fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.is_mut).unwrap_or(false))
+            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| !a.is_copy).unwrap_or(false))
             .collect()
     };
 
@@ -4368,9 +4643,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 ctx.current_function_name = Some(mangled_name.clone());
                 ctx.mangling_counter = 0;  // Reset counter per-function for determinism
 
-                // Track mut and variadic params
+                // Track non-copy and variadic params (all non-copy are pointers)
                 for arg in &func_def.args {
-                    if arg.is_mut {
+                    if !arg.is_copy {
                         ctx.current_ref_params.insert(arg.name.clone());
                     }
                     if let ValueType::TMulti(elem_type) = &arg.value_type {
@@ -5349,7 +5624,7 @@ fn emit_fcall_with_hoisted(
     // Look up param types for by-ref handling
     let param_info: Vec<ParamTypeInfo> = {
         if let Some(fd) = get_fcall_func_def(context, expr) {
-            fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), by_ref: a.is_mut }).collect()
+            fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), by_ref: !a.is_copy }).collect()
         } else {
             Vec::new()
         }
@@ -6260,8 +6535,13 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     // Hoist non-lvalue args when param type is Dynamic (only at statement level)
     // Need to look up param types first
+    let func_name_for_debug = get_fcall_func_name(expr).unwrap_or("?".to_string());
+    if indent == 0 && func_name_for_debug.contains("concat") {
+        eprintln!("DEBUG: concat call with indent=0 (expression context) - no hoisting");
+    }
     if indent > 0 && expr.params.len() > 1 {
         if let Some(fd) = get_fcall_func_def(context, expr) {
+            let _ = func_name_for_debug; // suppress warning
             let param_types: Vec<Option<ValueType>> = fd.args.iter()
                 .map(|a| Some(a.value_type.clone()))
                 .collect();
@@ -6270,6 +6550,19 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             for h in dynamic_hoisted {
                 hoisted.insert(h.index, h.temp_var);
             }
+
+            // Hoist struct-returning function calls when passed to by_ref params
+            // (can't take & of an rvalue)
+            let param_by_ref: Vec<bool> = fd.args.iter().map(|a| !a.is_copy).collect();
+            eprintln!("DEBUG hoist_for_byref_fcalls: func={} param_by_ref={:?} args_count={}",
+                get_fcall_func_name(expr).unwrap_or("?".to_string()), param_by_ref, args.len());
+            let byref_hoisted = hoist_for_byref_fcalls(args, &param_by_ref, &hoisted, output, indent, ctx, context)?;
+            eprintln!("DEBUG hoist_for_byref_fcalls: returned {} items", byref_hoisted.len());
+            for h in byref_hoisted {
+                hoisted.insert(h.index, h.temp_var);
+            }
+        } else {
+            eprintln!("DEBUG: func_def NOT FOUND for {}", func_name_for_debug);
         }
     }
 
@@ -6622,13 +6915,29 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // Check if this is a variadic function call
             if let Some(variadic_info) = ctx.func_variadic_args.get(&orig_func_name) {
                 let regular_count = variadic_info.regular_count;
+
+                // Get function param info for regular args (just like non-variadic case)
+                let (param_info, is_ext_func): (Vec<ParamTypeInfo>, bool) = if let Some(fd) = get_fcall_func_def(context, expr) {
+                    (fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), by_ref: !a.is_copy }).collect(), fd.is_ext())
+                } else {
+                    (Vec::new(), false)
+                };
+
                 // Emit regular args first (skip first param which is function name)
                 let args: Vec<_> = expr.params.iter().skip(1).collect();
                 for (i, arg) in args.iter().take(regular_count).enumerate() {
                     if i > 0 {
                         output.push_str(", ");
                     }
-                    emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
+                    if !param_info.is_empty() {
+                        let (param_type, by_ref) = param_info.get(i)
+                            .map(|info| (info.value_type.as_ref(), info.by_ref))
+                            .unwrap_or((None, false));
+                        let effective_by_ref = by_ref && !is_ext_func;
+                        emit_arg_with_param_type(arg, i, &hoisted, param_type, effective_by_ref, output, ctx, context)?;
+                    } else {
+                        emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
+                    }
                 }
 
                 // Emit variadic array pointer
@@ -6644,7 +6953,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 // Look up function to get parameter info (by_ref flags)
                 // For ext_func, don't pass by-ref params by reference (mut is just documentation)
                 let (param_info, is_ext_func): (Vec<ParamTypeInfo>, bool) = if let Some(fd) = get_fcall_func_def(context, expr) {
-                    (fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), by_ref: a.is_mut }).collect(), fd.is_ext())
+                    (fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), by_ref: !a.is_copy }).collect(), fd.is_ext())
                 } else {
                     (Vec::new(), false)
                 };
