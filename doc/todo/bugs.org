@@ -609,6 +609,79 @@ the ~goto _end_catches~ jump, so they only ran on the success path.
 - src/self/ccodegen.til: TIL port
 - src/test/errors.til: Regression test (test_bug34 - only tests simple case)
 
+** Bug #50: Codegen doesn't capture outer variables in nested functions
+:PROPERTIES:
+:DISCOVERED: 2025-12-19
+:IMPACT: Nested functions fail to compile when accessing outer scope variables
+:STATUS: Open
+:END:
+
+*** Description
+Nested functions (closures) in TIL can access variables from their enclosing scope.
+This works correctly in the interpreter but fails during C code generation - the
+outer variables are not captured/passed to the nested function.
+
+*** Reproducing
+#+BEGIN_SRC bash
+./bin/rstil interpret src/tests.til test rs_common src/examples/lolalalo.til
+#+END_SRC
+
+Or uncomment in tests.til:
+#+BEGIN_SRC til
+// rs_common.push(TestEntry(path="src/examples/lolalalo.til")) // TODO Bug #50
+#+END_SRC
+
+*** Error Output
+#+BEGIN_EXAMPLE
+gen/c/examples/lolalalo.c:1396:117: error: 'til_s2' undeclared (first use in this function)
+gen/c/examples/lolalalo.c:1410:107: error: 'til_silabes' undeclared (first use in this function)
+#+END_EXAMPLE
+
+*** Root Cause
+In ccodegen, when emitting nested functions, variables from the outer scope (s1, s2,
+silabes) are referenced but not passed as parameters or captured in a closure struct.
+
+*** Potential Solutions
+
+**** 1. Lambda Lifting (Recommended)
+Transform nested functions into top-level functions, adding captured variables as
+explicit parameters. The compiler would:
+- Analyze which outer variables are referenced inside the nested function
+- Add those as extra parameters to the lifted function
+- At call sites, pass the captured variables explicitly
+
+Pros: Simple, no runtime overhead, matches how TIL already handles explicit params
+Cons: Recursive nested functions need care (captured vars passed through each call)
+
+**** 2. Closure Struct
+Create a struct containing all captured variables, pass pointer to nested function:
+#+BEGIN_SRC c
+struct poem_closure { Str s1; Str s2; };
+Str poem(I64 depth, Str current, struct poem_closure* ctx) {
+    // use ctx->s1, ctx->s2
+}
+#+END_SRC
+
+Pros: Clean abstraction, single extra parameter regardless of capture count
+Cons: Slightly more complex codegen, minor indirection overhead
+
+**** 3. GCC Nested Functions Extension
+GCC supports nested functions as a non-standard extension. We could use this directly.
+
+Pros: Zero codegen changes for nested function bodies
+Cons: GCC-only (not clang/MSVC), uses trampolines (executable stack), less portable
+
+**** 4. Restrict Nested Function Captures
+Disallow nested functions from capturing outer variables - require explicit parameters.
+This is a language design change rather than a fix.
+
+Pros: Simpler language semantics, no closure machinery needed
+Cons: Breaking change, less ergonomic for users
+
+*** Workaround
+Use the interpreter instead of the compiler for files with nested functions that
+capture outer variables. The file is in rs_interpreted instead of rs_common.
+
 * Fixed Bugs Summary
 
 ** Bug #41: mode liba not respected when file is imported
