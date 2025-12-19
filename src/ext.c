@@ -112,8 +112,12 @@ static inline void til_exit(til_I64 code)
 // String conversion functions
 static inline til_Str til_i64_to_str(til_I64 v)
 {
-    static char buf[32];
-    snprintf(buf, sizeof(buf), "%lld", (long long)v);
+    char* buf = (char*)malloc(32);
+    if (!buf) {
+        til_Str s = {0, 0};
+        return s;
+    }
+    snprintf(buf, 32, "%lld", (long long)v);
     til_Str s;
     s.c_string = (til_I64)buf;
     s.cap = strlen(buf);
@@ -135,8 +139,12 @@ static inline til_Str til_input_read_line(til_Str prompt)
         printf("%.*s", (int)prompt.cap, (const char*)prompt.c_string);
         fflush(stdout);
     }
-    static char buf[4096];
-    if (fgets(buf, sizeof(buf), stdin) == NULL) {
+    char* buf = (char*)malloc(4096);
+    if (!buf) {
+        til_Str s = {0, 0};
+        return s;
+    }
+    if (fgets(buf, 4096, stdin) == NULL) {
         buf[0] = '\0';
     }
     til_Str s;
@@ -188,7 +196,13 @@ static inline til_I64 til_writefile(til_Str path, til_Str contents)
 // First element of args array is the command, rest are arguments
 static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
 {
-    static char buf[65536];
+    #define RUN_CMD_BUF_SIZE 65536
+    char* buf = (char*)malloc(RUN_CMD_BUF_SIZE);
+    if (!buf) {
+        output_str->c_string = 0;
+        output_str->cap = 0;
+        return -1;
+    }
     buf[0] = '\0';
 
     if (args->_len == 0) {
@@ -226,8 +240,8 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
     }
 
     size_t total = 0;
-    while (total < sizeof(buf) - 1) {
-        size_t n = fread(buf + total, 1, sizeof(buf) - 1 - total, f);
+    while (total < RUN_CMD_BUF_SIZE - 1) {
+        size_t n = fread(buf + total, 1, RUN_CMD_BUF_SIZE - 1 - total, f);
         if (n == 0) break;
         total += n;
     }
@@ -238,6 +252,7 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
     output_str->c_string = (til_I64)buf;
     output_str->cap = total;
     return (til_I64)exit_code;
+    #undef RUN_CMD_BUF_SIZE
 }
 
 // runfile: stub for compiled mode (repl functionality not available when compiled)

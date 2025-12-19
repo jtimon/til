@@ -114,36 +114,22 @@ Work on **master**. Previous branch `claude/fix-bool-return-error-VePQb` is refe
 - Note function names to re-translate, not line numbers
 
 ## Next Steps
-1. Examine gen/c/tmp/bug47_test.c for the C code pattern (60KB vs til.c's 5.7MB)
-2. Find the problematic pattern in generated C code for Vec<Expr> iteration
-3. Locate the Rust codegen function in src/rs/ccodegen.rs that generates it
+1. Create a test that actually reproduces Bug #47 (NodeType corruption)
+2. Examine generated C code in gen/c/til.c for Vec<Expr> iteration patterns
+3. Find the pattern causing memory corruption of enum tags
 4. Fix in ccodegen.rs, run make tests, port to ccodegen.til
 
 ## Debug Findings
 - Invalid NodeType tag value: 840973088 (0x32202E32)
 - This looks like ASCII data overwriting the enum tag
-- src/test/bug47_test.til reproduces the corruption with a minimal test
+- Need a minimal test that reproduces this corruption
 
-### Reproducing Test (2025-12-19)
-src/test/bug47_test.til reproduces the bug:
-- `./bin/rstil interpret src/test/bug47_test.til` - PASS (call_count stays 1)
-- `./bin/rstil run src/test/bug47_test.til` - shows corruption
+### Previous Test (2025-12-19)
+The original bug47_test.til was testing something different (static buffer issue
+in ext.c's til_i64_to_str). That has been renamed to bug52_test.til.
 
-Run output:
-```
-DEBUG A call_count=1           <- correct before loop
-DEBUG B debug_idx=0
-DEBUG C local_count=0          <- CORRUPTED when entering loop (should be 1)
-DEBUG C2 direct eq(1)=true     <- but direct comparison returns true!
-```
+Bug #52 (static buffer) is FIXED, but Bug #47 (NodeType corruption) remains open.
+The corruption manifests when running `./bin/til interpret` on any file.
 
-Strange behavior:
-- Storing global in local shows corruption (0, 1, 2...)
-- Direct comparison `DEBUG_CALL_COUNT.eq(1)` returns true
-- Same variable reads different values depending on access pattern
-
-### Generated C Code (gen/c/test/bug47_test.c)
-- Global: `static til_I64 til_DEBUG_CALL_COUNT;` (line 174)
-- Loop iterator: `til_Expr til_cursor;` declared outside while loop (line 925)
-- Vec_get uses `til_memcpy(til_dest, til_src, til_self.type_size)` to copy
-- til_Expr struct is 4 fields: node_type, params (Vec), line, col
+Note: We can import init from bug47_test.til if necessary to reproduce the actual
+corruption pattern (e.g., `import("self.init")` and call the relevant functions).

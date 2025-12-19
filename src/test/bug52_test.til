@@ -1,0 +1,67 @@
+mode test
+
+// Bug #52: Static buffer in ext.c til_i64_to_str caused string corruption
+// When multiple to_str() calls happened before println, they all shared the
+// same static buffer, so earlier values got overwritten.
+// Fix: Allocate memory for each to_str() call instead of using static buffer.
+
+import("core.vec")
+
+// Global counter to test reading globals inside for-in loops
+mut GLOBAL_COUNT := 0
+
+// Enum with payload variant
+NodeType := enum {
+    Body,
+    Identifier: Str,
+    FCall,
+}
+
+// Struct with enum field and Vec
+Expr := struct {
+    mut node_type: NodeType = NodeType.Body
+    mut params: Vec = Vec.new(Expr)
+    mut line: I64 = 0
+}
+
+test_vec_iteration := proc() {
+    mut parent := Expr()
+
+    mut child1 := Expr(node_type=NodeType.Body, line=1)
+    mut child2 := Expr(node_type=NodeType.Identifier("hello"), line=2)
+    mut child3 := Expr(node_type=NodeType.FCall, line=3)
+
+    parent.params.push(child1)
+    parent.params.push(child2)
+    parent.params.push(child3)
+
+    // Set global before loop
+    GLOBAL_COUNT = add(GLOBAL_COUNT, 1)
+
+    // Iterate and verify global is readable correctly inside loop
+    for cursor: Expr in parent.params {
+        // Bug #47: This used to read wrong value due to static buffer
+        mut local_count := GLOBAL_COUNT
+        assert_eq(loc(), 1, local_count)
+
+        switch cursor.node_type {
+        case NodeType.Body:
+            assert_eq(loc(), 1, cursor.line)
+        case NodeType.Identifier(n):
+            assert_eq_str(loc(), "hello", n)
+            assert_eq(loc(), 2, cursor.line)
+        case NodeType.FCall:
+            assert_eq(loc(), 3, cursor.line)
+        case:
+            panic(loc(), "Unknown NodeType variant")
+        }
+    }
+
+    // Verify global wasn't corrupted
+    assert_eq(loc(), 1, GLOBAL_COUNT)
+
+    catch (err: AllocError) {
+        panic(loc(), err.msg)
+    }
+}
+test_vec_iteration()
