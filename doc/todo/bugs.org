@@ -1,13 +1,429 @@
 #+TITLE: rstil Bug Fixes - Historical Reference
 #+AUTHOR: rstil Development
 #+DATE: 2025-11-10
-# BOT: New issues use next number from doc/todo/next_issue_num.txt, then increment it
+# BOT: New issues use next number from doc/todo/next_issue_num.txt, then increment it,
+# BOT: add them at the top of active bugs, when fixed, move them to the top of fixed bugs
 
 * Overview
 
 This document provides a brief changelog of bugs that were fixed in the rstil interpreter.
 
 * Active Bugs
+
+** Bug #51: Precomp doesn't propagate constants through function parameters
+:PROPERTIES:
+:DISCOVERED: 2025-12-19
+:IMPACT: Missed compile-time optimizations, larger generated code
+:STATUS: Open
+:END:
+
+*** Description
+When a function is called with literal arguments, the parameters inside the
+function body are not treated as compile-time constants, preventing constfolding.
+
+*** Example
+#+BEGIN_SRC til
+test_equal := proc(s1: Str, s2: Str) {
+    preffix := "\nPara "
+    for_whom := preffix.concat(s1).concat(s2)  // NOT folded
+    ...
+}
+test_equal("lo", "la")  // Called with literals
+#+END_SRC
+
+Even though ~test_equal("lo", "la")~ passes literals, inside the function:
+- ~preffix~ is a literal -> comptime
+- ~s1~, ~s2~ are parameters -> NOT comptime
+- ~preffix.concat(s1)~ cannot fold because ~s1~ isn't comptime
+
+*** Reproducing
+#+BEGIN_SRC bash
+./bin/rstil run src/examples/lolalalo.til
+# Inspect gen/c/examples/lolalalo.c line 771:
+# til_for_whom = til_concat(til_concat(til_preffix, til_s1), til_s2);
+# Should be: til_for_whom = ((til_Str){(til_I64)"\nPara lola", 10});
+#+END_SRC
+
+*** Root Cause
+In ~precomp_func_def~ (src/rs/precomp.rs:736):
+#+BEGIN_SRC rust
+is_comptime_const: false,  // Function args are not comptime constants
+#+END_SRC
+
+Function parameters are unconditionally marked as non-comptime, even when
+the function is called exclusively with literal arguments.
+
+*** Potential Solutions
+
+**** 1. Function Specialization (Recommended)
+When a function is called with all-literal arguments, create a specialized
+copy with those values inlined and marked as comptime, then constfold it.
+
+Pros: Full optimization, works for any function
+Cons: Can cause code bloat if many call sites with different literals
+
+**** 2. Inline Small Functions
+Inline functions called with literal arguments, then constfold the inlined body.
+
+Pros: Simple, leverages existing constfolding
+Cons: Code bloat, doesn't work for recursive functions
+
+*** Workaround
+None - this is an optimization issue, not a correctness bug. Code runs correctly
+but with more runtime computation than necessary.
+
+** Bug #50: Codegen doesn't capture outer variables in nested functions
+:PROPERTIES:
+:DISCOVERED: 2025-12-19
+:IMPACT: Nested functions fail to compile when accessing outer scope variables
+:STATUS: Open
+:END:
+
+*** Description
+Nested functions (closures) in TIL can access variables from their enclosing scope.
+This works correctly in the interpreter but fails during C code generation - the
+outer variables are not captured/passed to the nested function.
+
+*** Reproducing
+#+BEGIN_SRC bash
+./bin/rstil interpret src/tests.til test rs_common src/examples/lolalalo.til
+#+END_SRC
+
+Or uncomment in tests.til:
+#+BEGIN_SRC til
+// rs_common.push(TestEntry(path="src/examples/lolalalo.til")) // TODO Bug #50
+#+END_SRC
+
+*** Error Output
+#+BEGIN_EXAMPLE
+gen/c/examples/lolalalo.c:1396:117: error: 'til_s2' undeclared (first use in this function)
+gen/c/examples/lolalalo.c:1410:107: error: 'til_silabes' undeclared (first use in this function)
+#+END_EXAMPLE
+
+*** Root Cause
+In ccodegen, when emitting nested functions, variables from the outer scope (s1, s2,
+silabes) are referenced but not passed as parameters or captured in a closure struct.
+
+*** Potential Solutions
+
+**** 1. Lambda Lifting (Recommended)
+Transform nested functions into top-level functions, adding captured variables as
+explicit parameters. The compiler would:
+- Analyze which outer variables are referenced inside the nested function
+- Add those as extra parameters to the lifted function
+- At call sites, pass the captured variables explicitly
+
+Pros: Simple, no runtime overhead, matches how TIL already handles explicit params
+Cons: Recursive nested functions need care (captured vars passed through each call)
+
+**** 2. Closure Struct
+Create a struct containing all captured variables, pass pointer to nested function:
+#+BEGIN_SRC c
+struct poem_closure { Str s1; Str s2; };
+Str poem(I64 depth, Str current, struct poem_closure* ctx) {
+    // use ctx->s1, ctx->s2
+}
+#+END_SRC
+
+Pros: Clean abstraction, single extra parameter regardless of capture count
+Cons: Slightly more complex codegen, minor indirection overhead
+
+**** 3. GCC Nested Functions Extension
+GCC supports nested functions as a non-standard extension. We could use this directly.
+
+Pros: Zero codegen changes for nested function bodies
+Cons: GCC-only (not clang/MSVC), uses trampolines (executable stack), less portable
+
+**** 4. Restrict Nested Function Captures
+Disallow nested functions from capturing outer variables - require explicit parameters.
+This is a language design change rather than a fix.
+
+Pros: Simpler language semantics, no closure machinery needed
+Cons: Breaking change, less ergonomic for users
+
+*** Workaround
+Use the interpreter instead of the compiler for files with nested functions that
+capture outer variables. The file is in rs_interpreted instead of rs_common.
+
+*** Work In Progress (2025-12-19)
+Prerequisite refactor "Phase A: Const Args by Reference" is in progress in the
+=wio= branch. This changes all non-copy params to pointers (const Type*) which
+simplifies the lambda lifting implementation.
+
+Phase A completed items:
+- emit_func_signature: all non-copy params now const Type*
+- by_ref calculations: changed from is_mut to !is_copy (7 locations)
+- current_ref_params: now includes all non-copy params
+- Variadic handling: fixed in emit_fcall_name_and_args_for_throwing and emit_fcall
+- Compound literals: added for number/string literals
+
+Phase A remaining issue:
+- Nested struct-returning function calls passed to by-ref params need hoisting
+- Current hoisting only works at statement level (indent > 0)
+- Need recursive hoisting before emitting expressions
+- See =wio= branch for debug output and partial implementation
+
+** Bug #49: Typer missing use-after-move check for own parameters
+:PROPERTIES:
+:DISCOVERED: 2025-12-18
+:IMPACT: Compiled code allows use of moved variable
+:STATUS: Open
+:END:
+
+*** Description
+When a variable is passed to an =own= parameter, the variable should be
+invalidated in the caller's scope. The interpreter catches this at eval time,
+but the typer doesn't track it - so compiled code allows using the variable.
+
+*** Example
+#+BEGIN_SRC til
+consume := proc(own n: I64) returns I64 {
+    return mul(n, 2)
+}
+
+test := proc() {
+    mut x := 42
+    result := consume(x)
+    println(I64.to_str(x))  // Should be rejected - x was moved
+}
+#+END_SRC
+
+*** Expected Behavior
+Typer should reject use of =x= after it was passed to =own= parameter:
+"Variable 'x' was moved and can no longer be used"
+
+*** Actual Behavior
+- Typer: No tracking of moved variables (the bug)
+- Interpreter: Catches at eval - "Undefined symbol 'x'" (wrong phase)
+- Compiler: No catch at all - x still usable with original value
+
+*** Fix Required
+Mirror what interpreter already does: remove the symbol from scope when passed to =own= param.
+
+*Implementation plan:*
+
+1. In typer's function call checking (where we iterate over args)
+2. If param has =is_own=, and arg is an identifier:
+   - Remove the symbol from scope (like interpreter does)
+3. Subsequent uses automatically get "undefined symbol" error
+
+No new data structures needed - reuses existing scope/symbol machinery.
+
+*** Call-site own syntax (optional/aesthetic)
+Call-site =own= syntax (=func(own x)=) is not implemented in parser.
+Currently only declaration syntax (=own n: I64=) is supported.
+This would be purely for code clarity - making ownership transfer explicit to readers.
+The mechanism works without it.
+
+*** Reproducing Test
+src/test/bug49_test.til
+
+#+BEGIN_SRC bash
+./bin/rstil interpret src/test/bug49_test.til  # FAIL - eval error (should be typer)
+./bin/rstil run src/test/bug49_test.til        # PASS - bug: x still accessible
+#+END_SRC
+
+*** Related
+- Bug #48: Similar issue for =mut= parameters (lvalue check)
+- See doc/ownership.org for full ownership design
+
+** Bug #48: Typer missing validation that mut arguments must be lvalues
+:PROPERTIES:
+:DISCOVERED: 2025-12-18
+:IMPACT: No clear error message when passing literals to mut params
+:STATUS: Open
+:END:
+
+*** Description
+The typer phase is missing a validation check: arguments to =mut= parameters
+must be lvalues (identifiers or field access). This affects both interpreter
+and compiler paths - both should catch this in the typer phase.
+
+*** Example
+#+BEGIN_SRC til
+test_mut := proc(mut n: I64) {
+    n = 99
+}
+test_mut(42)  // Should be rejected by typer
+#+END_SRC
+
+*** Expected Behavior
+Typer should reject =test_mut(42)= with an error like:
+"mut arguments must be passed as identifiers or field access"
+
+*** Actual Behavior
+- Typer: No validation (the bug)
+- Interpreter: Happens to catch it later during eval (wrong phase)
+- Compiler: No catch at all - GCC rejects generated C code
+
+*** Fix Required
+Add validation in typer.rs and typer.til to check that arguments passed to
+=mut= parameters are lvalues. Should catch all literal types: I64, U8, Str.
+Will need a new error type or message.
+
+*** Related
+- Bug #49: Similar issue for =own= parameters (use-after-move check)
+
+*** Reproducing Test
+src/test/bug48_test.til
+
+#+BEGIN_SRC bash
+./bin/rstil interpret src/test/bug48_test.til  # FAIL - eval error (should be typer)
+./bin/rstil run src/test/bug48_test.til        # FAIL - GCC error (should be typer)
+#+END_SRC
+
+** Bug #47: Self-hosted TIL interpreter fails with "NodeType.?" error
+:PROPERTIES:
+:DISCOVERED: 2025-12-18
+:IMPACT: ./bin/til interpret fails on any file
+:STATUS: Open - Codegen bug, examining generated C patterns
+:END:
+
+*** Description
+The compiled self-hosted TIL interpreter (./bin/til) fails immediately when trying
+to interpret any file, including empty.til. The error occurs during core library
+initialization (vec.til:63).
+
+*** Error Message
+#+BEGIN_EXAMPLE
+Error during file execution: src/core/core.til:src/core/vec.til:63:63: til init ERROR: Identifiers can only contain identifiers, found 'NodeType.?'
+Explanation: This should never happen, this is a bug in the language.
+#+END_EXAMPLE
+
+*** Analysis
+The "NodeType.?" indicates an invalid enum tag value is being read from memory.
+This happens in init.til's =get_value_type= function when iterating over
+=e.params= (a Vec of Expr) - some Expr has a corrupted NodeType field.
+
+*** Bug Type
+CODEGEN BUG - rstil works, compiled til fails. Per methodology: "interpret works
+but run fails" = codegen issue in ccodegen.rs
+
+*** Investigation Notes
+- rstil interpret works fine, only til (compiled self-hosted) fails
+- The error is consistent - always at vec.til:63 during init
+- Struct sizes match between TIL calculation and C sizeof for Expr (288 bytes)
+- Invalid NodeType tag value found: 840973088 (0x32202E32) - looks like ASCII data
+
+*** Key Discovery (2025-12-19)
+Added =Expr.to_str()= and debug prints to =get_value_type= in init.til.
+
+The expression =self.ptr= at vec.til:63 is processed 3 times:
+#+BEGIN_EXAMPLE
+1st call: e.params = [Expr{Identifier("ptr"), ...}]  <- correct
+2nd call: e.params = [Expr{Identifier("ptr"), ...}]  <- correct
+3rd call: e.params = [Expr{NodeType.?, ...}]         <- CORRUPTED
+#+END_EXAMPLE
+
+*Critical*: The corruption is visible in =e.to_str()= BEFORE iterating over params.
+This means corruption happens BETWEEN calls to get_value_type, not during the
+for-in loop or Vec.get. Something external is corrupting the Expr data.
+
+*** What Was Ruled Out
+- Bug #52 (static buffer in ext.c) - fixed, didn't solve this
+- Bug #53 (missing null termination in str.til) - fixed, didn't solve this
+- for-in vs while+Vec.get - both show same corruption
+
+*** Reproducing
+#+BEGIN_SRC bash
+./bin/rstil interpret src/examples/empty.til  # PASS
+./bin/til interpret src/examples/empty.til    # FAIL
+#+END_SRC
+
+*** Notes
+Bug #52 and #53 were discovered while investigating this issue. Both are now fixed
+but did not resolve the NodeType memory corruption.
+
+*** Narrowed Down Location (2025-12-19)
+The corruption happens in =check_types_with_context= function in typer.til:
+- Specifically in the =NodeType.Identifier(name)= case (lines 237-272)
+- Around the =lookup_symbol= call (lines 259-265)
+
+Call tracing showed:
+- get_value_type calls #477 and #478 share the same =params.ptr=
+- Call #477 sees valid data: =self.ptr line=63=
+- Call #478 sees corrupted data: =? line=26726118198=
+- Corruption happens BETWEEN these calls, during check_types_with_context
+
+*** Debug Strategy
+To find the exact line causing corruption:
+1. Add debug print with =e.to_str()= after EVERY line in check_types_with_context
+2. Run test once
+3. Find where output changes from valid to corrupted
+4. That line (or function called on that line) is the culprit
+5. Drill into that function with more prints
+6. Repeat until exact codegen bug found in ccodegen.rs
+
+** Bug #42: Temp variable naming inconsistency causes undeclared _tmp_N errors
+:PROPERTIES:
+:DISCOVERED: 2025-12-17
+:IMPACT: Compilation fails
+:STATUS: Active
+:END:
+
+*** Description
+After commit 5707c2d (Make _for_i_ variable names deterministic), some code paths generate temp variables with old-style names (_tmp_N) while others use new-style names (_tmp_funcname_N). This causes gcc errors for undeclared variables.
+
+#+BEGIN_EXAMPLE
+gcc error: '_tmp_13' undeclared (first use in this function)
+In til_Vec_clone:
+til_Vec til_cloned = {..., .ptr = _tmp_13, ...};
+#+END_EXAMPLE
+
+*** Root Cause
+The deterministic naming commit (5707c2d) updated many code paths to use function-prefixed temp names like _tmp_funcname_N, but at least one code path still uses the old _tmp_N naming without function prefix. The declaration uses the new style while the reference uses the old style, or vice versa.
+
+*** Related
+- Commit 5707c2d: Fix Bug #40: Make _for_i_ variable names deterministic
+- The commit changed next_mangled() to include function name prefix
+
+*** Files to Investigate
+- src/rs/ccodegen.rs: Check all code paths that generate temp variables
+- src/self/ccodegen.til: Same for TIL version
+
+* Fixed Bugs
+
+** Bug #34: Code after catch blocks doesn't run in error path
+:PROPERTIES:
+:DISCOVERED: 2025-12-14
+:FIXED: 2025-12-15
+:IMPACT: Error handling semantics
+:STATUS: Fixed
+:END:
+
+*** Description
+Code placed AFTER catch blocks doesn't run when an error is caught.
+
+*** Example
+#+BEGIN_EXAMPLE til
+throwing_call()
+between = true      // Between throw and catch - correctly skipped on error
+catch (err: Error) {
+    // error caught
+}
+code_after_catch()  // Now runs correctly in both success and error paths
+#+END_EXAMPLE
+
+*** Root Cause
+In the C code generator, statements after the last catch block were emitted BEFORE
+the ~goto _end_catches~ jump, so they only ran on the success path.
+
+*** Complete Fix (2025-12-15, commit 9781c41)
+The initial partial fix used emit_expr directly for statements after the last
+catch block. However, emit_expr doesn't do throwing call detection, causing
+throwing functions like Vec.push to be emitted without error parameters.
+
+The complete fix:
+1. Find the index of the last catch block in emit_stmts
+2. Only emit statements up to and including the last catch in the main loop
+3. After emitting _end_catches label, call emit_stmts recursively for remaining
+   statements - this properly handles throwing calls with error detection and
+   goto labels
+
+*** Files Modified
+- src/rs/ccodegen.rs: emit_stmts recursive call for statements after last catch
+- src/self/ccodegen.til: Same fix ported
+- src/test/errors.til: Regression test (test_bug34)
 
 ** Bug #46: Infinite loop in typer.til due to catch catching later throw
 :PROPERTIES:
@@ -103,197 +519,6 @@ ctx.local_catch_labels.remove(err_type_name)
 *** Files Modified
 - src/rs/ccodegen.rs: Added removal of catch from local_catch_labels after processing
 - src/self/ccodegen.til: Same fix ported
-
-** Bug #47: Self-hosted TIL interpreter fails with "NodeType.?" error
-:PROPERTIES:
-:DISCOVERED: 2025-12-18
-:IMPACT: ./bin/til interpret fails on any file
-:STATUS: Open - Codegen bug, examining generated C patterns
-:END:
-
-*** Description
-The compiled self-hosted TIL interpreter (./bin/til) fails immediately when trying
-to interpret any file, including empty.til. The error occurs during core library
-initialization (vec.til:63).
-
-*** Error Message
-#+BEGIN_EXAMPLE
-Error during file execution: src/core/core.til:src/core/vec.til:63:63: til init ERROR: Identifiers can only contain identifiers, found 'NodeType.?'
-Explanation: This should never happen, this is a bug in the language.
-#+END_EXAMPLE
-
-*** Analysis
-The "NodeType.?" indicates an invalid enum tag value is being read from memory.
-This happens in init.til's =get_value_type= function when iterating over
-=e.params= (a Vec of Expr) - some Expr has a corrupted NodeType field.
-
-*** Bug Type
-CODEGEN BUG - rstil works, compiled til fails. Per methodology: "interpret works
-but run fails" = codegen issue in ccodegen.rs
-
-*** Investigation Notes
-- rstil interpret works fine, only til (compiled self-hosted) fails
-- The error is consistent - always at vec.til:63 during init
-- Struct sizes match between TIL calculation and C sizeof for Expr (288 bytes)
-- Invalid NodeType tag value found: 840973088 (0x32202E32) - looks like ASCII data
-
-*** Key Discovery (2025-12-19)
-Added =Expr.to_str()= and debug prints to =get_value_type= in init.til.
-
-The expression =self.ptr= at vec.til:63 is processed 3 times:
-#+BEGIN_EXAMPLE
-1st call: e.params = [Expr{Identifier("ptr"), ...}]  <- correct
-2nd call: e.params = [Expr{Identifier("ptr"), ...}]  <- correct
-3rd call: e.params = [Expr{NodeType.?, ...}]         <- CORRUPTED
-#+END_EXAMPLE
-
-*Critical*: The corruption is visible in =e.to_str()= BEFORE iterating over params.
-This means corruption happens BETWEEN calls to get_value_type, not during the
-for-in loop or Vec.get. Something external is corrupting the Expr data.
-
-*** What Was Ruled Out
-- Bug #52 (static buffer in ext.c) - fixed, didn't solve this
-- Bug #53 (missing null termination in str.til) - fixed, didn't solve this
-- for-in vs while+Vec.get - both show same corruption
-
-*** Reproducing
-#+BEGIN_SRC bash
-./bin/rstil interpret src/examples/empty.til  # PASS
-./bin/til interpret src/examples/empty.til    # FAIL
-#+END_SRC
-
-*** Notes
-Bug #52 and #53 were discovered while investigating this issue. Both are now fixed
-but did not resolve the NodeType memory corruption.
-
-*** Narrowed Down Location (2025-12-19)
-The corruption happens in =check_types_with_context= function in typer.til:
-- Specifically in the =NodeType.Identifier(name)= case (lines 237-272)
-- Around the =lookup_symbol= call (lines 259-265)
-
-Call tracing showed:
-- get_value_type calls #477 and #478 share the same =params.ptr=
-- Call #477 sees valid data: =self.ptr line=63=
-- Call #478 sees corrupted data: =? line=26726118198=
-- Corruption happens BETWEEN these calls, during check_types_with_context
-
-*** Debug Strategy
-To find the exact line causing corruption:
-1. Add debug print with =e.to_str()= after EVERY line in check_types_with_context
-2. Run test once
-3. Find where output changes from valid to corrupted
-4. That line (or function called on that line) is the culprit
-5. Drill into that function with more prints
-6. Repeat until exact codegen bug found in ccodegen.rs
-
-** Bug #48: Typer missing validation that mut arguments must be lvalues
-:PROPERTIES:
-:DISCOVERED: 2025-12-18
-:IMPACT: No clear error message when passing literals to mut params
-:STATUS: Open
-:END:
-
-*** Description
-The typer phase is missing a validation check: arguments to =mut= parameters
-must be lvalues (identifiers or field access). This affects both interpreter
-and compiler paths - both should catch this in the typer phase.
-
-*** Example
-#+BEGIN_SRC til
-test_mut := proc(mut n: I64) {
-    n = 99
-}
-test_mut(42)  // Should be rejected by typer
-#+END_SRC
-
-*** Expected Behavior
-Typer should reject =test_mut(42)= with an error like:
-"mut arguments must be passed as identifiers or field access"
-
-*** Actual Behavior
-- Typer: No validation (the bug)
-- Interpreter: Happens to catch it later during eval (wrong phase)
-- Compiler: No catch at all - GCC rejects generated C code
-
-*** Fix Required
-Add validation in typer.rs and typer.til to check that arguments passed to
-=mut= parameters are lvalues. Should catch all literal types: I64, U8, Str.
-Will need a new error type or message.
-
-*** Related
-- Bug #49: Similar issue for =own= parameters (use-after-move check)
-
-*** Reproducing Test
-src/test/bug48_test.til
-
-#+BEGIN_SRC bash
-./bin/rstil interpret src/test/bug48_test.til  # FAIL - eval error (should be typer)
-./bin/rstil run src/test/bug48_test.til        # FAIL - GCC error (should be typer)
-#+END_SRC
-
-** Bug #49: Typer missing use-after-move check for own parameters
-:PROPERTIES:
-:DISCOVERED: 2025-12-18
-:IMPACT: Compiled code allows use of moved variable
-:STATUS: Open
-:END:
-
-*** Description
-When a variable is passed to an =own= parameter, the variable should be
-invalidated in the caller's scope. The interpreter catches this at eval time,
-but the typer doesn't track it - so compiled code allows using the variable.
-
-*** Example
-#+BEGIN_SRC til
-consume := proc(own n: I64) returns I64 {
-    return mul(n, 2)
-}
-
-test := proc() {
-    mut x := 42
-    result := consume(x)
-    println(I64.to_str(x))  // Should be rejected - x was moved
-}
-#+END_SRC
-
-*** Expected Behavior
-Typer should reject use of =x= after it was passed to =own= parameter:
-"Variable 'x' was moved and can no longer be used"
-
-*** Actual Behavior
-- Typer: No tracking of moved variables (the bug)
-- Interpreter: Catches at eval - "Undefined symbol 'x'" (wrong phase)
-- Compiler: No catch at all - x still usable with original value
-
-*** Fix Required
-Mirror what interpreter already does: remove the symbol from scope when passed to =own= param.
-
-*Implementation plan:*
-
-1. In typer's function call checking (where we iterate over args)
-2. If param has =is_own=, and arg is an identifier:
-   - Remove the symbol from scope (like interpreter does)
-3. Subsequent uses automatically get "undefined symbol" error
-
-No new data structures needed - reuses existing scope/symbol machinery.
-
-*** Call-site own syntax (optional/aesthetic)
-Call-site =own= syntax (=func(own x)=) is not implemented in parser.
-Currently only declaration syntax (=own n: I64=) is supported.
-This would be purely for code clarity - making ownership transfer explicit to readers.
-The mechanism works without it.
-
-*** Reproducing Test
-src/test/bug49_test.til
-
-#+BEGIN_SRC bash
-./bin/rstil interpret src/test/bug49_test.til  # FAIL - eval error (should be typer)
-./bin/rstil run src/test/bug49_test.til        # PASS - bug: x still accessible
-#+END_SRC
-
-*** Related
-- Bug #48: Similar issue for =mut= parameters (lvalue check)
-- See doc/ownership.org for full ownership design
 
 ** Bug #45: init.til uses invalid fallthrough switch syntax
 :PROPERTIES:
@@ -515,33 +740,6 @@ src/test/bug43_test.til (now passes both interpret and run)
 - src/core/vec.til: Added null pointer check in Vec.push
 - src/self/interpreter.til: Ported fix to TIL version
 
-** Bug #42: Temp variable naming inconsistency causes undeclared _tmp_N errors
-:PROPERTIES:
-:DISCOVERED: 2025-12-17
-:IMPACT: Compilation fails
-:STATUS: Active
-:END:
-
-*** Description
-After commit 5707c2d (Make _for_i_ variable names deterministic), some code paths generate temp variables with old-style names (_tmp_N) while others use new-style names (_tmp_funcname_N). This causes gcc errors for undeclared variables.
-
-#+BEGIN_EXAMPLE
-gcc error: '_tmp_13' undeclared (first use in this function)
-In til_Vec_clone:
-til_Vec til_cloned = {..., .ptr = _tmp_13, ...};
-#+END_EXAMPLE
-
-*** Root Cause
-The deterministic naming commit (5707c2d) updated many code paths to use function-prefixed temp names like _tmp_funcname_N, but at least one code path still uses the old _tmp_N naming without function prefix. The declaration uses the new style while the reference uses the old style, or vice versa.
-
-*** Related
-- Commit 5707c2d: Fix Bug #40: Make _for_i_ variable names deterministic
-- The commit changed next_mangled() to include function name prefix
-
-*** Files to Investigate
-- src/rs/ccodegen.rs: Check all code paths that generate temp variables
-- src/self/ccodegen.til: Same for TIL version
-
 ** Bug #40: Precomp generates non-deterministic _for_i_ variable names
 :PROPERTIES:
 :DISCOVERED: 2025-12-16
@@ -605,207 +803,6 @@ Files modified:
 - src/self/precomp.til: Same fixes ported
 
 Test: src/test/deterministic.til
-
-** Bug #34: Code after catch blocks doesn't run in error path
-:PROPERTIES:
-:DISCOVERED: 2025-12-14
-:IMPACT: Error handling semantics
-:STATUS: Partially Fixed
-:END:
-
-*** Description
-Code placed AFTER catch blocks doesn't run when an error is caught.
-
-*** Partial Fix (2025-12-15)
-A fix was attempted that works ONLY when there's no code between the throwing
-call and the catch block:
-
-#+BEGIN_EXAMPLE til
-// This case WORKS after the partial fix:
-throwing_call()
-catch (err: Error) { }
-code_after_catch()  // Runs correctly in both paths
-#+END_EXAMPLE
-
-*** Remaining Bug
-When there IS code between the throwing call and the catch block, the code
-AFTER the catch block does NOT run on the error path:
-
-#+BEGIN_EXAMPLE til
-// This case is BROKEN:
-throwing_call()
-between = true      // Between throw and catch - correctly skipped
-catch (err: Error) {
-    // error caught
-}
-code_after_catch()  // BUG: Does NOT run when error was caught!
-#+END_EXAMPLE
-
-*** Workaround
-Do not put any code between a throwing call and its catch block. Move such
-code either before the throwing call or after the catch block.
-
-*** Root Cause (partial fix)
-In the C code generator, statements after the last catch block were emitted BEFORE
-the ~goto _end_catches~ jump, so they only ran on the success path.
-
-*** Files Modified (partial fix)
-- src/rs/ccodegen.rs: Rust implementation
-- src/self/ccodegen.til: TIL port
-- src/test/errors.til: Regression test (test_bug34 - only tests simple case)
-
-** Bug #50: Codegen doesn't capture outer variables in nested functions
-:PROPERTIES:
-:DISCOVERED: 2025-12-19
-:IMPACT: Nested functions fail to compile when accessing outer scope variables
-:STATUS: Open
-:END:
-
-*** Description
-Nested functions (closures) in TIL can access variables from their enclosing scope.
-This works correctly in the interpreter but fails during C code generation - the
-outer variables are not captured/passed to the nested function.
-
-*** Reproducing
-#+BEGIN_SRC bash
-./bin/rstil interpret src/tests.til test rs_common src/examples/lolalalo.til
-#+END_SRC
-
-Or uncomment in tests.til:
-#+BEGIN_SRC til
-// rs_common.push(TestEntry(path="src/examples/lolalalo.til")) // TODO Bug #50
-#+END_SRC
-
-*** Error Output
-#+BEGIN_EXAMPLE
-gen/c/examples/lolalalo.c:1396:117: error: 'til_s2' undeclared (first use in this function)
-gen/c/examples/lolalalo.c:1410:107: error: 'til_silabes' undeclared (first use in this function)
-#+END_EXAMPLE
-
-*** Root Cause
-In ccodegen, when emitting nested functions, variables from the outer scope (s1, s2,
-silabes) are referenced but not passed as parameters or captured in a closure struct.
-
-*** Potential Solutions
-
-**** 1. Lambda Lifting (Recommended)
-Transform nested functions into top-level functions, adding captured variables as
-explicit parameters. The compiler would:
-- Analyze which outer variables are referenced inside the nested function
-- Add those as extra parameters to the lifted function
-- At call sites, pass the captured variables explicitly
-
-Pros: Simple, no runtime overhead, matches how TIL already handles explicit params
-Cons: Recursive nested functions need care (captured vars passed through each call)
-
-**** 2. Closure Struct
-Create a struct containing all captured variables, pass pointer to nested function:
-#+BEGIN_SRC c
-struct poem_closure { Str s1; Str s2; };
-Str poem(I64 depth, Str current, struct poem_closure* ctx) {
-    // use ctx->s1, ctx->s2
-}
-#+END_SRC
-
-Pros: Clean abstraction, single extra parameter regardless of capture count
-Cons: Slightly more complex codegen, minor indirection overhead
-
-**** 3. GCC Nested Functions Extension
-GCC supports nested functions as a non-standard extension. We could use this directly.
-
-Pros: Zero codegen changes for nested function bodies
-Cons: GCC-only (not clang/MSVC), uses trampolines (executable stack), less portable
-
-**** 4. Restrict Nested Function Captures
-Disallow nested functions from capturing outer variables - require explicit parameters.
-This is a language design change rather than a fix.
-
-Pros: Simpler language semantics, no closure machinery needed
-Cons: Breaking change, less ergonomic for users
-
-*** Workaround
-Use the interpreter instead of the compiler for files with nested functions that
-capture outer variables. The file is in rs_interpreted instead of rs_common.
-
-*** Work In Progress (2025-12-19)
-Prerequisite refactor "Phase A: Const Args by Reference" is in progress in the
-=wio= branch. This changes all non-copy params to pointers (const Type*) which
-simplifies the lambda lifting implementation.
-
-Phase A completed items:
-- emit_func_signature: all non-copy params now const Type*
-- by_ref calculations: changed from is_mut to !is_copy (7 locations)
-- current_ref_params: now includes all non-copy params
-- Variadic handling: fixed in emit_fcall_name_and_args_for_throwing and emit_fcall
-- Compound literals: added for number/string literals
-
-Phase A remaining issue:
-- Nested struct-returning function calls passed to by-ref params need hoisting
-- Current hoisting only works at statement level (indent > 0)
-- Need recursive hoisting before emitting expressions
-- See =wio= branch for debug output and partial implementation
-
-** Bug #51: Precomp doesn't propagate constants through function parameters
-:PROPERTIES:
-:DISCOVERED: 2025-12-19
-:IMPACT: Missed compile-time optimizations, larger generated code
-:STATUS: Open
-:END:
-
-*** Description
-When a function is called with literal arguments, the parameters inside the
-function body are not treated as compile-time constants, preventing constfolding.
-
-*** Example
-#+BEGIN_SRC til
-test_equal := proc(s1: Str, s2: Str) {
-    preffix := "\nPara "
-    for_whom := preffix.concat(s1).concat(s2)  // NOT folded
-    ...
-}
-test_equal("lo", "la")  // Called with literals
-#+END_SRC
-
-Even though ~test_equal("lo", "la")~ passes literals, inside the function:
-- ~preffix~ is a literal -> comptime
-- ~s1~, ~s2~ are parameters -> NOT comptime
-- ~preffix.concat(s1)~ cannot fold because ~s1~ isn't comptime
-
-*** Reproducing
-#+BEGIN_SRC bash
-./bin/rstil run src/examples/lolalalo.til
-# Inspect gen/c/examples/lolalalo.c line 771:
-# til_for_whom = til_concat(til_concat(til_preffix, til_s1), til_s2);
-# Should be: til_for_whom = ((til_Str){(til_I64)"\nPara lola", 10});
-#+END_SRC
-
-*** Root Cause
-In ~precomp_func_def~ (src/rs/precomp.rs:736):
-#+BEGIN_SRC rust
-is_comptime_const: false,  // Function args are not comptime constants
-#+END_SRC
-
-Function parameters are unconditionally marked as non-comptime, even when
-the function is called exclusively with literal arguments.
-
-*** Potential Solutions
-
-**** 1. Function Specialization (Recommended)
-When a function is called with all-literal arguments, create a specialized
-copy with those values inlined and marked as comptime, then constfold it.
-
-Pros: Full optimization, works for any function
-Cons: Can cause code bloat if many call sites with different literals
-
-**** 2. Inline Small Functions
-Inline functions called with literal arguments, then constfold the inlined body.
-
-Pros: Simple, leverages existing constfolding
-Cons: Code bloat, doesn't work for recursive functions
-
-*** Workaround
-None - this is an optimization issue, not a correctness bug. Code runs correctly
-but with more runtime computation than necessary.
 
 ** Bug #52: Static buffer in ext.c til_i64_to_str caused string corruption
 :PROPERTIES:
@@ -880,8 +877,6 @@ during ./bin/til execution, causing non-zero bytes to appear at string boundarie
 
 *** Files Modified
 - src/core/str.til: Fixed clone, concat, format, replace functions
-
-* Fixed Bugs Summary
 
 ** Bug #41: mode liba not respected when file is imported
 :PROPERTIES:
