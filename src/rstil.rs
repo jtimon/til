@@ -79,7 +79,7 @@ fn interpret_file_or_exit(path: &String, args: Vec<String>) {
     match run_file(path, args) {
         Ok(_) => {},
         Err(err) => {
-            println!("ERROR: While running file {path}:\n{err}");
+            println!("ERROR: {err}");
             std::process::exit(1);
         },
     };
@@ -96,7 +96,7 @@ fn build_file_or_exit(path: &String, target: &Target, lang: &Lang, translate_onl
             }
         },
         Err(err) => {
-            println!("Build error: {}", err);
+            println!("ERROR: {err}");
             std::process::exit(1);
         },
     };
@@ -106,7 +106,7 @@ fn run_file_or_exit(path: &String, target: &Target, lang: &Lang, extra_args: &[S
     let exe_path = match builder::build(path, target, lang, false) {
         Ok(exe) => exe,
         Err(err) => {
-            println!("Build error: {}", err);
+            println!("ERROR: {err}");
             std::process::exit(1);
         },
     };

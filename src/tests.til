@@ -544,12 +544,11 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/examples/hello_cli.til"))
     rs_common.push(TestEntry(path="src/examples/hello_lib.til"))
     rs_common.push(TestEntry(path="src/examples/hello_liba.til"))
-    rs_common.push(TestEntry(path="src/examples/hello_pure.til"))
     rs_common.push(TestEntry(path="src/examples/hello_pura.til"))
+    rs_common.push(TestEntry(path="src/examples/hello_pure.til"))
     rs_common.push(TestEntry(path="src/examples/hello_script.til"))
     rs_common.push(TestEntry(path="src/examples/hello_test.til"))
-    // rs_common.push(TestEntry(path="src/examples/lolalalo.til")) // TODO Bug #50: codegen doesn't capture outer vars in nested funcs
-    // rs_common.push(TestEntry(path="src/test/arenas.til")) // TODO: fails in interpreted mode
+    rs_common.push(TestEntry(path="src/test/arenas.til"))
     rs_common.push(TestEntry(path="src/test/args.til"))
     rs_common.push(TestEntry(path="src/test/arithmetics.til"))
     rs_common.push(TestEntry(path="src/test/arrays.til"))
@@ -558,6 +557,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/bug41_test.til"))
     rs_common.push(TestEntry(path="src/test/bug43_test.til"))
     rs_common.push(TestEntry(path="src/test/bug46_test.til"))
+    rs_common.push(TestEntry(path="src/test/bug48_test.til", expected_status=1))
     rs_common.push(TestEntry(path="src/test/bug52_test.til"))
     rs_common.push(TestEntry(path="src/test/c_mem.til"))
     rs_common.push(TestEntry(path="src/test/circular_test.til"))
@@ -597,28 +597,24 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/todo.til")) // permanent TODO, design notes for future features
     rs_common.push(TestEntry(path="src/test/u8.til"))
     rs_common.push(TestEntry(path="src/test/ufcs.til"))
+    rs_common.push(TestEntry(path="src/test/undefined.til", expected_status=1)) // in both rs_interpreted and rs_compiled because interpret/run produce different output wrappers
     rs_common.push(TestEntry(path="src/test/underscore.til"))
     rs_common.push(TestEntry(path="src/test/variadic.til"))
     rs_common.push(TestEntry(path="src/test/vecs.til"))
     rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))
 
     mut rs_compiled := Vec.new(TestEntry)
-    rs_compiled.push(TestEntry(path="src/test/arenas.til"))
-    rs_compiled.push(TestEntry(path="src/test/memcmp_str_compiled.til"))
+
+    rs_compiled.push(TestEntry(path="src/test/memcmp_str_compiled.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
     rs_compiled.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
-    rs_compiled.push(TestEntry(path="src/test/throw_simple.til"))
-    rs_compiled.push(TestEntry(path="src/test/undefined.til", expected_status=1)) // in both rs_interpreted and rs_compiled because interpret/run produce different output wrappers
-    rs_compiled.push(TestEntry(path="src/test/bug48_test.til", expected_status=1)) // in both because different error wrappers
 
     mut rs_interpreted := Vec.new(TestEntry)
 
-    rs_interpreted.push(TestEntry(path="src/tests.til", cmd_args="help")) // REM Tests itself
     rs_interpreted.push(TestEntry(path="src/examples/hello_safe_script.til", expected_status=1)) // TODO: compiled version doesn't enforce safe_script whitelist
-    rs_interpreted.push(TestEntry(path="src/examples/lolalalo.til"))
-    rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
+    rs_interpreted.push(TestEntry(path="src/examples/lolalalo.til")) // TODO move to rs_common: Bug #50: codegen doesn't capture outer vars in nested funcs
+    rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
-    rs_interpreted.push(TestEntry(path="src/test/undefined.til", expected_status=1)) // in both rs_interpreted and rs_compiled because interpret/run produce different output wrappers
-    rs_interpreted.push(TestEntry(path="src/test/bug48_test.til", expected_status=1)) // in both because different error wrappers
+    rs_interpreted.push(TestEntry(path="src/tests.til", cmd_args="help")) // REM Tests itself
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
     // run_cmd doesn't support stdin, would need bash -c wrapper or new ext_proc
