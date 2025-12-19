@@ -522,18 +522,19 @@ regen_test_compiled := proc(entry: TestEntry) throws AllocError {
 }
 
 usage := proc() {
-    println("tests - TIL test runner")
+    println("Usage: tests [command] [options]")
     println("")
-    println("Usage:")
-    println("  tests                      Run all tests (default)")
-    println("  tests test                 Run all tests")
-    println("  tests regen                Regenerate all .out files")
-    println("  tests regen <path>         Regenerate specific .out file")
-    println("  tests regen <path> <args>  Regenerate with specific args")
+    println("Entering no arguments is equivalent to: 'tests test'")
     println("")
-    println("Examples:")
-    println("  tests regen src/examples/hello_script.til")
-    println("  tests regen src/til.til version")
+    println("Commands:")
+    println("")
+    println("test: runs all tests.")
+    println("test <mode> <file> [args]: runs single file with mode's behavior.")
+    println("regen: regenerates all .out files.")
+    println("regen <mode> <status> <file> [args]: regenerates specific .out file.")
+    println("help: prints this.")
+    println("")
+    println("Modes: rs_interpreted, rs_compiled, rs_common, til_interpreted, til_compiled, til_common")
 }
 
 main := proc(args: ..Str) {
@@ -609,6 +610,7 @@ main := proc(args: ..Str) {
 
     mut rs_interpreted := Vec.new(TestEntry)
 
+    rs_interpreted.push(TestEntry(path="src/tests.til", cmd_args="help")) // REM Tests itself
     rs_interpreted.push(TestEntry(path="src/examples/hello_safe_script.til", expected_status=1)) // TODO: compiled version doesn't enforce safe_script whitelist
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
@@ -642,7 +644,49 @@ main := proc(args: ..Str) {
         args.get(0, cmd)
         switch cmd {
         case "test":
-            run_all_tests(til_interpreted, til_compiled, til_common, rs_interpreted, rs_compiled, rs_common)
+            if args.len().eq(1) {
+                run_all_tests(til_interpreted, til_compiled, til_common, rs_interpreted, rs_compiled, rs_common)
+            } else if args.len().lt(3) {
+                println("Error: test requires <mode> and <file>")
+                usage()
+                exit(1)
+            } else {
+                mut test_mode := ""
+                mut file := ""
+                args.get(1, test_mode)
+                args.get(2, file)
+                // Collect optional args
+                mut cmd_args := ""
+                for i in 3..args.len() {
+                    mut arg := ""
+                    args.get(i, arg)
+                    if cmd_args.len().gt(0) {
+                        cmd_args = cmd_args.concat(" ")
+                    }
+                    cmd_args = cmd_args.concat(arg)
+                }
+                entry := TestEntry(path=file, cmd_args=cmd_args)
+                mut time_ms := 0
+                mut time_ms2 := 0
+                switch test_mode {
+                case "rs_interpreted":
+                    _ := test_rs_interpreted(entry, time_ms)
+                case "rs_compiled":
+                    _ := test_rs_compiled(entry, time_ms)
+                case "rs_common":
+                    _ := test_rs_common(entry, time_ms, time_ms2)
+                case "til_interpreted":
+                    _ := test_til_interpreted(entry, time_ms)
+                case "til_compiled":
+                    _ := test_til_compiled(entry, time_ms)
+                case "til_common":
+                    _ := test_til_common(entry, time_ms, time_ms2)
+                case:
+                    println("Error: unknown mode '", test_mode, "'")
+                    usage()
+                    exit(1)
+                }
+            }
         case "regen":
             mut files := Vec.new(Str)
             for i in 1..args.len() {
