@@ -496,6 +496,55 @@ while i.gteq(0) {
 }
 #+end_src
 
+*** lang_error for better error messages (TIL improvement over Rust)
+
+When a function has an ~Expr~ parameter, use ~e.lang_error()~ instead of ~panic()~ for
+internal errors. This provides source location from the expression being processed,
+giving better error messages than Rust's implicit panics:
+
+#+begin_src til
+// When you have an Expr available, use lang_error for better diagnostics
+process_expr := func(context: Context, e: Expr) returns T throws Str {
+    mut items := get_items()
+    for item: Item in items {
+        // ... processing that might fail ...
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw e.lang_error(context.path, "phase_name", format("Internal error: ", err.msg))
+    }
+    // ...
+}
+#+end_src
+
+This is better than Rust because:
+- Rust would silently panic on index out of bounds
+- TIL can catch and rethrow with source location info from the Expr
+
+*** loc().concat() for functions without Expr
+
+When a function does NOT have an ~Expr~ parameter but still needs to report errors
+with location info, use ~loc().concat()~ to include the source location:
+
+#+begin_src til
+// When you don't have an Expr, use loc().concat() for error messages
+all_structs := func(self: ScopeStack) returns Vec throws Str {
+    mut result := Vec.new(SStructDef)
+    // ... iteration logic ...
+
+    catch (err: IndexOutOfBoundsError) {
+        throw loc().concat("IndexOutOfBoundsError in all_structs: ").concat(err.msg)
+    }
+    catch (err: AllocError) {
+        throw loc().concat("AllocError in all_structs: ").concat(err.msg)
+    }
+    return result
+}
+#+end_src
+
+This provides the location where the error was thrown (the catch block), which is
+helpful for debugging internal errors.
+
 * Clone Methods (derive(Clone) -> manual implementation)
 
 Rust uses ~#[derive(Clone)]~ to auto-generate clone methods. TIL has no derive macros,

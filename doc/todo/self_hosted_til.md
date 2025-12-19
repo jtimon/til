@@ -23,18 +23,25 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Fix: Remove catch from local_catch_labels after processing it
 
 ### Current Issue
-**Bool.eq member resolution error**:
+**Bug #47: NodeType.? memory corruption**:
 ```
-src/core/bool.til:92:92: type ERROR: struct 'Bool' has no member 'eq' c
+src/core/vec.til:63:63: til init ERROR: Identifiers can only contain identifiers, found 'NodeType.?'
 ```
-- The trailing 'c' in the error message is suspicious
-- Likely a translation issue in typer.til (TIL diverged from Rust)
-- No more infinite loop - the self-hosted compiler now progresses further
+- Invalid enum tag being read from memory during Vec iteration
+- Happens in init.til's get_value_type when iterating e.params
+- rstil works fine, only compiled til fails
+- Struct sizes verified correct (Expr = 288 bytes)
+- Suspect: memory corruption during Vec operations or struct copying
+
+**Reproduce:**
+```bash
+./bin/rstil interpret src/tests.til test til_interpreted src/examples/empty.til
+```
 
 ## Compiler Phases
 1. ~~Parser~~ ✓
-2. ~~Init~~ ✓
-3. **Typer** ← currently here (Bool.eq error)
+2. **Init** ← Bug #47 blocks here (processing core.til/vec.til)
+3. Typer
 4. Precomp
 5. Scavenger
 6. Eval/Interpreter → enables `til interpret`
@@ -107,6 +114,36 @@ Work on **master**. Previous branch `claude/fix-bool-return-error-VePQb` is refe
 - Note function names to re-translate, not line numbers
 
 ## Next Steps
-1. Investigate Bool.eq error in typer.til
-2. Compare typer.til with typer.rs for member resolution logic
-3. Fix divergence and test
+1. Examine gen/c/tmp/bug47_test.c for the C code pattern (60KB vs til.c's 5.7MB)
+2. Find the problematic pattern in generated C code for Vec<Expr> iteration
+3. Locate the Rust codegen function in src/rs/ccodegen.rs that generates it
+4. Fix in ccodegen.rs, run make tests, port to ccodegen.til
+
+## Debug Findings
+- Invalid NodeType tag value: 840973088 (0x32202E32)
+- This looks like ASCII data overwriting the enum tag
+- src/test/bug47_test.til reproduces the corruption with a minimal test
+
+### Reproducing Test (2025-12-19)
+src/test/bug47_test.til reproduces the bug:
+- `./bin/rstil interpret src/test/bug47_test.til` - PASS (call_count stays 1)
+- `./bin/rstil run src/test/bug47_test.til` - shows corruption
+
+Run output:
+```
+DEBUG A call_count=1           <- correct before loop
+DEBUG B debug_idx=0
+DEBUG C local_count=0          <- CORRUPTED when entering loop (should be 1)
+DEBUG C2 direct eq(1)=true     <- but direct comparison returns true!
+```
+
+Strange behavior:
+- Storing global in local shows corruption (0, 1, 2...)
+- Direct comparison `DEBUG_CALL_COUNT.eq(1)` returns true
+- Same variable reads different values depending on access pattern
+
+### Generated C Code (gen/c/test/bug47_test.c)
+- Global: `static til_I64 til_DEBUG_CALL_COUNT;` (line 174)
+- Loop iterator: `til_Expr til_cursor;` declared outside while loop (line 925)
+- Vec_get uses `til_memcpy(til_dest, til_src, til_self.type_size)` to copy
+- til_Expr struct is 4 fields: node_type, params (Vec), line, col

@@ -1,0 +1,91 @@
+mode test
+
+// Bug #47: NodeType.? memory corruption during Vec iteration
+// Pattern copied from init.til:1112-1118 where the bug occurs:
+//   for cursor: Expr in e.params {
+//       switch cursor.node_type {
+//       case NodeType.Identifier(n): ...
+// - rstil interpret: PASS
+// - rstil run: FAIL (invalid enum tag read)
+
+// Global counter to detect corruption (same pattern as init.til)
+mut DEBUG_CALL_COUNT := 0
+
+// Enum similar to NodeType (with payload variants like Identifier: Str)
+NodeType := enum {
+    Body,
+    Identifier: Str,
+    FCall,
+}
+
+// Struct similar to Expr (contains enum field and Vec of itself)
+Expr := struct {
+    mut node_type: NodeType = NodeType.Body
+    mut params: Vec = Vec.new(Expr)
+    mut line: I64 = 0
+    mut col: I64 = 0
+}
+
+test_vec_iteration := proc() {
+    println("test_vec_iteration")
+
+    // Create parent Expr with params Vec
+    mut parent := Expr()
+
+    // Add child exprs with different NodeType variants
+    mut child1 := Expr(node_type=NodeType.Body, line=1)
+    mut child2 := Expr(node_type=NodeType.Identifier("hello"), line=2)
+    mut child3 := Expr(node_type=NodeType.FCall, line=3)
+
+    parent.params.push(child1)
+    parent.params.push(child2)
+    parent.params.push(child3)
+
+    // Increment global counter before loop (same pattern as init.til)
+    DEBUG_CALL_COUNT = add(DEBUG_CALL_COUNT, 1)
+    println("DEBUG A call_count=", DEBUG_CALL_COUNT.to_str())
+
+    mut debug_idx := 0
+    println("DEBUG B debug_idx=", debug_idx.to_str())
+
+    // Iterate over params - this is where corruption happens
+    for cursor: Expr in parent.params {
+        // Bug #47: Global variable gets corrupted when entering for-in loop
+        // Store in local to capture the corrupted value
+        mut local_count := DEBUG_CALL_COUNT
+        println("DEBUG C local_count=", local_count.to_str(), " debug_idx=", debug_idx.to_str())
+        // Interesting: local_count shows 0 but direct comparison passes!
+        println("DEBUG C2 direct eq(1)=", DEBUG_CALL_COUNT.eq(1).to_str())
+        if not(local_count.eq(1)) {
+            println("FAIL: local_count should be 1, got ", local_count.to_str())
+            exit(1)
+        }
+        println("DEBUG D cursor.line=", cursor.line.to_str())
+        println("DEBUG E cursor.node_type=", enum_to_str(cursor.node_type))
+        debug_idx = add(debug_idx, 1)
+
+        switch cursor.node_type {
+        case NodeType.Body:
+            assert_eq(loc(), 1, cursor.line)
+        case NodeType.Identifier(n):
+            assert_eq_str(loc(), "hello", n)
+            assert_eq(loc(), 2, cursor.line)
+        case NodeType.FCall:
+            assert_eq(loc(), 3, cursor.line)
+        case:
+            println("ERROR: Unknown variant in cursor.node_type: ", enum_to_str(cursor.node_type))
+            exit(1)
+        }
+    }
+
+    // Verify global wasn't corrupted
+    assert_eq(loc(), 1, DEBUG_CALL_COUNT)
+
+    catch (err: AllocError) {
+        println("AllocError: ", err.msg)
+        exit(1)
+    }
+}
+test_vec_iteration()
+
+println("All tests passed")

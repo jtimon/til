@@ -159,21 +159,23 @@ ScopeStack := struct {
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
+
             if frame.arena_index.contains_key(name) {
                 mut offset_str := ""
                 frame.arena_index.get(name, offset_str)
+                catch (err: KeyNotFoundError) {
+                    // Var not found, continue searching
+                }
                 return offset_str.to_i64()
             }
-            i = i.sub(1)
+
+            i.dec()
         }
+
         catch (err: IndexOutOfBoundsError) {
-            // Internal error - should never happen
+            panic(loc(), "IndexOutOfBoundsError in lookup_var: ", err.msg)
         }
-        catch (err: KeyNotFoundError) {
-            // Internal error from contains_key - should never happen
-        }
-        // Like Rust's None - caller provides error message
-        throw KeyNotFoundError()
+        throw KeyNotFoundError(msg="lookup_var: Var not found in ScopeStack")
     }
 
     lookup_symbol := func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError {
@@ -181,19 +183,23 @@ ScopeStack := struct {
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
+
             if frame.symbols.contains_key(name) {
                 mut symbol := SymbolInfo()
                 frame.symbols.get(name, symbol)
-                catch (err: KeyNotFoundError) { }
+                catch (err: KeyNotFoundError) {
+                    // Symbol not found, continue searching
+                }
                 return symbol
             }
-            i = i.sub(1)
+
+            i.dec()
         }
+
         catch (err: IndexOutOfBoundsError) {
-            // Internal error - should never happen
+            panic(loc(), "IndexOutOfBoundsError in lookup_symbol: ", err.msg)
         }
-        // Like Rust's None - caller provides error message
-        throw KeyNotFoundError()
+        throw KeyNotFoundError(msg="lookup_symbol: Symbol not found in ScopeStack")
     }
 
     declare_var := proc(mut self: ScopeStack, name: Str, offset: I64, symbol: SymbolInfo) throws Str, IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
@@ -346,19 +352,23 @@ ScopeStack := struct {
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
+
             if frame.enums.contains_key(name) {
                 mut enum_def := SEnumDef()
                 frame.enums.get(name, enum_def)
-                catch (err: KeyNotFoundError) { }
+                catch (err: KeyNotFoundError) {
+                    // Enum not found, continue searching
+                }
                 return enum_def
             }
-            i = i.sub(1)
+
+            i.dec()
         }
+
         catch (err: IndexOutOfBoundsError) {
-            // Internal error - should never happen
+            panic(loc(), "IndexOutOfBoundsError in lookup_enum: ", err.msg)
         }
-        // Like Rust's None - caller provides error message
-        throw KeyNotFoundError()
+        throw KeyNotFoundError(msg="lookup_enum: Enum not found in ScopeStack")
     }
 
     declare_enum := proc(mut self: ScopeStack, name: Str, enum_def: SEnumDef) throws Str {
@@ -385,19 +395,23 @@ ScopeStack := struct {
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
+
             if frame.structs.contains_key(name) {
                 mut struct_def := SStructDef()
                 frame.structs.get(name, struct_def)
-                catch (err: KeyNotFoundError) { }
+                catch (err: KeyNotFoundError) {
+                    // Struct not found, continue searching
+                }
                 return struct_def
             }
-            i = i.sub(1)
+
+            i.dec()
         }
+
         catch (err: IndexOutOfBoundsError) {
-            // Internal error - should never happen
+            panic(loc(), "IndexOutOfBoundsError in lookup_struct: ", err.msg)
         }
-        // Like Rust's None - caller provides error message
-        throw KeyNotFoundError()
+        throw KeyNotFoundError(msg="lookup_struct: Struct not found in ScopeStack")
     }
 
     all_structs := func(self: ScopeStack) returns Vec throws Str {
@@ -406,21 +420,19 @@ ScopeStack := struct {
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
-            mut values := frame.structs.values
-            mut j := 0
-            while j.lt(values.len()) {
-                mut struct_def := SStructDef()
-                values.get(j, struct_def)
+
+            for struct_def: SStructDef in frame.structs.values {
                 result.push(struct_def)
-                j.inc()
             }
-            i = i.sub(1)
+
+            i.dec()
         }
+
         catch (err: IndexOutOfBoundsError) {
-            throw err.msg
+            throw loc().concat("IndexOutOfBoundsError in all_structs: ").concat(err.msg)
         }
         catch (err: AllocError) {
-            throw err.msg
+            throw loc().concat("AllocError in all_structs: ").concat(err.msg)
         }
         return result
     }

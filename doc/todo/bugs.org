@@ -108,7 +108,7 @@ ctx.local_catch_labels.remove(err_type_name)
 :PROPERTIES:
 :DISCOVERED: 2025-12-18
 :IMPACT: ./bin/til interpret fails on any file
-:STATUS: In Progress - Root cause unknown
+:STATUS: In Progress - Codegen bug, examining generated C patterns
 :END:
 
 *** Description
@@ -127,18 +127,41 @@ The "NodeType.?" indicates an invalid enum tag value is being read from memory.
 This happens in init.til's =infer_identifier_type= function when iterating over
 =e.params= (a Vec of Expr) - some Expr has a corrupted NodeType field.
 
+*** Bug Type
+CODEGEN BUG - rstil works, compiled til fails. Per methodology: "interpret works
+but run fails" = codegen issue in ccodegen.rs
+
 *** Investigation Notes
 - rstil interpret works fine, only til (compiled self-hosted) fails
 - The error is consistent - always at vec.til:63 during init
-- Investigated Dynamic parameter casting in ccodegen - found cosmetic issue but
-  NOT the root cause (both cast and non-cast versions produce same pointer value)
 - Struct sizes match between TIL calculation and C sizeof for Expr (288 bytes)
-- Suspect memory corruption during Vec operations or struct copying
+- Invalid NodeType tag value found: 840973088 (0x32202E32) - looks like ASCII data
 
-*** Reproducing
+*** Minimal Reproducing Test (2025-12-19)
+src/test/bug47_test.til reproduces the corruption:
+- =./bin/rstil interpret src/test/bug47_test.til= - PASS (call_count stays 1)
+- =./bin/rstil run src/test/bug47_test.til= - shows corruption
+
+Output with run:
+#+BEGIN_EXAMPLE
+DEBUG A call_count=1           <- correct before loop
+DEBUG C local_count=0          <- CORRUPTED when entering for-in loop
+DEBUG C2 direct eq(1)=true     <- but direct comparison returns true!
+#+END_EXAMPLE
+
+Strange behavior:
+- Storing global in local shows corruption (0, 1, 2...)
+- Direct comparison =DEBUG_CALL_COUNT.eq(1)= returns true
+- Same variable reads different values depending on access pattern
+
+*** Generated C (gen/c/test/bug47_test.c)
+- Global: =static til_I64 til_DEBUG_CALL_COUNT;= (line 174)
+- Loop iterator =til_cursor= declared outside while loop (line 925)
+- Vec_get copies via =til_memcpy(dest, src, type_size)=
+
+*** Reproducing (self-hosted til)
 #+BEGIN_SRC bash
-./bin/rstil interpret src/examples/empty.til  # PASS
-./bin/til interpret src/examples/empty.til    # FAIL
+./bin/rstil interpret src/tests.til test til_interpreted src/examples/empty.til
 #+END_SRC
 
 ** Bug #48: Typer missing validation that mut arguments must be lvalues
