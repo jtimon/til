@@ -786,6 +786,20 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 )))
             }
         }
+
+        // Bug #49: Handle ownership transfer for 'own' parameters
+        // Remove the symbol from scope so subsequent uses get "undefined symbol" error
+        if arg.is_own {
+            switch arg_expr.node_type {
+            case NodeType.Identifier(var_name):
+                // Only invalidate simple identifiers, not field access or function calls
+                if arg_expr.params.len().eq(0) {
+                    _ := context.scope_stack.remove_symbol(var_name)
+                }
+            case:
+                // Not an identifier
+            }
+        }
     }
 
     catch (err: IndexOutOfBoundsError) {

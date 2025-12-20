@@ -600,6 +600,17 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
             },
             _ => {} // types match; no error
         }
+
+        // Bug #49: Handle ownership transfer for 'own' parameters
+        // Remove the symbol from scope so subsequent uses get "undefined symbol" error
+        if arg.is_own {
+            if let NodeType::Identifier(var_name) = &arg_expr.node_type {
+                // Only invalidate simple identifiers, not field access or function calls
+                if arg_expr.params.is_empty() {
+                    context.scope_stack.remove_symbol(var_name);
+                }
+            }
+        }
     }
 
     return errors

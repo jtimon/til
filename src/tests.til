@@ -558,6 +558,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/bug43_test.til"))
     rs_common.push(TestEntry(path="src/test/bug46_test.til"))
     rs_common.push(TestEntry(path="src/test/bug48_test.til", expected_status=1))
+    rs_common.push(TestEntry(path="src/test/bug49_test.til", expected_status=1))
     rs_common.push(TestEntry(path="src/test/bug52_test.til"))
     rs_common.push(TestEntry(path="src/test/c_mem.til"))
     rs_common.push(TestEntry(path="src/test/circular_test.til"))

@@ -163,70 +163,6 @@ Phase A remaining issue:
 - Need recursive hoisting before emitting expressions
 - See =wio= branch for debug output and partial implementation
 
-** Bug #49: Typer missing use-after-move check for own parameters
-:PROPERTIES:
-:DISCOVERED: 2025-12-18
-:IMPACT: Compiled code allows use of moved variable
-:STATUS: Open
-:END:
-
-*** Description
-When a variable is passed to an =own= parameter, the variable should be
-invalidated in the caller's scope. The interpreter catches this at eval time,
-but the typer doesn't track it - so compiled code allows using the variable.
-
-*** Example
-#+BEGIN_SRC til
-consume := proc(own n: I64) returns I64 {
-    return mul(n, 2)
-}
-
-test := proc() {
-    mut x := 42
-    result := consume(x)
-    println(I64.to_str(x))  // Should be rejected - x was moved
-}
-#+END_SRC
-
-*** Expected Behavior
-Typer should reject use of =x= after it was passed to =own= parameter:
-"Variable 'x' was moved and can no longer be used"
-
-*** Actual Behavior
-- Typer: No tracking of moved variables (the bug)
-- Interpreter: Catches at eval - "Undefined symbol 'x'" (wrong phase)
-- Compiler: No catch at all - x still usable with original value
-
-*** Fix Required
-Mirror what interpreter already does: remove the symbol from scope when passed to =own= param.
-
-*Implementation plan:*
-
-1. In typer's function call checking (where we iterate over args)
-2. If param has =is_own=, and arg is an identifier:
-   - Remove the symbol from scope (like interpreter does)
-3. Subsequent uses automatically get "undefined symbol" error
-
-No new data structures needed - reuses existing scope/symbol machinery.
-
-*** Call-site own syntax (optional/aesthetic)
-Call-site =own= syntax (=func(own x)=) is not implemented in parser.
-Currently only declaration syntax (=own n: I64=) is supported.
-This would be purely for code clarity - making ownership transfer explicit to readers.
-The mechanism works without it.
-
-*** Reproducing Test
-src/test/bug49_test.til
-
-#+BEGIN_SRC bash
-./bin/rstil interpret src/test/bug49_test.til  # FAIL - eval error (should be typer)
-./bin/rstil run src/test/bug49_test.til        # PASS - bug: x still accessible
-#+END_SRC
-
-*** Related
-- Bug #48: Similar issue for =mut= parameters (lvalue check)
-- See doc/ownership.org for full ownership design
-
 ** Bug #48: Typer missing validation that mut arguments must be lvalues
 :PROPERTIES:
 :DISCOVERED: 2025-12-18
@@ -382,6 +318,61 @@ The deterministic naming commit (5707c2d) updated many code paths to use functio
 - src/self/ccodegen.til: Same for TIL version
 
 * Fixed Bugs
+
+** Bug #49: Typer missing use-after-move check for own parameters
+:PROPERTIES:
+:DISCOVERED: 2025-12-18
+:FIXED: 2025-12-20
+:IMPACT: Compiled code allows use of moved variable
+:STATUS: Fixed
+:END:
+
+*** Description
+When a variable is passed to an =own= parameter, the variable should be
+invalidated in the caller's scope. The interpreter catches this at eval time,
+but the typer doesn't track it - so compiled code allows using the variable.
+
+*** Example
+#+BEGIN_SRC til
+consume := proc(own n: I64) returns I64 {
+    return mul(n, 2)
+}
+
+test := proc() {
+    mut x := 42
+    result := consume(x)
+    println(I64.to_str(x))  // Should be rejected - x was moved
+}
+#+END_SRC
+
+*** Expected Behavior
+Typer should reject use of =x= after it was passed to =own= parameter:
+"Variable 'x' was moved and can no longer be used"
+
+*** Actual Behavior
+- Typer: No tracking of moved variables (the bug)
+- Interpreter: Catches at eval - "Undefined symbol 'x'" (wrong phase)
+- Compiler: No catch at all - x still usable with original value
+
+*** Fix Applied (2025-12-20)
+In typer's =check_fcall= function, after all type checking for an argument is complete,
+if the parameter has =is_own= and the argument is a simple identifier, remove the
+symbol from scope using =context.scope_stack.remove_symbol()=.
+
+Key insight: The removal must happen AFTER =get_value_type= is called on the argument,
+not before - otherwise the type lookup fails for the current argument.
+
+*** Files Modified
+- src/rs/typer.rs: Added remove_symbol call at end of argument loop in check_fcall
+- src/self/typer.til: Same fix ported
+- src/tests.til: Added bug49_test.til with expected_status=1
+
+*** Regression Test
+src/test/bug49_test.til (expects exit code 1 - type error)
+
+*** Related
+- Bug #48: Similar issue for =mut= parameters (lvalue check)
+- See doc/ownership.org for full ownership design
 
 ** Bug #34: Code after catch blocks doesn't run in error path
 :PROPERTIES:
