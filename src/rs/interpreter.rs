@@ -383,8 +383,10 @@ pub fn create_default_instance(ctx: &mut Context, struct_type: &str, e: &Expr) -
 /// Template is guaranteed to exist - created eagerly on eval_declaration.
 pub fn insert_struct_instance(ctx: &mut Context, id: &str, type_name: &str, e: &Expr) -> Result<(), String> {
     let template_offset = EvalArena::g().default_instances.get(type_name).copied()
-        .ok_or_else(|| e.lang_error(&ctx.path, "insert_struct_instance",
-            &format!("template for '{}' not found", type_name)))?;
+        .ok_or_else(|| {
+            e.lang_error(&ctx.path, "insert_struct_instance",
+                &format!("template for '{}' not found", type_name))
+        })?;
     EvalArena::insert_struct(ctx, id, type_name, template_offset, e)
 }
 

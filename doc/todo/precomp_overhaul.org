@@ -1,0 +1,116 @@
+* Bug #54 Fix Plan
+
+** Bug #54 Summary (from doc/todo/bugs.org)
+
+*Problem:* Pure functions with ~throws~ are not evaluated at compile time, even when called with literal arguments.
+
+*Test file:* ~src/test/precomp_throw.til~ - expects precomp error when ~always_throws(5)~ is called (func throws ~Str~)
+
+*Documented solution:* Remove the throw_types check that blocks all throwing functions. The existing ~eval_comptime~ already handles thrown exceptions and reports them as compile-time errors.
+
+** Original Diff Summary
+
+1. *~src/rs/precomp.rs~*:
+   - Modified ~is_comptime_evaluable~: Instead of blocking ALL throwing functions, now only blocks those throwing ~AllocError~, ~IndexOutOfBoundsError~, or ~KeyNotFoundError~ (runtime-dependent errors)
+   - Added U8 support in ~eval_comptime~
+
+2. *~src/self/precomp.til~*:
+   - Same change but only excludes ~AllocError~ (needs sync with Rust)
+   - Already has U8 support
+
+3. *~src/test/errors.til~*: Changed throwing funcs to procs to avoid precomp folding
+
+4. *~src/test/u8.til~*: Changed literal to mut var to avoid precomp catching overflow
+
+** Step 1: Restructure ~precomp_fcall~ into clean phases
+
+*** Change A: Fix ~eval_comptime~ error handling [DONE]
+
+Changed soft Err to ~lang_error~ for internal compiler bugs.
+
+*** Change B: Restructure ~precomp_fcall~ into three phases [IN PROGRESS]
+
+New structure:
+#+begin_src
+1. loc() handling - early return (special case, OK)
+2. import() handling
+3. Recursive transform of args
+4. Get func_expr
+5. PHASE 1: Named arg reordering (if function found)
+6. PHASE 2: UFCS transformation (match, no early returns, sets e)
+7. PHASE 3: Folding (single point at end)
+8. Return e
+#+end_src
+
+** Completed Changes So Far
+
+*** precomp_declaration differences (from earlier work)
+- Difference 1 & 2: Added ~let mut value_type~ and type validation block (U8/I64 coercion)
+- Difference 3: Added TEnumDef handling before TStructDef
+- Difference 4: Removed shadowed value_type re-computation
+- Difference 5: Changed empty check to ~e.params.len() != 1~
+- Import: Added ~value_type_to_str~ to imports
+- Import: Changed to call ~proc_import~ directly instead of ~precomp_import_declarations~
+- Removed unused ~precomp_import_declarations~ function and ~import_path_to_file_path~ import
+- Temporarily removed ~til~ from ~tests~ dependencies in Makefile
+
+*** precomp_fcall differences addressed
+- *Difference B*: Added ~insert_struct_instance~ call for struct constructors in precomp_fcall
+- *Difference A*: Reordered precomp_fcall to check struct/enum constructors BEFORE function lookup (matching eval_func_proc_call order)
+- Added import of ~insert_struct_instance~ from interpreter module
+
+*** Cleanup
+- Removed all debug prints from builder.rs, interpreter.rs, precomp.rs
+
+** Current Problem: MAX_U8 value not in arena
+
+Error: ~i64 not found for id 'MAX_U8'~ at u8.til:52
+
+This happens because:
+- MAX_U8 is declared as a symbol (init phase does this)
+- But its VALUE (255) is not initialized in the arena
+- The interpreter does something different to ensure values are available during precomp
+
+This is NOT a declarations problem (init phase handles that). This is about values not being stored in arena during precomp processing.
+
+** Differences Between eval_func_proc_call and precomp_fcall
+
+*** Difference A: Order - Struct constructors vs Import [DONE]
+- *EVAL*: Checks struct constructor FIRST (line 840), before anything else
+- *PRECOMP*: Now also checks struct/enum constructors first
+
+*** Difference B: Struct constructor handling [DONE]
+- *EVAL*: Calls ~insert_struct_instance~ (lines 866, 929) - actually creates instance in arena
+- *PRECOMP*: Now calls ~insert_struct_instance~ for struct constructors
+
+*** Difference C: Enum constructor handling [TO DISCUSS]
+- *EVAL*: Evaluates payload, constructs enum, stores in arena (lines 953-1129)
+- *PRECOMP*: Just returns ~Ok(e)~ (line 991) - no instantiation, just passes through
+
+*** Difference D: Argument evaluation/transformation [TO DISCUSS]
+- *EVAL*: Evaluates arguments AS NEEDED during struct/enum construction
+- *PRECOMP*: Transforms arguments after struct/enum check but before function lookup
+
+*** Difference E: loc() handling [TO DISCUSS]
+- *EVAL*: No special handling (goes through ext_func dispatch)
+- *PRECOMP*: Immediate replacement with string literal
+- Likely correct as-is
+
+*** Difference F: Function dispatch for import [TO DISCUSS]
+- *EVAL*: Looks up func_def, checks is_ext(), dispatches to eval_core_func_proc_call
+- *PRECOMP*: Direct string comparison for "import", then proc_import
+
+*** Difference G: Return type [EXPECTED]
+- *EVAL*: Returns ~EvalResult~ (runtime value)
+- *PRECOMP*: Returns ~Expr~ (transformed AST)
+- This is inherent to precomp vs eval
+
+** When Fixed - Don't Forget
+- Restore ~til~ dependency in Makefile: ~tests: rstil til~
+
+** Next Steps
+1. Investigate why MAX_U8 value is not in arena during precomp
+2. Address remaining differences C-F as needed
+3. Run make tests
+4. Restore Makefile
+5. Update bug docs, port to TIL, commit

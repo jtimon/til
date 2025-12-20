@@ -247,7 +247,7 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
             collect_imports(&mode_ast, &mut imported, &mut dep_asts, &mut context)?;
             // Precomp mode file with its own path
             let saved_path = context.path.clone();
-            context.path = file_path;
+            context.path = file_path.clone();
             let mode_ast = crate::rs::precomp::precomp_expr(&mut context, &mode_ast)?;
             context.path = saved_path;
             dep_asts.push(mode_ast);

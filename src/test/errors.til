@@ -81,7 +81,8 @@ test_unsafe_div2()
 // Only the selecter error can be thrown
 // REM Remove 'throws DivideByZero' to trigger a static type error
 missing_throws := proc() throws DivideByZero {
-    _ := safe_div(42, 0)
+    mut zero := 0 // REM mut so precomp doesn't catch the error at compile time
+    _ := safe_div(42, zero)
 }
 // missing_throws() // REM Gives an error if uncommented
 
@@ -114,7 +115,7 @@ ErrorUndeclaredInFunc := struct {}
 ErrorUndeclaredInMethod := struct {}
 ErrorUndeclaredInAssoc := struct {}
 
-another_func := func() throws ErrorUndeclaredInFunc {
+another_func := proc() throws ErrorUndeclaredInFunc { // REM proc so precomp doesn't fold it
     throw ErrorUndeclaredInFunc()
 }
 
@@ -123,7 +124,7 @@ SomeStruct := struct {
         throw ErrorUndeclaredInFunc() // FIXED: the compiler now correctly tells us this error must be declared!
     }
 
-    some_assoc := func() throws ErrorUndeclaredInAssoc {
+    some_assoc := proc() throws ErrorUndeclaredInAssoc { // REM proc so precomp doesn't fold it
         throw ErrorUndeclaredInAssoc()
     }
 }
@@ -380,7 +381,7 @@ Bug36TestData := struct {
 }
 
 // A function that throws
-bug36_throws := func(should_throw: Bool) returns I64 throws Bug36Error {
+bug36_throws := proc(should_throw: Bool) returns I64 throws Bug36Error { // REM proc so precomp doesn't fold it
     if should_throw {
         throw Bug36Error(msg="test error")
     }
@@ -390,7 +391,7 @@ bug36_throws := func(should_throw: Bool) returns I64 throws Bug36Error {
 // Bug #36: This function should compile without error.
 // The compiler incorrectly said Bug36Error is declared but never thrown,
 // because it didn't see the throwing function inside the struct literal.
-bug36_test_throws_in_struct_literal := func() returns Bug36TestData throws Bug36Error {
+bug36_test_throws_in_struct_literal := proc() returns Bug36TestData throws Bug36Error { // REM proc so precomp doesn't fold it
     return Bug36TestData(
         a=bug36_throws(true),
         b=bug36_throws(true)

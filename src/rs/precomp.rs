@@ -2,49 +2,15 @@
 // and performs compile-time constant folding for pure functions.
 // This phase runs after typer, before interpreter/builder.
 
-use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType, import_path_to_file_path};
+use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType};
 use crate::rs::typer::{func_proc_has_multi_arg, get_func_def_for_fcall_with_expr};
 use std::collections::HashMap;
 use crate::rs::parser::{
     Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal, TTypeDef, PatternInfo,
-    Declaration, str_to_value_type, INFER_TYPE,
+    Declaration, str_to_value_type, value_type_to_str, INFER_TYPE,
 };
-use crate::rs::interpreter::{eval_expr, eval_declaration};
+use crate::rs::interpreter::{eval_expr, eval_declaration, proc_import, insert_struct_instance};
 use crate::rs::eval_arena::EvalArena;
-
-// Called when precomp encounters an import() call.
-// Runs precomp on the imported file to set up struct templates.
-pub fn precomp_import_declarations(context: &mut Context, import_path_str: &str) -> Result<(), String> {
-    let path = import_path_to_file_path(import_path_str);
-
-    // Already done (or in progress)? Skip.
-    if context.imports_precomp_done.contains(&path) {
-        return Ok(());
-    }
-
-    // Mark as done immediately - before processing - to handle circular imports
-    context.imports_precomp_done.insert(path.clone());
-
-    // Get stored AST from init phase
-    let ast = match context.imported_asts.get(&path) {
-        Some(ast) => ast.clone(),
-        None => {
-            return Err(format!("precomp: Import {} not found in stored ASTs - init phase should have stored it", path));
-        }
-    };
-
-    // Save and restore context path
-    let original_path = context.path.clone();
-    context.path = path.clone();
-
-    // Run precomp on the imported AST and store the result
-    let precompiled_ast = precomp_expr(context, &ast)?;
-    context.imported_asts.insert(path.clone(), precompiled_ast);
-
-    context.path = original_path;
-    Ok(())
-}
-
 // ---------- Named argument reordering
 
 /// Reorder named arguments to match function parameter order.
@@ -164,7 +130,14 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
 pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     match &e.node_type {
         NodeType::Body => precomp_body(context, e),
-        NodeType::FCall => precomp_fcall(context, e),
+        NodeType::FCall => {
+            let mut const_folded = precomp_fcall(context, e)?;
+            // Try compile-time constant folding for pure functions with literal args
+            if is_comptime_evaluable(context, &const_folded) {
+                const_folded = eval_comptime(context, &const_folded)?;
+            }
+            return Ok(const_folded);
+        },
         NodeType::If => precomp_params(context, e),
         NodeType::While => precomp_params(context, e),
         NodeType::Switch => precomp_switch(context, e),
@@ -262,10 +235,16 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
             if func_def.is_proc() {
                 return false;
             }
-            // Functions that can throw are NOT comptime-evaluable because
-            // if they throw, we can't fold them to a literal
-            if !func_def.throw_types.is_empty() {
-                return false;
+            // Functions that can throw are allowed - if they actually throw,
+            // we'll report the error in eval_comptime.
+            // TODO: Exception: functions that throw AllocError, IndexOutOfBoundsError,
+            // or KeyNotFoundError are not folded since these depend on runtime state.
+            for throw_type in &func_def.throw_types {
+                if let ValueType::TCustom(name) = throw_type {
+                    if name == "AllocError" || name == "IndexOutOfBoundsError" || name == "KeyNotFoundError" {
+                        return false;
+                    }
+                }
             }
             // All arguments must be comptime-evaluable
             for i in 1..e.params.len() {
@@ -302,6 +281,9 @@ fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         ValueType::TCustom(ref t) if t == "I64" => {
             Ok(Expr::new_clone(NodeType::LLiteral(Literal::Number(result.value.clone())), e, vec![]))
         },
+        ValueType::TCustom(ref t) if t == "U8" => {
+            Ok(Expr::new_clone(NodeType::LLiteral(Literal::Number(result.value.clone())), e, vec![]))
+        },
         ValueType::TCustom(ref t) if t == "Str" => {
             Ok(Expr::new_clone(NodeType::LLiteral(Literal::Str(result.value.clone())), e, vec![]))
         },
@@ -310,10 +292,12 @@ fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             if context.scope_stack.lookup_struct(type_name).is_some() {
                 return EvalArena::to_struct_literal(context, &result.value, type_name, e);
             }
-            Err(format!("Cannot convert comptime result type: {:?}", value_type))
+            Err(e.lang_error(&context.path, "precomp",
+                &format!("Cannot convert comptime result type: {:?}", value_type)))
         },
-        // For other types, don't fold - return error to fall back
-        _ => Err(format!("Cannot convert comptime result type: {:?}", value_type)),
+        // For other types, don't fold - this is an internal error
+        _ => Err(e.lang_error(&context.path, "precomp",
+            &format!("Cannot convert comptime result type: {:?}", value_type))),
     }
 }
 
@@ -759,6 +743,41 @@ fn precomp_func_def(context: &mut Context, e: &Expr, func_def: SFuncDef) -> Resu
 
 /// Transform Declaration - register the declared variable in scope, then transform value
 fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser::Declaration) -> Result<Expr, String> {
+    // Eagerly create default instance template for this struct type
+    let inner_e = e.get(0)?;
+    let mut value_type = match get_value_type(context, &inner_e) {
+        Ok(val_type) => val_type,
+        Err(error_string) => {
+            return Err(e.lang_error(&context.path, "precomp", &error_string));
+        },
+    };
+    if decl.value_type != ValueType::TCustom(INFER_TYPE.to_string()) {
+        if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
+            value_type = decl.value_type.clone();
+        } else if value_type != decl.value_type {
+            return Err(e.lang_error(&context.path, "precomp", &format!("'{}' declared of type {} but initialized to type {:?}.", decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type))));
+        }
+    }
+    if let ValueType::TType(TTypeDef::TEnumDef) = value_type {
+        match &inner_e.node_type {
+            NodeType::EnumDef(enum_def) => {
+                context.scope_stack.declare_enum(decl.name.clone(), enum_def.clone());
+                context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
+                return Ok(e.clone());
+            },
+            _ => return Err(e.lang_error(&context.path, "precomp", &format!("Cannot declare '{}' of type '{}', expected enum definition.",
+                                                          &decl.name, value_type_to_str(&decl.value_type)))),
+        }
+    }
+    if let ValueType::TType(TTypeDef::TStructDef) = value_type {
+        if let NodeType::StructDef(struct_def) = &inner_e.node_type {
+            context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
+            let saved_path = context.path.clone();
+            eval_declaration(decl, context, e)?;
+            context.path = saved_path;
+        }
+    }
+
     // Bug #40 fix: For function declarations, set the function name and reset counter
     // BEFORE processing the body so for-in loops get deterministic names
     let is_func_decl = !e.params.is_empty() && matches!(&e.params[0].node_type, NodeType::FuncDef(_));
@@ -786,17 +805,10 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         context.precomp_forin_counter = saved_counter;
     }
 
-    // Determine the type from the value if it's 'auto'
-    let value_type = if decl.value_type == ValueType::TCustom(INFER_TYPE.to_string()) && !new_params.is_empty() {
-        get_value_type(context, &new_params[0]).unwrap_or(decl.value_type.clone())
-    } else {
-        decl.value_type.clone()
-    };
-
     // REM: Declarations currently always require an initialization value,
     // so new_params should never be empty.
-    if new_params.is_empty() {
-        return Err(e.lang_error(&context.path, "precomp", "Declaration without initializer"));
+    if e.params.len() != 1 {
+        return Err(e.lang_error(&context.path, "precomp", "Declarations can have only one child expression"));
     }
 
     // Determine if this is a compile-time constant
@@ -823,17 +835,6 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     if let ValueType::TFunction(_) = &value_type {
         if let NodeType::FuncDef(func_def) = &new_params[0].node_type {
             context.scope_stack.declare_func(decl.name.clone(), func_def.clone());
-        }
-    }
-
-    // For struct definitions, run eval_declaration to register templates in EvalArena
-    if let ValueType::TType(TTypeDef::TStructDef) = &value_type {
-        if let NodeType::StructDef(struct_def) = &new_params[0].node_type {
-            context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone());
-            // Run the declaration through interpreter to set up EvalArena templates
-            let saved_path = context.path.clone();
-            eval_declaration(decl, context, e)?;
-            context.path = saved_path;
         }
     }
 
@@ -926,7 +927,7 @@ fn precomp_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
 /// Transform FCall node - this is where UFCS resolution happens
 fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
-    // Check for loc() - replace with string literal before any other processing
+    // 1. Check for loc() - replace with string literal before any other processing
     if let Some(func_expr) = e.params.first() {
         if let NodeType::Identifier(name) = &func_expr.node_type {
             if name == "loc" && e.params.len() == 1 {
@@ -940,68 +941,80 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         }
     }
 
-    // Special handling for import() calls - precomp the imported file first
+    // 2. Special handling for import() calls - run import like interpreter does
     let f_name = get_func_name_in_call(&e);
     if f_name == "import" {
-        if let Ok(path_expr) = e.get(1) {
-            if let NodeType::LLiteral(Literal::Str(import_path)) = &path_expr.node_type {
-                precomp_import_declarations(context, import_path)?;
-            }
-        }
+        proc_import(context, &e)?;
+        return Ok(e.clone());
     }
 
-    // First, recursively transform all arguments
-    let mut transformed_params = Vec::new();
-    for p in &e.params {
-        transformed_params.push(precomp_expr(context, p)?);
-    }
-    let e = Expr::new_clone(e.node_type.clone(), e, transformed_params);
-
-    // Now check if this is a UFCS call and transform it
+    // Get func_expr and combined_name before any transformation
     let func_expr = match e.params.first() {
         Some(expr) => expr,
-        None => return Ok(e), // Empty FCall, shouldn't happen but just return as-is
+        None => return Ok(e.clone()), // Empty FCall, shouldn't happen but just return as-is
     };
 
-    if let NodeType::Identifier(_id_name) = &func_expr.node_type {
-        let combined_name = crate::rs::parser::get_combined_name(&context.path, func_expr)?;
+    let combined_name = if let NodeType::Identifier(_) = &func_expr.node_type {
+        crate::rs::parser::get_combined_name(&context.path, func_expr)?
+    } else {
+        String::new()
+    };
 
-        // Regular function call - check if it exists
-        if let Some(func_def) = context.scope_stack.lookup_func(&combined_name) {
-            // Reorder named arguments to positional order before constant folding
-            let e = reorder_named_args(context, &e, &func_def)?;
-
-            // Try compile-time constant folding for pure functions with literal args
-            if is_comptime_evaluable(context, &e) {
-                match eval_comptime(context, &e) {
-                    Ok(folded) => return Ok(folded),
-                    Err(err) if err.contains("thrown during precomputation") => {
-                        // Exception thrown during compile-time evaluation - propagate error
-                        return Err(err);
-                    }
-                    Err(_) => {
-                        // Other errors (e.g., can't convert result type) - fall through
-                    }
-                }
+    // 3. Struct constructor - create instance like eval does (before arg transform)
+    if !combined_name.is_empty() && context.scope_stack.lookup_struct(&combined_name).is_some() {
+        if let NodeType::Identifier(id_name) = &func_expr.node_type {
+            if func_expr.params.is_empty() {
+                insert_struct_instance(context, id_name, &combined_name, &e)?;
             }
-            return Ok(e);
         }
-
-        // Case 3: Struct/enum constructor - no transformation needed
-        if context.scope_stack.lookup_struct(&combined_name).is_some() {
-            return Ok(e);
+        // Transform arguments for struct constructor
+        let mut transformed_params = Vec::new();
+        for p in &e.params {
+            transformed_params.push(precomp_expr(context, p)?);
         }
+        return Ok(Expr::new_clone(e.node_type.clone(), &e, transformed_params));
+    }
 
-        // Check for enum constructors (e.g., Color.Green(true))
+    // 4. Enum constructor (e.g., Color.Green(true)) - before arg transform
+    if !combined_name.is_empty() {
         let parts: Vec<&str> = combined_name.split('.').collect();
         if parts.len() == 2 {
             let enum_type = parts[0];
             if let Some(enum_def) = context.scope_stack.lookup_enum(enum_type) {
                 let variant_name = parts[1];
                 if enum_def.contains_key(variant_name) {
-                    return Ok(e);
+                    // Transform arguments for enum constructor
+                    let mut transformed_params = Vec::new();
+                    for p in &e.params {
+                        transformed_params.push(precomp_expr(context, p)?);
+                    }
+                    return Ok(Expr::new_clone(e.node_type.clone(), &e, transformed_params));
                 }
             }
+        }
+    }
+
+    // 5. Transform all arguments
+    let mut transformed_params = Vec::new();
+    for p in &e.params {
+        transformed_params.push(precomp_expr(context, p)?);
+    }
+    let e = Expr::new_clone(e.node_type.clone(), &e, transformed_params);
+
+    // Get func_expr again from transformed expression
+    let func_expr = match e.params.first() {
+        Some(expr) => expr,
+        None => return Ok(e),
+    };
+
+    if let NodeType::Identifier(_id_name) = &func_expr.node_type {
+        let combined_name = crate::rs::parser::get_combined_name(&context.path, func_expr)?;
+
+        // 6. Regular function call - check if it exists
+        if let Some(func_def) = context.scope_stack.lookup_func(&combined_name) {
+            // Reorder named arguments to positional order before constant folding
+            let e = reorder_named_args(context, &e, &func_def)?;
+            return Ok(e);
         }
 
         // UFCS for chained calls: func(result, args) -> Type.func(result, args)
