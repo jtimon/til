@@ -2,8 +2,6 @@ mode script
 
 // Test that exceptions thrown during precomputation are reported
 // This test is expected to FAIL with a precomp error
-// TODO FIX: Currently functions that can throw are NOT folded at compile time,
-// so this test passes at runtime instead of failing at compile time as intended.
 
 // A pure function that always throws when called with n > 0
 always_throws := func(n: I64) returns I64 throws Str {
@@ -18,12 +16,9 @@ always_throws := func(n: I64) returns I64 throws Str {
 x := always_throws(5)
 
 catch (err: Str) {
-    // This catch is here to satisfy the type checker, but we should never reach it
-    // because the error should happen at compile time (precomp phase)
-    // TODO FIX: Currently we DO reach this because throwing funcs aren't folded
-    println("runtime catch: ", err)
-    exit(0)
+    // This catch is here to satisfy the type checker, but we never reach it
+    // because the error happens at compile time (precomp phase)
+    panic(loc(), "runtime catch: ", err)
 }
 
-println("should not reach here")
-exit(1)
+panic(loc(), "should not reach here")

@@ -607,14 +607,14 @@ main := proc(args: ..Str) {
     mut rs_compiled := Vec.new(TestEntry)
 
     rs_compiled.push(TestEntry(path="src/test/memcmp_str_compiled.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
-    rs_compiled.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
+    rs_compiled.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
 
     mut rs_interpreted := Vec.new(TestEntry)
 
     rs_interpreted.push(TestEntry(path="src/examples/hello_safe_script.til", expected_status=1)) // TODO: compiled version doesn't enforce safe_script whitelist
     rs_interpreted.push(TestEntry(path="src/examples/lolalalo.til")) // TODO move to rs_common: Bug #50: codegen doesn't capture outer vars in nested funcs
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
-    rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til")) // REM precomp_throw.til is in both rs_interpreted and rs_compiled because interpret/run produce different outputs
+    rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
     // run_cmd doesn't support stdin, would need bash -c wrapper or new ext_proc
