@@ -163,51 +163,6 @@ Phase A remaining issue:
 - Need recursive hoisting before emitting expressions
 - See =wio= branch for debug output and partial implementation
 
-** Bug #48: Typer missing validation that mut arguments must be lvalues
-:PROPERTIES:
-:DISCOVERED: 2025-12-18
-:IMPACT: No clear error message when passing literals to mut params
-:STATUS: Open
-:END:
-
-*** Description
-The typer phase is missing a validation check: arguments to =mut= parameters
-must be lvalues (identifiers or field access). This affects both interpreter
-and compiler paths - both should catch this in the typer phase.
-
-*** Example
-#+BEGIN_SRC til
-test_mut := proc(mut n: I64) {
-    n = 99
-}
-test_mut(42)  // Should be rejected by typer
-#+END_SRC
-
-*** Expected Behavior
-Typer should reject =test_mut(42)= with an error like:
-"mut arguments must be passed as identifiers or field access"
-
-*** Actual Behavior
-- Typer: No validation (the bug)
-- Interpreter: Happens to catch it later during eval (wrong phase)
-- Compiler: No catch at all - GCC rejects generated C code
-
-*** Fix Required
-Add validation in typer.rs and typer.til to check that arguments passed to
-=mut= parameters are lvalues. Should catch all literal types: I64, U8, Str.
-Will need a new error type or message.
-
-*** Related
-- Bug #49: Similar issue for =own= parameters (use-after-move check)
-
-*** Reproducing Test
-src/test/bug48_test.til
-
-#+BEGIN_SRC bash
-./bin/rstil interpret src/test/bug48_test.til  # FAIL - eval error (should be typer)
-./bin/rstil run src/test/bug48_test.til        # FAIL - GCC error (should be typer)
-#+END_SRC
-
 ** Bug #47: Self-hosted TIL interpreter fails with "NodeType.?" error
 :PROPERTIES:
 :DISCOVERED: 2025-12-18
@@ -318,6 +273,40 @@ The deterministic naming commit (5707c2d) updated many code paths to use functio
 - src/self/ccodegen.til: Same for TIL version
 
 * Fixed Bugs
+
+** Bug #48: Typer missing validation that mut arguments must be lvalues
+:PROPERTIES:
+:DISCOVERED: 2025-12-18
+:FIXED: 2025-12-18
+:IMPACT: No clear error message when passing literals to mut params
+:STATUS: Fixed
+:END:
+
+*** Description
+The typer phase is missing a validation check: arguments to =mut= parameters
+must be lvalues (identifiers or field access). This affects both interpreter
+and compiler paths - both should catch this in the typer phase.
+
+*** Example
+#+BEGIN_SRC til
+test_mut := proc(mut n: I64) {
+    n = 99
+}
+test_mut(42)  // Should be rejected by typer
+#+END_SRC
+
+*** Fix Applied (2025-12-18, commit ae0b5eb)
+Added =NodeType::LLiteral= case in =check_fcall= to reject literals passed to
+mut parameters. Error message: "Cannot pass literal to mut parameter 'X'. Use
+a variable instead."
+
+*** Files Modified
+- src/rs/typer.rs: Added LLiteral case in is_mut check
+- src/self/typer.til: Same fix ported
+- src/tests.til: Added bug48_test.til with expected_status=1
+
+*** Regression Test
+src/test/bug48_test.til (expects exit code 1 - type error)
 
 ** Bug #49: Typer missing use-after-move check for own parameters
 :PROPERTIES:
