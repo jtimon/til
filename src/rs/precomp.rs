@@ -180,6 +180,10 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
     match &e.node_type {
         NodeType::LLiteral(_) => true,
+        // Type definitions and function definitions are static metadata - always comptime
+        NodeType::StructDef(_) => true,
+        NodeType::EnumDef(_) => true,
+        NodeType::FuncDef(_) => true,
         NodeType::Identifier(name) => {
             // Check if this is a simple identifier (no field access chain)
             if !e.params.is_empty() {
@@ -812,14 +816,9 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     }
 
     // Determine if this is a compile-time constant
-    // Must be truly immutable (not mut, copy, or own) and have a comptime-evaluable value.
-    // Also, only I64 and U8 types are currently supported for comptime storage in arena.
-    // Str, structs, enums require infrastructure not available during precomp.
-    let is_supported_type = matches!(&value_type,
-        ValueType::TCustom(ref t) if t == "I64" || t == "U8"
-    );
-    let is_comptime_const = is_supported_type
-        && !decl.is_mut && !decl.is_copy && !decl.is_own
+    // Only mut matters for constantness - copy/own are about ownership, orthogonal to comptime.
+    // Any type can be comptime - the type doesn't matter, only how the value is computed.
+    let is_comptime_const = !decl.is_mut
         && is_comptime_evaluable(context, &new_params[0]);
 
     // Register the declared variable in scope

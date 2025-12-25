@@ -62,6 +62,34 @@ New structure:
 *** Cleanup
 - Removed all debug prints from builder.rs, interpreter.rs, precomp.rs
 
+** NEW FINDING: ~is_comptime_evaluable~ is incomplete
+
+The function ~is_comptime_evaluable~ (precomp.rs:180-260) is missing cases!
+
+Current match:
+#+begin_src rust
+match &e.node_type {
+    NodeType::LLiteral(_) => true,
+    NodeType::Identifier(name) => { ... }
+    NodeType::FCall => { ... }
+    _ => false,  // <-- StructDef, EnumDef fall here!
+}
+#+end_src
+
+*Missing cases that should return true:*
+- ~NodeType::StructDef(_)~ - struct definitions are always comptime
+- ~NodeType::EnumDef(_)~ - enum definitions are always comptime
+- Struct literals like ~AllocError(msg="str")~ should also be comptime if args are comptime
+
+*Debug output confirmed this:*
+#+begin_example
+DEBUG precomp_declaration: name=AllocError is_comptime_const=false value_type=TType(TStructDef)
+#+end_example
+
+AllocError is a struct definition - it SHOULD be comptime, but ~is_comptime_evaluable~ returns false because StructDef falls through to ~_ => false~.
+
+This is a key difference between interpreter and precomp behavior that we weren't considering because we wrongly assumed ~is_comptime_evaluable~ was correctly implemented.
+
 ** Current Problem: MAX_U8 value not in arena
 
 Error: ~i64 not found for id 'MAX_U8'~ at u8.til:52
@@ -71,7 +99,12 @@ This happens because:
 - But its VALUE (255) is not initialized in the arena
 - The interpreter does something different to ensure values are available during precomp
 
-This is NOT a declarations problem (init phase handles that). This is about values not being stored in arena during precomp processing.
+*CRITICAL: This is NOT a declarations problem (init phase handles declarations). This is about VALUES not being stored in arena during precomp processing. Precomp has FULL access to the arena and can read/write just like eval - the issue is that precomp is not STORING values when it should.*
+
+Import order context:
+- core.til imports array (line 3) before u8 (line 10)
+- When array.til tries to fold ~U8.from_i64(0)~, it needs MAX_U8's value
+- But u8.til hasn't been processed yet
 
 ** Differences Between eval_func_proc_call and precomp_fcall
 
@@ -105,12 +138,112 @@ This is NOT a declarations problem (init phase handles that). This is about valu
 - *PRECOMP*: Returns ~Expr~ (transformed AST)
 - This is inherent to precomp vs eval
 
+** Investigation Approach
+- Always feel free to add debug prints during investigation
+- Remove debug prints before committing
+
 ** When Fixed - Don't Forget
 - Restore ~til~ dependency in Makefile: ~tests: rstil til~
 
+** Core Insight: What Makes Something Comptime?
+
+*The TYPE of a value does NOT determine if it's comptime. The VALUE and how it's computed does.*
+
+What makes something NOT comptime-evaluable:
+1. Depends on runtime values (function parameters, mut variables)
+2. Has side effects (malloc, I/O, network)
+3. Depends on runtime state (current time, random)
+
+What does NOT matter:
+- The type itself (I64, U8, Str, struct, enum - all can be comptime)
+- The ~copy~ keyword (ownership semantics, not mutability)
+- The ~own~ keyword (ownership semantics, not mutability)
+
+Only ~mut~ affects whether a declaration is a constant (can be reassigned).
+~copy~ and ~own~ are about ownership/transfer semantics, orthogonal to comptime-ness.
+
+Examples:
+- ~"hello"~ - comptime (string literal)
+- ~Bool(value=1)~ - comptime if all fields are comptime
+- ~copy x := 5~ - comptime (copy is about ownership, not mutability)
+- ~own x := SomeStruct()~ - comptime if SomeStruct() args are comptime
+- ~some_func(own SomeStruct(a=1))~ - comptime if func is pure
+- ~AllocError := struct { ... }~ - comptime (type definition, static metadata)
+- ~Color := enum { Red, Green, Blue }~ - comptime (type definition, static metadata)
+- ~malloc(100)~ - NOT comptime (side effect, runtime state)
+- ~mut x := 5~ - NOT comptime constant (can be reassigned)
+- Function parameter ~x~ - NOT comptime (runtime value)
+
+** Proposed Fix
+
+*The ~is_supported_type~ restriction is artificial and should be REMOVED.*
+
+Current broken logic:
+#+begin_src rust
+// WRONG: artificially restricts to I64/U8
+let is_supported_type = matches!(&value_type,
+    ValueType::TCustom(ref t) if t == "I64" || t == "U8"
+);
+let is_comptime_const = is_supported_type && ...
+#+end_src
+
+Correct logic:
+#+begin_src rust
+// RIGHT: only mut matters for constantness, copy/own are about ownership
+let is_comptime_const = !decl.is_mut
+    && is_comptime_evaluable(context, &new_params[0]);
+#+end_src
+
+*Also fix ~is_comptime_evaluable~ to handle all node types:*
+
+#+begin_src rust
+match &e.node_type {
+    NodeType::LLiteral(_) => true,
+    NodeType::StructDef(_) => true,   // ADD: type definitions are static metadata
+    NodeType::EnumDef(_) => true,     // ADD: type definitions are static metadata
+    NodeType::FuncDef(_) => true,     // ADD: func defs are static metadata
+    NodeType::Identifier(name) => { ... }
+    NodeType::FCall => { ... }        // Already handles struct constructors
+    _ => false,
+}
+#+end_src
+
+*Simplify declaration handling:*
+
+Current precomp has 3 separate special cases that all call ~eval_declaration~:
+- Lines 772-778: type definitions (structs)
+- Lines 844-859: I64/U8 primitives (uses insert_primitive)
+- Lines 862-879: struct instances
+
+Interpreter just calls ~eval_declaration~ for everything. Precomp should do the same - for any comptime-evaluable declaration, just call ~eval_declaration~.
+
 ** Next Steps
-1. Investigate why MAX_U8 value is not in arena during precomp
-2. Address remaining differences C-F as needed
-3. Run make tests
-4. Restore Makefile
-5. Update bug docs, port to TIL, commit
+
+*** Code changes made
+
+1. Fix ~is_comptime_evaluable~ (precomp.rs:180-260) [DONE]
+   - Add ~NodeType::StructDef(_) => true~
+   - Add ~NodeType::EnumDef(_) => true~
+   - Add ~NodeType::FuncDef(_) => true~
+
+2. Remove ~is_supported_type~ restriction (precomp.rs:818-820) [DONE]
+   - Delete the ~is_supported_type~ variable
+
+3. Remove ~is_copy~ and ~is_own~ restrictions [DONE]
+   - Only ~mut~ matters for constantness
+   - ~copy~ and ~own~ are about ownership, orthogonal to comptime
+   - Changed to: ~let is_comptime_const = !decl.is_mut && is_comptime_evaluable(...)~
+
+*** CURRENT: MAX_U8 error still present
+
+Error: ~i64 not found for id 'MAX_U8'~ at u8.til:52
+
+The above code changes have NOT fixed the MAX_U8 error. Need to investigate further.
+
+*** THEN: Continue with remaining work
+
+5. Simplify ~precomp_declaration~ - use ~eval_declaration~ for all comptime declarations
+6. Address remaining differences C-F as needed
+7. Run make tests
+8. Restore Makefile (~tests: rstil til~)
+9. Update bug docs, port to TIL, commit
