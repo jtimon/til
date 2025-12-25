@@ -28,19 +28,16 @@
 
 Changed soft Err to ~lang_error~ for internal compiler bugs.
 
-*** Change B: Restructure ~precomp_fcall~ into three phases [IN PROGRESS]
+*** Change B: Restructure ~precomp_fcall~ into three phases [DONE]
 
-New structure:
-#+begin_src
-1. loc() handling - early return (special case, OK)
+Structure now follows interpreter more closely:
+1. loc()/_file()/_line()/_col() intrinsics handled via ~try_replace_comptime_intrinsic~
 2. import() handling
-3. Recursive transform of args
-4. Get func_expr
-5. PHASE 1: Named arg reordering (if function found)
-6. PHASE 2: UFCS transformation (match, no early returns, sets e)
-7. PHASE 3: Folding (single point at end)
-8. Return e
-#+end_src
+3. Struct/enum constructor handling (with template creation)
+4. Recursive transform of args
+5. Named arg reordering
+6. UFCS transformation
+7. Folding at global scope only
 
 ** Completed Changes So Far
 
@@ -90,21 +87,15 @@ AllocError is a struct definition - it SHOULD be comptime, but ~is_comptime_eval
 
 This is a key difference between interpreter and precomp behavior that we weren't considering because we wrongly assumed ~is_comptime_evaluable~ was correctly implemented.
 
-** Current Problem: MAX_U8 value not in arena
+** Previous Problem: MAX_U8 value not in arena [FIXED]
 
-Error: ~i64 not found for id 'MAX_U8'~ at u8.til:52
+Error was: ~i64 not found for id 'MAX_U8'~ at u8.til:52
 
-This happens because:
-- MAX_U8 is declared as a symbol (init phase does this)
-- But its VALUE (255) is not initialized in the arena
-- The interpreter does something different to ensure values are available during precomp
+*Root cause:* Import order - array.til imported before u8.til, so MAX_U8 wasn't stored yet.
 
-*CRITICAL: This is NOT a declarations problem (init phase handles declarations). This is about VALUES not being stored in arena during precomp processing. Precomp has FULL access to the arena and can read/write just like eval - the issue is that precomp is not STORING values when it should.*
-
-Import order context:
-- core.til imports array (line 3) before u8 (line 10)
-- When array.til tries to fold ~U8.from_i64(0)~, it needs MAX_U8's value
-- But u8.til hasn't been processed yet
+*Fix:* Only fold at global scope. Inside function definitions, don't try to fold because
+values from other modules may not be available yet. This matches interpreter behavior
+(doesn't evaluate function bodies during import).
 
 ** Differences Between eval_func_proc_call and precomp_fcall
 
@@ -154,20 +145,14 @@ Changes made:
 - *PRECOMP*: Returns ~Expr~ (transformed AST)
 - This is inherent to precomp vs eval
 
-*** Difference H: Template creation [BUG - CURRENT BLOCKER]
+*** Difference H: Template creation [DONE]
 
 *Problem:* "template for 'Str' not found" at array.til:91
 
 - *EVAL*: Creates templates via ~create_default_instance~ in ~eval_declaration~ when struct defs are processed
-- *PRECOMP*: Does NOT create templates, so ~insert_struct_instance~ fails
+- *PRECOMP*: Did NOT create templates, so ~insert_struct_instance~ failed
 
-This causes failures when:
-1. ForIn desugaring creates ~Str()~ constructor call
-2. precomp_fcall sees struct constructor, calls ~insert_struct_instance~
-3. Fails because Str template doesn't exist yet
-
-*Fix needed:* Precomp should also create templates when processing struct definitions.
-Look at where ~create_default_instance~ is called in interpreter.rs and replicate in precomp.
+*Fix applied:* Added ~create_default_instance~ call before ~insert_struct_instance~ in precomp_fcall.
 
 ** Investigation Approach
 - Always feel free to add debug prints during investigation
@@ -248,33 +233,65 @@ Current precomp has 3 separate special cases that all call ~eval_declaration~:
 
 Interpreter just calls ~eval_declaration~ for everything. Precomp should do the same - for any comptime-evaluable declaration, just call ~eval_declaration~.
 
+** Completed Code Changes
+
+*** 1. Fix ~is_comptime_evaluable~ [DONE]
+- Added ~NodeType::StructDef(_) => true~
+- Added ~NodeType::EnumDef(_) => true~
+- Added ~NodeType::FuncDef(_) => true~
+- Added enum constructor handling (FieldAccess check for EnumType.Variant)
+
+*** 2. Remove artificial type restrictions [DONE]
+- Deleted ~is_supported_type~ variable
+- Removed ~is_copy~ and ~is_own~ restrictions
+- Changed to: ~let is_comptime_const = !decl.is_mut && is_comptime_evaluable(...)~
+
+*** 3. Fix template creation (Difference H) [DONE]
+- Added ~create_default_instance~ call before ~insert_struct_instance~ in precomp_fcall
+- Added import of ~create_default_instance~ from interpreter module
+
+*** 4. Fix global scope folding [DONE]
+- Only fold at global scope (~scope_stack.frames.len() == 1~)
+- Inside function definitions, values from other modules may not be available yet
+- Matches interpreter behavior (doesn't evaluate function bodies during import)
+
+*** 5. Store ALL comptime-evaluable declarations [DONE]
+- Changed precomp_declaration to store I64/U8/Str when ~is_comptime_evaluable~ is true
+- Removed dependency on ~is_comptime_const~ for storing (that's only for folding identifiers)
+- Matches interpreter behavior which stores all primitive declarations
+
+*** 6. Fix for-in loop variable declaration [DONE]
+- Added code to declare loop variable in scope BEFORE processing body
+- Loop body references the variable, so it must be declared first
+
+*** 7. Fix eval_comptime for unsupported types [DONE]
+- For enums and complex structs: eval_expr is called (catching errors)
+- But if we can't convert result back to AST literal, return original expression
+- This way errors are caught at compile time, but we don't fail on unconvertible types
+
+** Current Test Status
+
+Most tests pass. Remaining failures:
+
+*** bug41_test.til - Double output
+- "DEBUG:hello from bug41 test" appears twice
+- Needs investigation - may be duplicate precomp processing
+
+*** introspections.til - Linker errors (pre-existing)
+- ~undefined reference to 'til_Introspection_has_field'~
+- This is a compilation/linking issue, not related to precomp changes
+
+*** test_parser.til and til.til - "Lexer.advance does not return anything"
+- Error at parser.til:482
+- Precomp is trying to fold something that includes a proc call
+- ~is_comptime_evaluable~ needs to check that functions actually return values
+- A proc (no return) should not be considered comptime-evaluable
+
 ** Next Steps
 
-*** Code changes made
-
-1. Fix ~is_comptime_evaluable~ (precomp.rs:180-260) [DONE]
-   - Add ~NodeType::StructDef(_) => true~
-   - Add ~NodeType::EnumDef(_) => true~
-   - Add ~NodeType::FuncDef(_) => true~
-
-2. Remove ~is_supported_type~ restriction (precomp.rs:818-820) [DONE]
-   - Delete the ~is_supported_type~ variable
-
-3. Remove ~is_copy~ and ~is_own~ restrictions [DONE]
-   - Only ~mut~ matters for constantness
-   - ~copy~ and ~own~ are about ownership, orthogonal to comptime
-   - Changed to: ~let is_comptime_const = !decl.is_mut && is_comptime_evaluable(...)~
-
-*** CURRENT: MAX_U8 error still present
-
-Error: ~i64 not found for id 'MAX_U8'~ at u8.til:52
-
-The above code changes have NOT fixed the MAX_U8 error. Need to investigate further.
-
-*** THEN: Continue with remaining work
-
-5. Simplify ~precomp_declaration~ - use ~eval_declaration~ for all comptime declarations
-6. Address remaining differences C-F as needed
-7. Run make tests
-8. Restore Makefile (~tests: rstil til~)
-9. Update bug docs, port to TIL, commit
+1. Fix ~is_comptime_evaluable~ to reject proc calls (functions without return type)
+2. Investigate bug41_test.til double output
+3. Run full test suite
+4. Restore Makefile (~tests: rstil til~)
+5. Port changes to TIL (~src/self/precomp.til~)
+6. Update bug docs, commit

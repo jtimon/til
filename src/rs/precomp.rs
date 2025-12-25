@@ -9,7 +9,7 @@ use crate::rs::parser::{
     Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal, TTypeDef, PatternInfo,
     Declaration, str_to_value_type, value_type_to_str, INFER_TYPE,
 };
-use crate::rs::interpreter::{eval_expr, eval_declaration, proc_import, insert_struct_instance};
+use crate::rs::interpreter::{eval_expr, eval_declaration, proc_import, insert_struct_instance, create_default_instance};
 use crate::rs::eval_arena::EvalArena;
 use crate::rs::precomp_ext::try_replace_comptime_intrinsic;
 // ---------- Named argument reordering
@@ -133,8 +133,12 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::Body => precomp_body(context, e),
         NodeType::FCall => {
             let mut const_folded = precomp_fcall(context, e)?;
-            // Try compile-time constant folding for pure functions with literal args
-            if is_comptime_evaluable(context, &const_folded) {
+            // Try compile-time constant folding for pure functions with literal args.
+            // Only fold at global scope - inside function definitions, values from other
+            // modules may not be available yet (import ordering). Interpreter doesn't
+            // evaluate function bodies during import either.
+            let at_global_scope = context.scope_stack.frames.len() == 1;
+            if at_global_scope && is_comptime_evaluable(context, &const_folded) {
                 const_folded = eval_comptime(context, &const_folded)?;
             }
             return Ok(const_folded);
@@ -309,14 +313,16 @@ fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         ValueType::TCustom(ref type_name) => {
             // Check if it's a struct type - result.value is the instance name
             if context.scope_stack.lookup_struct(type_name).is_some() {
-                return EvalArena::to_struct_literal(context, &result.value, type_name, e);
+                // Try to convert struct back to literal, fall back to original expr if unsupported
+                return EvalArena::to_struct_literal(context, &result.value, type_name, e)
+                    .or_else(|_| Ok(e.clone()));
             }
-            Err(e.lang_error(&context.path, "precomp",
-                &format!("Cannot convert comptime result type: {:?}", value_type)))
+            // For enums and other types: eval_expr was called (catching any errors),
+            // but we can't convert the result back to AST literal, so return original
+            Ok(e.clone())
         },
-        // For other types, don't fold - this is an internal error
-        _ => Err(e.lang_error(&context.path, "precomp",
-            &format!("Cannot convert comptime result type: {:?}", value_type))),
+        // For other types, eval was done (errors caught), return original (no folding)
+        _ => Ok(e.clone()),
     }
 }
 
@@ -414,6 +420,15 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
         Some(expr) => precomp_expr(context, expr)?,
         None => return Err(e.lang_error(&context.path, "precomp", "ForIn: missing collection expression")),
     };
+
+    // Declare loop variable in scope BEFORE processing body (body references it)
+    context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+        value_type: ValueType::TCustom(var_type_name.to_string()),
+        is_mut: true,
+        is_copy: false,
+        is_own: false,
+        is_comptime_const: false,
+    });
 
     // Get body (params[2])
     let body_expr = match e.params.get(2) {
@@ -852,23 +867,22 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
         }
     }
 
-    // For non-mut declarations with comptime-evaluable values, store in arena
-    // so that later eval_expr calls can look them up during constant folding.
-    if is_comptime_const {
-        let inner_e = &new_params[0];
-        if let ValueType::TCustom(ref custom_type_name) = &value_type {
-            match custom_type_name.as_str() {
-                "I64" | "U8" => {
+    // Store I64/U8/Str declarations in arena when their initializer is comptime-evaluable.
+    // Unlike the is_comptime_const flag (which also requires !is_mut for folding identifiers),
+    // we store ALL comptime-evaluable values including mut ones, just like interpreter does.
+    // This is needed for eval_expr to work during constant folding (e.g., mut loop variables).
+    if let ValueType::TCustom(ref custom_type_name) = &value_type {
+        match custom_type_name.as_str() {
+            "I64" | "U8" | "Str" => {
+                if is_comptime_evaluable(context, &new_params[0]) {
+                    let inner_e = &new_params[0];
                     let result = eval_expr(context, inner_e)?;
                     if !result.is_throw {
                         EvalArena::insert_primitive(context, &decl.name, &value_type, &result.value, e)?;
                     }
-                },
-                _ => {
-                    // Str, structs, enums - not yet supported for comptime storage
-                    // They would require templates/infrastructure not available in precomp
-                },
-            }
+                }
+            },
+            _ => {},
         }
     }
 
@@ -967,6 +981,7 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
     // 3. Struct constructor - create instance like eval does (before arg transform)
     if !combined_name.is_empty() && context.scope_stack.lookup_struct(&combined_name).is_some() {
+        create_default_instance(context, &combined_name, &e)?;
         if let NodeType::Identifier(id_name) = &func_expr.node_type {
             if func_expr.params.is_empty() {
                 insert_struct_instance(context, id_name, &combined_name, &e)?;
