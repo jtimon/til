@@ -11,6 +11,7 @@ use crate::rs::parser::{
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration, proc_import, insert_struct_instance};
 use crate::rs::eval_arena::EvalArena;
+use crate::rs::precomp_ext::try_replace_comptime_intrinsic;
 // ---------- Named argument reordering
 
 /// Reorder named arguments to match function parameter order.
@@ -926,18 +927,9 @@ fn precomp_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
 /// Transform FCall node - this is where UFCS resolution happens
 fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
-    // 1. Check for loc() - replace with string literal before any other processing
-    if let Some(func_expr) = e.params.first() {
-        if let NodeType::Identifier(name) = &func_expr.node_type {
-            if name == "loc" && e.params.len() == 1 {
-                let loc_str = format!("{}:{}:{}:", context.path, e.line, e.col);
-                return Ok(Expr::new_clone(
-                    NodeType::LLiteral(Literal::Str(loc_str)),
-                    e,
-                    vec![],
-                ));
-            }
-        }
+    // 1. Check for compile-time intrinsics (loc, _file, _line, _col)
+    if let Some(replaced) = try_replace_comptime_intrinsic(context, e) {
+        return Ok(replaced);
     }
 
     // 2. Special handling for import() calls - run import like interpreter does

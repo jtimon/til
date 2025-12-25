@@ -124,10 +124,20 @@ Import order context:
 - *EVAL*: Evaluates arguments AS NEEDED during struct/enum construction
 - *PRECOMP*: Transforms arguments after struct/enum check but before function lookup
 
-*** Difference E: loc() handling [TO DISCUSS]
-- *EVAL*: No special handling (goes through ext_func dispatch)
-- *PRECOMP*: Immediate replacement with string literal
-- Likely correct as-is
+*** Difference E: loc() handling [DONE]
+
+Created ~precomp_ext.rs~ with ~try_replace_comptime_intrinsic()~ that handles:
+- ~loc()~ - returns "file:line:col:"
+- ~_file()~ - returns file path
+- ~_line()~ - returns line number
+- ~_col()~ - returns column number
+
+Changes made:
+- NEW: src/rs/precomp_ext.rs - compile-time intrinsic replacements
+- MODIFIED: src/rstil.rs - added ~pub mod precomp_ext~
+- MODIFIED: src/rs/precomp.rs - uses ~try_replace_comptime_intrinsic~
+- MODIFIED: src/rs/interpreter.rs - removed loc/_file/_line/_col dispatch (dead code)
+- MODIFIED: src/rs/ext.rs - removed func_loc/func_file/func_line/func_col (dead code)
 
 *** Difference F: Function dispatch for import [TO DISCUSS]
 - *EVAL*: Looks up func_def, checks is_ext(), dispatches to eval_core_func_proc_call

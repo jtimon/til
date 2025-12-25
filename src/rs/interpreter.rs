@@ -2790,11 +2790,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 // ---------- Core function/procedure dispatcher
 
 fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc: bool) -> Result<EvalResult, String> {
+    // Note: loc, _file, _line, _col are handled by precomp (replaced with literals)
     return match name {
-        "loc" => ext::func_loc(context, e),
-        "_file" => ext::func_file(context, e),
-        "_line" => ext::func_line(context, e),
-        "_col" => ext::func_col(context, e),
         "size_of" => ext::func_size_of(context, &e),
         "type_as_str" => ext::func_type_as_str(context, &e),
         "to_ptr" => ext::func_to_ptr(context, &e),

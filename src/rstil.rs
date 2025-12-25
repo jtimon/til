@@ -8,6 +8,7 @@ mod rs {
     pub mod init;
     pub mod typer;
     pub mod precomp;
+    pub mod precomp_ext;
     pub mod scavenger;
     pub mod eval_arena;
     pub mod interpreter;

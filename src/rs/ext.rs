@@ -49,31 +49,7 @@ pub fn validate_arg_count(path: &str, e: &Expr, func_name: &str, expected: usize
     Ok(())
 }
 
-// ---------- Core functions - called from interpreter.rs dispatcher
-
-pub fn func_loc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "loc", 0, false)?;
-    let file = context.path.clone();
-    let line = e.line;
-    let col = e.col;
-
-    Ok(EvalResult::new(&format!("{}:{}:{}:", file, line, col)))
-}
-
-pub fn func_file(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "_file", 0, false)?;
-    Ok(EvalResult::new(&context.path.clone()))
-}
-
-pub fn func_line(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "_line", 0, false)?;
-    Ok(EvalResult::new(&(e.line as i64).to_string()))
-}
-
-pub fn func_col(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "_col", 0, false)?;
-    Ok(EvalResult::new(&(e.col as i64).to_string()))
-}
+// Note: loc, _file, _line, _col moved to precomp_ext.rs (replaced with literals at compile time)
 
 // ---------- eval memory
 
