@@ -230,6 +230,20 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
                         }
                         return true; // Struct constructor with all comptime args
                     }
+                    // Check if it's an enum constructor (e.g., Color.Green(true))
+                    let parts: Vec<&str> = combined_name.split('.').collect();
+                    if parts.len() == 2 {
+                        let enum_type = parts[0];
+                        if context.scope_stack.lookup_enum(enum_type).is_some() {
+                            // It's an enum constructor - check all args are comptime
+                            for i in 1..e.params.len() {
+                                if !is_comptime_evaluable(context, &e.params[i]) {
+                                    return false;
+                                }
+                            }
+                            return true;
+                        }
+                    }
                     return false;
                 },
                 Err(_) => {

@@ -116,9 +116,15 @@ Import order context:
 - *EVAL*: Calls ~insert_struct_instance~ (lines 866, 929) - actually creates instance in arena
 - *PRECOMP*: Now calls ~insert_struct_instance~ for struct constructors
 
-*** Difference C: Enum constructor handling [TO DISCUSS]
-- *EVAL*: Evaluates payload, constructs enum, stores in arena (lines 953-1129)
-- *PRECOMP*: Just returns ~Ok(e)~ (line 991) - no instantiation, just passes through
+*** Difference C: Enum constructor handling [DONE]
+
+*Bug found in ~is_comptime_evaluable~ (precomp.rs:215-233):*
+- Struct constructors ARE handled - returns true if all args comptime
+- Enum constructors were NOT handled - fell through to ~return false~
+
+*Fix applied:* Added enum constructor handling after struct handling.
+
+Error progressed from "MAX_U8 not found" to "template for 'Str' not found".
 
 *** Difference D: Argument evaluation/transformation [TO DISCUSS]
 - *EVAL*: Evaluates arguments AS NEEDED during struct/enum construction
@@ -147,6 +153,21 @@ Changes made:
 - *EVAL*: Returns ~EvalResult~ (runtime value)
 - *PRECOMP*: Returns ~Expr~ (transformed AST)
 - This is inherent to precomp vs eval
+
+*** Difference H: Template creation [BUG - CURRENT BLOCKER]
+
+*Problem:* "template for 'Str' not found" at array.til:91
+
+- *EVAL*: Creates templates via ~create_default_instance~ in ~eval_declaration~ when struct defs are processed
+- *PRECOMP*: Does NOT create templates, so ~insert_struct_instance~ fails
+
+This causes failures when:
+1. ForIn desugaring creates ~Str()~ constructor call
+2. precomp_fcall sees struct constructor, calls ~insert_struct_instance~
+3. Fails because Str template doesn't exist yet
+
+*Fix needed:* Precomp should also create templates when processing struct definitions.
+Look at where ~create_default_instance~ is called in interpreter.rs and replicate in precomp.
 
 ** Investigation Approach
 - Always feel free to add debug prints during investigation
