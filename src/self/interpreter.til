@@ -2019,13 +2019,6 @@ MutArgValue := enum {
 CollectedMutArg := struct {
     mut source_name: Str = ""
     mut value: MutArgValue = MutArgValue.I64(0)
-
-    new := func(source_name: Str, value: MutArgValue) returns CollectedMutArg {
-        mut result := CollectedMutArg()
-        result.source_name = source_name
-        result.value = value
-        return result
-    }
 }
 
 eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
@@ -2889,13 +2882,13 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             switch type_name {
             case "I64":
                 i64_val := EvalArena.get_i64(context, m.arg_name, e)
-                collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.I64(i64_val)))
+                collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.I64(i64_val)))
             case "U8":
                 u8_val : U8 = EvalArena.get_u8(context, m.arg_name, e)
-                collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.U8(u8_val)))
+                collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.U8(u8_val)))
             case "Str":
                 val := string_from_context(context, m.arg_name, e)
-                collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.Str(val)))
+                collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Str(val)))
             case:
                 // Custom type (enum or struct)
                 mut symbol_info := SymbolInfo()
@@ -2922,7 +2915,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 }
                 if is_enum_def {
                     enum_val := EvalArena.get_enum(context, m.arg_name, e)
-                    collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.Enum(enum_val)))
+                    collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Enum(enum_val)))
                 } else if is_struct_def {
                     mut offset := 0
                     mut offset_found := false
@@ -2930,7 +2923,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     offset_found = true
                     catch (err: KeyNotFoundError) { }
                     if offset_found {
-                        collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.Struct(MutArgStructData(offset=offset, type_name=type_name.clone(), was_passed_by_ref=was_passed_by_ref))))
+                        collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Struct(MutArgStructData(offset=offset, type_name=type_name.clone(), was_passed_by_ref=was_passed_by_ref))))
                     } else {
                         _ := context.scope_stack.pop()
                         context.path = saved_path
