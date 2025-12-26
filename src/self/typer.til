@@ -590,7 +590,7 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
 
     // Push scope for loop body, declare loop variable
     context.scope_stack.push(ScopeType.Block)
-    context.scope_stack.declare_symbol(var_name, SymbolInfo.new(ValueType.TCustom(var_type_name), true, false, false))
+    context.scope_stack.declare_symbol(var_name, SymbolInfo(value_type=ValueType.TCustom(var_type_name), is_mut=true))
 
     // Type check body
     if e.params.len().gteq(3) {
@@ -897,7 +897,7 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
             // All array types now use the generic Array
             array_type_name := "Array"
 
-            context.scope_stack.declare_symbol(arg.name, SymbolInfo.new(ValueType.TCustom(array_type_name), false, false, false))
+            context.scope_stack.declare_symbol(arg.name, SymbolInfo(value_type=ValueType.TCustom(array_type_name)))
         case ValueType.TCustom(custom_type_name):
             mut custom_symbol_found := false
             mut custom_symbol := SymbolInfo()
@@ -912,18 +912,18 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
             switch custom_symbol.value_type {
             case ValueType.TType(TTypeDef.TStructDef):
                 // Valid: struct type
-                context.scope_stack.declare_symbol(arg.name, SymbolInfo.new(arg.value_type, arg.is_mut, arg.is_copy, arg.is_own))
+                context.scope_stack.declare_symbol(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
                 // Register struct fields for type checking
                 context.register_struct_fields_for_typecheck(arg.name, custom_type_name)
             case ValueType.TType(TTypeDef.TEnumDef):
                 // Valid: enum type
-                context.scope_stack.declare_symbol(arg.name, SymbolInfo.new(arg.value_type, arg.is_mut, arg.is_copy, arg.is_own))
+                context.scope_stack.declare_symbol(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
             case:
                 // Invalid: not a type, it's a value or something else
                 errors.push(e.error(context.path, "type", format("Argument '", arg.name, "' has type '", custom_type_name, "' which is not a valid type (expected struct or enum)")))
             }
         case:
-            context.scope_stack.declare_symbol(arg.name, SymbolInfo.new(arg.value_type, arg.is_mut, arg.is_copy, arg.is_own))
+            context.scope_stack.declare_symbol(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
         }
     }
 
@@ -1158,7 +1158,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                     // Create scoped context for catch body with the error variable registered
                     context.scope_stack.push(ScopeType.Block)
-                    context.scope_stack.declare_symbol(var_name, SymbolInfo.new(ValueType.TCustom(caught_type), false, false, false))
+                    context.scope_stack.declare_symbol(var_name, SymbolInfo(value_type=ValueType.TCustom(caught_type)))
 
                     // Register struct fields so err.msg etc. can be accessed during type-checking
                     mut struct_found := false
@@ -1171,7 +1171,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     if struct_found {
                         for field_decl: Declaration in struct_def_opt.members {
                             combined_name := format(var_name, ".", field_decl.name)
-                            context.scope_stack.declare_symbol(combined_name, SymbolInfo.new(field_decl.value_type, false, false, false))
+                            context.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=field_decl.value_type))
                         }
                     }
 
@@ -1446,7 +1446,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 mut payload_type := ValueType.TCustom("")
                                 memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
                                 context.scope_stack.push(ScopeType.Block)
-                                context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo.new(payload_type, false, false, false))
+                                context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo(value_type=payload_type))
                                 errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_types, return_found))
                                 _ := context.scope_stack.pop()
                                 handled = true
@@ -1481,7 +1481,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                     if not(already_declared) {
                         mut inferred_type := get_value_type(context, initializer)
-                        context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(inferred_type, decl.is_mut, decl.is_copy, decl.is_own))
+                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=inferred_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
                         catch (err: Str) {
                             // Can't infer type, skip declaration
                         }
@@ -1705,13 +1705,13 @@ check_catch_statement := proc(mut context: Context, e: Expr) returns Vec throws 
 
     // Create scoped context for catch body
     context.scope_stack.push(ScopeType.Block)
-    context.scope_stack.declare_symbol(var_name, SymbolInfo.new(ValueType.TCustom(type_name), false, false, false))
+    context.scope_stack.declare_symbol(var_name, SymbolInfo(value_type=ValueType.TCustom(type_name)))
 
     // Map struct fields so err.msg etc. can be accessed during type-checking
     mut struct_def := context.scope_stack.lookup_struct(type_name)
     for field_decl: Declaration in struct_def.members {
         combined_name := format(var_name, ".", field_decl.name)
-        context.scope_stack.declare_symbol(combined_name, SymbolInfo.new(field_decl.value_type, false, false, false))
+        context.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=field_decl.value_type))
     }
     catch (err: KeyNotFoundError) {
         // Not a struct, skip field registration
@@ -1767,7 +1767,7 @@ check_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retu
         }
 
         // TODO move to init_context() ? inner contexts are not persisted in init_context
-        context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
 
         switch value_type {
         case ValueType.TCustom(custom_type):
@@ -2041,7 +2041,7 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
                     mut payload_type := ValueType.TCustom("")
                     memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
                     context.scope_stack.push(ScopeType.Block)
-                    context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo.new(payload_type, false, false, false))
+                    context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo(value_type=payload_type))
                     // Switch case body statements discard return values
                     errors.extend(check_types_with_context(context, body_expr, ExprContext.ValueDiscarded))
                     _ := context.scope_stack.pop()

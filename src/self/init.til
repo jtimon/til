@@ -23,19 +23,8 @@ SymbolInfo := struct {
     mut is_own: Bool = false
     mut is_comptime_const: Bool = false  // true if value was comptime-evaluable at declaration
 
-    // TODO: These helper methods are no longer needed since we have parametrized constructors.
-    // Can use SymbolInfo(value_type=..., is_mut=true) directly instead of SymbolInfo.new(...).
-    // Remove these methods and update all call sites.
-    new := func(value_type: ValueType, is_mut: Bool, is_copy: Bool, is_own: Bool) returns SymbolInfo {
-        return SymbolInfo(value_type=value_type, is_mut=is_mut, is_copy=is_copy, is_own=is_own, is_comptime_const=false)
-    }
-
-    new_const := func(value_type: ValueType, is_mut: Bool, is_copy: Bool, is_own: Bool, is_comptime_const: Bool) returns SymbolInfo {
-        return SymbolInfo(value_type=value_type, is_mut=is_mut, is_copy=is_copy, is_own=is_own, is_comptime_const=is_comptime_const)
-    }
-
     clone := func(self: SymbolInfo) returns SymbolInfo {
-        return SymbolInfo.new_const(self.value_type, self.is_mut, self.is_copy, self.is_own, self.is_comptime_const)
+        return SymbolInfo(value_type=self.value_type, is_mut=self.is_mut, is_copy=self.is_copy, is_own=self.is_own, is_comptime_const=self.is_comptime_const)
     }
 }
 
@@ -1478,7 +1467,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTFunc:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
                     context.scope_stack.declare_func(decl.name, func_def)
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
@@ -1487,7 +1476,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTFuncExt:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
                     context.scope_stack.declare_func(decl.name, func_def)
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
@@ -1496,7 +1485,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTProc:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
                     context.scope_stack.declare_func(decl.name, func_def)
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
@@ -1505,7 +1494,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTProcExt:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
                     context.scope_stack.declare_func(decl.name, func_def)
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
@@ -1514,7 +1503,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTMacro:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
                     context.scope_stack.declare_func(decl.name, func_def)
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
@@ -1529,7 +1518,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
             switch inner_e.node_type {
             case NodeType.EnumDef(enum_def):
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
                 context.scope_stack.declare_enum(decl.name, enum_def)
             case:
                 errors.push(e.lang_error(context.path, "init", "enums should have definitions."))
@@ -1544,7 +1533,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             switch inner_e.node_type {
             case NodeType.StructDef(struct_def):
                 # Register the struct itself
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
                 context.scope_stack.declare_struct(decl.name, struct_def)
                 # Register associated funcs and constants (non-mut members only)
                 for member_decl: Declaration in struct_def.members {
@@ -1566,7 +1555,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                             }
                             mut full_name := format(decl.name, ".", member_decl.name)  # Note: using '.' not '::'
                             # Register in symbols
-                            ScopeStack.declare_symbol(context.scope_stack, full_name, SymbolInfo.new(member_value_type, member_decl.is_mut, member_decl.is_copy, member_decl.is_own))
+                            ScopeStack.declare_symbol(context.scope_stack, full_name, SymbolInfo(value_type=member_value_type, is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))
                             # If it's a function, also register in funcs
                             switch member_expr.node_type {
                             case NodeType.FuncDef(func_def):
@@ -1583,9 +1572,9 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
 
         case ValueType.TMulti(_):
-            context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
         case ValueType.TCustom(_):
-            context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
         case:
             # Unreachable - all ValueType variants are covered above
             # But needed because exhaustiveness check doesn't understand nested patterns like TType(TTypeDef.TEnumDef)
@@ -1740,12 +1729,7 @@ Context := struct {
 
                 self.scope_stack.declare_symbol(
                     combined_name,
-                    SymbolInfo.new(
-                        decl.value_type,
-                        is_mut,
-                        false,
-                        false
-                    )
+                    SymbolInfo(value_type=decl.value_type, is_mut=is_mut)
                 )
 
                 switch decl.value_type {
@@ -2130,12 +2114,7 @@ Context := struct {
             mut combined_name := format(instance_name, ".", decl.name)
             self.scope_stack.declare_symbol(
                 combined_name,
-                SymbolInfo.new(
-                    decl.value_type,
-                    decl.is_mut,
-                    false,
-                    false
-                )
+                SymbolInfo(value_type=decl.value_type, is_mut=decl.is_mut)
             )
 
             switch decl.value_type {
