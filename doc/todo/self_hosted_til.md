@@ -27,6 +27,10 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Root cause: local_catch_labels populated with ALL catches at start
   - Fix: Remove catch from local_catch_labels after processing it
 
+- **Bug #42** (Fixed): Temp variable naming inconsistency in struct methods
+  - Root cause: emit_struct_func_body didn't set current_function_name before emitting
+  - Fix: Added save/set/restore pattern for current_function_name and mangling_counter
+
 - **Bug #52** (Fixed): Static buffer in ext.c til_i64_to_str caused string corruption
   - Root cause: Multiple to_str() calls shared same static buffer
   - Fix: Allocate memory with malloc() instead of using static buffer
@@ -35,6 +39,11 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Root cause: clone/concat/format/replace used malloc(cap) instead of malloc(cap+1)
   - Fix: Allocate +1 byte and null-terminate with memset
   - Note: No regression test - bug only manifests with fragmented heap
+
+- **Code Quality**: Fixed empty AllocError and IndexOutOfBoundsError catches
+  - Converted 61 empty catches to properly rethrow errors as Str
+  - ext.til global init functions use panic() instead of throw
+  - Added `throws Str` to 12 functions whose error paths now propagate
 
 ### Current Issue
 **Bug #47: NodeType.? memory corruption**:
@@ -45,11 +54,19 @@ src/core/vec.til:63:63: til init ERROR: Identifiers can only contain identifiers
 - Happens in init.til's get_value_type when iterating e.params
 - rstil works fine, only compiled til fails
 - Struct sizes verified correct (Expr = 288 bytes)
-- Suspect: memory corruption during Vec operations or struct copying
+
+**Key Finding (2025-12-26):**
+- Minimal reproducer: `src/test/bug47_test.til`
+- Bug only triggers when caught error variable is USED inside catch block
+- Empty catches or catches that don't reference `err` work fine
+- Example: `catch (err: Str) { println(err) }` triggers bug
+- Example: `catch (err: Str) { }` works fine
 
 **Reproduce:**
 ```bash
 ./bin/rstil interpret src/tests.til test til_interpreted src/examples/empty.til
+# Or with minimal reproducer:
+./bin/til interpret src/test/bug47_test.til
 ```
 
 ## Compiler Phases
@@ -128,9 +145,11 @@ Work on **master**. Previous branch `claude/fix-bool-return-error-VePQb` is refe
 - Note function names to re-translate, not line numbers
 
 ## Next Steps
-1. Create a test that actually reproduces Bug #47 (NodeType corruption)
-2. Examine generated C code in gen/c/til.c for Vec<Expr> iteration patterns
-3. Find the pattern causing memory corruption of enum tags
+1. ~~Create a test that reproduces Bug #47~~ Done: `src/test/bug47_test.til`
+2. Examine generated C code for catch blocks that USE the error variable
+   - Compare `catch (err: Str) { println(err) }` vs `catch (err: Str) { }`
+   - Focus on how `err` is declared/accessed in the catch block
+3. Find the codegen pattern causing memory corruption
 4. Fix in ccodegen.rs, run make tests, port to ccodegen.til
 
 ## Debug Findings
