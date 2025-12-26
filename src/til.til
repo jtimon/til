@@ -23,6 +23,28 @@ build_file_or_exit := proc(path: Str) {
     }
 }
 
+translate_file_or_exit := proc(path: Str) {
+    _ := build(path)
+    // Compute output path (same logic as builder.til)
+    mut c_filename := path.replace(".til", ".c")
+    mut output_path := c_filename
+    if c_filename.starts_with("src/") {
+        output_path = c_filename.replacen("src/", "gen/c/", 1)
+    } else {
+        output_path = concat("gen/c/", c_filename)
+    }
+    println("Generated: ", output_path)
+
+    catch (err: Str) {
+        println("Build error: ", err)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("Build error: ", err.msg)
+        exit(1)
+    }
+}
+
 run_file_or_exit := proc(path: Str) {
     _ := build(path)
     catch (err: Str) {
@@ -47,9 +69,9 @@ usage := proc() {
 
     println("repl: read eval print loop.");
     println("interpret: reads a file in provided <path> and evaluates it.");
-    // println("ast: reads a file in provided <path> and prints its abstract syntax tree (aka (lisp-like-syntax ast-from-now-on ) ).");
-    println("build: reads a file in provided <path> and compiles it. Not implemented yet.");
-    println("run: reads a file in provided <path> and runs it if it compiles. Not implemented yet.");
+    println("build: reads a file in provided <path> and compiles it.");
+    println("translate: reads a file in provided <path> and generates source code (no compilation).");
+    println("run: reads a file in provided <path>, compiles and runs it.");
     println("help: Prints this.\n");
     println("version, --version, -v: Prints version.\n");
 }
@@ -95,6 +117,8 @@ main := proc(args: ..Str) {
         case "repl"      : usage()
         case "build"     :
             build_file_or_exit(val1)
+        case "translate" :
+            translate_file_or_exit(val1)
         case "run"       :
             run_file_or_exit(val1)
         case:
@@ -123,6 +147,7 @@ main := proc(args: ..Str) {
 
         case "ast"       : usage()
         case "build"     : usage()
+        case "translate" : usage()
         case "interpret" : usage()
         case "run"       : usage()
         case:

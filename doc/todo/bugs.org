@@ -239,9 +239,46 @@ To find the exact line causing corruption:
 1. Add debug print with =e.to_str()= after EVERY line in check_types_with_context
 2. Run test once
 3. Find where output changes from valid to corrupted
-4. That line (or function called on that line) is the culprit
-5. Drill into that function with more prints
-6. Repeat until exact codegen bug found in ccodegen.rs
+
+*** Minimal Reproducer (2025-12-26)
+Found a minimal reproducer in =src/test/bug47_test.til=:
+
+#+BEGIN_SRC til
+mode test
+import("self.builder")
+
+run_it := proc(path: Str) throws Str, AllocError {
+    mut args := Vec.new(Str)
+    _ := run_file(path, args)
+}
+
+wrapper := proc() {
+    run_it("src/examples/empty.til")
+    catch (err: Str) { println(err) }  // Using 'err' triggers bug
+    catch (err: AllocError) { }
+}
+
+wrapper()
+#+END_SRC
+
+Key finding: The bug only triggers when the caught error variable =err= is actually
+USED inside the catch block (e.g., =println(err)=). An empty catch block or one that
+doesn't reference =err= does NOT trigger the bug.
+
+Reproduce:
+#+BEGIN_SRC bash
+./bin/rstil run src/test/bug47_test.til  # FAILS with NodeType.?
+#+END_SRC
+
+*** What Triggers vs What Doesn't
+| Catch block code         | Result   |
+|--------------------------+----------|
+| catch (err: Str) { }     | Works    |
+| catch (err: Str) { println("Error") } | Works |
+| catch (err: Str) { println(err) }     | BUG    |
+
+This suggests the bug is related to how the caught error variable is stored/accessed
+in the generated C code when used inside the catch block body.
 
 ** Bug #42: Temp variable naming inconsistency causes undeclared _tmp_N errors
 :PROPERTIES:

@@ -1,0 +1,18 @@
+mode test
+
+// Bug #47 minimal reproducer
+// Bug: Using caught error variable causes memory corruption
+import("self.builder")
+
+run_it := proc(path: Str) throws Str, AllocError {
+    mut args := Vec.new(Str)
+    _ := run_file(path, args)
+}
+
+wrapper := proc() {
+    run_it("src/examples/empty.til")
+    catch (err: Str) { println(err) }  // Using 'err' triggers bug
+    catch (err: AllocError) { }
+}
+
+wrapper()
