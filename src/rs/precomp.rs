@@ -264,11 +264,11 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
             }
             // Functions that can throw are allowed - if they actually throw,
             // we'll report the error in eval_comptime.
-            // TODO: Exception: functions that throw AllocError, IndexOutOfBoundsError,
-            // or KeyNotFoundError are not folded since these depend on runtime state.
+            // Exception: functions that throw AllocError are not folded since malloc
+            // depends on runtime state.
             for throw_type in &func_def.throw_types {
                 if let ValueType::TCustom(name) = throw_type {
-                    if name == "AllocError" || name == "IndexOutOfBoundsError" || name == "KeyNotFoundError" {
+                    if name == "AllocError" {
                         return false;
                     }
                 }

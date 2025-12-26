@@ -380,15 +380,15 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         }
         // Functions that can throw are allowed - if they actually throw,
         // we'll report the error in eval_comptime.
-        // Exception: functions that throw AllocError, IndexOutOfBoundsError,
-        // or KeyNotFoundError are not folded since these depend on runtime state.
+        // Exception: functions that throw AllocError are not folded since malloc
+        // depends on runtime state.
         mut throw_idx := 0
         while throw_idx.lt(func_def.throw_types.len()) {
             mut throw_type := ValueType.TCustom("")
             func_def.throw_types.get(throw_idx, throw_type)
             switch throw_type {
             case ValueType.TCustom(throw_name):
-                if throw_name.eq("AllocError").or(throw_name.eq("IndexOutOfBoundsError")).or(throw_name.eq("KeyNotFoundError")) {
+                if throw_name.eq("AllocError") {
                     return false
                 }
             case:
