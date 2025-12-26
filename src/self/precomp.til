@@ -380,21 +380,6 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         }
         // Functions that can throw are allowed - if they actually throw,
         // we'll report the error in eval_comptime.
-        // Exception: functions that throw AllocError are not folded since malloc
-        // depends on runtime state.
-        mut throw_idx := 0
-        while throw_idx.lt(func_def.throw_types.len()) {
-            mut throw_type := ValueType.TCustom("")
-            func_def.throw_types.get(throw_idx, throw_type)
-            switch throw_type {
-            case ValueType.TCustom(throw_name):
-                if throw_name.eq("AllocError") {
-                    return false
-                }
-            case:
-            }
-            throw_idx.inc()
-        }
         // All arguments must be comptime-evaluable
         mut i := 1
         while i.lt(e.params.len()) {

@@ -264,15 +264,6 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
             }
             // Functions that can throw are allowed - if they actually throw,
             // we'll report the error in eval_comptime.
-            // Exception: functions that throw AllocError are not folded since malloc
-            // depends on runtime state.
-            for throw_type in &func_def.throw_types {
-                if let ValueType::TCustom(name) = throw_type {
-                    if name == "AllocError" {
-                        return false;
-                    }
-                }
-            }
             // All arguments must be comptime-evaluable
             for i in 1..e.params.len() {
                 if !is_comptime_evaluable(context, &e.params[i]) {
