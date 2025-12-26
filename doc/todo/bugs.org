@@ -8,6 +8,65 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #55: C codegen generates wrong code for throwing function calls inside struct literals
+:PROPERTIES:
+:DISCOVERED: 2025-12-26
+:IMPACT: C compile error, blocks removing legacy .new() methods
+:STATUS: Open
+:END:
+
+*** Description
+When a function that throws (uses out-parameter calling convention in C) is called
+inside a struct literal field initializer, the C codegen generates incorrect code
+with 1 argument instead of 3 (out-param + error-param + actual args).
+
+*** Example
+#+BEGIN_SRC til
+Item := struct {
+    mut name: Str = ""
+    mut count: I64 = 0
+}
+
+test := proc() {
+    original := "hello"
+    // Bug: clone() inside struct literal generates wrong C code
+    items.push(Item(name=original.clone(), count=42))
+}
+#+END_SRC
+
+*** Generated C (incorrect)
+#+BEGIN_SRC c
+til_Item _tmp = (til_Item){.name = til_Str_clone(til_original), .count = 42};
+// ERROR: til_Str_clone expects 3 args: (til_Str* _ret, til_AllocError* _err, til_Str self)
+#+END_SRC
+
+*** Expected C (correct)
+#+BEGIN_SRC c
+til_Str _cloned_name;
+til_AllocError _err;
+if (til_Str_clone(&_cloned_name, &_err, til_original)) { /* handle error */ }
+til_Item _tmp = (til_Item){.name = _cloned_name, .count = 42};
+#+END_SRC
+
+*** Reproducing
+#+BEGIN_SRC bash
+./bin/rstil run src/test/bug55.til
+# ERROR: gcc failed: too few arguments to function 'til_Str_clone'
+#+END_SRC
+
+*** Root Cause
+In ccodegen.rs, when generating C struct literals, function calls inside field
+initializers are emitted inline without checking if they use out-parameter
+calling convention. Throwing functions need their return value and error
+extracted to temp variables before use in the struct literal.
+
+*** Workaround
+Extract the throwing function call to a temp variable before the struct literal:
+#+BEGIN_SRC til
+cloned_name := original.clone()
+items.push(Item(name=cloned_name, count=42))
+#+END_SRC
+
 ** Bug #51: Precomp doesn't propagate constants through function parameters
 :PROPERTIES:
 :DISCOVERED: 2025-12-19

@@ -1,0 +1,30 @@
+mode test
+
+// Bug #55: C codegen generates wrong code for function calls inside struct literals
+// Function calls that throw, inside struct literal initializers, don't use proper out-parameter calling convention
+
+import("core.vec")
+
+Item := struct {
+    mut name: Str = ""
+    mut count: I64 = 0
+}
+
+test_clone_in_struct_literal_pushed_to_vec := proc() {
+    mut items := Vec.new(Item)
+    original := "hello"
+    // This triggers Bug #55 - clone inside struct literal passed to push
+    items.push(Item(name=original.clone(), count=42))
+
+    mut item := Item()
+    items.get(0, item)
+    assert_eq_str(loc(), "hello", item.name)
+
+    catch (err: AllocError) {
+        panic(loc(), err.msg)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), err.msg)
+    }
+}
+test_clone_in_struct_literal_pushed_to_vec()
