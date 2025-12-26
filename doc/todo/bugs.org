@@ -8,6 +8,50 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #55: C codegen generates wrong code for function calls inside struct literals
+:PROPERTIES:
+:DISCOVERED: 2025-12-26
+:IMPACT: Compile failure when using clones inside struct literal initializers
+:STATUS: Open
+:END:
+
+*** Description
+When a function call (like `clone_value_type()` or `Str.clone()`) appears inside
+a struct literal initializer, the C codegen generates incorrect code that doesn't
+use the proper out-parameter calling convention.
+
+*** Example
+#+BEGIN_SRC til
+// This fails:
+SymbolInfo(value_type=clone_value_type(decl.value_type), is_mut=is_mut)
+
+// Workaround - extract to temp variable first:
+vt := clone_value_type(decl.value_type)
+SymbolInfo(value_type=vt, is_mut=is_mut)
+#+END_SRC
+
+*** Generated C (wrong)
+#+BEGIN_SRC c
+// Generated (wrong - 1 arg instead of 3):
+til_clone_value_type(til_decl.value_type)
+
+// Should be:
+til_ValueType _tmp;
+til_AllocError _err;
+til_clone_value_type(&_tmp, &_err, til_decl.value_type);
+#+END_SRC
+
+*** Root Cause
+In src/rs/ccodegen.rs, when emitting struct literal field values, function calls
+are being emitted as direct expressions instead of being hoisted to temp variables
+with proper out-parameter handling.
+
+*** Reproducing
+#+BEGIN_SRC bash
+./bin/rstil run src/til.til help
+# Fails with: error: too few arguments to function 'til_clone_value_type'
+#+END_SRC
+
 ** Bug #51: Precomp doesn't propagate constants through function parameters
 :PROPERTIES:
 :DISCOVERED: 2025-12-19
