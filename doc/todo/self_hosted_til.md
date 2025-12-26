@@ -57,7 +57,7 @@ src/core/vec.til:63:63: til init ERROR: Identifiers can only contain identifiers
 ```
 - Invalid enum tag being read from memory during Vec iteration
 - Happens in init.til's get_value_type when iterating e.params
-- rstil works fine, only compiled til fails
+- Compiled mode shows corruption error, interpreted mode hangs
 - Struct sizes verified correct (Expr = 288 bytes)
 
 **Key Finding (2025-12-26):**
@@ -69,10 +69,16 @@ src/core/vec.til:63:63: til init ERROR: Identifiers can only contain identifiers
 
 **Reproduce:**
 ```bash
-./bin/rstil interpret src/tests.til test til_interpreted src/examples/empty.til
-# Or with minimal reproducer:
-./bin/til interpret src/test/bug47.til
+# Compiled mode - shows NodeType.? memory corruption error:
+./bin/rstil run src/test/bug47.til
+
+# Interpreted mode - hangs indefinitely:
+./bin/rstil interpret src/test/bug47.til
 ```
+
+**Current behavior (2025-12-26):**
+- `rstil run` (compiled): Fails with `NodeType.?` corruption in init phase
+- `rstil interpret`: Hangs (times out after 30s+)
 
 ## Compiler Phases
 1. ~~Parser~~ ✓
