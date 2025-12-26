@@ -45,6 +45,11 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - ext.til global init functions use panic() instead of throw
   - Added `throws Str` to 12 functions whose error paths now propagate
 
+- **Bug #55** (Fixed): C codegen wrong code for throwing calls inside struct literals
+  - Root cause: hoist_throwing_args didn't process non-FCall arguments (like NamedArg)
+  - Fix: Added else clause to call hoist_throwing_expr for non-FCall arguments
+  - Test: src/test/bug55.til
+
 ### Current Issue
 **Bug #47: NodeType.? memory corruption**:
 ```

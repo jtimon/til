@@ -967,6 +967,11 @@ fn hoist_throwing_args(
                 }
             }
         }
+        // Bug #55 fix: Handle non-FCall arguments (like NamedArg) by recursing via hoist_throwing_expr
+        // This ensures throwing calls inside named args are hoisted properly
+        else {
+            hoist_throwing_expr(arg, output, indent, ctx, context)?;
+        }
     }
 
     Ok(hoisted)
@@ -1877,12 +1882,8 @@ fn is_constant_declaration(expr: &Expr) -> bool {
 // Such calls cannot be used inline in struct initializers - they need separate statements
 fn is_throwing_fcall(expr: &Expr, context: &Context) -> bool {
     if let NodeType::FCall = &expr.node_type {
-        if let Some(first_param) = expr.params.first() {
-            if let Some(lookup_name) = get_til_func_name_string(first_param) {
-                if let Some(func_def) = context.scope_stack.lookup_func(&lookup_name) {
-                    return !func_def.throw_types.is_empty();
-                }
-            }
+        if let Some(fd) = get_fcall_func_def(context, expr) {
+            return !fd.throw_types.is_empty();
         }
     }
     false

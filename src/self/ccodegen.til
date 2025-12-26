@@ -8093,7 +8093,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                     }
                 }
             case:
-                // Not an FCall, nothing to do
+                // Bug #55 fix: Handle non-FCall arguments (like NamedArg) by recursing via hoist_throwing_expr
+                // This ensures throwing calls inside named args are hoisted properly
+                _ := hoist_throwing_expr(arg, output, indent, ctx, context)
             }
         }
         idx = add(idx, 1)
