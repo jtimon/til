@@ -1,0 +1,174 @@
+* What is Precomp?
+
+Precomp (pre-computation) is a phase that runs BEFORE the main interpreter/compiler.
+
+** What Precomp Does (3 steps)
+
+1. *Find comptime stuff* - Determine what can be evaluated at compile time
+2. *Eval it to fold it* - Evaluate comptime expressions and replace them with results
+3. *Leave runtime stuff* - Pass everything else to interpreter/builder unchanged
+
+** Core Principle
+
+Precomp is "interpreter for compile-time code". For anything that CAN be evaluated
+at compile time, precomp must behave EXACTLY like interpreter. No special cases.
+
+When precomp needs to evaluate, it calls eval_expr directly. Same function, same behavior.
+
+** What Makes Something Comptime?
+
+The TYPE does not matter. Only HOW the value is computed matters.
+
+Comptime:
+- Literals: 42, "hello", true
+- Pure function calls with comptime args: add(1, 2), my_func(10, 20)
+- Struct/enum constructors with comptime args: Bool(data=1), Color.Red
+- Type definitions: struct, enum, func definitions
+
+Runtime (not comptime):
+- Side effects: malloc, I/O, network
+- Procs (they don't return values, can't fold them)
+- Anything depending on runtime state
+
+** Function Arguments and Comptime
+
+Whether a function argument is comptime depends on the CALLER:
+
+#+begin_src til
+my_func := func(a: I64, b: I64) returns I64 {
+    return add(a, b)
+}
+
+x := my_func(10, 20)    // comptime: a=10, b=20 are both comptime
+y := my_func(x, 20)     // comptime: x was folded to 30, so a=30, b=20
+z := my_func(rand(), 5) // runtime: rand() is not comptime, so a is not comptime
+#+end_src
+
+When evaluating ~my_func(10, 20)~:
+- a is bound to 10 (comptime)
+- b is bound to 20 (comptime)
+- ~add(a, b)~ becomes ~add(10, 20)~ which is comptime
+- Result: 30, the call is folded to literal 30
+
+* Constant Folding
+
+Constant folding replaces comptime expressions with their evaluated results.
+
+** Example 1: Simple arithmetic
+
+#+begin_src til
+// Before precomp:
+aaa := add(34, 35)
+
+// After precomp:
+aaa := 69
+#+end_src
+
+The declaration stays. The RHS expression ~add(34, 35)~ is evaluated at compile time,
+result is 69, replaced with literal 69.
+
+AST transformation:
+- Before: ~Declaration(aaa, FCall(add, [34, 35]))~
+- After:  ~Declaration(aaa, LLiteral(69))~
+
+** Example 2: Nested function calls
+
+#+begin_src til
+// Before precomp:
+bbb := mul(add(2, 3), add(4, 6))
+
+// After precomp:
+bbb := 50
+#+end_src
+
+Inner calls are folded first: ~add(2,3)~ -> 5, ~add(4,6)~ -> 10
+Then outer call: ~mul(5, 10)~ -> 50
+
+** Example 3: User-defined pure function
+
+#+begin_src til
+double := func(x: I64) returns I64 {
+    return mul(x, 2)
+}
+
+// Before precomp:
+ccc := double(21)
+
+// After precomp:
+ccc := 42
+#+end_src
+
+~double~ is pure, arg 21 is literal, so the call is evaluated at compile time.
+
+** Example 4: Chained comptime
+
+#+begin_src til
+aaa := add(10, 20)    // folded to: aaa := 30
+bbb := add(aaa, 5)    // folded to: bbb := 35 (aaa was already folded to 30)
+#+end_src
+
+** Example 5: Runtime - not folded
+
+#+begin_src til
+// This is NOT folded (rand is not pure):
+ddd := add(rand(), 5)
+
+// This is NOT folded (read_input is not pure):
+eee := add(read_input(), 10)
+#+end_src
+
+The expressions stay as-is, evaluated at runtime by interpreter/codegen.
+
+** Summary Table
+
+| Expression | Comptime? | Folds to |
+|------------|-----------|----------|
+| 42 | yes | LLiteral(Number("42")) |
+| "hello" | yes | LLiteral(Str("hello")) |
+| add(1, 2) | yes (pure, literal args) | LLiteral(Number("3")) |
+| my_func(10, 20) | yes (pure, literal args) | LLiteral of result |
+| Bool(data=1) | yes | FCall AST via to_struct_literal |
+| Color.Red | yes | FCall AST via to_enum_literal |
+| rand() | no (side effect) | unchanged |
+| my_proc() | no (proc, no return) | unchanged |
+
+* Precomp vs Interpreter: Differences
+
+** Legitimate Differences (by design)
+
+| Aspect           | Precomp                              | Interpreter                    |
+|------------------|--------------------------------------|--------------------------------|
+| Entry point      | precomp_expr returns Expr            | eval_expr returns EvalResult   |
+| AST transforms   | For-in desugaring, UFCS resolution   | None (works on final AST)      |
+| Constant folding | Converts eval results back to AST    | Not needed                     |
+
+That's it. Everything else is THE SAME:
+- Scope handling: same scope_stack, same push/pop
+- Function bodies: precomp evaluates them (via eval_expr) when called with comptime args
+- Storage: precomp calls same insert_primitive, insert_struct_instance, etc.
+
+* Precomp vs Codegen: Differences
+
+** Legitimate Differences (by design)
+
+| Aspect      | Precomp                        | Codegen                        |
+|-------------|--------------------------------|--------------------------------|
+| Input       | Original AST                   | Transformed AST (after precomp)|
+| Output      | Transformed AST + arena values | C code                         |
+| Evaluation  | Actually runs comptime code    | Generates code to run later    |
+| Arena usage | Writes values                  | Reads values for constants     |
+
+** What Codegen Expects from Precomp
+
+1. AST correctly transformed (for-in desugared, UFCS resolved)
+2. Global constants stored in EvalArena (so codegen can emit them)
+3. Type definitions registered (structs, enums, funcs)
+4. Templates created for struct types
+
+* Key Functions
+
+- precomp_expr: Main entry point, dispatches by node type
+- precomp_declaration: Handles declarations, should call eval_declaration
+- precomp_fcall: Handles function calls, may call eval_comptime for folding
+- eval_comptime: Evaluates and converts result back to AST literal
+- is_comptime_evaluable: Checks if an expression CAN be evaluated at compile time
