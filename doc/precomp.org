@@ -165,10 +165,39 @@ That's it. Everything else is THE SAME:
 3. Type definitions registered (structs, enums, funcs)
 4. Templates created for struct types
 
+* How Precomp Evaluates (eval_comptime flow)
+
+When precomp needs to evaluate a comptime expression, it calls ~eval_comptime~:
+
+1. ~precomp_fcall~ transforms the FCall AST (doesn't evaluate)
+2. ~precomp_expr~ checks ~is_comptime_evaluable~
+3. If true, calls ~eval_comptime~
+4. ~eval_comptime~ calls ~eval_expr~ (interpreter's eval!)
+5. ~eval_expr~ runs the code exactly like interpreter does
+6. For ext funcs: ~eval_func_proc_call~ -> ~is_ext()~ -> ~eval_core_func_proc_call~ dispatch
+7. Result is converted back to AST literal
+
+This means nested function calls work correctly. When evaluating ~my_func(10, 20)~:
+- ~eval_expr~ evaluates the function body
+- If body contains ~add(a, b)~, that goes through ~eval_func_proc_call~
+- ~add~ is ext, so it dispatches to ~eval_core_func_proc_call~ -> ~ext::func_add~
+- Same path as interpreter - no special handling needed
+
+** import() is a Special Case
+
+~import()~ is an ~ext_proc~ (declared in core/comptime.til). Procs are NOT comptime-evaluable
+because they don't return values (can't fold to a literal).
+
+But ~import()~ MUST run during precomp to load code. So ~precomp_fcall~ has a special case:
+when it sees ~import()~, it calls ~eval_expr~ directly to trigger the import.
+
+This is the ONE special case in precomp_fcall. All other ext funcs go through the normal
+~is_comptime_evaluable~ -> ~eval_comptime~ -> ~eval_expr~ flow.
+
 * Key Functions
 
 - precomp_expr: Main entry point, dispatches by node type
 - precomp_declaration: Handles declarations, should call eval_declaration
-- precomp_fcall: Handles function calls, may call eval_comptime for folding
-- eval_comptime: Evaluates and converts result back to AST literal
+- precomp_fcall: Handles function calls, transforms AST (evaluation happens via eval_comptime)
+- eval_comptime: Evaluates comptime expression via eval_expr, converts result back to AST literal
 - is_comptime_evaluable: Checks if an expression CAN be evaluated at compile time

@@ -1,3 +1,9 @@
+* Precomp Overhaul Plan
+
+*Design document:* See [[file:../precomp.org][doc/precomp.org]] for how precomp SHOULD work.
+
+This file tracks the implementation work to make the code match the design.
+
 * Bug #54 Fix Plan
 
 ** Bug #54 Summary (from doc/todo/bugs.org)
@@ -163,6 +169,8 @@ Changes made:
 
 ** Core Insight: What Makes Something Comptime?
 
+(See [[file:../precomp.org][doc/precomp.org]] for full design. Summary below for reference.)
+
 *The TYPE of a value does NOT determine if it's comptime. The VALUE and how it's computed does.*
 
 What makes something NOT comptime-evaluable:
@@ -281,17 +289,28 @@ Most tests pass. Remaining failures:
 - ~undefined reference to 'til_Introspection_has_field'~
 - This is a compilation/linking issue, not related to precomp changes
 
-*** test_parser.til and til.til - "Lexer.advance does not return anything"
+*** test_parser.til and til.til - "Lexer.advance does not return anything" [FIXED]
 - Error at parser.til:482
-- Precomp is trying to fold something that includes a proc call
-- ~is_comptime_evaluable~ needs to check that functions actually return values
-- A proc (no return) should not be considered comptime-evaluable
+- Root cause: Old translation bug in parser.til - ~_ := lexer.advance(1)~ where ~advance~ doesn't return anything
+- ~Lexer.advance~ is defined as ~func(mut self: Lexer, count: I64) throws Str~ (no return)
+- Fix: Changed ~_ := lexer.advance(1)~ to just ~lexer.advance(1)~
+- This pre-existing bug was exposed by the new Rust precomp changes (return type check in ~is_comptime_evaluable~)
+
+*** interpreter.til - Similar ~_ :=~ bugs with EvalArena.insert_* [FIXED]
+- ~EvalArena.insert_i64/u8/string~ are procs with no return - ~_ := ...~ was WRONG
+- ~EvalArena.insert_enum~ returns ~EnumVal~ - ~_ := ...~ is CORRECT (kept as-is)
+- Fixed: Removed ~_ :=~ from insert_i64/u8/string calls at lines 3005, 3007, 3009
+
+** Current Test Status
+
+3/68 tests failed:
+- bug41_test.til (interpret output) - double "DEBUG:hello from bug41 test" output
+- bug41_test.til (run output) - same double output issue
+- introspections.til (run exit code) - linker error, pre-existing unrelated issue
 
 ** Next Steps
 
-1. Fix ~is_comptime_evaluable~ to reject proc calls (functions without return type)
-2. Investigate bug41_test.til double output
-3. Run full test suite
-4. Restore Makefile (~tests: rstil til~)
-5. Port changes to TIL (~src/self/precomp.til~)
-6. Update bug docs, commit
+1. Investigate bug41_test.til double output (precomp evaluating something twice?)
+2. Port precomp.rs changes to precomp.til
+3. Restore Makefile (~tests: rstil til~)
+4. Update bug docs, commit

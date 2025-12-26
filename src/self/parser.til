@@ -479,7 +479,7 @@ parse_args := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsEr
                     if prim.params.len().gt(0) {
                         throw next_t.error(lexer.path, "Named argument name cannot be a dotted identifier")
                     }
-                    _ := lexer.advance(1) // consume '='
+                    lexer.advance(1) // consume '='
                     value := parse_primary(lexer)
                     mut named_arg_params := Vec.new(Expr)
                     named_arg_params.push(value)

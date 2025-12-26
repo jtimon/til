@@ -3002,11 +3002,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         collected_mut_args.get(ci, c)
         switch c.value {
         case MutArgValue.I64(val):
-            _ := EvalArena.insert_i64(context, c.source_name, I64.to_str(val), e)
+            EvalArena.insert_i64(context, c.source_name, I64.to_str(val), e)
         case MutArgValue.U8(val):
-            _ := EvalArena.insert_u8(context, c.source_name, U8.to_str(val), e)
+            EvalArena.insert_u8(context, c.source_name, U8.to_str(val), e)
         case MutArgValue.Str(val):
-            _ := EvalArena.insert_string(context, c.source_name, val, e)
+            EvalArena.insert_string(context, c.source_name, val, e)
         case MutArgValue.Enum(enum_val):
             _ := EvalArena.insert_enum(context, c.source_name, enum_val.enum_type, format(enum_val.enum_type, ".", enum_val.enum_name), e)
         case MutArgValue.Struct(struct_data):

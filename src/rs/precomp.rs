@@ -9,7 +9,7 @@ use crate::rs::parser::{
     Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal, TTypeDef, PatternInfo,
     Declaration, str_to_value_type, value_type_to_str, INFER_TYPE,
 };
-use crate::rs::interpreter::{eval_expr, eval_declaration, proc_import, insert_struct_instance, create_default_instance};
+use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
 use crate::rs::eval_arena::EvalArena;
 use crate::rs::precomp_ext::try_replace_comptime_intrinsic;
 // ---------- Named argument reordering
@@ -254,8 +254,12 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
                     return false; // Unknown function
                 }
             };
-            // Must be pure function (not proc)
+            // Must be pure function (not proc) that returns a value
             if func_def.is_proc() {
+                return false;
+            }
+            // Funcs with no return type can't be folded (nothing to fold to)
+            if func_def.return_types.is_empty() {
                 return false;
             }
             // Functions that can throw are allowed - if they actually throw,
@@ -960,13 +964,6 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         return Ok(replaced);
     }
 
-    // 2. Special handling for import() calls - run import like interpreter does
-    let f_name = get_func_name_in_call(&e);
-    if f_name == "import" {
-        proc_import(context, &e)?;
-        return Ok(e.clone());
-    }
-
     // Get func_expr and combined_name before any transformation
     let func_expr = match e.params.first() {
         Some(expr) => expr,
@@ -1032,6 +1029,15 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
         // 6. Regular function call - check if it exists
         if let Some(func_def) = context.scope_stack.lookup_func(&combined_name) {
+            // Ext functions: evaluation happens through eval_comptime path (see doc/precomp.org)
+            // Exception: import() must run during precomp to load code
+            if func_def.is_ext() {
+                let parts: Vec<&str> = combined_name.split('.').collect();
+                if let Some(&"import") = parts.last() {
+                    eval_expr(context, &e)?;
+                }
+                return Ok(e.clone());
+            }
             // Reorder named arguments to positional order before constant folding
             let e = reorder_named_args(context, &e, &func_def)?;
             return Ok(e);

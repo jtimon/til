@@ -220,7 +220,8 @@ test_til_compiled := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
 }
 
 run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec) {
-    mut errors_found := false
+    mut errors_found := 0
+    total_tests := til_interpreted.len().add(til_compiled.len()).add(til_common.len()).add(rs_interpreted.len()).add(rs_compiled.len()).add(rs_common.len())
     mut total_interpret_ms := 0
     mut total_compile_ms := 0
     mut total_til_interp_ms := 0
@@ -234,7 +235,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         til_interpreted.get(i, entry)
         mut time_ms := 0
         if test_til_interpreted(entry, time_ms) {
-            errors_found = true
+            errors_found.inc()
         }
         total_til_interp_ms = total_til_interp_ms.add(time_ms)
         mut args_display := ""
@@ -252,7 +253,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         til_compiled.get(i, entry)
         mut time_ms := 0
         if test_til_compiled(entry, time_ms) {
-            errors_found = true
+            errors_found.inc()
         }
         total_til_compile_ms = total_til_compile_ms.add(time_ms)
         mut args_display := ""
@@ -270,9 +271,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         til_common.get(i, entry)
         mut interp_ms := 0
         mut compile_ms := 0
-        if test_til_common(entry, interp_ms, compile_ms) {
-            errors_found = true
-        }
+        errors_found = errors_found.add(test_til_common(entry, interp_ms, compile_ms))
         total_til_interp_ms = total_til_interp_ms.add(interp_ms)
         total_til_compile_ms = total_til_compile_ms.add(compile_ms)
         mut faster := ""
@@ -298,7 +297,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         rs_interpreted.get(i, entry)
         mut time_ms := 0
         if test_rs_interpreted(entry, time_ms) {
-            errors_found = true
+            errors_found.inc()
         }
         total_interpret_ms = total_interpret_ms.add(time_ms)
         mut args_display := ""
@@ -316,7 +315,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         rs_compiled.get(i, entry)
         mut time_ms := 0
         if test_rs_compiled(entry, time_ms) {
-            errors_found = true
+            errors_found.inc()
         }
         total_compile_ms = total_compile_ms.add(time_ms)
         mut args_display := ""
@@ -334,9 +333,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         rs_common.get(i, entry)
         mut interp_ms := 0
         mut compile_ms := 0
-        if test_rs_common(entry, interp_ms, compile_ms) {
-            errors_found = true
-        }
+        errors_found = errors_found.add(test_rs_common(entry, interp_ms, compile_ms))
         total_interpret_ms = total_interpret_ms.add(interp_ms)
         total_compile_ms = total_compile_ms.add(compile_ms)
         mut faster := ""
@@ -363,6 +360,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     println("Total til interpreted:   ", format_time(total_til_interp_ms))
     println("Total til compiled:      ", format_time(total_til_compile_ms))
     println("Total:                   ", format_time(total_interpret_ms.add(total_compile_ms).add(total_til_interp_ms).add(total_til_compile_ms)))
+    println("Failed:                  ", errors_found.to_str(), "/", total_tests.to_str())
 
     // Build totals section and prepend it
     mut totals := "* Totals\n"
@@ -376,8 +374,8 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
-    if errors_found {
-        panic(loc(), errors_found.to_str().concat(" tests failed."))
+    if errors_found.gt(0) {
+        panic(loc(), errors_found.to_str().concat("/").concat(total_tests.to_str()).concat(" tests failed."))
     }
 }
 
@@ -465,24 +463,24 @@ ensure_out_file := proc(path: Str, cmd_args: Str, out_path: Str, test_mode: Str)
 }
 
 // _common tests compare both modes against same .interpreted.out file
-test_rs_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: I64) returns Bool {
-    mut errors_found := false
+test_rs_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: I64) returns I64 {
+    mut errors_found := 0
     if test_with_cmd(entry, "./bin/rstil interpret ", "interpret", "interpreted", interpret_ms) {
-        errors_found = true
+        errors_found.inc()
     }
     if test_with_cmd(entry, "./bin/rstil run ", "run", "interpreted", compile_ms) {
-        errors_found = true
+        errors_found.inc()
     }
     return errors_found
 }
 
-test_til_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: I64) returns Bool {
-    mut errors_found := false
+test_til_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: I64) returns I64 {
+    mut errors_found := 0
     if test_with_cmd(entry, "./bin/rstil run src/til.til interpret ", "til interpret", "interpreted", interpret_ms) {
-        errors_found = true
+        errors_found.inc()
     }
     if test_with_cmd(entry, "./bin/rstil run src/til.til run ", "til run", "interpreted", compile_ms) {
-        errors_found = true
+        errors_found.inc()
     }
     return errors_found
 }
