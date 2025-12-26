@@ -171,7 +171,7 @@ FuncNameResult := struct {
 // - Identifier("I64.inc") with params = [] -> "I64_inc" (from precomp)
 // - Identifier("Vec") with params = [Identifier("new")] -> "Vec_new" (from parser)
 // Returns the C-ready name with underscores (not dots)
-get_func_name_string := func(first_param: Expr) returns FuncNameResult {
+get_func_name_string := func(first_param: Expr) returns FuncNameResult throws Str {
     mut result := FuncNameResult()
     switch first_param.node_type {
     case NodeType.Identifier(name):
@@ -198,7 +198,7 @@ get_func_name_string := func(first_param: Expr) returns FuncNameResult {
     }
 
     catch (err: IndexOutOfBoundsError) { }
-    catch (err: AllocError) { }
+    catch (err: AllocError) { throw err.msg }
     return result
 }
 
@@ -370,7 +370,7 @@ VariadicFCallInfo := struct {
 
 // Detect if an expression is a variadic function call
 // Returns (elem_type, regular_count) if it's a variadic call
-detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext) returns VariadicFCallInfo {
+detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext) returns VariadicFCallInfo throws Str {
     mut result := VariadicFCallInfo()
     if eq(expr.params.len(), 0) {
         return result
@@ -408,7 +408,7 @@ detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext) returns VariadicF
         // Not a variadic function
     }
     catch (err: IndexOutOfBoundsError) { }
-    catch (err: AllocError) { }
+    catch (err: AllocError) { throw err.msg }
 
     return result
 }
@@ -1174,7 +1174,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
 /// Get the function name from an FCall expression (returns underscore format like Type_method)
 /// This returns the name WITHOUT til_ prefix.
 /// For C output, use til_name() on the result.
-get_fcall_func_name := func(expr: Expr) returns Str {
+get_fcall_func_name := func(expr: Expr) returns Str throws Str {
     if eq(expr.params.len(), 0) {
         return ""
     }
@@ -1239,7 +1239,7 @@ get_struct_name := func(expr: Expr) returns Str {
 
 // Get struct dependencies (other struct types used as mut fields)
 // Returns a Vec of type names (Str) that this struct depends on
-get_struct_dependencies := func(expr: Expr) returns Vec {
+get_struct_dependencies := func(expr: Expr) returns Vec throws Str {
     mut deps := Vec.new(Str)
     switch expr.node_type {
     case NodeType.Declaration(decl):
@@ -1267,12 +1267,12 @@ get_struct_dependencies := func(expr: Expr) returns Vec {
         }
     case:
     }
-    catch (err: AllocError) { }
+    catch (err: AllocError) { throw err.msg }
     return deps
 }
 
 // Get enum dependencies (types used in payloads) as a Vec
-get_enum_dependencies := func(expr: Expr) returns Vec {
+get_enum_dependencies := func(expr: Expr) returns Vec throws Str {
     mut deps := Vec.new(Str)
     switch expr.node_type {
     case NodeType.Declaration(decl):
@@ -1315,7 +1315,7 @@ get_enum_dependencies := func(expr: Expr) returns Vec {
         }
     case:
     }
-    catch (err: AllocError) { }
+    catch (err: AllocError) { throw err.msg }
     return deps
 }
 
@@ -1341,7 +1341,7 @@ get_enum_name := func(expr: Expr) returns Str {
 }
 
 // Get dependencies for a type (struct or enum-with-payloads)
-get_type_dependencies := func(expr: Expr) returns Vec {
+get_type_dependencies := func(expr: Expr) returns Vec throws Str {
     if is_struct_declaration(expr) {
         return get_struct_dependencies(expr)
     }
@@ -1349,7 +1349,7 @@ get_type_dependencies := func(expr: Expr) returns Vec {
         return get_enum_dependencies(expr)
     }
     mut empty := Vec.new(Str)
-    catch (err: AllocError) { }
+    catch (err: AllocError) { throw err.msg }
     return empty
 }
 
@@ -1366,7 +1366,7 @@ get_type_name := func(expr: Expr) returns Str {
 
 // Topologically sort type declarations (structs and enums-with-payloads) by their dependencies
 // Returns indices into the original vector in sorted order
-topological_sort_types := func(types: List) returns Vec {
+topological_sort_types := func(types: List) returns Vec throws Str {
     mut result := Vec.new(I64)
     mut n := types.len()
 
@@ -1526,14 +1526,14 @@ topological_sort_types := func(types: List) returns Vec {
         }
     }
 
-    catch (err: AllocError) { }
+    catch (err: AllocError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { }
     return result
 }
 
 // Topologically sort struct declarations by their field dependencies
 // Uses Kahn's algorithm. Returns Vec of indices in sorted order.
-topological_sort_structs := func(structs: List) returns Vec {
+topological_sort_structs := func(structs: List) returns Vec throws Str {
     mut result := Vec.new(I64)
     mut n := structs.len()
 
@@ -1658,7 +1658,7 @@ topological_sort_structs := func(structs: List) returns Vec {
         }
     }
 
-    catch (err: AllocError) { }
+    catch (err: AllocError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { }
     return result
 }
@@ -7219,7 +7219,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             case:
             }
             catch (err: IndexOutOfBoundsError) { }
-            catch (err: AllocError) { }
+            catch (err: AllocError) { throw err.msg }
         }
         // Determine C type from inferred type or fall back to int
         if not(already_declared) {
@@ -7290,7 +7290,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             case:
             }
             catch (err: IndexOutOfBoundsError) { }
-            catch (err: AllocError) { }
+            catch (err: AllocError) { throw err.msg }
         }
         if not(already_declared) {
             // Determine C type from inferred type or fall back to int
@@ -7673,7 +7673,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
             catch (err: KeyNotFoundError) { }
         }
         catch (err: IndexOutOfBoundsError) { }
-        catch (err: AllocError) { }
+        catch (err: AllocError) { throw err.msg }
     }
 
     if is_struct_method {
@@ -7756,7 +7756,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
             }
         }
         catch (err: IndexOutOfBoundsError) { }
-        catch (err: AllocError) { }
+        catch (err: AllocError) { throw err.msg }
     }
 
     // TODO: Check if this is a variadic function call and use variadic_arr_var

@@ -1853,7 +1853,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                         keys_to_copy.push(akey.clone())
                                     }
                                 }
-                                catch (err_alloc: AllocError) { }
+                                catch (err_alloc: AllocError) { throw err_alloc.msg }
                                 for ki in 0..keys_to_copy.len() {
                                     mut src_key := ""
                                     keys_to_copy.get(ki, src_key)
@@ -1884,7 +1884,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                         symbol_keys_to_copy.push(skey.clone())
                                     }
                                 }
-                                catch (err_alloc2: AllocError) { }
+                                catch (err_alloc2: AllocError) { throw err_alloc2.msg }
                                 for si in 0..symbol_keys_to_copy.len() {
                                     mut sym_src_key := ""
                                     symbol_keys_to_copy.get(si, sym_src_key)
