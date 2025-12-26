@@ -40,7 +40,13 @@ SEnumDef := struct {
 
     clone := func(self: SEnumDef) returns SEnumDef throws AllocError {
         mut result := SEnumDef()
-        result.variants = self.variants.clone()
+        // Deep clone: iterate and clone each element
+        for i in 0..self.variants.len() {
+            mut v := EnumVariant()
+            self.variants.get(i, v)
+            result.variants.push(v.clone())
+        }
+        catch (err: IndexOutOfBoundsError) { panic(err.msg) }
         return result
     }
 
@@ -88,7 +94,7 @@ Declaration := struct {
     clone := func(self: Declaration) returns Declaration throws AllocError {
         mut result := Declaration()
         result.name = self.name.clone()
-        result.value_type = self.value_type
+        result.value_type = clone_value_type(self.value_type)
         result.is_mut = self.is_mut
         result.is_copy = self.is_copy
         result.is_own = self.is_own
@@ -108,6 +114,10 @@ Declaration := struct {
 PatternInfo := struct {
     mut variant_name: Str = ""
     mut binding_var: Str = ""
+
+    clone := func(self: PatternInfo) returns PatternInfo throws AllocError {
+        return PatternInfo(variant_name=self.variant_name.clone(), binding_var=self.binding_var.clone())
+    }
 }
 
 FunctionType := enum {
@@ -129,10 +139,31 @@ SFuncDef := struct {
     clone := func(self: SFuncDef) returns SFuncDef throws AllocError {
         mut result := SFuncDef()
         result.function_type = self.function_type
-        result.args = self.args.clone()
-        result.return_types = self.return_types.clone()
-        result.throw_types = self.throw_types.clone()
-        result.body = self.body.clone()
+        // Deep clone args
+        for i in 0..self.args.len() {
+            mut arg := Declaration()
+            self.args.get(i, arg)
+            result.args.push(arg.clone())
+        }
+        // Deep clone return_types
+        for i in 0..self.return_types.len() {
+            mut rt := ValueType.TCustom("")
+            self.return_types.get(i, rt)
+            result.return_types.push(clone_value_type(rt))
+        }
+        // Deep clone throw_types
+        for i in 0..self.throw_types.len() {
+            mut tt := ValueType.TCustom("")
+            self.throw_types.get(i, tt)
+            result.throw_types.push(clone_value_type(tt))
+        }
+        // Deep clone body
+        for i in 0..self.body.len() {
+            mut e := Expr()
+            self.body.get(i, e)
+            result.body.push(e.clone())
+        }
+        catch (err: IndexOutOfBoundsError) { panic(err.msg) }
         result.source_path = self.source_path.clone()
         return result
     }
@@ -168,8 +199,21 @@ SStructDef := struct {
 
     clone := func(self: SStructDef) returns SStructDef throws AllocError {
         mut result := SStructDef()
-        result.members = self.members.clone()
-        result.default_values = self.default_values.clone()
+        // Deep clone members
+        for i in 0..self.members.len() {
+            mut m := Declaration()
+            self.members.get(i, m)
+            result.members.push(m.clone())
+        }
+        // Deep clone default_values Map<Str, Expr>
+        for i in 0..self.default_values.keys.len() {
+            mut k := ""
+            mut v := Expr()
+            self.default_values.keys.get(i, k)
+            self.default_values.values.get(i, v)
+            result.default_values.set(k.clone(), v.clone())
+        }
+        catch (err: IndexOutOfBoundsError) { panic(err.msg) }
         return result
     }
 
@@ -204,6 +248,19 @@ Literal := enum {
     List: Str,  // TODO You can call it tupple too. who cares? it's not even tested yet, just parsed
 }
 
+clone_literal := func(lit: Literal) returns Literal throws AllocError {
+    switch lit {
+    case Literal.Number(s):
+        return Literal.Number(s.clone())
+    case Literal.Str(s):
+        return Literal.Str(s.clone())
+    case Literal.List(s):
+        return Literal.List(s.clone())
+    }
+    // Unreachable, but TIL requires a return
+    return lit
+}
+
 NodeType := enum {
     Body,
     LLiteral: Literal,
@@ -227,6 +284,35 @@ NodeType := enum {
     Range,
     Pattern: PatternInfo,  // Pattern matching for switch case with payload extraction
     ForIn: Str,  // for VAR: TYPE in COLLECTION - payload is the TYPE name
+}
+
+// Deep clone a NodeType, including all payloads
+clone_node_type := func(nt: NodeType) returns NodeType throws AllocError {
+    switch nt {
+    case NodeType.LLiteral(lit):
+        return NodeType.LLiteral(clone_literal(lit))
+    case NodeType.Identifier(s):
+        return NodeType.Identifier(s.clone())
+    case NodeType.Declaration(decl):
+        return NodeType.Declaration(decl.clone())
+    case NodeType.Assignment(s):
+        return NodeType.Assignment(s.clone())
+    case NodeType.NamedArg(s):
+        return NodeType.NamedArg(s.clone())
+    case NodeType.FuncDef(fd):
+        return NodeType.FuncDef(fd.clone())
+    case NodeType.EnumDef(ed):
+        return NodeType.EnumDef(ed.clone())
+    case NodeType.StructDef(sd):
+        return NodeType.StructDef(sd.clone())
+    case NodeType.Pattern(pi):
+        return NodeType.Pattern(pi.clone())
+    case NodeType.ForIn(s):
+        return NodeType.ForIn(s.clone())
+    case:
+        // Simple variants (Body, FCall, Return, etc.) have no payload to clone
+        return nt
+    }
 }
 
 Expr := struct {
@@ -292,8 +378,16 @@ Expr := struct {
         throw self.lang_error("<internal>", "assert", format("Expr index ", i.to_str(), " out of bounds (len: ", self.params.len().to_str(), ")."))
     }
 
-    clone := func(self: Expr) returns Expr {
-        return Expr(node_type=self.node_type, params=self.params, line=self.line, col=self.col)
+    clone := func(self: Expr) returns Expr throws AllocError {
+        // Deep clone: clone node_type and each element in params
+        mut cloned_params := Vec.new(Expr)
+        for i in 0..self.params.len() {
+            mut e := Expr()
+            self.params.get(i, e)
+            cloned_params.push(e.clone())
+        }
+        catch (err: IndexOutOfBoundsError) { panic(err.msg) }
+        return Expr(node_type=clone_node_type(self.node_type), params=cloned_params, line=self.line, col=self.col)
     }
 
     exit_error := proc(self: Expr, phase: Str, msg: Str) {
@@ -368,6 +462,19 @@ ValueType := enum {
     TType: TTypeDef,
     TCustom: Str,
     TMulti: Str,
+}
+
+// Deep clone a ValueType, including string payloads
+clone_value_type := func(vt: ValueType) returns ValueType throws AllocError {
+    switch vt {
+    case ValueType.TCustom(s):
+        return ValueType.TCustom(s.clone())
+    case ValueType.TMulti(s):
+        return ValueType.TMulti(s.clone())
+    case:
+        // TFunction and TType have no heap allocations to clone
+        return vt
+    }
 }
 
 value_type_to_str := func(arg_type: ValueType) returns Str {

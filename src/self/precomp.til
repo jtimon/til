@@ -263,6 +263,10 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case:
         return e.clone()
     }
+
+    catch (err: AllocError) {
+        throw err.msg
+    }
 }
 
 // ---------- Compile-time constant folding
@@ -449,6 +453,10 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case:
         // For other types, eval was done (errors caught), return original (no folding)
         return e.clone()
+    }
+
+    catch (err: AllocError) {
+        throw err.msg
     }
 }
 

@@ -2654,7 +2654,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                         k.inc()
                     }
                     fcall_expr = Expr.new_clone(NodeType.FCall, fcall_expr.get(0), new_args)
-                    id_params.delete()
+                    // Note: id_params ownership transferred to extra_arg_e, don't delete
                     return ufcs_func_def
                 }
 
@@ -2691,17 +2691,17 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                                 m.inc()
                             }
                             fcall_expr = Expr.new_clone(NodeType.FCall, fcall_expr.get(0), new_args2)
-                            id_params.delete()
+                            // Note: id_params ownership transferred to extra_arg_e, don't delete
                             return assoc_func_def
                         }
                     case:
                         found_value_type := value_type
-                        id_params.delete()
+                        // Note: id_params ownership transferred to extra_arg_e, don't delete
                         throw func_expr.error(context.path, "type", format(
                             "'", new_combined_name, "' is of type '", value_type_to_str(found_value_type), "' and thus can't have a '", ufcs_func_name, "' associated function"))
                     }
                 }
-                id_params.delete()
+                // Note: id_params ownership transferred to extra_arg_e, don't delete
             case:
                 // Non-Identifier case, skip
             }

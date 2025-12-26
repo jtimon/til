@@ -45,33 +45,26 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - ext.til global init functions use panic() instead of throw
   - Added `throws Str` to 12 functions whose error paths now propagate
 
+- **Bug #47** (Fixed): NodeType.? memory corruption / use-after-free
+  - Root cause: TIL clone methods were doing shallow copies (copying Vec struct with shared ptr)
+    while Rust's `#[derive(Clone)]` does deep copies
+  - Fix: Updated all clone methods in parser.til to do deep copies:
+    - Added `clone_literal()`, `clone_node_type()`, `clone_value_type()` functions
+    - Fixed `Expr.clone()`, `SFuncDef.clone()`, `SStructDef.clone()`, `SEnumDef.clone()`,
+      `Declaration.clone()`, `PatternInfo.clone()` to iterate and clone elements
+  - Also removed `id_params.delete()` calls in typer.til that triggered use-after-free
+
 ### Current Issue
-**Bug #47: NodeType.? memory corruption**:
-```
-src/core/vec.til:63:63: til init ERROR: Identifiers can only contain identifiers, found 'NodeType.?'
-```
-- Invalid enum tag being read from memory during Vec iteration
-- Happens in init.til's get_value_type when iterating e.params
-- rstil works fine, only compiled til fails
-- Struct sizes verified correct (Expr = 288 bytes)
-
-**Key Finding (2025-12-26):**
-- Minimal reproducer: `src/test/bug47_test.til`
-- Bug only triggers when caught error variable is USED inside catch block
-- Empty catches or catches that don't reference `err` work fine
-- Example: `catch (err: Str) { println(err) }` triggers bug
-- Example: `catch (err: Str) { }` works fine
-
-**Reproduce:**
+**Hang/Timeout**: Self-hosted til hangs when trying to run empty.til
 ```bash
-./bin/rstil interpret src/tests.til test til_interpreted src/examples/empty.til
-# Or with minimal reproducer:
-./bin/til interpret src/test/bug47_test.til
+timeout 30 ./bin/rstil run src/til.til run src/examples/empty.til  # hangs
 ```
+- No longer crashes with NodeType.? (Bug #47 fixed)
+- Now hangs indefinitely - needs investigation
 
 ## Compiler Phases
 1. ~~Parser~~ ✓
-2. **Init** ← Bug #47 blocks here (processing core.til/vec.til)
+2. ~~Init~~ ✓
 3. Typer
 4. Precomp
 5. Scavenger
@@ -86,6 +79,9 @@ src/core/vec.til:63:63: til init ERROR: Identifiers can only contain identifiers
 - `make rstil` - Build Rust-based TIL compiler
 - `make til` - Build self-hosted TIL compiler (uses rstil to compile til.til)
 - `make tests` - Run full test suite
+
+**Note**: Use `./bin/rstil run src/til.til ...` for testing (compiles til.til first, ensures up-to-date).
+Avoid `./bin/rstil interpret src/til.til ...` - it's too slow for practical use.
 
 ## Methodology for Each Issue Encountered
 
@@ -145,60 +141,5 @@ Work on **master**. Previous branch `claude/fix-bool-return-error-VePQb` is refe
 - Note function names to re-translate, not line numbers
 
 ## Next Steps
-1. ~~Create a test that reproduces Bug #47~~ Done: `src/test/bug47_test.til`
-2. Examine generated C code for catch blocks that USE the error variable
-   - Compare `catch (err: Str) { println(err) }` vs `catch (err: Str) { }`
-   - Focus on how `err` is declared/accessed in the catch block
-3. Find the codegen pattern causing memory corruption
-4. Fix in ccodegen.rs, run make tests, port to ccodegen.til
-
-## Debug Findings
-
-### Key Discovery (2025-12-19)
-Added `Expr.to_str()` method and debug prints to `get_value_type` in init.til.
-
-The expression `self.ptr` at vec.til:63 is processed 3 times by get_value_type:
-```
-1st call: e.params = [Expr{Identifier("ptr"), ...}]  <- correct
-2nd call: e.params = [Expr{Identifier("ptr"), ...}]  <- correct
-3rd call: e.params = [Expr{NodeType.?, ...}]         <- CORRUPTED
-```
-
-**Critical insight**: The corruption is visible in `e.to_str()` BEFORE iterating.
-This means corruption happens BETWEEN calls to get_value_type, not during Vec iteration.
-
-### What Was Ruled Out
-- Bug #52 (static buffer in ext.c) - fixed, but didn't solve Bug #47
-- Bug #53 (missing null termination in str.til) - fixed, removed garbage chars but didn't solve Bug #47
-- for-in loop vs while+Vec.get - both show same corruption
-
-### Current Debug State
-- Expr.to_str() added to parser.til for debugging
-- Debug prints in init.til:get_value_type showing e and cursor on each call
-- Debug prints in typer.til:check_types_with_context (NodeType.Identifier case)
-- These are uncommitted (WIP) for continued investigation
-
-### Narrowed Down Location (2025-12-19)
-The corruption happens:
-1. In `check_types_with_context` function in typer.til
-2. Specifically in the `NodeType.Identifier(name)` case (lines 237-272)
-3. Around the `lookup_symbol` call (lines 259-265)
-
-Call tracing showed:
-- get_value_type calls #477 and #478 share the same `params.ptr` (e.g., 109470453548416)
-- Call #477 sees valid data: `self.ptr line=63`
-- Call #478 sees corrupted data: `? line=26726118198`
-- Corruption happens BETWEEN these calls, during check_types_with_context
-
-### Debug Strategy
-To find the exact line causing corruption:
-1. Add debug print with `e.to_str()` after EVERY line in check_types_with_context
-2. Run test once
-3. Find where output changes from valid to corrupted
-4. That line (or function called on that line) is the culprit
-5. Drill into that function with more prints
-6. Repeat until exact codegen bug found
-
-### Previous Test (2025-12-19)
-The original bug47_test.til was testing something different (static buffer issue
-in ext.c's til_i64_to_str). That has been renamed to bug52_test.til.
+1. Investigate hang - identify which phase/function causes infinite loop
+2. Follow methodology to debug and fix

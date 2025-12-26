@@ -237,8 +237,9 @@ Phase A remaining issue:
 ** Bug #47: Self-hosted TIL interpreter fails with "NodeType.?" error
 :PROPERTIES:
 :DISCOVERED: 2025-12-18
+:FIXED: 2025-12-26
 :IMPACT: ./bin/til interpret fails on any file
-:STATUS: Open - Codegen bug, examining generated C patterns
+:STATUS: Fixed - Shallow clone causing use-after-free
 :END:
 
 *** Description
@@ -352,6 +353,29 @@ Reproduce:
 
 This suggests the bug is related to how the caught error variable is stored/accessed
 in the generated C code when used inside the catch block body.
+
+*** Root Cause
+TIL clone methods were doing shallow copies (copying Vec struct bytes, sharing
+the underlying ptr), while Rust's =#[derive(Clone)]= does deep copies. When a
+Vec was cloned and then one copy deleted, the other had a dangling pointer.
+
+Specifically in typer.til: =id_params= was cloned, passed to =Expr.new_clone()=,
+then =id_params.delete()= was called - freeing memory still referenced by the Expr.
+
+*** The Fix
+Updated all clone methods in parser.til to do deep copies matching Rust semantics:
+- Added =clone_literal()=, =clone_node_type()=, =clone_value_type()= functions
+- Fixed =Expr.clone()= to deep clone params and node_type
+- Fixed =SFuncDef.clone()=, =SStructDef.clone()=, =SEnumDef.clone()=,
+  =Declaration.clone()= to iterate and clone each element
+- Added =PatternInfo.clone()= method
+- Removed =id_params.delete()= calls in typer.til that triggered the use-after-free
+- Added AllocError catches in precomp.til for new throwing clones
+
+*** Files Modified
+- src/self/parser.til: Deep clone implementations for all structs and enums
+- src/self/typer.til: Removed id_params.delete() calls
+- src/self/precomp.til: Added AllocError catches
 
 * Fixed Bugs
 
