@@ -56,7 +56,7 @@ src/core/vec.til:63:63: til init ERROR: Identifiers can only contain identifiers
 - Struct sizes verified correct (Expr = 288 bytes)
 
 **Key Finding (2025-12-26):**
-- Minimal reproducer: `src/test/bug47_test.til`
+- Minimal reproducer: `src/test/bug47.til`
 - Bug only triggers when caught error variable is USED inside catch block
 - Empty catches or catches that don't reference `err` work fine
 - Example: `catch (err: Str) { println(err) }` triggers bug
@@ -66,7 +66,7 @@ src/core/vec.til:63:63: til init ERROR: Identifiers can only contain identifiers
 ```bash
 ./bin/rstil interpret src/tests.til test til_interpreted src/examples/empty.til
 # Or with minimal reproducer:
-./bin/til interpret src/test/bug47_test.til
+./bin/til interpret src/test/bug47.til
 ```
 
 ## Compiler Phases
@@ -145,7 +145,7 @@ Work on **master**. Previous branch `claude/fix-bool-return-error-VePQb` is refe
 - Note function names to re-translate, not line numbers
 
 ## Next Steps
-1. ~~Create a test that reproduces Bug #47~~ Done: `src/test/bug47_test.til`
+1. ~~Create a test that reproduces Bug #47~~ Done: `src/test/bug47.til`
 2. Examine generated C code for catch blocks that USE the error variable
    - Compare `catch (err: Str) { println(err) }` vs `catch (err: Str) { }`
    - Focus on how `err` is declared/accessed in the catch block
@@ -200,5 +200,5 @@ To find the exact line causing corruption:
 6. Repeat until exact codegen bug found
 
 ### Previous Test (2025-12-19)
-The original bug47_test.til was testing something different (static buffer issue
-in ext.c's til_i64_to_str). That has been renamed to bug52_test.til.
+The original bug47.til was testing something different (static buffer issue
+in ext.c's til_i64_to_str). That has been renamed to bug52.til.

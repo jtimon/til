@@ -302,7 +302,7 @@ ALL 68 TESTS PASS.
 - Fix: Moved from rs_common to rs_interpreted with TODO comment
 - Updated doc/todo/introspection.org with correct file location and TODO status
 
-**** bug41_test.til - Double output [FIXED]
+**** bug41.til - Double output [FIXED]
 - "DEBUG:hello from bug41 test" appeared twice
 - Root cause: ~precomp_declaration~ was calling ~eval_expr~ for I64/U8/Str declarations
   even inside function bodies (no ~at_global_scope~ check)

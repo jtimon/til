@@ -16,7 +16,7 @@
 - src/test/memcmp_str_interpreted.til :: interpreted: 0.040s
 - src/test/precomp_throw.til :: interpreted: 0.035s
 - src/test/undefined.til :: interpreted: 0.038s
-- src/test/bug48_test.til :: interpreted: 0.038s
+- src/test/bug48.til :: interpreted: 0.038s
 
 * rs_compiled
 - src/test/arenas.til :: compiled: 0.113s
@@ -24,7 +24,7 @@
 - src/test/precomp_throw.til :: compiled: 0.095s
 - src/test/throw_simple.til :: compiled: 0.104s
 - src/test/undefined.til :: compiled: 0.033s
-- src/test/bug48_test.til :: compiled: 0.033s
+- src/test/bug48.til :: compiled: 0.033s
 
 * rs_common
 - src/examples/hello_cli.til :: interpreted: 0.035s, compiled: 0.096s (faster interpreted)
@@ -39,9 +39,9 @@
 - src/test/arrays.til :: interpreted: 0.061s, compiled: 0.118s (faster interpreted)
 - src/test/boolean.til :: interpreted: 0.075s, compiled: 0.108s (faster interpreted)
 - src/test/branchless.til :: interpreted: 0.039s, compiled: 0.097s (faster interpreted)
-- src/test/bug41_test.til :: interpreted: 0.041s, compiled: 0.103s (faster interpreted)
-- src/test/bug43_test.til :: interpreted: 0.077s, compiled: 0.139s (faster interpreted)
-- src/test/bug46_test.til :: interpreted: 0.050s, compiled: 0.099s (faster interpreted)
+- src/test/bug41.til :: interpreted: 0.041s, compiled: 0.103s (faster interpreted)
+- src/test/bug43.til :: interpreted: 0.077s, compiled: 0.139s (faster interpreted)
+- src/test/bug46.til :: interpreted: 0.050s, compiled: 0.099s (faster interpreted)
 - src/test/c_mem.til :: interpreted: 0.047s, compiled: 0.106s (faster interpreted)
 - src/test/circular_test.til :: interpreted: 0.039s, compiled: 0.097s (faster interpreted)
 - src/test/clone.til :: interpreted: 0.117s, compiled: 0.179s (faster interpreted)

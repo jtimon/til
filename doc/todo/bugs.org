@@ -373,7 +373,7 @@ To find the exact line causing corruption:
 3. Find where output changes from valid to corrupted
 
 *** Minimal Reproducer (2025-12-26)
-Found a minimal reproducer in =src/test/bug47_test.til=:
+Found a minimal reproducer in =src/test/bug47.til=:
 
 #+BEGIN_SRC til
 mode test
@@ -399,7 +399,7 @@ doesn't reference =err= does NOT trigger the bug.
 
 Reproduce:
 #+BEGIN_SRC bash
-./bin/rstil run src/test/bug47_test.til  # FAILS with NodeType.?
+./bin/rstil run src/test/bug47.til  # FAILS with NodeType.?
 #+END_SRC
 
 *** What Triggers vs What Doesn't
@@ -534,10 +534,10 @@ a variable instead."
 *** Files Modified
 - src/rs/typer.rs: Added LLiteral case in is_mut check
 - src/self/typer.til: Same fix ported
-- src/tests.til: Added bug48_test.til with expected_status=1
+- src/tests.til: Added bug48.til with expected_status=1
 
 *** Regression Test
-src/test/bug48_test.til (expects exit code 1 - type error)
+src/test/bug48.til (expects exit code 1 - type error)
 
 ** Bug #49: Typer missing use-after-move check for own parameters
 :PROPERTIES:
@@ -585,10 +585,10 @@ not before - otherwise the type lookup fails for the current argument.
 *** Files Modified
 - src/rs/typer.rs: Added remove_symbol call at end of argument loop in check_fcall
 - src/self/typer.til: Same fix ported
-- src/tests.til: Added bug49_test.til with expected_status=1
+- src/tests.til: Added bug49.til with expected_status=1
 
 *** Regression Test
-src/test/bug49_test.til (expects exit code 1 - type error)
+src/test/bug49.til (expects exit code 1 - type error)
 
 *** Related
 - Bug #48: Similar issue for =mut= parameters (lvalue check)
@@ -684,10 +684,10 @@ The catch block's scope extends beyond just the lookup_struct call, incorrectly
 catching throws that come after it in the source code.
 
 *** Reproducing Test
-src/test/bug46_test.til - Passes with interpreter, fails with compiler:
+src/test/bug46.til - Passes with interpreter, fails with compiler:
 #+BEGIN_SRC bash
-./bin/rstil interpret src/test/bug46_test.til  # PASS
-./bin/rstil run src/test/bug46_test.til        # FAIL - Bug #46 present
+./bin/rstil interpret src/test/bug46.til  # PASS
+./bin/rstil run src/test/bug46.til        # FAIL - Bug #46 present
 #+END_SRC
 
 Self-hosted compiler hangs:
@@ -852,7 +852,7 @@ The bug affects get_fcall_value_type in init.til (line 651) but NOT
 is_expr_calling_procs in typer.til (same pattern, but generates correctly).
 
 *** Reproducing Test
-src/test/bug44_test.til
+src/test/bug44.til
 
 *** Files to Investigate
 - src/rs/ccodegen.rs: emit_stmts, local_catch_labels handling
@@ -943,7 +943,7 @@ for (k, v) in primitive_values {
 Same changes ported to the self-hosted interpreter.
 
 *** Reproducing Test
-src/test/bug43_test.til (now passes both interpret and run)
+src/test/bug43.til (now passes both interpret and run)
 
 *** Files Modified
 - src/rs/interpreter.rs: Added read_struct_primitive_fields, modified eval_struct_defaults
@@ -1043,7 +1043,7 @@ Changed =til_i64_to_str=, =til_input_read_line=, and =til_run_cmd= in =src/ext.c
 to allocate memory with =malloc()= instead of using static buffers.
 
 *** Regression Test
-src/test/bug52_test.til - tests reading global variables inside for-in loops
+src/test/bug52.til - tests reading global variables inside for-in loops
 with multiple =to_str()= calls to detect buffer sharing issues.
 
 *** Notes
@@ -1117,7 +1117,7 @@ Two-part fix:
 Also added `ModeDef.clone()` method to src/self/mode.til for proper mode copying.
 
 *** Test Coverage
-Regression test: src/test/bug41_test.til
+Regression test: src/test/bug41.til
 
 *** Files Modified
 - src/rs/init.rs: Added imported_modes field, store mode during import
@@ -1125,7 +1125,7 @@ Regression test: src/test/bug41_test.til
 - src/self/init.til: Same changes ported
 - src/self/typer.til: Same changes ported
 - src/self/mode.til: Added ModeDef.clone() method
-- src/test/bug41_test.til: Regression test
+- src/test/bug41.til: Regression test
 - src/test/bug41_liba_helper.til: Helper file for test
 
 ** Bug #39: Non-consecutive catches fail - second catch never executes
