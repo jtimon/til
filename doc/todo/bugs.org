@@ -353,11 +353,14 @@ Reproduce:
 This suggests the bug is related to how the caught error variable is stored/accessed
 in the generated C code when used inside the catch block body.
 
+* Fixed Bugs
+
 ** Bug #42: Temp variable naming inconsistency causes undeclared _tmp_N errors
 :PROPERTIES:
 :DISCOVERED: 2025-12-17
+:FIXED: 2025-12-26
 :IMPACT: Compilation fails
-:STATUS: Active
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -370,68 +373,20 @@ til_Vec til_cloned = {..., .ptr = _tmp_13, ...};
 #+END_EXAMPLE
 
 *** Root Cause
-The deterministic naming commit (5707c2d) updated many code paths to use function-prefixed temp names like _tmp_funcname_N, but at least one code path still uses the old _tmp_N naming without function prefix. The declaration uses the new style while the reference uses the old style, or vice versa.
-
-*** Deeper Analysis (2025-12-26)
-
-The ~next_mangled()~ function (ccodegen.rs:74-81) uses ~ctx.current_function_name~:
-- When ~Some(func_name)~: generates ~_tmp_funcname_N~
-- When ~None~: generates ~_tmp_N~
-
-**** The actual bug location
-
-~emit_struct_func_body~ (ccodegen.rs:2527-2597) does NOT set ~current_function_name~
-before emitting the function body. Compare with regular functions at line 2835
-which do:
-
-#+BEGIN_SRC rust
-// Regular functions (line 2833-2836):
-let prev_function_name = ctx.current_function_name.clone();
-let prev_mangling_counter = ctx.mangling_counter;
-ctx.current_function_name = Some(decl.name.clone());  // <-- THIS LINE
-ctx.mangling_counter = 0;
-
-// Struct methods (emit_struct_func_body) - MISSING the above pattern
-#+END_SRC
-
-Result: struct methods like ~Array.new~, ~Array.get~, ~Vec.clone~ generate
-temp names like ~_tmp_0~, ~_tmp_1~ instead of ~_tmp_Array_new_0~.
+~emit_struct_func_body~ (ccodegen.rs:2527-2597) did NOT set ~current_function_name~
+before emitting the function body, while regular functions did. This caused struct
+methods like ~Array.new~, ~Array.get~, ~Vec.clone~ to generate temp names like
+~_tmp_0~ instead of ~_tmp_Array_new_0~.
 
 *** The Fix
+Added save/set/restore pattern for ~current_function_name~ and ~mangling_counter~
+in ~emit_struct_func_body~, matching the pattern used for regular functions.
 
-Add to ~emit_struct_func_body~ before calling ~emit_stmts~:
+Also fixed TIL's ~next_mangled~ to include function name prefix (was missing entirely).
 
-#+BEGIN_SRC rust
-// Save and set current function name for deterministic temp naming
-let prev_function_name = ctx.current_function_name.clone();
-let prev_mangling_counter = ctx.mangling_counter;
-ctx.current_function_name = Some(mangled_name.clone());
-ctx.mangling_counter = 0;
-
-emit_stmts(&func_def.body, output, 1, ctx, context)?;
-
-// Restore
-ctx.current_function_name = prev_function_name;
-ctx.mangling_counter = prev_mangling_counter;
-#+END_SRC
-
-*** Current Status (2025-12-26)
-
-Tests pass despite the bug because:
-- Temp variable names are still unique within each function (counter resets per function)
-- The original gcc error may have been from a different issue now fixed
-
-The bug is cosmetic but should be fixed for consistency.
-
-*** Related
-- Commit 5707c2d: Fix Bug #40: Make _for_i_ variable names deterministic
-- The commit changed next_mangled() to include function name prefix
-
-*** Files to Modify
-- src/rs/ccodegen.rs: Add current_function_name handling to emit_struct_func_body
-- src/self/ccodegen.til: Same for TIL version
-
-* Fixed Bugs
+*** Files Modified
+- src/rs/ccodegen.rs: Added current_function_name handling to emit_struct_func_body
+- src/self/ccodegen.til: Same fix + updated next_mangled to include function prefix
 
 ** Bug #54: Pure functions that throw are not folded at compile time
 :PROPERTIES:

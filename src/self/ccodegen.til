@@ -108,10 +108,14 @@ has_str := func(context: Context) returns Bool {
 }
 
 // Generate unique mangled name using context counter (deterministic)
+// Includes function name prefix for uniqueness across functions
 next_mangled := proc(mut ctx: CodegenContext) returns Str {
-    mut name := concat("_tmp", ctx.mangling_counter.to_str())
-    ctx.mangling_counter = ctx.mangling_counter.add(1)
-    return name
+    n := ctx.mangling_counter
+    ctx.mangling_counter.inc()
+    if gt(ctx.current_function_name.len(), 0) {
+        return concat("_tmp_", ctx.current_function_name).concat("_").concat(n.to_str())
+    }
+    return concat("_tmp_", n.to_str())
 }
 
 // Returns the C name for a TIL identifier - adds TIL_PREFIX
@@ -2386,6 +2390,13 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
 
                             // Use emit_func_signature with mangled name
                             mut mangled_name := struct_name.concat("_").concat(member.name)
+
+                            // Save and set current function name for deterministic temp naming (Bug #42 fix)
+                            mut prev_function_name := ctx.current_function_name
+                            mut prev_mangling_counter := ctx.mangling_counter
+                            ctx.current_function_name = mangled_name
+                            ctx.mangling_counter = 0
+
                             result = emit_func_signature(mangled_name, func_def, result, ctx)
                             result = result.concat(" {\n")
 
@@ -2400,6 +2411,10 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             }
 
                             result = result.concat("}\n\n")
+
+                            // Restore previous function name and counter
+                            ctx.current_function_name = prev_function_name
+                            ctx.mangling_counter = prev_mangling_counter
 
                             // Pop the function scope frame
                             _ := context.scope_stack.pop()

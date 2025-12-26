@@ -2573,6 +2573,13 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     ctx.hoisted_struct_defaults.clear();
 
     let mangled_name = format!("{}_{}", struct_name, member.name);
+
+    // Save and set current function name for deterministic temp naming (Bug #42 fix)
+    let prev_function_name = ctx.current_function_name.clone();
+    let prev_mangling_counter = ctx.mangling_counter;
+    ctx.current_function_name = Some(mangled_name.clone());
+    ctx.mangling_counter = 0;
+
     emit_func_signature(&mangled_name, func_def, output)?;
     output.push_str(" {\n");
 
@@ -2585,6 +2592,10 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     }
 
     output.push_str("}\n\n");
+
+    // Restore previous function name and counter
+    ctx.current_function_name = prev_function_name;
+    ctx.mangling_counter = prev_mangling_counter;
 
     // Pop the function scope frame
     context.scope_stack.frames.pop();
