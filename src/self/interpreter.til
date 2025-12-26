@@ -53,58 +53,23 @@ EvalResult := struct {
     mut thrown_type: Str = ""  // Empty string = None
 
     new := func(value: Str) returns EvalResult {
-        mut r := EvalResult()
-        r.value = value
-        r.is_return = false
-        r.is_throw = false
-        r.is_break = false
-        r.is_continue = false
-        r.thrown_type = ""
-        return r
+        return EvalResult(value=value)
     }
 
     new_return := func(value: Str) returns EvalResult {
-        mut r := EvalResult()
-        r.value = value
-        r.is_return = true
-        r.is_throw = false
-        r.is_break = false
-        r.is_continue = false
-        r.thrown_type = ""
-        return r
+        return EvalResult(value=value, is_return=true)
     }
 
     new_throw := func(value: Str, thrown_type: ValueType) returns EvalResult {
-        mut r := EvalResult()
-        r.value = value
-        r.is_return = false
-        r.is_throw = true
-        r.is_break = false
-        r.is_continue = false
-        r.thrown_type = value_type_to_str(thrown_type)
-        return r
+        return EvalResult(value=value, is_throw=true, thrown_type=value_type_to_str(thrown_type))
     }
 
     new_break := func() returns EvalResult {
-        mut r := EvalResult()
-        r.value = ""
-        r.is_return = false
-        r.is_throw = false
-        r.is_break = true
-        r.is_continue = false
-        r.thrown_type = ""
-        return r
+        return EvalResult(is_break=true)
     }
 
     new_continue := func() returns EvalResult {
-        mut r := EvalResult()
-        r.value = ""
-        r.is_return = false
-        r.is_throw = false
-        r.is_break = false
-        r.is_continue = true
-        r.thrown_type = ""
-        return r
+        return EvalResult(is_continue=true)
     }
 }
 
