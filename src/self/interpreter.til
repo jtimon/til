@@ -2004,14 +2004,6 @@ MutArgStructData := struct {
     mut offset: I64 = 0
     mut type_name: Str = ""
     mut was_passed_by_ref: Bool = false
-
-    new := func(offset: I64, type_name: Str, was_passed_by_ref: Bool) returns MutArgStructData {
-        mut result := MutArgStructData()
-        result.offset = offset
-        result.type_name = type_name
-        result.was_passed_by_ref = was_passed_by_ref
-        return result
-    }
 }
 
 // MutArgValue - enum with payloads matching Rust's MutArgValue
@@ -2938,7 +2930,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     offset_found = true
                     catch (err: KeyNotFoundError) { }
                     if offset_found {
-                        collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.Struct(MutArgStructData.new(offset, type_name.clone(), was_passed_by_ref))))
+                        collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.Struct(MutArgStructData(offset=offset, type_name=type_name.clone(), was_passed_by_ref=was_passed_by_ref))))
                     } else {
                         _ := context.scope_stack.pop()
                         context.path = saved_path
