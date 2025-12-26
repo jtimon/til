@@ -1787,7 +1787,7 @@ check_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retu
             switch inner_e.node_type {
             case NodeType.FuncDef(func_def):
                 // TODO move to init_context() ? inner contexts are not persisted in init_context
-                context.scope_stack.declare_func(decl.name, func_def)
+                context.scope_stack.declare_func(decl.name, func_def.clone())
             case:
                 errors.push(e.lang_error(context.path, "type", "functions should have definitions"))
                 return errors
@@ -1796,7 +1796,7 @@ check_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retu
         case ValueType.TFunction(FunctionType.FTProc):
             switch inner_e.node_type {
             case NodeType.FuncDef(func_def):
-                context.scope_stack.declare_func(decl.name, func_def)
+                context.scope_stack.declare_func(decl.name, func_def.clone())
             case:
                 errors.push(e.lang_error(context.path, "type", "functions should have definitions"))
                 return errors
@@ -1805,7 +1805,7 @@ check_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retu
         case ValueType.TFunction(FunctionType.FTMacro):
             switch inner_e.node_type {
             case NodeType.FuncDef(func_def):
-                context.scope_stack.declare_func(decl.name, func_def)
+                context.scope_stack.declare_func(decl.name, func_def.clone())
             case:
                 errors.push(e.lang_error(context.path, "type", "functions should have definitions"))
                 return errors

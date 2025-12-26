@@ -45,22 +45,32 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - ext.til global init functions use panic() instead of throw
   - Added `throws Str` to 12 functions whose error paths now propagate
 
-- **Bug #47** (Fixed): NodeType.? memory corruption / use-after-free
-  - Root cause: TIL clone methods were doing shallow copies (copying Vec struct with shared ptr)
-    while Rust's `#[derive(Clone)]` does deep copies
-  - Fix: Updated all clone methods in parser.til to do deep copies:
-    - Added `clone_literal()`, `clone_node_type()`, `clone_value_type()` functions
-    - Fixed `Expr.clone()`, `SFuncDef.clone()`, `SStructDef.clone()`, `SEnumDef.clone()`,
-      `Declaration.clone()`, `PatternInfo.clone()` to iterate and clone elements
-  - Also removed `id_params.delete()` calls in typer.til that triggered use-after-free
+### Current Issue: Bug #47 - NOT FIXED
 
-### Current Issue
-**Hang/Timeout**: Self-hosted til hangs when trying to run empty.til
-```bash
-timeout 30 ./bin/rstil run src/til.til run src/examples/empty.til  # hangs
-```
-- No longer crashes with NodeType.? (Bug #47 fixed)
-- Now hangs indefinitely - needs investigation
+**Bug #47**: NodeType.? memory corruption / use-after-free / infinite loop
+- Root cause: TIL's Vec shallow copy (copies ptr, not data) differs from Rust's deep clone
+- Every `.clone()` in Rust must have corresponding `.clone()` in TIL
+
+**Symptoms**:
+- `timeout 30 ./bin/rstil run src/test/bug47_test.til` - times out (infinite loop)
+- Infinite loop occurs in **precomp phase**, in `precomp_expr` or `precomp_fcall`
+
+**Clone Analysis Progress** (2025-12-26):
+| File          | Rust | TIL | Status     |
+|---------------|------|-----|------------|
+| eval_arena    |   33 |  33 | DONE       |
+| typer         |   71 |   5 | 66 missing |
+| interpreter   |  121 |  69 | 52 missing |
+| precomp       |   78 |  30 | 48 missing |
+| init          |   51 |  29 | 22 missing |
+| scavenger     |   21 |   3 | 18 missing |
+
+**Work done**:
+- eval_arena.til: All 33 clones matched 1:1 with Rust
+- Added `clone_value_type()` function to parser.til for ValueType enum cloning
+- Removed all DEBUG println statements from self-hosted compiler files
+
+**Next**: Continue systematic clone matching in remaining 5 files
 
 ## Compiler Phases
 1. ~~Parser~~ ✓

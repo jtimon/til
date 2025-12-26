@@ -237,9 +237,8 @@ Phase A remaining issue:
 ** Bug #47: Self-hosted TIL interpreter fails with "NodeType.?" error
 :PROPERTIES:
 :DISCOVERED: 2025-12-18
-:FIXED: 2025-12-26
 :IMPACT: ./bin/til interpret fails on any file
-:STATUS: Fixed - Shallow clone causing use-after-free
+:STATUS: In Progress - Shallow clone issue, infinite loop in precomp phase
 :END:
 
 *** Description
@@ -376,6 +375,40 @@ Updated all clone methods in parser.til to do deep copies matching Rust semantic
 - src/self/parser.til: Deep clone implementations for all structs and enums
 - src/self/typer.til: Removed id_params.delete() calls
 - src/self/precomp.til: Added AllocError catches
+
+*** Update (2025-12-26): NOT FIXED - Infinite Loop in Precomp Phase
+
+The bug47_test.til still times out when run in compiled mode. Debug output showed
+the infinite loop occurs in the *precomp phase*, specifically in =precomp_expr= or
+=precomp_fcall=. Last output before hang:
+
+#+BEGIN_EXAMPLE
+precomp #356 NodeType.Return L59
+precomp #357 NodeType.LLiteral L59
+precomp #358 NodeType.Declaration L63
+precomp #359 NodeType.FCall L63
+precomp #360 NodeType.Identifier L63
+precomp #361 NodeType.NamedArg L63
+precomp #362 NodeType.LLiteral L63
+#+END_EXAMPLE
+
+*** Systematic Clone Analysis (2025-12-26)
+
+Root cause: TIL's Vec shallow copy (copies ptr, not data) differs from Rust's
+deep clone. Every =.clone()= in Rust must have corresponding =.clone()= in TIL.
+
+Clone counts per file (Rust vs TIL):
+| File          | Rust | TIL | Status     |
+|---------------+------+-----+------------|
+| eval_arena    |   33 |  33 | DONE       |
+| typer         |   71 |   5 | 66 missing |
+| interpreter   |  121 |  69 | 52 missing |
+| precomp       |   78 |  30 | 48 missing |
+| init          |   51 |  29 | 22 missing |
+| scavenger     |   21 |   3 | 18 missing |
+
+eval_arena.til clones have been matched 1:1 with Rust. Remaining files need
+the same systematic treatment before bug can be verified as fixed.
 
 * Fixed Bugs
 

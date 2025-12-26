@@ -3286,7 +3286,6 @@ main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str,
         catch (err: Str) {
             throw format(path, ":", err)
         }
-
         if errors.len().gt(0) {
             for err_msg: Str in errors {
                 println(path, ":", err_msg)

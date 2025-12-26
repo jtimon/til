@@ -1,0 +1,39 @@
+BUG #47 CLONE ANALYSIS - SIMPLE MECHANICAL TASK
+================================================
+
+RULE 1: Every .clone() in Rust MUST have corresponding .clone() in TIL
+RULE 2: Every .clone() in TIL that is NOT in Rust MUST be removed
+
+NO ASSUMPTIONS. NO SPECIAL CASES. 1:1 MAPPING.
+
+METHOD FOR EACH FILE PAIR:
+1. List ALL Rust .clone() calls with line numbers
+2. List ALL TIL .clone() calls with line numbers
+3. For each Rust clone, find the corresponding TIL line - add .clone() if missing
+4. For each TIL clone, verify it exists in Rust - remove if not
+
+FILES TO PROCESS:
+[X] eval_arena.rs (33 clones) vs eval_arena.til (33 clones) - DONE 2025-12-26
+[ ] typer.rs (71 clones) vs typer.til (5 clones) - 66 missing
+[ ] interpreter.rs (121 clones) vs interpreter.til (69 clones) - 52 missing
+[ ] precomp.rs (78 clones) vs precomp.til (30 clones) - 48 missing
+[ ] init.rs (51 clones) vs init.til (29 clones) - 22 missing
+[ ] scavenger.rs (21 clones) vs scavenger.til (3 clones) - 18 missing
+
+COMPLETED: eval_arena (2025-12-26)
+----------------------------------
+All 33 Rust clones now have matching TIL clones.
+Note: ValueType.clone() uses clone_value_type() function since TIL doesn't
+support UFCS methods on enums.
+
+INFINITE LOOP LOCATION
+----------------------
+Debug output showed infinite loop in precomp phase:
+  precomp #356 NodeType.Return L59
+  precomp #357 NodeType.LLiteral L59
+  precomp #358 NodeType.Declaration L63
+  precomp #359 NodeType.FCall L63
+  precomp #360 NodeType.Identifier L63
+  precomp #361 NodeType.NamedArg L63
+  precomp #362 NodeType.LLiteral L63
+Then hangs - likely in precomp_expr or precomp_fcall.

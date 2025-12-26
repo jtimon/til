@@ -169,7 +169,7 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
             switch inner.node_type {
             case NodeType.FuncDef(func_def):
                 // Function declaration
-                context.scope_stack.declare_func(decl.name, func_def)
+                context.scope_stack.declare_func(decl.name, func_def.clone())
                 // Recurse into function body for local declarations
                 mut i := 0
                 while i.lt(func_def.body.len()) {
@@ -180,7 +180,7 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
                 }
             case NodeType.StructDef(struct_def):
                 // Struct declaration
-                context.scope_stack.declare_struct(decl.name, struct_def)
+                context.scope_stack.declare_struct(decl.name, struct_def.clone())
                 // Struct methods
                 mut i := 0
                 while i.lt(struct_def.default_values.keys.len()) {
@@ -191,7 +191,7 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
                     switch default_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         full_name := format(decl.name, ".", member_name)
-                        context.scope_stack.declare_func(full_name, func_def)
+                        context.scope_stack.declare_func(full_name, func_def.clone())
                         // Recurse into method body for local declarations
                         mut j := 0
                         while j.lt(func_def.body.len()) {

@@ -16,3 +16,4 @@ wrapper := proc() {
 }
 
 wrapper()
+println("bug47_test: PASS")

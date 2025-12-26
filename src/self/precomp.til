@@ -190,6 +190,8 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
 ///   a.add(b)         -> I64.add(a, b)     (where a is I64)
 ///   obj.items.len()  -> Vec.len(obj.items)
 ///   add(1, 2).mul(3) -> I64.mul(add(1, 2), 3)
+mut PRECOMP_COUNT := 0
+
 precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     switch e.node_type {
     case NodeType.Body:
@@ -235,7 +237,8 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         return precomp_params(context, e)
     // Leaf nodes - no transformation needed
     case NodeType.LLiteral:
-        return e.clone()
+        mut cloned := e.clone()
+        return cloned
     case NodeType.DefaultCase:
         return e.clone()
     case NodeType.Pattern:
@@ -248,13 +251,16 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Named arguments - transform the value expression
     case NodeType.NamedArg(name):
         mut new_params := Vec.new(Expr)
+        mut named_arg_idx := 0
         for p: Expr in e.params {
             new_params.push(precomp_expr(context, p))
+            named_arg_idx.inc()
         }
         catch (err: AllocError) {
             throw format("precomp_expr NamedArg: ", err.msg)
         }
-        return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
+        mut result := Expr.new_clone(NodeType.NamedArg(name), e, new_params)
+        return result
     // ForIn desugaring: for VAR: TYPE in COLLECTION { body } -> while loop
     // After desugaring, recursively precomp the result to resolve UFCS and loc()
     case NodeType.ForIn(var_type_name):
@@ -909,7 +915,16 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
         throw format("precomp_struct_def: ", err.msg)
     }
 
-    return Expr.new_clone(NodeType.StructDef(new_struct_def), e, e.params.clone())
+    // Deep clone params (Vec.clone is shallow - just memcpy)
+    mut cloned_params := Vec.new(Expr)
+    for i in 0..e.params.len() {
+        mut p := Expr()
+        e.params.get(i, p)
+        cloned_params.push(p.clone())
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    return Expr.new_clone(NodeType.StructDef(new_struct_def), e, cloned_params)
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame
@@ -945,7 +960,16 @@ precomp_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) retu
         throw format("precomp_func_def: ", err.msg)
     }
 
-    return Expr.new_clone(NodeType.FuncDef(new_func_def), e, e.params.clone())
+    // Deep clone params (Vec.clone is shallow - just memcpy)
+    mut cloned_params := Vec.new(Expr)
+    for i in 0..e.params.len() {
+        mut p := Expr()
+        e.params.get(i, p)
+        cloned_params.push(p.clone())
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    return Expr.new_clone(NodeType.FuncDef(new_func_def), e, cloned_params)
 }
 
 /// Transform Declaration - register the declared variable in scope, then transform value
@@ -999,7 +1023,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case ValueType.TType(TTypeDef.TEnumDef):
         switch inner_e.node_type {
         case NodeType.EnumDef(enum_def):
-            context.scope_stack.declare_enum(decl.name, enum_def)
+            context.scope_stack.declare_enum(decl.name, enum_def.clone())
             context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
             return e.clone()
         case:
@@ -1013,7 +1037,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case ValueType.TType(TTypeDef.TStructDef):
         switch inner_e.node_type {
         case NodeType.StructDef(struct_def):
-            context.scope_stack.declare_struct(decl.name, struct_def)
+            context.scope_stack.declare_struct(decl.name, struct_def.clone())
             saved_path := context.path
             _ := eval_declaration(decl, context, e)
             context.path = saved_path
@@ -1079,7 +1103,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
             new_params.get(0, fp)
             switch fp.node_type {
             case NodeType.FuncDef(func_def):
-                context.scope_stack.declare_func(decl.name, func_def)
+                context.scope_stack.declare_func(decl.name, func_def.clone())
             case:
             }
         }
@@ -1250,8 +1274,10 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
             }
             // Transform arguments for struct constructor
             mut struct_params := Vec.new(Expr)
+            mut struct_param_idx := 0
             for p: Expr in e.params {
                 struct_params.push(precomp_expr(context, p))
+                struct_param_idx.inc()
             }
             return Expr.new_clone(e.node_type, e, struct_params)
         }
@@ -1286,8 +1312,11 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     // 5. Transform all arguments
     mut transformed_params := Vec.new(Expr)
+    mut param_idx := 0
     for p: Expr in e.params {
-        transformed_params.push(precomp_expr(context, p))
+        mut transformed := precomp_expr(context, p)
+        transformed_params.push(transformed)
+        param_idx.inc()
     }
     mut new_e := Expr.new_clone(e.node_type, e, transformed_params)
 
@@ -1392,7 +1421,14 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 }
 
                 // Create identifier expression for the receiver (everything except the method name)
-                mut id_params := func_expr.params.clone()
+                // Deep clone params (Vec.clone is shallow - just memcpy)
+                mut id_params := Vec.new(Expr)
+                for i in 0..func_expr.params.len() {
+                    mut p := Expr()
+                    func_expr.params.get(i, p)
+                    id_params.push(p.clone())
+                }
+                catch (err: IndexOutOfBoundsError) { panic(err.msg) }
                 if id_params.len().gt(0) {
                     id_params.remove(id_params.len().sub(1))
                 }
