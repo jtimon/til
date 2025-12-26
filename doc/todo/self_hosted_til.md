@@ -7,9 +7,14 @@ Either of these should work (whichever is easier to achieve):
 
 Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 
-## Progress (2025-12-19)
+## Progress (2025-12-26)
 
 ### Fixed Bugs
+- **Bug #54** (Fixed): Pure functions that throw are not folded at compile time
+  - Root cause: is_comptime_evaluable blocked all throwing functions
+  - Fix: Only exclude AllocError/IndexOutOfBoundsError/KeyNotFoundError (runtime-dependent)
+  - Part of major precomp overhaul - see doc/precomp.org
+
 - **Bug #43** (Fixed): Map.get returns wrong value when Map is field inside struct
   - Root cause: Nested struct field values not properly copied in interpreter
   - Fix: Added read_struct_primitive_fields to recursively read actual values
