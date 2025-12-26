@@ -1617,10 +1617,6 @@ EnumPayload := struct {
     mut data: Vec = Vec.new(U8)
     mut value_type: ValueType = ValueType.TCustom("")
 
-    new := func(payload_data: Vec, payload_type: ValueType) returns EnumPayload throws AllocError {
-        return EnumPayload(data=payload_data.clone(), value_type=payload_type)
-    }
-
     clone := func(self: EnumPayload) returns EnumPayload throws AllocError {
         return EnumPayload(data=self.data.clone(), value_type=self.value_type)
     }

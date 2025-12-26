@@ -987,7 +987,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                     }
 
                     // Store payload in temp location for insert_enum to use
-                    mut temp_payload := EnumPayload.new(payload_bytes, variant_type)
+                    mut temp_payload := EnumPayload(data=payload_bytes, value_type=variant_type)
                     context.temp_enum_payload.data = to_ptr(temp_payload)
 
                     // Return the enum variant name
@@ -1500,7 +1500,7 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
                 // Read payload_type from Ptr
                 mut payload_type := ValueType.TCustom("")
                 memcpy(to_ptr(payload_type), enum_val.payload_type.data, size_of(ValueType))
-                mut temp_payload := EnumPayload.new(payload_vec.clone(), payload_type)
+                mut temp_payload := EnumPayload(data=payload_vec.clone(), value_type=payload_type)
                 context.temp_enum_payload.data = to_ptr(temp_payload)
             }
         }
@@ -1584,7 +1584,7 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
                             // Read payload_type from Ptr
                             mut payload_type := ValueType.TCustom("")
                             memcpy(to_ptr(payload_type), enum_val.payload_type.data, size_of(ValueType))
-                            mut temp_payload := EnumPayload.new(payload_vec.clone(), payload_type)
+                            mut temp_payload := EnumPayload(data=payload_vec.clone(), value_type=payload_type)
                             context.temp_enum_payload.data = to_ptr(temp_payload)
                         }
                     }
@@ -2108,7 +2108,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     if not(NULL.eq(enum_val.payload_type.data)) {
                                         mut payload_type := ValueType.TCustom("")
                                         memcpy(to_ptr(payload_type), enum_val.payload_type.data, size_of(ValueType))
-                                        enum_payload_backup = EnumPayload.new(payload_vec.clone(), payload_type)
+                                        enum_payload_backup = EnumPayload(data=payload_vec.clone(), value_type=payload_type)
                                         has_enum_backup = true
                                     }
                                 }
@@ -3053,7 +3053,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             if not(NULL.eq(saved_enum_value.payload_type.data)) {
                                 mut payload_type := ValueType.TCustom("")
                                 memcpy(to_ptr(payload_type), saved_enum_value.payload_type.data, size_of(ValueType))
-                                mut temp_payload := EnumPayload.new(payload_vec.clone(), payload_type)
+                                mut temp_payload := EnumPayload(data=payload_vec.clone(), value_type=payload_type)
                                 context.temp_enum_payload.data = to_ptr(temp_payload)
                             }
                         }
