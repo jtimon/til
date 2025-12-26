@@ -6,13 +6,6 @@ import("std.map")
 Vec2 := struct {
     mut x : I64 = 0
     mut y : I64 = 0
-
-    new := proc(x: I64, y: I64) returns Vec2 {
-        mut v := Vec2()
-        v.x = x
-        v.y = y
-        return v
-    }
 }
 
 // Test Map<I64, I64>
@@ -50,11 +43,11 @@ test_map_i64_to_i64 := proc() {
 // Test Map<Str, Vec2>
 test_map_str_to_vec2 := proc() {
     mut positions := Map.new(Str, Vec2)
-    mut player_pos := Vec2.new(10, 20)
+    mut player_pos := Vec2(x=10, y=20)
     positions.insert("player", player_pos)
-    mut enemy_pos := Vec2.new(30, 40)
+    mut enemy_pos := Vec2(x=30, y=40)
     positions.insert("enemy", enemy_pos)
-    mut item_pos := Vec2.new(50, 60)
+    mut item_pos := Vec2(x=50, y=60)
     positions.insert("item", item_pos)
 
     mut pos := Vec2()

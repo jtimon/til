@@ -147,25 +147,15 @@ test_array_static_i64()
 Vec2 := struct {
     mut x : I64 = 0
     mut y : I64 = 0
-
-    new := func(x: I64, y: I64) returns Vec2 {
-        mut v := Vec2()
-        v.x = x
-        v.y = y
-        return v
-    }
 }
 
 test_array_static_vec2 := proc() {
     mut stat := Array.new(Vec2, 3)
     assert_eq(loc(), 3, stat.len())
 
-    // v1 = Vec2.new(1, 2) // TODO FIX
-    // v2 = Vec2.new(3, 4) // TODO FIX
-    // v3 = Vec2.new(5, 6) // TODO FIX
-    v1 := Vec2.new(1, 2)
-    v2 := Vec2.new(3, 4)
-    v3 := Vec2.new(5, 6)
+    v1 := Vec2(x=1, y=2)
+    v2 := Vec2(x=3, y=4)
+    v3 := Vec2(x=5, y=6)
     stat.set(0, v1)
     stat.set(1, v2)
     stat.set(2, v3)
