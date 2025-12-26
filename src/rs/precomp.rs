@@ -875,25 +875,30 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     // Unlike the is_comptime_const flag (which also requires !is_mut for folding identifiers),
     // we store ALL comptime-evaluable values including mut ones, just like interpreter does.
     // This is needed for eval_expr to work during constant folding (e.g., mut loop variables).
-    if let ValueType::TCustom(ref custom_type_name) = &value_type {
-        match custom_type_name.as_str() {
-            "I64" | "U8" | "Str" => {
-                if is_comptime_evaluable(context, &new_params[0]) {
-                    let inner_e = &new_params[0];
-                    let result = eval_expr(context, inner_e)?;
-                    if !result.is_throw {
-                        EvalArena::insert_primitive(context, &decl.name, &value_type, &result.value, e)?;
+    // Only do this at global scope - inside function bodies, evaluating could cause side effects
+    // to run at compile time AND runtime (e.g., print_debug func in mode liba).
+    let at_global_scope = context.scope_stack.frames.len() == 1;
+    if at_global_scope {
+        if let ValueType::TCustom(ref custom_type_name) = &value_type {
+            match custom_type_name.as_str() {
+                "I64" | "U8" | "Str" => {
+                    if is_comptime_evaluable(context, &new_params[0]) {
+                        let inner_e = &new_params[0];
+                        let result = eval_expr(context, inner_e)?;
+                        if !result.is_throw {
+                            EvalArena::insert_primitive(context, &decl.name, &value_type, &result.value, e)?;
+                        }
                     }
-                }
-            },
-            _ => {},
+                },
+                _ => {},
+            }
         }
     }
 
     // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
     // run eval_declaration to store the instance in EvalArena so ccodegen can find it.
-    // Only do this if the value is comptime-evaluable (doesn't depend on runtime values).
-    if !decl.is_mut && !decl.is_copy && !decl.is_own && is_comptime_evaluable(context, &new_params[0]) {
+    // Only do this at global scope (same reason as above - avoid side effects inside func bodies).
+    if at_global_scope && !decl.is_mut && !decl.is_copy && !decl.is_own && is_comptime_evaluable(context, &new_params[0]) {
         if let ValueType::TCustom(ref custom_type_name) = &value_type {
             // Skip primitives (I64, U8) - handled above. Skip Str - needs special handling.
             if custom_type_name != "I64" && custom_type_name != "U8" && custom_type_name != "Str" {

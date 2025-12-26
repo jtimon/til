@@ -114,6 +114,9 @@ til_I64 til_U8_to_i64(const til_U8 til_self);
 int til_U8_from_i64(til_U8* _ret, til_U8_OverflowError* _err1, const til_I64 til_self);
 til_Bool til_Introspection_has_const(const til_Str til_type_name, const til_Str til_const_name);
 til_Bool til_Introspection_has_field(const til_Str til_type_name, const til_Str til_field_name);
+til_CfVec2 til_CfVec2_magic(void);
+til_CfVec2 til_CfVec2_at(const til_I64 til_x, const til_I64 til_y);
+til_CfRect til_CfRect_sample(void);
 
 #include <ext.c>
 
@@ -794,28 +797,28 @@ void til_assert_eq(const til_Str til_loc_str, const til_I64 til_a, const til_I64
 }
 
 void til_test_simple_add(void) {
-    const til_I64 til_result = 3;
+    const til_I64 til_result = til_add(1, 2);
     til_test(((til_Str){(til_I64)"src/test/constfold.til:8:10:", 28}), til_I64_eq(til_result, 3), ((til_Str){(til_I64)"add(1, 2) should be 3", 21}));
 }
 
 void til_test_nested_arithmetic(void) {
-    const til_I64 til_result = 15;
+    const til_I64 til_result = til_mul(til_add(1, 2), til_sub(10, 5));
     til_test(((til_Str){(til_I64)"src/test/constfold.til:15:10:", 29}), til_I64_eq(til_result, 15), ((til_Str){(til_I64)"mul(add(1, 2), sub(10, 5)) should be 15", 39}));
 }
 
 void til_test_deeply_nested(void) {
-    const til_I64 til_result = 26;
+    const til_I64 til_result = til_add(til_mul(2, 3), til_mul(4, 5));
     til_test(((til_Str){(til_I64)"src/test/constfold.til:22:10:", 29}), til_I64_eq(til_result, 26), ((til_Str){(til_I64)"add(mul(2, 3), mul(4, 5)) should be 26", 38}));
 }
 
 void til_test_string_concat(void) {
-    const til_Str til_result = ((til_Str){(til_I64)"hello world", 11});
+    const til_Str til_result = til_concat(((til_Str){(til_I64)"hello", 5}), ((til_Str){(til_I64)" world", 6}));
     til_test(((til_Str){(til_I64)"src/test/constfold.til:29:10:", 29}), til_Str_eq(til_result, ((til_Str){(til_I64)"hello world", 11})), ((til_Str){(til_I64)"concat is folded at compile time", 32}));
 }
 
 void til_test_fold_variable(void) {
     const til_I64 til_x = 5;
-    const til_I64 til_result = 8;
+    const til_I64 til_result = til_add(til_x, 3);
     til_test(((til_Str){(til_I64)"src/test/constfold.til:38:10:", 29}), til_I64_eq(til_result, 8), ((til_Str){(til_I64)"add(x, 3) should fold to 8", 26}));
 }
 
@@ -826,19 +829,19 @@ void til_test_loc_folded_correctly(void) {
 }
 
 void til_test_struct_fold_simple(void) {
-    const til_CfVec2 til_v = {.x = 42, .y = 99};
+    const til_CfVec2 til_v = til_CfVec2_magic();
     til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:71:15:", 29}), 42, til_v.x);
     til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:72:15:", 29}), 99, til_v.y);
 }
 
 void til_test_struct_fold_values(void) {
-    const til_CfVec2 til_p = {.x = 10, .y = 20};
+    const til_CfVec2 til_p = til_CfVec2_at(10, 20);
     til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:79:15:", 29}), 10, til_p.x);
     til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:80:15:", 29}), 20, til_p.y);
 }
 
 void til_test_struct_fold_nested(void) {
-    const til_CfRect til_r = {.top_left = (til_CfVec2){.x = 5, .y = 10}, .bottom_right = (til_CfVec2){.x = 100, .y = 200}};
+    const til_CfRect til_r = til_CfRect_sample();
     til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:97:15:", 29}), 5, til_r.top_left.x);
     til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:98:15:", 29}), 10, til_r.top_left.y);
     til_assert_eq(((til_Str){(til_I64)"src/test/constfold.til:99:15:", 29}), 100, til_r.bottom_right.x);
@@ -1217,10 +1220,10 @@ til_Bool til_Str_contains(const til_Str til_self, const til_Str til_needle) {
 
 til_I64 til_Str_find(const til_Str til_self, const til_Str til_needle) {
     if (til_gt(til_Str_len(til_needle), til_Str_len(til_self)).data) {
-        return -1;
+        return til_sub(0, 1);
     }
     if (til_I64_eq(til_Str_len(til_needle), 0).data) {
-        return -1;
+        return til_sub(0, 1);
     }
     til_I64 til_max_start = til_sub(til_Str_len(til_self), til_Str_len(til_needle));
     til_I64 til_start_idx = 0;
@@ -1250,7 +1253,7 @@ til_I64 til_Str_find(const til_Str til_self, const til_Str til_needle) {
         }
         til_I64_inc(&til_start_idx);
     }
-    return -1;
+    return til_sub(0, 1);
 }
 
 int til_Str_replacen(til_Str* _ret, til_AllocError* _err1, const til_Str til_self, const til_Str til_from, const til_Str til_to, const til_I64 til_n) {
@@ -1359,7 +1362,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_OverflowError* _err1, const til_I64 til
         til_AllocError _err_alloc__tmp_53;
         til_IndexOutOfBoundsError _err_idx__tmp_53;
         til_Str _tmp_54 = ((til_Str){(til_I64)"U8: cannot be casted from an I64 greater than: ", 47});
-        til_Str _tmp_55 = ((til_Str){(til_I64)"255", 3});
+        til_Str _tmp_55 = til_I64_to_str(til_MAX_U8);
         int _arr_status__tmp_53 = til_Array_new(&_tmp_52, &_err_alloc__tmp_53, "Str", 2);
         if (_arr_status__tmp_53 != 0) {
         }
@@ -1378,6 +1381,18 @@ int til_U8_from_i64(til_U8* _ret, til_U8_OverflowError* _err1, const til_I64 til
     }
     *_ret = til_i64_to_u8(til_self);
     return 0;
+}
+
+til_CfVec2 til_CfVec2_magic(void) {
+    return (til_CfVec2){.x = 42, .y = 99};
+}
+
+til_CfVec2 til_CfVec2_at(const til_I64 til_x, const til_I64 til_y) {
+    return (til_CfVec2){.x = til_x, .y = til_y};
+}
+
+til_CfRect til_CfRect_sample(void) {
+    return (til_CfRect){.top_left = (til_CfVec2){.x = 5, .y = 10}, .bottom_right = (til_CfVec2){.x = 100, .y = 200}};
 }
 
 int main(int argc, char** argv) {

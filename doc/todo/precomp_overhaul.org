@@ -279,44 +279,45 @@ Interpreter just calls ~eval_declaration~ for everything. Precomp should do the 
 
 ** Current Test Status
 
-Most tests pass. Remaining failures:
+ALL 68 TESTS PASS.
 
-*** bug41_test.til - Double output
-- "DEBUG:hello from bug41 test" appears twice
-- Needs investigation - may be duplicate precomp processing
+*** Previously Fixed Issues
 
-*** introspections.til - Linker errors (pre-existing)
-- ~undefined reference to 'til_Introspection_has_field'~
-- This is a compilation/linking issue, not related to precomp changes
-
-*** test_parser.til and til.til - "Lexer.advance does not return anything" [FIXED]
+**** test_parser.til and til.til - "Lexer.advance does not return anything" [FIXED]
 - Error at parser.til:482
 - Root cause: Old translation bug in parser.til - ~_ := lexer.advance(1)~ where ~advance~ doesn't return anything
 - ~Lexer.advance~ is defined as ~func(mut self: Lexer, count: I64) throws Str~ (no return)
 - Fix: Changed ~_ := lexer.advance(1)~ to just ~lexer.advance(1)~
 - This pre-existing bug was exposed by the new Rust precomp changes (return type check in ~is_comptime_evaluable~)
 
-*** interpreter.til - Similar ~_ :=~ bugs with EvalArena.insert_* [FIXED]
+**** interpreter.til - Similar ~_ :=~ bugs with EvalArena.insert_* [FIXED]
 - ~EvalArena.insert_i64/u8/string~ are procs with no return - ~_ := ...~ was WRONG
 - ~EvalArena.insert_enum~ returns ~EnumVal~ - ~_ := ...~ is CORRECT (kept as-is)
 - Fixed: Removed ~_ :=~ from insert_i64/u8/string calls at lines 3005, 3007, 3009
 
-** Current Test Status
-
-2/68 tests failed:
-- bug41_test.til (interpret output) - double "DEBUG:hello from bug41 test" output
-- bug41_test.til (run output) - same double output issue
-
-*** introspections.til - moved to interpreted-only [FIXED]
+**** introspections.til - moved to interpreted-only [FIXED]
 - Was failing in compiled mode: linker error for ~til_Introspection_has_field~
 - Root cause: ext_func in TIL but no C implementation in src/ext.c
 - Rust implementation exists in src/rs/ext.rs (works interpreted)
 - Fix: Moved from rs_common to rs_interpreted with TODO comment
 - Updated doc/todo/introspection.org with correct file location and TODO status
 
+**** bug41_test.til - Double output [FIXED]
+- "DEBUG:hello from bug41 test" appeared twice
+- Root cause: ~precomp_declaration~ was calling ~eval_expr~ for I64/U8/Str declarations
+  even inside function bodies (no ~at_global_scope~ check)
+- When processing ~result := print_debug("hello")~ in ~test_bug41()~ body:
+  1. ~print_debug~ is a func that returns I64 and calls println (allowed in mode liba)
+  2. ~is_comptime_evaluable~ returned true (pure func, literal arg)
+  3. ~eval_expr~ was called to get value -> this ran ~print_debug~ at compile time!
+  4. At runtime, ~print_debug~ ran again -> double output
+- Fix: Added ~at_global_scope~ check before ~eval_expr~ calls in ~precomp_declaration~
+  (same check as in ~precomp_expr~ for FCall folding)
+- Also updated doc/precomp.org with design principle: if precomp evaluates a func,
+  it MUST fold it, otherwise side effects run twice
+
 ** Next Steps
 
-1. Investigate bug41_test.til double output (precomp evaluating something twice?)
-2. Port precomp.rs changes to precomp.til
-3. Restore Makefile (~tests: rstil til~)
-4. Update bug docs, commit
+1. Port precomp.rs changes to precomp.til
+2. Restore Makefile (~tests: rstil til~)
+3. Update bugs.org, commit

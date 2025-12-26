@@ -11,8 +11,9 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 ** Bug #54: Pure functions that throw are not folded at compile time
 :PROPERTIES:
 :DISCOVERED: 2025-12-20
+:FIXED: 2025-12-26
 :IMPACT: Missed compile-time error detection, deferred to runtime
-:STATUS: Open
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -53,9 +54,17 @@ The ~eval_comptime~ function already has infrastructure to handle thrown
 exceptions (lines 291-296) and report them as precomp errors.
 
 *** Solution
-Remove the throw_types check (lines 265-269 in Rust, 365-369 in TIL).
-The existing exception handling in ~eval_comptime~ will catch throws and
-report them as compile-time errors.
+Removed the blanket throw_types check. Now only functions throwing ~AllocError~,
+~IndexOutOfBoundsError~, or ~KeyNotFoundError~ are excluded (these depend on runtime state).
+Other throwing functions are evaluated at compile time, and if they throw, the exception
+is caught by ~eval_comptime~ and reported as a compile-time error.
+
+*** Fix Details
+Part of the precomp overhaul (see doc/todo/precomp_overhaul.org):
+- Modified ~is_comptime_evaluable~ to only exclude specific runtime-dependent error types
+- Added is_proc() check and return_types.is_empty() check
+- Added U8 support in ~eval_comptime~
+- Many other structural improvements to make precomp work like interpreter
 
 ** Bug #51: Precomp doesn't propagate constants through function parameters
 :PROPERTIES:

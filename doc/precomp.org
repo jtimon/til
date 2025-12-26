@@ -26,9 +26,23 @@ Comptime:
 - Type definitions: struct, enum, func definitions
 
 Runtime (not comptime):
-- Side effects: malloc, I/O, network
+- malloc (runtime state)
 - Procs (they don't return values, can't fold them)
 - Anything depending on runtime state
+
+** Print in Pure Functions (mode pura/liba exception)
+
+In ~mode pura~ and ~mode liba~, print/println inside pure functions is ALLOWED as a
+debugging exception. The typer already enforces which procs can be called in funcs
+based on mode - precomp does NOT need to second-guess this.
+
+When precomp evaluates a func for constfolding, it just runs whatever is in the body,
+including any procs that the typer allowed. The side effects (like printing) happen
+at compile time, and the result is folded.
+
+*IMPORTANT*: If a func is evaluated during precomp, it must be FOLDED (replaced with
+the result). Otherwise the side effects run twice - once during precomp and once at
+runtime. This is a bug, not expected behavior.
 
 ** Function Arguments and Comptime
 
