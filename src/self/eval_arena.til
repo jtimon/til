@@ -303,7 +303,7 @@ EvalArena := struct {
                     dest_offset := add(dest_base_offset, current_offset)
 
                     ctx.scope_stack.insert_var(dest_key.clone(), dest_offset)
-                    ctx.scope_stack.declare_symbol(dest_key.clone(), SymbolInfo.new(clone_value_type(decl.value_type), is_mut, false, false))
+                    ctx.scope_stack.declare_symbol(dest_key.clone(), SymbolInfo(value_type=clone_value_type(decl.value_type), is_mut=is_mut))
 
                     g_arena.set(dest_offset, g_arena.get(src_offset, field_size), field_size)
 
@@ -461,7 +461,7 @@ EvalArena := struct {
 
                                 if is_struct {
                                     combined_name := format(id, ".", decl.name)
-                                    nested_symbol := SymbolInfo.new(ValueType.TCustom(type_name.clone()), true, false, false)
+                                    nested_symbol := SymbolInfo(value_type=ValueType.TCustom(type_name.clone()), is_mut=true)
                                     // Must declare symbol BEFORE recursive call (needed for is_mut lookup)
                                     ctx.scope_stack.declare_symbol(combined_name.clone(), nested_symbol.clone())
                                     mut sym_entry := SymbolEntry()
@@ -534,7 +534,7 @@ EvalArena := struct {
                 result.arena_mappings.push(field_mapping)
                 mut field_sym := SymbolEntry()
                 field_sym.name = combined_name
-                field_sym.info = SymbolInfo.new(clone_value_type(decl.value_type), is_mut, false, false)
+                field_sym.info = SymbolInfo(value_type=clone_value_type(decl.value_type), is_mut=is_mut)
                 result.symbols.push(field_sym)
             }
         }
@@ -615,7 +615,7 @@ EvalArena := struct {
 
                 mut field_sym := SymbolEntry()
                 field_sym.name = combined_name.clone()
-                field_sym.info = SymbolInfo.new(clone_value_type(decl.value_type), is_mut, false, false)
+                field_sym.info = SymbolInfo(value_type=clone_value_type(decl.value_type), is_mut=is_mut)
                 result.symbols.push(field_sym)
 
                 // Handle nested structs recursively
@@ -630,7 +630,7 @@ EvalArena := struct {
                             }
                             if is_struct {
                                 // Declare nested symbol first
-                                ctx.scope_stack.declare_symbol(combined_name.clone(), SymbolInfo.new(ValueType.TCustom(type_name.clone()), true, false, false))
+                                ctx.scope_stack.declare_symbol(combined_name.clone(), SymbolInfo(value_type=ValueType.TCustom(type_name.clone()), is_mut=true))
                                 nested := EvalArena.generate_struct_mappings(ctx, combined_name, type_name, field_abs_offset, e)
                                 result.arena_mappings.extend(nested.arena_mappings)
                                 result.symbols.extend(nested.symbols)

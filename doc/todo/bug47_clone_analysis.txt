@@ -13,12 +13,23 @@ METHOD FOR EACH FILE PAIR:
 4. For each TIL clone, verify it exists in Rust - remove if not
 
 FILES TO PROCESS:
-[X] eval_arena.rs (33 clones) vs eval_arena.til (33 clones) - DONE 2025-12-26
-[ ] typer.rs (71 clones) vs typer.til (5 clones) - 66 missing
-[ ] interpreter.rs (121 clones) vs interpreter.til (69 clones) - 52 missing
-[ ] precomp.rs (78 clones) vs precomp.til (30 clones) - 48 missing
-[ ] init.rs (51 clones) vs init.til (29 clones) - 22 missing
-[ ] scavenger.rs (21 clones) vs scavenger.til (3 clones) - 18 missing
+| File        | Rust | TIL | Missing | Extras?   | Status          |
+|-------------|------|-----|---------|-----------|-----------------|
+| eval_arena  |   33 |  33 |       0 | NO        | DONE 2025-12-26 |
+| lexer       |    4 |   0 |       4 | NO (0)    | BLOCKED*        |
+| parser      |   56 |  25 |     31+ | UNKNOWN   | pending         |
+| typer       |   71 |   9 |     62+ | UNKNOWN   | in progress     |
+| interpreter |  121 |  69 |     52+ | UNKNOWN   | pending         |
+| precomp     |   78 |  30 |     48+ | UNKNOWN   | pending         |
+| init        |   51 |  29 |     22+ | UNKNOWN   | pending         |
+| scavenger   |   21 |   3 |     18+ | UNKNOWN   | pending         |
+
+*BLOCKED: lexer needs Token.clone() method defined first
+
+"Missing" column shows NET difference. Files with "UNKNOWN" extras may have
+TIL clones that don't exist in Rust (should be removed per Rule 2).
+
+TOTAL: 435 Rust clones, 198 TIL clones
 
 COMPLETED: eval_arena (2025-12-26)
 ----------------------------------

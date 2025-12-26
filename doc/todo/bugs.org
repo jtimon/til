@@ -445,11 +445,14 @@ Clone counts per file (Rust vs TIL):
 | File          | Rust | TIL | Status     |
 |---------------+------+-----+------------|
 | eval_arena    |   33 |  33 | DONE       |
-| typer         |   71 |   5 | 66 missing |
+| lexer         |    4 |   0 |  4 missing |
+| parser        |   56 |  25 | 31 missing |
+| typer         |   71 |   9 | 62 missing |
 | interpreter   |  121 |  69 | 52 missing |
 | precomp       |   78 |  30 | 48 missing |
 | init          |   51 |  29 | 22 missing |
 | scavenger     |   21 |   3 | 18 missing |
+| TOTAL         |  435 | 198 | ~237 missing |
 
 eval_arena.til clones have been matched 1:1 with Rust. Remaining files need
 the same systematic treatment before bug can be verified as fixed.

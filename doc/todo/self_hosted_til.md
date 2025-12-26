@@ -56,21 +56,27 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 - Infinite loop occurs in **precomp phase**, in `precomp_expr` or `precomp_fcall`
 
 **Clone Analysis Progress** (2025-12-26):
-| File          | Rust | TIL | Status     |
-|---------------|------|-----|------------|
-| eval_arena    |   33 |  33 | DONE       |
-| typer         |   71 |   5 | 66 missing |
-| interpreter   |  121 |  69 | 52 missing |
-| precomp       |   78 |  30 | 48 missing |
-| init          |   51 |  29 | 22 missing |
-| scavenger     |   21 |   3 | 18 missing |
+| File        | Rust | TIL | Missing | Extras? | Status     |
+|-------------|------|-----|---------|---------|------------|
+| eval_arena  |   33 |  33 |       0 | NO      | DONE       |
+| lexer       |    4 |   0 |       4 | NO (0)  | BLOCKED*   |
+| parser      |   56 |  25 |     31+ | UNKNOWN | pending    |
+| typer       |   71 |   9 |     62+ | UNKNOWN | in progress|
+| interpreter |  121 |  69 |     52+ | UNKNOWN | pending    |
+| precomp     |   78 |  30 |     48+ | UNKNOWN | pending    |
+| init        |   51 |  29 |     22+ | UNKNOWN | pending    |
+| scavenger   |   21 |   3 |     18+ | UNKNOWN | pending    |
+| **TOTAL**   |  435 | 198 |         |         |            |
+
+*BLOCKED: lexer needs Token.clone() method defined first
+"Missing" = NET difference. "UNKNOWN" extras = TIL clones may not exist in Rust.
 
 **Work done**:
-- eval_arena.til: All 33 clones matched 1:1 with Rust
+- eval_arena.til: All 33 clones matched 1:1 with Rust (verified no extras)
 - Added `clone_value_type()` function to parser.til for ValueType enum cloning
 - Removed all DEBUG println statements from self-hosted compiler files
 
-**Next**: Continue systematic clone matching in remaining 5 files
+**Next**: Continue systematic clone matching - typer in progress
 
 ## Compiler Phases
 1. ~~Parser~~ ✓

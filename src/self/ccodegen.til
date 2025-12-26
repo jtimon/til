@@ -3308,7 +3308,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
                 result = result.concat(";\n")
                 _ := ctx.declared_vars.insert(c_var_name)
                 // Also register in scope_stack so get_value_type can find it
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=decl.value_type))
             }
         }
     }
@@ -3328,7 +3328,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
                     result = result.concat(";\n")
                     _ := ctx.declared_vars.insert(c_var_name)
                     // Also register in scope_stack so get_value_type can find it
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=decl.value_type))
                 }
             }
         }
@@ -3420,7 +3420,7 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 result = result.concat(";\n")
                 _ := ctx.declared_vars.insert(c_var_name)
                 // Also register in scope_stack so get_value_type can find it
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=decl.value_type))
             }
         }
     }
@@ -3849,7 +3849,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                         result = result.concat(";\n")
                         _ := ctx.declared_vars.insert(c_var_name)
                         // Also register in scope_stack so get_value_type can find it
-                        context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
+                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=decl.value_type))
                     }
                 }
             }
@@ -3871,7 +3871,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                     result = result.concat(";\n")
                     _ := ctx.declared_vars.insert(c_var_name)
                     // Also register in scope_stack so get_value_type can find it
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=decl.value_type))
                 }
             }
         }
@@ -4378,7 +4378,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                 case NodeType.Identifier(err_type_name):
                     context.scope_stack.declare_symbol(
                         err_var_name,
-                        SymbolInfo.new(ValueType.TCustom(err_type_name), false, false, false)
+                        SymbolInfo(value_type=ValueType.TCustom(err_type_name))
                     )
                 case:
                 }
@@ -4400,7 +4400,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                         result = result.concat(";\n")
                         _ := ctx.declared_vars.insert(c_var_name)
                         // Also register in scope_stack so get_value_type can find it
-                        context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(decl.value_type, false, false, false))
+                        context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=decl.value_type))
                     }
                 }
             }
@@ -4542,7 +4542,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                                 result = result.concat(";\n")
 
                                 // Add error variable to scope for type resolution in catch body
-                                context.scope_stack.declare_symbol(err_var_name, SymbolInfo.new(ValueType.TCustom(err_type_name), false, false, false))
+                                context.scope_stack.declare_symbol(err_var_name, SymbolInfo(value_type=ValueType.TCustom(err_type_name)))
                             case:
                             }
                             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -4891,7 +4891,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             if gt(lookup_result.func_def.return_types.len(), 0) {
                 mut first_type := ValueType.TCustom("")
                 lookup_result.func_def.return_types.get(0, first_type)
-                context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+                context.scope_stack.declare_symbol(decl_name, SymbolInfo(value_type=first_type, is_mut=true))
             }
         }
         _ := ctx.declared_vars.insert(til_name(decl_name))
@@ -5146,7 +5146,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             if gt(fd.return_types.len(), 0) {
                 mut first_type := ValueType.TCustom("")
                 fd.return_types.get(0, first_type)
-                context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+                context.scope_stack.declare_symbol(decl_name, SymbolInfo(value_type=first_type, is_mut=true))
             }
             catch (err: KeyNotFoundError) { }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -5502,7 +5502,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                         result = result.concat(";\n")
 
                         // Add error variable to scope for type resolution in catch body
-                        context.scope_stack.declare_symbol(err_var_name, SymbolInfo.new(ValueType.TCustom(err_type_name), false, false, false))
+                        context.scope_stack.declare_symbol(err_var_name, SymbolInfo(value_type=ValueType.TCustom(err_type_name)))
                     case:
                         // Not an identifier
                     }
@@ -5674,7 +5674,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             if gt(fd.return_types.len(), 0) {
                 mut first_type := ValueType.TCustom("")
                 fd.return_types.get(0, first_type)
-                context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+                context.scope_stack.declare_symbol(decl_name, SymbolInfo(value_type=first_type, is_mut=true))
             }
             catch (err: KeyNotFoundError) { }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -6129,7 +6129,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             if gt(fd.return_types.len(), 0) {
                 mut first_type := ValueType.TCustom("")
                 fd.return_types.get(0, first_type)
-                context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+                context.scope_stack.declare_symbol(decl_name, SymbolInfo(value_type=first_type, is_mut=true))
             }
             catch (err: KeyNotFoundError) { }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
