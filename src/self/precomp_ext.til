@@ -1,0 +1,55 @@
+mode liba
+
+// Compile-time external function replacements
+// These functions return compile-time information and are replaced with literals during precomp.
+
+import("self.init")
+
+/// Try to replace compile-time intrinsic calls with literals.
+/// Returns the replaced Expr if it's a compile-time intrinsic, or the original expr if not.
+/// Sets out_replaced to true if replacement happened.
+try_replace_comptime_intrinsic := func(context: Context, e: Expr, mut out_replaced: Bool) returns Expr throws Str {
+    out_replaced = false
+
+    if e.params.len().eq(0) {
+        return e
+    }
+
+    func_expr := e.get(0)
+
+    switch func_expr.node_type {
+    case NodeType.Identifier(name):
+        if e.params.len().eq(1) {
+            if name.eq("loc") {
+                loc_str := format(context.path, ":", I64.to_str(e.line), ":", I64.to_str(e.col), ":")
+                out_replaced = true
+                return Expr.new_clone(NodeType.LLiteral(Literal.Str(loc_str)), e, Vec.new(Expr))
+            }
+            if name.eq("_file") {
+                out_replaced = true
+                return Expr.new_clone(NodeType.LLiteral(Literal.Str(context.path)), e, Vec.new(Expr))
+            }
+            if name.eq("_line") {
+                out_replaced = true
+                return Expr.new_clone(NodeType.LLiteral(Literal.Number(I64.to_str(e.line))), e, Vec.new(Expr))
+            }
+            if name.eq("_col") {
+                out_replaced = true
+                return Expr.new_clone(NodeType.LLiteral(Literal.Number(I64.to_str(e.col))), e, Vec.new(Expr))
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("try_replace_comptime_intrinsic: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw format("try_replace_comptime_intrinsic: ", err.msg)
+    }
+    catch (err: I64_OverflowError) {
+        throw format("try_replace_comptime_intrinsic: ", err.msg)
+    }
+
+    return e
+}

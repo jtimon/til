@@ -2,45 +2,11 @@ mode liba
 
 import("self.init")
 import("self.interpreter")
+import("self.precomp_ext")
 
 // Precomputation phase: Transforms UFCS calls into regular function calls
 // and performs compile-time constant folding for pure functions.
 // This phase runs after typer, before interpreter/builder.
-
-// Called when precomp encounters an import() call.
-// Runs precomp on the imported file to set up struct templates.
-precomp_import_declarations := proc(mut context: Context, import_path_str: Str) throws Str {
-    file_path := import_path_to_file_path(import_path_str)
-
-    // Already done (or in progress)? Skip.
-    if context.imports_precomp_done.contains(file_path) {
-        return
-    }
-
-    // Mark as done immediately - before processing - to handle circular imports
-    _ := context.imports_precomp_done.insert(file_path)
-
-    // Get stored AST from init phase
-    mut ast := Expr()
-    context.imported_asts.get(file_path, ast)
-    catch (err: KeyNotFoundError) {
-        throw format("precomp: Import ", file_path, " not found in stored ASTs - init phase should have stored it")
-    }
-
-    // Save and restore context path
-    original_path := context.path
-    context.path = file_path
-
-    // Run precomp on the imported AST and store the result
-    precompiled_ast := precomp_expr(context, ast)
-    context.imported_asts.set(file_path, precompiled_ast)
-
-    context.path = original_path
-
-    catch (err: AllocError) {
-        throw format("precomp_import_declarations: ", err.msg)
-    }
-}
 
 // ---------- Named argument reordering
 
@@ -229,7 +195,16 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.Body:
         return precomp_body(context, e)
     case NodeType.FCall:
-        return precomp_fcall(context, e)
+        mut const_folded := precomp_fcall(context, e)
+        // Try compile-time constant folding for pure functions with literal args.
+        // Only fold at global scope - inside function definitions, values from other
+        // modules may not be available yet (import ordering). Interpreter doesn't
+        // evaluate function bodies during import either.
+        at_global_scope := context.scope_stack.frames.len().eq(1)
+        if at_global_scope.and(is_comptime_evaluable(context, const_folded)) {
+            const_folded = eval_comptime(context, const_folded)
+        }
+        return const_folded
     case NodeType.If:
         return precomp_params(context, e)
     case NodeType.While:
@@ -298,6 +273,13 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
     switch e.node_type {
     case NodeType.LLiteral:
         return true
+    // Type definitions and function definitions are static metadata - always comptime
+    case NodeType.StructDef:
+        return true
+    case NodeType.EnumDef:
+        return true
+    case NodeType.FuncDef:
+        return true
     case NodeType.Identifier(name):
         // Check if this is a simple identifier (no field access chain)
         if e.params.len().gt(0) {
@@ -329,6 +311,36 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
             }
             mut struct_def := context.scope_stack.lookup_struct(combined_name)
             catch (err3: KeyNotFoundError) {
+                // Check if it's an enum constructor (e.g., Color.Green(true))
+                mut parts := combined_name.split(".")
+                catch (err_split: AllocError) {
+                    return false
+                }
+                if parts.len().eq(2) {
+                    mut enum_type := ""
+                    parts.get(0, enum_type)
+                    catch (err_get: IndexOutOfBoundsError) {
+                        return false
+                    }
+                    mut enum_def := context.scope_stack.lookup_enum(enum_type)
+                    catch (err_enum: KeyNotFoundError) {
+                        return false  // Unknown function
+                    }
+                    // It's an enum constructor - check all args are comptime
+                    mut k := 1
+                    while k.lt(e.params.len()) {
+                        mut arg := Expr()
+                        e.params.get(k, arg)
+                        catch (err_arg: IndexOutOfBoundsError) {
+                            return false
+                        }
+                        if not(is_comptime_evaluable(context, arg)) {
+                            return false
+                        }
+                        k.inc()
+                    }
+                    return true
+                }
                 return false  // Unknown function
             }
             // It's a struct constructor - check all args are comptime
@@ -358,14 +370,30 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
             }
             return true  // Struct constructor with all comptime args
         }
-        // Must be pure function (not proc)
+        // Must be pure function (not proc) that returns a value
         if func_def.is_proc() {
             return false
         }
-        // Functions that can throw are NOT comptime-evaluable because
-        // if they throw, we can't fold them to a literal
-        if func_def.throw_types.len().gt(0) {
+        // Funcs with no return type can't be folded (nothing to fold to)
+        if func_def.return_types.len().eq(0) {
             return false
+        }
+        // Functions that can throw are allowed - if they actually throw,
+        // we'll report the error in eval_comptime.
+        // Exception: functions that throw AllocError, IndexOutOfBoundsError,
+        // or KeyNotFoundError are not folded since these depend on runtime state.
+        mut throw_idx := 0
+        while throw_idx.lt(func_def.throw_types.len()) {
+            mut throw_type := ValueType.TCustom("")
+            func_def.throw_types.get(throw_idx, throw_type)
+            switch throw_type {
+            case ValueType.TCustom(throw_name):
+                if throw_name.eq("AllocError").or(throw_name.eq("IndexOutOfBoundsError")).or(throw_name.eq("KeyNotFoundError")) {
+                    return false
+                }
+            case:
+            }
+            throw_idx.inc()
         }
         // All arguments must be comptime-evaluable
         mut i := 1
@@ -382,6 +410,10 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         }
         return true
     case:
+        return false
+    }
+
+    catch (err: IndexOutOfBoundsError) {
         return false
     }
 }
@@ -410,17 +442,28 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
         if type_name.eq("I64") {
             return Expr.new_clone(NodeType.LLiteral(Literal.Number(result.value)), e, Vec.new(Expr))
         }
+        if type_name.eq("U8") {
+            return Expr.new_clone(NodeType.LLiteral(Literal.Number(result.value)), e, Vec.new(Expr))
+        }
         if type_name.eq("Str") {
             return Expr.new_clone(NodeType.LLiteral(Literal.Str(result.value)), e, Vec.new(Expr))
         }
         // Check if it's a struct type - result.value is the instance name
         mut struct_def := context.scope_stack.lookup_struct(type_name)
         catch (err: KeyNotFoundError) {
-            throw format("Cannot convert comptime result type: ", type_name)
+            // For enums and other types: eval_expr was called (catching any errors),
+            // but we can't convert the result back to AST literal, so return original
+            return e.clone()
         }
-        return EvalArena.to_struct_literal(context, result.value, type_name, e)
+        // Try to convert struct back to literal, fall back to original expr if unsupported
+        mut struct_literal := EvalArena.to_struct_literal(context, result.value, type_name, e)
+        catch (err: Str) {
+            return e.clone()
+        }
+        return struct_literal
     case:
-        throw "Cannot convert comptime result type"
+        // For other types, eval was done (errors caught), return original (no folding)
+        return e.clone()
     }
 }
 
@@ -615,6 +658,12 @@ precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     case:
         throw e.lang_error(context.path, "precomp", "ForIn: expected identifier for loop variable")
     }
+
+    // Declare loop variable in scope BEFORE processing body (body references it)
+    context.scope_stack.declare_symbol(var_name, SymbolInfo(
+        value_type=ValueType.TCustom(var_type_name),
+        is_mut=true
+    ))
 
     // Get collection expression (params[1])
     if e.params.len().lt(2) {
@@ -908,19 +957,86 @@ precomp_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) retu
 
 /// Transform Declaration - register the declared variable in scope, then transform value
 precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str {
+    // Eagerly create default instance template for this struct type
+    inner_e := e.get(0)
+    mut value_type := get_value_type(context, inner_e)
+    catch (err: Str) {
+        throw e.lang_error(context.path, "precomp", err)
+    }
+
+    // Type validation - check declared type matches inferred type
+    mut is_infer := false
+    switch decl.value_type {
+    case ValueType.TCustom(decl_type_name):
+        if decl_type_name.eq(INFER_TYPE) {
+            is_infer = true
+        }
+    case:
+    }
+    if not(is_infer) {
+        // Check for U8/I64 coercion
+        mut is_u8_decl := false
+        mut is_i64_value := false
+        switch decl.value_type {
+        case ValueType.TCustom(decl_type_name):
+            if decl_type_name.eq("U8") {
+                is_u8_decl = true
+            }
+        case:
+        }
+        switch value_type {
+        case ValueType.TCustom(val_type_name):
+            if val_type_name.eq("I64") {
+                is_i64_value = true
+            }
+        case:
+        }
+        if is_u8_decl.and(is_i64_value) {
+            value_type = decl.value_type
+        } else {
+            // Check types match
+            if not(value_type_to_str(decl.value_type).eq(value_type_to_str(value_type))) {
+                throw e.lang_error(context.path, "precomp", format("'", decl.name, "' declared of type ", value_type_to_str(decl.value_type), " but initialized to type ", value_type_to_str(value_type), "."))
+            }
+        }
+    }
+
+    // Handle EnumDef early
+    switch value_type {
+    case ValueType.TType(TTypeDef.TEnumDef):
+        switch inner_e.node_type {
+        case NodeType.EnumDef(enum_def):
+            context.scope_stack.declare_enum(decl.name, enum_def)
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+            return e.clone()
+        case:
+            throw e.lang_error(context.path, "precomp", format("Cannot declare '", decl.name, "' of type '", value_type_to_str(decl.value_type), "', expected enum definition."))
+        }
+    case:
+    }
+
+    // Handle StructDef early
+    switch value_type {
+    case ValueType.TType(TTypeDef.TStructDef):
+        switch inner_e.node_type {
+        case NodeType.StructDef(struct_def):
+            context.scope_stack.declare_struct(decl.name, struct_def)
+            saved_path := context.path
+            _ := eval_declaration(decl, context, e)
+            context.path = saved_path
+        case:
+        }
+    case:
+    }
+
     // Bug #40 fix: For function declarations, set the function name and reset counter
     // BEFORE processing the body so for-in loops get deterministic names
     mut is_func_decl := false
     if e.params.len().gt(0) {
-        mut first_p := Expr()
-        e.params.get(0, first_p)
-        switch first_p.node_type {
+        switch inner_e.node_type {
         case NodeType.FuncDef:
             is_func_decl = true
         case:
-        }
-        catch (err: IndexOutOfBoundsError) {
-            // Shouldn't happen since we checked len > 0
         }
     }
     saved_func := context.current_precomp_func
@@ -944,47 +1060,18 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
         context.precomp_forin_counter = saved_counter
     }
 
-    // Determine the type from the value if it's 'auto'
-    mut value_type := decl.value_type
-    switch decl.value_type {
-    case ValueType.TCustom(type_name):
-        if type_name.eq(INFER_TYPE) {
-            if new_params.len().gt(0) {
-                mut first_param := Expr()
-                new_params.get(0, first_param)
-                value_type = get_value_type(context, first_param)
-                catch (err: Str) {
-                    // Keep original type if we can't determine it
-                }
-            }
-        }
-    case:
-    }
-
     // REM: Declarations currently always require an initialization value,
     // so new_params should never be empty.
-    if new_params.len().eq(0) {
-        throw e.lang_error(context.path, "precomp", "Declaration without initializer")
+    if not(e.params.len().eq(1)) {
+        throw e.lang_error(context.path, "precomp", "Declarations can have only one child expression")
     }
 
     // Determine if this is a compile-time constant
-    // Must be truly immutable (not mut, copy, or own) and have a comptime-evaluable value.
-    // Also, only I64 and U8 types are currently supported for comptime storage in g_arena.
-    // Str, structs, enums require infrastructure not available during precomp.
-    mut is_supported_type := false
-    switch value_type {
-    case ValueType.TCustom(type_name):
-        if type_name.eq("I64").or(type_name.eq("U8")) {
-            is_supported_type = true
-        }
-    case:
-    }
+    // Only mut matters for constantness - copy/own are about ownership, orthogonal to comptime.
+    // Any type can be comptime - the type doesn't matter, only how the value is computed.
     mut first_param := Expr()
     new_params.get(0, first_param)
-    mut is_comptime_const := is_supported_type
-        .and(not(decl.is_mut))
-        .and(not(decl.is_copy))
-        .and(not(decl.is_own))
+    is_comptime_const := not(decl.is_mut)
         .and(is_comptime_evaluable(context, first_param))
 
     // Register the declared variable in scope
@@ -1006,36 +1093,22 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case:
     }
 
-    // For struct definitions, register them in scope and create EvalArena templates
-    // by calling eval_declaration. This is needed for struct comptime folding
-    // (to_struct_literal needs the EvalArena template to read field values).
-    // We save/restore context.path to avoid polluting it during default value evaluation.
-    switch value_type {
-    case ValueType.TType(TTypeDef.TStructDef):
-        mut fp := Expr()
-        new_params.get(0, fp)
-        switch fp.node_type {
-        case NodeType.StructDef(struct_def):
-            context.scope_stack.declare_struct(decl.name, struct_def)
-            saved_path := context.path
-            _ := eval_declaration(decl, context, e)
-            context.path = saved_path
-        case:
-        }
-    case:
-    }
-
-    // For non-mut declarations with comptime-evaluable values, store in arena
-    // so that later eval_expr calls can look them up during constant folding.
-    if is_comptime_const {
-        mut inner_e := Expr()
-        new_params.get(0, inner_e)
+    // Store I64/U8/Str declarations in arena when their initializer is comptime-evaluable.
+    // Unlike the is_comptime_const flag (which also requires !is_mut for folding identifiers),
+    // we store ALL comptime-evaluable values including mut ones, just like interpreter does.
+    // This is needed for eval_expr to work during constant folding (e.g., mut loop variables).
+    // Only do this at global scope - inside function bodies, evaluating could cause side effects
+    // to run at compile time AND runtime (e.g., print_debug func in mode liba).
+    at_global_scope := context.scope_stack.frames.len().eq(1)
+    if at_global_scope {
         switch value_type {
         case ValueType.TCustom(custom_type_name):
-            if custom_type_name.eq("I64").or(custom_type_name.eq("U8")) {
-                result := eval_expr(context, inner_e)
-                if not(result.is_throw) {
-                    EvalArena.insert_primitive(context, decl.name, value_type, result.value, e)
+            if custom_type_name.eq("I64").or(custom_type_name.eq("U8")).or(custom_type_name.eq("Str")) {
+                if is_comptime_evaluable(context, first_param) {
+                    result := eval_expr(context, first_param)
+                    if not(result.is_throw) {
+                        EvalArena.insert_primitive(context, decl.name, value_type, result.value, e)
+                    }
                 }
             }
         case:
@@ -1044,10 +1117,8 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
 
     // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
     // run eval_declaration to store the instance in EvalArena so ccodegen can find it.
-    // Only do this if the value is comptime-evaluable (doesn't depend on runtime values).
-    mut first_param := Expr()
-    new_params.get(0, first_param)
-    if not(decl.is_mut).and(not(decl.is_copy)).and(not(decl.is_own)).and(is_comptime_evaluable(context, first_param)) {
+    // Only do this at global scope (same reason as above - avoid side effects inside func bodies).
+    if at_global_scope.and(not(decl.is_mut)).and(not(decl.is_copy)).and(not(decl.is_own)).and(is_comptime_evaluable(context, first_param)) {
         switch value_type {
         case ValueType.TCustom(custom_type_name):
             // Skip primitives (I64, U8) - handled above. Skip Str - needs special handling.
@@ -1146,112 +1217,55 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
 /// Transform FCall node - this is where UFCS resolution happens
 precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
-    // Check for loc() - replace with string literal before any other processing
-    if e.params.len().eq(1) {
-        mut func_expr := Expr()
-        e.params.get(0, func_expr)
-        switch func_expr.node_type {
-        case NodeType.Identifier(name):
-            if name.eq("loc") {
-                mut loc_str := format(context.path, ":", I64.to_str(e.line), ":", I64.to_str(e.col), ":")
-                return Expr.new_clone(NodeType.LLiteral(Literal.Str(loc_str)), e, Vec.new(Expr))
-            }
-        case:
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw format("precomp_fcall loc check: ", err.msg)
-        }
-        catch (err: AllocError) {
-            throw format("precomp_fcall loc check: ", err.msg)
-        }
-        catch (err: I64_OverflowError) {
-            throw format("precomp_fcall loc check: ", err.msg)
-        }
+    // 1. Check for compile-time intrinsics (loc, _file, _line, _col)
+    mut was_replaced := false
+    replaced := try_replace_comptime_intrinsic(context, e, was_replaced)
+    if was_replaced {
+        return replaced
     }
 
-    // Special handling for import() calls - precomp the imported file first
-    f_name := get_func_name_in_call(e)
-    catch (err: Str) {
-        // Can't get function name, continue
-    }
-    if f_name.eq("import") {
-        if e.params.len().gt(1) {
-            mut path_expr := Expr()
-            e.params.get(1, path_expr)
-            catch (err: IndexOutOfBoundsError) {
-                // Can't get path, continue
-            }
-            switch path_expr.node_type {
-            case NodeType.LLiteral(lit):
-                switch lit {
-                case Literal.Str(import_path_str):
-                    precomp_import_declarations(context, import_path_str)
-                case:
-                }
-            case:
-            }
-        }
-    }
-
-    // First, recursively transform all arguments
-    mut transformed_params := Vec.new(Expr)
-    for p: Expr in e.params {
-        transformed_params.push(precomp_expr(context, p))
-    }
-    mut new_e := Expr.new_clone(e.node_type, e, transformed_params)
-
-    // Now check if this is a UFCS call and transform it
-    if new_e.params.len().eq(0) {
+    // Get func_expr and combined_name before any transformation
+    if e.params.len().eq(0) {
         // Empty FCall, shouldn't happen but just return as-is
-        return new_e
+        return e.clone()
     }
+    mut func_expr := e.get(0)
 
-    mut func_expr := Expr()
-    new_e.params.get(0, func_expr)
-
+    mut combined_name := ""
     switch func_expr.node_type {
     case NodeType.Identifier:
-        mut combined_name := get_combined_name(context.path, func_expr)
+        combined_name = get_combined_name(context.path, func_expr)
+    case:
+    }
 
-        // Regular function call - check if it exists
-        mut func_found := false
-        mut func_def := context.scope_stack.lookup_func(combined_name)
-        func_found = true
-        catch (err: KeyNotFoundError) {
-            // Not found
-        }
-        if func_found {
-            // Reorder named arguments to positional order before constant folding
-            reordered := reorder_named_args(context, new_e, func_def)
-
-            // Try compile-time constant folding for pure functions with literal args
-            if is_comptime_evaluable(context, reordered) {
-                mut folded := eval_comptime(context, reordered)
-                catch (err: Str) {
-                    // Exception thrown during compile-time evaluation - propagate error
-                    if err.find("thrown during precomputation").gteq(0) {
-                        throw err
-                    }
-                    // Other errors (e.g., can't convert result type) - fall through
-                    return reordered
-                }
-                return folded
-            }
-            return reordered
-        }
-
-        // Case 3: Struct/enum constructor - no transformation needed
+    // 3. Struct constructor - create instance like eval does (before arg transform)
+    if not(combined_name.eq("")) {
         mut struct_found := false
-        mut dummy3 := context.scope_stack.lookup_struct(combined_name)
+        mut dummy_struct := context.scope_stack.lookup_struct(combined_name)
         struct_found = true
         catch (err: KeyNotFoundError) {
             // Not found
         }
         if struct_found {
-            return new_e
+            _ := create_default_instance(context, combined_name, e)
+            switch func_expr.node_type {
+            case NodeType.Identifier(id_name):
+                if func_expr.params.len().eq(0) {
+                    insert_struct_instance(context, id_name, combined_name, e)
+                }
+            case:
+            }
+            // Transform arguments for struct constructor
+            mut struct_params := Vec.new(Expr)
+            for p: Expr in e.params {
+                struct_params.push(precomp_expr(context, p))
+            }
+            return Expr.new_clone(e.node_type, e, struct_params)
         }
+    }
 
-        // Check for enum constructors (e.g., Color.Green(true))
+    // 4. Enum constructor (e.g., Color.Green(true)) - before arg transform
+    if not(combined_name.eq("")) {
         mut parts := combined_name.split(".")
         if parts.len().eq(2) {
             mut enum_type := ""
@@ -1265,10 +1279,59 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
             if enum_found {
                 mut variant_name := ""
                 parts.get(1, variant_name)
-                if enum_def.contains_key(variant_name) {  // Bug #38 fix
-                    return new_e
+                if enum_def.contains_key(variant_name) {
+                    // Transform arguments for enum constructor
+                    mut enum_params := Vec.new(Expr)
+                    for p: Expr in e.params {
+                        enum_params.push(precomp_expr(context, p))
+                    }
+                    return Expr.new_clone(e.node_type, e, enum_params)
                 }
             }
+        }
+    }
+
+    // 5. Transform all arguments
+    mut transformed_params := Vec.new(Expr)
+    for p: Expr in e.params {
+        transformed_params.push(precomp_expr(context, p))
+    }
+    mut new_e := Expr.new_clone(e.node_type, e, transformed_params)
+
+    // Get func_expr again from transformed expression
+    if new_e.params.len().eq(0) {
+        return new_e
+    }
+    func_expr = new_e.get(0)
+
+    switch func_expr.node_type {
+    case NodeType.Identifier:
+        combined_name = get_combined_name(context.path, func_expr)
+
+        // 6. Regular function call - check if it exists
+        mut func_found := false
+        mut func_def := context.scope_stack.lookup_func(combined_name)
+        func_found = true
+        catch (err: KeyNotFoundError) {
+            // Not found
+        }
+        if func_found {
+            // Ext functions: evaluation happens through eval_comptime path (see doc/precomp.org)
+            // Exception: import() must run during precomp to load code
+            if func_def.is_ext() {
+                mut parts := combined_name.split(".")
+                if parts.len().gt(0) {
+                    mut last_part := ""
+                    parts.get(parts.len().sub(1), last_part)
+                    if last_part.eq("import") {
+                        _ := eval_expr(context, new_e)
+                    }
+                }
+                return new_e.clone()
+            }
+            // Reorder named arguments to positional order before constant folding
+            reordered := reorder_named_args(context, new_e, func_def)
+            return reordered
         }
 
         // UFCS for chained calls: func(result, args) -> Type.func(result, args)
