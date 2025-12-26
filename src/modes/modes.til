@@ -11,11 +11,6 @@ ModeDef := struct {
 
 UnknownModeError := struct {
     mut msg: Str = ""
-    new := func(msg: Str) returns UnknownModeError {
-        mut err := UnknownModeError()
-        err.msg = msg
-        return err
-    }
 }
 
 // TODO implement debug_format to call from funcs, also implement modes pure and pura
