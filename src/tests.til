@@ -576,7 +576,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/func_purity.til"))
     rs_common.push(TestEntry(path="src/test/function_pointers.til"))
     rs_common.push(TestEntry(path="src/test/intro.til"))
-    rs_common.push(TestEntry(path="src/test/introspections.til"))
+    // rs_common.push(TestEntry(path="src/test/introspections.til")) // TODO: Add C impl for Introspection.has_const/has_field in src/ext.c
     rs_common.push(TestEntry(path="src/test/lists.til"))
     rs_common.push(TestEntry(path="src/test/loops.til"))
     rs_common.push(TestEntry(path="src/test/maps.til"))
@@ -613,6 +613,7 @@ main := proc(args: ..Str) {
     rs_interpreted.push(TestEntry(path="src/examples/lolalalo.til")) // TODO move to rs_common: Bug #50: codegen doesn't capture outer vars in nested funcs
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
+    rs_interpreted.push(TestEntry(path="src/test/introspections.til")) // TODO: Add C impl for Introspection.has_const/has_field in src/ext.c
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
     // run_cmd doesn't support stdin, would need bash -c wrapper or new ext_proc

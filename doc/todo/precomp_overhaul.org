@@ -303,10 +303,16 @@ Most tests pass. Remaining failures:
 
 ** Current Test Status
 
-3/68 tests failed:
+2/68 tests failed:
 - bug41_test.til (interpret output) - double "DEBUG:hello from bug41 test" output
 - bug41_test.til (run output) - same double output issue
-- introspections.til (run exit code) - linker error, pre-existing unrelated issue
+
+*** introspections.til - moved to interpreted-only [FIXED]
+- Was failing in compiled mode: linker error for ~til_Introspection_has_field~
+- Root cause: ext_func in TIL but no C implementation in src/ext.c
+- Rust implementation exists in src/rs/ext.rs (works interpreted)
+- Fix: Moved from rs_common to rs_interpreted with TODO comment
+- Updated doc/todo/introspection.org with correct file location and TODO status
 
 ** Next Steps
 

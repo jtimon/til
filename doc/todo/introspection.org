@@ -9,7 +9,7 @@ Introspection allows TIL programs to inspect type information and struct definit
 
 All introspection functionality will be provided through the Introspection "namespace" (a struct with no mutable fields used purely for namespacing).
 
-Location: src/core/introspection.til
+Location: src/std/meta.til
 
 * Design
 
@@ -191,10 +191,12 @@ This means:
 
 * TODO List
 
-- [ ] Create src/core/introspection.til with Introspection struct
-- [ ] Implement has_const() as ext_func in Rust
-- [ ] Implement has_field() as ext_func in Rust
-- [ ] Test has_const() with existing types (check for clone, len, size, etc.)
+- [X] Create src/std/meta.til with Introspection struct
+- [X] Implement has_const() as ext_func in Rust (src/rs/ext.rs)
+- [X] Implement has_field() as ext_func in Rust (src/rs/ext.rs)
+- [ ] Implement has_const() in C for compiled mode (src/ext.c)
+- [ ] Implement has_field() in C for compiled mode (src/ext.c)
+- [X] Test has_const() with existing types (check for clone, len, size, etc.)
 - [ ] Update typer to use has_const() for clone() checking
 - [ ] Document introspection in language guide
 - [ ] Implement additional introspection functions as needed (get_consts, get_fields)
