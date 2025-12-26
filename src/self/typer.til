@@ -1520,7 +1520,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 case:
                                 }
                                 catch (err: KeyNotFoundError) { }
-                                catch (err: IndexOutOfBoundsError) { }
+                                catch (err: IndexOutOfBoundsError) { throw err.msg }
                             }
                         case:
                         }
@@ -1600,7 +1600,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 case:
                                 }
                                 catch (err: KeyNotFoundError) { }
-                                catch (err: IndexOutOfBoundsError) { }
+                                catch (err: IndexOutOfBoundsError) { throw err.msg }
                             }
                         case:
                         }

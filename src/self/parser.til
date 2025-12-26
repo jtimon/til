@@ -64,7 +64,7 @@ SEnumDef := struct {
         throw KeyNotFoundError()
     }
 
-    contains_key := func(self: SEnumDef, variant_name: Str) returns Bool {
+    contains_key := func(self: SEnumDef, variant_name: Str) returns Bool throws Str {
         for i in 0..self.variants.len() {
             mut v := EnumVariant()
             self.variants.get(i, v)
@@ -72,7 +72,7 @@ SEnumDef := struct {
                 return true
             }
         }
-        catch (err: IndexOutOfBoundsError) { }  // Should never happen with 0..len()
+        catch (err: IndexOutOfBoundsError) { throw err.msg }  // Should never happen with 0..len()
         return false
     }
 }

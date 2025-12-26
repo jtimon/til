@@ -197,7 +197,7 @@ get_func_name_string := func(first_param: Expr) returns FuncNameResult throws St
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     return result
 }
@@ -407,7 +407,7 @@ detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext) returns VariadicF
     catch (err: KeyNotFoundError) {
         // Not a variadic function
     }
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
 
     return result
@@ -432,7 +432,7 @@ HoistedArg := struct {
 
 // Check if an expression is a throwing function call
 // Returns info about the throwing call if it is one
-check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) returns ThrowingFCallInfo {
+check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) returns ThrowingFCallInfo throws Str {
     mut result := ThrowingFCallInfo()
     switch expr.node_type {
     case NodeType.FCall:
@@ -454,14 +454,14 @@ check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) 
                     case:
                         // Not identifier
                     }
-                    catch (err: IndexOutOfBoundsError) { }
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
                 } else {
                     func_name = name
                 }
             case:
                 // Not identifier
             }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
 
             if gt(func_name.len(), 0) {
                 mut lookup_result := get_fcall_func_def(context, expr)
@@ -474,7 +474,7 @@ check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) 
                             lookup_result.func_def.return_types.get(0, first_ret)
                             result.return_type = first_ret
                             result.has_return_type = true
-                            catch (err: IndexOutOfBoundsError) { }
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
                         }
                     }
                 }
@@ -1189,7 +1189,7 @@ get_fcall_func_name := func(expr: Expr) returns Str throws Str {
         return func_name_result.name
     }
 
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     return ""
 }
@@ -1527,7 +1527,7 @@ topological_sort_types := func(types: List) returns Vec throws Str {
     }
 
     catch (err: AllocError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     return result
 }
 
@@ -1659,7 +1659,7 @@ topological_sort_structs := func(structs: List) returns Vec throws Str {
     }
 
     catch (err: AllocError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     return result
 }
 
@@ -3604,7 +3604,7 @@ collect_declarations_in_body := proc(body: Expr, mut context: Context) returns V
         while lt(i, body.params.len()) {
             mut stmt := Expr()
             body.params.get(i, stmt)
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
             collect_declarations_recursive(stmt, decls, collected, context)
             i = i.add(1)
         }
@@ -3627,7 +3627,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
             if type_name.eq(INFER_TYPE).and(gt(expr.params.len(), 0)) {
                 mut first := Expr()
                 expr.params.get(0, first)
-                catch (err: IndexOutOfBoundsError) { }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
                 value_type = get_value_type(context, first)
                 catch (err: Str) {
                     value_type = decl.value_type
@@ -3649,7 +3649,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         while lt(i, expr.params.len()) {
             mut stmt := Expr()
             expr.params.get(i, stmt)
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
             collect_declarations_recursive(stmt, decls, collected, context)
             i = add(i, 1)
         }
@@ -3658,13 +3658,13 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         if gteq(expr.params.len(), 2) {
             mut then_branch := Expr()
             expr.params.get(1, then_branch)
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
             collect_declarations_recursive(then_branch, decls, collected, context)
         }
         if gteq(expr.params.len(), 3) {
             mut else_branch := Expr()
             expr.params.get(2, else_branch)
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
             collect_declarations_recursive(else_branch, decls, collected, context)
         }
     case NodeType.Switch:
@@ -3673,7 +3673,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         while lt(add(i, 1), expr.params.len()) {
             mut case_body := Expr()
             expr.params.get(add(i, 1), case_body)
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
             collect_declarations_recursive(case_body, decls, collected, context)
             i = add(i, 2)
         }
@@ -3682,7 +3682,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         if gteq(expr.params.len(), 2) {
             mut while_body := Expr()
             expr.params.get(1, while_body)
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
             collect_declarations_recursive(while_body, decls, collected, context)
         }
     case NodeType.Catch:
@@ -3691,7 +3691,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         if gteq(expr.params.len(), 3) {
             mut catch_body := Expr()
             expr.params.get(2, catch_body)
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
             collect_declarations_recursive(catch_body, decls, collected, context)
         }
     case:
@@ -4008,7 +4008,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 if gt(switch_case.case_pattern.params.len(), 1) {
                     mut payload_expr := Expr()
                     switch_case.case_pattern.params.get(1, payload_expr)
-                    catch (err: IndexOutOfBoundsError) { }
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
                     // Check if payload is also an enum variant (Type.Variant pattern)
                     payload_info := get_case_variant_info(payload_expr)
                     if gt(payload_info.variant_name.len(), 0) {
@@ -4873,7 +4873,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             }
             mut by_ref := false
             param_by_ref.get(rai, by_ref)
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
             result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, by_ref, result, ctx, context)
             rai = add(rai, 1)
         }
@@ -4915,7 +4915,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 }
                 mut by_ref := false
                 param_by_ref.get(rai, by_ref)
-                catch (err: IndexOutOfBoundsError) { }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
                 result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, by_ref, result, ctx, context)
                 rai = add(rai, 1)
             }
@@ -4942,7 +4942,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 }
                 mut by_ref := false
                 param_by_ref.get(rai, by_ref)
-                catch (err: IndexOutOfBoundsError) { }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
                 result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, by_ref, result, ctx, context)
                 rai = add(rai, 1)
             }
@@ -5063,7 +5063,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         arg_i = add(arg_i, 1)
     }
     catch (err: KeyNotFoundError) { }
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw "emit_throwing_call: AllocError in param_types" }
 
     // Calculate param_by_ref for pointer passing
@@ -5081,7 +5081,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         arg_i = add(arg_i, 1)
     }
     catch (err: KeyNotFoundError) { }
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw "emit_throwing_call: AllocError in param_by_ref" }
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
@@ -5149,7 +5149,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                 context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
             }
             catch (err: KeyNotFoundError) { }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
     }
 
@@ -5588,7 +5588,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         arg_i = add(arg_i, 1)
     }
     catch (err: KeyNotFoundError) { }
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in param_types" }
 
     // Calculate param_by_ref for pointer passing
@@ -5606,7 +5606,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         arg_i = add(arg_i, 1)
     }
     catch (err: KeyNotFoundError) { }
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in param_by_ref" }
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
@@ -5677,7 +5677,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
                 context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
             }
             catch (err: KeyNotFoundError) { }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
     }
 
@@ -6044,7 +6044,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         arg_i = add(arg_i, 1)
     }
     catch (err: KeyNotFoundError) { }
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in param_types" }
 
     // Calculate param_by_ref for pointer passing
@@ -6062,7 +6062,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         arg_i = add(arg_i, 1)
     }
     catch (err: KeyNotFoundError) { }
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in param_by_ref" }
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
@@ -6132,7 +6132,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
                 context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
             }
             catch (err: KeyNotFoundError) { }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
     }
 
@@ -6660,7 +6660,7 @@ get_struct_construction_type := func(expr: Expr, context: Context) returns Str {
 // Returns the type name if it is, None otherwise
 // AST structure for Color.Red(42): FCall -> [Identifier("Color") -> [Identifier("Red")], Literal(42)]
 // AST structure for Color.Unknown: Identifier("Color") -> [Identifier("Unknown")]
-get_enum_construction_type := func(expr: Expr, context: Context) returns Str {
+get_enum_construction_type := func(expr: Expr, context: Context) returns Str throws Str {
     // Check FCall case: Type.Variant(value) or Type.Variant()
     switch expr.node_type {
     case NodeType.FCall:
@@ -7080,7 +7080,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                             }
                         }
                     }
-                    catch (err: IndexOutOfBoundsError) { }
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
                     catch (err: AllocError) { throw err.msg }
 
                     mut temp_name := "_default_"
@@ -7218,7 +7218,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 }
             case:
             }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: AllocError) { throw err.msg }
         }
         // Determine C type from inferred type or fall back to int
@@ -7289,7 +7289,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 }
             case:
             }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: AllocError) { throw err.msg }
         }
         if not(already_declared) {
@@ -7672,7 +7672,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
             }
             catch (err: KeyNotFoundError) { }
         }
-        catch (err: IndexOutOfBoundsError) { }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
         catch (err: AllocError) { throw err.msg }
     }
 
@@ -7713,7 +7713,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
                         lookup_result.func_def.args.get(0, first_arg)
                         called_self_is_mut = first_arg.is_mut
                     }
-                    catch (err: IndexOutOfBoundsError) { }
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
                 }
             case:
                 // Not a custom type
@@ -7755,7 +7755,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
                 output = output.concat(")")
             }
         }
-        catch (err: IndexOutOfBoundsError) { }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
         catch (err: AllocError) { throw err.msg }
     }
 
@@ -7984,7 +7984,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                     mut ret_type := ValueType.TCustom("")
                     fd_result.func_def.return_types.get(0, ret_type)
                     c_type = til_type_to_c(ret_type)
-                    catch (err: IndexOutOfBoundsError) { }
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
                 }
             }
 
@@ -8218,14 +8218,14 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                                 }
                                 fi = add(fi, 1)
                             }
-                            catch (err: IndexOutOfBoundsError) { }
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
                         case:
                         }
                         catch (err: KeyNotFoundError) { }
                     }
                 case:
                 }
-                catch (err: IndexOutOfBoundsError) { }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
             }
         case NodeType.FCall:
             // For function calls, try to determine return type
@@ -8242,7 +8242,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                         mut ret_type := ValueType.TCustom("")
                         fd_result.func_def.return_types.get(0, ret_type)
                         c_type = til_type_to_c(ret_type)
-                        catch (err: IndexOutOfBoundsError) { }
+                        catch (err: IndexOutOfBoundsError) { throw err.msg }
                     }
                 } else {
                     // Check if this is a struct constructor like Ptr()
@@ -8754,7 +8754,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             }
             named_arg_idx = add(named_arg_idx, 1)
         }
-        catch (err: IndexOutOfBoundsError) { }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
         if first_char.is_uppercase().and(not(func_name.contains("_"))).and(params_len.eq(1).or(has_named_args)) {
             // Look up struct definition to get default values
             mut struct_found := false
@@ -8775,13 +8775,13 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                             mut value_expr := Expr()
                             nav_expr.params.get(0, value_expr)
                             named_values.set(field_name, value_expr)
-                            catch (err: IndexOutOfBoundsError) { }
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
                         }
                     case:
                     }
                     nav_idx = add(nav_idx, 1)
                 }
-                catch (err: IndexOutOfBoundsError) { }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
 
                 if struct_def.members.len().eq(0).or(struct_def.default_values.len().eq(0).and(named_values.len().eq(0))) {
                     result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat("){}")
