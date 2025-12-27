@@ -30,13 +30,21 @@ pub struct SEnumDef {
 impl SEnumDef {
     // Helper methods for backward compatibility with enum_map interface
     pub fn get(&self, variant_name: &str) -> Option<&Option<ValueType>> {
-        self.variants.iter()
-            .find(|v| v.name == variant_name)
-            .map(|v| &v.payload_type)
+        for v in &self.variants {
+            if v.name == variant_name {
+                return Some(&v.payload_type);
+            }
+        }
+        None
     }
 
     pub fn contains_key(&self, variant_name: &str) -> bool {
-        self.variants.iter().any(|v| v.name == variant_name)
+        for v in &self.variants {
+            if v.name == variant_name {
+                return true;
+            }
+        }
+        false
     }
 
     pub fn keys(&self) -> impl Iterator<Item = &String> {

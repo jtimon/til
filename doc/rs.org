@@ -7,6 +7,23 @@ Short list of things NOT to do in Rust code for this project.
 ** 1. Don't use panic!() directly
 Use ~return Err(...)~ instead. TIL error handling is explicit.
 
+** 2. Avoid iterator chains, use for loops
+Iterator chains like ~.iter().map().collect()~ are hard to translate to TIL.
+Use explicit for loops instead.
+
+Forbidden patterns:
+- ~.iter().any()~ - use for loop with early ~return true~
+- ~.iter().all()~ - use for loop with early ~return false~
+- ~.iter().map().collect()~ - use for loop pushing to vec
+- ~.iter().filter().collect()~ - use for loop with if
+- ~.iter().find()~ - use for loop with early return
+- ~.iter().position()~ - use for loop with index
+
+Allowed patterns (translate directly):
+- ~for (i, x) in items.iter().enumerate()~
+- ~for x in &items~
+- ~str.split('.').collect()~ - TIL has ~.split()~
+
 * Potential Rules (to be discussed)
 
 ** Don't use expect() in library code
