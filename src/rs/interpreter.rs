@@ -2886,7 +2886,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
         let typer_errors = typer_import_declarations(context, &import_str);
         if !typer_errors.is_empty() {
             for err in &typer_errors {
-                println!("{}:{}", path, err);
+                println!("{}", err);
             }
             return Err(format!("Compiler errors: {} type errors found", typer_errors.len()));
         }
@@ -2914,7 +2914,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
         let mut errors = crate::rs::init::init_context(context, &e);
         if errors.len() > 0 {
             for err in &errors {
-                println!("{}:{}", path, err);
+                println!("{}", err);
             }
             return Err(format!("Compiler errors: {} declaration errors found", errors.len()));
         }
@@ -2946,7 +2946,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
 
         if errors.len() > 0 {
             for err in &errors {
-                println!("{}:{}", path, err);
+                println!("{}", err);
             }
             return Err(format!("Compiler errors: {} type errors found", errors.len()));
         }

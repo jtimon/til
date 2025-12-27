@@ -3219,7 +3219,7 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
         typer_errors := typer_import_declarations(context, import_str)
         if typer_errors.len().gt(0) {
             for err_msg: Str in typer_errors {
-                println(path, ":", err_msg)
+                println(err_msg)
             }
             throw format("Compiler errors: ", typer_errors.len().to_str(), " type errors found")
         }
@@ -3252,7 +3252,7 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
 
         if errors.len().gt(0) {
             for err_msg: Str in errors {
-                println(path, ":", err_msg)
+                println(err_msg)
             }
             throw format("Compiler errors: ", errors.len().to_str(), " declaration errors found")
         }
@@ -3293,7 +3293,7 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
 
         if errors.len().gt(0) {
             for err_msg: Str in errors {
-                println(path, ":", err_msg)
+                println(err_msg)
             }
             throw format("Compiler errors: ", errors.len().to_str(), " type errors found")
         }

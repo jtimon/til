@@ -8,11 +8,16 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+(None)
+
+* Fixed Bugs
+
 ** Bug #58: Error messages show file path twice
 :PROPERTIES:
 :DISCOVERED: 2025-12-27
+:FIXED: 2025-12-27
 :IMPACT: Confusing error messages
-:STATUS: Open
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -26,15 +31,17 @@ Should show:
 src/test/bug50.til:10:16: rstil type ERROR: ...
 #+END_EXAMPLE
 
-*** Reproducing
-#+BEGIN_SRC bash
-./bin/rstil interpret src/test/bug50.til
-#+END_SRC
-
 *** Root Cause
-Likely in error formatting code - the path is being concatenated twice.
+In interpreter.rs and builder.rs, errors were printed with ~println!("{}:{}", path, err)~
+but ~err~ already contains the path from ~error()~ / ~todo_error()~ which format as
+~"path:line:col: ..."~.
 
-* Fixed Bugs
+*** Fix
+Removed the duplicate path prefix from error printing in:
+- src/rs/interpreter.rs (lines 2889, 2917, 2949)
+- src/rs/builder.rs (lines 158, 165, 189, 205, 214)
+- src/self/interpreter.til (lines 3222, 3255, 3296)
+- src/self/builder.til (5 locations)
 
 ** Bug #50: Codegen doesn't capture outer variables in nested functions
 :PROPERTIES:

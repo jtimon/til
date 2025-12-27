@@ -155,14 +155,14 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
         let init_errors = crate::rs::init::init_context(&mut context, &core_ast);
         if !init_errors.is_empty() {
             for err in &init_errors {
-                println!("{}:{}", core_path, err);
+                println!("{}", err);
             }
             return Err(format!("Compiler errors: {} init errors in core.til", init_errors.len()));
         }
         let typer_errors = check_types(&mut context, &core_ast);
         if !typer_errors.is_empty() {
             for err in &typer_errors {
-                println!("{}:{}", core_path, err);
+                println!("{}", err);
             }
             return Err(format!("Compiler errors: {} type errors in core.til", typer_errors.len()));
         }
@@ -186,7 +186,7 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
         let typer_errors = typer_import_declarations(&mut context, &import_str);
         if !typer_errors.is_empty() {
             for err in &typer_errors {
-                println!("{}:{}", path, err);
+                println!("{}", err);
             }
             return Err(format!("Compiler errors: {} type errors found", typer_errors.len()));
         }
@@ -202,7 +202,7 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     errors.extend(crate::rs::init::init_context(&mut context, &main_ast));
     if !errors.is_empty() {
         for err in &errors {
-            println!("{}:{}", path, err);
+            println!("{}", err);
         }
         return Err(format!("Compiler errors: {} init errors found", errors.len()));
     }
@@ -211,7 +211,7 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     errors.extend(check_types(&mut context, &main_ast));
     if !errors.is_empty() {
         for err in &errors {
-            println!("{}:{}", path, err);
+            println!("{}", err);
         }
         return Err(format!("Compiler errors: {} type errors found", errors.len()));
     }

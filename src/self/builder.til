@@ -173,28 +173,18 @@ build := proc(path: Str) returns Str throws Str {
     if not(path.eq(core_path)) {
         mut core_result := parse_file(core_path)
         mut init_errors := init_context(context, core_result.ast)
-        if gt(init_errors.len(), 0) {
-            mut err_i := 0
-            while lt(err_i, init_errors.len()) {
-                mut err := ""
-                init_errors.get(err_i, err)
-                println(core_path, ":", err)
-                err_i = add(err_i, 1)
+        if init_errors.len().gt(0) {
+            for err: Str in init_errors {
+                println(err)
             }
-            mut err_count := I64.to_str(init_errors.len())
-            throw format("Compiler errors: ", err_count, " init errors in core.til")
+            throw format("Compiler errors: ", init_errors.len().to_str(), " init errors in core.til")
         }
         mut typer_errors := check_types(context, core_result.ast)
-        if gt(typer_errors.len(), 0) {
-            mut err_i := 0
-            while lt(err_i, typer_errors.len()) {
-                mut err := ""
-                typer_errors.get(err_i, err)
-                println(core_path, ":", err)
-                err_i = add(err_i, 1)
+        if typer_errors.len().gt(0) {
+            for err: Str in typer_errors {
+                println(err)
             }
-            mut err_count := I64.to_str(typer_errors.len())
-            throw format("Compiler errors: ", err_count, " type errors in core.til")
+            throw format("Compiler errors: ", typer_errors.len().to_str(), " type errors in core.til")
         }
         _ := context.imports_init_done.insert(core_path)
         _ := context.imports_typer_done.insert(core_path)
@@ -219,16 +209,11 @@ build := proc(path: Str) returns Str throws Str {
         // Mode imports need init and typer phases (no eval for builder)
         init_import_declarations(context, import_fcall_expr, import_str)
         mut typer_errs := typer_import_declarations(context, import_str)
-        if gt(typer_errs.len(), 0) {
-            mut typer_err_i := 0
-            while lt(typer_err_i, typer_errs.len()) {
-                mut err := ""
-                typer_errs.get(typer_err_i, err)
-                println(path, ":", err)
-                typer_err_i = add(typer_err_i, 1)
+        if typer_errs.len().gt(0) {
+            for err: Str in typer_errs {
+                println(err)
             }
-            mut err_count := I64.to_str(typer_errs.len())
-            throw format("Compiler errors: ", err_count, " type errors found")
+            throw format("Compiler errors: ", typer_errs.len().to_str(), " type errors found")
         }
         mode_import_idx = add(mode_import_idx, 1)
     }
@@ -240,32 +225,22 @@ build := proc(path: Str) returns Str throws Str {
 
     // Run init + typer on the main file (this handles its imports internally)
     mut errors := init_context(context, main_ast)
-    if gt(errors.len(), 0) {
-        mut err_i := 0
-        while lt(err_i, errors.len()) {
-            mut err := ""
-            errors.get(err_i, err)
-            println(path, ":", err)
-            err_i = add(err_i, 1)
+    if errors.len().gt(0) {
+        for err: Str in errors {
+            println(err)
         }
-        mut err_count := I64.to_str(errors.len())
-        throw format("Compiler errors: ", err_count, " init errors found")
+        throw format("Compiler errors: ", errors.len().to_str(), " init errors found")
     }
 
     mut mode_errors := basic_mode_checks(context, main_ast)
     errors.extend(mode_errors)
     mut type_errors := check_types(context, main_ast)
     errors.extend(type_errors)
-    if gt(errors.len(), 0) {
-        mut err_i := 0
-        while lt(err_i, errors.len()) {
-            mut err := ""
-            errors.get(err_i, err)
-            println(path, ":", err)
-            err_i = add(err_i, 1)
+    if errors.len().gt(0) {
+        for err: Str in errors {
+            println(err)
         }
-        mut err_count := I64.to_str(errors.len())
-        throw format("Compiler errors: ", err_count, " type errors found")
+        throw format("Compiler errors: ", errors.len().to_str(), " type errors found")
     }
 
     // === Post-typer: Collect and merge ASTs for codegen ===
