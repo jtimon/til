@@ -251,11 +251,14 @@ Literal := enum {
 literal_clone := func(lit: Literal) returns Literal throws AllocError {
     switch lit {
     case Literal.Number(s):
-        return Literal.Number(s.clone())
+        s_cloned := s.clone()
+        return Literal.Number(s_cloned)
     case Literal.Str(s):
-        return Literal.Str(s.clone())
+        s_cloned := s.clone()
+        return Literal.Str(s_cloned)
     case Literal.List(s):
-        return Literal.List(s.clone())
+        s_cloned := s.clone()
+        return Literal.List(s_cloned)
     }
     // Unreachable, but TIL requires a return
     return lit
@@ -290,25 +293,35 @@ NodeType := enum {
 node_type_clone := func(nt: NodeType) returns NodeType throws AllocError {
     switch nt {
     case NodeType.LLiteral(lit):
-        return NodeType.LLiteral(literal_clone(lit))
+        lit_cloned := literal_clone(lit)
+        return NodeType.LLiteral(lit_cloned)
     case NodeType.Identifier(s):
-        return NodeType.Identifier(s.clone())
+        s_cloned := s.clone()
+        return NodeType.Identifier(s_cloned)
     case NodeType.Declaration(decl):
-        return NodeType.Declaration(decl.clone())
+        decl_cloned := decl.clone()
+        return NodeType.Declaration(decl_cloned)
     case NodeType.Assignment(s):
-        return NodeType.Assignment(s.clone())
+        s_cloned := s.clone()
+        return NodeType.Assignment(s_cloned)
     case NodeType.NamedArg(s):
-        return NodeType.NamedArg(s.clone())
+        s_cloned := s.clone()
+        return NodeType.NamedArg(s_cloned)
     case NodeType.FuncDef(fd):
-        return NodeType.FuncDef(fd.clone())
+        fd_cloned := fd.clone()
+        return NodeType.FuncDef(fd_cloned)
     case NodeType.EnumDef(ed):
-        return NodeType.EnumDef(ed.clone())
+        ed_cloned := ed.clone()
+        return NodeType.EnumDef(ed_cloned)
     case NodeType.StructDef(sd):
-        return NodeType.StructDef(sd.clone())
+        sd_cloned := sd.clone()
+        return NodeType.StructDef(sd_cloned)
     case NodeType.Pattern(pi):
-        return NodeType.Pattern(pi.clone())
+        pi_cloned := pi.clone()
+        return NodeType.Pattern(pi_cloned)
     case NodeType.ForIn(s):
-        return NodeType.ForIn(s.clone())
+        s_cloned := s.clone()
+        return NodeType.ForIn(s_cloned)
     case:
         // Simple variants (Body, FCall, Return, etc.) have no payload to clone
         return nt
@@ -345,7 +358,7 @@ Expr := struct {
             s = s.concat(name)
             s = s.concat("\")")
         case:
-            s = s.concat(enum_to_str(self.node_type))
+            s = s.concat("NodeType.?")
         }
         s = s.concat(", line=")
         s = s.concat(self.line.to_str())
@@ -468,9 +481,11 @@ ValueType := enum {
 value_type_clone := func(vt: ValueType) returns ValueType throws AllocError {
     switch vt {
     case ValueType.TCustom(s):
-        return ValueType.TCustom(s.clone())
+        s_cloned := s.clone()
+        return ValueType.TCustom(s_cloned)
     case ValueType.TMulti(s):
-        return ValueType.TMulti(s.clone())
+        s_cloned := s.clone()
+        return ValueType.TMulti(s_cloned)
     case:
         // TFunction and TType have no heap allocations to clone
         return vt
@@ -529,7 +544,8 @@ parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str {
 
     switch tt {
     case TokenType.String:
-        node_type = NodeType.LLiteral(Literal.Str(t.token_str))
+        token_str_cloned := t.token_str.clone()
+        node_type = NodeType.LLiteral(Literal.Str(token_str_cloned))
     case TokenType.Number:
         // TODO: parse and validate number
         node_type = NodeType.LLiteral(Literal.Number(t.token_str))
@@ -537,7 +553,7 @@ parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str {
         throw t.error(lexer.path, format("Trying to parse a token that's not a literal as a literal, found '", token_type_to_str(t.token_type), "'."))
     }
 
-    e := Expr.new_parse(node_type, t, params)
+    e := Expr.new_parse(node_type, t.clone(), params)
     lexer.advance(1)
     catch (err: AllocError) {
         throw err.msg
@@ -590,7 +606,8 @@ parse_args := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsEr
                     value := parse_primary(lexer)
                     mut named_arg_params := Vec.new(Expr)
                     named_arg_params.push(value)
-                    named_arg := Expr.new_explicit(NodeType.NamedArg(arg_name), named_arg_params, prim.line, prim.col)
+                    arg_name_cloned := arg_name.clone()
+                    named_arg := Expr.new_explicit(NodeType.NamedArg(arg_name_cloned), named_arg_params, prim.line, prim.col)
                     params.push(named_arg)
                 case:
                     throw next_t.error(lexer.path, "Named argument requires a simple identifier before '='")
@@ -609,7 +626,10 @@ parse_args := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsEr
     switch list_t.token_type {
     case TokenType.RightParen:
         // TODO properly parse lists besides function definition arguments
-        initial_token := lexer.get_token(initial_current)
+        initial_token := lexer.get_token(initial_current).clone()
+        catch (err: AllocError) {
+            throw concat("parse_args: ", err.msg)
+        }
         return Expr.new_parse(NodeType.LLiteral(Literal.List("")), initial_token, params)
     case:
         throw list_t.error(lexer.path, "Expected closing parentheses.")
@@ -621,10 +641,11 @@ parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr thr
     mut params := Vec.new(Expr)
     value := parse_primary(lexer)
     params.push(value)
+    result := Expr.new_parse(NodeType.Assignment(name), t.clone(), params)
     catch (err: AllocError) {
         throw concat("parse_assignment: ", err.msg)
     }
-    return Expr.new_parse(NodeType.Assignment(name), t, params)
+    return result
 }
 
 validate_mut_copy_own_modifiers := func(t: Token, path: Str, modifier: Str, is_mut: Bool, is_copy: Bool, is_own: Bool) throws Str {
@@ -745,7 +766,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                 mut decl := Declaration()
                 decl.name = arg_name
                 if is_variadic {
-                    decl.value_type = ValueType.TMulti(t.token_str)
+                    decl.value_type = ValueType.TMulti(t.token_str.clone())
                     is_variadic = false
                 } else {
                     decl.value_type = str_to_value_type(t.token_str)
@@ -962,10 +983,10 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
     func_def.return_types = return_types
     func_def.throw_types = throw_types
     func_def.body = body
-    func_def.source_path = lexer.path
+    func_def.source_path = lexer.path.clone()
 
     params := Vec.new(Expr)
-    e := Expr.new_parse(NodeType.FuncDef(func_def), t, params)
+    e := Expr.new_parse(NodeType.FuncDef(func_def), t.clone(), params)
     catch (err: AllocError) {
         throw err.msg
     }
@@ -1051,7 +1072,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
     params := Vec.new(Expr)
     mut enum_def := SEnumDef()
     enum_def.variants = variants
-    initial_token := lexer.get_token(initial_current)
+    initial_token := lexer.get_token(initial_current).clone()
     e := Expr.new_parse(NodeType.EnumDef(enum_def), initial_token, params)
     catch (err: AllocError) {
         throw err.msg
@@ -1089,12 +1110,12 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
 
         switch nt {
         case NodeType.Declaration(decl):
-            members.push(decl)
+            members.push(decl.clone())
 
             if p.params.len().eq(1) {
                 mut val := Expr()
                 p.params.get(0, val)
-                default_values.insert(decl.name, val)
+                default_values.insert(decl.name.clone(), val.clone())
             } else {
                 // TODO allow not setting default values in struct members
                 throw t.error(lexer.path, "all declarations inside struct definitions must have a value for now")
@@ -1108,7 +1129,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
     struct_def.members = members
     struct_def.default_values = default_values
     params := Vec.new(Expr)
-    result := Expr.new_parse(NodeType.StructDef(struct_def), t, params)
+    result := Expr.new_parse(NodeType.StructDef(struct_def), t.clone(), params)
     catch (err: AllocError) {
         throw concat("parse_struct_definition: ", err.msg)
     }
@@ -1139,7 +1160,8 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
             case TokenType.Identifier:
                 current_identifier = next2_t.token_str
                 lexer.advance(2)
-                ident_expr := Expr.new_parse(NodeType.Identifier(current_identifier), t, Vec.new(Expr))
+                current_identifier_cloned := current_identifier.clone()
+                ident_expr := Expr.new_parse(NodeType.Identifier(current_identifier_cloned), t.clone(), Vec.new(Expr))
                 params.push(ident_expr)
                 next_t = lexer.next()
             case:
@@ -1150,8 +1172,9 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
         }
     }
 
-    initial_token := lexer.get_token(initial_current)
-    e := Expr.new_parse(NodeType.Identifier(t.token_str), initial_token, params)
+    initial_token := lexer.get_token(initial_current).clone()
+    token_str_cloned := t.token_str.clone()
+    e := Expr.new_parse(NodeType.Identifier(token_str_cloned), initial_token, params)
     lexer.advance(1)
 
     ntt := next_t.token_type
@@ -1165,7 +1188,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
             arg_list.params.get(i, arg)
             fcall_params.push(arg)
         }
-        initial_token2 := lexer.get_token(initial_current)
+        initial_token2 := lexer.get_token(initial_current).clone()
         result = Expr.new_parse(NodeType.FCall, initial_token2, fcall_params)
 
         // Handle chained method calls: a.method1().method2().method3()
@@ -1183,7 +1206,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                 mtt := method_t.token_type
                 switch mtt {
                 case TokenType.Identifier:
-                    method_name := method_t.token_str
+                    method_name := method_t.token_str.clone()
                     lexer.advance(1)
 
                     // Check if it's a method call (has parentheses) or field access (no parentheses)
@@ -1196,7 +1219,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
 
                         // Create a new FCall with the method name as identifier and previous result as first arg
                         // This represents: method_name(result, args...)
-                        method_id := Expr.new_parse(NodeType.Identifier(method_name), method_t, Vec.new(Expr))
+                        method_id := Expr.new_parse(NodeType.Identifier(method_name), method_t.clone(), Vec.new(Expr))
                         mut new_params := Vec.new(Expr)
                         new_params.push(method_id)
                         new_params.push(result)  // Previous call result becomes first argument
@@ -1212,7 +1235,8 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                         // Collect all field names in the chain until we hit something else
                         mut field_params := Vec.new(Expr)
                         field_params.push(result)  // First param is the FCall/expression result
-                        field_params.push(Expr.new_parse(NodeType.Identifier(method_name), method_t, Vec.new(Expr)))
+                        method_name_cloned := method_name.clone()
+                        field_params.push(Expr.new_parse(NodeType.Identifier(method_name_cloned), method_t.clone(), Vec.new(Expr)))
 
                         // Continue collecting fields until we hit '(' (method call) or something else
                         mut continue_field_loop := true
@@ -1226,7 +1250,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                                 nftt := next_field_t.token_type
                                 switch nftt {
                                 case TokenType.Identifier:
-                                    next_field_name := next_field_t.token_str
+                                    next_field_name := next_field_t.token_str.clone()
                                     lexer.advance(1)
 
                                     // Check if this is a method call
@@ -1237,11 +1261,11 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                                         // This is a method call on the field chain
                                         // Build the Identifier chain for the field access, then wrap in FCall
                                         // Bug #32 fix: Use "_" to signal expression-based field access
-                                        field_access := Expr.new_parse(NodeType.Identifier("_"), method_t, field_params)
+                                        field_access := Expr.new_parse(NodeType.Identifier("_"), method_t.clone(), field_params)
 
                                         method_args2 := parse_args(lexer)
 
-                                        method_id2 := Expr.new_parse(NodeType.Identifier(next_field_name), next_field_t, Vec.new(Expr))
+                                        method_id2 := Expr.new_parse(NodeType.Identifier(next_field_name), next_field_t.clone(), Vec.new(Expr))
                                         mut new_params2 := Vec.new(Expr)
                                         new_params2.push(method_id2)
                                         new_params2.push(field_access)
@@ -1255,7 +1279,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                                         continue_field_loop = false
                                     case:
                                         // Another field access
-                                        field_params.push(Expr.new_parse(NodeType.Identifier(next_field_name), next_field_t, Vec.new(Expr)))
+                                        field_params.push(Expr.new_parse(NodeType.Identifier(next_field_name), next_field_t.clone(), Vec.new(Expr)))
                                     }
                                 case:
                                     throw next_field_t.error(lexer.path, format("Expected identifier after '.', found '", token_type_to_str(next_field_t.token_type), "'"))
@@ -1265,7 +1289,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                                 // Bug #32 fix: Use "_" as identifier name to signal that
                                 // params[0] is an expression (FCall) to evaluate first, then access
                                 // the remaining params as fields on its result
-                                result = Expr.new_parse(NodeType.Identifier("_"), method_t, field_params)
+                                result = Expr.new_parse(NodeType.Identifier("_"), method_t.clone(), field_params)
                                 continue_field_loop = false
                             }
                         }
@@ -1454,18 +1478,19 @@ return_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBo
         }
     }
 
+    initial_token := lexer.get_token(initial_current).clone()
+
     catch (err: AllocError) {
         throw concat("return_statement: ", err.msg)
     }
 
-    initial_token := lexer.get_token(initial_current)
     return Expr.new_parse(NodeType.Return, initial_token, params)
 }
 
 parse_break_statement := func(mut lexer: Lexer) returns Expr throws Str {
     initial_current := lexer.current
     lexer.advance(1) // consume 'break'
-    initial_token := lexer.get_token(initial_current)
+    initial_token := lexer.get_token(initial_current).clone()
     mut params := Vec.new(Expr)
     catch (err: AllocError) {
         throw concat("parse_break_statement: ", err.msg)
@@ -1476,7 +1501,7 @@ parse_break_statement := func(mut lexer: Lexer) returns Expr throws Str {
 parse_continue_statement := func(mut lexer: Lexer) returns Expr throws Str {
     initial_current := lexer.current
     lexer.advance(1) // consume 'continue'
-    initial_token := lexer.get_token(initial_current)
+    initial_token := lexer.get_token(initial_current).clone()
     mut params := Vec.new(Expr)
     catch (err: AllocError) {
         throw concat("parse_continue_statement: ", err.msg)
@@ -1508,11 +1533,12 @@ parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
         }
     }
 
+    initial_token := lexer.get_token(initial_current).clone()
+
     catch (err: AllocError) {
         throw concat("parse_throw_statement: ", err.msg)
     }
 
-    initial_token := lexer.get_token(initial_current)
     return Expr.new_parse(NodeType.Throw, initial_token, params)
 }
 
@@ -1524,14 +1550,16 @@ parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
 
     // Parse the error variable name
     name_token := lexer.expect(TokenType.Identifier)
-    name := name_token.token_str
-    name_expr := Expr.new_parse(NodeType.Identifier(name), name_token, Vec.new(Expr))
+    name := name_token.token_str.clone()
+    name_cloned := name.clone()
+    name_expr := Expr.new_parse(NodeType.Identifier(name_cloned), name_token.clone(), Vec.new(Expr))
 
     _ := lexer.expect(TokenType.Colon) // expect ':'
 
     // Parse the exception type
     type_token := lexer.expect(TokenType.Identifier)
-    type_expr := Expr.new_parse(NodeType.Identifier(type_token.token_str), type_token, Vec.new(Expr))
+    type_token_str_cloned := type_token.token_str.clone()
+    type_expr := Expr.new_parse(NodeType.Identifier(type_token_str_cloned), type_token.clone(), Vec.new(Expr))
 
     _ := lexer.expect(TokenType.RightParen) // expect ')'
 
@@ -1543,11 +1571,12 @@ parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
     params.push(type_expr)
     params.push(body_expr)
 
+    initial_token := lexer.get_token(initial_current).clone()
+
     catch (err: AllocError) {
         throw concat("parse_catch_statement: ", err.msg)
     }
 
-    initial_token := lexer.get_token(initial_current)
     return Expr.new_parse(NodeType.Catch, initial_token, params)
 }
 
@@ -1593,11 +1622,12 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBounds
         // No else clause
     }
 
+    initial_token := lexer.get_token(initial_current).clone()
+
     catch (err: AllocError) {
         throw concat("if_statement: ", err.msg)
     }
 
-    initial_token := lexer.get_token(initial_current)
     return Expr.new_parse(NodeType.If, initial_token, params)
 }
 
@@ -1621,11 +1651,12 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     body := parse_body(lexer, TokenType.RightBrace)
     params.push(body)
 
+    initial_token := lexer.get_token(initial_current).clone()
+
     catch (err: AllocError) {
         throw concat("while_statement: ", err.msg)
     }
 
-    initial_token := lexer.get_token(initial_current)
     return Expr.new_parse(NodeType.While, initial_token, params)
 }
 
@@ -1640,7 +1671,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     if ident_token.token_str.eq("_") {
         loop_var_name = next_loop_var()
     } else {
-        loop_var_name = ident_token.token_str
+        loop_var_name = ident_token.token_str.clone()
     }
 
     // Check for collection-based for: for VAR: TYPE in COLLECTION
@@ -1651,7 +1682,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
 
         // Get the element type
         type_token := lexer.expect(TokenType.Identifier)
-        var_type_name := type_token.token_str
+        var_type_name := type_token.token_str.clone()
 
         _ := lexer.expect(TokenType.In)
 
@@ -1662,7 +1693,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         forin_body_expr := parse_body(lexer, TokenType.RightBrace)
 
         // ForIn node: params[0] = Identifier(var_name), params[1] = collection, params[2] = body
-        var_ident := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token, Vec.new(Expr))
+        var_ident := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token.clone(), Vec.new(Expr))
 
         mut forin_params := Vec.new(Expr)
         forin_params.push(var_ident)
@@ -1694,39 +1725,41 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     if not(is_range) {
         throw ident_token.error(lexer.path, "Expected range expression (start..end) after 'in'. For collection iteration, use 'for VAR: TYPE in COLLECTION'")
     }
-    start_expr := range_expr.get(0)
-    end_expr := range_expr.get(1)
+    start_expr := range_expr.get(0).clone()
+    end_expr := range_expr.get(1).clone()
 
     _ := lexer.expect(TokenType.LeftBrace)
     body_expr := parse_body(lexer, TokenType.RightBrace)
 
     // let loop_var := <start_expr>
     mut decl := Declaration()
-    decl.name = loop_var_name
+    decl.name = loop_var_name.clone()
     decl.value_type = str_to_value_type(INFER_TYPE)
     decl.is_mut = true
     mut decl_params := Vec.new(Expr)
-    decl_params.push(start_expr)
-    decl_expr := Expr.new_parse(NodeType.Declaration(decl), initial_token, decl_params)
+    decl_params.push(start_expr.clone())
+    decl_expr := Expr.new_parse(NodeType.Declaration(decl), initial_token.clone(), decl_params)
 
     // while <loop_var> < <end_expr> {
     // Create: loop_var.lt(end_expr)
     mut lt_ident_params := Vec.new(Expr)
-    lt_expr := Expr.new_parse(NodeType.Identifier("lt"), initial_token, Vec.new(Expr))
+    lt_expr := Expr.new_parse(NodeType.Identifier("lt"), initial_token.clone(), Vec.new(Expr))
     lt_ident_params.push(lt_expr)
-    loop_var_ident := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token, lt_ident_params)
+    loop_var_name_cloned := loop_var_name.clone()
+    loop_var_ident := Expr.new_parse(NodeType.Identifier(loop_var_name_cloned), initial_token.clone(), lt_ident_params)
 
     mut cond_params := Vec.new(Expr)
     cond_params.push(loop_var_ident)
-    cond_params.push(end_expr)
+    cond_params.push(end_expr.clone())
     cond_expr := Expr.new_explicit(NodeType.FCall, cond_params, initial_token.line, initial_token.col)
 
     // Create: loop_var.inc()
     mut inc_ident_params := Vec.new(Expr)
-    inc_method_ident := Expr.new_parse(NodeType.Identifier("inc"), initial_token, Vec.new(Expr))
+    inc_method_ident := Expr.new_parse(NodeType.Identifier("inc"), initial_token.clone(), Vec.new(Expr))
     inc_ident_params.push(inc_method_ident)
     mut inc_params := Vec.new(Expr)
-    loop_var_inc_expr := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token, inc_ident_params)
+    loop_var_name_cloned2 := loop_var_name.clone()
+    loop_var_inc_expr := Expr.new_parse(NodeType.Identifier(loop_var_name_cloned2), initial_token.clone(), inc_ident_params)
     inc_params.push(loop_var_inc_expr)
     inc_expr := Expr.new_explicit(NodeType.FCall, inc_params, initial_token.line, initial_token.col)
 
@@ -1760,7 +1793,7 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str {
     ent := e.node_type
     switch ent {
         case NodeType.Identifier(name):
-            result = name
+            result = name.clone()
             // Check if this is a dotted name: Identifier with params
             // For example, "Color.Green" is Identifier("Color") with params=[Identifier("Green")]
             if e.params.len().eq(1) {
@@ -1783,6 +1816,7 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str {
         case:
     }
     catch (err: IndexOutOfBoundsError) { throw concat("get_full_identifier_name: ", err.msg) }
+    catch (err: AllocError) { throw concat("get_full_identifier_name: ", err.msg) }
     return result
 }
 
@@ -1830,7 +1864,7 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
                         // Convert FCall to Pattern
                         mut pattern_info := PatternInfo()
                         pattern_info.variant_name = variant_name
-                        pattern_info.binding_var = binding_var
+                        pattern_info.binding_var = binding_var.clone()
                         // Bug #27 FIXED - can now inline Vec.new(Expr) as function argument
                         return Expr.new_explicit(NodeType.Pattern(pattern_info), Vec.new(Expr), left.line, left.col)
                     case:
@@ -1880,7 +1914,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
         ntt2 := next_t.token_type
         switch ntt2 {
         case TokenType.Colon:
-            default_case_expr := Expr.new_parse(NodeType.DefaultCase, t, Vec.new(Expr))
+            default_case_expr := Expr.new_parse(NodeType.DefaultCase, t.clone(), Vec.new(Expr))
             params.push(default_case_expr)
         case:
             prim2 := parse_case_expr(lexer)
@@ -1904,13 +1938,13 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
             ntt4 := next_t.token_type
             switch ntt4 {
             case TokenType.RightBrace:
-                body_expr := Expr.new_parse(NodeType.Body, t, body_params)
+                body_expr := Expr.new_parse(NodeType.Body, t.clone(), body_params)
                 params.push(body_expr)
                 end_found = true
                 lexer.advance(1)
                 inner_loop_done = true  // TODO: Replace with 'break' when implemented (Rust line 1238)
             case TokenType.Case:
-                body_expr := Expr.new_parse(NodeType.Body, t, body_params)
+                body_expr := Expr.new_parse(NodeType.Body, t.clone(), body_params)
                 params.push(body_expr)
                 inner_loop_done = true  // TODO: Replace with 'break' when implemented (Rust line 1242)
             case:
@@ -1934,7 +1968,10 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
     }
 
     if end_found {
-        initial_token := lexer.get_token(initial_current)
+        initial_token := lexer.get_token(initial_current).clone()
+        catch (err: AllocError) {
+            throw concat("parse_switch_statement: ", err.msg)
+        }
         return Expr.new_parse(NodeType.Switch, initial_token, params)
     }
     throw t.error(lexer.path, "Expected '}}' to end switch.")
@@ -1961,11 +1998,12 @@ parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explici
     decl.is_copy = is_copy
     decl.is_own = false
 
+    initial_token := lexer.get_token(initial_current).clone()
+
     catch (err: AllocError) {
         throw concat("parse_declaration: ", err.msg)
     }
 
-    initial_token := lexer.get_token(initial_current)
     return Expr.new_parse(NodeType.Declaration(decl), initial_token, params)
 }
 
@@ -2088,7 +2126,10 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
     }
 
     if end_found {
-        initial_token := lexer.get_token(initial_current)
+        initial_token := lexer.get_token(initial_current).clone()
+        catch (err: AllocError) {
+            throw concat("parse_body: ", err.msg)
+        }
         return Expr.new_parse(NodeType.Body, initial_token, params)
     }
     throw t.error(lexer.path, format("Expected '", token_type_to_str(end_token), "' to end body."))
