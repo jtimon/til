@@ -271,6 +271,66 @@ while i.gteq(0) {  // TODO: use reverse range when implemented: for i in items.l
 
 Note: Start at ~len().sub(1)~, loop while ~i.gteq(0)~ to include index 0, decrement at end with ~i.dec()~.
 
+** break and continue
+
+TIL supports ~break~ and ~continue~ statements for loop control.
+
+*** break
+
+Works in both ~while~ and ~for~ loops. Only breaks the innermost loop.
+
+#+begin_src til
+while condition {
+    if should_exit {
+        break
+    }
+}
+
+for i in 0..10 {
+    if i.eq(5) {
+        break  // exits loop when i is 5
+    }
+}
+#+end_src
+
+*** continue
+
+Works in ~while~ loops only. Does NOT work correctly in ~for~ loops.
+
+#+begin_src til
+// CORRECT: continue in while loop
+mut i := 0
+while lt(i, 10) {
+    i.inc()
+    if i.eq(5) {
+        continue  // skip rest of body, go to next iteration
+    }
+    // ... rest of body
+}
+#+end_src
+
+WARNING: ~continue~ in ~for~ loops causes infinite loops because ~for~ desugars to
+~while~ with the increment at the end of the body. ~continue~ skips the increment.
+
+#+begin_src til
+// WRONG: causes infinite loop!
+for i in 0..10 {
+    if i.eq(5) {
+        continue  // BUG: skips the implicit i.inc(), loops forever at i=5
+    }
+}
+
+// CORRECT: use while with manual increment before continue
+mut i := 0
+while lt(i, 10) {
+    i.inc()  // increment BEFORE any continue
+    if i.eq(5) {
+        continue
+    }
+    // ...
+}
+#+end_src
+
 ** For-in loops
 
 Rust:
@@ -576,19 +636,47 @@ MyStruct := struct {
 
 Clone behavior by type:
 - Primitives (I64, Bool, U8): direct copy, no clone needed
-- Enums: direct copy, no clone needed (enums are value types in TIL)
+- Simple enums (no heap data): direct copy, no clone needed
+- Enums with Str/Vec payloads: NEED deep clone functions (see below)
 - Str: use ~.clone()~
 - Vec: use ~.clone()~ (deep copy)
 - Map: use ~.clone()~ (deep copy)
 - Structs: create clone method, copy each field appropriately
 
-IMPORTANT: Enums do NOT need clone in TIL. Unlike Rust where ~#[derive(Clone)]~ is needed,
-TIL enums are value types and are automatically copied on assignment. Just assign directly:
+** Simple enums (no heap data)
+
+Enums without Str/Vec payloads are value types and copy automatically:
 
 #+begin_src til
-// Rust: let copy = my_enum.clone();
-// TIL: just assign - enums copy by value
+// Simple enum - just assign, copies by value
+MyEnum := enum { A, B, C }
 copy := my_enum
+#+end_src
+
+** Enums with heap data (Str/Vec payloads)
+
+Enums containing Str or Vec fields need deep clone functions to copy the heap data.
+Otherwise you get shallow copies where multiple values point to the same heap memory.
+
+Example from parser.til:
+#+begin_src til
+// Literal enum has Str payloads - needs deep clone
+literal_clone := func(lit: Literal) returns Literal throws AllocError {
+    switch lit {
+    case Literal.Str(s):
+        return Literal.Str(s.clone())
+    case Literal.I64(n):
+        return Literal.I64(n)  // primitive, no clone needed
+    case Literal.Bool(b):
+        return Literal.Bool(b)
+    // ... other variants
+    }
+}
+
+// NodeType, ValueType, Token also need clone functions
+node_type_clone := func(nt: NodeType) returns NodeType throws AllocError { ... }
+value_type_clone := func(vt: ValueType) returns ValueType throws AllocError { ... }
+Token.clone := func(self: Token) returns Token throws AllocError { ... }
 #+end_src
 
 IMPORTANT: When a struct contains other structs that need cloning, call their
@@ -656,3 +744,5 @@ The translation is mechanical:
 12. Not-equal: ~!=~ or ~.ne()~ -> ~not(eq())~ or ~not(x.eq(y))~ (TIL has no ~ne~ function)
 13. Enum comparison: ~==~ on enums -> use ~switch~ or type-specific ~_to_str~ functions (enums have no ~eq~ method, ~enum_to_str~ ignores payloads)
 14. Pattern variables in switch/case are scoped to the case block - do ALL work with payloads inside the case
+15. ~break~ works in while and for loops; ~continue~ works in while loops only (NOT for loops - causes infinite loop)
+16. Enums with Str/Vec payloads need deep clone functions (~literal_clone~, ~node_type_clone~, etc.); simple enums copy by value

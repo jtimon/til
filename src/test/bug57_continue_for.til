@@ -1,0 +1,24 @@
+// Bug #57: continue in for loops causes infinite loop
+// This test demonstrates the issue - DO NOT RUN without timeout
+//
+// The problem: for loops desugar to while with increment at END of body.
+// continue skips the increment, causing infinite loop.
+//
+// Run with: timeout 2 ./bin/rstil interpret src/test/bug57_continue_for.til
+// Expected: times out (infinite loop)
+// When fixed: should print 0,1,2,3,4,6,7,8,9 (skipping 5)
+
+mode test
+
+test_continue_in_for := proc() {
+    // This will infinite loop at i=5
+    for i in 0..10 {
+        if i.eq(5) {
+            continue  // BUG: skips implicit i.inc(), loops forever
+        }
+        println(i.to_str())
+    }
+    println("done")  // never reached
+}
+
+test_continue_in_for()
