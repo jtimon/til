@@ -260,12 +260,6 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.ForIn(var_type_name):
         desugared := precomp_forin(context, e, var_type_name)
         return precomp_expr(context, desugared)
-    case:
-        return e.clone()
-    }
-
-    catch (err: AllocError) {
-        throw err.msg
     }
 }
 
