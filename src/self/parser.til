@@ -139,10 +139,31 @@ SFuncDef := struct {
     clone := func(self: SFuncDef) returns SFuncDef throws AllocError {
         mut result := SFuncDef()
         result.function_type = self.function_type
-        result.args = self.args.clone()
-        result.return_types = self.return_types.clone()
-        result.throw_types = self.throw_types.clone()
-        result.body = self.body.clone()
+        // Deep clone args
+        for i in 0..self.args.len() {
+            mut arg := Declaration()
+            self.args.get(i, arg)
+            result.args.push(arg.clone())
+        }
+        // Deep clone return_types
+        for i in 0..self.return_types.len() {
+            mut rt := ValueType.TCustom("")
+            self.return_types.get(i, rt)
+            result.return_types.push(value_type_clone(rt))
+        }
+        // Deep clone throw_types
+        for i in 0..self.throw_types.len() {
+            mut tt := ValueType.TCustom("")
+            self.throw_types.get(i, tt)
+            result.throw_types.push(value_type_clone(tt))
+        }
+        // Deep clone body
+        for i in 0..self.body.len() {
+            mut e := Expr()
+            self.body.get(i, e)
+            result.body.push(e.clone())
+        }
+        catch (err: IndexOutOfBoundsError) { panic(err.msg) }
         result.source_path = self.source_path.clone()
         return result
     }
