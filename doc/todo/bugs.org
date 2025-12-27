@@ -8,57 +8,6 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #56: Interpreter rejects FCall in enum payload inside func/proc
-:PROPERTIES:
-:DISCOVERED: 2025-12-27
-:IMPACT: Workaround required for clone calls in enum constructors
-:STATUS: Open
-:END:
-
-*** Description
-When constructing an enum with a payload that is a function call (FCall),
-the interpreter rejects it with "Struct payload must be a variable identifier
-or literal, got FCall". This only happens inside func/proc bodies - top level
-declarations work fine. Compiled mode also works fine.
-
-*** Example
-#+BEGIN_SRC til
-MyEnum := enum {
-    Variant1: Str,
-}
-
-// WORKS: top level
-s := "test"
-e1 := MyEnum.Variant1(s.clone())
-
-// FAILS: inside func/proc
-test_func := func() returns MyEnum throws AllocError {
-    x := "hello"
-    return MyEnum.Variant1(x.clone())  // ERROR!
-}
-
-// WORKAROUND: extract to variable first
-test_workaround := func() returns MyEnum throws AllocError {
-    x := "hello"
-    x_cloned := x.clone()
-    return MyEnum.Variant1(x_cloned)  // This works
-}
-#+END_SRC
-
-*** Reproducing
-#+BEGIN_SRC bash
-./bin/rstil interpret src/test/bug_enum_fcall.til
-# Output:
-# top level declaration: OK
-# workaround in func: OK
-# ERROR: ... Struct payload must be a variable identifier or literal, got FCall
-#+END_SRC
-
-*** Root Cause
-Likely in interpreter.rs where enum construction is evaluated. The top-level
-declaration code path handles FCall payloads, but the func/proc body code path
-does not.
-
 ** Bug #51: Precomp doesn't propagate constants through function parameters
 :PROPERTIES:
 :DISCOVERED: 2025-12-19
@@ -405,6 +354,41 @@ This suggests the bug is related to how the caught error variable is stored/acce
 in the generated C code when used inside the catch block body.
 
 * Fixed Bugs
+
+** Bug #56: Interpreter rejects FCall in enum payload inside func/proc
+:PROPERTIES:
+:DISCOVERED: 2025-12-27
+:FIXED: 2025-12-27
+:IMPACT: Workaround required for clone calls in enum constructors
+:STATUS: Fixed
+:END:
+
+*** Description
+When constructing an enum with a payload that is a function call (FCall),
+the interpreter rejected it with "Struct payload must be a variable identifier
+or literal, got FCall". This only happened inside func/proc bodies - top level
+declarations worked fine. Compiled mode also worked fine.
+
+*** Root Cause
+In interpreter.rs, the match statement handling struct payloads (for enum
+variants) only handled Identifier and Literal node types, not FCall. Top-level
+worked because it used a different code path.
+
+*** Fix
+Added a case for NodeType::FCall when the struct type is "Str". The fix creates
+a temporary variable to hold the FCall result, then uses that variable name
+as the payload. This mirrors what the existing Identifier and Literal handlers do.
+
+Changes made:
+- interpreter.rs: Added FCall case for Str payloads in enum variant construction
+- interpreter.til: Ported fix to TIL self-hosted implementation
+- Also fixed error message from "Struct payload" to "Enum variant payload"
+
+*** Test
+#+BEGIN_SRC bash
+./bin/rstil interpret src/test/bug56.til
+# Output: All tests passed
+#+END_SRC
 
 ** Bug #57: continue in for loops causes infinite loop
 :PROPERTIES:

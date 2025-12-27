@@ -1036,7 +1036,23 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             EvalArena::insert_i64(context, &temp_var_name, &i64_value.to_string(), e)?;
                                             temp_var_name
                                         },
-                                        _ => return Err(e.error(&context.path, "eval", &format!("Struct payload must be a variable identifier or literal, got {:?}", payload_expr.node_type))),
+                                        // Bug #56 fix: Handle FCall (e.g., x.clone()) for Str payloads
+                                        NodeType::FCall if struct_type_name == "Str" => {
+                                            let temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+                                            let string_value = &payload_result.value;
+
+                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
+                                                value_type: ValueType::TCustom("Str".to_string()),
+                                                is_mut: false,
+                                                is_copy: false,
+                                                is_own: false,
+                                                is_comptime_const: false,
+                                            });
+
+                                            EvalArena::insert_string(context, &temp_var_name, &string_value.to_string(), e)?;
+                                            temp_var_name
+                                        },
+                                        _ => return Err(e.error(&context.path, "eval", &format!("Enum variant payload must be a variable, literal, or function call, got {:?}", payload_expr.node_type))),
                                     };
 
                                     // Get struct offset from arena
