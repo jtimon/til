@@ -2837,7 +2837,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "readfile" => ext::proc_readfile(context, &e),
         "writefile" => ext::proc_writefile(context, &e),
         "run_cmd" => ext::proc_run_cmd(context, &e),
-        "runfile" => proc_runfile(context, &e),
+        "eval_file" => proc_eval_file(context, &e),
         "has_const" => ext::func_has_const(context, &e),
         "has_field" => ext::func_has_field(context, &e),
         _ => {
@@ -3001,7 +3001,7 @@ pub fn interpret_file_with_context(is_import: bool, skip_init: bool, context: &m
     return Ok(run_result)
 }
 
-// ---------- proc_eval_to_str, proc_runfile, proc_import (moved from ext.rs)
+// ---------- proc_eval_to_str, proc_eval_file, proc_import (moved from ext.rs)
 
 pub fn proc_eval_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     ext::validate_arg_count(&context.path, e, "eval_to_str", 1, true)?;
@@ -3016,9 +3016,9 @@ pub fn proc_eval_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, S
     return main_interpret(false, context, &path, str_source, Vec::new())
 }
 
-pub fn proc_runfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn proc_eval_file(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() < 2 {
-        return Err(e.lang_error(&context.path, "eval", "Core proc 'runfile' expects at least 1 parameter"));
+        return Err(e.lang_error(&context.path, "eval", "Core proc 'eval_file' expects at least 1 parameter"));
     }
 
     let result = eval_expr(context, e.get(1)?)?;

@@ -9,8 +9,7 @@ enum_to_str := ext_func(e: Dynamic) returns Str;
 eval_to_str     := ext_proc(a: Str) returns Str;
 eval_to_ast_str := ext_proc(src: Str) returns Str; // TODO
 eval_to_expr    := ext_proc(src: Str) returns Expr; // TODO
-
-runfile         := ext_proc(args: ..Str);
+eval_file       := ext_proc(args: ..Str);
 
 // Introspection - Runtime type information utilities
 //

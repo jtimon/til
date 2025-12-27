@@ -3156,8 +3156,8 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return proc_readfile(context, e)
     } else if name.eq("run_cmd") {
         return proc_run_cmd(context, e)
-    } else if name.eq("runfile") {
-        return proc_runfile(context, e)
+    } else if name.eq("eval_file") {
+        return proc_eval_file(context, e)
     } else if name.eq("has_const") {
         return func_has_const(context, e)
     } else if name.eq("has_field") {
@@ -3351,7 +3351,7 @@ interpret_file := proc(path: Str, main_args: Vec) returns EvalResult throws Str 
     return interpret_file_with_context(false, false, context, path, main_args)
 }
 
-// ---------- proc_eval_to_str, proc_runfile, proc_import (moved from ext.til)
+// ---------- proc_eval_to_str, proc_eval_file, proc_import (moved from ext.til)
 
 proc_eval_to_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "eval_to_str", 1, true)
@@ -3367,9 +3367,9 @@ proc_eval_to_str := proc(mut context: Context, e: Expr) returns EvalResult throw
     return main_interpret(false, context, path, str_source, Vec.new(Str))
 }
 
-proc_runfile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+proc_eval_file := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     if e.params.len().lt(2) {
-        throw e.lang_error(context.path, "eval", "Core proc 'runfile' expects at least 1 parameter")
+        throw e.lang_error(context.path, "eval", "Core proc 'eval_file' expects at least 1 parameter")
     }
 
     result := eval_expr(context, e.get(1))

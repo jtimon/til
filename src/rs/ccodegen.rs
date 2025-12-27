@@ -3232,10 +3232,10 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         };
 
         if let Some(fcall) = maybe_fcall {
-            // runfile is only available in interpret mode
+            // eval_file is only available in interpret mode
             if let Some(func_name) = get_til_func_name_string(&fcall.params[0]) {
-                if func_name == "runfile" {
-                    return Err(fcall.error(&context.path, "ccodegen", "runfile() is only available in interpret mode, not in build/run"));
+                if func_name == "eval_file" {
+                    return Err(fcall.error(&context.path, "ccodegen", "eval_file() is only available in interpret mode, not in build/run"));
                 }
             }
 
