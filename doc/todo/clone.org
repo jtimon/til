@@ -1,0 +1,148 @@
+#+TITLE: Clone Matching: Rust to TIL
+#+DESCRIPTION: Match every .clone() call between Rust and TIL files 1:1
+
+* Goal
+
+Make TIL clone calls EXACTLY match Rust clone calls:
+- If Rust clones, TIL must clone in the same place
+- If Rust doesn't clone, TIL must NOT clone there either
+- The location matters: clone inside function vs at call site must match
+
+This ensures TIL behaves identically to Rust regarding memory ownership.
+
+* Rules
+
+1. Every =.clone()= in Rust MUST have corresponding =.clone()= in TIL AT THE SAME LOCATION
+2. Every =.clone()= in TIL that is NOT in Rust MUST be removed
+3. Clones inside TIL =.clone()= methods are CORRECT (they match Rust's =#[derive(Clone)]=)
+4. ALWAYS check actual Rust code - don't assume, verify line by line
+
+* Critical Notes
+
+** Enums are value types in TIL
+- Simple enums without heap data copy by value automatically
+- BUT enums containing Str/Vec fields (Token, Literal, NodeType, ValueType) need clone methods to deep copy those fields
+- Token.clone(), literal_clone(), node_type_clone(), value_type_clone() ARE needed for deep copying
+
+** AllocError handling
+- Internal errors (IndexOutOfBoundsError, AllocError) should be caught internally
+- NOT exposed in the throws signature
+- Catch and rethrow as Str: =catch (err: AllocError) { throw err.msg }=
+
+** Bug #56 workaround
+- Interpreter rejects FCall inside enum constructor payloads in func/proc
+- Solution: Use =node_type_clone(NodeType.Variant(value))= instead of =NodeType.Variant(value.clone())=
+- Same pattern for =literal_clone()= and =value_type_clone()=
+- All workarounds marked with "TODO Bug #56" for easy removal when fixed
+
+* Methodology (Bidirectional Exhaustive)
+
+For each file pair:
+1. Grep ALL =.clone()= calls in TIL
+2. For each TIL clone: Does it exist in Rust? If NO -> EXTRA -> REMOVE
+3. Grep ALL =.clone()= calls in Rust
+4. For each Rust clone: Does it exist in TIL? If NO -> MISSING -> ADD
+
+* Progress Summary
+
+| File         | TIL | Rust | EXTRA | MISSING | STATUS              |
+|--------------+-----+------+-------+---------+---------------------|
+| lexer        |   4 |    4 |     0 |       0 | DONE                |
+| parser       |  81 |   56 |     0 |       0 | DONE                |
+| init         |  60 |   51 |     0 |       0 | DONE                |
+| scavenger    |  20 |   21 |     0 |       0 | DONE (1 REM)        |
+| typer        |   1 |   71 |     0 |      70 | pending             |
+| precomp      |  26 |   78 |     0 |      52 | pending             |
+| interpreter  |  69 |  121 |     0 |      52 | pending             |
+| eval_arena   |   1 |   33 |     0 |      32 | pending             |
+| ccodegen     |   3 |  150 |     0 |     147 | pending             |
+| builder      |   0 |   12 |     0 |      12 | pending             |
+| target       |   0 |    0 |     0 |       0 | DONE (nothing)      |
+| mode         |   3 |    0 |     0 |       0 | DONE (nothing)      |
+| precomp_ext  |   0 |    1 |     0 |       1 | pending             |
+| ext          |   0 |    2 |     0 |       2 | pending             |
+|--------------+-----+------+-------+---------+---------------------|
+| TOTAL        | 268 |  600 |     0 |     368 | 6/14 done           |
+
+* Completed Files
+
+** File 1: lexer.til - DONE
+
+Added:
+- Token.clone() method (deep copies token_str)
+- peek() returns t.clone()
+- previous() returns t.clone()
+- get_token() returns t (NO clone) - clone happens at call site in parser
+- lexer_from_source uses path.clone()
+
+** File 2: parser.til - DONE
+
+Added all 56 clones with Bug #56 workarounds where needed.
+
+** File 3: init.til - DONE
+
+Added ~45 clones matching Rust patterns:
+- value_type_clone() for ValueType
+- path.clone(), combined_name.clone() for strings
+- Proper AllocError catch blocks before returns
+
+** File 4: scavenger.til - DONE
+
+Added 20 clones (Rust has 21, difference is string literals):
+- member_decl.clone(), func_def.clone(), struct_def.clone()
+- name.clone() for identifiers
+- node_type_clone(e.node_type) for node types
+- REM comment for RS:377 explaining string literals don't need clone in TIL
+
+* Pending Files
+
+** File 5: typer.til - 70 missing clones
+
+| RS Line | Clone                        | Function                      |
+|---------+------------------------------+-------------------------------|
+|      39 | path.clone()                 | typer_import_declarations     |
+|      43 | ast.clone()                  | typer_import_declarations     |
+|      52 | file_mode.clone()            | typer_import_declarations     |
+|      60 | context.path.clone()         | typer_import_declarations     |
+|      61 | context.mode_def.clone()     | typer_import_declarations     |
+|      62 | path.clone()                 | typer_import_declarations     |
+| 162,166 | err.clone()                  | check_types                   |
+|     361 | type_name.clone()            | check_forin_statement         |
+|     368 | name.clone()                 | check_forin_statement         |
+|     393 | name.clone()                 | check_forin_statement         |
+|     467 | e.clone()                    | check_fcall                   |
+| 494,495 | inner_type_name/value_type   | check_func_proc_types         |
+|     ... | (see full plan)              | ...                           |
+
+** File 6: precomp.til - 52 missing clones
+
+| RS Line | Clone                        | Function           |
+|---------+------------------------------+--------------------|
+|      48 | e.params[0].clone()          | reorder_named_args |
+|      77 | arg.clone()                  | reorder_named_args |
+|     149 | func_def.clone()             | precomp_expr       |
+|     170 | name.clone()                 | precomp_expr       |
+|     283 | context.path.clone()         | eval_comptime      |
+|     ... | (see full plan)              | ...                |
+
+** File 7: interpreter.til - 52 missing clones
+
+** File 8: eval_arena.til - 32 missing clones
+
+** File 9: ccodegen.til - 147 missing clones
+
+** File 10: builder.til - 12 missing clones
+
+** File 13: precomp_ext.til - 1 missing clone
+
+RS:25 =context.path.clone()=
+
+** File 14: ext.til - 2 missing clones
+
+- RS:509 =error_msg_.clone()=
+- RS:615 =name.clone()=
+
+* Full Plan Reference
+
+The complete detailed plan with all RS line numbers is at:
+=/home/jt/.claude/plans/shimmering-bubbling-candle.md=
