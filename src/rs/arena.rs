@@ -1,6 +1,7 @@
 // Arena: Low-level memory management
 // Simple bump allocator with get/set/put/reserve operations.
 // Rust EvalArena must be 2x TIL EvalArena for `rstil interpret src/til.til interpret`.
+// TIL equivalent: src/std/arena.til
 
 pub const ARENA_SIZE: usize = 16777216;  // 16MB
 

@@ -245,7 +245,7 @@ ScopeStack := struct {
             throw format("Variable '", name, "' already declared in this scope")
         }
 
-        current_frame.arena_index.insert(name.clone(), offset.to_str())
+        current_frame.arena_index.insert(name.clone(), offset)
         current_frame.symbols.insert(name, symbol)
         self.frames.set(last_idx, current_frame)
     }
@@ -294,12 +294,12 @@ ScopeStack := struct {
             mut current_frame := ScopeFrame()
             self.frames.get(last_idx, current_frame)
             if current_frame.arena_index.contains_key(name) {
-                mut offset_str := ""
-                current_frame.arena_index.get(name, offset_str)
+                mut offset := 0
+                current_frame.arena_index.get(name, offset)
                 current_frame.arena_index.remove(name)
                 self.frames.set(last_idx, current_frame)
                 mut ptr := Ptr()
-                ptr.data = offset_str.to_i64()
+                ptr.data = offset
                 return ptr
             }
         }
@@ -318,7 +318,7 @@ ScopeStack := struct {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
             self.frames.get(last_idx, current_frame)
-            current_frame.arena_index.insert(name, offset.to_str())
+            current_frame.arena_index.insert(name, offset)
             self.frames.set(last_idx, current_frame)
         }
         catch (err: IndexOutOfBoundsError) {

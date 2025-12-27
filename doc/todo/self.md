@@ -50,20 +50,25 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Fix: Added else clause to call hoist_throwing_expr for non-FCall arguments
   - Test: src/test/bug55.til
 
-### Current Issue
-**Arena overflow (2025-12-27)**
+- **Bug #59** (Fixed 2025-12-27): Arena overflow caused by type mismatch
+  - Root cause: init.til was storing `offset.to_str()` in `arena_index` (Map(Str, I64))
+    but reading it as I64 directly. The Str bytes were being misinterpreted as I64.
+  - Fix: Removed `.to_str()` calls in `declare_var`, `insert_var`, and `remove_var`
+  - Also fixed `remove_var` to read I64 directly instead of Str then convert
 
-Previous segfault was caused by `lookup_var` in init.til treating `arena_index` as
-`Map(Str, Str)` and calling `to_i64()` on the value. Fixed by using `Map(Str, I64)`
-correctly - getting the offset as an I64 directly.
+### Current Issue
+**Scavenger error in til run (2025-12-27)**
 
 Current status:
 ```bash
-./bin/til interpret src/examples/empty.til  # ERROR: arena overflow
-./bin/til run src/examples/empty.til        # Build error: arena overflow
+./bin/til interpret src/examples/empty.til  # WORKS!
+./bin/til run src/examples/empty.til        # ERROR: no body found for 'a.and'
 ```
 
-Need to investigate why arena overflows during self-hosted compilation.
+**IMPORTANT: Always test BOTH commands above, not just one.**
+
+The `til interpret` path now works. The `til run` path fails with a scavenger error.
+This is a separate bug in the self-hosted scavenger that doesn't affect rstil.
 
 ## Compiler Phases
 1. ~~Parser~~ ✓
@@ -75,8 +80,9 @@ Need to investigate why arena overflows during self-hosted compilation.
 7. Builder/Codegen → enables `til run`
 
 ## Milestones
-1. `./bin/til interpret src/examples/empty.til` ← current target
-2. `./bin/til interpret src/examples/hello_script.til` ← next
+1. ~~`./bin/til interpret src/examples/empty.til`~~ ✓ DONE
+2. `./bin/til run src/examples/empty.til` ← current target (scavenger bug)
+3. `./bin/til interpret src/examples/hello_script.til` ← next
 
 ## Build Commands Reference (from Makefile)
 - `make rstil` - Build Rust-based TIL compiler

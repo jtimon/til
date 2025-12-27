@@ -5,7 +5,6 @@ use crate::rs::parser::{Expr, ValueType, TTypeDef, value_type_to_str, NodeType, 
 use crate::rs::arena::Arena;
 
 // EvalArena: Memory management for the TIL interpreter
-// Extracted from interpreter.rs to enable incremental translation to TIL.
 
 pub struct EvalArena {
     _arena: Arena,
