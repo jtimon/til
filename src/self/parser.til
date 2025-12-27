@@ -88,7 +88,7 @@ Declaration := struct {
     clone := func(self: Declaration) returns Declaration throws AllocError {
         mut result := Declaration()
         result.name = self.name.clone()
-        result.value_type = self.value_type
+        result.value_type = value_type_clone(self.value_type)
         result.is_mut = self.is_mut
         result.is_copy = self.is_copy
         result.is_own = self.is_own
@@ -422,6 +422,19 @@ ValueType := enum {
     TType: TTypeDef,
     TCustom: Str,
     TMulti: Str,
+}
+
+// Deep clone a ValueType, including string payloads
+value_type_clone := func(vt: ValueType) returns ValueType throws AllocError {
+    switch vt {
+    case ValueType.TCustom(s):
+        return ValueType.TCustom(s.clone())
+    case ValueType.TMulti(s):
+        return ValueType.TMulti(s.clone())
+    case:
+        // TFunction and TType have no heap allocations to clone
+        return vt
+    }
 }
 
 value_type_to_str := func(arg_type: ValueType) returns Str {
