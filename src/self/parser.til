@@ -108,6 +108,10 @@ Declaration := struct {
 PatternInfo := struct {
     mut variant_name: Str = ""
     mut binding_var: Str = ""
+
+    clone := func(self: PatternInfo) returns PatternInfo throws AllocError {
+        return PatternInfo(variant_name=self.variant_name.clone(), binding_var=self.binding_var.clone())
+    }
 }
 
 FunctionType := enum {
@@ -204,6 +208,19 @@ Literal := enum {
     List: Str,  // TODO You can call it tupple too. who cares? it's not even tested yet, just parsed
 }
 
+literal_clone := func(lit: Literal) returns Literal throws AllocError {
+    switch lit {
+    case Literal.Number(s):
+        return Literal.Number(s.clone())
+    case Literal.Str(s):
+        return Literal.Str(s.clone())
+    case Literal.List(s):
+        return Literal.List(s.clone())
+    }
+    // Unreachable, but TIL requires a return
+    return lit
+}
+
 NodeType := enum {
     Body,
     LLiteral: Literal,
@@ -227,6 +244,35 @@ NodeType := enum {
     Range,
     Pattern: PatternInfo,  // Pattern matching for switch case with payload extraction
     ForIn: Str,  // for VAR: TYPE in COLLECTION - payload is the TYPE name
+}
+
+// Deep clone a NodeType, including all payloads
+node_type_clone := func(nt: NodeType) returns NodeType throws AllocError {
+    switch nt {
+    case NodeType.LLiteral(lit):
+        return NodeType.LLiteral(literal_clone(lit))
+    case NodeType.Identifier(s):
+        return NodeType.Identifier(s.clone())
+    case NodeType.Declaration(decl):
+        return NodeType.Declaration(decl.clone())
+    case NodeType.Assignment(s):
+        return NodeType.Assignment(s.clone())
+    case NodeType.NamedArg(s):
+        return NodeType.NamedArg(s.clone())
+    case NodeType.FuncDef(fd):
+        return NodeType.FuncDef(fd.clone())
+    case NodeType.EnumDef(ed):
+        return NodeType.EnumDef(ed.clone())
+    case NodeType.StructDef(sd):
+        return NodeType.StructDef(sd.clone())
+    case NodeType.Pattern(pi):
+        return NodeType.Pattern(pi.clone())
+    case NodeType.ForIn(s):
+        return NodeType.ForIn(s.clone())
+    case:
+        // Simple variants (Body, FCall, Return, etc.) have no payload to clone
+        return nt
+    }
 }
 
 Expr := struct {
@@ -292,8 +338,16 @@ Expr := struct {
         throw self.lang_error("<internal>", "assert", format("Expr index ", i.to_str(), " out of bounds (len: ", self.params.len().to_str(), ")."))
     }
 
-    clone := func(self: Expr) returns Expr {
-        return Expr(node_type=self.node_type, params=self.params, line=self.line, col=self.col)
+    clone := func(self: Expr) returns Expr throws AllocError {
+        // Deep clone: clone node_type and each element in params
+        mut cloned_params := Vec.new(Expr)
+        for i in 0..self.params.len() {
+            mut e := Expr()
+            self.params.get(i, e)
+            cloned_params.push(e.clone())
+        }
+        catch (err: IndexOutOfBoundsError) { panic(err.msg) }
+        return Expr(node_type=node_type_clone(self.node_type), params=cloned_params, line=self.line, col=self.col)
     }
 
     exit_error := proc(self: Expr, phase: Str, msg: Str) {
