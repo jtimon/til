@@ -206,7 +206,7 @@ ScopeStack := struct {
             throw format("Variable '", name, "' already declared in this scope")
         }
 
-        current_frame.arena_index.insert(name, offset.to_str())
+        current_frame.arena_index.insert(name.clone(), offset.to_str())
         current_frame.symbols.insert(name, symbol)
         self.frames.set(last_idx, current_frame)
     }
@@ -464,7 +464,7 @@ ScopeStack := struct {
                         k.inc()
                     }
                     if matches {
-                        keys.push(key)
+                        keys.push(key.clone())
                     }
                 }
             }
@@ -482,7 +482,7 @@ ScopeStack := struct {
         mut names := Vec.new(Str)
         for frame: ScopeFrame in self.frames {
             for key: Str in frame.structs.keys {
-                names.push(key)
+                names.push(key.clone())
             }
         }
         catch (err: AllocError) {
@@ -509,11 +509,12 @@ get_func_name_in_call := func(e: Expr) returns Str throws Str {
     mut func_name := ""
     switch param.node_type {
     case NodeType.Identifier(f_name):
-        func_name = f_name
+        func_name = f_name.clone()
     case:
         mut param_node_type_str := enum_to_str(param.node_type)
         throw format("in get_func_name_in_call(): Identifiers can only contain identifiers, found '", param_node_type_str, "'")
     }
+    catch (err: AllocError) { throw concat("get_func_name_in_call: ", err.msg) }
     return func_name
 }
 
@@ -694,7 +695,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 }
             }
             // Just "StructName()" or "StructName(field=value, ...)" - constructor call
-            return ValueType.TCustom(f_name)
+            return ValueType.TCustom(f_name.clone())
         }
 
         mut after_dot := Expr()  # Default init, will be overwritten by get()
@@ -787,7 +788,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             }
 
             // Return the enum type
-            return ValueType.TCustom(f_name)
+            return ValueType.TCustom(f_name.clone())
         case:
             throw e.lang_error(context.path, "init", format("Expected identifier after '", f_name, ".' found '", enum_to_str(after_dot.node_type), "'"))
         }
@@ -804,7 +805,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 # It's an enum - try UFCS method call
                 mut enum_after_dot := Expr()
                 if id_expr.params.len().eq(0) {
-                    return ValueType.TCustom(f_name)
+                    return ValueType.TCustom(f_name.clone())
                 }
                 id_expr.params.get(0, enum_after_dot)
 
@@ -848,7 +849,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
 
             mut after_dot := Expr()
             if id_expr.params.len().eq(0) {
-                return ValueType.TCustom(f_name)
+                return ValueType.TCustom(f_name.clone())
             }
             id_expr.params.get(0, after_dot)
 
@@ -925,7 +926,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                                     }
                                     if found_member {
                                         # It's a field access - return the field's type
-                                        return member_decl.value_type
+                                        return value_type_clone(member_decl.value_type)
                                     }
                                 }
                             case:
@@ -1088,7 +1089,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
                             throw e.error(context.path, "init", format("'", type_name, "' is not a struct"))
                         }
                         mut member := SStructDef.get_member_or_err(struct_def, field_name, type_name, context.path, e)
-                        current_type = member.value_type
+                        current_type = value_type_clone(member.value_type)
                     case:
                         throw e.error(context.path, "init", format("Cannot access fields on type '", value_type_to_str(current_type), "'"))
                     }
@@ -1102,7 +1103,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
         catch (err: KeyNotFoundError) {
             throw e.error(context.path, "init", format("Undefined symbol '", name, "'"))
         }
-        mut current_type := symbol.value_type
+        mut current_type := value_type_clone(symbol.value_type)
 
         # If there are no parameters, just return the type of the first identifier
         if e.params.len().eq(0) {
@@ -1127,7 +1128,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
                     throw e.error(context.path, "init", format("Struct '", name, "' not found"))
                 }
                 mut decl := SStructDef.get_member_or_err(struct_def, member_name, name, context.path, e)
-                current_type = decl.value_type
+                current_type = value_type_clone(decl.value_type)
 
             case ValueType.TType(TTypeDef.TEnumDef):
                 # If it's an enum, resolve the variant
@@ -1147,7 +1148,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
                     throw e.error(context.path, "init", format("Struct '", custom_type_name, "' not found"))
                 }
                 mut decl := SStructDef.get_member_or_err(struct_def, member_name, custom_type_name, context.path, e)
-                current_type = decl.value_type
+                current_type = value_type_clone(decl.value_type)
 
             case ValueType.TMulti(_variadic_type_name):
                 # Variadic parameters are implemented as Array at runtime
@@ -1169,7 +1170,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
             return ValueType.TCustom(enum_type)
         }
         # If no dot, assume the whole thing is the enum type (shouldn't happen in practice)
-        return ValueType.TCustom(variant_name)
+        return ValueType.TCustom(variant_name.clone())
 
     case NodeType.NamedArg(_):
         if e.params.len().gt(0) {
@@ -1216,7 +1217,7 @@ import_path_to_file_path := func(import_path: Str) returns Str throws Str {
 # to the parent context. The typer and eval phases will use the stored AST.
 init_import_declarations := proc(mut context: Context, e: Expr, import_path_str: Str) throws Str {
     mut path := import_path_to_file_path(import_path_str)
-    mut original_path := context.path
+    mut original_path := context.path.clone()
 
     # Already done (or in progress)? Skip.
     # Adding to done at START handles both circular imports and re-imports.
@@ -1225,7 +1226,7 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     }
 
     # Mark as done immediately - before processing - to handle circular imports
-    _ := context.imports_init_done.insert(path)
+    _ := context.imports_init_done.insert(path.clone())
 
     # Read and parse the imported file
     mut source := readfile(path)
@@ -1233,33 +1234,33 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         throw e.error(context.path, "import", format("File '", path, "' not found or could not be read: ", err))
     }
 
-    context.path = path
+    context.path = path.clone()
 
     # Lex the imported file
     mut lexer := lexer_from_source(path, source)
     catch (err: Str) {
-        context.path = original_path
+        context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
     }
     catch (err: IndexOutOfBoundsError) {
-        context.path = original_path
+        context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
     }
 
     # Parse mode
     mut parsed_mode := parse_mode(path, lexer)
     catch (err: Str) {
-        context.path = original_path
+        context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
     }
 
     # Check if mode can be imported
     if not(can_be_imported(parsed_mode)) {
-        context.path = original_path
+        context.path = original_path.clone()
         throw e.error(context.path, "import", format("file '", path, "' of mode '", parsed_mode.name, "' cannot be imported"))
     }
 
-    mut previous_mode := context.mode_def
+    mut previous_mode := context.mode_def.clone()
     context.mode_def = parsed_mode
 
     # Process mode imports recursively
@@ -1276,7 +1277,7 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         init_import_declarations(context, import_fcall_expr, import_str)
         catch (err: Str) {
             context.mode_def = previous_mode
-            context.path = original_path
+            context.path = original_path.clone()
             throw err
         }
 
@@ -1287,12 +1288,12 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     mut imported_ast := parse_tokens(lexer)
     catch (err: Str) {
         context.mode_def = previous_mode
-        context.path = original_path
+        context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
     }
     catch (err: IndexOutOfBoundsError) {
         context.mode_def = previous_mode
-        context.path = original_path
+        context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
     }
 
@@ -1301,8 +1302,8 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     mut errors := init_context(context, imported_ast)
     if errors.len().gt(0) {
         context.mode_def = previous_mode
-        mut orig_path_clone := original_path
-        context.path = original_path
+        mut orig_path_clone := original_path.clone()
+        context.path = original_path.clone()
         mut error_msg := format("While trying to import ", path, " from ", orig_path_clone, ":\n")
         for err: Str in errors {
             error_msg = format(error_msg, path, ":", err, "\n")
@@ -1311,12 +1312,12 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     }
 
     # Store AST and mode for typer and eval phases
-    Map.insert(context.imported_asts, path, imported_ast)
-    Map.insert(context.imported_modes, path, context.mode_def.clone())
+    Map.insert(context.imported_asts, path.clone(), imported_ast)
+    Map.insert(context.imported_modes, path.clone(), context.mode_def.clone())
 
     # Restore context state
     context.mode_def = previous_mode
-    context.path = original_path
+    context.path = original_path.clone()
 
     catch (err: AllocError) {
         throw err.msg
@@ -1450,7 +1451,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 // Not custom type
             }
             if is_u8_i64_coercion {
-                value_type = decl.value_type
+                value_type = value_type_clone(decl.value_type)
             } else {
                 // Check type mismatch using string comparison
                 mut decl_vt_str := enum_to_str(decl.value_type)
@@ -1467,8 +1468,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTFunc:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                    context.scope_stack.declare_func(decl.name, func_def)
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+                    context.scope_stack.declare_func(decl.name, func_def.clone())
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                     return errors
@@ -1476,8 +1477,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTFuncExt:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                    context.scope_stack.declare_func(decl.name, func_def)
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+                    context.scope_stack.declare_func(decl.name, func_def.clone())
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                     return errors
@@ -1485,8 +1486,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTProc:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                    context.scope_stack.declare_func(decl.name, func_def)
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+                    context.scope_stack.declare_func(decl.name, func_def.clone())
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                     return errors
@@ -1494,8 +1495,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTProcExt:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                    context.scope_stack.declare_func(decl.name, func_def)
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+                    context.scope_stack.declare_func(decl.name, func_def.clone())
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                     return errors
@@ -1503,8 +1504,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTMacro:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                    context.scope_stack.declare_func(decl.name, func_def)
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+                    context.scope_stack.declare_func(decl.name, func_def.clone())
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                     return errors
@@ -1518,8 +1519,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
             switch inner_e.node_type {
             case NodeType.EnumDef(enum_def):
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                context.scope_stack.declare_enum(decl.name, enum_def)
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+                context.scope_stack.declare_enum(decl.name, enum_def.clone())
             case:
                 errors.push(e.lang_error(context.path, "init", "enums should have definitions."))
                 return errors
@@ -1533,8 +1534,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             switch inner_e.node_type {
             case NodeType.StructDef(struct_def):
                 # Register the struct itself
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                context.scope_stack.declare_struct(decl.name, struct_def)
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+                context.scope_stack.declare_struct(decl.name, struct_def.clone())
                 # Register associated funcs and constants (non-mut members only)
                 for member_decl: Declaration in struct_def.members {
                     if not(member_decl.is_mut) {
@@ -1555,11 +1556,11 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                             }
                             mut full_name := format(decl.name, ".", member_decl.name)  # Note: using '.' not '::'
                             # Register in symbols
-                            ScopeStack.declare_symbol(context.scope_stack, full_name, SymbolInfo(value_type=member_value_type, is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))
+                            ScopeStack.declare_symbol(context.scope_stack, full_name.clone(), SymbolInfo(value_type=value_type_clone(member_value_type), is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))
                             # If it's a function, also register in funcs
                             switch member_expr.node_type {
                             case NodeType.FuncDef(func_def):
-                                ScopeStack.declare_func(context.scope_stack, full_name, func_def)
+                                ScopeStack.declare_func(context.scope_stack, full_name, func_def.clone())
                             case:
                                 # Not a function, skip
                             }
@@ -1572,9 +1573,9 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
 
         case ValueType.TMulti(_):
-            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
         case ValueType.TCustom(_):
-            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
         case:
             # Unreachable - all ValueType variants are covered above
             # But needed because exhaustiveness check doesn't understand nested patterns like TType(TTypeDef.TEnumDef)
@@ -1689,10 +1690,14 @@ Context := struct {
         # If position is valid, return the corresponding variant name
         mut v := EnumVariant()
         selfi.variants.get(position, v)
+        mut result := v.name.clone()
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        return v.name
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        return result
     }
 
     map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str, e: Expr) throws Str {
@@ -1725,11 +1730,11 @@ Context := struct {
             if decl.is_mut {
                 mut combined_name := format(instance_name, ".", field_name)
                 mut field_offset := base_offset.add(current_offset)
-                self.scope_stack.insert_var(combined_name, field_offset)
+                self.scope_stack.insert_var(combined_name.clone(), field_offset)
 
                 self.scope_stack.declare_symbol(
-                    combined_name,
-                    SymbolInfo(value_type=decl.value_type, is_mut=is_mut)
+                    combined_name.clone(),
+                    SymbolInfo(value_type=value_type_clone(decl.value_type), is_mut=is_mut)
                 )
 
                 switch decl.value_type {
@@ -1805,7 +1810,10 @@ Context := struct {
     // Returns the saved path that should be restored when popping
     push_function_scope := proc(mut self: Context, function_path: Str) returns Str throws Str {
         self.scope_stack.push(ScopeType.Function)
-        mut saved_path := self.path
+        mut saved_path := self.path.clone()
+        catch (err: AllocError) {
+            throw err.msg
+        }
         self.path = function_path
         return saved_path
     }
@@ -1964,7 +1972,7 @@ Context := struct {
         mut current_type := ""
         switch base_symbol.value_type {
         case ValueType.TCustom(t):
-            current_type = t
+            current_type = t.clone()
         case:
             throw format("get_field_offset: base variable '", base_var, "' is not a struct")
         }
@@ -2009,7 +2017,7 @@ Context := struct {
 
                 switch field_decl.value_type {
                 case ValueType.TCustom(t):
-                    current_type = t
+                    current_type = t.clone()
                 case:
                     // If this is the last part and it's a primitive, that's fine
                     if idx.eq(parts.len().sub(1)) {
@@ -2020,6 +2028,9 @@ Context := struct {
                 }
             }
             idx.inc()
+        }
+        catch (err: AllocError) {
+            throw err.msg
         }
 
         return current_offset
@@ -2048,7 +2059,7 @@ Context := struct {
         }
 
         mut current_type := ValueType.TCustom("")
-        current_type = base_symbol.value_type
+        current_type = value_type_clone(base_symbol.value_type)
 
         // Walk through the remaining parts of the path
         mut idx := 1
@@ -2060,7 +2071,7 @@ Context := struct {
             mut type_name := ""
             switch current_type {
             case ValueType.TCustom(t):
-                type_name = t
+                type_name = t.clone()
             case:
                 throw format("get_field_type: cannot access field '", field_name, "' on non-struct type")
             }
@@ -2091,8 +2102,11 @@ Context := struct {
                 throw format("get_field_type: field '", field_name, "' not found in struct '", type_name, "'")
             }
 
-            current_type = field_decl.value_type
+            current_type = value_type_clone(field_decl.value_type)
             idx.inc()
+        }
+        catch (err: AllocError) {
+            throw err.msg
         }
 
         return current_type
@@ -2101,7 +2115,7 @@ Context := struct {
     register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws Str {
         mut found_struct := false
         mut struct_def := SStructDef()
-        struct_def = self.scope_stack.lookup_struct(custom_type_name)
+        struct_def = self.scope_stack.lookup_struct(custom_type_name).clone()
         found_struct = true
         catch (err: KeyNotFoundError) {
             // Struct not found
@@ -2113,8 +2127,8 @@ Context := struct {
         for decl: Declaration in struct_def.members {
             mut combined_name := format(instance_name, ".", decl.name)
             self.scope_stack.declare_symbol(
-                combined_name,
-                SymbolInfo(value_type=decl.value_type, is_mut=decl.is_mut)
+                combined_name.clone(),
+                SymbolInfo(value_type=value_type_clone(decl.value_type), is_mut=decl.is_mut)
             )
 
             switch decl.value_type {
