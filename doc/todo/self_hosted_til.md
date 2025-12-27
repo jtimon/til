@@ -51,34 +51,21 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Test: src/test/bug55.til
 
 ### Current Issue
-**Bug #47: NodeType.? memory corruption**:
-```
-src/core/vec.til:63:63: til init ERROR: Identifiers can only contain identifiers, found 'NodeType.?'
-```
-- Invalid enum tag being read from memory during Vec iteration
-- Happens in init.til's get_value_type when iterating e.params
-- Compiled mode shows corruption error, interpreted mode hangs
-- Struct sizes verified correct (Expr = 288 bytes)
+**Bug #47 is FIXED (2025-12-27)**
 
-**Key Finding (2025-12-26):**
-- Minimal reproducer: `src/test/bug47.til`
-- Bug only triggers when caught error variable is USED inside catch block
-- Empty catches or catches that don't reference `err` work fine
-- Example: `catch (err: Str) { println(err) }` triggers bug
-- Example: `catch (err: Str) { }` works fine
+Fix: Removed 4 `id_params.delete()` calls in typer.til (lines 2657, 2694, 2699, 2704).
+The issue was that `id_params` was a shallow clone, and `extra_arg_e` still referenced
+memory owned by `id_params`. When `id_params.delete()` was called, it freed memory
+that `extra_arg_e` was still using, causing memory corruption.
 
-**Reproduce:**
+The test `src/test/bug47.til` now passes in rs_common (both interpret and run).
+
+**Remaining issue:** `./bin/til interpret` and `./bin/til run` still segfault:
 ```bash
-# Compiled mode - shows NodeType.? memory corruption error:
-./bin/rstil run src/test/bug47.til
-
-# Interpreted mode - hangs indefinitely:
-./bin/rstil interpret src/test/bug47.til
+./bin/til interpret src/examples/empty.til  # Segmentation fault
+./bin/til run src/examples/empty.til        # Segmentation fault
 ```
-
-**Current behavior (2025-12-26):**
-- `rstil run` (compiled): Fails with `NodeType.?` corruption in init phase
-- `rstil interpret`: Hangs (times out after 30s+)
+This is a different bug from #47 - need to investigate further.
 
 ## Compiler Phases
 1. ~~Parser~~ ✓

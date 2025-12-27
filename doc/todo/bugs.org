@@ -234,11 +234,14 @@ Phase A remaining issue:
 - Need recursive hoisting before emitting expressions
 - See =wio= branch for debug output and partial implementation
 
+* Fixed Bugs
+
 ** Bug #47: Self-hosted TIL interpreter fails with "NodeType.?" error
 :PROPERTIES:
 :DISCOVERED: 2025-12-18
+:FIXED: 2025-12-27
 :IMPACT: ./bin/til interpret fails on any file
-:STATUS: Open - Codegen bug, examining generated C patterns
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -356,7 +359,16 @@ Reproduce:
 This suggests the bug is related to how the caught error variable is stored/accessed
 in the generated C code when used inside the catch block body.
 
-* Fixed Bugs
+*** Fix (2025-12-27)
+Removed 4 =id_params.delete()= calls in typer.til (lines 2657, 2694, 2699, 2704).
+
+The issue was that =id_params= was a shallow clone of expression params, and
+=extra_arg_e= (used in UFCS transformation) still referenced memory owned by
+=id_params=. When =id_params.delete()= was called, it freed memory that
+=extra_arg_e= was still using, causing memory corruption.
+
+Note: ./bin/til still segfaults on other issues, but the NodeType.? error is fixed.
+The test src/test/bug47.til now passes in rs_common (both interpret and run).
 
 ** Bug #56: Interpreter rejects FCall in enum payload inside func/proc
 :PROPERTIES:
