@@ -8,6 +8,32 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #58: Error messages show file path twice
+:PROPERTIES:
+:DISCOVERED: 2025-12-27
+:IMPACT: Confusing error messages
+:STATUS: Open
+:END:
+
+*** Description
+Error messages show the file path duplicated:
+#+BEGIN_EXAMPLE
+src/test/bug50.til:src/test/bug50.til:10:16: rstil type ERROR: ...
+#+END_EXAMPLE
+
+Should show:
+#+BEGIN_EXAMPLE
+src/test/bug50.til:10:16: rstil type ERROR: ...
+#+END_EXAMPLE
+
+*** Reproducing
+#+BEGIN_SRC bash
+./bin/rstil interpret src/test/bug50.til
+#+END_SRC
+
+*** Root Cause
+Likely in error formatting code - the path is being concatenated twice.
+
 ** Bug #51: Precomp doesn't propagate constants through function parameters
 :PROPERTIES:
 :DISCOVERED: 2025-12-19
