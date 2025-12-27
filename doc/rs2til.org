@@ -7,6 +7,16 @@ See also: [[file:rs.org][Rust Rules]] - things NOT to do in Rust code.
 
 TIL and Rust have different idioms, but the translation is mechanical. This guide documents the patterns discovered when analyzing lexer.rs, parser.rs, and init.rs against their TIL counterparts.
 
+** panic vs throw/catch
+
+| Rust | TIL | Notes |
+|------|-----|-------|
+| ~panic!()~ | ~panic()~ | Avoid both - nothing to translate |
+| ~Result/Option~ + ~?~ | ~throw/catch~ | This is the translation |
+| ~match~ on Option/Result | ~switch~ | Explicit case handling |
+
+~unwrap()~ is hidden ~panic!()~ - avoid it, use ~?~ or ~match~ instead.
+
 * Lexer Patterns (lexer.rs -> lexer.til)
 
 ** Match on Option<byte> -> switch on string

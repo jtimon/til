@@ -7,10 +7,12 @@ Short list of things NOT to do in Rust code for this project.
 ** 1. Don't use panic!() directly
 Use ~return Err(...)~ instead. TIL error handling is explicit.
 
-* Potential Rules (to be discussed)
+** 2. Don't use unwrap()
+~unwrap()~ is hidden ~panic!()~. Use ~?~ or ~match~ instead.
+- ~?~ propagates errors (translates to TIL's implicit throw propagation)
+- ~match~ handles cases explicitly (translates to TIL's ~switch~)
 
-** Don't use unwrap() on Option/Result
-Use ~?~ operator or explicit match. Panics are bad for a compiler.
+* Potential Rules (to be discussed)
 
 ** Don't use expect() in library code
 Reserve for truly impossible cases only. Prefer ~?~ with context.
