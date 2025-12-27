@@ -122,6 +122,37 @@ impl ScopeStack {
         None
     }
 
+    /// Bug #50: Check if accessing this symbol would require closure capture.
+    /// Returns true if we're inside a nested function and the symbol is defined
+    /// in an outer function scope (not global, not current function).
+    pub fn is_closure_capture(&self, name: &str) -> bool {
+        let mut function_boundaries_crossed = 0;
+        let mut in_function = false;
+
+        // Walk from innermost to outermost scope
+        for frame in self.frames.iter().rev() {
+            // Track when we enter/exit function scopes
+            if frame.scope_type == ScopeType::Function {
+                if in_function {
+                    // We've crossed from one function into an outer function
+                    function_boundaries_crossed += 1;
+                } else {
+                    in_function = true;
+                }
+            }
+
+            // Check if symbol is in this frame
+            if frame.symbols.contains_key(name) {
+                // Symbol found - is it a closure capture?
+                // It's a capture if:
+                // 1. We've crossed at least one function boundary to get here
+                // 2. We're not in global scope
+                return function_boundaries_crossed > 0 && frame.scope_type != ScopeType::Global;
+            }
+        }
+        false
+    }
+
     pub fn declare_var(&mut self, name: String, offset: usize, symbol: SymbolInfo)
         -> Result<(), String>
     {

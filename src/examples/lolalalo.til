@@ -8,23 +8,23 @@ make_poem_recursive := func(s1: Str, s2: Str) returns Str {
 
     /** Recursively build all permutations.
      *  At depth 2 (third syllable), include "lei" as third option. */
-    poem := func(depth: I64, current: Str) returns Str {
+    poem := func(depth: I64, current: Str, s1: Str, s2: Str) returns Str {
         if depth.eq(4) {
             return current.concat("\n")
         }
 
         mut result := ""
-        result = result.concat(poem(depth.add(1), current.concat(s1)))
-        result = result.concat(poem(depth.add(1), current.concat(s2)))
+        result = result.concat(poem(depth.add(1), current.concat(s1), s1, s2))
+        result = result.concat(poem(depth.add(1), current.concat(s2), s1, s2))
 
         if depth.eq(2) {
-            result = result.concat(poem(depth.add(1), current.concat("lei")))
+            result = result.concat(poem(depth.add(1), current.concat("lei"), s1, s2))
         }
 
         return result
     }
 
-    return poem(0, "")
+    return poem(0, "", s1, s2)
 }
 
 make_poem_iterative := func(s1: Str, s2: Str) returns Str {
@@ -33,7 +33,7 @@ make_poem_iterative := func(s1: Str, s2: Str) returns Str {
     silabes.set(0, s1)
     silabes.set(1, s2)
 
-    verse := func(i0: I64, i1: I64, i2: I64, i3: I64) returns Str {
+    verse := func(i0: I64, i1: I64, i2: I64, i3: I64, silabes: Array) returns Str {
         mut s0 := ""
         mut s1_v := ""
         mut s2_v := ""
@@ -57,7 +57,7 @@ make_poem_iterative := func(s1: Str, s2: Str) returns Str {
         for i1 in 0..2 {
             for i2 in 0..3 {
                 for i3 in 0..2 {
-                    poem = poem.concat(verse(i0, i1, i2, i3))
+                    poem = poem.concat(verse(i0, i1, i2, i3, silabes))
                 }
             }
         }

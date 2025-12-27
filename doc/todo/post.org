@@ -709,6 +709,50 @@ The current throw/throws/catch system is complete and sufficient. These enhancem
 
 All can be added after self-hosting without breaking existing code.
 
+** TODO Implement Closures (Nested Function Capture)                 :MEDIUM:
+:PROPERTIES:
+:DISCOVERED: 2025-12-27
+:IMPACT: Nested functions can capture variables from enclosing scope
+:RELATED: Bug #50
+:END:
+
+*** Description
+Allow nested functions to capture variables from their enclosing scope (closures).
+Currently, nested functions must explicitly take all needed values as parameters.
+
+*** Current State
+The typer emits a todo_error when a nested function references outer scope variables:
+"Closures are not supported yet. Pass 'varname' as a parameter instead."
+
+*** Example
+#+BEGIN_SRC til
+// This currently fails with todo_error:
+outer := func(x: I64) returns I64 {
+    inner := func() returns I64 {
+        return x  // ERROR: x is from outer scope
+    }
+    return inner()
+}
+
+// Workaround - pass as parameter:
+outer := func(x: I64) returns I64 {
+    inner := func(x: I64) returns I64 {
+        return x  // OK: x is a parameter
+    }
+    return inner(x)
+}
+#+END_SRC
+
+*** What's Needed
+- [ ] Lambda lifting (add captured vars as hidden params) - simplest approach
+- [ ] Or closure struct approach (pass struct with captured vars)
+- [ ] Update ccodegen to handle captured variables
+- [ ] Remove the todo_error from typer
+
+*** Why It's Post-Self-Hosting
+The workaround (explicit parameters) is functional and makes data flow explicit.
+Closures are syntactic sugar that can be added after self-hosting.
+
 ** TODO Implement Macro System                                         :LOW:
 :PROPERTIES:
 :FILE: src/core/lexer.til:144, src/rs/lexer.rs:277

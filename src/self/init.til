@@ -185,6 +185,51 @@ ScopeStack := struct {
         throw KeyNotFoundError(msg="lookup_symbol: Symbol not found in ScopeStack")
     }
 
+    /// Bug #50: Check if accessing this symbol would require closure capture.
+    /// Returns true if we're inside a nested function and the symbol is defined
+    /// in an outer function scope (not global, not current function).
+    is_closure_capture := func(self: ScopeStack, name: Str) returns Bool {
+        mut function_boundaries_crossed := 0
+        mut in_function := false
+
+        // Walk from innermost to outermost scope
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)
+
+            // Track when we enter/exit function scopes
+            switch frame.scope_type {
+            case ScopeType.Function:
+                if in_function {
+                    // We've crossed from one function into an outer function
+                    function_boundaries_crossed = function_boundaries_crossed.add(1)
+                } else {
+                    in_function = true
+                }
+            case:
+            }
+
+            // Check if symbol is in this frame
+            if frame.symbols.contains_key(name) {
+                // Symbol found - is it a closure capture?
+                // It's a capture if:
+                // 1. We've crossed at least one function boundary to get here
+                // 2. We're not in global scope
+                switch frame.scope_type {
+                case ScopeType.Global:
+                    return false
+                case:
+                    return function_boundaries_crossed.gt(0)
+                }
+            }
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "IndexOutOfBoundsError in is_closure_capture: ", err.msg)
+        }
+        return false
+    }
+
     declare_var := proc(mut self: ScopeStack, name: Str, offset: I64, symbol: SymbolInfo) throws Str, IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
         if self.frames.len().eq(0) {
             throw "No active scope"

@@ -202,6 +202,10 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                 errors.extend(check_types_with_context(context, e.get(0).unwrap(), ExprContext::ValueUsed));
             } else if !(context.scope_stack.lookup_func(name).is_some() || context.scope_stack.lookup_symbol(name).is_some()) {
                 errors.push(e.error(&context.path, "type", &format!("Undefined symbol '{}'", name)));
+            } else if context.scope_stack.is_closure_capture(name) {
+                // Bug #50: Closures not supported yet
+                errors.push(e.todo_error(&context.path, "type", &format!(
+                    "Closures are not supported yet. Pass '{}' as a parameter to this function instead.", name)));
             }
         },
         NodeType::Declaration(decl) => {

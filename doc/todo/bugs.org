@@ -138,11 +138,14 @@ but with larger generated code and more runtime computation than necessary.
 - #51 is about per-call comptime-ness (precomp phase)
 - #50 is about per-call variable capture (codegen phase)
 
+* Fixed Bugs
+
 ** Bug #50: Codegen doesn't capture outer variables in nested functions
 :PROPERTIES:
 :DISCOVERED: 2025-12-19
+:FIXED: 2025-12-27
 :IMPACT: Nested functions fail to compile when accessing outer scope variables
-:STATUS: Open
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -152,18 +155,13 @@ outer variables are not captured/passed to the nested function.
 
 *** Reproducing
 #+BEGIN_SRC bash
-./bin/rstil interpret src/tests.til test rs_common src/examples/lolalalo.til
-#+END_SRC
-
-Or uncomment in tests.til:
-#+BEGIN_SRC til
-// rs_common.push(TestEntry(path="src/examples/lolalalo.til")) // TODO Bug #50
+./bin/rstil run src/test/bug50.til
 #+END_SRC
 
 *** Error Output
 #+BEGIN_EXAMPLE
-gen/c/examples/lolalalo.c:1396:117: error: 'til_s2' undeclared (first use in this function)
-gen/c/examples/lolalalo.c:1410:107: error: 'til_silabes' undeclared (first use in this function)
+gen/c/test/bug50.c: In function 'til_test_closure_inner':
+gen/c/test/bug50.c:1703:12: error: 'til_outer_var' undeclared (first use in this function)
 #+END_EXAMPLE
 
 *** Root Cause
@@ -200,28 +198,35 @@ GCC supports nested functions as a non-standard extension. We could use this dir
 Pros: Zero codegen changes for nested function bodies
 Cons: GCC-only (not clang/MSVC), uses trampolines (executable stack), less portable
 
-**** 4. Restrict Nested Function Captures
+**** 4. Restrict Nested Function Captures (CHOSEN)
 Disallow nested functions from capturing outer variables - require explicit parameters.
 This is a language design change rather than a fix.
 
 Pros: Simpler language semantics, no closure machinery needed
 Cons: Breaking change, less ergonomic for users
 
-*** Workaround
-Use the interpreter instead of the compiler for files with nested functions that
-capture outer variables. The file is in rs_interpreted instead of rs_common.
+*** Fix (2025-12-27)
+Added =is_closure_capture()= function to ScopeStack (init.rs/init.til) that detects
+when a symbol access would require closure capture. In typer (typer.rs/typer.til),
+when an identifier is found to be a closure capture, emit a todo_error:
+"Closures are not supported yet. Pass 'varname' as a parameter instead."
 
-*** Related
-- Bug #51: Similar pattern - both require per-call analysis instead of once-at-definition
-- #50 is about per-call variable capture (codegen phase)
-- #51 is about per-call comptime-ness (precomp phase)
+Full closure support deferred to post.org.
 
-*** Work In Progress (2025-12-19)
-Prerequisite refactor "Phase A: Const Args by Reference" is in progress in the
-=wio= branch. This changes all non-copy params to pointers (const Type*) which
-simplifies the lambda lifting implementation.
+*** Files Modified
+- src/rs/init.rs: Added =is_closure_capture()= to ScopeStack
+- src/rs/typer.rs: Added closure capture check in NodeType::Identifier handling
+- src/self/init.til: Ported =is_closure_capture()=
+- src/self/typer.til: Ported closure capture check
+- src/examples/lolalalo.til: Fixed to pass captured vars as explicit parameters
+- src/test/bug50.til: Regression test (expected to fail with todo_error)
 
-Phase A completed items:
+*** Historical: Lambda Lifting Attempt (2025-12-19, abandoned)
+Before choosing option 4, started "Phase A: Const Args by Reference" in =wio= branch
+as a prerequisite for lambda lifting. This is no longer needed since we chose to
+forbid closures instead of implementing them.
+
+Phase A completed items (for reference if lambda lifting is revisited):
 - emit_func_signature: all non-copy params now const Type*
 - by_ref calculations: changed from is_mut to !is_copy (7 locations)
 - current_ref_params: now includes all non-copy params
@@ -231,10 +236,6 @@ Phase A completed items:
 Phase A remaining issue:
 - Nested struct-returning function calls passed to by-ref params need hoisting
 - Current hoisting only works at statement level (indent > 0)
-- Need recursive hoisting before emitting expressions
-- See =wio= branch for debug output and partial implementation
-
-* Fixed Bugs
 
 ** Bug #47: Self-hosted TIL interpreter fails with "NodeType.?" error
 :PROPERTIES:
