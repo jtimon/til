@@ -18,7 +18,7 @@ til: rstil
 	@cp gen/c/til.c bootstrap/til.c 2>/dev/null || true
 	# timeout 300 ./bin/til build src/til.til
 
-tests: rstil
+tests: rstil til
 	timeout 600 ./bin/rstil interpret src/tests.til
 	@cp gen/c/test/constfold.c src/test/constfold.c 2>/dev/null || true
 	@echo "Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c"
