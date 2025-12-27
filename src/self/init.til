@@ -358,16 +358,17 @@ ScopeStack := struct {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
             self.frames.get(last_idx, current_frame)
-            current_frame.funcs.insert(name, func_def)
+            // Use set() instead of insert() to allow overwriting existing funcs
+            // This matches Rust's HashMap.insert behavior which overwrites.
+            // Needed because init phase stores original func_def, then eval phase
+            // stores precomp'd func_def with desugared for-in loops.
+            current_frame.funcs.set(name, func_def)
             self.frames.set(last_idx, current_frame)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
         catch (err: AllocError) {
-            throw err.msg
-        }
-        catch (err: DuplicatedKeyError) {
             throw err.msg
         }
     }

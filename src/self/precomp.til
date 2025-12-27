@@ -287,7 +287,11 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // After desugaring, recursively precomp the result to resolve UFCS and loc()
     case NodeType.ForIn(var_type_name):
         desugared := precomp_forin(context, e, var_type_name)
-        return precomp_expr(context, desugared)
+        catch (forin_err: Str) {
+            throw forin_err
+        }
+        result := precomp_expr(context, desugared)
+        return result
     }
 }
 

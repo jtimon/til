@@ -50,11 +50,18 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Fix: Added else clause to call hoist_throwing_expr for non-FCall arguments
   - Test: src/test/bug55.til
 
-- **Bug #59** (Fixed 2025-12-27): Arena overflow caused by type mismatch
+- (Fixed 2025-12-27): Arena overflow caused by type mismatch
   - Root cause: init.til was storing `offset.to_str()` in `arena_index` (Map(Str, I64))
     but reading it as I64 directly. The Str bytes were being misinterpreted as I64.
   - Fix: Removed `.to_str()` calls in `declare_var`, `insert_var`, and `remove_var`
   - Also fixed `remove_var` to read I64 directly instead of Str then convert
+
+- **Bug #59** (Fixed 2025-12-27): ForIn not desugared in self-hosted interpreter
+  - Root cause: TIL's `Map.insert` throws `DuplicatedKeyError` on duplicate keys,
+    while Rust's `HashMap.insert` overwrites. When init phase stored the original
+    func_def, eval phase couldn't overwrite it with the precomp'd (desugared) version.
+  - Fix: Changed `declare_func` in init.til to use `Map.set()` instead of `Map.insert()`
+    to allow overwriting, matching Rust's behavior.
 
 ### Current Issue
 **Scavenger error in til run (2025-12-27)**
@@ -62,7 +69,7 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 Current status:
 ```bash
 ./bin/til interpret src/examples/empty.til  # WORKS!
-./bin/til run src/examples/empty.til        # ERROR: no body found for 'a.and'
+./bin/til run src/examples/empty.til        # ERROR: no body found for 'start.eq'
 ```
 
 **IMPORTANT: Always test BOTH commands above, not just one.**

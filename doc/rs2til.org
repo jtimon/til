@@ -545,6 +545,27 @@ mut val := V()
 map.get(key, val)  // out-parameter, throws KeyNotFoundError
 #+end_src
 
+** HashMap.insert vs Map.insert/set
+
+IMPORTANT: Rust's ~HashMap.insert()~ OVERWRITES existing keys. TIL's ~Map.insert()~ THROWS ~DuplicatedKeyError~ on existing keys!
+
+Rust:
+#+begin_src rust
+map.insert(key, value);  // Overwrites if key exists, no error
+#+end_src
+
+TIL:
+#+begin_src til
+// WRONG - throws DuplicatedKeyError if key exists
+map.insert(key, value)
+
+// CORRECT - use set() to match Rust's overwrite behavior
+map.set(key, value)  // Overwrites if key exists, like Rust
+#+end_src
+
+Use ~Map.insert()~ only when you want to enforce unique keys (throws on duplicate).
+Use ~Map.set()~ when you want Rust's HashMap.insert behavior (overwrites).
+
 ** Catch blocks placement
 
 Catch blocks CANNOT be placed in unreachable code (after the final return/throw of a function).
@@ -799,3 +820,4 @@ The translation is mechanical:
 14. Pattern variables in switch/case are scoped to the case block - do ALL work with payloads inside the case
 15. ~break~ works in while and for loops; ~continue~ works in while loops only (NOT for loops - causes infinite loop)
 16. Enums with Str/Vec payloads need deep clone functions (~literal_clone~, ~node_type_clone~, etc.); simple enums copy by value
+17. ~HashMap.insert()~ -> ~Map.set()~ (Rust overwrites, TIL's ~insert~ throws on duplicate; use ~set~ to match Rust behavior)
