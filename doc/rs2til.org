@@ -403,11 +403,53 @@ TIL uses throw/catch instead:
 - Caller uses catch block to handle the not-found case
 - ~map.contains_key(k)~ to check existence without fetching
 
-** Method chaining with ?
+** The ? operator is implicit in TIL
 
-Rust: ~let x = foo()?.bar()?.baz()?;~
+Rust uses ~?~ to propagate errors up the call stack:
+#+begin_src rust
+let x = foo()?;  // propagates error if foo() returns Err
+let y = bar()?.baz()?;  // chains propagation
+#+end_src
 
-TIL: Operations throw on failure, caller catches. No explicit propagation needed.
+TIL has NO ~?~ operator. Error propagation is automatic:
+#+begin_src til
+x := foo()  // automatically propagates if foo() throws
+y := bar().baz()  // chains automatically
+#+end_src
+
+When porting Rust to TIL:
+- Remove all ~?~ operators - they're implicit
+- Change ~Result<T, String>~ to ~returns T throws Str~
+- Change ~panic!("msg")~ to ~throw "msg"~
+- Errors propagate automatically unless caught
+
+Example - converting panic! to Result/throw:
+
+Rust (before):
+#+begin_src rust
+pub fn reserve(&mut self, size: usize) -> usize {
+    if new_len > ARENA_SIZE { panic!("arena overflow"); }
+    // ...
+}
+#+end_src
+
+Rust (after):
+#+begin_src rust
+pub fn reserve(&mut self, size: usize) -> Result<usize, String> {
+    if new_len > ARENA_SIZE { return Err("arena overflow".to_string()); }
+    // ...
+}
+// Call sites use: arena.reserve(size)?
+#+end_src
+
+TIL:
+#+begin_src til
+reserve := proc(mut self: Arena, size: I64) returns I64 throws Str {
+    if gt(new_len, ARENA_SIZE) { throw "arena overflow" }
+    // ...
+}
+// Call sites: arena.reserve(size)  -- ? is implicit
+#+end_src
 
 ** Default switch case syntax
 

@@ -60,7 +60,7 @@ EvalArena := struct {
     }
 
     /// Append bytes to arena, return offset where they were placed
-    put := proc(mut self: EvalArena, src_ptr: I64, num_bytes: I64) returns I64 {
+    put := proc(mut self: EvalArena, src_ptr: I64, num_bytes: I64) returns I64 throws Str {
         return self._arena.put(src_ptr, num_bytes)
     }
 
@@ -70,12 +70,12 @@ EvalArena := struct {
     }
 
     /// Write bytes to arena at offset
-    set := proc(mut self: EvalArena, offset: I64, src_ptr: I64, num_bytes: I64) {
+    set := proc(mut self: EvalArena, offset: I64, src_ptr: I64, num_bytes: I64) throws Str {
         self._arena.set(offset, src_ptr, num_bytes)
     }
 
     /// Reserve space in arena, return offset where space was allocated
-    reserve := proc(mut self: EvalArena, size: I64) returns I64 {
+    reserve := proc(mut self: EvalArena, size: I64) returns I64 throws Str {
         return self._arena.reserve(size)
     }
 

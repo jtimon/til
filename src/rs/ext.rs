@@ -60,7 +60,7 @@ pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     let size = size_str.parse::<usize>().map_err(|err| {
         e.lang_error(&context.path, "eval", &format!("Invalid size for 'malloc': {}", err))
     })?;
-    let offset = if size > 0 { EvalArena::g().reserve(size) } else { EvalArena::g().len() };
+    let offset = if size > 0 { EvalArena::g().reserve(size)? } else { EvalArena::g().len() };
 
     if offset == 0 { // TODO: REM: throw AllocError instead of return NULL pointer
         return Err(e.lang_error(&context.path, "eval", "Core func 'malloc' was about to produce a NULL pointer"))
@@ -107,7 +107,7 @@ pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     }
 
     for i in 0..size {
-        EvalArena::g().set(dest + i, &[value]);
+        EvalArena::g().set(dest + i, &[value])?;
     }
 
     Ok(EvalResult::new(""))
@@ -155,7 +155,7 @@ pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
     for i in 0..size {
         let byte = EvalArena::g().get(src + i, 1)[0];
-        EvalArena::g().set(dest + i, &[byte]);
+        EvalArena::g().set(dest + i, &[byte])?;
     }
 
     Ok(EvalResult::new(""))

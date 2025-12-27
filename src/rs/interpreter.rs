@@ -625,7 +625,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 }
 
                                                 // Copy payload bytes directly into arena
-                                                EvalArena::g().set(dest_offset, &payload_bytes);
+                                                EvalArena::g().set(dest_offset, &payload_bytes)?;
                                             },
                                             ValueType::TType(TTypeDef::TEnumDef) => {
                                                 // Handle enum payloads
@@ -2703,7 +2703,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         // Copy from callee's offset to original location
                         for i in 0..struct_size {
                             let byte = EvalArena::g().get(offset + i, 1)[0];
-                            EvalArena::g().set(dest_offset + i, &[byte]);
+                            EvalArena::g().set(dest_offset + i, &[byte])?;
                         }
                     } else {
                         // Simple identifier: update arena_index and map fields

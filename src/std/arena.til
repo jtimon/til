@@ -32,10 +32,10 @@ Arena := struct {
     }
 
     /** Append bytes to arena, return offset where they were placed */
-    put := proc(mut self: Arena, src_ptr: I64, num_bytes: I64) returns I64 {
+    put := proc(mut self: Arena, src_ptr: I64, num_bytes: I64) returns I64 throws Str {
         offset := self._len
         new_len := add(offset, num_bytes)
-        if gt(new_len, ARENA_SIZE) { panic(loc(), "arena overflow") }
+        if gt(new_len, ARENA_SIZE) { throw "arena overflow" }
         memcpy(add(self._memory.ptr, offset), src_ptr, num_bytes)
         self._len = new_len
         return offset
@@ -47,17 +47,17 @@ Arena := struct {
     }
 
     /** Write bytes to arena at offset */
-    set := proc(mut self: Arena, offset: I64, src_ptr: I64, num_bytes: I64) {
+    set := proc(mut self: Arena, offset: I64, src_ptr: I64, num_bytes: I64) throws Str {
         end := add(offset, num_bytes)
-        if gt(end, ARENA_SIZE) { panic(loc(), "arena overflow") }
+        if gt(end, ARENA_SIZE) { throw "arena overflow" }
         memcpy(add(self._memory.ptr, offset), src_ptr, num_bytes)
     }
 
     /** Reserve space in arena, return offset where space was allocated */
-    reserve := proc(mut self: Arena, size: I64) returns I64 {
+    reserve := proc(mut self: Arena, size: I64) returns I64 throws Str {
         offset := self._len
         new_len := add(offset, size)
-        if gt(new_len, ARENA_SIZE) { panic(loc(), "arena overflow") }
+        if gt(new_len, ARENA_SIZE) { throw "arena overflow" }
         self._len = new_len
         return offset
     }

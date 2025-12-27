@@ -21,15 +21,15 @@ impl Arena {
     }
 
     /// Append bytes to arena, return offset where they were placed
-    pub fn put(&mut self, bytes: &[u8]) -> usize {
+    pub fn put(&mut self, bytes: &[u8]) -> Result<usize, String> {
         let offset = self._len;
         let new_len = offset + bytes.len();
-        if new_len > ARENA_SIZE { panic!("arena overflow"); }
+        if new_len > ARENA_SIZE { return Err("arena overflow".to_string()); }
         unsafe {
             ARENA_MEMORY[offset..new_len].copy_from_slice(bytes);
         }
         self._len = new_len;
-        return offset;
+        return Ok(offset);
     }
 
     /// Read bytes from arena at offset
@@ -40,21 +40,22 @@ impl Arena {
     }
 
     /// Write bytes to arena at offset
-    pub fn set(&mut self, offset: usize, bytes: &[u8]) {
+    pub fn set(&mut self, offset: usize, bytes: &[u8]) -> Result<(), String> {
         let end = offset + bytes.len();
-        if end > ARENA_SIZE { panic!("arena overflow"); }
+        if end > ARENA_SIZE { return Err("arena overflow".to_string()); }
         unsafe {
             ARENA_MEMORY[offset..end].copy_from_slice(bytes);
         }
+        Ok(())
     }
 
     /// Reserve space in arena, return offset where space was allocated
-    pub fn reserve(&mut self, size: usize) -> usize {
+    pub fn reserve(&mut self, size: usize) -> Result<usize, String> {
         let offset = self._len;
         let new_len = offset + size;
-        if new_len > ARENA_SIZE { panic!("arena overflow"); }
+        if new_len > ARENA_SIZE { return Err("arena overflow".to_string()); }
         self._len = new_len;
-        return offset;
+        return Ok(offset);
     }
 }
 
@@ -118,7 +119,7 @@ impl EvalArena {
     }
 
     /// Append bytes to arena, return offset where they were placed
-    pub fn put(&mut self, bytes: &[u8]) -> usize {
+    pub fn put(&mut self, bytes: &[u8]) -> Result<usize, String> {
         return self._arena.put(bytes);
     }
 
@@ -128,12 +129,12 @@ impl EvalArena {
     }
 
     /// Write bytes to arena at offset
-    pub fn set(&mut self, offset: usize, bytes: &[u8]) {
-        self._arena.set(offset, bytes);
+    pub fn set(&mut self, offset: usize, bytes: &[u8]) -> Result<(), String> {
+        self._arena.set(offset, bytes)
     }
 
     /// Reserve space in arena, return offset where space was allocated
-    pub fn reserve(&mut self, size: usize) -> usize {
+    pub fn reserve(&mut self, size: usize) -> Result<usize, String> {
         return self._arena.reserve(size);
     }
 
@@ -210,15 +211,15 @@ impl EvalArena {
             // Ensure arena has enough space
             let required_len = field_offset + 8;
             if EvalArena::g().len() < required_len {
-                EvalArena::g().reserve(required_len - EvalArena::g().len());
+                EvalArena::g().reserve(required_len - EvalArena::g().len())?;
             }
 
-            EvalArena::g().set(field_offset, &bytes);
+            EvalArena::g().set(field_offset, &bytes)?;
             return Ok(None)
         }
 
         // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
-        let offset = EvalArena::g().put(&bytes);
+        let offset = EvalArena::g().put(&bytes)?;
         Ok(Some(offset))
     }
 
@@ -253,11 +254,11 @@ impl EvalArena {
                     e.lang_error(&ctx.path, "context", &format!("insert_u8: {}", err))
                 })?
             };
-            EvalArena::g().set(field_offset, &[v]);
+            EvalArena::g().set(field_offset, &[v])?;
             return Ok(None)
         }
 
-        let offset = EvalArena::g().put(&[v]);
+        let offset = EvalArena::g().put(&[v])?;
         Ok(Some(offset))
     }
 
@@ -328,7 +329,7 @@ impl EvalArena {
                     });
 
                     let data = EvalArena::g().get(src_offset, field_size).to_vec();
-                    EvalArena::g().set(dest_offset, &data);
+                    EvalArena::g().set(dest_offset, &data)?;
 
                     if let ValueType::TCustom(type_name) = &decl.value_type {
                         if ctx.scope_stack.lookup_struct(type_name).is_some() {
@@ -384,7 +385,7 @@ impl EvalArena {
         // Either use existing offset (for nested structs) or allocate new memory
         let offset = match existing_offset {
             Some(off) => off,
-            None => EvalArena::g().reserve(total_size),
+            None => EvalArena::g().reserve(total_size)?,
         };
         result.arena_mappings.push(EvalArenaMapping { name: id.to_string(), offset });
 
@@ -413,20 +414,20 @@ impl EvalArena {
                             Some(i) => i as i64,
                             None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Unknown enum variant '{}' for field '{}'", variant, decl.name))),
                         };
-                        EvalArena::g().set(offset + field_offset, &index.to_ne_bytes());
+                        EvalArena::g().set(offset + field_offset, &index.to_ne_bytes())?;
                     } else {
                         match type_name.as_str() {
                             "U8" => {
                                 let v = default_value.parse::<u8>().map_err(|_| {
                                     e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid U8 default value '{}' for field '{}'", default_value, decl.name))
                                 })?;
-                                EvalArena::g().set(offset + field_offset, &[v]);
+                                EvalArena::g().set(offset + field_offset, &[v])?;
                             },
                             "I64" => {
                                 let v = default_value.parse::<i64>().map_err(|_| {
                                     e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid I64 default value '{}' for field '{}'", default_value, decl.name))
                                 })?;
-                                EvalArena::g().set(offset + field_offset, &v.to_ne_bytes());
+                                EvalArena::g().set(offset + field_offset, &v.to_ne_bytes())?;
                             },
                             _ => {
                                 if ctx.scope_stack.lookup_struct(type_name).is_some() {
@@ -577,11 +578,11 @@ impl EvalArena {
         let struct_size = ctx.get_type_size(custom_type_name)?;
 
         // Allocate new memory
-        let new_offset = EvalArena::g().reserve(struct_size);
+        let new_offset = EvalArena::g().reserve(struct_size)?;
 
         // memcpy from template
         let data = EvalArena::g().get(template_offset, struct_size).to_vec();
-        EvalArena::g().set(new_offset, &data);
+        EvalArena::g().set(new_offset, &data)?;
 
         // Generate and apply mappings
         let result = EvalArena::generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)?;
@@ -601,11 +602,11 @@ impl EvalArena {
         let struct_size = ctx.get_type_size(custom_type_name)?;
 
         // Allocate new memory
-        let new_offset = EvalArena::g().reserve(struct_size);
+        let new_offset = EvalArena::g().reserve(struct_size)?;
 
         // memcpy from template
         let data = EvalArena::g().get(template_offset, struct_size).to_vec();
-        EvalArena::g().set(new_offset, &data);
+        EvalArena::g().set(new_offset, &data)?;
 
         // Temporarily push frame for generate_struct_mappings
         let empty_frame = ScopeFrame {
@@ -640,8 +641,8 @@ impl EvalArena {
         let is_field = Self::is_instance_field(ctx, id);
 
         // Allocate string data
-        let string_offset = EvalArena::g().put(value_str.as_bytes());
-        EvalArena::g().put(&[0]); // null terminator
+        let string_offset = EvalArena::g().put(value_str.as_bytes())?;
+        EvalArena::g().put(&[0])?; // null terminator
         let string_offset_bytes = (string_offset as i64).to_ne_bytes();
         let len_bytes = (value_str.len() as i64).to_ne_bytes();
 
@@ -656,9 +657,9 @@ impl EvalArena {
                             let type_size = ctx.get_type_size( &value_type_to_str(&decl.value_type))?;
                             let absolute_offset = base_offset + current_offset;
                             if decl.name == "c_string" {
-                                EvalArena::g().set(absolute_offset, &string_offset_bytes);
+                                EvalArena::g().set(absolute_offset, &string_offset_bytes)?;
                             } else if decl.name == "cap" {
-                                EvalArena::g().set(absolute_offset, &len_bytes);
+                                EvalArena::g().set(absolute_offset, &len_bytes)?;
                             }
 
                             ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, decl.name), absolute_offset);
@@ -681,13 +682,13 @@ impl EvalArena {
                         let type_size = ctx.get_type_size( &value_type_to_str(&decl.value_type))?;
                         let required_len = struct_offset + current_offset + type_size;
                         if EvalArena::g().len() < required_len {
-                            EvalArena::g().reserve(required_len - EvalArena::g().len());
+                            EvalArena::g().reserve(required_len - EvalArena::g().len())?;
                         }
 
                         if decl.name == "c_string" {
-                            EvalArena::g().set(struct_offset + current_offset, &string_offset_bytes);
+                            EvalArena::g().set(struct_offset + current_offset, &string_offset_bytes)?;
                         } else if decl.name == "cap" {
-                            EvalArena::g().set(struct_offset + current_offset, &len_bytes);
+                            EvalArena::g().set(struct_offset + current_offset, &len_bytes)?;
                         }
 
                         ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, decl.name), struct_offset + current_offset);
@@ -715,8 +716,8 @@ impl EvalArena {
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.c_string'", id)))?;
             let cap_offset = ctx.scope_stack.lookup_var(&format!("{}.cap", id))
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.cap'", id)))?;
-            EvalArena::g().set(c_string_offset, &info.string_offset_bytes);
-            EvalArena::g().set(cap_offset, &info.len_bytes);
+            EvalArena::g().set(c_string_offset, &info.string_offset_bytes)?;
+            EvalArena::g().set(cap_offset, &info.len_bytes)?;
         }
         Ok(())
     }
@@ -734,8 +735,8 @@ impl EvalArena {
             let cap_offset = frame.arena_index.get(&format!("{}.cap", id))
                 .copied()
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string_into_frame: missing '{}.cap'", id)))?;
-            EvalArena::g().set(c_string_offset, &info.string_offset_bytes);
-            EvalArena::g().set(cap_offset, &info.len_bytes);
+            EvalArena::g().set(c_string_offset, &info.string_offset_bytes)?;
+            EvalArena::g().set(cap_offset, &info.len_bytes)?;
         }
         Ok(())
     }
@@ -961,37 +962,37 @@ impl EvalArena {
             if is_field {
                 if let Some(offset) = ctx.scope_stack.lookup_var(id) {
                     // Update existing enum value (no new mapping needed)
-                    EvalArena::g().set(offset, &enum_value.to_le_bytes());
+                    EvalArena::g().set(offset, &enum_value.to_le_bytes())?;
                     if let Some(payload_bytes) = &payload_data {
                         let payload_offset = offset + 8;
                         let payload_end = payload_offset + payload_bytes.len();
                         if EvalArena::g().len() < payload_end {
-                            EvalArena::g().reserve(payload_end - EvalArena::g().len());
+                            EvalArena::g().reserve(payload_end - EvalArena::g().len())?;
                         }
-                        EvalArena::g().set(payload_offset, &payload_bytes);
+                        EvalArena::g().set(payload_offset, &payload_bytes)?;
                     }
                     None
                 } else {
                     // Allocate max enum size, write tag and payload, then zero-pad remaining
-                    let offset = EvalArena::g().put(&enum_value.to_le_bytes());
+                    let offset = EvalArena::g().put(&enum_value.to_le_bytes())?;
                     if let Some(payload_bytes) = &payload_data {
-                        EvalArena::g().put(&payload_bytes);
+                        EvalArena::g().put(&payload_bytes)?;
                     }
                     // Pad with zeros to reach max_enum_size
                     if actual_size < max_enum_size {
-                        EvalArena::g().reserve(max_enum_size - actual_size);
+                        EvalArena::g().reserve(max_enum_size - actual_size)?;
                     }
                     Some(EvalArenaMapping { name: id.to_string(), offset })
                 }
             } else {
                 // Allocate max enum size, write tag and payload, then zero-pad remaining
-                let offset = EvalArena::g().put(&enum_value.to_le_bytes());
+                let offset = EvalArena::g().put(&enum_value.to_le_bytes())?;
                 if let Some(payload_bytes) = &payload_data {
-                    EvalArena::g().put(&payload_bytes);
+                    EvalArena::g().put(&payload_bytes)?;
                 }
                 // Pad with zeros to reach max_enum_size
                 if actual_size < max_enum_size {
-                    EvalArena::g().reserve(max_enum_size - actual_size);
+                    EvalArena::g().reserve(max_enum_size - actual_size)?;
                 }
                 Some(EvalArenaMapping { name: id.to_string(), offset })
             }
@@ -1059,7 +1060,7 @@ impl EvalArena {
         let total_size = (len as usize) * elem_size;
 
         // Allocate memory for elements
-        let ptr = EvalArena::g().reserve(total_size);
+        let ptr = EvalArena::g().reserve(total_size)?;
 
         // Write values into allocated buffer
         for (i, val) in values.iter().enumerate() {
@@ -1068,12 +1069,12 @@ impl EvalArena {
                 "U8" => {
                     let byte = val.parse::<u8>()
                         .map_err(|err| e.lang_error(&ctx.path, "insert_array", &format!("invalid U8 '{}'", err)))?;
-                    EvalArena::g().set(offset, &[byte]);
+                    EvalArena::g().set(offset, &[byte])?;
                 },
                 "I64" => {
                     let n = val.parse::<i64>()
                         .map_err(|err| e.lang_error(&ctx.path, "insert_array", &format!("invalid I64 '{}'", err)))?;
-                    EvalArena::g().set(offset, &n.to_ne_bytes());
+                    EvalArena::g().set(offset, &n.to_ne_bytes())?;
                 },
                 "Str" => {
                     // For Str elements, create temp Str and copy bytes to array slot
@@ -1089,14 +1090,14 @@ impl EvalArena {
                     let str_offset = frame.arena_index.get(&temp_id).copied()
                         .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing Str offset for '{}'", temp_id)))?;
                     let data = EvalArena::g().get(str_offset, elem_size).to_vec();
-                    EvalArena::g().set(offset, &data);
+                    EvalArena::g().set(offset, &data)?;
                 },
                 _ => {
                     // Struct element - val is identifier, copy from source
                     let src_offset = ctx.scope_stack.lookup_var(val)
                         .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("struct source '{}' not found", val)))?;
                     let data = EvalArena::g().get(src_offset, elem_size).to_vec();
-                    EvalArena::g().set(offset, &data);
+                    EvalArena::g().set(offset, &data)?;
                 }
             }
         }
@@ -1104,15 +1105,15 @@ impl EvalArena {
         // Update Array fields from frame.arena_index
         let ptr_offset = frame.arena_index.get(&format!("{}.ptr", name)).copied()
             .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing '{}.ptr'", name)))?;
-        EvalArena::g().set(ptr_offset, &(ptr as i64).to_ne_bytes());
+        EvalArena::g().set(ptr_offset, &(ptr as i64).to_ne_bytes())?;
 
         let len_offset = frame.arena_index.get(&format!("{}._len", name)).copied()
             .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing '{}._len'", name)))?;
-        EvalArena::g().set(len_offset, &len.to_ne_bytes());
+        EvalArena::g().set(len_offset, &len.to_ne_bytes())?;
 
         let type_size_offset = frame.arena_index.get(&format!("{}.type_size", name)).copied()
             .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing '{}.type_size'", name)))?;
-        EvalArena::g().set(type_size_offset, &(elem_size as i64).to_ne_bytes());
+        EvalArena::g().set(type_size_offset, &(elem_size as i64).to_ne_bytes())?;
 
         // Set type_name field (it's a Str)
         let type_name_field = format!("{}.type_name", name);
@@ -1131,7 +1132,7 @@ impl EvalArena {
             .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("missing '{}'", type_name_field)))?;
         let str_size = ctx.get_type_size("Str")?;
         let data = EvalArena::g().get(temp_str_offset, str_size).to_vec();
-        EvalArena::g().set(type_name_offset, &data);
+        EvalArena::g().set(type_name_offset, &data)?;
 
         Ok(())
     }
