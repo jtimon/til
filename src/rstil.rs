@@ -10,6 +10,7 @@ mod rs {
     pub mod precomp;
     pub mod precomp_ext;
     pub mod scavenger;
+    pub mod arena;
     pub mod eval_arena;
     pub mod interpreter;
     pub mod ext;
