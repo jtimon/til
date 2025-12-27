@@ -1674,6 +1674,35 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     return Expr.new_parse(NodeType.While, initial_token, params)
 }
 
+// Bug #57 fix: Transform continue statements to include the step expression before continue.
+// This ensures the loop variable is incremented/decremented even when continue is used.
+// Transforms: continue -> { step_expr; continue }
+transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr throws AllocError, IndexOutOfBoundsError {
+    switch expr.node_type {
+    case NodeType.Continue:
+        // Replace continue with { step_expr; continue }
+        mut body_params := Vec.new(Expr)
+        body_params.push(step_expr.clone())
+        body_params.push(expr.clone())
+        return Expr.new_explicit(NodeType.Body, body_params, expr.line, expr.col)
+    case NodeType.While:
+        // Don't recurse into nested loops - their continues are for their own loop
+        return expr.clone()
+    case NodeType.ForIn(_):
+        // Don't recurse into nested loops
+        return expr.clone()
+    case:
+        // Recurse into other nodes
+        mut new_params := Vec.new(Expr)
+        for i in 0..expr.params.len() {
+            mut p := Expr()
+            expr.params.get(i, p)
+            new_params.push(transform_continue_with_step(p, step_expr))
+        }
+        return Expr(node_type=expr.node_type, params=new_params, line=expr.line, col=expr.col)
+    }
+}
+
 parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_token := lexer.peek()
     lexer.advance(1) // consume 'for'
@@ -1800,8 +1829,10 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         inc_params.push(inc_var)
         inc := Expr.new_explicit(NodeType.FCall, inc_params, tok.line, tok.col)
 
-        mut body_params := body.params_clone()
-        body_params.push(inc)
+        // Bug #57 fix: Transform continue statements to include increment before continue
+        transformed_body := transform_continue_with_step(body, inc)
+        mut body_params := transformed_body.params_clone()
+        body_params.push(inc.clone())
         while_body := Expr.new_explicit(NodeType.Body, body_params, body.line, body.col)
 
         mut while_params := Vec.new(Expr)
@@ -1809,6 +1840,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         while_params.push(while_body)
 
         catch (err: AllocError) { throw err.msg }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
         return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
     }
 
@@ -1831,8 +1863,10 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         dec_params.push(dec_var)
         dec := Expr.new_explicit(NodeType.FCall, dec_params, tok.line, tok.col)
 
-        mut body_params := body.params_clone()
-        body_params.push(dec)
+        // Bug #57 fix: Transform continue statements to include decrement before continue
+        transformed_body := transform_continue_with_step(body, dec)
+        mut body_params := transformed_body.params_clone()
+        body_params.push(dec.clone())
         while_body := Expr.new_explicit(NodeType.Body, body_params, body.line, body.col)
 
         mut while_params := Vec.new(Expr)
@@ -1840,6 +1874,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         while_params.push(while_body)
 
         catch (err: AllocError) { throw err.msg }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
         return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
     }
 

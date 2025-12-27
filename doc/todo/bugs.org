@@ -8,64 +8,6 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #57: continue in for loops causes infinite loop
-:PROPERTIES:
-:DISCOVERED: 2025-12-27
-:IMPACT: Must use while loops instead of for when continue is needed
-:STATUS: Open
-:END:
-
-*** Description
-The ~continue~ statement causes infinite loops when used in ~for~ loops.
-This happens because ~for~ desugars to ~while~ with the loop variable increment
-at the END of the body. ~continue~ skips the rest of the body including the
-increment, causing the loop variable to never change.
-
-*** Example
-#+BEGIN_SRC til
-// BROKEN: causes infinite loop
-for i in 0..10 {
-    if i.eq(5) {
-        continue  // skips implicit i.inc(), loops forever at i=5
-    }
-    println(i)
-}
-
-// WORKAROUND: use while with increment BEFORE continue
-mut i := 0
-while lt(i, 10) {
-    i.inc()  // increment first
-    if i.eq(5) {
-        continue  // now safe
-    }
-    println(i)
-}
-#+END_SRC
-
-*** Root Cause
-The precompiler desugars ~for i in 0..N { body }~ to:
-#+BEGIN_SRC til
-mut i := 0
-while lt(i, N) {
-    body
-    i.inc()  // increment at END
-}
-#+END_SRC
-
-When ~continue~ is in the body, it jumps to the while condition check,
-skipping ~i.inc()~.
-
-*** Reproducing
-#+BEGIN_SRC bash
-timeout 2 ./bin/rstil interpret src/test/bug57_continue_for.til
-# Times out (infinite loop) - when fixed, should print 0-9 skipping 5
-#+END_SRC
-
-*** Fix Options
-1. Move increment before body in desugaring (changes for-loop semantics)
-2. Transform continue to jump past body but before increment
-3. Document as limitation (current approach)
-
 ** Bug #56: Interpreter rejects FCall in enum payload inside func/proc
 :PROPERTIES:
 :DISCOVERED: 2025-12-27
@@ -463,6 +405,51 @@ This suggests the bug is related to how the caught error variable is stored/acce
 in the generated C code when used inside the catch block body.
 
 * Fixed Bugs
+
+** Bug #57: continue in for loops causes infinite loop
+:PROPERTIES:
+:DISCOVERED: 2025-12-27
+:FIXED: 2025-12-27
+:IMPACT: Must use while loops instead of for when continue is needed
+:STATUS: Fixed
+:END:
+
+*** Description
+The ~continue~ statement caused infinite loops when used in ~for~ loops.
+This happened because ~for~ desugars to ~while~ with the loop variable increment
+at the END of the body. ~continue~ skips the rest of the body including the
+increment, causing the loop variable to never change.
+
+*** Root Cause
+The parser desugars ~for i in 0..N { body }~ to:
+#+BEGIN_SRC til
+mut i := 0
+while lt(i, N) {
+    body
+    i.inc()  // increment at END
+}
+#+END_SRC
+
+When ~continue~ is in the body, it jumps to the while condition check,
+skipping ~i.inc()~.
+
+*** Fix
+Transform continue statements to include the step expression before the continue.
+The transformation replaces ~continue~ with ~{ i.inc(); continue }~.
+
+This ensures the loop variable is always incremented/decremented before jumping
+to the condition check, regardless of whether continue was used.
+
+Changes made:
+- parser.rs: Added ~transform_continue_with_step~ helper, applied to range-based for loops
+- precomp.rs: Same fix for collection-based for-in loops
+- parser.til, precomp.til: Ported fixes to TIL self-hosted implementation
+
+*** Test
+#+BEGIN_SRC bash
+./bin/rstil interpret src/test/bug57.til
+# Output: Bug #57 test passed: continue in for loops works correctly
+#+END_SRC
 
 ** Bug #55: C codegen generates wrong code for throwing function calls inside struct literals
 :PROPERTIES:

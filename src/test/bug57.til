@@ -1,0 +1,81 @@
+// Bug #57: continue in for loops - FIXED
+// This test verifies that continue works correctly in for loops.
+// The fix ensures the loop variable is incremented before continue jumps to the condition.
+
+mode test
+
+import("core.str")
+import("core.vec")
+
+test_continue_in_for := proc() {
+    // Should print 0,1,2,3,4,6,7,8,9 (skipping 5)
+    mut result := Vec.new(I64)
+    for i in 0..10 {
+        if i.eq(5) {
+            continue  // Fixed: increments i before jumping to condition
+        }
+        result.push(i)
+    }
+
+    // Verify we got 9 elements (0-9 minus 5)
+    assert_eq(loc(), 9, result.len())
+
+    // Verify the values
+    mut val := 0
+    result.get(0, val)
+    assert_eq(loc(), 0, val)
+    result.get(4, val)
+    assert_eq(loc(), 4, val)
+    result.get(5, val)
+    assert_eq(loc(), 6, val)  // 5 was skipped, so index 5 has value 6
+    result.get(8, val)
+    assert_eq(loc(), 9, val)
+
+    println("Bug #57 test passed: continue in for loops works correctly")
+
+    catch (err: AllocError) {
+        println("AllocError:", err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("IndexOutOfBoundsError:", err.msg)
+        exit(1)
+    }
+}
+
+test_continue_in_reverse_for := proc() {
+    // Test continue in reverse for loop (10..0)
+    mut result := Vec.new(I64)
+    for i in 9..sub(0, 1) {
+        if i.eq(5) {
+            continue
+        }
+        result.push(i)
+    }
+
+    // Verify we got 9 elements (9-0 minus 5)
+    assert_eq(loc(), 9, result.len())
+
+    // Verify the values
+    mut val := 0
+    result.get(0, val)
+    assert_eq(loc(), 9, val)
+    result.get(4, val)
+    assert_eq(loc(), 4, val)  // 5 was skipped
+    result.get(8, val)
+    assert_eq(loc(), 0, val)
+
+    println("Bug #57 test passed: continue in reverse for loops works correctly")
+
+    catch (err: AllocError) {
+        println("AllocError:", err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("IndexOutOfBoundsError:", err.msg)
+        exit(1)
+    }
+}
+
+test_continue_in_for()
+test_continue_in_reverse_for()

@@ -8,6 +8,34 @@ import("self.precomp_ext")
 // and performs compile-time constant folding for pure functions.
 // This phase runs after typer, before interpreter/builder.
 
+// Bug #57 fix: Transform continue statements to include the step expression before continue.
+// This ensures the loop variable is incremented even when continue is used in for-in loops.
+precomp_transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr throws AllocError, IndexOutOfBoundsError {
+    switch expr.node_type {
+    case NodeType.Continue:
+        // Replace continue with { step_expr; continue }
+        mut body_params := Vec.new(Expr)
+        body_params.push(step_expr.clone())
+        body_params.push(expr.clone())
+        return Expr.new_explicit(NodeType.Body, body_params, expr.line, expr.col)
+    case NodeType.While:
+        // Don't recurse into nested loops - their continues are for their own loop
+        return expr.clone()
+    case NodeType.ForIn(_):
+        // Don't recurse into nested loops
+        return expr.clone()
+    case:
+        // Recurse into other nodes
+        mut new_params := Vec.new(Expr)
+        for i in 0..expr.params.len() {
+            mut p := Expr()
+            expr.params.get(i, p)
+            new_params.push(precomp_transform_continue_with_step(p, step_expr))
+        }
+        return Expr(node_type=expr.node_type, params=new_params, line=expr.line, col=expr.col)
+    }
+}
+
 // ---------- Named argument reordering
 
 /// Reorder named arguments to match function parameter order.
@@ -817,18 +845,20 @@ precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     while_body_params.push(get_call)
     while_body_params.push(catch_expr)
 
-    // Add original body statements
-    switch body_expr.node_type {
+    // Bug #57 fix: Transform continue statements to include increment before continue
+    transformed_body := precomp_transform_continue_with_step(body_expr, inc_stmt)
+    // Add original body statements (transformed)
+    switch transformed_body.node_type {
     case NodeType.Body:
-        for i in 0..body_expr.params.len() {
+        for i in 0..transformed_body.params.len() {
             mut p := Expr()
-            body_expr.params.get(i, p)
+            transformed_body.params.get(i, p)
             while_body_params.push(p.clone())
         }
     case:
-        while_body_params.push(body_expr)
+        while_body_params.push(transformed_body)
     }
-    while_body_params.push(inc_stmt)
+    while_body_params.push(inc_stmt.clone())
     while_body := Expr.new_explicit(NodeType.Body, while_body_params, e.line, e.col)
 
     // Build while: while _for_i.lt(collection.len()) { ... }

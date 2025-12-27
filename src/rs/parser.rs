@@ -1212,6 +1212,37 @@ fn while_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     Ok(Expr::new_parse(NodeType::While, lexer.get_token(initial_current)?.clone(), params))
 }
 
+// Bug #57 fix: Transform continue statements to include the step expression before continue.
+// This ensures the loop variable is incremented/decremented even when continue is used.
+// Transforms: continue -> { step_expr; continue }
+fn transform_continue_with_step(expr: &Expr, step_expr: &Expr) -> Expr {
+    match &expr.node_type {
+        NodeType::Continue => {
+            // Replace continue with { step_expr; continue }
+            Expr::new_explicit(
+                NodeType::Body,
+                vec![step_expr.clone(), expr.clone()],
+                expr.line,
+                expr.col,
+            )
+        }
+        // Don't recurse into nested loops - their continues are for their own loop
+        NodeType::While | NodeType::ForIn(_) => expr.clone(),
+        // Recurse into other nodes
+        _ => {
+            let new_params: Vec<Expr> = expr.params.iter()
+                .map(|p| transform_continue_with_step(p, step_expr))
+                .collect();
+            Expr {
+                node_type: expr.node_type.clone(),
+                params: new_params,
+                line: expr.line,
+                col: expr.col,
+            }
+        }
+    }
+}
+
 fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     let initial_token = lexer.peek();
     lexer.advance(1)?; // consume 'for'
@@ -1318,8 +1349,10 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
             ])],
             initial_token.line, initial_token.col,
         );
-        let mut body_params = body.params.clone();
-        body_params.push(inc);
+        // Bug #57 fix: Transform continue statements to include increment before continue
+        let transformed_body = transform_continue_with_step(body, &inc);
+        let mut body_params = transformed_body.params.clone();
+        body_params.push(inc.clone());
         let while_body = Expr::new_explicit(NodeType::Body, body_params, body.line, body.col);
         Expr::new_explicit(NodeType::While, vec![cond, while_body], initial_token.line, initial_token.col)
     };
@@ -1345,8 +1378,10 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
             ])],
             initial_token.line, initial_token.col,
         );
-        let mut body_params = body.params.clone();
-        body_params.push(dec);
+        // Bug #57 fix: Transform continue statements to include decrement before continue
+        let transformed_body = transform_continue_with_step(body, &dec);
+        let mut body_params = transformed_body.params.clone();
+        body_params.push(dec.clone());
         let while_body = Expr::new_explicit(NodeType::Body, body_params, body.line, body.col);
         Expr::new_explicit(NodeType::While, vec![cond, while_body], initial_token.line, initial_token.col)
     };

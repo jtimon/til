@@ -12,6 +12,37 @@ use crate::rs::parser::{
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
 use crate::rs::eval_arena::EvalArena;
 use crate::rs::precomp_ext::try_replace_comptime_intrinsic;
+
+// Bug #57 fix: Transform continue statements to include the step expression before continue.
+// This ensures the loop variable is incremented even when continue is used in for-in loops.
+fn transform_continue_with_step(expr: &Expr, step_expr: &Expr) -> Expr {
+    match &expr.node_type {
+        NodeType::Continue => {
+            // Replace continue with { step_expr; continue }
+            Expr::new_explicit(
+                NodeType::Body,
+                vec![step_expr.clone(), expr.clone()],
+                expr.line,
+                expr.col,
+            )
+        }
+        // Don't recurse into nested loops - their continues are for their own loop
+        NodeType::While | NodeType::ForIn(_) => expr.clone(),
+        // Recurse into other nodes
+        _ => {
+            let new_params: Vec<Expr> = expr.params.iter()
+                .map(|p| transform_continue_with_step(p, step_expr))
+                .collect();
+            Expr {
+                node_type: expr.node_type.clone(),
+                params: new_params,
+                line: expr.line,
+                col: expr.col,
+            }
+        }
+    }
+}
+
 // ---------- Named argument reordering
 
 /// Reorder named arguments to match function parameter order.
@@ -621,16 +652,18 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     // The catch must be right after get_call so it only catches IndexOutOfBoundsError from get,
     // not from user code in the loop body
     let mut while_body_params = vec![var_decl_expr, get_call, catch_expr];
-    // Add original body statements
-    match &body_expr.node_type {
+    // Bug #57 fix: Transform continue statements to include increment before continue
+    let transformed_body = transform_continue_with_step(&body_expr, &inc_stmt);
+    // Add original body statements (transformed)
+    match &transformed_body.node_type {
         NodeType::Body => {
-            while_body_params.extend(body_expr.params.clone());
+            while_body_params.extend(transformed_body.params.clone());
         },
         _ => {
-            while_body_params.push(body_expr);
+            while_body_params.push(transformed_body);
         }
     }
-    while_body_params.push(inc_stmt);
+    while_body_params.push(inc_stmt.clone());
     let while_body = Expr::new_explicit(NodeType::Body, while_body_params, e.line, e.col);
 
     // Build while: while _for_i.lt(collection.len()) { ... }
