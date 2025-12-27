@@ -22,7 +22,7 @@ use rs::builder;
 use rs::eval_arena::EvalArena;
 use rs::target::{Target, Lang, target_from_str, lang_from_str, detect_current_target, default_lang_for_target};
 
-const SELF_HOSTED_PATH     : &str = "src/til.til";
+const REPL_PATH            : &str = "src/modes/repl.til";
 
 // Parse --target=X and --lang=X options from args, return (remaining_args, target, lang, translate_only)
 fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, bool), String> {
@@ -195,9 +195,7 @@ fn main() {
     } else if args.len() > 1 {
         match args[1].as_str() {
             "repl" => {
-                let mut repl_temp : Vec<String> = Vec::new();
-                repl_temp.push("repl".to_string());
-                interpret_file_or_exit(&SELF_HOSTED_PATH.to_string(), repl_temp);
+                interpret_file_or_exit(&REPL_PATH.to_string(), Vec::new());
             },
             "ast" | "interpret" | "build" | "translate" | "run" |
             "help" | "-help" | "--help" | "--version" | "-v" => {
@@ -210,8 +208,6 @@ fn main() {
         return
     }
 
-    // If not arguments, then repl/interactive "mode"
-    let mut repl_temp : Vec<String> = Vec::new();
-    repl_temp.push("repl".to_string());
-    interpret_file_or_exit(&SELF_HOSTED_PATH.to_string(), repl_temp);
+    // If no arguments, then repl/interactive "mode"
+    interpret_file_or_exit(&REPL_PATH.to_string(), Vec::new());
 }

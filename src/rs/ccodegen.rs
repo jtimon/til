@@ -3232,6 +3232,13 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         };
 
         if let Some(fcall) = maybe_fcall {
+            // runfile is only available in interpret mode
+            if let Some(func_name) = get_til_func_name_string(&fcall.params[0]) {
+                if func_name == "runfile" {
+                    return Err(fcall.error(&context.path, "ccodegen", "runfile() is only available in interpret mode, not in build/run"));
+                }
+            }
+
             // Get function name from the FCall
             // Check if this function is a throwing function
             if let Some(throw_types) = get_fcall_func_def(context, fcall).map(|fd| fd.throw_types).filter(|t| !t.is_empty()) {

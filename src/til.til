@@ -1,8 +1,9 @@
 mode cli
 
 import("self.builder")      // interpreter, ext (via chain) - main_run, run_file, run_file_with_context
+import("self.eval_arena")   // g_arena
 import("self.lexer")        // LANG_NAME
-import("std.sys")            // run_cmd
+import("std.sys")           // run_cmd
 
 CURRENT_VERSION := "til_0.0.1" // REM: No point in advancing versions until it compiles itself
 REPL_PATH       := "src/modes/repl.til"
@@ -10,9 +11,15 @@ REPL_PATH       := "src/modes/repl.til"
 // ---------- interpret, build, run commands
 
 // Run a file using run_file
-interpret_file_or_exit := proc(path: Str) throws Str, AllocError {
-    mut empty_args := Vec.new(Str)
-    _ := run_file(path, empty_args)
+interpret_file_or_exit := proc(path: Str, args: Vec) {
+    _ := run_file(path, args)
+    catch (err: Str) {
+        println("ERROR: ", err)
+        exit(1)
+    }
+    if path.ends_with("tests.til") {
+        println("Total memory used by interpreted program: ", g_arena.len().to_str(), " bytes")
+    }
 }
 
 build_file_or_exit := proc(path: Str) {
@@ -104,17 +111,23 @@ main := proc(args: ..Str) {
         }
         switch cmd {
         case "interpret" :
-            interpret_file_or_exit(val1)
-            catch (err: Str) {
-                println("Error during file execution: ", err)
-                exit(1)
+            // Pass remaining args after path (like Rust's args[3..])
+            mut interp_args := Vec.new(Str)
+            mut j := 2
+            while j.lt(args.len()) {
+                mut arg := ""
+                args.get(j, arg)
+                interp_args.push(arg)
+                j.inc()
             }
+            interpret_file_or_exit(val1, interp_args)
+            catch (err: IndexOutOfBoundsError) { }
             catch (err: AllocError) {
-                println("AllocError during file execution")
+                println("Fatal: Failed to allocate argument array")
                 exit(1)
             }
-        // case "interpret" : interpret_file_or_exit(args.get(1), main_args) // TODO FIX
-        case "repl"      : usage()
+        case "repl"      :
+            interpret_file_or_exit(REPL_PATH, Vec.new(Str))
         case "build"     :
             build_file_or_exit(val1)
         case "translate" :
@@ -135,7 +148,8 @@ main := proc(args: ..Str) {
         }
         switch path {
         // case "version" | "--version" | "-v": println(CURRENT_VERSION) // TODO Some syntax to 'or' cases
-        case "repl"      : runfile(REPL_PATH)
+        case "repl"      :
+            interpret_file_or_exit(REPL_PATH, Vec.new(Str))
 
         case "version"   : println(CURRENT_VERSION)
         case "--version" : println(CURRENT_VERSION)
@@ -151,27 +165,10 @@ main := proc(args: ..Str) {
         case "interpret" : usage()
         case "run"       : usage()
         case:
-            interpret_file_or_exit(path)
-            catch (err: Str) {
-                println("Error during execution:")
-                println(err)
-                exit(1)
-            }
-            catch (err: AllocError) {
-                println("AllocError during execution")
-                exit(1)
-            }
+            interpret_file_or_exit(path, Vec.new(Str))
         }
     } else {
-        // TEMP: Testing self-hosted compiler on hello_script.til
-        interpret_file_or_exit("src/examples/hello_script.til")
-        catch (err: Str) {
-            println("Error during file execution: ", err)
-            exit(1)
-        }
-        catch (err: AllocError) {
-            println("AllocError during file execution")
-            exit(1)
-        }
+        // If no arguments, then repl/interactive "mode"
+        interpret_file_or_exit(REPL_PATH, Vec.new(Str))
     }
 }
