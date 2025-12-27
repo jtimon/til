@@ -83,11 +83,10 @@ main := proc() {
     println("================================================================================")
     println("")
 
-    mut j := sub(totals.len(), 1)
     mut out_hash := ""
     mut out_msg := ""
     mut out_total := 0
-    while j.gt(sub(0, 1)) {
+    for j in sub(totals.len(), 1)..sub(0, 1) {
         hashes.get(j, out_hash)
         msgs.get(j, out_msg)
         totals.get(j, out_total)
@@ -109,8 +108,6 @@ main := proc() {
         println("")
         println("         ", out_msg)
         println("")
-
-        j = sub(j, 1)
     }
 
     catch (err: AllocError) {

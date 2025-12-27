@@ -23,6 +23,15 @@ test_for_range_loop := proc() {
 }
 test_for_range_loop()
 
+test_for_reverse_range_loop := proc() {
+    mut sum := 0
+    for i in 5..0 {
+        sum = sum.add(i)
+    }
+    assert_eq(loc(), 15, sum)  // 5+4+3+2+1 = 15
+}
+test_for_reverse_range_loop()
+
 test_for_in_vec_i64 := proc() {
     mut v := Vec.new(I64)
     v.push(10)

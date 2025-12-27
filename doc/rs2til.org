@@ -273,18 +273,19 @@ if map.contains_key(key) {
 
 Rust: ~items.iter().rev()~
 
-TIL:
+TIL (reverse range loop):
 #+begin_src til
-mut i := items.len().sub(1)
-while i.gteq(0) {  // TODO: use reverse range when implemented: for i in items.len().sub(1)..0
+// Iterate len-1 down to 0 (inclusive) - use sub(0, 1) as end
+for i in items.len().sub(1)..sub(0, 1) {
     mut item := T()
     items.get(i, item)
     // use item
-    i.dec()
 }
 #+end_src
 
-Note: Start at ~len().sub(1)~, loop while ~i.gteq(0)~ to include index 0, decrement at end with ~i.dec()~.
+Note: Reverse ranges exclude the end value, just like forward ranges. ~5..0~ iterates 5, 4, 3, 2, 1.
+To include index 0, use ~..sub(0, 1)~ (equivalent to ~..-1~).
+For literal ranges, direction is detected at parse time; for variable ranges, at runtime.
 
 ** break and continue
 
@@ -555,8 +556,7 @@ Place catch immediately after the throwing call, before using the result:
 
 #+begin_src til
 lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
-    mut i := self.frames.len().sub(1)
-    while i.gteq(0) {
+    for i in self.frames.len().sub(1)..sub(0, 1) {
         mut frame := ScopeFrame()
         self.frames.get(i, frame)
 
@@ -568,8 +568,6 @@ lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotF
             }
             return func_def
         }
-
-        i.dec()
     }
 
     catch (err: IndexOutOfBoundsError) {
@@ -601,15 +599,13 @@ my_func := func() returns T throws Str {
 Use ~panic(loc(), "message")~ for errors that should never happen (e.g., index errors when iterating within known bounds):
 
 #+begin_src til
-mut i := vec.len().sub(1)
-while i.gteq(0) {
+for i in vec.len().sub(1)..sub(0, 1) {
     mut item := T()
     vec.get(i, item)
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), "vec.get can't fail: i is always within bounds: ", err.msg)
     }
     // use item
-    i.dec()
 }
 #+end_src
 

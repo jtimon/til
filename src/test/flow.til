@@ -121,16 +121,23 @@ test_for_loop_range := proc(min_range : I64, max_range : I64) {
 
     mut sum_while := 0
     mut j := min_range
-    while j.lt(max_range) {
-        sum_while = sum_while.add(j)
-        j.inc()
+    if lt(min_range, max_range) {
+        while j.lt(max_range) {
+            sum_while = sum_while.add(j)
+            j.inc()
+        }
+    } else {
+        while j.gt(max_range) {
+            sum_while = sum_while.add(j)
+            j.dec()
+        }
     }
 
     assert_eq(loc(), sum_for, sum_while)
 }
 test_for_loop_range(0, 12)
 test_for_loop_range(3, 5)
-test_for_loop_range(4, 2) // TODO this should probably fail, but it hasn't been tested yet
+test_for_loop_range(4, 2) // reverse range: 4, 3 = 7
 
 // Test: Nested function returns and stack frame handling
 test_nested_function_returns := proc() {

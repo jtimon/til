@@ -144,8 +144,7 @@ ScopeStack := struct {
 
     lookup_var := func(self: ScopeStack, name: Str) returns I64 throws KeyNotFoundError {
         // Walk up the stack from innermost to outermost
-        mut i := self.frames.len().sub(1)
-        while i.gteq(0) {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
 
@@ -157,8 +156,6 @@ ScopeStack := struct {
                 }
                 return offset_str.to_i64()
             }
-
-            i.dec()
         }
 
         catch (err: IndexOutOfBoundsError) {
@@ -168,8 +165,7 @@ ScopeStack := struct {
     }
 
     lookup_symbol := func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError {
-        mut i := self.frames.len().sub(1)
-        while i.gteq(0) {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
 
@@ -181,8 +177,6 @@ ScopeStack := struct {
                 }
                 return symbol
             }
-
-            i.dec()
         }
 
         catch (err: IndexOutOfBoundsError) {
@@ -294,8 +288,7 @@ ScopeStack := struct {
     }
 
     lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
-        mut i := self.frames.len().sub(1)
-        while i.gteq(0) { // TODO: replace with reverse range loop when implemented
+        for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
 
@@ -307,8 +300,6 @@ ScopeStack := struct {
                 }
                 return func_def
             }
-
-            i.dec()
         }
 
         catch (err: IndexOutOfBoundsError) {
@@ -337,8 +328,7 @@ ScopeStack := struct {
     }
 
     lookup_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws KeyNotFoundError {
-        mut i := self.frames.len().sub(1)
-        while i.gteq(0) {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
 
@@ -350,8 +340,6 @@ ScopeStack := struct {
                 }
                 return enum_def
             }
-
-            i.dec()
         }
 
         catch (err: IndexOutOfBoundsError) {
@@ -380,8 +368,7 @@ ScopeStack := struct {
     }
 
     lookup_struct := func(self: ScopeStack, name: Str) returns SStructDef throws KeyNotFoundError {
-        mut i := self.frames.len().sub(1)
-        while i.gteq(0) {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
 
@@ -393,8 +380,6 @@ ScopeStack := struct {
                 }
                 return struct_def
             }
-
-            i.dec()
         }
 
         catch (err: IndexOutOfBoundsError) {
@@ -405,16 +390,13 @@ ScopeStack := struct {
 
     all_structs := func(self: ScopeStack) returns Vec throws Str {
         mut result := Vec.new(SStructDef)
-        mut i := self.frames.len().sub(1)
-        while i.gteq(0) {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
 
             for struct_def: SStructDef in frame.structs.values {
                 result.push(struct_def)
             }
-
-            i.dec()
         }
 
         catch (err: IndexOutOfBoundsError) {
