@@ -362,9 +362,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
                     // In this case, parts[0] is a variable name, not a type name
                     mut parts := func_name.split(".")
                     mut method_name := ""
-                    if parts.len().gt(0) {
-                        parts.get(parts.len().sub(1), method_name) // Last part is the method name
-                    }
+                    parts.get(parts.len().sub(1), method_name) // Last part is the method name
 
                     mut is_unresolved_ufcs := false
                     if parts.len().gteq(2) {
