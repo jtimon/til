@@ -4628,6 +4628,15 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
         }
 
         if has_fcall {
+            // eval functions from std.meta are only available in interpret mode
+            mut func_name_result := get_til_func_name_string(maybe_fcall.get(0))
+            if func_name_result.found {
+                fn_name := func_name_result.name
+                if or(or(fn_name.eq("eval_file"), fn_name.eq("eval_to_str")), or(fn_name.eq("eval_to_ast_str"), fn_name.eq("eval_to_expr"))) {
+                    throw maybe_fcall.error(context.path, "ccodegen", format(fn_name, "() is only available in interpret mode, not in build/run"))
+                }
+            }
+
             // Check if this function is a throwing function
             mut lookup_result := get_fcall_func_def(context, maybe_fcall)
             if lookup_result.found {
