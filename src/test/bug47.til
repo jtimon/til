@@ -1,18 +1,31 @@
 mode test
 
-// Bug #47 minimal reproducer
-// Bug: Using caught error variable causes memory corruption
-import("self.builder")
+// Bug #47 minimal reproducer - calling typer directly without interpret_file
 
-run_it := proc(path: Str) throws Str, AllocError {
-    mut args := Vec.new(Str)
-    _ := run_file(path, args)
+import("self.lexer")
+import("self.parser")
+import("self.init")
+import("self.typer")
+
+test_bug47 := proc() {
+    source := "mode script; println(42)"
+    path := "test"
+
+    mut context := Context.new(path, "script")
+    mut lexer := lexer_from_source(path, source)
+    mut parsed_mode := parse_mode(path, lexer)
+    context.mode_def = parsed_mode
+    mut e := parse_tokens(lexer)
+    _ := init_context(context, e)
+    _ := check_types(context, e)
+
+    catch (err: Str) {
+        println("ERROR:", loc(), err)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), err.msg)
+        exit(1)
+    }
 }
-
-wrapper := proc() {
-    run_it("src/examples/empty.til")
-    catch (err: Str) { println(err) }  // Using 'err' triggers bug
-    catch (err: AllocError) { }
-}
-
-wrapper()
+test_bug47()

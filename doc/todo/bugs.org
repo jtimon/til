@@ -288,9 +288,12 @@ for-in loop or Vec.get. Something external is corrupting the Expr data.
 
 *** Reproducing
 #+BEGIN_SRC bash
-./bin/rstil interpret src/examples/empty.til  # PASS
-./bin/til interpret src/examples/empty.til    # FAIL
+./bin/rstil interpret src/test/bug47.til  # PASS
+./bin/til interpret src/test/bug47.til    # FAIL with NodeType.?
 #+END_SRC
+
+The test file (src/test/bug47.til) calls check_types directly without
+using interpret_file, isolating the bug to the typer code path.
 
 *** Notes
 Bug #52 and #53 were discovered while investigating this issue. Both are now fixed
