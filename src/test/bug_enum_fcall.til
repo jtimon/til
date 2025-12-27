@@ -1,0 +1,40 @@
+// Bug: FCall inside enum payload works at top level but fails inside func/proc
+// Interpreter only - compiler handles it fine
+mode test
+
+MyEnum := enum {
+    Variant1: Str,
+}
+
+// WORKS: top level declaration with clone in enum payload
+s := "test"
+e1 := MyEnum.Variant1(s.clone())
+println("top level declaration: OK")
+
+// FAILS: inside func, clone in enum payload
+test_in_func := func() returns MyEnum throws AllocError {
+    x := "hello"
+    return MyEnum.Variant1(x.clone())  // ERROR: Struct payload must be a variable identifier or literal, got FCall
+}
+
+// WORKAROUND: extract clone result to variable first
+test_workaround := func() returns MyEnum throws AllocError {
+    x := "hello"
+    x_cloned := x.clone()
+    return MyEnum.Variant1(x_cloned)  // This works
+}
+
+run_test := proc() {
+    e2 := test_workaround()
+    println("workaround in func: OK")
+
+    e3 := test_in_func()  // This will fail
+    println("clone in func: OK")
+
+    catch (err: AllocError) {
+        println("ERROR:", err.msg)
+        exit(1)
+    }
+}
+
+run_test()
