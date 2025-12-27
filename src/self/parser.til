@@ -40,7 +40,13 @@ SEnumDef := struct {
 
     clone := func(self: SEnumDef) returns SEnumDef throws AllocError {
         mut result := SEnumDef()
-        result.variants = self.variants.clone()
+        // Deep clone: iterate and clone each element
+        for i in 0..self.variants.len() {
+            mut v := EnumVariant()
+            self.variants.get(i, v)
+            result.variants.push(v.clone())
+        }
+        catch (err: IndexOutOfBoundsError) { panic(err.msg) }
         return result
     }
 
