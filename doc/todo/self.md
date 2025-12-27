@@ -51,21 +51,19 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Test: src/test/bug55.til
 
 ### Current Issue
-**Bug #47 is FIXED (2025-12-27)**
+**Arena overflow (2025-12-27)**
 
-Fix: Removed 4 `id_params.delete()` calls in typer.til (lines 2657, 2694, 2699, 2704).
-The issue was that `id_params` was a shallow clone, and `extra_arg_e` still referenced
-memory owned by `id_params`. When `id_params.delete()` was called, it freed memory
-that `extra_arg_e` was still using, causing memory corruption.
+Previous segfault was caused by `lookup_var` in init.til treating `arena_index` as
+`Map(Str, Str)` and calling `to_i64()` on the value. Fixed by using `Map(Str, I64)`
+correctly - getting the offset as an I64 directly.
 
-The test `src/test/bug47.til` now passes in rs_common (both interpret and run).
-
-**Remaining issue:** `./bin/til interpret` and `./bin/til run` still segfault:
+Current status:
 ```bash
-./bin/til interpret src/examples/empty.til  # Segmentation fault
-./bin/til run src/examples/empty.til        # Segmentation fault
+./bin/til interpret src/examples/empty.til  # ERROR: arena overflow
+./bin/til run src/examples/empty.til        # Build error: arena overflow
 ```
-This is a different bug from #47 - need to investigate further.
+
+Need to investigate why arena overflows during self-hosted compilation.
 
 ## Compiler Phases
 1. ~~Parser~~ ✓

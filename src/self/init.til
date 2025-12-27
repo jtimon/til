@@ -149,12 +149,12 @@ ScopeStack := struct {
             self.frames.get(i, frame)
 
             if frame.arena_index.contains_key(name) {
-                mut offset_str := ""
-                frame.arena_index.get(name, offset_str)
+                mut offset := 0
+                frame.arena_index.get(name, offset)
                 catch (err: KeyNotFoundError) {
                     // Var not found, continue searching
                 }
-                return offset_str.to_i64()
+                return offset
             }
         }
 
