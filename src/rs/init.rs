@@ -1156,19 +1156,25 @@ impl Context {
 
     // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
     pub fn get_variant_pos(selfi: &SEnumDef, variant_name: &str, path: &str, e: &Expr) -> Result<i64, String> {
-        match selfi.variants.iter().position(|v| v.name == variant_name) {
-            Some(position) => Ok(position as i64),
-            None => {
-                let names: Vec<&str> = selfi.variants.iter().map(|v| v.name.as_str()).collect();
-                return Err(e.lang_error(path, "context", &format!("Error: Enum variant '{}' not found in variants: {:?}.", variant_name, names)))
-            },
+        for (i, v) in selfi.variants.iter().enumerate() {
+            if v.name == variant_name {
+                return Ok(i as i64);
+            }
         }
+        let mut names: Vec<&str> = vec![];
+        for v in &selfi.variants {
+            names.push(v.name.as_str());
+        }
+        Err(e.lang_error(path, "context", &format!("Error: Enum variant '{}' not found in variants: {:?}.", variant_name, names)))
     }
 
     // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
     pub fn variant_pos_to_str(selfi: &SEnumDef, position: i64, path: &str, e: &Expr) -> Result<String, String> {
         if position < 0 || position >= selfi.variants.len() as i64 {
-            let names: Vec<&str> = selfi.variants.iter().map(|v| v.name.as_str()).collect();
+            let mut names: Vec<&str> = vec![];
+            for v in &selfi.variants {
+                names.push(v.name.as_str());
+            }
             return Err(e.lang_error(path, "context", &format!("Error: Invalid position '{}' for enum variant in '{:?}'.",
                                                         position, names)));
         }

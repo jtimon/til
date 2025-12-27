@@ -29,7 +29,13 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
     let is_variadic = func_proc_has_multi_arg(func_def);
 
     // Check if there are any named args
-    let has_named_args = call_args.iter().any(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
+    let mut has_named_args = false;
+    for arg in call_args {
+        if matches!(&arg.node_type, NodeType::NamedArg(_)) {
+            has_named_args = true;
+            break;
+        }
+    }
 
     // Named args are not supported for variadic functions
     if has_named_args && is_variadic {
@@ -81,7 +87,13 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
     for arg in call_args.iter().skip(positional_count) {
         if let NodeType::NamedArg(arg_name) = &arg.node_type {
             // Find the parameter index by name
-            let param_idx = func_def.args.iter().position(|p| &p.name == arg_name);
+            let mut param_idx: Option<usize> = None;
+            for (i, p) in func_def.args.iter().enumerate() {
+                if &p.name == arg_name {
+                    param_idx = Some(i);
+                    break;
+                }
+            }
             match param_idx {
                 Some(idx) => {
                     if final_args[idx].is_some() {

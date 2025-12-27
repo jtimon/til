@@ -1648,26 +1648,44 @@ Context := struct {
 
     // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
     get_variant_pos := func(selfi: SEnumDef, variant_name: Str, path: Str, e: Expr) returns I64 throws Str {
-        mut idx := 0
-        while idx.lt(selfi.variants.len()) {
+        for i in 0..selfi.variants.len() {
             mut v := EnumVariant()
-            selfi.variants.get(idx, v)
+            selfi.variants.get(i, v)
             if v.name.eq(variant_name) {
-                return idx
+                return i
             }
-            idx.inc()
+        }
+        mut names := Vec.new(Str)
+        for i in 0..selfi.variants.len() {
+            mut v := EnumVariant()
+            selfi.variants.get(i, v)
+            names.push(v.name)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        throw e.lang_error(path, "context", format("Error: Enum variant '", variant_name, "' not found in variants."))
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        throw e.lang_error(path, "context", format("Error: Enum variant '", variant_name, "' not found in variants: ", names.to_str(), "."))
     }
 
     // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
     variant_pos_to_str := func(selfi: SEnumDef, position: I64, path: Str, e: Expr) returns Str throws Str {
         if position.lt(0).or(position.gteq(selfi.variants.len())) {
-            # Return an error if the position is out of bounds
-            throw e.lang_error(path, "context", format("Error: Invalid position '", I64.to_str(position), "' for enum variant."))
+            mut names := Vec.new(Str)
+            for i in 0..selfi.variants.len() {
+                mut v := EnumVariant()
+                selfi.variants.get(i, v)
+                names.push(v.name)
+            }
+            catch (err: IndexOutOfBoundsError) {
+                throw err.msg
+            }
+            catch (err: AllocError) {
+                throw err.msg
+            }
+            throw e.lang_error(path, "context", format("Error: Invalid position '", I64.to_str(position), "' for enum variant in '", names.to_str(), "'."))
         }
         # If position is valid, return the corresponding variant name
         mut v := EnumVariant()

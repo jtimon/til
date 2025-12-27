@@ -1,7 +1,7 @@
 // C code generator for TIL
 // Translates TIL AST to C source code
 
-use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType, INFER_TYPE};
+use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType, Declaration, INFER_TYPE};
 use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType};
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::{HashMap, HashSet};
@@ -1045,8 +1045,14 @@ fn hoist_for_dynamic_params(
                         if let ValueType::TCustom(struct_name) = &sym.value_type {
                             let struct_def = context.scope_stack.lookup_struct(struct_name)
                                 .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", &format!("Struct not found: {}", struct_name)))?;
-                            let member = struct_def.members.iter().find(|m| &m.name == field_or_variant)
-                                .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", &format!("Field not found: {}", field_or_variant)))?;
+                            let mut member_opt: Option<&Declaration> = None;
+                            for m in &struct_def.members {
+                                if &m.name == field_or_variant {
+                                    member_opt = Some(m);
+                                    break;
+                                }
+                            }
+                            let member = member_opt.ok_or_else(|| arg.lang_error(&context.path, "ccodegen", &format!("Field not found: {}", field_or_variant)))?;
                             til_type_to_c(&member.value_type)
                                 .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
                         } else {
@@ -1804,9 +1810,19 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     if context.mode_def.needs_main_proc {
         // Check if main has variadic args by looking up the function
         // Variadic params have ValueType::TMulti as their type
-        let main_has_variadic = context.scope_stack.lookup_func("main")
-            .map(|fd| fd.args.iter().any(|arg| matches!(&arg.value_type, ValueType::TMulti(_))))
-            .unwrap_or(false);
+        let main_has_variadic = match context.scope_stack.lookup_func("main") {
+            Some(fd) => {
+                let mut has_multi = false;
+                for arg in &fd.args {
+                    if matches!(&arg.value_type, ValueType::TMulti(_)) {
+                        has_multi = true;
+                        break;
+                    }
+                }
+                has_multi
+            },
+            None => false,
+        };
 
         if main_has_variadic {
             // Convert argc/argv to til_Array and pass to til_main
@@ -2296,7 +2312,13 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
 
     // 2. Emit payload union (only for variants that have payloads)
     // typedef union { unsigned char Green; long long Number; } Color_Payload;
-    let has_any_payload = variants.iter().any(|(_, payload)| payload.is_some());
+    let mut has_any_payload = false;
+    for (_, payload) in &variants {
+        if payload.is_some() {
+            has_any_payload = true;
+            break;
+        }
+    }
     if has_any_payload {
         output.push_str("typedef union {\n");
         for (variant_name, payload_type) in &variants {
@@ -3110,7 +3132,14 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
             if stmt.params.len() >= 3 {
                 if let NodeType::Identifier(err_type_name) = &stmt.params[1].node_type {
                     // Look up this specific catch's label from all_catch_info by statement index
-                    if let Some(catch_entry) = all_catch_info.iter().find(|e| e.stmt_index == i) {
+                    let mut catch_entry_opt: Option<&CatchLabelInfoEntry> = None;
+                    for e in &all_catch_info {
+                        if e.stmt_index == i {
+                            catch_entry_opt = Some(e);
+                            break;
+                        }
+                    }
+                    if let Some(catch_entry) = catch_entry_opt {
                         // Only emit if we haven't already emitted this label
                         if !emitted_catch_labels.contains(&catch_entry.label) {
                             emitted_catch_labels.insert(catch_entry.label.clone());
@@ -3756,13 +3785,15 @@ fn emit_throwing_call(
             // Get error type name from catch block
             if let NodeType::Identifier(err_type_name) = &catch_block.params[1].node_type {
                 // Find index of this error type
-                let err_idx = throw_types.iter().position(|vt| {
+                let mut err_idx: Option<usize> = None;
+                for (i, vt) in throw_types.iter().enumerate() {
                     if let crate::rs::parser::ValueType::TCustom(name) = vt {
-                        name == err_type_name
-                    } else {
-                        false
+                        if name == err_type_name {
+                            err_idx = Some(i);
+                            break;
+                        }
                     }
-                });
+                }
 
                 if let Some(idx) = err_idx {
                     output.push_str(" else if (_status_");
@@ -4006,13 +4037,15 @@ fn emit_throwing_call_propagate(
     for (called_idx, called_throw_type) in throw_types.iter().enumerate() {
         if let crate::rs::parser::ValueType::TCustom(called_type_name) = called_throw_type {
             // Find matching error type in current function's throw types
-            let current_idx = ctx.current_throw_types.iter().position(|vt| {
+            let mut current_idx: Option<usize> = None;
+            for (i, vt) in ctx.current_throw_types.iter().enumerate() {
                 if let crate::rs::parser::ValueType::TCustom(name) = vt {
-                    name == called_type_name
-                } else {
-                    false
+                    if name == called_type_name {
+                        current_idx = Some(i);
+                        break;
+                    }
                 }
-            });
+            }
 
             if let Some(cur_idx) = current_idx {
                 output.push_str(&indent_str);
@@ -4272,13 +4305,19 @@ fn emit_throwing_call_with_goto(
                 output.push_str("; goto ");
                 output.push_str(&catch_info.label);
                 output.push_str("; }\n");
-            } else if ctx.current_throw_types.iter().any(|t| {
-                if let crate::rs::parser::ValueType::TCustom(n) = t { n == type_name } else { false }
-            }) {
+            } else {
+                // Check if this error type is in current_throw_types (propagate to caller)
+                let mut prop_idx: Option<usize> = None;
+                for (i, t) in ctx.current_throw_types.iter().enumerate() {
+                    if let crate::rs::parser::ValueType::TCustom(n) = t {
+                        if n == type_name {
+                            prop_idx = Some(i);
+                            break;
+                        }
+                    }
+                }
+                if let Some(prop_idx) = prop_idx {
                 // Propagate to caller: copy error to output param and return
-                let prop_idx = ctx.current_throw_types.iter().position(|t| {
-                    if let crate::rs::parser::ValueType::TCustom(n) = t { n == type_name } else { false }
-                }).unwrap_or(0);
                 output.push_str(&indent_str);
                 output.push_str("if (_status_");
                 output.push_str(&temp_suffix);
@@ -4293,6 +4332,7 @@ fn emit_throwing_call_with_goto(
                 output.push_str("; return ");
                 output.push_str(&(prop_idx + 1).to_string());
                 output.push_str("; }\n");
+                }
             }
         }
     }
@@ -5052,12 +5092,15 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         }
 
         // Find the index of this type in current_throw_types
-        let error_index = ctx.current_throw_types.iter().position(|vt| {
-            match vt {
-                crate::rs::parser::ValueType::TCustom(name) => name == &thrown_type_name,
-                _ => false,
+        let mut error_index: Option<usize> = None;
+        for (i, vt) in ctx.current_throw_types.iter().enumerate() {
+            if let crate::rs::parser::ValueType::TCustom(name) = vt {
+                if name == &thrown_type_name {
+                    error_index = Some(i);
+                    break;
+                }
             }
-        });
+        }
 
         match error_index {
             Some(idx) => {
@@ -5174,12 +5217,15 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     // Find the index of this type in current_throw_types
     // Note: Str is represented as TCustom("Str") in the type system
-    let error_index = ctx.current_throw_types.iter().position(|vt| {
-        match vt {
-            crate::rs::parser::ValueType::TCustom(name) => name == &thrown_type_name,
-            _ => false,
+    let mut error_index: Option<usize> = None;
+    for (i, vt) in ctx.current_throw_types.iter().enumerate() {
+        if let crate::rs::parser::ValueType::TCustom(name) = vt {
+            if name == &thrown_type_name {
+                error_index = Some(i);
+                break;
+            }
         }
-    });
+    }
 
     match error_index {
         Some(idx) => {

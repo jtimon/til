@@ -420,12 +420,18 @@ fn check_forin_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     match context.scope_stack.lookup_func(&get_method) {
         Some(func_def) => {
             // Verify signature: get(self, I64, mut Dynamic) throws IndexOutOfBoundsError
+            let mut throws_index_error = false;
+            for t in &func_def.throw_types {
+                if *t == ValueType::TCustom("IndexOutOfBoundsError".to_string()) {
+                    throws_index_error = true;
+                    break;
+                }
+            }
             let valid = func_def.args.len() >= 3
                 && func_def.args[1].value_type == ValueType::TCustom("I64".to_string())
                 && func_def.args[2].is_mut
                 && func_def.args[2].value_type == ValueType::TCustom("Dynamic".to_string())
-                && func_def.throw_types.iter().any(|t|
-                    *t == ValueType::TCustom("IndexOutOfBoundsError".to_string()));
+                && throws_index_error;
 
             if !valid {
                 errors.push(e.error(&context.path, "type", &format!(
@@ -743,14 +749,28 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
 
     // Filter and report only the thrown types that are not declared
     for te in &thrown_types {
-        if !func_def.throw_types.iter().any(|declared| &value_type_to_str(declared) == &te.type_str) {
+        let mut is_declared = false;
+        for declared in &func_def.throw_types {
+            if value_type_to_str(declared) == te.type_str {
+                is_declared = true;
+                break;
+            }
+        }
+        if !is_declared {
             errors.push(te.msg.clone());
         }
     }
 
     for declared_throw in &func_def.throw_types {
         let declared_str = value_type_to_str(declared_throw);
-        if !thrown_types.iter().any(|te| te.type_str == declared_str) {
+        let mut is_thrown = false;
+        for te in &thrown_types {
+            if te.type_str == declared_str {
+                is_thrown = true;
+                break;
+            }
+        }
+        if !is_thrown {
             errors.push(e.error(&context.path, "type", &format!("`{}` is declared in the throws section, but this function never throws it.\nSuggestion: Remove it from the throws section.",
                                                     declared_str)));
         }
@@ -877,7 +897,14 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     };
 
                     // Remove first, before descending into body
-                    if thrown_types.iter().any(|te| te.type_str == caught_type) {
+                    let mut found_match = false;
+                    for te in thrown_types.iter() {
+                        if te.type_str == caught_type {
+                            found_match = true;
+                            break;
+                        }
+                    }
+                    if found_match {
                         // Remove matching entries
                         let mut i = 0;
                         while i < thrown_types.len() {
@@ -1501,7 +1528,14 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
                     match current_type {
                         ValueType::TCustom(ref type_name) => {
                             if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
-                                if let Some(field_decl) = struct_def.members.iter().find(|decl| decl.name == *field_name) {
+                                let mut field_decl_opt: Option<&Declaration> = None;
+                                for decl in &struct_def.members {
+                                    if decl.name == *field_name {
+                                        field_decl_opt = Some(decl);
+                                        break;
+                                    }
+                                }
+                                if let Some(field_decl) = field_decl_opt {
                                     current_type = field_decl.value_type.clone();
                                 } else {
                                     errors.push(e.error(&context.path, "type", &format!("Field '{}' not found in struct '{}'", field_name, type_name)));

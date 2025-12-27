@@ -565,19 +565,19 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
     }
     if valid {
         // Check throws IndexOutOfBoundsError
-        mut throws_ioob := false
+        mut throws_index_error := false
         for i in 0..get_func.throw_types.len() {
             mut throw_type := ValueType.TCustom("")
             get_func.throw_types.get(i, throw_type)
             switch throw_type {
             case ValueType.TCustom(throw_name):
                 if throw_name.eq("IndexOutOfBoundsError") {
-                    throws_ioob = true
+                    throws_index_error = true
                 }
             case:
             }
         }
-        if not(throws_ioob) {
+        if not(throws_index_error) {
             valid = false
         }
     }
@@ -1129,18 +1129,18 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     }
 
                     // Remove first, before descending into body
-                    mut found_caught := false
+                    mut found_match := false
                     mut ci := 0
                     while ci.lt(thrown_types.len()) {
                         mut te := ThrownType()
                         thrown_types.get(ci, te)
                         if te.type_str.eq(caught_type) {
-                            found_caught = true
+                            found_match = true
                         }
                         ci.inc()
                     }
 
-                    if found_caught {
+                    if found_match {
                         // Remove matching entries
                         mut ri := 0
                         while ri.lt(thrown_types.len()) {

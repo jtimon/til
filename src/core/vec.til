@@ -226,4 +226,24 @@ Vec := struct {
 
         self._len = sub(self._len, 1)
     }
+
+    /** Convert vec to string representation (like Rust's {:?} format).
+     *  Only works for Vec of Str elements. */
+    to_str := func(self: Vec) returns Str {
+        mut result := "["
+        for i in 0..self._len {
+            if i.gt(0) {
+                result = result.concat(", ")
+            }
+            // For Str elements, wrap in quotes
+            if Str.eq(self.type_name, "Str") {
+                mut elem := ""
+                src := add(self.ptr, mul(i, self.type_size))
+                memcpy(to_ptr(elem), src, self.type_size)
+                result = result.concat("\"").concat(elem).concat("\"")
+            }
+        }
+        result = result.concat("]")
+        return result
+    }
 }
