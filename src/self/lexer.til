@@ -80,6 +80,15 @@ Token := struct {
         return path.concat(":").concat(self.line.to_str()).concat(":").concat(self.col.to_str())
             .concat(": parse ERROR: ").concat(msg)
     }
+
+    clone := func(self: Token) returns Token throws AllocError {
+        return Token(
+            token_type = self.token_type,
+            token_str = self.token_str.clone(),
+            line = self.line,
+            col = self.col
+        )
+    }
 }
 
 Lexer := struct {
@@ -129,7 +138,11 @@ Lexer := struct {
     peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
         mut t := Token()
         self.tokens.get(self.current, t)
-        return t
+        result := t.clone()
+        catch (err: AllocError) {
+            panic(loc(), err.msg)
+        }
+        return result
     }
 
     previous := func(self: Lexer) returns Token throws Str {
@@ -143,10 +156,14 @@ Lexer := struct {
         }
         mut t := Token()
         self.tokens.get(self.current.sub(1), t)
+        result := t.clone()
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        return t
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        return result
     }
 
     advance := func(mut self: Lexer, count: I64) throws Str {
@@ -180,10 +197,14 @@ Lexer := struct {
         }
         mut t := Token()
         self.tokens.get(i, t)
+        result := t.clone()
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        return t
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        return result
     }
 
     next := func(self: Lexer) returns Token throws Str {
@@ -811,7 +832,7 @@ print_if_lex_error := proc(path: Str, tokens: Vec, index: I64, t: Token, mut err
 
 lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, IndexOutOfBoundsError {
     mut l := Lexer()
-    l.path = path
+    l.path = path.clone()
     tokens := scan_tokens(source)
     l.tokens = tokens
 
@@ -830,6 +851,10 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, Inde
     errors := print_lex_errors(tokens, path)
     if errors.gt(0) {
         throw format(loc(), "Compiler errors: ", I64.to_str(errors), " lexical errors found")
+    }
+
+    catch (err: AllocError) {
+        throw err.msg
     }
 
     return l
