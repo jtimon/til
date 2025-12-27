@@ -1,6 +1,6 @@
 mode cli
 
-import("self.builder")      // interpreter, ext (via chain) - main_run, run_file, run_file_with_context
+import("self.builder")      // interpreter, ext (via chain) - main_interpret, interpret_file, interpret_file_with_context
 import("self.eval_arena")   // g_arena
 import("self.lexer")        // LANG_NAME
 import("std.sys")           // run_cmd
@@ -10,9 +10,9 @@ REPL_PATH       := "src/modes/repl.til"
 
 // ---------- interpret, build, run commands
 
-// Run a file using run_file
+// Interpret a file using interpret_file
 interpret_file_or_exit := proc(path: Str, args: Vec) {
-    _ := run_file(path, args)
+    _ := interpret_file(path, args)
     catch (err: Str) {
         println("ERROR: ", err)
         exit(1)

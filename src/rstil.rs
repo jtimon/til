@@ -17,7 +17,7 @@ mod rs {
     pub mod builder;
 }
 use rs::lexer::LANG_NAME;
-use rs::interpreter::run_file;
+use rs::interpreter::interpret_file;
 use rs::builder;
 use rs::eval_arena::EvalArena;
 use rs::target::{Target, Lang, target_from_str, lang_from_str, detect_current_target, default_lang_for_target};
@@ -77,7 +77,7 @@ fn usage() {
 }
 
 fn interpret_file_or_exit(path: &String, args: Vec<String>) {
-    match run_file(path, args) {
+    match interpret_file(path, args) {
         Ok(_) => {},
         Err(err) => {
             println!("ERROR: {err}");

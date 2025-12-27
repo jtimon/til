@@ -2850,9 +2850,9 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
     }
 }
 
-// ---------- main_run, run_file_with_context, run_file (like rstil.rs/til.til)
+// ---------- main_interpret, interpret_file_with_context, interpret_file (like rstil.rs/til.til)
 
-pub fn main_run(skip_init_and_typecheck: bool, context: &mut Context, path: &String, source: String, main_args: Vec<String>) -> Result<EvalResult, String> {
+pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path: &String, source: String, main_args: Vec<String>) -> Result<EvalResult, String> {
 
     // Mark main file as "done" to prevent re-processing via circular imports
     context.imports_init_done.insert(path.clone());
@@ -2969,17 +2969,17 @@ pub fn main_run(skip_init_and_typecheck: bool, context: &mut Context, path: &Str
     }
 }
 
-pub fn run_file(path: &String, main_args: Vec<String>) -> Result<EvalResult, String> {
+pub fn interpret_file(path: &String, main_args: Vec<String>) -> Result<EvalResult, String> {
     let mut context = Context::new(path, DEFAULT_MODE)?;
     if path != "src/core/core.til" {
         // Automatically import core.til (needs full init and eval, skip_init=false)
         let core_path = "src/core/core.til".to_string();
-        run_file_with_context(true, false, &mut context, &core_path, Vec::new())?;
+        interpret_file_with_context(true, false, &mut context, &core_path, Vec::new())?;
     }
-    return run_file_with_context(false, false, &mut context, &path, main_args)
+    return interpret_file_with_context(false, false, &mut context, &path, main_args)
 }
 
-pub fn run_file_with_context(is_import: bool, skip_init: bool, context: &mut Context, path: &String, main_args: Vec<String>) -> Result<EvalResult, String> {
+pub fn interpret_file_with_context(is_import: bool, skip_init: bool, context: &mut Context, path: &String, main_args: Vec<String>) -> Result<EvalResult, String> {
     let previous_mode = context.mode_def.clone();
     let source: String = match fs::read_to_string(path) {
         Ok(file) => file,
@@ -2992,7 +2992,7 @@ pub fn run_file_with_context(is_import: bool, skip_init: bool, context: &mut Con
             },
         },
     };
-    let run_result = main_run(skip_init, context, &path, source, main_args)?;
+    let run_result = main_interpret(skip_init, context, &path, source, main_args)?;
 
     if is_import && !can_be_imported(&context.mode_def) {
         return Err(format!("file '{path}' of mode '{}' cannot be imported", context.mode_def.name))
@@ -3013,7 +3013,7 @@ pub fn proc_eval_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, S
     }
 
     let str_source = format!("mode script; {}", source_expr.value);
-    return main_run(false, context, &path, str_source, Vec::new())
+    return main_interpret(false, context, &path, str_source, Vec::new())
 }
 
 pub fn proc_runfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
@@ -3036,7 +3036,7 @@ pub fn proc_runfile(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
         main_args.push(arg_result.value);
     }
 
-    match run_file(&path, main_args) {
+    match interpret_file(&path, main_args) {
         Ok(_) => Ok(EvalResult::new("")),
         Err(error_string) => Err(e.error(&context.path, "eval", &format!("While running file {path}\n{error_string}"))),
     }

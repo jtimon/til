@@ -3173,11 +3173,11 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
     return EvalResult.new("")
 }
 
-// ---------- main_run, run_file_with_context, run_file (like rstil.rs)
+// ---------- main_interpret, interpret_file_with_context, interpret_file (like rstil.rs)
 
 /// Main run function - lexes, parses, inits, typechecks, and evaluates source code
-/// Follows rstil.rs main_run implementation
-main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str, source: Str, main_args: Vec) returns EvalResult throws Str {
+/// Follows rstil.rs main_interpret implementation
+main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str, source: Str, main_args: Vec) returns EvalResult throws Str {
     // Mark main file as "done" to prevent re-processing via circular imports
     _ := context.imports_init_done.insert(path.clone())
     _ := context.imports_typer_done.insert(path.clone())
@@ -3313,14 +3313,14 @@ main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str,
 }
 
 /// Run a file with an existing context (for imports)
-/// Follows rstil.rs run_file_with_context implementation
-run_file_with_context := proc(is_import: Bool, skip_init: Bool, mut context: Context, path: Str, main_args: Vec) returns EvalResult throws Str {
+/// Follows rstil.rs interpret_file_with_context implementation
+interpret_file_with_context := proc(is_import: Bool, skip_init: Bool, mut context: Context, path: Str, main_args: Vec) returns EvalResult throws Str {
     mut previous_mode := context.mode_def
 
     source := readfile(path)
     // Note: readfile is ext_proc - if it fails, the error propagates automatically
 
-    run_result := main_run(skip_init, context, path, source, main_args)
+    run_result := main_interpret(skip_init, context, path, source, main_args)
 
     if is_import {
         if not(can_be_imported(context.mode_def)) {
@@ -3333,8 +3333,8 @@ run_file_with_context := proc(is_import: Bool, skip_init: Bool, mut context: Con
 }
 
 /// Run a file from scratch (creates new context, imports core.til first)
-/// Follows rstil.rs run_file implementation
-run_file := proc(path: Str, main_args: Vec) returns EvalResult throws Str {
+/// Follows rstil.rs interpret_file implementation
+interpret_file := proc(path: Str, main_args: Vec) returns EvalResult throws Str {
     mut context := Context.new(path, "lib")  // default mode, will be overwritten by file's mode
     // Context.new throws Str on error
 
@@ -3345,10 +3345,10 @@ run_file := proc(path: Str, main_args: Vec) returns EvalResult throws Str {
         catch (err: AllocError) {
             throw err.msg
         }
-        _ := run_file_with_context(true, false, context, core_path, empty_args)
+        _ := interpret_file_with_context(true, false, context, core_path, empty_args)
     }
 
-    return run_file_with_context(false, false, context, path, main_args)
+    return interpret_file_with_context(false, false, context, path, main_args)
 }
 
 // ---------- proc_eval_to_str, proc_runfile, proc_import (moved from ext.til)
@@ -3364,7 +3364,7 @@ proc_eval_to_str := proc(mut context: Context, e: Expr) returns EvalResult throw
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    return main_run(false, context, path, str_source, Vec.new(Str))
+    return main_interpret(false, context, path, str_source, Vec.new(Str))
 }
 
 proc_runfile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
@@ -3384,7 +3384,7 @@ proc_runfile := proc(mut context: Context, e: Expr) returns EvalResult throws St
     }
 
     catch (err: AllocError) { throw err.msg }
-    _ := run_file(path, main_args)
+    _ := interpret_file(path, main_args)
     return EvalResult.new("")
 }
 
