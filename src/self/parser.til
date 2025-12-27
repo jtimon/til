@@ -251,6 +251,7 @@ Literal := enum {
 literal_clone := func(lit: Literal) returns Literal throws AllocError {
     switch lit {
     case Literal.Number(s):
+        // TODO Bug #56: inline s.clone() should work here
         s_cloned := s.clone()
         return Literal.Number(s_cloned)
     case Literal.Str(s):
@@ -290,6 +291,7 @@ NodeType := enum {
 }
 
 // Deep clone a NodeType, including all payloads
+// TODO Bug #56: inline clone calls should work in enum payloads
 node_type_clone := func(nt: NodeType) returns NodeType throws AllocError {
     switch nt {
     case NodeType.LLiteral(lit):
@@ -478,6 +480,7 @@ ValueType := enum {
 }
 
 // Deep clone a ValueType, including string payloads
+// TODO Bug #56: inline clone calls should work in enum payloads
 value_type_clone := func(vt: ValueType) returns ValueType throws AllocError {
     switch vt {
     case ValueType.TCustom(s):
@@ -544,8 +547,8 @@ parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str {
 
     switch tt {
     case TokenType.String:
-        token_str_cloned := t.token_str.clone()
-        node_type = NodeType.LLiteral(Literal.Str(token_str_cloned))
+        // TODO Bug #56: inline clone should work here
+        node_type = node_type_clone(NodeType.LLiteral(Literal.Str(t.token_str)))
     case TokenType.Number:
         // TODO: parse and validate number
         node_type = NodeType.LLiteral(Literal.Number(t.token_str))
@@ -606,8 +609,10 @@ parse_args := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsEr
                     value := parse_primary(lexer)
                     mut named_arg_params := Vec.new(Expr)
                     named_arg_params.push(value)
-                    arg_name_cloned := arg_name.clone()
-                    named_arg := Expr.new_explicit(NodeType.NamedArg(arg_name_cloned), named_arg_params, prim.line, prim.col)
+                    // TODO Bug #56: inline clone should work here
+                    named_arg := Expr.new_explicit(
+                        node_type_clone(NodeType.NamedArg(arg_name)),
+                        named_arg_params, prim.line, prim.col)
                     params.push(named_arg)
                 case:
                     throw next_t.error(lexer.path, "Named argument requires a simple identifier before '='")
@@ -766,7 +771,8 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                 mut decl := Declaration()
                 decl.name = arg_name
                 if is_variadic {
-                    decl.value_type = ValueType.TMulti(t.token_str.clone())
+                    // TODO Bug #56: inline clone should work here
+                    decl.value_type = value_type_clone(ValueType.TMulti(t.token_str))
                     is_variadic = false
                 } else {
                     decl.value_type = str_to_value_type(t.token_str)
@@ -1160,8 +1166,10 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
             case TokenType.Identifier:
                 current_identifier = next2_t.token_str
                 lexer.advance(2)
-                current_identifier_cloned := current_identifier.clone()
-                ident_expr := Expr.new_parse(NodeType.Identifier(current_identifier_cloned), t.clone(), Vec.new(Expr))
+                // TODO Bug #56: inline clone should work here
+                ident_expr := Expr.new_parse(
+                    node_type_clone(NodeType.Identifier(current_identifier)),
+                    t.clone(), Vec.new(Expr))
                 params.push(ident_expr)
                 next_t = lexer.next()
             case:
@@ -1235,8 +1243,10 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                         // Collect all field names in the chain until we hit something else
                         mut field_params := Vec.new(Expr)
                         field_params.push(result)  // First param is the FCall/expression result
-                        method_name_cloned := method_name.clone()
-                        field_params.push(Expr.new_parse(NodeType.Identifier(method_name_cloned), method_t.clone(), Vec.new(Expr)))
+                        // TODO Bug #56: inline clone should work here
+                        field_params.push(Expr.new_parse(
+                            node_type_clone(NodeType.Identifier(method_name)),
+                            method_t.clone(), Vec.new(Expr)))
 
                         // Continue collecting fields until we hit '(' (method call) or something else
                         mut continue_field_loop := true
@@ -1551,15 +1561,19 @@ parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
     // Parse the error variable name
     name_token := lexer.expect(TokenType.Identifier)
     name := name_token.token_str.clone()
-    name_cloned := name.clone()
-    name_expr := Expr.new_parse(NodeType.Identifier(name_cloned), name_token.clone(), Vec.new(Expr))
+    // TODO Bug #56: inline clone should work here
+    name_expr := Expr.new_parse(
+        node_type_clone(NodeType.Identifier(name)),
+        name_token.clone(), Vec.new(Expr))
 
     _ := lexer.expect(TokenType.Colon) // expect ':'
 
     // Parse the exception type
     type_token := lexer.expect(TokenType.Identifier)
-    type_token_str_cloned := type_token.token_str.clone()
-    type_expr := Expr.new_parse(NodeType.Identifier(type_token_str_cloned), type_token.clone(), Vec.new(Expr))
+    // TODO Bug #56: inline clone should work here
+    type_expr := Expr.new_parse(
+        node_type_clone(NodeType.Identifier(type_token.token_str)),
+        type_token.clone(), Vec.new(Expr))
 
     _ := lexer.expect(TokenType.RightParen) // expect ')'
 
@@ -1745,8 +1759,10 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     mut lt_ident_params := Vec.new(Expr)
     lt_expr := Expr.new_parse(NodeType.Identifier("lt"), initial_token.clone(), Vec.new(Expr))
     lt_ident_params.push(lt_expr)
-    loop_var_name_cloned := loop_var_name.clone()
-    loop_var_ident := Expr.new_parse(NodeType.Identifier(loop_var_name_cloned), initial_token.clone(), lt_ident_params)
+    // TODO Bug #56: inline clone should work here
+    loop_var_ident := Expr.new_parse(
+        node_type_clone(NodeType.Identifier(loop_var_name)),
+        initial_token.clone(), lt_ident_params)
 
     mut cond_params := Vec.new(Expr)
     cond_params.push(loop_var_ident)
@@ -1758,8 +1774,10 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     inc_method_ident := Expr.new_parse(NodeType.Identifier("inc"), initial_token.clone(), Vec.new(Expr))
     inc_ident_params.push(inc_method_ident)
     mut inc_params := Vec.new(Expr)
-    loop_var_name_cloned2 := loop_var_name.clone()
-    loop_var_inc_expr := Expr.new_parse(NodeType.Identifier(loop_var_name_cloned2), initial_token.clone(), inc_ident_params)
+    // TODO Bug #56: inline clone should work here
+    loop_var_inc_expr := Expr.new_parse(
+        node_type_clone(NodeType.Identifier(loop_var_name)),
+        initial_token.clone(), inc_ident_params)
     inc_params.push(loop_var_inc_expr)
     inc_expr := Expr.new_explicit(NodeType.FCall, inc_params, initial_token.line, initial_token.col)
 
