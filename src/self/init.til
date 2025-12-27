@@ -230,7 +230,7 @@ ScopeStack := struct {
         return false
     }
 
-    declare_var := proc(mut self: ScopeStack, name: Str, offset: I64, symbol: SymbolInfo) throws Str, IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
+    declare_var := proc(mut self: ScopeStack, name: Str, offset: I64, symbol: SymbolInfo) throws Str {
         if self.frames.len().eq(0) {
             throw "No active scope"
         }
@@ -245,9 +245,16 @@ ScopeStack := struct {
             throw format("Variable '", name, "' already declared in this scope")
         }
 
-        current_frame.arena_index.insert(name.clone(), offset)
-        current_frame.symbols.insert(name, symbol)
+        current_frame.arena_index.set(name.clone(), offset)
+        current_frame.symbols.set(name, symbol)
         self.frames.set(last_idx, current_frame)
+
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
     }
 
     declare_symbol := proc(mut self: ScopeStack, name: Str, symbol: SymbolInfo) throws Str {
@@ -255,16 +262,13 @@ ScopeStack := struct {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
             self.frames.get(last_idx, current_frame)
-            current_frame.symbols.insert(name, symbol)
+            current_frame.symbols.set(name, symbol)
             self.frames.set(last_idx, current_frame)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
         catch (err: AllocError) {
-            throw err.msg
-        }
-        catch (err: DuplicatedKeyError) {
             throw err.msg
         }
     }
@@ -318,16 +322,13 @@ ScopeStack := struct {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
             self.frames.get(last_idx, current_frame)
-            current_frame.arena_index.insert(name, offset)
+            current_frame.arena_index.set(name, offset)
             self.frames.set(last_idx, current_frame)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
         catch (err: AllocError) {
-            throw err.msg
-        }
-        catch (err: DuplicatedKeyError) {
             throw err.msg
         }
     }
@@ -399,16 +400,13 @@ ScopeStack := struct {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
             self.frames.get(last_idx, current_frame)
-            current_frame.enums.insert(name, enum_def)
+            current_frame.enums.set(name, enum_def)
             self.frames.set(last_idx, current_frame)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
         catch (err: AllocError) {
-            throw err.msg
-        }
-        catch (err: DuplicatedKeyError) {
             throw err.msg
         }
     }
@@ -459,16 +457,13 @@ ScopeStack := struct {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
             self.frames.get(last_idx, current_frame)
-            current_frame.structs.insert(name, struct_def)
+            current_frame.structs.set(name, struct_def)
             self.frames.set(last_idx, current_frame)
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
         catch (err: AllocError) {
-            throw err.msg
-        }
-        catch (err: DuplicatedKeyError) {
             throw err.msg
         }
     }
@@ -1340,8 +1335,8 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     }
 
     # Store AST and mode for typer and eval phases
-    Map.insert(context.imported_asts, path.clone(), imported_ast)
-    Map.insert(context.imported_modes, path.clone(), context.mode_def.clone())
+    context.imported_asts.set(path.clone(), imported_ast)
+    context.imported_modes.set(path.clone(), context.mode_def.clone())
 
     # Restore context state
     context.mode_def = previous_mode
@@ -1354,9 +1349,6 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         throw err.msg
     }
     catch (err: I64_OverflowError) {
-        throw err.msg
-    }
-    catch (err: DuplicatedKeyError) {
         throw err.msg
     }
 }

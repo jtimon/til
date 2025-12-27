@@ -191,14 +191,11 @@ EvalArena := struct {
 
     insert_i64_into_frame := proc(ctx: Context, mut frame: ScopeFrame, id: Str, i64_str: Str, e: Expr) throws Str {
         offset := EvalArena.insert_i64_core(ctx, id, i64_str, e)
-        frame.arena_index.insert(id, offset)
+        frame.arena_index.set(id, offset)
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
         }
         catch (err: AllocError) {
-            throw err.msg
-        }
-        catch (err: DuplicatedKeyError) {
             throw err.msg
         }
     }
@@ -239,14 +236,11 @@ EvalArena := struct {
 
     insert_u8_into_frame := proc(ctx: Context, mut frame: ScopeFrame, id: Str, u8_str: Str, e: Expr) throws Str {
         offset := EvalArena.insert_u8_core(ctx, id, u8_str, e)
-        frame.arena_index.insert(id, offset)
+        frame.arena_index.set(id, offset)
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
         }
         catch (err: AllocError) {
-            throw err.msg
-        }
-        catch (err: DuplicatedKeyError) {
             throw err.msg
         }
     }
@@ -369,7 +363,7 @@ EvalArena := struct {
                     throw e.lang_error(ctx.path, "context", "insert_struct: Unsupported value type in struct")
                 }
 
-                field_offsets.insert(decl.name, total_size)
+                field_offsets.set(decl.name, total_size)
                 total_size = add(total_size, field_size)
             }
         }
@@ -501,7 +495,7 @@ EvalArena := struct {
                                                 catch (err: KeyNotFoundError) {
                                                     panic(loc(), "insert_struct_core: key not found in defaults")
                                                 }
-                                                nested_defaults.insert(rest, dv)
+                                                nested_defaults.set(rest, dv)
                                             }
                                             di = add(di, 1)
                                         }
@@ -542,9 +536,6 @@ EvalArena := struct {
         catch (err: AllocError) {
             throw e.lang_error(ctx.path, "context", "insert_struct_core: AllocError")
         }
-        catch (err: DuplicatedKeyError) {
-            throw e.lang_error(ctx.path, "context", "insert_struct_core: DuplicatedKeyError")
-        }
         catch (err: I64_OverflowError) {
             throw err.msg
         }
@@ -583,7 +574,7 @@ EvalArena := struct {
                 case:
                     throw e.lang_error(ctx.path, "generate_struct_mappings", "Unsupported value type")
                 }
-                field_offsets.insert(decl.name, current_offset)
+                field_offsets.set(decl.name, current_offset)
                 current_offset = add(current_offset, field_size)
             }
         }
@@ -643,9 +634,6 @@ EvalArena := struct {
         }
         catch (err: AllocError) {
             throw e.lang_error(ctx.path, "generate_struct_mappings", "AllocError")
-        }
-        catch (err: DuplicatedKeyError) {
-            throw e.lang_error(ctx.path, "generate_struct_mappings", "DuplicatedKeyError")
         }
         catch (err: I64_OverflowError) {
             throw err.msg
@@ -713,14 +701,14 @@ EvalArena := struct {
         while mi.lt(result.arena_mappings.len()) {
             mut m := EvalArenaMapping()
             result.arena_mappings.get(mi, m)
-            frame.arena_index.insert(m.name, m.offset)
+            frame.arena_index.set(m.name, m.offset)
             mi = add(mi, 1)
         }
         mut si := 0
         while si.lt(result.symbols.len()) {
             mut s := SymbolEntry()
             result.symbols.get(si, s)
-            frame.symbols.insert(s.name, s.info)
+            frame.symbols.set(s.name, s.info)
             si = add(si, 1)
         }
 
@@ -729,9 +717,6 @@ EvalArena := struct {
         }
         catch (err: AllocError) {
             throw e.lang_error(ctx.path, "insert_struct_into_frame", "AllocError")
-        }
-        catch (err: DuplicatedKeyError) {
-            throw e.lang_error(ctx.path, "insert_struct_into_frame", "DuplicatedKeyError")
         }
     }
 
@@ -1290,14 +1275,11 @@ EvalArena := struct {
 
         // Now apply result to the frame
         if result.has_mapping {
-            frame.arena_index.insert(result.mapping_name, result.mapping_offset)
+            frame.arena_index.set(result.mapping_name, result.mapping_offset)
         }
 
         catch (err: AllocError) {
             throw e.lang_error(ctx.path, "insert_enum_into_frame", "AllocError")
-        }
-        catch (err: DuplicatedKeyError) {
-            throw e.lang_error(ctx.path, "insert_enum_into_frame", "DuplicatedKeyError")
         }
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "insert_enum_into_frame", "IndexOutOfBoundsError")
@@ -1341,7 +1323,7 @@ EvalArena := struct {
                 // For Str elements, create temp Str and copy bytes to array slot
                 temp_id := format(name, "_", I64.to_str(i))
                 temp_symbol := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
-                frame.symbols.insert(temp_id, temp_symbol)
+                frame.symbols.set(temp_id, temp_symbol)
 
                 EvalArena.insert_string_into_frame(ctx, frame, temp_id, val, e)
 
@@ -1393,7 +1375,7 @@ EvalArena := struct {
         type_name_field := format(name, ".type_name")
         temp_type_name_id := format(name, "_type_name_temp")
         temp_symbol2 := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
-        frame.symbols.insert(temp_type_name_id, temp_symbol2)
+        frame.symbols.set(temp_type_name_id, temp_symbol2)
 
         EvalArena.insert_string_into_frame(ctx, frame, temp_type_name_id, elem_type, e)
 
@@ -1417,9 +1399,6 @@ EvalArena := struct {
         }
         catch (err: AllocError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "AllocError")
-        }
-        catch (err: DuplicatedKeyError) {
-            throw e.lang_error(ctx.path, "insert_array_into_frame", "DuplicatedKeyError")
         }
         catch (err: I64_OverflowError) {
             throw err.msg

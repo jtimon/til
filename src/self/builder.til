@@ -111,7 +111,7 @@ collect_imports_single := proc(ast: Expr, mut imported: Set, mut dep_asts: Vec, 
                     _ := imported.insert(file_path)
                     mut parse_result := parse_file(file_path)
                     // Store AST in imported_asts so precomp can find it for circular imports
-                    Map.insert(context.imported_asts, file_path, parse_result.ast)
+                    context.imported_asts.set(file_path, parse_result.ast)
                     // Recursively collect imports from this dependency first
                     collect_imports_single(parse_result.ast, imported, dep_asts, context)
                     // Precomp with the correct path for this file
@@ -131,7 +131,6 @@ collect_imports_single := proc(ast: Expr, mut imported: Set, mut dep_asts: Vec, 
         // Not a body
     }
     catch (err: AllocError) { throw err.msg }
-    catch (err: DuplicatedKeyError) { /* ok, already stored */ }
 }
 
 // Merge dependency AST params into all_params Vec, skipping imports
@@ -249,7 +248,7 @@ build := proc(path: Str) returns Str throws Str {
     mut imported := Set.new(Str)
     _ := imported.insert(path)
     // Store main file AST so circular imports can find it during precomp
-    Map.insert(context.imported_asts, path, main_ast)
+    context.imported_asts.set(path, main_ast)
     mut dep_asts := Vec.new(Expr)
 
     // Collect core.til and its imports
@@ -336,7 +335,6 @@ build := proc(path: Str) returns Str throws Str {
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
-    catch (err: DuplicatedKeyError) { /* ok, already stored */ }
 
     return c_code
 }

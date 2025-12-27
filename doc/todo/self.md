@@ -63,6 +63,14 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Fix: Changed `declare_func` in init.til to use `Map.set()` instead of `Map.insert()`
     to allow overwriting, matching Rust's behavior.
 
+- (Fixed 2025-12-27): Map.insert vs Map.set throughout TIL codebase
+  - Root cause: All Rust `HashMap.insert` calls overwrite, but TIL `Map.insert` throws
+    `DuplicatedKeyError`. This caused silent failures when updating symbols/arena_index.
+  - Fix: Changed all `Map.insert` and `.insert(key, value)` calls to `.set(key, value)`
+    across builder.til, init.til, interpreter.til, eval_arena.til, ccodegen.til, parser.til.
+  - Also removed all `catch (err: DuplicatedKeyError)` blocks since `.set()` doesn't throw.
+  - Simplified `declare_var` to just `throws Str` (matching Rust's `Result<(), String>`).
+
 ### Current Issue
 **Scavenger error in til run (2025-12-27)**
 
@@ -88,8 +96,8 @@ This is a separate bug in the self-hosted scavenger that doesn't affect rstil.
 
 ## Milestones
 1. ~~`./bin/til interpret src/examples/empty.til`~~ ✓ DONE
-2. `./bin/til run src/examples/empty.til` ← current target (scavenger bug)
-3. `./bin/til interpret src/examples/hello_script.til` ← next
+2. ~~`./bin/til interpret src/examples/hello_script.til`~~ ✓ DONE
+3. `./bin/til run src/examples/empty.til` ← current target (scavenger bug)
 
 ## Build Commands Reference (from Makefile)
 - `make rstil` - Build Rust-based TIL compiler

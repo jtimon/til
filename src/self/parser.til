@@ -1121,7 +1121,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
             if p.params.len().eq(1) {
                 mut val := Expr()
                 p.params.get(0, val)
-                default_values.insert(decl.name.clone(), val.clone())
+                default_values.set(decl.name.clone(), val.clone())
             } else {
                 // TODO allow not setting default values in struct members
                 throw t.error(lexer.path, "all declarations inside struct definitions must have a value for now")
@@ -1140,9 +1140,6 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
         throw concat("parse_struct_definition: ", err.msg)
     }
     catch (err: IndexOutOfBoundsError) {
-        throw concat("parse_struct_definition: ", err.msg)
-    }
-    catch (err: DuplicatedKeyError) {
         throw concat("parse_struct_definition: ", err.msg)
     }
     return result

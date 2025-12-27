@@ -140,16 +140,16 @@ read_struct_primitive_fields := proc(ctx: Context, instance_id: Str, struct_type
                     } else {
                         // Read actual I64 value from evaluated instance
                         val := EvalArena.get_i64(ctx, field_id, e)
-                        values.insert(key, val.to_str())
+                        values.set(key, val.to_str())
                     }
                 } else if type_name.eq("U8") {
                     // Read actual U8 value from evaluated instance
                     u8_val := EvalArena.get_u8(ctx, field_id, e)
-                    values.insert(key, u8_val.to_str())
+                    values.set(key, u8_val.to_str())
                 } else if type_name.eq("Str") {
                     // Bug #43 fix: Read actual string VALUE, not pointer
                     str_val := string_from_context(ctx, field_id, e)
-                    values.insert(key, str_val)
+                    values.set(key, str_val)
                 } else {
                     // For nested structs (Vec, etc.), recursively read primitive fields
                     mut dummy_struct := ctx.scope_stack.lookup_struct(type_name)
@@ -167,7 +167,7 @@ read_struct_primitive_fields := proc(ctx: Context, instance_id: Str, struct_type
                         keys.get(j, k)
                         mut v := ""
                         nested_values.get(k, v)
-                        values.insert(k, v)
+                        values.set(k, v)
                     }
                     catch (err: KeyNotFoundError) {
                         // struct not found, skip
@@ -178,7 +178,6 @@ read_struct_primitive_fields := proc(ctx: Context, instance_id: Str, struct_type
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
-    catch (err: DuplicatedKeyError) { throw err.msg }
     return values
 }
 
@@ -238,7 +237,7 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                     }
                     throw e.lang_error(ctx.path, "eval_struct_defaults", format("thrown '", thrown_str, "' while evaluating default for field '", decl.name, "'"))
                 }
-                defaults.insert(decl.name, res.value)
+                defaults.set(decl.name, res.value)
 
                 // Handle nested structs recursively (get their defaults)
                 if is_custom {
@@ -262,7 +261,7 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                                 keys.get(j, k)
                                 mut v := ""
                                 nested.get(k, v)
-                                defaults.insert(format(decl.name, ".", k), v)
+                                defaults.set(format(decl.name, ".", k), v)
                             }
 
                             // Bug #43 fix: Then, override with actual primitive values from evaluated instance
@@ -275,7 +274,7 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                                 pkeys.get(j, k)
                                 mut v := ""
                                 primitive_values.get(k, v)
-                                defaults.insert(k, v)
+                                defaults.set(k, v)
                             }
 
                             catch (err: KeyNotFoundError) {
@@ -290,7 +289,6 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
-    catch (err: DuplicatedKeyError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
     return defaults
 }
@@ -327,8 +325,7 @@ create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) ret
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Cache the template offset
-    g_arena.default_instances.insert(struct_type, template_offset)
-    catch (err: DuplicatedKeyError) { throw err.msg }
+    g_arena.default_instances.set(struct_type, template_offset)
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
 
@@ -1207,7 +1204,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                         mut last_idx := context.scope_stack.frames.len().sub(1)
                         mut last_frame := ScopeFrame()
                         context.scope_stack.frames.get(last_idx, last_frame)
-                        last_frame.arena_index.insert(declaration.name, offset)
+                        last_frame.arena_index.set(declaration.name, offset)
                         context.scope_stack.frames.set(last_idx, last_frame)
                         context.map_instance_fields(custom_type_name, declaration.name, e)
                     }
@@ -1220,7 +1217,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                     mut last_idx2 := context.scope_stack.frames.len().sub(1)
                     mut last_frame2 := ScopeFrame()
                     context.scope_stack.frames.get(last_idx2, last_frame2)
-                    last_frame2.arena_index.insert(declaration.name, offset2)
+                    last_frame2.arena_index.set(declaration.name, offset2)
                     context.scope_stack.frames.set(last_idx2, last_frame2)
                     context.map_instance_fields(custom_type_name, declaration.name, e)
                 }
@@ -1337,7 +1334,6 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
-    catch (err: DuplicatedKeyError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -1813,7 +1809,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                 mut lf_idx := context.scope_stack.frames.len().sub(1)
                                 mut lf := ScopeFrame()
                                 context.scope_stack.frames.get(lf_idx, lf)
-                                lf.arena_index.insert(var_name, offset)
+                                lf.arena_index.set(var_name, offset)
                                 context.scope_stack.frames.set(lf_idx, lf)
 
                                 // Copy ALL field mappings (including nested) from thrown instance to catch variable
@@ -1847,7 +1843,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                         mut lf3_idx := context.scope_stack.frames.len().sub(1)
                                         mut lf3 := ScopeFrame()
                                         context.scope_stack.frames.get(lf3_idx, lf3)
-                                        lf3.arena_index.insert(dest_key, src_offset)
+                                        lf3.arena_index.set(dest_key, src_offset)
                                         context.scope_stack.frames.set(lf3_idx, lf3)
                                     }
                                 }
@@ -1904,7 +1900,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                             mut lf4_idx := context.scope_stack.frames.len().sub(1)
                                             mut lf4 := ScopeFrame()
                                             context.scope_stack.frames.get(lf4_idx, lf4)
-                                            lf4.arena_index.insert(var_name, base_offset)
+                                            lf4.arena_index.set(var_name, base_offset)
                                             context.scope_stack.frames.set(lf4_idx, lf4)
                                         }
 
@@ -1931,7 +1927,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                                 mut lf5_idx := context.scope_stack.frames.len().sub(1)
                                                 mut lf5 := ScopeFrame()
                                                 context.scope_stack.frames.get(lf5_idx, lf5)
-                                                lf5.arena_index.insert(dst_field, field_offset)
+                                                lf5.arena_index.set(dst_field, field_offset)
                                                 context.scope_stack.frames.set(lf5_idx, lf5)
                                             }
                                         }
@@ -1999,7 +1995,6 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
-    catch (err: DuplicatedKeyError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -2048,7 +2043,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
     for arg: Declaration in func_def.args {
         if not(params_consumed) {
-            function_frame.symbols.insert(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
+            // Use set() to allow overwriting - Rust's HashMap.insert overwrites
+            function_frame.symbols.set(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
 
             switch arg.value_type {
             case ValueType.TMulti(multi_value_type):
@@ -2065,7 +2061,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 }
 
                 array_type_name := "Array"
-                function_frame.symbols.insert(arg.name, SymbolInfo(value_type=ValueType.TCustom(array_type_name), is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
+                // Use set() to overwrite the TMulti entry with TCustom("Array")
+                function_frame.symbols.set(arg.name, SymbolInfo(value_type=ValueType.TCustom(array_type_name), is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
                 EvalArena.insert_array_into_frame(context, function_frame, arg.name, multi_value_type, values, e)
                 params_consumed = true
 
@@ -2087,7 +2084,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             switch sym.value_type {
                             case ValueType.TType(tdef):
                                 // This is a type identifier - store the type name as a string
-                                function_frame.symbols.insert(arg.name, SymbolInfo(value_type=ValueType.TCustom("Str")))
+                                function_frame.symbols.set(arg.name, SymbolInfo(value_type=ValueType.TCustom("Str")))
                                 EvalArena.insert_string_into_frame(context, function_frame, arg.name, id_name, e)
                                 param_index.inc()
                                 continue  // Skip eval_expr for this parameter
@@ -2198,7 +2195,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             // Transfer arena offset from caller to function frame
                             mut offset := 0
                             offset = context.scope_stack.lookup_var(source_var)
-                            function_frame.arena_index.insert(arg.name, offset)
+                            function_frame.arena_index.set(arg.name, offset)
 
                             // Transfer all related entries (for structs with fields, strings with metadata, etc.)
                             prefix := format(source_var, ".")
@@ -2219,11 +2216,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 mut field_offset := 0
                                 field_offset = context.scope_stack.lookup_var(key)
                                 mut new_key := key.replace(source_var, arg.name)
-                                function_frame.arena_index.insert(new_key, field_offset)
+                                function_frame.arena_index.set(new_key, field_offset)
                                 // Also transfer symbol info for fields
                                 mut field_sym := SymbolInfo()
                                 field_sym = context.scope_stack.lookup_symbol(key)
-                                function_frame.symbols.insert(new_key, field_sym.clone())
+                                function_frame.symbols.set(new_key, field_sym.clone())
                                 catch (err_sym: KeyNotFoundError) { }
                             }
                             catch (err_var: KeyNotFoundError) { }
@@ -2267,8 +2264,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 offset = context.scope_stack.lookup_var(source_var)
                                 // Create symbol info for parameter using the resolved type
                                 param_symbol := SymbolInfo(value_type=resolved_value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
-                                function_frame.symbols.insert(arg.name.clone(), param_symbol)
-                                function_frame.arena_index.insert(arg.name.clone(), offset)
+                                function_frame.symbols.set(arg.name.clone(), param_symbol)
+                                function_frame.arena_index.set(arg.name.clone(), offset)
 
                                 // CRITICAL: Copy all nested field offsets AND symbols from ALL frames to callee
                                 // insert_struct registers nested field offsets (e.g., "l.start.x")
@@ -2315,12 +2312,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 for foi in 0..field_offsets_to_copy.len() {
                                     mut mapping := EvalArenaMapping()
                                     field_offsets_to_copy.get(foi, mapping)
-                                    function_frame.arena_index.insert(mapping.name, mapping.offset)
+                                    function_frame.arena_index.set(mapping.name, mapping.offset)
                                 }
                                 for fsi in 0..field_symbols_to_copy.len() {
                                     mut entry := SymbolEntry()
                                     field_symbols_to_copy.get(fsi, entry)
-                                    function_frame.symbols.insert(entry.name, entry.info)
+                                    function_frame.symbols.set(entry.name, entry.info)
                                 }
 
                                 // Track that this parameter was passed by reference
@@ -2472,10 +2469,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         }
 
                                         // Create symbol for parameter
-                                        function_frame.symbols.insert(arg.name.clone(), SymbolInfo(value_type=resolved_value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
+                                        function_frame.symbols.set(arg.name.clone(), SymbolInfo(value_type=resolved_value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
 
                                         // Share the offset (pass-by-reference)
-                                        function_frame.arena_index.insert(arg.name.clone(), src_offset)
+                                        function_frame.arena_index.set(arg.name.clone(), src_offset)
 
                                         // Copy nested field offsets (e.g., "o1.inner_vec._len" -> "self._len")
                                         // Must search ALL frames because globals like `true` are in frame 0
@@ -2521,13 +2518,13 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         for foi in 0..field_offsets_to_copy.len() {
                                             mut mapping := EvalArenaMapping()
                                             field_offsets_to_copy.get(foi, mapping)
-                                            function_frame.arena_index.insert(mapping.name, mapping.offset)
+                                            function_frame.arena_index.set(mapping.name, mapping.offset)
                                         }
                                         // Insert collected symbols
                                         for fsi in 0..field_symbols_to_copy.len() {
                                             mut entry := SymbolEntry()
                                             field_symbols_to_copy.get(fsi, entry)
-                                            function_frame.symbols.insert(entry.name, entry.info)
+                                            function_frame.symbols.set(entry.name, entry.info)
                                         }
 
                                         // Track that this was passed by reference
@@ -2556,7 +2553,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                 mut lf9_idx := context.scope_stack.frames.len().sub(1)
                                                 mut lf9 := ScopeFrame()
                                                 context.scope_stack.frames.get(lf9_idx, lf9)
-                                                lf9.arena_index.insert(new_key, mapping.offset)
+                                                lf9.arena_index.set(new_key, mapping.offset)
                                                 context.scope_stack.frames.set(lf9_idx, lf9)
                                             }
 
@@ -2604,7 +2601,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             mut lf10_idx := context.scope_stack.frames.len().sub(1)
                                             mut lf10 := ScopeFrame()
                                             context.scope_stack.frames.get(lf10_idx, lf10)
-                                            lf10.arena_index.insert(id_.clone(), src_offset)
+                                            lf10.arena_index.set(id_.clone(), src_offset)
                                             context.scope_stack.frames.set(lf10_idx, lf10)
                                             context.scope_stack.declare_symbol(id_.clone(), src_symbol.clone())
                                             EvalArena.copy_fields(context, custom_type_name, id_, arg.name, e)
@@ -2641,7 +2638,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     mut lf11_idx := context.scope_stack.frames.len().sub(1)
                                     mut lf11 := ScopeFrame()
                                     context.scope_stack.frames.get(lf11_idx, lf11)
-                                    lf11.arena_index.insert(source_id.clone(), src_offset)
+                                    lf11.arena_index.set(source_id.clone(), src_offset)
                                     context.scope_stack.frames.set(lf11_idx, lf11)
                                     context.scope_stack.declare_symbol(source_id.clone(), src_symbol.clone())
                                     EvalArena.copy_fields(context, custom_type_name, source_id, arg.name, e)
@@ -2730,7 +2727,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         if frame_count.gteq(2) {
                             mut caller_frame := ScopeFrame()
                             context.scope_stack.frames.get(frame_count.sub(2), caller_frame)
-                            caller_frame.arena_index.insert(result.value.clone(), base_offset)
+                            caller_frame.arena_index.set(result.value.clone(), base_offset)
                             context.scope_stack.frames.set(frame_count.sub(2), caller_frame)
                         }
                     }
@@ -2762,7 +2759,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             if frame_count.gteq(2) {
                                 mut caller_frame := ScopeFrame()
                                 context.scope_stack.frames.get(frame_count.sub(2), caller_frame)
-                                caller_frame.arena_index.insert(src_key.clone(), src_offset)
+                                caller_frame.arena_index.set(src_key.clone(), src_offset)
                                 context.scope_stack.frames.set(frame_count.sub(2), caller_frame)
                             }
                         }
@@ -2976,7 +2973,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             mut lf12_idx := context.scope_stack.frames.len().sub(1)
             mut lf12 := ScopeFrame()
             context.scope_stack.frames.get(lf12_idx, lf12)
-            lf12.arena_index.insert(c.source_name.clone(), struct_data.offset)
+            lf12.arena_index.set(c.source_name.clone(), struct_data.offset)
             context.scope_stack.frames.set(lf12_idx, lf12)
             if not(struct_data.was_passed_by_ref) {
                 context.map_instance_fields(struct_data.type_name, c.source_name, e)
@@ -3040,7 +3037,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         mut lf13_idx := context.scope_stack.frames.len().sub(1)
                         mut lf13 := ScopeFrame()
                         context.scope_stack.frames.get(lf13_idx, lf13)
-                        lf13.arena_index.insert(return_instance.clone(), offset)
+                        lf13.arena_index.set(return_instance.clone(), offset)
                         context.scope_stack.frames.set(lf13_idx, lf13)
 
                         return EvalResult.new_return(return_instance) // CLEANUP SITE 4: Return struct instance
@@ -3082,7 +3079,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: DuplicatedKeyError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
 
     // Frame already popped above

@@ -853,8 +853,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                                     result = emit_throwing_call_propagate(default_expr, throw_types, temp_name, "", result, indent, ctx, context)
                                     // Record that this struct default was hoisted using "struct_name:member_name" key
                                     mut key := func_name.concat(":").concat(member.name)
-                                    ctx.hoisted_struct_defaults.insert(key, temp_name)
-                                    catch (err: DuplicatedKeyError) { }  // Ignore if already hoisted
+                                    ctx.hoisted_struct_defaults.set(key, temp_name)
                                     catch (err: AllocError) { throw err.msg }
                                 } else {
                                     // Also recursively hoist any throwing expressions in the default
@@ -920,7 +919,7 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                         mut info := VariadicParamInfo()
                         info.elem_type = elem_type_name
                         info.regular_count = ai  // number of args before variadic
-                        ctx.func_variadic_args.insert(decl.name, info)
+                        ctx.func_variadic_args.set(decl.name, info)
                         break  // Only one variadic arg per function
                     case:
                     }
@@ -949,7 +948,7 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                                 mut info := VariadicParamInfo()
                                 info.elem_type = elem_type_name
                                 info.regular_count = ai
-                                ctx.func_variadic_args.insert(mangled_name, info)
+                                ctx.func_variadic_args.set(mangled_name, info)
                                 break
                             case:
                             }
@@ -960,7 +959,6 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                     }
                     catch (err: KeyNotFoundError) { /* skip */ }
                     catch (err: AllocError) { throw err.msg }
-                    catch (err: DuplicatedKeyError) { /* skip duplicates */ }
                     i = add(i, 1)
                 }
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -969,7 +967,6 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
             }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: AllocError) { throw err.msg }
-            catch (err: DuplicatedKeyError) { /* skip duplicates */ }
         }
     case:
         // Not a declaration, skip
@@ -990,7 +987,7 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_fun
                     // This is a nested function - record it for hoisting
                     mut mangled_name := concat(parent_func_name, "_")
                     mangled_name = mangled_name.concat(decl.name)
-                    ctx.nested_func_names.insert(decl.name, mangled_name)
+                    ctx.nested_func_names.set(decl.name, mangled_name)
 
                     // Generate prototype using emit_func_signature (handles throwing functions properly)
                     mut proto := ""
@@ -1069,7 +1066,6 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_fun
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
-    catch (err: DuplicatedKeyError) { /* skip duplicates */ }
 }
 
 // Emit function signature (used by both prototype and definition)
@@ -2355,14 +2351,13 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                                 switch arg.value_type {
                                 case ValueType.TMulti(elem_type_name):
                                     // elem_type is the type name string like "Bool"
-                                    ctx.current_variadic_params.insert(arg.name, til_name(elem_type_name))
+                                    ctx.current_variadic_params.set(arg.name, til_name(elem_type_name))
                                 case:
                                 }
                                 arg_idx = add(arg_idx, 1)
                             }
                             catch (err: IndexOutOfBoundsError) { throw err.msg }
                             catch (err: AllocError) { throw err.msg }
-                            catch (err: DuplicatedKeyError) { }  // Ignore duplicates
 
                             // Clear declared_vars and hoisted_struct_defaults for new function scope
                             ctx.declared_vars = Set.new(Str)
@@ -2901,7 +2896,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                     switch arg.value_type {
                     case ValueType.TMulti(elem_type_name):
                         // elem_type is the type name string like "Bool"
-                        ctx.current_variadic_params.insert(arg.name, til_name(elem_type_name))
+                        ctx.current_variadic_params.set(arg.name, til_name(elem_type_name))
                     case:
                         // Not variadic, continue
                     }
@@ -2909,7 +2904,6 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 }
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 catch (err: AllocError) { throw err.msg }
-                catch (err: DuplicatedKeyError) { }  // Ignore duplicates
 
                 // Push a new scope frame for this function (like interpreter does)
                 context.scope_stack.push(ScopeType.Function)
@@ -3636,8 +3630,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         case:
         }
         // Track this declaration for future lookups (both in collected and scope_stack)
-        collected.insert(decl.name, value_type)
-        catch (err: DuplicatedKeyError) { }
+        collected.set(decl.name, value_type)
         // Also add to scope_stack so get_value_type can find it for subsequent declarations
         context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut))
         mut collected_decl := CollectedDeclaration()
@@ -6823,7 +6816,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     }
                     switch arg.value_type {
                     case ValueType.TMulti(elem_type_name):
-                        ctx.current_variadic_params.insert(arg.name, til_name(elem_type_name))
+                        ctx.current_variadic_params.set(arg.name, til_name(elem_type_name))
                     case:
                     }
                     arg_idx = add(arg_idx, 1)
@@ -6878,7 +6871,6 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 ctx.current_function_name = saved_function_name
 
                 catch (err: AllocError) { throw err.msg }
-                catch (err: DuplicatedKeyError) { }
 
                 // Don't emit anything at declaration site - function is hoisted
                 return output
@@ -7098,8 +7090,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     result = emit_throwing_call_propagate(td.default_expr, throw_types, temp_name, "", result, indent, ctx, context)
                     // Record that this struct default was hoisted using "struct_name:member_name" key
                     key := type_name.concat(":").concat(td.member_name)
-                    ctx.hoisted_struct_defaults.insert(key, temp_name)
-                    catch (err: DuplicatedKeyError) { }
+                    ctx.hoisted_struct_defaults.set(key, temp_name)
                     catch (err: AllocError) { throw err.msg }
 
                     td_idx.inc()
