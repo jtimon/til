@@ -1,0 +1,26 @@
+#+TITLE: Rust Rules for TIL Codebase
+
+Short list of things NOT to do in Rust code for this project.
+
+* Rules
+
+** 1. Don't use panic!() directly
+Use ~return Err(...)~ instead. TIL error handling is explicit.
+
+* Potential Rules (to be discussed)
+
+** Don't use unwrap() on Option/Result
+Use ~?~ operator or explicit match. Panics are bad for a compiler.
+
+** Don't use expect() in library code
+Reserve for truly impossible cases only. Prefer ~?~ with context.
+
+** Don't use unsafe unless absolutely necessary
+If you need unsafe, add a comment explaining why.
+
+** Don't use clone() unless Rust requires it
+TIL must match Rust's clone calls 1:1. Extra clones = memory bugs in TIL.
+
+** Don't forget to port changes to TIL
+After modifying src/rs/*.rs, update src/self/*.til to match.
+Run ~make tests~ to verify both versions work.

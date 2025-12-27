@@ -1,6 +1,8 @@
 
 Translation patterns for converting Rust code to TIL, primarily for self-hosting the compiler/interpreter.
 
+See also: [[file:rs.org][Rust Rules]] - things NOT to do in Rust code.
+
 * Overview
 
 TIL and Rust have different idioms, but the translation is mechanical. This guide documents the patterns discovered when analyzing lexer.rs, parser.rs, and init.rs against their TIL counterparts.
@@ -229,7 +231,7 @@ The pattern variable ~decl~ only exists inside the case block. All logic using i
 
 ** if let Some(x) = ...
 
-Rust uses ~if let~ for Option destructuring. TIL checks for default/empty value or uses catch blocks:
+Rust uses ~if let~ for Option destructuring. TIL uses catch blocks with the out-parameter pattern:
 
 Rust:
 #+begin_src rust
@@ -238,18 +240,21 @@ if let Some(val) = map.get(key) {
 }
 #+end_src
 
-TIL (check default):
+TIL (catch block with out-parameter):
 #+begin_src til
-val := map.get(key)
-if not(val.eq("")) {
-    // use val
+mut val := DefaultType()
+map.get(key, val)
+catch (err: KeyNotFoundError) {
+    // key not found - handle or ignore
 }
+// use val (has value if key was found)
 #+end_src
 
-TIL (catch block):
+TIL (check existence first):
 #+begin_src til
-catch {
-    val := map.get_or_throw(key)
+if map.contains_key(key) {
+    mut val := DefaultType()
+    map.get(key, val)
     // use val
 }
 #+end_src
