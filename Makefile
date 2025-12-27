@@ -6,7 +6,7 @@ clean:
 
 # REPL = Read-Eval-Print-Loop
 repl: rstil
-	rlwrap ./bin/rstil src/core/repl.til
+	rlwrap ./bin/rstil repl
 
 rstil: src/rstil.rs
 	@mkdir -p bin
