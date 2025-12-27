@@ -46,7 +46,7 @@ SEnumDef := struct {
             self.variants.get(i, v)
             result.variants.push(v.clone())
         }
-        catch (err: IndexOutOfBoundsError) { panic(err.msg) }
+        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
         return result
     }
 
@@ -163,7 +163,7 @@ SFuncDef := struct {
             self.body.get(i, e)
             result.body.push(e.clone())
         }
-        catch (err: IndexOutOfBoundsError) { panic(err.msg) }
+        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
         result.source_path = self.source_path.clone()
         return result
     }
@@ -199,8 +199,21 @@ SStructDef := struct {
 
     clone := func(self: SStructDef) returns SStructDef throws AllocError {
         mut result := SStructDef()
-        result.members = self.members.clone()
-        result.default_values = self.default_values.clone()
+        // Deep clone members
+        for i in 0..self.members.len() {
+            mut m := Declaration()
+            self.members.get(i, m)
+            result.members.push(m.clone())
+        }
+        // Deep clone default_values Map<Str, Expr>
+        for i in 0..self.default_values.keys.len() {
+            mut k := ""
+            mut v := Expr()
+            self.default_values.keys.get(i, k)
+            self.default_values.values.get(i, v)
+            result.default_values.set(k.clone(), v.clone())
+        }
+        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
         return result
     }
 
@@ -373,7 +386,7 @@ Expr := struct {
             self.params.get(i, e)
             cloned_params.push(e.clone())
         }
-        catch (err: IndexOutOfBoundsError) { panic(err.msg) }
+        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
         return Expr(node_type=node_type_clone(self.node_type), params=cloned_params, line=self.line, col=self.col)
     }
 

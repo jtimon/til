@@ -4,9 +4,13 @@ mode lib
 
 exit := ext_func(code: I64);
 
-panic := proc(loc_str: Str, msgs: ..Str) {
+/** Print location and message(s), then exit with code 1.
+ *  Usage: panic(loc(), "error message", optional_details...)
+ */
+panic := proc(loc_str: Str, msg: Str, extra_msgs: ..Str) {
     single_print(loc_str)
-    for val: Str in msgs {
+    single_print(msg)
+    for val: Str in extra_msgs {
         single_print(val)
     }
     single_print("\n")
