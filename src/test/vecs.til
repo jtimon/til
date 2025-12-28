@@ -677,3 +677,60 @@ test_vec_enum_payload := proc() {
     }
 }
 test_vec_enum_payload()
+
+test_vec_with_capacity := proc() {
+    // Test with_capacity creates vec with pre-allocated memory
+    mut vec := Vec.with_capacity(I64, 10)
+
+    assert_eq(loc(), 0, vec.len())
+    assert_eq(loc(), 10, vec.cap)
+    test(loc(), vec.ptr.gt(0), "ptr should be allocated")
+
+    // Push elements without triggering reallocation
+    mut i := 0
+    while i.lt(10) {
+        vec.push(i)
+        i = i.add(1)
+    }
+
+    assert_eq(loc(), 10, vec.len())
+    assert_eq(loc(), 10, vec.cap) // Should not have grown
+
+    // Verify values
+    mut val := 0
+    vec.get(0, val)
+    assert_eq(loc(), 0, val)
+    vec.get(9, val)
+    assert_eq(loc(), 9, val)
+
+    // Push one more to trigger growth
+    vec.push(100)
+    assert_eq(loc(), 11, vec.len())
+    test(loc(), vec.cap.gt(10), "cap should have grown")
+
+    vec.delete()
+
+    // Test with_capacity(0) behaves like new()
+    mut empty := Vec.with_capacity(Str, 0)
+    assert_eq(loc(), 0, empty.len())
+    assert_eq(loc(), 0, empty.cap)
+    assert_eq(loc(), 0, empty.ptr)
+
+    empty.push("hello")
+    assert_eq(loc(), 1, empty.len())
+    test(loc(), empty.cap.gteq(1), "cap should be at least 1")
+
+    empty.delete()
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_vec_with_capacity()

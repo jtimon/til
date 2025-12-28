@@ -49,6 +49,28 @@ Vec := struct {
         return vec
     }
 
+    /** Create new empty vec with pre-allocated capacity.
+     *  Use when you know approximately how many elements you'll need. */
+    with_capacity := proc(T: Type, capacity: I64) returns Vec throws AllocError {
+        mut vec := Vec()
+        vec.type_name = type_as_str(T)
+        vec.type_size = size_of(T)
+        vec._len = 0
+        vec.cap = capacity
+        if capacity.gt(0) {
+            if capacity.gt(Vec.MAX_CAP) {
+                panic(loc(), "Vec.with_capacity: capacity exceeded Vec.MAX_CAP")
+            }
+            vec.ptr = malloc(mul(capacity, vec.type_size))
+            if NULL.eq(vec.ptr) {
+                throw AllocError(msg=format(loc(), "Vec.with_capacity: malloc failed"))
+            }
+        } else {
+            vec.ptr = NULL
+        }
+        return vec
+    }
+
     /** Push element to end of vec. */
     push := proc(mut self: Vec, value: Dynamic) throws AllocError {
         // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
