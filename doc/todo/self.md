@@ -110,7 +110,7 @@ This is a separate scavenger bug that doesn't affect rstil.
 ## Build Commands Reference (from Makefile)
 - `make rstil` - Build Rust-based TIL compiler
 - `make til` - Build self-hosted TIL compiler (uses rstil to compile til.til)
-- `make tests` - Run full test suite
+- `make benchmark` - Run full test suite with timing
 
 ## Methodology for Each Issue Encountered
 
@@ -150,11 +150,11 @@ When existing tests need updated expected output (e.g., error message changes):
 
 ### Step 5: Fix the Issue
 - Fix in the Rust code (src/rs/)
-- Run `make tests` to verify
+- Run `make benchmark` to verify
 
 ### Step 6: Port to TIL
 - Copy the fix to equivalent src/self/*.til file
-- Run `make tests` again to verify
+- Run `make benchmark` again to verify
 
 ### Step 7: Commit
 - Commit the fix with clear message explaining what was fixed
@@ -166,14 +166,14 @@ Work on **master**. Previous branch `claude/fix-bool-return-error-VePQb` is refe
 ## Key Rules
 - TIL code must match Rust code exactly
 - Never diverge TIL from Rust to "fix" issues
-- Each fix goes through: test → fix rs → make tests → port to til → make tests → commit
+- Each fix goes through: test → fix rs → make benchmark → port to til → make benchmark → commit
 - Note function names to re-translate, not line numbers
 
 ## Next Steps
 1. Pick a failing test from til_interpreted (see src/tests.til TODO comments)
 2. Run: `timeout 30 ./bin/til interpret src/test/failing_test.til`
 3. Identify error pattern and find root cause
-4. Fix in Rust, run `make tests`, port to TIL, run `make tests`, commit
+4. Fix in Rust, run `make benchmark`, port to TIL, run `make benchmark`, commit
 5. Repeat until all til_interpreted tests pass
 
 ## Test Management Methodology
