@@ -176,6 +176,24 @@ Work on **master**. Previous branch `claude/fix-bool-return-error-VePQb` is refe
 4. Fix in Rust, run `make tests`, port to TIL, run `make tests`, commit
 5. Repeat until all til_interpreted tests pass
 
+## Test Management Methodology
+When fixing bugs that affect multiple tests:
+
+1. **Uncomment all potentially affected tests** - Remove `//` but keep the `// TODO:` comments
+2. **Run `make track_benchmark`** - This runs all tests and saves timing data
+3. **Analyze results** - Note which tests pass vs fail
+4. **Update tests.til**:
+   - For passing tests: Remove the TODO comment entirely
+   - For failing tests: Comment out with `//` and update TODO with actual error message
+   - Be specific: `// TODO: Source '10' not found` not just `// TODO: fails`
+5. **Run `make track_benchmark` again** - Verify 0 failures before committing
+
+This methodology ensures:
+- We test everything that might be affected by a fix
+- TODO comments accurately describe current errors
+- We don't leave stale TODO comments on passing tests
+- We can track progress by counting uncommented vs commented tests
+
 ## Debug Findings
 
 ### Key Discovery (2025-12-19)

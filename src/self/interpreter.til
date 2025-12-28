@@ -2621,17 +2621,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     context.scope_stack.frames.push(function_frame)
 
                                     // Temporarily register source for copy_fields
-                                    mut src_offset := 0
+                                    src_offset := context.scope_stack.lookup_var(source_id)
                                     catch (err: KeyNotFoundError) {
-                                        src_offset = context.scope_stack.lookup_var(source_id)
+                                        throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
                                     }
-                                    mut src_symbol := SymbolInfo()
-                                    mut src_symbol_found := false
+                                    src_symbol := context.scope_stack.lookup_symbol(source_id)
                                     catch (err: KeyNotFoundError) {
-                                        src_symbol = context.scope_stack.lookup_symbol(source_id)
-                                        src_symbol_found = true
-                                    }
-                                    if not(src_symbol_found) {
                                         throw e.lang_error(context.path, "eval", format("Source symbol '", source_id, "' not found"))
                                     }
 
@@ -3079,7 +3074,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw err.msg }
 
     // Frame already popped above
     return EvalResult.new(result_str) // CLEANUP SITE 7: Return normal value (final return)

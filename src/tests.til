@@ -634,67 +634,67 @@ main := proc(args: ..Str) {
     til_interpreted.push(TestEntry(path="src/examples/hello_pura.til"))
     til_interpreted.push(TestEntry(path="src/examples/hello_pure.til"))
     til_interpreted.push(TestEntry(path="src/examples/hello_script.til"))
-    // til_interpreted.push(TestEntry(path="src/examples/hello_test.til"))  // TODO: ___temp_return_val_6 not found
-    // til_interpreted.push(TestEntry(path="src/examples/lolalalo.til"))  // TODO: ___temp_return_val_413 not found
+    til_interpreted.push(TestEntry(path="src/examples/hello_test.til"))
+    til_interpreted.push(TestEntry(path="src/examples/lolalalo.til"))
     // til_interpreted.push(TestEntry(path="src/test/arenas.til"))  // TODO: arena overflow
-    // til_interpreted.push(TestEntry(path="src/test/args.til"))  // TODO: ___temp_return_val_6 not found
-    // til_interpreted.push(TestEntry(path="src/test/arithmetics.til"))  // TODO: ___temp_return_val_33 not found
-    // til_interpreted.push(TestEntry(path="src/test/arrays.til"))  // TODO: ___temp_return_val_7 not found
-    // til_interpreted.push(TestEntry(path="src/test/boolean.til"))  // TODO: ___temp_return_val_7 not found
-    // til_interpreted.push(TestEntry(path="src/test/branchless.til"))  // TODO: ___temp_return_val_6 not found
-    // til_interpreted.push(TestEntry(path="src/test/bug41.til"))  // TODO: ___temp_return_val_8 not found
-    // til_interpreted.push(TestEntry(path="src/test/bug43.til"))  // TODO: ___temp_return_val_14 not found
-    // til_interpreted.push(TestEntry(path="src/test/bug46.til"))  // TODO: ___temp_return_val_10 not found
+    til_interpreted.push(TestEntry(path="src/test/args.til"))
+    til_interpreted.push(TestEntry(path="src/test/arithmetics.til"))
+    // til_interpreted.push(TestEntry(path="src/test/arrays.til"))  // TODO: Source '10' not found in caller context
+    til_interpreted.push(TestEntry(path="src/test/boolean.til"))
+    til_interpreted.push(TestEntry(path="src/test/branchless.til"))
+    til_interpreted.push(TestEntry(path="src/test/bug41.til"))
+    // til_interpreted.push(TestEntry(path="src/test/bug43.til"))  // TODO: assert_eq failed: expected '0', found '65536'
+    til_interpreted.push(TestEntry(path="src/test/bug46.til"))
     // til_interpreted.push(TestEntry(path="src/test/bug47.til"))  // TODO: Undefined symbol 'vt' in parser.til
     til_interpreted.push(TestEntry(path="src/test/bug48.til", expected_status=1))
-    // til_interpreted.push(TestEntry(path="src/test/bug49.til", expected_status=1))  // TODO: output mismatch (missing type error)
+    // til_interpreted.push(TestEntry(path="src/test/bug49.til", expected_status=1))  // TODO: output mismatch (different error format)
     // til_interpreted.push(TestEntry(path="src/test/bug50.til", expected_status=1))  // TODO: output mismatch (rstil vs til prefix)
     // til_interpreted.push(TestEntry(path="src/test/bug52.til"))  // TODO: type error with assert_eq_str
-    // til_interpreted.push(TestEntry(path="src/test/bug55.til"))  // TODO: ___temp_return_val_7 not found
+    // til_interpreted.push(TestEntry(path="src/test/bug55.til"))  // TODO: assert_eq_str failed: expected 'hello', found ''
     // til_interpreted.push(TestEntry(path="src/test/bug56.til"))  // TODO: Enum variant payload type 'unknown' not supported
-    // til_interpreted.push(TestEntry(path="src/test/bug57.til"))  // TODO: ___temp_return_val_35 not found
-    // til_interpreted.push(TestEntry(path="src/test/c_mem.til"))  // TODO: ___temp_return_val_6 not found
-    // til_interpreted.push(TestEntry(path="src/test/circular_test.til"))  // TODO: ___temp_return_val_8 not found
-    // til_interpreted.push(TestEntry(path="src/test/clone.til"))  // TODO: ___temp_return_val_7 not found
-    // til_interpreted.push(TestEntry(path="src/test/comparisons.til"))  // TODO: ___temp_return_val_8 not found
-    // til_interpreted.push(TestEntry(path="src/test/constfold.til"))  // TODO: ___temp_return_val_6 not found
-    // til_interpreted.push(TestEntry(path="src/test/cross_file_forward.til"))  // TODO: ___temp_return_val_16 not found
-    // til_interpreted.push(TestEntry(path="src/test/deterministic.til"))  // TODO: Source symbol '1' not found
+    til_interpreted.push(TestEntry(path="src/test/bug57.til"))
+    til_interpreted.push(TestEntry(path="src/test/c_mem.til"))
+    til_interpreted.push(TestEntry(path="src/test/circular_test.til"))
+    // til_interpreted.push(TestEntry(path="src/test/clone.til"))  // TODO: Source '10' not found in caller context
+    til_interpreted.push(TestEntry(path="src/test/comparisons.til"))
+    til_interpreted.push(TestEntry(path="src/test/constfold.til"))
+    til_interpreted.push(TestEntry(path="src/test/cross_file_forward.til"))
+    // til_interpreted.push(TestEntry(path="src/test/deterministic.til"))  // TODO: Source '1' not found in caller context
     // til_interpreted.push(TestEntry(path="src/test/editor_mode_test.til"))  // TODO: enum payload type 'unknown' not supported
     // til_interpreted.push(TestEntry(path="src/test/enums.til"))  // TODO: Enum variant payload type 'unknown' not supported
     // til_interpreted.push(TestEntry(path="src/test/errors.til"))  // TODO: string_from_context out of bounds
-    // til_interpreted.push(TestEntry(path="src/test/eval.til"))  // TODO: ___temp_return_val_6 not found
+    til_interpreted.push(TestEntry(path="src/test/eval.til"))
     til_interpreted.push(TestEntry(path="src/test/exit.til", expected_status=69))
-    // til_interpreted.push(TestEntry(path="src/test/fibonacci.til"))  // TODO: ___temp_return_val_6 not found
-    // til_interpreted.push(TestEntry(path="src/test/flow.til"))  // TODO: Source symbol 'true' not found
+    til_interpreted.push(TestEntry(path="src/test/fibonacci.til"))
+    til_interpreted.push(TestEntry(path="src/test/flow.til"))
     // til_interpreted.push(TestEntry(path="src/test/forward_declarations.til"))  // TODO: enum payload type 'unknown' not supported
-    // til_interpreted.push(TestEntry(path="src/test/func_purity.til"))  // TODO: ___temp_return_val_6 not found
+    til_interpreted.push(TestEntry(path="src/test/func_purity.til"))
     til_interpreted.push(TestEntry(path="src/test/function_pointers.til"))
-    // til_interpreted.push(TestEntry(path="src/test/intro.til"))  // TODO: ___temp_return_val_6 not found
-    // til_interpreted.push(TestEntry(path="src/test/lists.til"))  // TODO: ___temp_return_val_10 not found
-    // til_interpreted.push(TestEntry(path="src/test/loops.til"))  // TODO: ___temp_return_val_16 not found
-    // til_interpreted.push(TestEntry(path="src/test/maps.til"))  // TODO: Source symbol '100' not found
-    // til_interpreted.push(TestEntry(path="src/test/modes.til"))  // TODO: ___temp_return_val_15 not found
-    // til_interpreted.push(TestEntry(path="src/test/mut_test.til"))  // TODO: ___temp_return_val_6 not found
-    // til_interpreted.push(TestEntry(path="src/test/namespaces.til"))  // TODO: ___temp_return_val_6 not found
-    // til_interpreted.push(TestEntry(path="src/test/optional_args.til"))  // TODO: fails
-    // til_interpreted.push(TestEntry(path="src/test/pointers.til"))  // TODO: Source symbol 'true' not found
-    // til_interpreted.push(TestEntry(path="src/test/return_value_usage.til"))  // TODO: ___temp_return_val_6 not found
-    // til_interpreted.push(TestEntry(path="src/test/scope_isolation.til"))  // TODO: ___temp_return_val_6 not found
-    // til_interpreted.push(TestEntry(path="src/test/sets.til"))  // TODO: ___temp_return_val_8 not found
-    // til_interpreted.push(TestEntry(path="src/test/strings.til"))  // TODO: not tested yet
-    // til_interpreted.push(TestEntry(path="src/test/structs.til"))  // TODO: not tested yet
-    // til_interpreted.push(TestEntry(path="src/test/temp.til"))  // TODO: not tested yet
-    // til_interpreted.push(TestEntry(path="src/test/test_lexer.til"))  // TODO: not tested yet
-    // til_interpreted.push(TestEntry(path="src/test/test_parser.til"))  // TODO: not tested yet
-    // til_interpreted.push(TestEntry(path="src/test/todo.til"))  // TODO: not tested yet
-    // til_interpreted.push(TestEntry(path="src/test/u8.til"))  // TODO: not tested yet
-    // til_interpreted.push(TestEntry(path="src/test/ufcs.til"))  // TODO: not tested yet
-    // til_interpreted.push(TestEntry(path="src/test/undefined.til", expected_status=1))  // TODO: not tested yet
-    // til_interpreted.push(TestEntry(path="src/test/underscore.til"))  // TODO: not tested yet
-    // til_interpreted.push(TestEntry(path="src/test/variadic.til"))  // TODO: not tested yet
-    // til_interpreted.push(TestEntry(path="src/test/vecs.til"))  // TODO: not tested yet
-    // til_interpreted.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: not tested yet
+    til_interpreted.push(TestEntry(path="src/test/intro.til"))
+    // til_interpreted.push(TestEntry(path="src/test/lists.til"))  // TODO: Source '42' not found in caller context
+    // til_interpreted.push(TestEntry(path="src/test/loops.til"))  // TODO: Source '10' not found in caller context
+    // til_interpreted.push(TestEntry(path="src/test/maps.til"))  // TODO: Source '100' not found in caller context
+    // til_interpreted.push(TestEntry(path="src/test/modes.til"))  // TODO: Source 'panic' not found in caller context
+    // til_interpreted.push(TestEntry(path="src/test/mut_test.til"))  // TODO: Source '10' not found in caller context
+    til_interpreted.push(TestEntry(path="src/test/namespaces.til"))
+    // til_interpreted.push(TestEntry(path="src/test/optional_args.til"))  // TODO: exit code 1 (no output)
+    til_interpreted.push(TestEntry(path="src/test/pointers.til"))
+    til_interpreted.push(TestEntry(path="src/test/return_value_usage.til"))
+    til_interpreted.push(TestEntry(path="src/test/scope_isolation.til"))
+    // til_interpreted.push(TestEntry(path="src/test/sets.til"))  // TODO: Source 'hello' not found in caller context
+    til_interpreted.push(TestEntry(path="src/test/strings.til"))
+    // til_interpreted.push(TestEntry(path="src/test/structs.til"))  // TODO: assert_eq failed: expected '10', found garbage
+    til_interpreted.push(TestEntry(path="src/test/temp.til"))
+    // til_interpreted.push(TestEntry(path="src/test/test_lexer.til"))  // TODO: String range comparisons not yet supported
+    // til_interpreted.push(TestEntry(path="src/test/test_parser.til"))  // TODO: Undefined symbol 'vt'
+    til_interpreted.push(TestEntry(path="src/test/todo.til"))
+    til_interpreted.push(TestEntry(path="src/test/u8.til"))
+    // til_interpreted.push(TestEntry(path="src/test/ufcs.til"))  // TODO: exit code 1 (no output)
+    // til_interpreted.push(TestEntry(path="src/test/undefined.til", expected_status=1))  // TODO: output mismatch (missing enum variant error)
+    til_interpreted.push(TestEntry(path="src/test/underscore.til"))
+    til_interpreted.push(TestEntry(path="src/test/variadic.til"))
+    // til_interpreted.push(TestEntry(path="src/test/vecs.til"))  // TODO: Undefined symbol 'p1'
+    // til_interpreted.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: exit code 1 (no output)
 
     // til_compiled: tests run with the self-hosted TIL compiler only
     mut til_compiled := Vec.new(TestEntry)
