@@ -51,9 +51,7 @@ impl EvalArena {
 
             // Lazy initialization of the singleton instance
             INSTANCE.get_or_insert_with(|| EvalArena {
-                _arena: Arena {
-                    _len: 1, // REM: first address 0 is reserved (invalid), malloc always >0
-                },
+                _arena: Arena::new(),
                 temp_id_counter: 0, // A temporary ugly hack for return values
                 default_instances: HashMap::new(),
             })

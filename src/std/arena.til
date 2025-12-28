@@ -13,7 +13,7 @@ Arena := struct {
     new := proc() returns Arena {
         mut a := Arena()
         a._memory = Array.new(U8, ARENA_SIZE)
-        a._len = 1  // Reserve first address 0 (invalid), malloc always >0
+        a._len = 1 // REM: first address 0 is reserved (invalid), malloc always >0
 
         catch (err: AllocError) {
             panic(loc(), err.msg)

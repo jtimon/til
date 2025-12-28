@@ -103,6 +103,8 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
             allowed_procs_in_funcs = allowed_procs_in_funcs)
     }
     if mode_name.eq("safe_script") {
+        mut safe_script_imports := Vec.new(Str)
+        safe_script_imports.push("modes.safe_script")
         mut allowed_procs_in_funcs := Vec.new(Str)
         allowed_procs_in_funcs.push("panic")
         return ModeDef(
@@ -112,6 +114,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
             allows_base_mut        = true,
             allows_base_anything   = true,
             needs_main_proc        = false,
+            imports                = safe_script_imports,
             allowed_procs_in_funcs = allowed_procs_in_funcs)
     }
     if mode_name.eq("cli") {
@@ -128,7 +131,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
     }
     if mode_name.eq("test") {
         mut test_imports := Vec.new(Str)
-        test_imports.push("src/modes/test")
+        test_imports.push("modes.test")
         mut allowed_procs_in_funcs := Vec.new(Str)
         allowed_procs_in_funcs.push("panic")
         return ModeDef(

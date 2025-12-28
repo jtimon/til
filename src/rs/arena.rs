@@ -15,7 +15,7 @@ impl Arena {
     /// Create a new Arena
     pub fn new() -> Arena {
         Arena {
-            _len: 1,  // Reserve first address 0 (invalid), malloc always >0
+            _len: 1, // REM: first address 0 is reserved (invalid), malloc always >0
         }
     }
 
@@ -25,6 +25,7 @@ impl Arena {
     }
 
     /// Get size in bytes (same as len for Arena)
+    #[allow(dead_code)]
     pub fn size(&self) -> usize {
         return self._len;
     }
