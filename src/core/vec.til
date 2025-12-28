@@ -14,7 +14,7 @@ Vec := struct {
     mut cap       : I64  = 0
 
     INIT_CAP : I64 = 0
-    MAX_CAP  : I64 = 1048576  // 1M elements - needed for large programs like til.til
+    MAX_CAP  : I64 = 1073741824  // 1G elements - safety cap
 
     /** Get number of elements in vec. */
     len := func(self: Vec) returns I64 {
@@ -210,6 +210,13 @@ Vec := struct {
             memcpy(dest, src, self.type_size)
             self._len = add(self._len, 1)
             i = add(i, 1)
+        }
+    }
+
+    /** Extend vec with `count` copies of `value`. */
+    extend_with := proc(mut self: Vec, value: Dynamic, count: I64) throws AllocError {
+        for _ in 0..count {
+            self.push(value)
         }
     }
 

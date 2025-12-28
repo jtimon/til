@@ -18,7 +18,7 @@ test_arena_put := proc() {
     assert_eq(loc(), initial_len, offset)
     assert_eq(loc(), add(initial_len, 8), g_test_arena.len())
 
-    catch (err: Str) { panic(loc(), err) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_arena_put()
 
@@ -30,7 +30,7 @@ test_arena_get := proc() {
     memcpy(to_ptr(result), g_test_arena.get(offset, 8), 8)
     assert_eq(loc(), 42, result)
 
-    catch (err: Str) { panic(loc(), err) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_arena_get()
 
@@ -45,7 +45,7 @@ test_arena_set := proc() {
     memcpy(to_ptr(result), g_test_arena.get(offset, 8), 8)
     assert_eq(loc(), 999, result)
 
-    catch (err: Str) { panic(loc(), err) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_arena_set()
 
@@ -64,7 +64,7 @@ test_arena_reserve := proc() {
     memcpy(to_ptr(result), g_test_arena.get(offset, 8), 8)
     assert_eq(loc(), 777, result)
 
-    catch (err: Str) { panic(loc(), err) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_arena_reserve()
 
@@ -88,7 +88,7 @@ test_arena_multiple_values := proc() {
     assert_eq(loc(), 222, r2)
     assert_eq(loc(), 333, r3)
 
-    catch (err: Str) { panic(loc(), err) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_arena_multiple_values()
 

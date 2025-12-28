@@ -128,7 +128,7 @@ const til_I64 til_size_of_Bool = sizeof(til_Bool);
 const til_I64 til_size_of_I64_OverflowError = sizeof(til_I64_OverflowError);
 const til_I64 til_size_of_I64 = sizeof(til_I64);
 const til_I64 til_Vec_INIT_CAP = 0;
-const til_I64 til_Vec_MAX_CAP = 1048576;
+const til_I64 til_Vec_MAX_CAP = 1073741824;
 const til_I64 til_size_of_Vec = sizeof(til_Vec);
 const til_I64 til_size_of_Str = sizeof(til_Str);
 const til_I64 til_size_of_U8_OverflowError = sizeof(til_U8_OverflowError);
@@ -1360,7 +1360,7 @@ int til_Vec_push(til_AllocError* _err1, til_Vec* til_self, const til_Dynamic til
             if (_arr_status__tmp_til_Vec_push_1 != 0) {
                 *_err1 = _err_alloc__tmp_til_Vec_push_1; return 1;
             }
-            til_panic(((til_Str){(til_I64)"src/core/vec.til:65:23:", 23}), ((til_Str){(til_I64)"Vec.push: capacity exceeded Vec.MAX_CAP", 39}), &_tmp_til_Vec_push_0);
+            til_panic(((til_Str){(til_I64)"src/core/vec.til:87:23:", 23}), ((til_Str){(til_I64)"Vec.push: capacity exceeded Vec.MAX_CAP", 39}), &_tmp_til_Vec_push_0);
             til_Array_delete(&_tmp_til_Vec_push_0);
         }
         til_I64 _ret__tmp_til_Vec_push_2;
@@ -1401,7 +1401,7 @@ int til_Vec_get(til_IndexOutOfBoundsError* _err1, const til_Vec til_self, const 
         if (_arr_status__tmp_til_Vec_get_3 != 0) {
             *_err1 = _err_idx__tmp_til_Vec_get_3; return 1;
         }
-        int _status__tmp_til_Vec_get_1 = til_format(&_tmp_til_Vec_get_0, &_err0__tmp_til_Vec_get_1, &_err1__tmp_til_Vec_get_1, &_err2__tmp_til_Vec_get_1, ((til_Str){(til_I64)"src/core/vec.til:87:52:", 23}), &_tmp_til_Vec_get_2);
+        int _status__tmp_til_Vec_get_1 = til_format(&_tmp_til_Vec_get_0, &_err0__tmp_til_Vec_get_1, &_err1__tmp_til_Vec_get_1, &_err2__tmp_til_Vec_get_1, ((til_Str){(til_I64)"src/core/vec.til:109:52:", 24}), &_tmp_til_Vec_get_2);
         if (_status__tmp_til_Vec_get_1 != 0) {
             if (_status__tmp_til_Vec_get_1 == 2) { *_err1 = _err1__tmp_til_Vec_get_1; return 1; }
         }
@@ -1421,7 +1421,7 @@ int til_Vec_get(til_IndexOutOfBoundsError* _err1, const til_Vec til_self, const 
         if (_arr_status__tmp_til_Vec_get_8 != 0) {
             *_err1 = _err_idx__tmp_til_Vec_get_8; return 1;
         }
-        int _status__tmp_til_Vec_get_6 = til_format(&_tmp_til_Vec_get_5, &_err0__tmp_til_Vec_get_6, &_err1__tmp_til_Vec_get_6, &_err2__tmp_til_Vec_get_6, ((til_Str){(til_I64)"src/core/vec.til:87:52:", 23}), &_tmp_til_Vec_get_7);
+        int _status__tmp_til_Vec_get_6 = til_format(&_tmp_til_Vec_get_5, &_err0__tmp_til_Vec_get_6, &_err1__tmp_til_Vec_get_6, &_err2__tmp_til_Vec_get_6, ((til_Str){(til_I64)"src/core/vec.til:109:52:", 24}), &_tmp_til_Vec_get_7);
         if (_status__tmp_til_Vec_get_6 != 0) {
             if (_status__tmp_til_Vec_get_6 == 2) { *_err1 = _err1__tmp_til_Vec_get_6; return 1; }
         }

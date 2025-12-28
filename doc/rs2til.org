@@ -821,3 +821,4 @@ The translation is mechanical:
 15. ~break~ works in while and for loops; ~continue~ works in while loops only (NOT for loops - causes infinite loop)
 16. Enums with Str/Vec payloads need deep clone functions (~literal_clone~, ~node_type_clone~, etc.); simple enums copy by value
 17. ~HashMap.insert()~ -> ~Map.set()~ (Rust overwrites, TIL's ~insert~ throws on duplicate; use ~set~ to match Rust behavior)
+18. ~vec.extend(std::iter::repeat(v).take(n))~ -> ~vec.extend_with(v, n)~

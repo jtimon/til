@@ -61,7 +61,11 @@ EvalArena := struct {
 
     /// Append bytes to arena, return offset where they were placed
     put := proc(mut self: EvalArena, src_ptr: I64, num_bytes: I64) returns I64 throws Str {
-        return self._arena.put(src_ptr, num_bytes)
+        offset := self._arena.put(src_ptr, num_bytes)
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        return offset
     }
 
     /// Read bytes from arena at offset (returns pointer to data)
@@ -70,13 +74,17 @@ EvalArena := struct {
     }
 
     /// Write bytes to arena at offset
-    set := proc(mut self: EvalArena, offset: I64, src_ptr: I64, num_bytes: I64) throws Str {
+    set := proc(mut self: EvalArena, offset: I64, src_ptr: I64, num_bytes: I64) {
         self._arena.set(offset, src_ptr, num_bytes)
     }
 
     /// Reserve space in arena, return offset where space was allocated
     reserve := proc(mut self: EvalArena, size: I64) returns I64 throws Str {
-        return self._arena.reserve(size)
+        offset := self._arena.reserve(size)
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        return offset
     }
 
     // === EVAL-PHASE MEMORY OPERATIONS ===
