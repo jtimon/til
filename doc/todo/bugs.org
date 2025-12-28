@@ -8,7 +8,61 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-(None)
+** Bug #60: ccodegen passes const args by value instead of by pointer
+:PROPERTIES:
+:DISCOVERED: 2025-12-28
+:IMPACT: Stack overflow on recursive functions with large struct args
+:STATUS: Active
+:END:
+
+*** Description
+In TIL, function arguments without `mut`, `copy`, or `own` modifiers should be
+passed as const by reference (const pointer in C). Currently, ccodegen.rs passes
+them by value, causing stack overflow when functions with large struct arguments
+(like Context, Expr) are called recursively.
+
+*** Reproducing
+#+BEGIN_SRC bash
+./bin/til build src/examples/empty.til  # Segfault (stack overflow)
+#+END_SRC
+
+*** Root Cause
+In ccodegen.rs:2754-2758, the default case (no mut/copy/own) generates:
+#+BEGIN_SRC rust
+} else {
+    // const: pass by value, read-only
+    output.push_str("const ");
+    output.push_str(&arg_type);
+    output.push_str(" ");
+}
+#+END_SRC
+
+This produces `const til_Context til_context` (by value) instead of
+`const til_Context* til_context` (by pointer).
+
+*** Fix
+Requires changes in three places in ccodegen.rs:
+
+1. *emit_func_signature* - Change signature generation:
+#+BEGIN_SRC rust
+} else {
+    // const: pass by const pointer, read-only
+    output.push_str("const ");
+    output.push_str(&arg_type);
+    output.push_str("* ");
+}
+#+END_SRC
+
+2. *Call sites* - Pass address for const args:
+   - Currently: ~func(arg)~
+   - Should be: ~func(&arg)~
+
+3. *Inside function bodies* - Dereference const pointer args:
+   - Currently: ~til_arg.field~ or ~til_arg~
+   - Should be: ~til_arg->field~ or ~(*til_arg)~
+
+This affects emit_arg_with_param_type, emit_expr (for Identifier), and
+potentially other places where arguments are emitted or used.
 
 * Fixed Bugs
 
