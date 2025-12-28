@@ -242,7 +242,7 @@ test_vec_growth := proc() {
 
     test(loc(), dyn.len().eq(add(Vec.INIT_CAP, 5)), "Length should be INIT_DYN_CAP + 5")
     test(loc(), gt(dyn.cap, initial_cap), "Capacity should have grown beyond initial")
-    test(loc(), dyn.cap.eq(mul(Vec.INIT_CAP, 2)), "Capacity should have doubled")
+    test(loc(), dyn.cap.gteq(add(Vec.INIT_CAP, 5)), "Capacity should be at least len")
 
     // Verify all values are still correct after reallocation
     mut val := 0

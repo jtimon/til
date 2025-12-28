@@ -32,7 +32,7 @@ test_mut_array := proc() {
     mut arr := Vec.new(I64)
 
     assert_eq(loc(), 0, arr.len())
-    assert_eq(loc(), 16, arr.cap)
+    assert_eq(loc(), Vec.INIT_CAP, arr.cap)
 
     arr.push(10)
 

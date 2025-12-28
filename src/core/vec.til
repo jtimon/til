@@ -13,7 +13,7 @@ Vec := struct {
     mut _len      : I64  = 0
     mut cap       : I64  = 0
 
-    INIT_CAP : I64 = 16
+    INIT_CAP : I64 = 4
     MAX_CAP  : I64 = 1048576  // 1M elements - needed for large programs like til.til
 
     /** Get number of elements in vec. */
