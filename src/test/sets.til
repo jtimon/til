@@ -8,8 +8,6 @@ test_set_new := proc() {
     mut s := Set.new(Str)
     assert_eq(loc(), 0, s.len())
     assert(loc(), not(s.contains("hello")))
-
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_set_new()
 

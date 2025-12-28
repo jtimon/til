@@ -5387,7 +5387,7 @@ fn emit_fcall_with_hoisted(
                         let key = format!("{}:{}", func_name, member.name);
                         if let Some(temp_name) = ctx.hoisted_struct_defaults.get(&key) {
                             output.push_str(temp_name);
-                        } else if throwing_default_names.contains(&member.name) || matches!(default_expr.node_type, NodeType::FCall) {
+                        } else if throwing_default_names.contains(&member.name) || is_throwing_fcall(default_expr, context) {
                             // Shouldn't happen - throwing defaults should be hoisted
                             output.push_str("/* ERROR: unhoisted throwing default */");
                         } else {
@@ -6295,7 +6295,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         let key = format!("{}:{}", func_name, member.name);
                         if let Some(temp_name) = ctx.hoisted_struct_defaults.get(&key) {
                             output.push_str(temp_name);
-                        } else if matches!(default_expr.node_type, NodeType::FCall) {
+                        } else if is_throwing_fcall(default_expr, context) {
                             // Shouldn't happen - throwing defaults should be hoisted
                             output.push_str("/* ERROR: unhoisted throwing default */");
                         } else {

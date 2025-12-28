@@ -502,7 +502,6 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
     if throwing_info.is_throwing {
         // First, recursively hoist any throwing calls in this call's arguments
         mut nested_hoisted := Map.new(I64, Str)
-        catch (err: AllocError) { throw err.msg }
         if gt(expr.params.len(), 1) {
             mut nested_vec := hoist_throwing_args(expr.params, result, indent, ctx, context)
             // Convert Vec<HoistedArg> to Map<I64, Str>
@@ -549,7 +548,6 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         mut has_variadic_arr := false
         if variadic_info.is_variadic {
             mut variadic_args := Vec.new(Expr)
-            catch (err: AllocError) { throw err.msg }
             mut vi := add(1, variadic_info.regular_count)
             while lt(vi, expr.params.len()) {
                 mut varg := Expr()
@@ -666,7 +664,6 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         if variadic_info.is_variadic {
             // Recursively hoist any throwing/variadic calls in this call's arguments first
             mut nested_hoisted := Map.new(I64, Str)
-            catch (err: AllocError) { throw err.msg }
             if gt(expr.params.len(), 1) {
                 mut nested_vec := hoist_throwing_args(expr.params, result, indent, ctx, context)
                 // Convert Vec<HoistedArg> to Map<I64, Str>
@@ -702,7 +699,6 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
 
             // Construct variadic array
             mut variadic_args := Vec.new(Expr)
-            catch (err: AllocError) { throw err.msg }
             mut vi := add(1, variadic_info.regular_count)
             while lt(vi, expr.params.len()) {
                 mut varg := Expr()
@@ -801,7 +797,6 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                         // This is a struct literal - check for throwing defaults
                         // Build set of named arg names that are provided
                         mut provided_names := Set.new(Str)
-                        catch (err: AllocError) { throw err.msg }
                         mut pai := 1
                         while lt(pai, expr.params.len()) {
                             mut parg := Expr()
@@ -835,7 +830,6 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                                 if is_throwing_fcall(default_expr, context) {
                                     // Get the function's throw types
                                     mut throw_types := Vec.new(ValueType)
-                                    catch (err: AllocError) { throw err.msg }
                                     if gt(default_expr.params.len(), 0) {
                                         mut def_first := Expr()
                                         default_expr.params.get(0, def_first)
@@ -1345,7 +1339,6 @@ get_type_dependencies := func(expr: Expr) returns Vec throws Str {
         return get_enum_dependencies(expr)
     }
     mut empty := Vec.new(Str)
-    catch (err: AllocError) { throw err.msg }
     return empty
 }
 
@@ -2362,7 +2355,6 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             // Clear declared_vars and hoisted_struct_defaults for new function scope
                             ctx.declared_vars = Set.new(Str)
                             ctx.hoisted_struct_defaults = Map.new(Str, Str)
-                            catch (err: AllocError) { throw err.msg }
 
                             // Push a new scope frame for this function (like interpreter does)
                             context.scope_stack.push(ScopeType.Function)
@@ -2419,7 +2411,6 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             ctx.current_throw_types = Vec.new(ValueType)
                             ctx.current_return_types = Vec.new(ValueType)
                             ctx.current_ref_params = Vec.new(Str)
-                            catch (err: AllocError) { throw err.msg }
                         }
                     case:
                         // Not a function
@@ -2950,7 +2941,6 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 // Clear current function context
                 ctx.current_throw_types = Vec.new(ValueType)
                 ctx.current_return_types = Vec.new(ValueType)
-                catch (err: AllocError) { throw err.msg }
 
                 return result
             case:
@@ -3606,7 +3596,6 @@ collect_declarations_in_body := proc(body: Expr, mut context: Context) returns V
         collect_declarations_recursive(body, decls, collected, context)
     }
 
-    catch (err: AllocError) { throw err.msg }
     return decls
 }
 
@@ -3790,7 +3779,6 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
     // Collect cases, separating default case
     mut cases := Vec.new(SwitchCaseInfo)
-    catch (err: AllocError) { throw err.msg }
     mut default_body := Expr()
     mut has_default := false
 
@@ -4472,7 +4460,6 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
 
     // Track which catch labels have been emitted to avoid duplicates
     mut emitted_catch_labels := Set.new(Str)
-    catch (err: AllocError) { throw err.msg }
 
     // Process all statements
     while lt(i, stmts.len()) {
@@ -4638,7 +4625,6 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
 
                     // Collect subsequent catch blocks
                     mut catch_blocks := Vec.new(Expr)
-                    catch (err: AllocError) { throw err.msg }
                     mut j := add(i, 1)
                     while lt(j, stmts.len()) {
                         mut next_stmt := Expr()
@@ -7791,7 +7777,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
 // Hoist throwing function calls from arguments (recursively)
 // Returns a list of hoisted args with their temp var names
 // Also modifies output to include hoisting code
-hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str, AllocError {
+hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str {
     mut hoisted := Vec.new(HoistedArg)
     mut indent_str := ""
     mut ind := 0
@@ -8823,14 +8809,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                                     ctx.hoisted_struct_defaults.get(key, temp_name)
                                     result = result.concat(temp_name)
                                     catch (err: KeyNotFoundError) {
-                                        // Not hoisted - check if it's an FCall (shouldn't happen)
-                                        mut is_fcall := false
-                                        switch default_expr.node_type {
-                                        case NodeType.FCall:
-                                            is_fcall = true
-                                        case:
-                                        }
-                                        if is_fcall {
+                                        // Not hoisted - only error if it's a throwing fcall
+                                        if is_throwing_fcall(default_expr, context) {
                                             // Shouldn't happen - throwing defaults should be hoisted
                                             result = result.concat("/* ERROR: unhoisted throwing default */")
                                         } else {

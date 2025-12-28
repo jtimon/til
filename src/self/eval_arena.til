@@ -986,7 +986,6 @@ EvalArena := struct {
                     mut total_size := 8  // variant tag
                     if not(NULL.eq(inner_enum.payload.data)) {
                         mut payload_vec := Vec.new(U8)
-                        catch (err: AllocError) { throw err.msg }
                         memcpy(to_ptr(payload_vec), inner_enum.payload.data, size_of(Vec))
                         total_size = add(total_size, payload_vec.len())
                     }
@@ -1479,10 +1478,6 @@ EvalArena := struct {
             }
         case:
             throw e.lang_error(ctx.path, "arena", format("field_to_literal: unsupported field type '", value_type_to_str(value_type), "'"))
-        }
-
-        catch (err: AllocError) {
-            throw e.lang_error(ctx.path, "arena", "field_to_literal: AllocError")
         }
 
         return result

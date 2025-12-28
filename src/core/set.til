@@ -12,7 +12,7 @@ Set := struct {
      * Create new empty set with specified element type
      * Example: Set.new(Str)
      */
-    new := proc(ElemType: Type) returns Set throws AllocError {
+    new := proc(ElemType: Type) returns Set {
         mut s := Set()
         s.elem_type_name = type_as_str(ElemType)
         s.elem_type_size = size_of(ElemType)

@@ -257,7 +257,6 @@ test_non_mut_isolation()
 push_value := proc(mut arr: Vec, value: I64) {
     arr.push(value)
 
-    // Catch unexpected errors at end
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
@@ -287,11 +286,6 @@ test_mut_array := proc() {
     numbers.delete()
 
     // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)

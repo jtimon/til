@@ -8,7 +8,7 @@ Entity := struct {
     mut name: Str = ""
     mut components: Vec = Vec()  // Will hold Component instances
 
-    new := proc(id: I64, name: Str) returns Entity throws AllocError {
+    new := proc(id: I64, name: Str) returns Entity {
         mut e := Entity()
         e.id = id
         e.name = name

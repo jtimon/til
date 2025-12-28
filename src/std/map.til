@@ -37,7 +37,7 @@ Map := struct {
 
     /** Create new empty map with specified key and value types.
      *  Example: Map.new(Str, I64) */
-    new := proc(KeyType: Type, ValueType: Type) returns Map throws AllocError {
+    new := proc(KeyType: Type, ValueType: Type) returns Map {
         mut m := Map()
         m.key_type_name = type_as_str(KeyType)
         m.key_type_size = size_of(KeyType)

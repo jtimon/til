@@ -13,7 +13,7 @@ Vec := struct {
     mut _len      : I64  = 0
     mut cap       : I64  = 0
 
-    INIT_CAP : I64 = 1
+    INIT_CAP : I64 = 0
     MAX_CAP  : I64 = 1048576  // 1M elements - needed for large programs like til.til
 
     /** Get number of elements in vec. */
@@ -27,27 +27,25 @@ Vec := struct {
     }
 
     /** Create new empty vec with specified element type. */
-    new := proc(T: Type) returns Vec throws AllocError {
+    new := proc(T: Type) returns Vec {
         mut vec := Vec()
         vec.type_name = type_as_str(T)
         vec.type_size = size_of(T)
-        size_bytes := mul(Vec.INIT_CAP, vec.type_size)
-        vec.ptr = malloc(size_bytes)
+        vec.ptr = NULL
         vec._len = 0
-        vec.cap = Vec.INIT_CAP
+        vec.cap = 0
         return vec
     }
 
     /** Internal helper for Map.new() - creates Vec from type info.
      *  TODO: Remove this workaround once we can pass Dynamic params through nested calls. */
-    new_from_type_info := proc(type_name: Str, type_size: I64) returns Vec throws AllocError {
+    new_from_type_info := proc(type_name: Str, type_size: I64) returns Vec {
         mut vec := Vec()
         vec.type_name = type_name
         vec.type_size = type_size
-        size_bytes := mul(Vec.INIT_CAP, vec.type_size)
-        vec.ptr = malloc(size_bytes)
+        vec.ptr = NULL
         vec._len = 0
-        vec.cap = Vec.INIT_CAP
+        vec.cap = 0
         return vec
     }
 
@@ -57,28 +55,23 @@ Vec := struct {
         //     throw format(loc(), "Vec.push: value type mismatch")
         // }
 
-        // Bug #43 fix: If ptr is 0, allocate initial memory.
-        // This handles Vecs created from struct templates where ptr was skipped
-        // to avoid dangling pointers but cap was preserved.
-        if self.ptr.eq(0) {
-            if self.cap.eq(0) {
-                self.cap = Vec.INIT_CAP
-            }
-            self.ptr = malloc(mul(self.cap, self.type_size))
-            if NULL.eq(self.ptr) {
-                throw AllocError(msg=format(loc(), "Vec.push: malloc failed"))
-            }
-        }
-
+        // Grow if needed (handles cap=0 case with max(1, cap*2))
         if self._len.eq(self.cap) {
-            new_cap := mul(self.cap, 2)
+            mut new_cap := mul(self.cap, 2)
+            if lt(new_cap, 1) {
+                new_cap = 1
+            }
             if gt(new_cap, Vec.MAX_CAP) {
                 panic(loc(), "Vec.push: capacity exceeded Vec.MAX_CAP")
             }
 
             mut new_ptr := malloc(mul(new_cap, self.type_size))
-            memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
-            free(self.ptr)
+            if gt(self._len, 0) {
+                memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
+            }
+            if gt(self.ptr, 0) {
+                free(self.ptr)
+            }
             self.ptr = new_ptr
             self.cap = new_cap
         }
@@ -133,7 +126,9 @@ Vec := struct {
 
     /** Free vec memory. */
     delete := proc(mut self: Vec) {
-        free(self.ptr)
+        if gt(self.ptr, 0) {
+            free(self.ptr)
+        }
         self.ptr = 0
         self._len = 0
         self.cap = 0
@@ -146,14 +141,19 @@ Vec := struct {
         cloned.type_size = self.type_size
         cloned._len = self._len
         cloned.cap = self.cap
-        mut total_bytes := mul(self.cap, self.type_size)
-        cloned.ptr = malloc(total_bytes)
-        if NULL.eq(cloned.ptr) {
-            throw AllocError(msg=format(loc(), "Vec.clone: malloc failed for ", I64.to_str(total_bytes), " bytes"))
+        if gt(self.cap, 0) {
+            mut total_bytes := mul(self.cap, self.type_size)
+            cloned.ptr = malloc(total_bytes)
+            if NULL.eq(cloned.ptr) {
+                throw AllocError(msg=format(loc(), "Vec.clone: malloc failed"))
+            }
+            if gt(self._len, 0) {
+                mut used_bytes := mul(self._len, self.type_size)
+                memcpy(cloned.ptr, self.ptr, used_bytes)
+            }
+        } else {
+            cloned.ptr = NULL
         }
-        // Copy only the used portion (_len), not the entire capacity
-        mut used_bytes := mul(self._len, self.type_size)
-        memcpy(cloned.ptr, self.ptr, used_bytes)
         return cloned
     }
 
@@ -164,15 +164,22 @@ Vec := struct {
             // Copy element from other to self
             src := add(other.ptr, mul(i, other.type_size))
 
-            // Ensure capacity
+            // Ensure capacity (handles cap=0 case with max(1, cap*2))
             if self._len.eq(self.cap) {
-                new_cap := mul(self.cap, 2)
+                mut new_cap := mul(self.cap, 2)
+                if lt(new_cap, 1) {
+                    new_cap = 1
+                }
                 if gt(new_cap, Vec.MAX_CAP) {
                     panic(loc(), "Vec.extend: capacity exceeded Vec.MAX_CAP")
                 }
                 mut new_ptr := malloc(mul(new_cap, self.type_size))
-                memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
-                free(self.ptr)
+                if gt(self._len, 0) {
+                    memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
+                }
+                if gt(self.ptr, 0) {
+                    free(self.ptr)
+                }
                 self.ptr = new_ptr
                 self.cap = new_cap
             }

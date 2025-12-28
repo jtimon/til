@@ -94,12 +94,9 @@ ScopeStack := struct {
     mut frames: Vec = Vec.new(ScopeFrame)
 
 
-    new := func() returns ScopeStack throws Str {
+    new := func() returns ScopeStack {
         mut stack := ScopeStack()
         stack.frames = Vec.new(ScopeFrame)
-        catch (err: AllocError) {
-            throw err.msg
-        }
         return stack
     }
 

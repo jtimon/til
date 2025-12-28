@@ -285,11 +285,6 @@ test_map_empty := proc() {
     test(loc(), pos.eq(sub(0, 1)), "position in empty map should return -1")
 
     m.delete()
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 
 // Test Map growth/reallocation beyond initial capacity

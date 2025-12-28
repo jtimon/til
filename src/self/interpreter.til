@@ -3332,9 +3332,6 @@ interpret_file := proc(path: Str, main_args: Vec) returns EvalResult throws Str 
         // Automatically import core.til (needs full init and eval, skip_init=false)
         core_path := "src/core/core.til"
         mut empty_args := Vec.new(Str)
-        catch (err: AllocError) {
-            throw err.msg
-        }
         _ := interpret_file_with_context(true, false, context, core_path, empty_args)
     }
 
