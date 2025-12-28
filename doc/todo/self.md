@@ -71,33 +71,41 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Also removed all `catch (err: DuplicatedKeyError)` blocks since `.set()` doesn't throw.
   - Simplified `declare_var` to just `throws Str` (matching Rust's `Result<(), String>`).
 
-### Current Issue
-**Scavenger error in til run (2025-12-27)**
+### Current Focus (2025-12-28)
+**Fix all til_interpreted tests first, then til_compiled**
 
-Current status:
+Phase 1: Get all rs_common tests working with `./bin/til interpret`.
+
+Working tests (10):
+- empty.til, hello_cli.til, hello_lib.til, hello_liba.til, hello_pura.til
+- hello_pure.til, hello_script.til, bug48.til, exit.til, function_pointers.til
+
+Failing tests (57): See src/tests.til for TODO comments with specific errors.
+
+Common error patterns in til_interpreted:
+- `___temp_return_val_X not found` - temp variable scoping issue in interpreter
+- `no body found for 'X'` - function resolution issue in interpreter
+
+Phase 2: Once til_interpreted tests pass, fix til_compiled:
 ```bash
-./bin/til interpret src/examples/empty.til  # WORKS!
-./bin/til run src/examples/empty.til        # ERROR: no body found for 'start.eq'
+./bin/til run src/examples/empty.til  # Currently: "no body found for 'start.eq'"
 ```
-
-**IMPORTANT: Always test BOTH commands above, not just one.**
-
-The `til interpret` path now works. The `til run` path fails with a scavenger error.
-This is a separate bug in the self-hosted scavenger that doesn't affect rstil.
+This is a separate scavenger bug that doesn't affect rstil.
 
 ## Compiler Phases
 1. ~~Parser~~ ✓
-2. **Init** ← Bug #47 blocks here (processing core.til/vec.til)
-3. Typer
-4. Precomp
-5. Scavenger
-6. Eval/Interpreter → enables `til interpret`
-7. Builder/Codegen → enables `til run`
+2. ~~Init~~ ✓
+3. ~~Typer~~ ✓
+4. ~~Precomp~~ ✓
+5. Scavenger ← issues remain for some tests
+6. ~~Eval/Interpreter~~ ✓ (10/67 tests working)
+7. Builder/Codegen ← til_compiled not yet working
 
 ## Milestones
 1. ~~`./bin/til interpret src/examples/empty.til`~~ ✓ DONE
 2. ~~`./bin/til interpret src/examples/hello_script.til`~~ ✓ DONE
-3. `./bin/til run src/examples/empty.til` ← current target (scavenger bug)
+3. All rs_common tests pass with `./bin/til interpret` ← current target (10/67 working)
+4. `./bin/til run src/examples/empty.til` (scavenger bug)
 
 ## Build Commands Reference (from Makefile)
 - `make rstil` - Build Rust-based TIL compiler
@@ -162,12 +170,11 @@ Work on **master**. Previous branch `claude/fix-bool-return-error-VePQb` is refe
 - Note function names to re-translate, not line numbers
 
 ## Next Steps
-1. ~~Create a test that reproduces Bug #47~~ Done: `src/test/bug47.til`
-2. Examine generated C code for catch blocks that USE the error variable
-   - Compare `catch (err: Str) { println(err) }` vs `catch (err: Str) { }`
-   - Focus on how `err` is declared/accessed in the catch block
-3. Find the codegen pattern causing memory corruption
-4. Fix in ccodegen.rs, run make tests, port to ccodegen.til
+1. Pick a failing test from til_interpreted (see src/tests.til TODO comments)
+2. Run: `timeout 30 ./bin/til interpret src/test/failing_test.til`
+3. Identify error pattern and find root cause
+4. Fix in Rust, run `make tests`, port to TIL, run `make tests`, commit
+5. Repeat until all til_interpreted tests pass
 
 ## Debug Findings
 
