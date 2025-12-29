@@ -1,0 +1,833 @@
+* Bug #60 - Pass non-copy args by pointer (attempt 1)
+
+This file contains the plan and diff from the first attempt at implementing
+const args by pointer. The attempt is incomplete - there are still gcc errors.
+
+** Status: INCOMPLETE
+
+Multiple issues remain:
+1. Type literals like "Str" passed directly instead of &temp_var
+2. I64 literals like &0 - address of literal directly
+3. Enum access like &til_NodeType.FCall (expected expression before til_NodeType)
+
+** Notes for future (brainshare)
+
+*** What we were in the middle of
+We were debugging why I64/Type literals and FCall results weren't being hoisted
+in all code paths. The last specific issue was:
+
+1. While loop conditions with FCall args like `lt(i, len(arr))`:
+   - The `len(arr)` returns an I64 rvalue
+   - `lt` expects `const I64*` (by_ref because !is_copy)
+   - We can't do `&til_Array_len(...)` because rvalues aren't addressable
+   - Solution attempted: hoist FCall results to temp vars in hoist_throwing_args
+   - Added code at line ~974 to detect FCall args with by_ref=true and hoist them
+
+2. The FCall hoisting wasn't reaching our new code because:
+   - FCalls with params go to the branch at line 955 (non-throwing, non-variadic FCalls)
+   - That branch was recursing into nested args but NOT hoisting the FCall itself
+   - Fixed by adding FCall result hoisting at end of that branch (lines 978-996)
+
+3. After that fix, new errors appeared showing MANY more places need fixing
+
+*** What's working
+- emit_func_signature correctly emits `const T*` for non-copy params
+- current_ref_params tracking updated to use !is_copy (not just is_mut)
+- hoist_throwing_args now takes arg_info and can hoist I64/Type literals in else branch
+- FCall result hoisting added for by_ref params in the FCall branch
+- Removed all `is_ext_func` exceptions - ext functions use same pointer semantics
+- Dynamic handling preserved (uses `&` prefix in hoisted_exprs, works differently)
+
+*** What's broken (gcc errors from make benchmark)
+1. Type literals passed directly: `til_Array_new(..., "Str", 0)`
+   - Should be: `til_Array_new(..., &_type_temp, &_i64_temp)`
+   - These are in throwing call paths that don't go through our hoisting
+
+2. I64 literals with direct &: `til_lt(til_start, &0)`
+   - Can't take address of literal 0
+   - This is in non-throwing code path
+
+3. Enum member access: `&til_NodeType.FCall`
+   - C syntax error: can't do &EnumType.Member
+   - Need to hoist to temp var first: `til_NodeType _tmp = til_NodeType.FCall; ... &_tmp`
+   - This is for NodeType enum values passed to functions expecting const NodeType*
+
+4. Vec.new("Expr") - Type literal not hoisted
+   - Vec.new is non-throwing, goes through different code path
+
+*** Code paths that emit function args (the real problem)
+Each of these has its own arg emission logic, not all go through hoist_throwing_args:
+
+1. emit_fcall (regular non-throwing calls) - line ~6500
+2. emit_throwing_call - line ~3584
+3. emit_throwing_call_propagate - line ~3889
+4. emit_variadic_call - line ~3380
+5. emit_fcall_name_and_args_for_throwing - line ~1502
+6. emit_arg_with_param_type - line ~1624
+7. emit_arg_with_mut - line ~1790
+8. hoist_variadic_args (constructs arrays) - line ~1181
+9. Direct emit_expr calls with indent=0 (no hoisting)
+10. main() args setup - line ~2045
+
+*** What we hoped to achieve but haven't tested
+1. Recursive functions with large struct args should not stack overflow
+   - The original bug: passing Expr by value causes stack overflow on deep recursion
+   - With const Expr*, only pointer is passed, not full struct
+
+2. For-in loops should work (they desugar to while loops with lt(i, len(arr)))
+   - The while condition needs FCall result hoisting to work
+
+3. All existing tests should pass (make benchmark)
+   - Currently fails at gcc stage with ~100+ errors
+
+*** Things that were already done and should be kept
+1. ext.c updated: all non-copy params now take pointers
+   - til_lt(const til_I64* a, const til_I64* b)
+   - til_Array_new(..., const til_Type* T, const til_I64* capacity)
+   - etc.
+
+2. emit_func_signature updated: non-copy params emit as `const T*`
+
+3. current_ref_params tracking: uses !is_copy instead of is_mut
+
+4. Dynamic handling: kept separate, uses (til_Dynamic*)& casting, works fine
+
+*** Key insight: The problem is too many code paths
+The current approach tries to patch hoisting into the existing complex arg emission.
+But there are ~10+ different code paths that emit function call arguments.
+Patching all of them is error-prone and the code is already complex.
+
+*** Alternative approach to consider: Part 2 first
+Part 2 of the plan makes I64 and Type into compound literals, which are addressable.
+This would ELIMINATE the need for I64/Type hoisting entirely.
+
+Bool and Str already work because they're compound literals:
+- Bool: (til_Bool){1} - can do &((til_Bool){1})
+- Str: (til_Str){ptr, len} - can do &((til_Str){...})
+
+If we make:
+- I64: ((til_I64){.data = 42}) - can do &((til_I64){.data = 42})
+- Type: ((til_Str){.c_string = "Foo", .len = 3}) - can do &((til_Str){...})
+
+Then the ONLY thing that needs hoisting is FCall results (rvalues).
+And FCall result hoisting is simpler - just check if arg is FCall and by_ref.
+
+*** Order of operations suggestion
+1. Revert this attempt: git checkout src/rs/ccodegen.rs
+2. Do Part 2 FIRST:
+   a. Change I64 typedef to struct { long long data; }
+   b. Update ext.c to use .data field everywhere
+   c. Update emit_literal for Number to emit ((til_I64){.data = N})
+   d. Change Type to alias til_Str (or emit as Str compound literal)
+3. Then Part 1 becomes trivial:
+   a. Signatures already done
+   b. Just add & before args where by_ref and not already pointer
+   c. Only FCall results need hoisting (simpler case)
+
+*** ext.c is already updated
+ext.c already takes pointers for non-copy args. That part is done and tested.
+The issue is purely in ccodegen.rs arg emission.
+
+*** Files modified in this attempt
+- src/rs/ccodegen.rs - the big diff saved below
+- src/ext.c - already committed separately (takes pointers)
+
+*** How to test when resuming
+1. make benchmark - should compile and run all tests
+2. Specifically watch for:
+   - for-in loops (use lt(i, len(arr)) internally)
+   - Recursive functions with Expr params
+   - Vec.new(Type), Array.new(Type, capacity)
+   - Any function taking I64 literals as args
+
+*** Specific code locations in this diff
+
+**** New function: get_arg_info_for_call (line ~714)
+Returns Vec<ArgTypeInfo> with by_ref = !is_copy for each param.
+Used to pass arg info to hoist_throwing_args.
+
+**** hoist_throwing_args signature change (line ~732)
+Added `arg_info: &[ArgTypeInfo]` parameter.
+All call sites updated to pass get_arg_info_for_call() result.
+
+**** FCall result hoisting (lines ~978-996)
+In the "non-throwing, non-variadic FCall" branch, after recursing into nested args,
+we now check if this FCall result is passed by_ref and hoist it to temp var.
+
+**** I64/Type literal hoisting (lines ~1011-1045)
+In the else branch (non-FCall args), we check by_ref and hoist:
+- I64 literals: `til_I64 _i64_temp_N = value;`
+- Type literals: `til_Type _type_temp_N = "TypeName";`
+
+**** emit_arg_with_param_type fix (line ~1634)
+Changed hoisted temp handling to add & only if by_ref, not for Dynamic.
+Dynamic params already have & prefix in the hoisted_exprs map.
+
+**** main() args setup (lines ~2045-2055)
+Manually hoists Type and I64 literals for til_Array_new and til_Array_set calls.
+This is hardcoded C generation, not going through normal arg emission.
+
+*** Debugging output removed
+All eprintln! debug statements were removed before saving this diff.
+They were in:
+- hoist_throwing_args else branch (idx, by_ref, is_fcall)
+- emit_while (args count, is_fcall per arg)
+
+*** What NOT to do
+1. Don't break Dynamic handling - it was working before and uses different semantics
+2. Don't add is_ext_func exceptions back - ext functions use same pointer semantics now
+3. Don't forget to port changes to src/self/ccodegen.til after fixing Rust version
+
+*** Current build state
+- `make til` hangs (rstil build src/til.til doesn't complete in 30s)
+- `make benchmark` fails at gcc stage with ~100+ errors
+- The generated C code has issues with literal hoisting in many code paths
+
+** Plan
+
+#+begin_src markdown
+# Plan: Bug #60 - Pass non-copy args by pointer
+
+**Build command**: Always use `make benchmark` (not `make tests`)
+
+## Problem
+ccodegen.rs passes const args by value (`const T`) instead of by pointer (`const T*`).
+This causes stack overflow on recursive functions with large struct args.
+
+## Core Rule
+
+**`by_ref = !is_copy`** - that's it, no exceptions.
+
+| Modifier | C Signature | by_ref |
+|----------|-------------|--------|
+| `copy` | `T` | false |
+| `mut` | `T*` | true |
+| `own` | `T*` | true |
+| default (const) | `const T*` | true |
+
+**Key insight from typer**: Typer already forbids `mut` args from taking literals.
+So only `const`/`own` params can receive literals, and those need hoisting for I64/Type.
+
+## Naming Convention (consistency with other phases)
+
+For consistency with interpreter.rs, typer.rs, and other TIL phases:
+- **`args`** = function arguments (what we pass to functions)
+- **`params`** = the field name in `Expr` struct (`expr.params`)
+
+In ccodegen, use:
+- `arg_info` not `param_info` for info about function arguments
+- `nested_arg_info` not `nested_param_info` for nested function call args
+- `get_arg_info_for_call()` not `get_param_info_for_call()`
+- `ArgTypeInfo` not `ParamTypeInfo` (rename the struct)
+
+This avoids confusion since `expr.params` is a different concept from function args.
+
+## Code to REMOVE (simplification)
+
+1. **Delete `is_primitive_type()` function** (lines 93-102) - no primitive exceptions
+2. **Delete `should_pass_by_ref()` function** (lines 104-108) - just use `!is_copy` inline
+3. **Remove all `is_ext_func` checks for by_ref** - ext functions use same semantics
+   - Lines 1168-1170, 3874, 4190, 5044, 5115, 7139, 7152, etc.
+
+## Literals That Need Hoisting
+
+| Type | Literal form | Addressable? | Action |
+|------|--------------|--------------|--------|
+| I64 | `42` | No (scalar) | HOIST to temp var |
+| Type | `"Str"` | No (wrong type) | HOIST to temp var |
+| Bool | `(til_Bool){1}` | Yes (compound) | Works as-is |
+| Str | `(til_Str){...}` | Yes (compound) | Works as-is |
+
+## Changes Required
+
+### 1. emit_func_signature
+```rust
+if arg.is_copy {
+    // copy: pass by value
+    output.push_str(&arg_type);
+    output.push_str(" ");
+} else if arg.is_mut || arg.is_own {
+    // mut/own: non-const pointer
+    output.push_str(&arg_type);
+    output.push_str("* ");
+} else {
+    // const (default): const pointer
+    output.push_str("const ");
+    output.push_str(&arg_type);
+    output.push_str("* ");
+}
+```
+
+### 2. current_ref_params tracking
+Change `if arg.is_mut {` to `if !arg.is_copy {`
+
+### 3. by_ref calculations
+Change all `by_ref: p.is_mut` to `by_ref: !p.is_copy`
+Remove all `&& !is_ext_func` conditions.
+
+### 4. Merge literal hoisting into hoist_throwing_args
+Instead of separate `hoist_literal_args`, extend `hoist_throwing_args` to also hoist I64/Type literals when `by_ref`:
+```rust
+fn hoist_throwing_args(args, param_info, output, indent, ctx, context) {
+    for (i, arg) in args.iter().enumerate() {
+        let by_ref = param_info.get(i).map(|p| !p.is_copy).unwrap_or(false);
+
+        // Existing: hoist throwing calls
+        if is_throwing_fcall(arg) { ... hoist ... continue; }
+
+        // NEW: hoist I64/Type literals when by_ref
+        if by_ref {
+            if let NodeType::LLiteral(Literal::Number(n)) = &arg.node_type {
+                emit temp var, insert into hoisted
+            }
+            if let Some(type_name) = get_type_arg_name(arg, context) {
+                emit temp var, insert into hoisted
+            }
+        }
+    }
+}
+```
+This eliminates the separate `hoist_literal_args` function entirely.
+
+### 5. Arg emission - check hoisted FIRST
+```rust
+if let Some(temp_var) = hoisted.get(&i) {
+    if by_ref { output.push_str("&"); }
+    output.push_str(temp_var);
+} else if let Some(type_name) = get_type_arg_name(arg, context) {
+    // by-value Type literal
+    output.push_str("\""); output.push_str(&type_name); output.push_str("\"");
+} else {
+    emit_arg_with_param_type(...)
+}
+```
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/rs/ccodegen.rs` | Remove is_primitive_type, should_pass_by_ref, is_ext_func checks; simplify by_ref to !is_copy |
+| `src/self/ccodegen.til` | Port all changes |
+
+## Implementation Steps
+
+1. Delete `is_primitive_type()` and `should_pass_by_ref()` functions
+2. Delete `hoist_literal_args()` function - merge into `hoist_throwing_args`
+3. Update emit_func_signature: `is_copy` -> value, else -> pointer
+4. Update current_ref_params: `is_mut` -> `!is_copy`
+5. Update all by_ref calculations: use `!is_copy`, remove `is_ext_func` conditions
+6. Extend `hoist_throwing_args` to hoist I64/Type literals when by_ref
+7. Fix arg emission order (hoisted FIRST)
+8. Test: `make benchmark`
+9. Port to src/self/ccodegen.til
+10. Run `make benchmark` again
+11. Commit
+
+---
+
+# PART 2: I64 struct wrapper + Type as Str (future cleanup)
+
+After Part 1 is complete and committed:
+1. Convert I64 to a struct wrapper like Bool
+2. Convert Type to use Str (which is already a compound literal)
+
+## Goal
+Eliminate ALL literal special-case handling by making everything addressable.
+
+## Changes to src/ext.c
+
+### I64 typedef and functions
+
+```c
+// Change typedef (near top, after TIL_EXT_C define)
+typedef struct til_I64 { long long data; } til_I64;
+```
+
+**Arithmetic functions** (lines 44-77):
+```c
+static inline til_Bool til_lt(til_I64 a, til_I64 b) { return (til_Bool){a.data < b.data}; }
+static inline til_Bool til_gt(til_I64 a, til_I64 b) { return (til_Bool){a.data > b.data}; }
+static inline til_I64 til_add(til_I64 a, til_I64 b) { return (til_I64){a.data + b.data}; }
+static inline til_I64 til_sub(til_I64 a, til_I64 b) { return (til_I64){a.data - b.data}; }
+static inline til_I64 til_mul(til_I64 a, til_I64 b) { return (til_I64){a.data * b.data}; }
+static inline til_I64 til_div(til_I64 a, til_I64 b) { return (til_I64){b.data == 0 ? 0 : a.data / b.data}; }
+static inline til_I64 til_mod(til_I64 a, til_I64 b) { return (til_I64){b.data == 0 ? 0 : a.data % b.data}; }
+```
+
+**Conversion functions** (lines 27-41):
+```c
+static inline til_I64 til_to_ptr(til_I64* p) { return (til_I64){(long long)p}; }
+static inline til_I64 til_u8_to_i64(til_U8 v) { return (til_I64){(long long)v}; }
+static inline til_U8 til_i64_to_u8(til_I64 v) { return (til_U8)v.data; }
+```
+
+**Memory functions** (lines 80-104):
+```c
+static inline int til_malloc(til_I64* _ret, til_AllocError* _err, til_I64 size) {
+    *_ret = (til_I64){(long long)malloc((size_t)size.data)};
+    return 0;
+}
+static inline void til_free(til_I64 ptr) { free((void*)ptr.data); }
+static inline void til_memcpy(til_I64 dest, til_I64 src, til_I64 n) {
+    memcpy((void*)dest.data, (void*)src.data, (size_t)n.data);
+}
+static inline til_I64 til_memcmp(til_I64 a, til_I64 b, til_I64 n) {
+    return (til_I64){(long long)memcmp((void*)a.data, (void*)b.data, (size_t)n.data)};
+}
+static inline void til_memset(til_I64 ptr, til_U8 value, til_I64 n) {
+    memset((void*)ptr.data, (int)value, (size_t)n.data);
+}
+```
+
+**Other functions** (lines 107-130, 183-192):
+```c
+static inline void til_exit(til_I64 code) { exit((int)code.data); }
+// til_i64_to_str: use v.data in snprintf, set s.c_string = (til_I64){(long long)buf}
+// til_str_to_i64: return (til_I64){strtoll(...)}
+// til_writefile: return (til_I64){(long long)written}
+```
+
+**Note**: Str.c_string field stores pointers as I64, so assignments become:
+```c
+s.c_string = (til_I64){(long long)buf};  // was: s.c_string = (til_I64)buf;
+```
+
+## Changes to src/rs/ccodegen.rs
+
+### Typedef emission for I64 (line 1589)
+```rust
+output.push_str(&format!("typedef struct {}I64 {{ long long data; }} {}I64;\n", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
+```
+
+### Type becomes alias for Str
+```rust
+// Change: typedef const char* til_Type;
+// To: typedef til_Str til_Type;
+output.push_str(&format!("typedef {}Str {}Type;\n", TIL_PREFIX, TIL_PREFIX));
+```
+
+Type args still detected by `get_type_arg_name`, but now emit as Str compound literals:
+```c
+// Old: "TypeName"
+// New: ((til_Str){(til_I64)"TypeName", 8})
+```
+
+This keeps Type as a distinct concept (for clarity) while making it addressable.
+Dynamic continues to have its own special handling (void* casting).
+
+### emit_literal for Number (line 6861-6863)
+```rust
+Literal::Number(n) => {
+    output.push_str(&format!("(({}I64){{.data = {}}})", TIL_PREFIX, n));
+    Ok(())
+},
+```
+
+### Type literal emission changes
+Type literals become Str compound literals. `get_type_arg_name` changes to emit:
+```c
+(til_Str){.c_string = (til_I64)"TypeName", .len = N}
+```
+This is addressable, so no literal detection needed for Type.
+
+## Changes to src/self/ccodegen.til
+Port all the same changes.
+
+## Simplifications enabled in ccodegen.rs
+
+### 1. Remove I64/Type literal hoisting from hoist_throwing_args
+Part 1 merges literal hoisting into `hoist_throwing_args`. With I64/Type as compound literals,
+we can take `&((til_I64){.data = 42})` directly - no hoisting needed at all.
+
+Remove the I64/Type literal hoisting code added in Part 1 from `hoist_throwing_args`.
+
+### 2. Dynamic keeps special handling
+Dynamic still needs `(til_Dynamic*)&` casting - it's void*, not a compound literal.
+This is fine - Dynamic is a different use case (polymorphic values, not type names).
+
+### 3. Signature stays the same
+Part 1 already uses pure `!is_copy` logic - no changes needed.
+
+## Code Simplifications in Part 2
+
+### Current state: Too many special cases
+| Function | Lines | Problem |
+|----------|-------|---------|
+| `emit_arg_with_param_type` | 165 | Duplicates logic, has 4 separate code paths |
+| `emit_arg_with_mut` | 40 | Duplicates by_ref logic from above |
+| `emit_arg_or_hoisted` | 8 | Unnecessary wrapper |
+
+### Target: Single unified emit_arg (~30 lines)
+
+```rust
+fn emit_arg(arg, idx, hoisted, by_ref, output, ctx, context) {
+    // 1. Type arg? Emit as Str literal (only special case that remains)
+    if let Some(type_name) = get_type_arg_name(arg, context) {
+        emit_str_literal(&type_name, output);  // Type becomes Str
+        return;
+    }
+
+    // 2. Hoisted temp?
+    if let Some(temp) = hoisted.get(&idx) {
+        if by_ref { output.push_str("&"); }
+        output.push_str(temp);
+        return;
+    }
+
+    // 3. by_ref = !is_copy (the ONLY semantic rule)
+    if by_ref && !is_already_pointer(arg, ctx) {
+        output.push_str("&");
+    }
+    emit_expr(arg, output, 0, ctx, context)?;
+}
+```
+
+### Function changes:
+
+| Function | Action | Details |
+|----------|--------|---------|
+| `emit_arg_with_param_type` | **SIMPLIFY** | 165->30 lines. Remove I64/Dynamic/variadic/field special cases |
+| `emit_arg_with_mut` | **DELETE** | Replace 3 call sites with `emit_arg(...)` |
+| `emit_arg_or_hoisted` | **DELETE** | Inline as `emit_arg(..., false)` at 4 call sites |
+| `get_type_arg_name` | **KEEP** | Still needed to detect Type args |
+| `is_already_pointer` | **NEW** | Extract helper: `ctx.current_ref_params.contains(name)` |
+
+### Code block removals from emit_arg_with_param_type:
+
+| Lines | Code block | Why removable |
+|-------|------------|---------------|
+| 1423-1433 | Hoisted + Dynamic/by_ref check | Simplify to just `if by_ref { & } + temp` |
+| 1446-1512 | Dynamic special handling (~65 lines) | Dynamic is just `void*`, cast in emit_expr |
+| 1516-1561 | by_ref with field access (~45 lines) | `&` + emit_expr handles all cases |
+| 1553-1556 | I64 literal detection | I64 is compound literal now |
+| 1564-1572 | Variadic param dereference | Move to emit_expr identifier handling |
+
+### Call site changes:
+
+| Location | Current | After |
+|----------|---------|-------|
+| Line 1390 | `emit_arg_with_param_type(arg, idx, hoisted, param_type, by_ref, ...)` | `emit_arg(arg, idx, hoisted, by_ref, ...)` |
+| Lines 3448, 3488, 3513 | `emit_arg_with_mut(arg, i, &hoisted, by_ref, ...)` | `emit_arg(arg, i, &hoisted, by_ref, ...)` |
+| Lines 5477, 6533, 6735, 6779 | `emit_arg_or_hoisted(arg, i, hoisted, ...)` | `emit_arg(arg, i, hoisted, false, ...)` |
+| Lines 3745, 3766, 4050, 4071, 4318, 5475, 6777 | `emit_arg_with_param_type(...)` | `emit_arg(...)` |
+
+**Total: ~180 lines removed, replaced with ~30 lines**
+
+## Summary of Part 2 changes
+
+| Category | Item | Change |
+|----------|------|--------|
+| **Types** | I64 typedef | `long long` -> `struct { long long data; }` |
+| | I64 literal | `42` -> `((til_I64){.data = 42})` |
+| | Type typedef | `const char*` -> `typedef til_Str til_Type;` (alias) |
+| | Type literal | `"Foo"` -> `((til_Str){(til_I64)"Foo", 3})` |
+| **ext.c** | All I64 ops | Use `.data` field |
+| **Functions** | `emit_arg_with_param_type` | SIMPLIFY: remove I64/Type hoisting |
+| | `emit_arg_with_mut` | SIMPLIFY: remove I64 hoisting |
+| | I64/Type literal hoisting | REMOVED (compound literals are addressable) |
+| | Dynamic special handling | KEPT (void* still needs casting) |
+
+## Benefits
+- ALL literals become compound literals -> ALL addressable
+- Single unified `emit_arg` function (30 lines vs 213 lines before)
+- ~180 lines of code removed
+- `by_ref = !is_copy` works everywhere without exceptions
+- Consistent with Bool pattern
+
+## Implementation Order
+
+### Step 1: I64 as struct
+1. Update ext.c: `typedef struct til_I64 { long long data; } til_I64;`
+2. Update ext.c: All I64 functions use `.data`
+3. Update ccodegen.rs: I64 typedef emission
+4. Update ccodegen.rs: `emit_literal` for Number -> `((til_I64){.data = N})`
+5. `make benchmark` to verify
+
+### Step 2: Type as Str
+1. Remove Type typedef from ccodegen.rs
+2. Update `get_type_arg_name` callers to emit Str compound literal
+3. Update `type_as_str` and `size_of` handlers
+4. `make benchmark` to verify
+
+### Step 3: Simplify emit_arg functions
+1. Create new `emit_arg` function (30 lines, see target above)
+2. Delete `emit_arg_with_mut` (40 lines)
+3. Delete `emit_arg_or_hoisted` (8 lines)
+4. Simplify `emit_arg_with_param_type` -> rename to `emit_arg`
+5. Update all 14 call sites to use unified `emit_arg`
+6. `make benchmark` to verify
+
+### Step 4: Port and commit
+1. Port all changes to src/self/ccodegen.til
+2. `make benchmark` to verify TIL version
+3. Commit with message: "Bug #60 Part 2: I64 struct, Type as Str, simplify emit_arg"
+
+---
+
+# PART 3: Further simplifications (optional future cleanup)
+
+After Part 2, these additional simplifications become possible:
+
+## 1. Remove tracking HashSets - use symbol table directly
+
+**Current:** Maintain separate HashSets that duplicate symbol table info:
+- `ctx.current_ref_params: HashSet<String>` - tracks which params are pointers
+- `ctx.current_variadic_params: HashMap<String, String>` - tracks variadic params
+
+**After Part 3:**
+Look up `is_copy` directly from symbol table instead of maintaining separate tracking:
+```rust
+// Instead of: ctx.current_ref_params.contains(name)
+// Use: !context.scope_stack.lookup_symbol(name).map(|s| s.is_copy).unwrap_or(true)
+```
+
+**Locations to update:**
+- Lines 2813, 3073, 4728: Remove `current_ref_params.insert()` calls
+- Lines 2817, 3077, 4731: Remove `current_variadic_params.insert()` calls
+- Lines 1690, 1712, 1756, 1770, etc.: Replace HashSet lookups with symbol table
+
+**Lines removed:** ~30 (tracking code + clear/swap operations)
+
+## 2. Remove `ParamTypeInfo` struct entirely
+
+**Current:**
+```rust
+struct ParamTypeInfo {
+    value_type: Option<ValueType>,  // Only used for Dynamic detection
+    by_ref: bool,
+}
+```
+
+**After Part 3:**
+- `by_ref` computed inline as `!arg.is_copy`
+- `is_dynamic` computed inline from param type
+- No struct needed
+
+**Lines removed:** ~15
+
+## 3. Simplify Dynamic handling
+
+**Current (~65 lines):** Complex nested conditionals for Dynamic params.
+
+**After Part 3 (~15 lines):**
+```rust
+if is_dynamic {
+    output.push_str("(til_Dynamic*)");
+}
+if by_ref && !is_already_pointer(arg, ctx) {
+    output.push_str("&");
+}
+emit_expr(arg, output, 0, ctx, context)?;
+```
+
+**Lines removed:** ~50
+
+## 4. Unify remaining hoisting functions
+
+**Current:** Multiple hoisting functions with overlapping logic:
+- `hoist_throwing_args` - throwing calls + I64/Type literals (after Part 1)
+- `hoist_for_dynamic_params` - Dynamic params
+- `hoist_variadic_args` - variadic array construction
+
+**After Part 3:** Single `hoist_args` function that handles all cases:
+```rust
+fn hoist_args(args, param_info, output, indent, ctx, context) {
+    for (i, arg) in args.iter().enumerate() {
+        // Hoist if: throwing call, OR needs addressable value for by_ref
+        if needs_hoisting(arg, param_info.get(i), ctx, context) {
+            emit_temp_var_and_assignment(...)
+            hoisted.insert(i, temp_var)
+        }
+    }
+}
+```
+
+**Lines removed:** ~100 (duplicate iteration logic)
+
+## Part 3 Summary
+
+| Simplification | Lines removed | Lines added | Net |
+|----------------|---------------|-------------|-----|
+| Remove tracking HashSets | ~30 | ~10 | -20 |
+| Remove ParamTypeInfo | ~15 | 0 | -15 |
+| Simplify Dynamic | ~50 | ~15 | -35 |
+| Unify hoisting | ~100 | ~40 | -60 |
+| **Total** | **~195** | **~65** | **-130** |
+
+## Implementation (if doing Part 3)
+
+1. Replace current_ref_params with symbol table lookup
+2. Replace current_variadic_params with symbol table lookup
+3. Remove ParamTypeInfo, compute inline
+4. Simplify Dynamic handling
+5. Unify hoisting functions
+6. Port to ccodegen.til, run `make benchmark`, commit
+#+end_src
+
+** Diff (ccodegen.rs)
+
+#+begin_src diff
+diff --git a/src/rs/ccodegen.rs b/src/rs/ccodegen.rs
+index 58aeca7..521ede0 100644
+--- a/src/rs/ccodegen.rs
++++ b/src/rs/ccodegen.rs
+@@ -403,7 +403,8 @@ fn hoist_throwing_expr(
+         // First, recursively hoist any throwing calls in this call's arguments
+         let nested_hoisted: std::collections::HashMap<usize, String> = if expr.params.len() > 1 {
+             let nested_args = &expr.params[1..];
+-            let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
++            let nested_arg_info = get_arg_info_for_call(expr, context);
++            let nested_vec = hoist_throwing_args(nested_args, &nested_arg_info, output, indent, ctx, context)?;
+             nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
+         } else {
+             std::collections::HashMap::new()
+@@ -556,7 +557,8 @@ fn hoist_throwing_expr(
+             // Recursively hoist any throwing/variadic calls in this call's arguments first
+             let nested_hoisted: std::collections::HashMap<usize, String> = if expr.params.len() > 1 {
+                 let nested_args = &expr.params[1..];
+-                let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
++                let nested_arg_info = get_arg_info_for_call(expr, context);
++                let nested_vec = hoist_throwing_args(nested_args, &nested_arg_info, output, indent, ctx, context)?;
+                 nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
+             } else {
+                 std::collections::HashMap::new()
+@@ -712,10 +714,24 @@ fn hoist_throwing_expr(
+     Ok(None)
+ }
+
++/// Get arg_info for a function call's arguments (for determining by_ref)
++fn get_arg_info_for_call(expr: &Expr, context: &Context) -> Vec<ArgTypeInfo> {
++    if let Some(fd) = get_fcall_func_def(context, expr) {
++        fd.args.iter().map(|a| ArgTypeInfo {
++            value_type: Some(a.value_type.clone()),
++            by_ref: !a.is_copy
++        }).collect()
++    } else {
++        Vec::new()
++    }
++}
++
+ /// Hoist throwing function calls from arguments (recursively)
++/// Also hoists I64/Type literals when the param is by_ref
+ /// Returns a vector of HoistedArg for arguments that were hoisted
+ fn hoist_throwing_args(
+     args: &[Expr],  // The arguments (skip first param which is function name)
++    arg_info: &[ArgTypeInfo],  // Info about each param (by_ref, etc.)
+     output: &mut String,
+     indent: usize,
+     ctx: &mut CodegenContext,
+@@ -735,7 +751,8 @@ fn hoist_throwing_args(
+             // RECURSIVELY hoist any throwing calls in this call's arguments first
+             let nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
+                 let nested_args = &arg.params[1..];
+-                let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
++                let nested_arg_info = get_arg_info_for_call(arg, context);
++                let nested_vec = hoist_throwing_args(nested_args, &nested_arg_info, output, indent, ctx, context)?;
+                 nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
+             } else {
+                 std::collections::HashMap::new()
+@@ -852,7 +869,8 @@ fn hoist_throwing_args(
+             // RECURSIVELY hoist any throwing/variadic calls in this call's arguments first
+             let nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
+                 let nested_args = &arg.params[1..];
+-                let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
++                let nested_arg_info = get_arg_info_for_call(arg, context);
++                let nested_vec = hoist_throwing_args(nested_args, &nested_arg_info, output, indent, ctx, context)?;
+                 nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
+             } else {
+                 std::collections::HashMap::new()
+@@ -936,8 +954,9 @@ fn hoist_throwing_args(
+         // and also to hoist Dynamic params (e.g., Vec.contains(v, "bar"))
+         else if matches!(arg.node_type, NodeType::FCall) && arg.params.len() > 1 {
+             let nested_args = &arg.params[1..];
++            let nested_arg_info = get_arg_info_for_call(arg, context);
+             // Recurse to hoist any nested throwing/variadic calls
+-            let _ = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
++            let _ = hoist_throwing_args(nested_args, &nested_arg_info, output, indent, ctx, context)?;
+
+             // Also hoist Dynamic params for this nested FCall
+             if let Some(fd) = get_fcall_func_def(context, arg) {
+@@ -946,8 +965,8 @@ fn hoist_throwing_args(
+                     .collect();
+                 let empty_hoisted = std::collections::HashMap::new();
+                 let dynamic_hoisted = hoist_for_dynamic_params(nested_args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
+-                // Record hoisted Dynamic params in hoisted_exprs with & prefix
+-                // (needed because emit_expr won't know to add & for Dynamic params)
++                // Record hoisted Dynamic params in hoisted_exprs WITH & prefix
++                // (Dynamic goes through emit_expr which doesn't know param type)
+                 for h in dynamic_hoisted {
+                     if let Some(nested_arg) = nested_args.get(h.index) {
+                         let expr_addr = nested_arg as *const Expr as usize;
+@@ -955,6 +974,28 @@ fn hoist_throwing_args(
+                     }
+                 }
+             }
++
++            // If this FCall result is passed by_ref, we need to hoist it into a temp var
++            // (FCall results are rvalues and can't have their address taken directly)
++            let by_ref = arg_info.get(idx).map(|p| p.by_ref).unwrap_or(false);
++            if by_ref {
++                if let Some(fd) = get_fcall_func_def(context, arg) {
++                    if let Some(ret_type) = fd.return_types.first() {
++                        let c_type = til_type_to_c(ret_type)
++                            .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))?;
++                        let temp = format!("_fcall_temp_{}", ctx.mangling_counter);
++                        ctx.mangling_counter += 1;
++                        output.push_str(&indent_str);
++                        output.push_str(&c_type);
++                        output.push_str(" ");
++                        output.push_str(&temp);
++                        output.push_str(" = ");
++                        emit_expr(arg, output, 0, ctx, context)?;
++                        output.push_str(";\n");
++                        hoisted.push(HoistedArg { index: idx, temp_var: temp });
++                    }
++                }
++            }
+         }
+         // Handle struct literal arguments (no args, or only named args) - need to hoist their throwing defaults
+         // For struct literals like Expr() passed as arguments, their throwing default field values
+@@ -970,6 +1011,40 @@ fn hoist_throwing_args(
+         // Bug #55 fix: Handle non-FCall arguments (like NamedArg) by recursing via hoist_throwing_expr
+         // This ensures throwing calls inside named args are hoisted properly
+         else {
++            // Check if this arg needs literal hoisting (I64/Type literals when by_ref)
++            let by_ref = arg_info.get(idx).map(|p| p.by_ref).unwrap_or(false);
++            if by_ref {
++                // Check for I64 literal
++                if let NodeType::LLiteral(Literal::Number(n)) = &arg.node_type {
++                    let temp = format!("_i64_temp_{}", ctx.mangling_counter);
++                    ctx.mangling_counter += 1;
++                    output.push_str(&indent_str);
++                    output.push_str(TIL_PREFIX);
++                    output.push_str("I64 ");
++                    output.push_str(&temp);
++                    output.push_str(" = ");
++                    output.push_str(&n.to_string());
++                    output.push_str(";\n");
++                    hoisted.push(HoistedArg { index: idx, temp_var: temp });
++                    continue;
++                }
++
++                // Check for Type literal
++                if let Some(type_name) = get_type_arg_name(arg, context) {
++                    let temp = format!("_type_temp_{}", ctx.mangling_counter);
++                    ctx.mangling_counter += 1;
++                    output.push_str(&indent_str);
++                    output.push_str(TIL_PREFIX);
++                    output.push_str("Type ");
++                    output.push_str(&temp);
++                    output.push_str(" = \"");
++                    output.push_str(&type_name);
++                    output.push_str("\";\n");
++                    hoisted.push(HoistedArg { index: idx, temp_var: temp });
++                    continue;
++                }
++            }
++
+             hoist_throwing_expr(arg, output, indent, ctx, context)?;
+         }
+     }
+#+end_src
+
+(diff truncated - full diff was ~800 lines)
