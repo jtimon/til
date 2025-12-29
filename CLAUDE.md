@@ -86,7 +86,7 @@ Don't ask permission for:
 - `git status`, `git log`, `git diff`, `git add`, `git commit`
 - `timeout N ./bin/rstil file.til`
 - Reading any project file within the project
-- Creating/editing files in `tmp/` or `doc/bot/`
+- Creating/editing files in `tmp/`
 - **Shell commands within project - FULL FREEDOM:**
   - ALL standard Unix commands: `cd`, `mv`, `cp`, `rm`, `mkdir`, `chmod`, `ls`, `pwd`, `echo`, `printf`
   - Text processing: `sed`, `awk`, `grep`, `find`, `cat`, `head`, `tail`, `sort`, `uniq`, `wc`, `tr`, `cut`
@@ -129,7 +129,6 @@ When porting code from Rust (`src/rs/`) to TIL (`src/self/`):
 
 ## File Organization
 - `doc/bot.org` - READ THIS for full guidelines (human-maintained, don't edit)
-- `doc/bot/` - Your workspace (full freedom to create/edit)
 - `doc/*.org` - Reference docs (read-only, except doc/todo/*.org)
 - `doc/todo/` - Shared workspace (can edit)
 - `doc/translate_rs2til.org` - Rust to TIL translation guide
