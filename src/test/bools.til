@@ -1,84 +1,91 @@
 mode test
 
-// boolean logic:
+// ============================================================
+// Bool.and - binary method in Bool struct namespace
+// ============================================================
 
-test(loc(), true, "true is true")
-test(loc(), not(false), "not: not false is true")
-test(loc(), not(not(true)), "not: not not true is true")
-// true.and(1111) // fails, 'and' cannot take number literals
-// true.and("asdfgdfafgd") // fails, 'and' cannot take string literals
-test(loc(), true.and(true), "true.and(true) == true")
-test(loc(), not(true.and(false)), "true.and(false) == false")
-test(loc(), not(true.and(false)), "false.and(true) == false")
-test(loc(), not(false.and(true)), "false.and(true) == false")
-test(loc(), not(false.and(false)), "false.and(false) == false")
+test(loc(), true.and(true), "Bool.and: true.and(true) == true")
+test(loc(), not(true.and(false)), "Bool.and: true.and(false) == false")
+test(loc(), not(false.and(true)), "Bool.and: false.and(true) == false")
+test(loc(), not(false.and(false)), "Bool.and: false.and(false) == false")
 
-test(loc(), true.or(true), "true.or(true) == true")
-test(loc(), true.or(false), "true.or(false) == true")
-test(loc(), false.or(true), "false.or(true) == true")
-test(loc(), not(false.or(false)), "false.or(false) == false")
+// ============================================================
+// and - variadic standalone function
+// ============================================================
 
-// note that both 'and' and 'or' can take any number of bools as args, like in lisp
-// test(loc(), or(false, true, true), "or(false, false, true) == true")
-// test(loc(), not(and(false, true, true)), "and(false, false, true) == false")
+test(loc(), and(true), "and: and(true) == true")
+test(loc(), not(and(false)), "and: and(false) == false")
+test(loc(), and(true, true), "and: and(true, true) == true")
+test(loc(), not(and(true, false)), "and: and(true, false) == false")
+test(loc(), and(true, true, true), "and: and(true, true, true) == true")
+test(loc(), not(and(true, false, true)), "and: and(true, false, true) == false")
+test(loc(), not(and(false, false, false)), "and: and(false, false, false) == false")
 
-test(loc(), true.or(false), "and: true or false is true")
+// ============================================================
+// Bool.or - binary method in Bool struct namespace
+// ============================================================
 
-test(loc(), xor(true, false), "and: true xor false is true")
-test(loc(), not(xor(true, true)), "xor(true, true) == false")
+test(loc(), true.or(true), "Bool.or: true.or(true) == true")
+test(loc(), true.or(false), "Bool.or: true.or(false) == true")
+test(loc(), false.or(true), "Bool.or: false.or(true) == true")
+test(loc(), not(false.or(false)), "Bool.or: false.or(false) == false")
 
-// --------------- TODO remove redundancies
+// ============================================================
+// or - variadic standalone function
+// ============================================================
 
-// Bool to int tests tests
-test(loc(), I64.eq(Bool.to_i64(true), 1), "Bool.to_i64(true) = 1")
-test(loc(), I64.eq(Bool.to_i64(false), 0), "Bool.to_i64(false) = 0")
+test(loc(), or(true), "or: or(true) == true")
+test(loc(), not(or(false)), "or: or(false) == false")
+test(loc(), or(true, true), "or: or(true, true) == true")
+test(loc(), or(true, false), "or: or(true, false) == true")
+test(loc(), or(false, false, true), "or: or(false, false, true) == true")
+test(loc(), not(or(false, false, false)), "or: or(false, false, false) == false")
 
-// Testing 'and' with all combinations
-test(loc(), true.and(true), "true AND true = true")
-test(loc(), not(true.and(false)), "true AND false = false")
-test(loc(), not(false.and(true)), "false AND true = false")
-test(loc(), not(false.and(false)), "false AND false = false")
+// ============================================================
+// not - unary standalone function
+// ============================================================
 
-// variadic 'and'
-test(loc(), and(true), "true AND = true")
-test(loc(), not(and(false)), "false AND = false")
-test(loc(), and(true, true, true), "true AND true AND true = true")
-test(loc(), not(and(true, false, true)), "true AND false AND true = false")
+test(loc(), true, "not: true is true")
+test(loc(), not(false), "not: not(false) == true")
+test(loc(), not(not(true)), "not: not(not(true)) == true")
 
-// Testing 'or' with all combinations
-test(loc(), not(false.or(false)), "false OR false = false")
-test(loc(), true.or(false), "true OR false = true")
-test(loc(), false.or(true), "false OR true = true")
-test(loc(), true.or(true), "true OR true = true")
+// ============================================================
+// xor - binary standalone function
+// ============================================================
 
-// variadic 'or'
-test(loc(), or(true), "true OR = true")
-test(loc(), not(or(false)), "false OR = false")
-test(loc(), or(false, false, true), "false OR false OR true = true")
-test(loc(), not(or(false, false, false)), "false OR false OR false = false")
+test(loc(), xor(true, false), "xor: xor(true, false) == true")
+test(loc(), xor(false, true), "xor: xor(false, true) == true")
+test(loc(), not(xor(true, true)), "xor: xor(true, true) == false")
+test(loc(), not(xor(false, false)), "xor: xor(false, false) == false")
 
-// Testing 'xor' with all combinations
-test(loc(), xor(true, false), "true XOR false = true")
-test(loc(), xor(false, true), "false XOR true = true")
-test(loc(), not(xor(true, true)), "true XOR true = false")
-test(loc(), not(xor(false, false)), "false XOR false = false")
+// ============================================================
+// xnor - binary standalone function
+// ============================================================
 
-// Testing 'xnor' with all combinations
-test(loc(), not(xnor(true, false)), "true XNOR false = false")
-test(loc(), not(xnor(false, true)), "false XNOR true = false")
-test(loc(), xnor(true, true), "true XNOR true = true")
-test(loc(), xnor(false, false), "false XNOR false = true")
+test(loc(), not(xnor(true, false)), "xnor: xnor(true, false) == false")
+test(loc(), not(xnor(false, true)), "xnor: xnor(false, true) == false")
+test(loc(), xnor(true, true), "xnor: xnor(true, true) == true")
+test(loc(), xnor(false, false), "xnor: xnor(false, false) == true")
 
-// Testing 'Bool.eq' with all combinations (it is equivalent to xnor)
-test(loc(), not(Bool.eq(true, false)), "true BOOL.eq false = false")
-test(loc(), not(Bool.eq(false, true)), "false BOOL.eq true = false")
-test(loc(), Bool.eq(true, true), "true BOOL.eq true = true")
-test(loc(), Bool.eq(false, false), "false BOOL.eq false = true")
+// ============================================================
+// Bool.eq - binary method (equivalent to xnor)
+// ============================================================
 
-// Test Bool.to_str()
-aaa := true
-test(loc(), Str.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)") // Use associated functions as methods with UFCS
-test(loc(), Str.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)")
-test(loc(), Str.eq("true", Bool.to_str(true)), "'true' = Bool.to_str(true)")
-test(loc(), Str.eq("false", Bool.to_str(false)), "'false' = Bool.to_str(false)")
-test(loc(), Str.eq("false", false.and(false).to_str()), "'false' = Bool.to_str(false.and(false)))")
+test(loc(), not(true.eq(false)), "Bool.eq: true.eq(false) == false")
+test(loc(), not(false.eq(true)), "Bool.eq: false.eq(true) == false")
+test(loc(), true.eq(true), "Bool.eq: true.eq(true) == true")
+test(loc(), false.eq(false), "Bool.eq: false.eq(false) == true")
+
+// ============================================================
+// Bool.to_i64 - conversion to integer
+// ============================================================
+
+test(loc(), true.to_i64().eq(1), "Bool.to_i64: true.to_i64() == 1")
+test(loc(), false.to_i64().eq(0), "Bool.to_i64: false.to_i64() == 0")
+
+// ============================================================
+// Bool.to_str - conversion to string
+// ============================================================
+
+test(loc(), true.to_str().eq("true"), "Bool.to_str: true.to_str() == 'true'")
+test(loc(), false.to_str().eq("false"), "Bool.to_str: false.to_str() == 'false'")
