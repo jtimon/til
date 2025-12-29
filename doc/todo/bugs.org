@@ -8,6 +8,37 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #63: Typer allows passing const variable to own parameter
+:PROPERTIES:
+:DISCOVERED: 2025-12-29
+:IMPACT: Incorrect ownership semantics, gcc warnings about discarding const
+:STATUS: Active
+:END:
+
+*** Description
+When a function has an ~own~ parameter, the typer should require the caller
+to pass a ~mut~ variable, just like it does for ~mut~ parameters. Currently,
+the typer allows passing const variables to ~own~ parameters.
+
+*** Reproducing
+#+BEGIN_SRC til
+consume := proc(own v: Vec2) returns I64 {
+    return add(v.x, v.y)
+}
+
+test := proc() {
+    original := Vec2(x=1, y=2)  // const, not mut
+    result := consume(original)  // Should error, but doesn't
+}
+#+END_SRC
+
+*** Expected behavior
+Typer should emit an error like: "Cannot pass const variable 'original' to own parameter 'v'"
+
+*** Fix
+In typer.rs/typer.til, add a check when processing FCall args: if the parameter
+is ~own~ and the argument is a const variable, emit a type error.
+
 ** Bug #60: ccodegen passes const/own args by value instead of by pointer
 :PROPERTIES:
 :DISCOVERED: 2025-12-28
@@ -57,22 +88,47 @@ til_I64 til_consume_vec(til_Vec2* til_v);
 #+END_SRC
 
 *** Fix
-Requires changes in three places in ccodegen.rs:
+Requires changes in several places in ccodegen.rs:
 
 1. *emit_func_signature* - Change signature generation for const and own:
    - const: ~const til_Type* til_arg~
    - own: ~til_Type* til_arg~
 
-2. *Call sites* - Pass address for const/own args:
-   - Currently: ~func(arg)~
-   - Should be: ~func(&arg)~
+2. *param_by_ref calculation* - Change from ~is_mut~ to ~!is_copy~:
+   - Affects all places that calculate ~param_by_ref~ vector
 
-3. *Inside function bodies* - Dereference const/own pointer args:
-   - Currently: ~til_arg.field~ or ~til_arg~
-   - Should be: ~til_arg->field~ or ~(*til_arg)~
+3. *current_ref_params tracking* - Track all non-copy params:
+   - Change from ~is_mut~ to ~!is_copy~ in function body setup
 
-This affects emit_arg_with_param_type, emit_expr (for Identifier), and
-potentially other places where arguments are emitted or used.
+4. *hoist_for_ref_params* - Add hoisting for literals that can't use ~&~:
+   - Similar pattern to existing ~hoist_for_dynamic_params~
+   - Only TWO cases need hoisting:
+     a) *I64 literals*: ~&69~ is invalid C (can't take address of rvalue)
+        Must hoist to: ~til_I64 _tmp = 69; func(&_tmp);~
+     b) *Type literals*: ~&"Str"~ gives ~char**~ but we need ~const char* const*~
+        Must hoist to: ~til_Type _tmp = "Str"; func(&_tmp);~
+   - Note: Type is a special type like Dynamic - see how Dynamic is handled
+
+5. *emit_arg_with_param_type* - For identifiers that are ref params:
+   - When ~param_by_ref~ is true and arg is already a pointer, just emit name
+   - Don't call ~emit_expr~ which would dereference with ~(*name)~
+
+6. *ext.c functions* - Update to accept pointers for const/own args:
+   - All ext functions should use ~const til_Type*~ for const args
+   - Example: ~til_add(const til_I64* a, const til_I64* b)~
+   - This keeps everything consistent - no special-casing ext funcs
+
+*** Literal Types - What CAN vs CANNOT use ~&~ prefix
+
+*CAN use ~&~ directly (compound literals in C99+):*
+- Str: ~&((til_Str){(til_I64)"hello", 5})~ - valid, compound literal is lvalue
+- U8: ~&((til_U8){42})~ - valid, compound literal is lvalue
+- Bool: ~&((til_Bool){1})~ - valid, compound literal is lvalue
+- Any struct: ~&((til_MyStruct){...})~ - valid, compound literal is lvalue
+
+*CANNOT use ~&~ - must hoist to temp var:*
+- I64: ~&69~ - INVALID, plain integer is rvalue
+- Type: ~&"Str"~ - gives wrong type (~char**~ instead of ~const char* const*~)
 
 * Fixed Bugs
 

@@ -1,0 +1,18 @@
+// Bug #63: Typer should reject passing const variable to own parameter
+// Once fixed, this test should produce a type error
+
+Vec2 := struct {
+    x: I64
+    y: I64
+}
+
+consume := proc(own v: Vec2) returns I64 {
+    return add(v.x, v.y)
+}
+
+main := proc() {
+    original := Vec2(x=1, y=2)  // const, not mut
+    result := consume(original)  // Should error: can't pass const to own
+    println(result.to_str())
+}
+main()

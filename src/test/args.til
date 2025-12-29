@@ -523,7 +523,7 @@ modify_own_struct := proc(own v: Vec2) returns Vec2 {
 }
 
 test_own_can_modify := proc() {
-    original := Vec2(x=1, y=2)
+    mut original := Vec2(x=1, y=2)
     modified := modify_own_struct(original)
     assert_eq(loc(), 100, modified.x)
     assert_eq(loc(), 200, modified.y)
@@ -554,7 +554,7 @@ consume_string := proc(own s: Str) returns Str {
 }
 
 test_own_string := proc() {
-    text := "hello"
+    mut text := "hello"
     result := consume_string(text)
     assert_eq_str(loc(), "hello consumed", result)
 }
@@ -590,8 +590,8 @@ sum_owned := proc(own a: I64, own b: I64) returns I64 {
 }
 
 test_multiple_own := proc() {
-    x := 10
-    y := 20
+    mut x := 10
+    mut y := 20
     result := sum_owned(x, y)
     assert_eq(loc(), 30, result)
 }
@@ -606,7 +606,7 @@ mixed_params := proc(normal: I64, mut m: I64, own o: I64) returns I64 {
 test_mixed_own := proc() {
     a := 1
     mut b := 10
-    c := 100
+    mut c := 100
 
     result := mixed_params(a, b, c)
     assert_eq(loc(), 121, result)  // 1 + 20 + 100 = 121
