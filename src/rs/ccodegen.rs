@@ -4741,13 +4741,14 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         }
         output.push_str(&indent_str);
         if !already_declared {
-            // Determine C type using get_value_type
-            let c_type = if !expr.params.is_empty() {
-                match get_value_type(context, &expr.params[0]) {
-                    Ok(vt) => til_type_to_c(&vt).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?,
-                    Err(_) => til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?,
-                }
+            // Determine C type - use explicit type annotation if present, otherwise infer
+            let is_infer = matches!(&decl.value_type, ValueType::TCustom(s) if s == INFER_TYPE);
+            let c_type = if is_infer {
+                // INFER_TYPE - infer from RHS
+                let vt = get_value_type(context, &expr.params[0]).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
+                til_type_to_c(&vt).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
             } else {
+                // Explicit type annotation - use it
                 til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
             };
             output.push_str(&c_type);
@@ -4787,13 +4788,14 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         }
         output.push_str(&indent_str);
         if !already_declared {
-            // Determine C type using get_value_type
-            let c_type = if !expr.params.is_empty() {
-                match get_value_type(context, &expr.params[0]) {
-                    Ok(vt) => til_type_to_c(&vt).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?,
-                    Err(_) => til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?,
-                }
+            // Determine C type - use explicit type annotation if present, otherwise infer
+            let is_infer = matches!(&decl.value_type, ValueType::TCustom(s) if s == INFER_TYPE);
+            let c_type = if is_infer {
+                // INFER_TYPE - infer from RHS
+                let vt = get_value_type(context, &expr.params[0]).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
+                til_type_to_c(&vt).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
             } else {
+                // Explicit type annotation - use it
                 til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
             };
             output.push_str("const ");

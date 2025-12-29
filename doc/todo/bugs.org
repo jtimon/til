@@ -8,48 +8,6 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #62: U8 type annotations generate I64 in C codegen
-:PROPERTIES:
-:DISCOVERED: 2025-12-29
-:IMPACT: Wrong type in generated C code, potential overflow/truncation bugs
-:STATUS: Active
-:END:
-
-*** Description
-When declaring a variable with explicit U8 type annotation, the C codegen
-generates til_I64 instead of til_U8.
-
-*** Reproducing
-#+BEGIN_SRC bash
-./bin/rstil run src/test/literals.til
-# Then inspect gen/c/test/literals.c
-#+END_SRC
-
-In src/test/literals.til:
-#+BEGIN_SRC til
-x: U8 = 34
-y: U8 = 35
-r: U8 = 69
-#+END_SRC
-
-Generated C code (wrong):
-#+BEGIN_SRC c
-const til_I64 til_x = 34;
-const til_I64 til_y = 35;
-const til_I64 til_r = 69;
-#+END_SRC
-
-Expected:
-#+BEGIN_SRC c
-const til_U8 til_x = 34;
-const til_U8 til_y = 35;
-const til_U8 til_r = 69;
-#+END_SRC
-
-*** Root Cause
-Likely in ccodegen.rs where variable declarations are emitted - the type
-annotation is being ignored and defaulting to I64 for integer literals.
-
 ** Bug #61: Optional args before variadic don't use default when type mismatches
 :PROPERTIES:
 :DISCOVERED: 2025-12-29
@@ -73,7 +31,8 @@ log_with_level("hello", "world")     // FAILS: "hello" goes to level position (t
 This prevents patterns like `run_cmd(mut output: Str, timeout: I64 = 0, args: ..Str)`.
 
 *** Reproducing
-See test_optional_before_variadic in src/test/args.til (currently commented out).
+See test_optional_before_variadic in src/test/args.til.
+The failing assert and the test call are commented out.
 
 *** Expected Behavior
 When the provided arg type doesn't match the expected param type AND the param
@@ -165,6 +124,33 @@ This affects emit_arg_with_param_type, emit_expr (for Identifier), and
 potentially other places where arguments are emitted or used.
 
 * Fixed Bugs
+
+** Bug #62: U8 type annotations generate I64 in C codegen
+:PROPERTIES:
+:DISCOVERED: 2025-12-29
+:FIXED: 2025-12-29
+:IMPACT: Wrong type in generated C code, potential overflow/truncation bugs
+:STATUS: Fixed
+:END:
+
+*** Description
+When declaring a variable with explicit U8 type annotation, the C codegen
+generates til_I64 instead of til_U8.
+
+*** Root Cause
+In ccodegen.rs emit_declaration, the code always called get_value_type() to
+infer the type from the RHS expression, ignoring explicit type annotations.
+Integer literals return I64 from get_value_type(), so U8 annotations were lost.
+
+*** Fix
+Check if decl.value_type is INFER_TYPE before inferring. If an explicit type
+is provided, use it directly instead of inferring from RHS.
+
+Files modified:
+- src/rs/ccodegen.rs - emit_declaration, mut and const branches
+- src/self/ccodegen.til - emit_declaration, mut and const branches
+
+Test: src/test/literals.til
 
 ** Bug #58: Error messages show file path twice
 :PROPERTIES:

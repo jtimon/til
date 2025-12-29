@@ -7207,27 +7207,25 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: AllocError) { throw err.msg }
         }
-        // Determine C type from inferred type or fall back to int
+        // Determine C type - use explicit type annotation if present, otherwise infer
         if not(already_declared) {
-            mut c_type := "int"
-            if gt(expr.params.len(), 0) {
+            mut is_infer := false
+            switch decl.value_type {
+            case ValueType.TCustom(s):
+                is_infer = s.eq(INFER_TYPE)
+            case:
+            }
+            mut c_type := ""
+            if is_infer {
+                // INFER_TYPE - infer from RHS
                 mut first := Expr()
                 expr.params.get(0, first)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                inferred := get_value_type(context, first)
-                switch inferred {
-                case ValueType.TCustom(inf_type):
-                    if Str.eq(inf_type, "Str") {
-                        c_type = "const char*"
-                    } else if gt(inf_type.len(), 0) {
-                        c_type = inf_type  // I64, U8, etc. pass through
-                    }
-                case:
-                    // Keep default "int"
-                }
-                catch (err: Str) {
-                    // get_value_type failed, keep "int"
-                }
+                vt := get_value_type(context, first)
+                c_type = til_type_to_c(vt)
+            } else {
+                // Explicit type annotation - use it
+                c_type = til_type_to_c(decl.value_type)
             }
             result = result.concat(c_type)
             result = result.concat(" ")
@@ -7279,26 +7277,24 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             catch (err: AllocError) { throw err.msg }
         }
         if not(already_declared) {
-            // Determine C type from inferred type or fall back to int
-            mut c_type := "int"
-            if gt(expr.params.len(), 0) {
+            // Determine C type - use explicit type annotation if present, otherwise infer
+            mut is_infer := false
+            switch decl.value_type {
+            case ValueType.TCustom(s):
+                is_infer = s.eq(INFER_TYPE)
+            case:
+            }
+            mut c_type := ""
+            if is_infer {
+                // INFER_TYPE - infer from RHS
                 mut first := Expr()
                 expr.params.get(0, first)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                inferred := get_value_type(context, first)
-                switch inferred {
-                case ValueType.TCustom(inf_type):
-                    if Str.eq(inf_type, "Str") {
-                        c_type = "const char*"
-                    } else if gt(inf_type.len(), 0) {
-                        c_type = inf_type  // I64, U8, etc. pass through
-                    }
-                case:
-                    // Keep default "int"
-                }
-                catch (err: Str) {
-                    // get_value_type failed, keep "int"
-                }
+                vt := get_value_type(context, first)
+                c_type = til_type_to_c(vt)
+            } else {
+                // Explicit type annotation - use it
+                c_type = til_type_to_c(decl.value_type)
             }
             result = result.concat("const ")
             result = result.concat(c_type)

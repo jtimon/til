@@ -754,7 +754,7 @@ int til_get_substr(til_Str* _ret, til_IndexOutOfBoundsError* _err1, til_AllocErr
         return 2;
     }
     til_memcpy(til_substr.c_string, til_add(til_s.c_string, til_start), til_substr.cap);
-    const til_I64 til_zero = 0;
+    const til_U8 til_zero = 0;
     til_memset(til_add(til_substr.c_string, til_substr.cap), til_zero, 1);
     *_ret = til_substr;
     return 0;
@@ -791,7 +791,7 @@ til_Str til_concat(const til_Str til_a, const til_Str til_b) {
     }
     til_memcpy(til_result.c_string, til_a.c_string, til_a.cap);
     til_memcpy(til_add(til_result.c_string, til_a.cap), til_b.c_string, til_b.cap);
-    const til_I64 til_zero = 0;
+    const til_U8 til_zero = 0;
     til_memset(til_add(til_result.c_string, til_result.cap), til_zero, 1);
     if (0) { _catch_AllocError__tmp_concat_0:
         til_AllocError til_err = _thrown_AllocError__tmp_concat_0;
@@ -1043,7 +1043,7 @@ int til_format(til_Str* _ret, til_I64_OverflowError* _err1, til_IndexOutOfBounds
         til_offset = til_add(til_offset, til_s.cap);
         _for_i_format_0 = til_add(_for_i_format_0, 1);
     }
-    const til_I64 til_zero = 0;
+    const til_U8 til_zero = 0;
     til_memset(til_add(til_result.c_string, til_result.cap), til_zero, 1);
     *_ret = til_result;
     return 0;
@@ -1541,7 +1541,7 @@ int til_Str_clone(til_Str* _ret, til_AllocError* _err1, const til_Str til_self) 
         return 1;
     }
     til_memcpy(til_cloned.c_string, til_self.c_string, til_self.cap);
-    const til_I64 til_zero = 0;
+    const til_U8 til_zero = 0;
     til_memset(til_add(til_cloned.c_string, til_cloned.cap), til_zero, 1);
     *_ret = til_cloned;
     return 0;
