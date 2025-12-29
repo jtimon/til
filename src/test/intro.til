@@ -90,3 +90,20 @@ main()
 
 // fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
 // mut assertm2 := proc(cond: Bool, msg: Str) {}
+
+// TODO more built-in data types:
+
+// my_bool_array := [true, false, true, false]
+// my_bool_array : [4]bool = [true, false, true, false]
+// my_list := (true, 1111, "hello")
+
+// TODO undeclared custom arguments should fail at compile time
+// test_fails_example := proc(example: Str, msg: Str) {
+//   eval_example_result : Str = _eval_string(example)
+//   println(eval_example_result)
+// }
+// test_fails_example("enum_func_fails := func(a: ExampleEnum) returns ExampleEnum {}", "TODO implement test_fails_example() in the core")
+
+// TODO implement aliases
+// Note aliases can be used before declared (once implemented):
+// U64 : Type = I64

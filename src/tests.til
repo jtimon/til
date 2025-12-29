@@ -597,10 +597,8 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/sets.til"))
     rs_common.push(TestEntry(path="src/test/strings.til"))
     rs_common.push(TestEntry(path="src/test/structs.til"))
-    rs_common.push(TestEntry(path="src/test/temp.til"))
     rs_common.push(TestEntry(path="src/test/test_lexer.til"))
     rs_common.push(TestEntry(path="src/test/test_parser.til"))
-    rs_common.push(TestEntry(path="src/test/todo.til")) // permanent TODO, design notes for future features
     rs_common.push(TestEntry(path="src/test/u8.til"))
     rs_common.push(TestEntry(path="src/test/ufcs.til"))
     rs_common.push(TestEntry(path="src/test/undefined.til", expected_status=1)) // in both rs_interpreted and rs_compiled because interpret/run produce different output wrappers
@@ -644,13 +642,13 @@ main := proc(args: ..Str) {
     til_interpreted.push(TestEntry(path="src/test/bools.til"))
     til_interpreted.push(TestEntry(path="src/test/branchless.til"))
     til_interpreted.push(TestEntry(path="src/test/bug41.til"))
-    // til_interpreted.push(TestEntry(path="src/test/bug43.til"))  // TODO: assert_eq failed: expected '0', found '65536'
+    // til_interpreted.push(TestEntry(path="src/test/bug43.til"))  // TODO: assert_eq failed: expected '0', found '2130817536'
     til_interpreted.push(TestEntry(path="src/test/bug46.til"))
-    // til_interpreted.push(TestEntry(path="src/test/bug47.til"))  // TODO: Undefined symbol 'vt' in parser.til
+    // til_interpreted.push(TestEntry(path="src/test/bug47.til"))  // TODO: Segmentation fault
     til_interpreted.push(TestEntry(path="src/test/bug48.til", expected_status=1))
     // til_interpreted.push(TestEntry(path="src/test/bug49.til", expected_status=1))  // TODO: output mismatch (different error format)
     // til_interpreted.push(TestEntry(path="src/test/bug50.til", expected_status=1))  // TODO: output mismatch (rstil vs til prefix)
-    // til_interpreted.push(TestEntry(path="src/test/bug52.til"))  // TODO: type error with assert_eq_str
+    // til_interpreted.push(TestEntry(path="src/test/bug52.til"))  // TODO: concat: malloc failed
     // til_interpreted.push(TestEntry(path="src/test/bug55.til"))  // TODO: assert_eq_str failed: expected 'hello', found ''
     // til_interpreted.push(TestEntry(path="src/test/bug56.til"))  // TODO: Enum variant payload type 'unknown' not supported
     til_interpreted.push(TestEntry(path="src/test/bug57.til"))
@@ -686,10 +684,8 @@ main := proc(args: ..Str) {
     // til_interpreted.push(TestEntry(path="src/test/sets.til"))  // TODO: Source 'hello' not found in caller context
     til_interpreted.push(TestEntry(path="src/test/strings.til"))
     // til_interpreted.push(TestEntry(path="src/test/structs.til"))  // TODO: assert_eq failed: expected '10', found garbage
-    til_interpreted.push(TestEntry(path="src/test/temp.til"))
     // til_interpreted.push(TestEntry(path="src/test/test_lexer.til"))  // TODO: String range comparisons not yet supported
     // til_interpreted.push(TestEntry(path="src/test/test_parser.til"))  // TODO: Undefined symbol 'vt'
-    til_interpreted.push(TestEntry(path="src/test/todo.til"))
     til_interpreted.push(TestEntry(path="src/test/u8.til"))
     // til_interpreted.push(TestEntry(path="src/test/ufcs.til"))  // TODO: exit code 1 (no output)
     // til_interpreted.push(TestEntry(path="src/test/undefined.til", expected_status=1))  // TODO: output mismatch (missing enum variant error)
