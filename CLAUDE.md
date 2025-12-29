@@ -10,6 +10,13 @@ Read `doc/bot.org` for full guidelines. Key points below are frequently repeated
 4) If exit code 0, commit
 5) If non-zero, read output and fix
 
+## CRITICAL: Port to TIL Immediately
+- **NEVER** test Rust changes incrementally without also porting to TIL
+- `make tests` uses the self-hosted til interpreter (`til_interpreted`) for some tests
+- If Rust changes aren't ported to TIL, tests will segfault or fail mysteriously
+- **Workflow**: Make changes to both .rs and .til files together, THEN test
+- Testing just the Rust version with `rstil interpret` is NOT sufficient validation
+
 ## Various things
 - **ALWAYS** When running make commands (make, make tests, make til, etc.), run as normal: no wc, no head, no tail, no grep, no any other bullshit
 - **NEVER** Ignore warnings from either rustc, rstil, til or gcc, always ask the user what to do about them

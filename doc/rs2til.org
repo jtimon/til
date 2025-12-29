@@ -789,14 +789,21 @@ IMPORTANT: Do NOT assume ~func~ means "cannot throw". The distinction is purely 
 
 * Porting Workflow
 
+*CRITICAL*: ~make tests~ uses the self-hosted til interpreter (~til_interpreted~) for some
+tests. You CANNOT test Rust changes incrementally without also porting to TIL first.
+Testing just the Rust version with ~rstil interpret~ is NOT sufficient validation.
+If Rust changes aren't ported to TIL, tests will segfault or fail mysteriously.
+
 When porting changes from Rust to TIL:
 
-1. First make and test all changes in the Rust files
-2. Run ~git diff 'src/**/*.rs'~ to see exactly what changed
+1. Make changes to BOTH Rust and TIL files together
+2. Run ~git diff 'src/**/*.rs'~ to see exactly what changed in Rust
 3. For each changed file (e.g. ~ccodegen.rs~), apply the same changes to the TIL equivalent (~ccodegen.til~)
-4. Run ~make tests~ to verify the port is correct
+4. Run ~make tests~ to verify both versions work correctly
 
 The git diff shows exactly what lines changed, making the translation mechanical - just convert the Rust syntax to TIL syntax for each change.
+
+*DO NOT* test Rust changes first and port later - the self-hosted til tests will fail.
 
 * Summary
 
