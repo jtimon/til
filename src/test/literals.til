@@ -1,0 +1,26 @@
+mode test
+
+test_u8_literals := proc() {
+    x: U8 = 34
+    y: U8 = 35
+    r: U8 = 69
+    test(loc(), x.u8_add(y).eq(r), "u8 literals 34 + 35 = 69")
+
+    catch (err: U8_OverflowError) { panic(loc(), err.msg) }
+}
+
+test_i64_literals := proc() {
+    x := 34
+    y := 35
+    assert_eq(loc(), 69, add(x, y))
+}
+
+test_str_literals := proc() {
+    x := "hello"
+    y := "world"
+    assert_eq_str(loc(), "helloworld", x.concat(y))
+}
+
+test_u8_literals()
+test_i64_literals()
+test_str_literals()

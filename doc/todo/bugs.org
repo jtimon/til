@@ -8,6 +8,48 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #62: U8 type annotations generate I64 in C codegen
+:PROPERTIES:
+:DISCOVERED: 2025-12-29
+:IMPACT: Wrong type in generated C code, potential overflow/truncation bugs
+:STATUS: Active
+:END:
+
+*** Description
+When declaring a variable with explicit U8 type annotation, the C codegen
+generates til_I64 instead of til_U8.
+
+*** Reproducing
+#+BEGIN_SRC bash
+./bin/rstil run src/test/literals.til
+# Then inspect gen/c/test/literals.c
+#+END_SRC
+
+In src/test/literals.til:
+#+BEGIN_SRC til
+x: U8 = 34
+y: U8 = 35
+r: U8 = 69
+#+END_SRC
+
+Generated C code (wrong):
+#+BEGIN_SRC c
+const til_I64 til_x = 34;
+const til_I64 til_y = 35;
+const til_I64 til_r = 69;
+#+END_SRC
+
+Expected:
+#+BEGIN_SRC c
+const til_U8 til_x = 34;
+const til_U8 til_y = 35;
+const til_U8 til_r = 69;
+#+END_SRC
+
+*** Root Cause
+Likely in ccodegen.rs where variable declarations are emitted - the type
+annotation is being ignored and defaulting to I64 for integer literals.
+
 ** Bug #61: Optional args before variadic don't use default when type mismatches
 :PROPERTIES:
 :DISCOVERED: 2025-12-29
