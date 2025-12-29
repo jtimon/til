@@ -8,6 +8,40 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #61: Optional args before variadic don't use default when type mismatches
+:PROPERTIES:
+:DISCOVERED: 2025-12-29
+:IMPACT: Cannot have optional args before variadic with type-based defaulting
+:STATUS: Active
+:END:
+
+*** Description
+When a function has an optional argument (with default value) before a variadic
+argument, and the caller omits the optional arg, the typer doesn't detect that
+the provided arg type doesn't match and use the default.
+
+Example:
+#+BEGIN_SRC til
+log_with_level := func(level: I64 = 1, messages: ..Str) returns Str { ... }
+
+log_with_level(2, "hello", "world")  // Works: level=2, messages=["hello", "world"]
+log_with_level("hello", "world")     // FAILS: "hello" goes to level position (type error)
+#+END_SRC
+
+This prevents patterns like `run_cmd(mut output: Str, timeout: I64 = 0, args: ..Str)`.
+
+*** Reproducing
+See test_optional_before_variadic in src/test/args.til (currently commented out).
+
+*** Expected Behavior
+When the provided arg type doesn't match the expected param type AND the param
+has a default value, the typer should:
+1. Use the default value for that param
+2. Shift the provided arg to the next position (variadic in this case)
+
+*** Workaround
+Use separate functions: run_cmd (no timeout) and run_cmd_timeout (with timeout).
+
 ** Bug #60: ccodegen passes const args by value instead of by pointer
 :PROPERTIES:
 :DISCOVERED: 2025-12-28

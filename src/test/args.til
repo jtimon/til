@@ -631,3 +631,109 @@ test_named_args_basic := proc() {
     assert_eq(loc(), 7, minus(10, b=3))
 }
 test_named_args_basic()
+
+// === Step 2: Optional Arguments (with defaults) ===
+
+greet := func(name: Str, greeting: Str = "Hello") returns Str {
+    result := format(greeting, " ", name)
+    catch (err: AllocError) {
+        return "error"
+    }
+    catch (err: IndexOutOfBoundsError) {
+        return "error"
+    }
+    catch (err: I64_OverflowError) {
+        return "error"
+    }
+    return result
+}
+
+test_optional_args := proc() {
+    // With default
+    assert_eq_str(loc(), "Hello World", greet("World"))
+    // With explicit value
+    assert_eq_str(loc(), "Hi World", greet("World", "Hi"))
+    // With named arg
+    assert_eq_str(loc(), "Hey World", greet("World", greeting="Hey"))
+}
+test_optional_args()
+
+// === Step 3: Variadic Arguments ===
+
+sum_all := func(numbers: ..I64) returns I64 {
+    mut total := 0
+    for n: I64 in numbers {
+        total = add(total, n)
+    }
+    return total
+}
+
+test_variadic_args := proc() {
+    assert_eq(loc(), 0, sum_all())
+    assert_eq(loc(), 5, sum_all(5))
+    assert_eq(loc(), 15, sum_all(1, 2, 3, 4, 5))
+}
+test_variadic_args()
+
+join_strings := func(sep: Str, parts: ..Str) returns Str {
+    mut result := ""
+    mut first := true
+    for part: Str in parts {
+        if first {
+            result = part
+            first = false
+        } else {
+            result = format(result, sep, part)
+        }
+    }
+    catch (err: AllocError) {
+        return "error"
+    }
+    catch (err: IndexOutOfBoundsError) {
+        return "error"
+    }
+    catch (err: I64_OverflowError) {
+        return "error"
+    }
+    return result
+}
+
+test_variadic_strings := proc() {
+    assert_eq_str(loc(), "", join_strings(", "))
+    assert_eq_str(loc(), "a", join_strings(", ", "a"))
+    assert_eq_str(loc(), "a, b, c", join_strings(", ", "a", "b", "c"))
+}
+test_variadic_strings()
+
+// === Step 4: Optional + Variadic (the tricky case) ===
+
+// This is what run_cmd would ideally look like:
+// run_cmd(mut output: Str, timeout: I64 = 0, args: ..Str) returns I64
+
+// Test case: optional arg before variadic
+log_with_level := func(level: I64 = 1, messages: ..Str) returns Str {
+    mut result := format("[", level.to_str(), "] ")
+    for msg: Str in messages {
+        result = format(result, msg)
+    }
+    catch (err: AllocError) {
+        return "error"
+    }
+    catch (err: IndexOutOfBoundsError) {
+        return "error"
+    }
+    catch (err: I64_OverflowError) {
+        return "error"
+    }
+    return result
+}
+
+test_optional_before_variadic := proc() {
+    // Explicit level - works
+    assert_eq_str(loc(), "[2] hello world", log_with_level(2, "hello ", "world"))
+
+    // Default level - should use default when type doesn't match
+    // Currently fails: "hello" goes to level position causing type error
+    assert_eq_str(loc(), "[1] hello world", log_with_level("hello ", "world"))
+}
+// test_optional_before_variadic() // TODO Bug #61: Uncomment when typer handles optional+variadic type mismatch
