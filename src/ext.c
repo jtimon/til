@@ -265,4 +265,100 @@ static inline void til_eval_file(const til_Str* path) {
     exit(1);
 }
 
+// ---------- Process spawning functions
+// Note: These functions use void* for error parameters to avoid type conflicts
+// when the TIL program doesn't import std.sys. The actual error struct has the
+// same layout (just a til_Str msg field), so casting is safe.
+
+#ifdef _WIN32
+#include <windows.h>
+
+// spawn_cmd: Spawn a command in the background, returns process handle
+static inline int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd) {
+    struct { til_Str msg; }* _err = _err_v;
+    STARTUPINFO si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    ZeroMemory(&pi, sizeof(pi));
+
+    char cmdline[8192];
+    snprintf(cmdline, sizeof(cmdline), "cmd.exe /c %s", (char*)cmd->c_string);
+
+    if (!CreateProcess(NULL, cmdline, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        _err->msg.c_string = (til_I64)"Failed to create process";
+        _err->msg.cap = 24;
+        return 1;  // throw
+    }
+    CloseHandle(pi.hThread);
+    *_ret = (til_I64)pi.hProcess;  // Return handle
+    return 0;
+}
+
+// check_cmd_status: Check if process has finished (non-blocking)
+// Returns -1 if still running, exit code if finished
+static inline til_I64 til_check_cmd_status(const til_I64* handle) {
+    DWORD result = WaitForSingleObject((HANDLE)*handle, 0);
+    if (result == WAIT_TIMEOUT) {
+        return -1;  // still running
+    }
+    DWORD exitCode;
+    GetExitCodeProcess((HANDLE)*handle, &exitCode);
+    CloseHandle((HANDLE)*handle);
+    return (til_I64)exitCode;
+}
+
+// sleep: Sleep for specified milliseconds
+static inline int til_sleep(void* _err_v, const til_I64* ms) {
+    (void)_err_v;  // unused - sleep doesn't throw on Windows
+    Sleep((DWORD)*ms);
+    return 0;
+}
+
+#else  // Unix
+
+#include <unistd.h>
+#include <sys/wait.h>
+
+// spawn_cmd: Spawn a command in the background, returns PID
+static inline int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd) {
+    struct { til_Str msg; }* _err = _err_v;
+    pid_t pid = fork();
+    if (pid == 0) {
+        // Child process
+        execl("/bin/sh", "sh", "-c", (char*)cmd->c_string, NULL);
+        _exit(127);  // execl failed
+    }
+    if (pid < 0) {
+        _err->msg.c_string = (til_I64)"Fork failed";
+        _err->msg.cap = 11;
+        return 1;  // throw
+    }
+    *_ret = (til_I64)pid;
+    return 0;
+}
+
+// check_cmd_status: Check if process has finished (non-blocking)
+// Returns -1 if still running, exit code if finished
+static inline til_I64 til_check_cmd_status(const til_I64* pid) {
+    int status;
+    pid_t result = waitpid((pid_t)*pid, &status, WNOHANG);
+    if (result == 0) {
+        return -1;  // still running
+    }
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+    return -1;  // abnormal termination
+}
+
+// sleep: Sleep for specified milliseconds
+static inline int til_sleep(void* _err_v, const til_I64* ms) {
+    (void)_err_v;  // unused - sleep doesn't throw on success
+    usleep((useconds_t)(*ms * 1000));
+    return 0;
+}
+
+#endif  // _WIN32
+
 #endif /* TIL_EXT_C */

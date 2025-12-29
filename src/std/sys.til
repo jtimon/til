@@ -1,7 +1,79 @@
 mode lib
 
+// Error types for system operations
+SpawnError := struct {
+    mut msg: Str = ""
+}
+
+SleepError := struct {
+    mut msg: Str = ""
+}
+
+WaitError := struct {
+    mut msg: Str = ""
+}
+
 // WARNING: run_cmd executes shell commands.
 // In mode safe_script, only whitelisted commands are allowed (configurable).
 // In other modes, arbitrary commands can be executed - use with caution.
 // Returns exit code, output is written to mut output_str arg.
 run_cmd := ext_proc(mut output_str: Str, args: ..Str) returns I64;
+
+/**
+ * Spawns a new process by executing the given command string.
+ *
+ * This is a low-level primitive that starts the command in the background
+ * without waiting for it to finish. The command is passed to the operating
+ * system's shell (e.g., /bin/sh on Unix, cmd.exe on Windows).
+ *
+ * Returns: A platform-specific process identifier (PID on Unix, process handle on Windows)
+ * Throws:  SpawnError if the process cannot be created (e.g., command not found, permission denied)
+ */
+spawn_cmd := ext_proc(cmd: Str) returns I64 throws SpawnError;
+
+/**
+ * Checks the status of a running process without blocking.
+ *
+ * Returns:
+ *   -1          if the process is still running
+ *   >=0         exit code if the process has terminated
+ *
+ * This is a non-blocking poll. It can be called repeatedly to monitor progress.
+ */
+check_cmd_status := ext_proc(pid: I64) returns I64;
+
+/**
+ * Waits for a spawned process to finish and returns its exit code.
+ *
+ * This function blocks until the process identified by `pid` terminates.
+ * It repeatedly polls the process status with a short sleep interval to avoid
+ * busy-waiting.
+ *
+ * Returns: The exit code of the terminated process
+ * Throws:  WaitError if an invalid PID is provided or another OS error occurs
+ */
+wait_cmd := proc(pid: I64) returns I64 throws SleepError {
+    neg_one := sub(0, 1)  // -1
+    while true {
+        mut status := check_cmd_status(pid)
+        if not(status.eq(neg_one)) {
+            return status
+        }
+        sleep(50)  // sleep 50 milliseconds between polls
+    }
+}
+
+/**
+ * Pauses execution of the current process for the specified duration.
+ *
+ * This is a blocking sleep -- the interpreter will not execute any Til code
+ * until the sleep duration has elapsed. It is primarily useful for polling loops
+ * (e.g., waiting for background processes in test runners) to avoid busy-waiting
+ * and reduce CPU usage.
+ *
+ * @param milliseconds: I64  The number of milliseconds to sleep.
+ *                      Must be >= 0. Very large values are allowed but may be
+ *                      capped by the operating system.
+ * Throws: SleepError if the sleep is interrupted by a signal or an OS error occurs.
+ */
+sleep := ext_proc(milliseconds: I64) throws SleepError;

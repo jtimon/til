@@ -1,0 +1,55 @@
+mode test
+
+import("std.sys")  // spawn_cmd, check_cmd_status, wait_cmd, sleep
+
+// Test sleep
+test_sleep := proc() {
+    sleep(100)  // sleep 100ms
+
+    catch (err: SleepError) {
+        println("SleepError:", err.msg)
+        exit(1)
+    }
+}
+test_sleep()
+
+// Test spawn and wait
+test_spawn_wait := proc() {
+    pid := spawn_cmd("sleep 0.1")
+    exit_code := wait_cmd(pid)
+    assert_eq(loc(), 0, exit_code)
+
+    catch (err: SpawnError) {
+        println("SpawnError:", err.msg)
+        exit(1)
+    }
+    catch (err: SleepError) {
+        println("SleepError:", err.msg)
+        exit(1)
+    }
+}
+test_spawn_wait()
+
+// Test check_cmd_status with running process
+test_check_status := proc() {
+    // Spawn a command that sleeps long enough to catch it running
+    pid := spawn_cmd("sleep 1")
+
+    // Should be running initially - assert we get -1
+    status := check_cmd_status(pid)
+    assert_eq(loc(), sub(0, 1), status)
+
+    // Now wait for it to finish
+    final_status := wait_cmd(pid)
+    assert_eq(loc(), 0, final_status)
+
+    catch (err: SpawnError) {
+        println("SpawnError:", err.msg)
+        exit(1)
+    }
+    catch (err: SleepError) {
+        println("SleepError:", err.msg)
+        exit(1)
+    }
+}
+test_check_status()

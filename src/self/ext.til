@@ -636,3 +636,51 @@ func_exit := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     }
     throw e.lang_error(context.path, "eval", "calling core proc 'exit', but found non-literal instead of literal i64 exit code.")
 }
+
+// ---------- Process spawning functions
+
+proc_spawn_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "spawn_cmd", 1, true)
+
+    cmd_result := eval_expr(context, e.get(1))
+    if cmd_result.is_throw { return cmd_result }
+    cmd := cmd_result.value
+
+    // Call host-provided spawn_cmd (when running on rstil)
+    pid := spawn_cmd(cmd)
+
+    catch (err: SpawnError) {
+        throw e.error(context.path, "eval", format("spawn_cmd failed: ", err.msg))
+    }
+
+    return EvalResult.new(pid.to_str())
+}
+
+proc_check_cmd_status := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "check_cmd_status", 1, true)
+
+    pid_result := eval_expr(context, e.get(1))
+    if pid_result.is_throw { return pid_result }
+    pid := I64.from_str(pid_result.value)
+
+    // Call host-provided check_cmd_status (when running on rstil)
+    status := check_cmd_status(pid)
+    return EvalResult.new(status.to_str())
+}
+
+proc_sleep := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "sleep", 1, true)
+
+    ms_result := eval_expr(context, e.get(1))
+    if ms_result.is_throw { return ms_result }
+    ms := I64.from_str(ms_result.value)
+
+    // Call host-provided sleep (when running on rstil)
+    sleep(ms)
+
+    catch (err: SleepError) {
+        throw e.error(context.path, "eval", format("sleep failed: ", err.msg))
+    }
+
+    return EvalResult.new("")
+}

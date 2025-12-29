@@ -11,7 +11,10 @@ use crate::rs::interpreter::{EvalResult, eval_expr, string_from_context};
 use std::io;
 use std::io::{ErrorKind, Write};
 use std::fs;
-use std::process::Command;
+use std::process::{Command, Child};
+use std::collections::HashMap;
+use std::thread;
+use std::time::Duration;
 
 // ---------- Helper functions
 
@@ -623,6 +626,93 @@ pub fn proc_run_cmd(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
             Err(e.error(&context.path, "eval", &format!("Failed to run command '{}': {}", cmd, err)))
         }
     }
+}
+
+// ---------- Process spawning functions
+
+// Singleton for tracking spawned processes
+pub struct SpawnedProcesses {
+    processes: HashMap<i64, Child>,
+}
+
+impl SpawnedProcesses {
+    #[allow(static_mut_refs)]
+    pub fn g() -> &'static mut SpawnedProcesses {
+        unsafe {
+            static mut INSTANCE: Option<SpawnedProcesses> = None;
+            INSTANCE.get_or_insert_with(|| SpawnedProcesses {
+                processes: HashMap::new(),
+            })
+        }
+    }
+}
+
+// spawn_cmd: Spawn a command in the background, returns PID
+pub fn proc_spawn_cmd(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "spawn_cmd", 1, true)?;
+
+    let cmd = eval_or_throw!(context, e.get(1)?);
+
+    #[cfg(windows)]
+    let child_result = Command::new("cmd").args(&["/C", &cmd]).spawn();
+    #[cfg(not(windows))]
+    let child_result = Command::new("sh").args(&["-c", &cmd]).spawn();
+
+    match child_result {
+        Ok(child) => {
+            let pid = child.id() as i64;
+            SpawnedProcesses::g().processes.insert(pid, child);
+            Ok(EvalResult::new(&pid.to_string()))
+        }
+        Err(err) => {
+            Ok(EvalResult::new_throw(&format!("Failed to spawn command '{}': {}", cmd, err), ValueType::TCustom("SpawnError".to_string())))
+        }
+    }
+}
+
+// check_cmd_status: Check if a spawned process has finished (non-blocking)
+// Returns -1 if still running, exit code if finished
+pub fn proc_check_cmd_status(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "check_cmd_status", 1, true)?;
+
+    let pid_str = eval_or_throw!(context, e.get(1)?);
+    let pid = pid_str.parse::<i64>().map_err(|err| {
+        e.lang_error(&context.path, "eval", &format!("Invalid PID for check_cmd_status: {}", err))
+    })?;
+
+    if let Some(child) = SpawnedProcesses::g().processes.get_mut(&pid) {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                // Process finished, remove from map and return exit code
+                SpawnedProcesses::g().processes.remove(&pid);
+                Ok(EvalResult::new(&status.code().unwrap_or(-1).to_string()))
+            }
+            Ok(None) => {
+                // Still running
+                Ok(EvalResult::new("-1"))
+            }
+            Err(_) => {
+                // Error checking status, treat as still running
+                Ok(EvalResult::new("-1"))
+            }
+        }
+    } else {
+        // Unknown PID, return -1
+        Ok(EvalResult::new("-1"))
+    }
+}
+
+// sleep: Sleep for specified milliseconds
+pub fn proc_sleep(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "sleep", 1, true)?;
+
+    let ms_str = eval_or_throw!(context, e.get(1)?);
+    let ms = ms_str.parse::<u64>().map_err(|err| {
+        e.lang_error(&context.path, "eval", &format!("Invalid milliseconds for sleep: {}", err))
+    })?;
+
+    thread::sleep(Duration::from_millis(ms));
+    Ok(EvalResult::new(""))
 }
 
 // ---------- Introspection functions
