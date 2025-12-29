@@ -415,20 +415,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
             mut struct_def := context.scope_stack.lookup_struct(combined_name)
             catch (err3: KeyNotFoundError) {
                 // Check if it's an enum constructor (e.g., Color.Green(true))
-                mut parts := combined_name.split(".")
-                catch (err_split: AllocError) {
-                    return false
-                }
-                if parts.len().eq(2) {
-                    mut enum_type := ""
-                    parts.get(0, enum_type)
-                    catch (err_get: IndexOutOfBoundsError) {
-                        return false
-                    }
-                    mut enum_def := context.scope_stack.lookup_enum(enum_type)
-                    catch (err_enum: KeyNotFoundError) {
-                        return false  // Unknown function
-                    }
+                if context.scope_stack.is_enum_constructor(combined_name) {
                     // It's an enum constructor - check all args are comptime
                     mut k := 1
                     while k.lt(e.params.len()) {
@@ -498,10 +485,6 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         }
         return true
     case:
-        return false
-    }
-
-    catch (err: IndexOutOfBoundsError) {
         return false
     }
 }
@@ -1359,30 +1342,13 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     }
 
     // 4. Enum constructor (e.g., Color.Green(true)) - before arg transform
-    if not(combined_name.eq("")) {
-        mut parts := combined_name.split(".")
-        if parts.len().eq(2) {
-            mut enum_type := ""
-            parts.get(0, enum_type)
-            mut enum_found := false
-            mut enum_def := context.scope_stack.lookup_enum(enum_type)
-            enum_found = true
-            catch (err: KeyNotFoundError) {
-                // Not found
-            }
-            if enum_found {
-                mut variant_name := ""
-                parts.get(1, variant_name)
-                if enum_def.contains_key(variant_name) {
-                    // Transform arguments for enum constructor
-                    mut enum_params := Vec.new(Expr)
-                    for p: Expr in e.params {
-                        enum_params.push(precomp_expr(context, p))
-                    }
-                    return Expr.new_clone(e.node_type, e, enum_params)
-                }
-            }
+    if context.scope_stack.is_enum_constructor(combined_name) {
+        // Transform arguments for enum constructor
+        mut enum_params := Vec.new(Expr)
+        for p: Expr in e.params {
+            enum_params.push(precomp_expr(context, p))
         }
+        return Expr.new_clone(e.node_type, e, enum_params)
     }
 
     // 5. Transform all arguments

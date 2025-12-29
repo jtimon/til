@@ -429,6 +429,59 @@ ScopeStack := struct {
         throw KeyNotFoundError(msg="lookup_struct: Struct not found in ScopeStack")
     }
 
+    // Check if a combined name (e.g., "Color.Green") refers to an enum constructor
+    is_enum_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
+        mut parts := combined_name.split(".")
+        catch (err: AllocError) {
+            return false
+        }
+        if parts.len().eq(2) {
+            mut enum_type := Str()
+            parts.get(0, enum_type)
+            mut enum_def := self.lookup_enum(enum_type)
+            catch (err: KeyNotFoundError) {
+                return false
+            }
+            mut variant_name := Str()
+            parts.get(1, variant_name)
+            mut result := enum_def.contains_key(variant_name)
+            catch (err: Str) {
+                return false
+            }
+            return result
+        }
+        catch (err: IndexOutOfBoundsError) {
+            return false
+        }
+        return false
+    }
+
+    // Check if a combined name refers to a struct constructor
+    is_struct_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
+        mut parts := combined_name.split(".")
+        catch (err: AllocError) {
+            return false
+        }
+        if parts.len().eq(1) {
+            mut struct_name := Str()
+            parts.get(0, struct_name)
+            _ := self.lookup_struct(struct_name)
+            return true
+        }
+        catch (err: IndexOutOfBoundsError) {
+            return false
+        }
+        catch (err: KeyNotFoundError) {
+            return false
+        }
+        return false
+    }
+
+    // Check if a combined name refers to a type constructor (enum or struct)
+    is_type_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
+        return self.is_enum_constructor(combined_name).or(self.is_struct_constructor(combined_name))
+    }
+
     all_structs := func(self: ScopeStack) returns Vec throws Str {
         mut result := Vec.new(SStructDef)
         for i in self.frames.len().sub(1)..sub(0, 1) {

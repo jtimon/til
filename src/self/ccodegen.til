@@ -350,6 +350,25 @@ get_fcall_func_def := proc(context: Context, fcall_expr: Expr) returns FuncLooku
     return result
 }
 
+// Bug #60: Determine if a parameter should be passed by reference (pointer)
+// - copy params: pass by value (copy is made)
+// - Type params: already pointers (const char*), pass by value
+// - All other const/own/mut params (including Dynamic): pass by pointer
+param_needs_by_ref := func(param: Declaration) returns Bool {
+    if param.is_copy {
+        return false
+    }
+    // Type is already a pointer type in C (const char*), no extra indirection needed
+    switch param.value_type {
+    case ValueType.TCustom(name):
+        if name.eq("Type") {
+            return false
+        }
+    case:
+    }
+    return true
+}
+
 // Helper to get C type name for a ValueType (same as til_type_to_c but for error struct definitions)
 value_type_to_c_name := func(vt: ValueType) returns Str throws Str {
     switch vt {
@@ -425,6 +444,174 @@ ThrowingFCallInfo := struct {
 HoistedArg := struct {
     mut index: I64 = 0
     mut temp_var: Str = ""
+}
+
+// Hoist arguments that need to be passed by reference but are rvalues
+// Returns a Vec of HoistedArg with the hoisted temp variables
+// Note: output is mut and modified in-place (same pattern as hoist_for_dynamic_params)
+hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str {
+    mut hoisted := Vec.new(HoistedArg)
+    mut indent_str := ""
+    mut ind := 0
+    while lt(ind, indent) {
+        indent_str = indent_str.concat("    ")
+        ind = add(ind, 1)
+    }
+
+    for idx in 0..args.len() {
+        mut arg := Expr()
+        args.get(idx, arg)
+
+        // Skip if already hoisted
+        mut idx_str := idx.to_str()
+        if already_hoisted.contains_key(idx_str) {
+            continue
+        }
+
+        // Check if param is by-ref
+        mut is_by_ref := false
+        if idx.lt(param_by_ref.len()) {
+            param_by_ref.get(idx, is_by_ref)
+        }
+        if not(is_by_ref) {
+            continue
+        }
+
+        // Check if arg needs hoisting (rvalues that can't have & taken)
+        mut needs_hoisting := false
+        switch arg.node_type {
+        case NodeType.Identifier(name):
+            // Simple identifier is lvalue - doesn't need hoisting
+            // But type-qualified calls like I64.to_str need hoisting
+            if arg.params.len().eq(0) {
+                needs_hoisting = false
+            } else {
+                // Check for UFCS placeholder "_" which is a chained expression
+                if name.eq("_") {
+                    // UFCS placeholder - this is a chained expression like get_foo().bar
+                    // The result is an lvalue, doesn't need hoisting
+                    needs_hoisting = false
+                } else {
+                    mut is_variable := false
+                    mut is_function := false
+                    mut sym := context.scope_stack.lookup_symbol(name)
+                    is_variable = true
+                    catch (err: KeyNotFoundError) {
+                        // Not a variable
+                    }
+                    mut fd := context.scope_stack.lookup_func(name)
+                    is_function = true
+                    catch (err: KeyNotFoundError) {
+                        // Not a function
+                    }
+                    // Only needs hoisting if it's not a variable AND not a function call
+                    // (i.e., it's a Type.method call like I64.to_str)
+                    needs_hoisting = not(is_variable).and(not(is_function))
+                }
+            }
+        case NodeType.LLiteral(lit):
+            switch lit {
+            case Literal.Str(s):
+                needs_hoisting = false  // Compound literal, can use &
+            case Literal.Number(n):
+                needs_hoisting = true   // Can't take address of integer literal
+            case:
+                needs_hoisting = false
+            }
+        case NodeType.FCall:
+            // Check if this is an enum or struct constructor - those become compound literals
+            // which CAN have & taken directly, so no hoisting needed
+            if arg.params.len().gt(0) {
+                mut first := Expr()
+                arg.params.get(0, first)
+                mut combined := get_combined_name(context.path, first)
+                needs_hoisting = not(context.scope_stack.is_type_constructor(combined))
+            } else {
+                needs_hoisting = true
+            }
+        case:
+            needs_hoisting = false
+        }
+
+        if not(needs_hoisting) {
+            continue
+        }
+
+        // Determine the C type based on what the arg evaluates to
+        mut c_type := ""
+        switch arg.node_type {
+        case NodeType.LLiteral(lit):
+            switch lit {
+            case Literal.Number(n):
+                c_type = concat(TIL_PREFIX, "I64")
+            case:
+                throw arg.lang_error(context.path, "ccodegen", "Cannot determine type for ref param hoisting")
+            }
+        case NodeType.FCall:
+            // Look up the function's return type
+            mut fd_result := get_fcall_func_def(context, arg)
+            if fd_result.found {
+                if fd_result.func_def.return_types.len().gt(0) {
+                    mut ret_type := ValueType.TCustom("")
+                    fd_result.func_def.return_types.get(0, ret_type)
+                    c_type = til_type_to_c(ret_type)
+                } else {
+                    throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
+                }
+            } else {
+                throw arg.lang_error(context.path, "ccodegen", "Cannot find function definition")
+            }
+        case NodeType.Identifier(var_name):
+            if arg.params.len().gt(0) {
+                // Type-qualified method call like I64.to_str(x) - look up return type
+                mut first_param := Expr()
+                arg.params.get(0, first_param)
+                switch first_param.node_type {
+                case NodeType.Identifier(method_name):
+                    // Look up Type.method function
+                    mut func_name := concat(var_name, ".").concat(method_name)
+                    mut fd := context.scope_stack.lookup_func(func_name)
+                    if fd.return_types.len().gt(0) {
+                        mut ret_type := ValueType.TCustom("")
+                        fd.return_types.get(0, ret_type)
+                        c_type = til_type_to_c(ret_type)
+                    } else {
+                        throw arg.lang_error(context.path, "ccodegen", concat("Function ", func_name).concat(" has no return type"))
+                    }
+                    catch (err: KeyNotFoundError) {
+                        throw arg.lang_error(context.path, "ccodegen", concat("Cannot find function: ", func_name))
+                    }
+                case:
+                    throw arg.lang_error(context.path, "ccodegen", "Expected method name")
+                }
+            } else {
+                throw arg.lang_error(context.path, "ccodegen", "Cannot determine type for ref param hoisting")
+            }
+        case:
+            throw arg.lang_error(context.path, "ccodegen", "Cannot determine type for ref param hoisting")
+        }
+
+        mut temp_var := next_mangled(ctx)
+
+        // Emit: Type _tmpXX = <expression>;
+        output = output.concat(indent_str)
+        output = output.concat(c_type)
+        output = output.concat(" ")
+        output = output.concat(temp_var)
+        output = output.concat(" = ")
+        output = emit_expr(arg, output, 0, ctx, context)
+        output = output.concat(";\n")
+
+        mut hoisted_arg := HoistedArg()
+        hoisted_arg.index = idx
+        hoisted_arg.temp_var = temp_var
+        hoisted.push(hoisted_arg)
+    }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
+    return hoisted
 }
 
 // Forward declaration - get_fcall_func_name is defined later in the file
@@ -1135,16 +1322,38 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
             // Variadic must be last, so break
             j = func_def.args.len()
         case:
-            // Regular arg
+            // Regular arg - Bug #60: use param_needs_by_ref for pointer determination
+            // Type is already const char*, don't add extra indirection
+            mut is_type_param := false
+            switch arg.value_type {
+            case ValueType.TCustom(name):
+                if name.eq("Type") {
+                    is_type_param = true
+                }
+            case:
+            }
             if arg.is_mut {
-                // mut: use pointer so mutations are visible to caller
+                // mut: pass by pointer so mutations are visible to caller
                 result = result.concat(til_type_to_c(arg.value_type)).concat("* ")
-            } else if arg.is_copy.or(arg.is_own) {
-                // copy/own: pass by value, can be modified locally
+            } else if arg.is_own {
+                // own: pass by pointer, caller transfers ownership
+                // Type is already a pointer, so pass by value
+                if is_type_param {
+                    result = result.concat(til_type_to_c(arg.value_type)).concat(" ")
+                } else {
+                    result = result.concat(til_type_to_c(arg.value_type)).concat("* ")
+                }
+            } else if arg.is_copy {
+                // copy: pass by value, caller's copy is made
                 result = result.concat(til_type_to_c(arg.value_type)).concat(" ")
             } else {
-                // const: pass by value, read-only
-                result = result.concat("const ").concat(til_type_to_c(arg.value_type)).concat(" ")
+                // const (default): pass by const pointer, read-only
+                // Type is already a pointer, so pass by value
+                if is_type_param {
+                    result = result.concat(til_type_to_c(arg.value_type)).concat(" ")
+                } else {
+                    result = result.concat("const ").concat(til_type_to_c(arg.value_type)).concat("* ")
+                }
             }
             result = result.concat(TIL_PREFIX).concat(arg.name)
             param_count = add(param_count, 1)
@@ -2772,11 +2981,11 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             // Skip argv[0] (exe path) to match interpreter behavior
             output = output.concat("    til_Array _main_args;\n")
             output = output.concat("    til_AllocError _main_args_err;\n")
-            output = output.concat("    til_Array_new(&_main_args, &_main_args_err, \"Str\", argc - 1);\n")
+            output = output.concat("    til_Array_new(&_main_args, &_main_args_err, \"Str\", &(til_I64){argc - 1});\n")
             output = output.concat("    for (int i = 1; i < argc; i++) {\n")
             output = output.concat("        til_Str _arg = {(til_I64)argv[i], strlen(argv[i])};\n")
             output = output.concat("        til_IndexOutOfBoundsError _set_err;\n")
-            output = output.concat("        til_Array_set(&_set_err, &_main_args, i - 1, &_arg);\n")
+            output = output.concat("        til_Array_set(&_set_err, &_main_args, &(til_I64){i - 1}, &_arg);\n")
             output = output.concat("    }\n")
             output = output.concat("    til_main(&_main_args);\n")
         } else {
@@ -5062,7 +5271,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         if lt(arg_i, func_def_lookup.args.len()) {
             mut arg_decl := Declaration()
             func_def_lookup.args.get(arg_i, arg_decl)
-            param_by_ref.push(arg_decl.is_mut)
+            param_by_ref.push(param_needs_by_ref(arg_decl))
         } else {
             param_by_ref.push(false)
         }
@@ -5100,6 +5309,20 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         }
     }
     catch (err: AllocError) { throw "emit_throwing_call: AllocError in hoist_for_dynamic_params" }
+
+    // Hoist struct-returning FCall args when param is by-ref (can't use compound literal for structs)
+    if gt(fcall.params.len(), 1) {
+        ref_hoisted := hoist_for_ref_params(fcall.params, param_by_ref, hoisted, result, indent, ctx, context)
+        // Merge ref_hoisted into hoisted
+        mut rh_idx := 0
+        while lt(rh_idx, ref_hoisted.len()) {
+            mut rh := HoistedArg()
+            ref_hoisted.get(rh_idx, rh)
+            hoisted.set(rh.index, rh.temp_var)
+            rh_idx = add(rh_idx, 1)
+        }
+    }
+    catch (err: AllocError) { throw err.msg }
 
     // Declare local variables for return value and errors
     // Look up the actual return type from scope_stack
@@ -5587,7 +5810,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         if lt(arg_i, func_def_lookup.args.len()) {
             mut arg_decl := Declaration()
             func_def_lookup.args.get(arg_i, arg_decl)
-            param_by_ref.push(arg_decl.is_mut)
+            param_by_ref.push(param_needs_by_ref(arg_decl))
         } else {
             param_by_ref.push(false)
         }
@@ -5625,6 +5848,20 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         }
     }
     catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in hoist_for_dynamic_params" }
+
+    // Hoist struct-returning FCall args when param is by-ref
+    if gt(fcall.params.len(), 1) {
+        ref_hoisted := hoist_for_ref_params(fcall.params, param_by_ref, hoisted, result, indent, ctx, context)
+        // Merge ref_hoisted into hoisted
+        mut rh_idx := 0
+        while lt(rh_idx, ref_hoisted.len()) {
+            mut rh := HoistedArg()
+            ref_hoisted.get(rh_idx, rh)
+            hoisted.set(rh.index, rh.temp_var)
+            rh_idx = add(rh_idx, 1)
+        }
+    }
+    catch (err: AllocError) { throw err.msg }
 
     // Look up the actual return type from scope_stack
     mut ret_type := "int"
@@ -6043,7 +6280,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         if lt(arg_i, func_def_lookup.args.len()) {
             mut arg_decl := Declaration()
             func_def_lookup.args.get(arg_i, arg_decl)
-            param_by_ref.push(arg_decl.is_mut)
+            param_by_ref.push(param_needs_by_ref(arg_decl))
         } else {
             param_by_ref.push(false)
         }
@@ -6080,6 +6317,20 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         }
     }
     catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in hoist_for_dynamic_params" }
+
+    // Hoist struct-returning FCall args when param is by-ref
+    if gt(fcall.params.len(), 1) {
+        ref_hoisted := hoist_for_ref_params(fcall.params, param_by_ref, hoisted, result, indent, ctx, context)
+        // Merge ref_hoisted into hoisted
+        mut rh_idx := 0
+        while lt(rh_idx, ref_hoisted.len()) {
+            mut rh := HoistedArg()
+            ref_hoisted.get(rh_idx, rh)
+            hoisted.set(rh.index, rh.temp_var)
+            rh_idx = add(rh_idx, 1)
+        }
+    }
+    catch (err: AllocError) { throw err.msg }
 
     // Look up the actual return type from scope_stack
     mut ret_type := "int"
@@ -7183,13 +7434,16 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     fd_result := get_fcall_func_def(context, rhs_fcall)
                     if fd_result.found {
                         mut param_types := Vec.new(ValueType)
+                        mut param_by_ref := Vec.new(Bool)
                         for arg: Declaration in fd_result.func_def.args {
                             param_types.push(arg.value_type)
+                            param_by_ref.push(param_needs_by_ref(arg))
                         }
                         args := rhs_fcall.params
                         empty_hoisted := Map.new(I64, Str)
                         dynamic_hoisted := hoist_for_dynamic_params(args, param_types, empty_hoisted, result, indent, ctx, context)
                         // Record hoisted Dynamic params in hoisted_exprs with & prefix
+                        mut hoisted_map := Map.new(I64, Str)
                         for h: HoistedArg in dynamic_hoisted {
                             if lt(h.index, args.len()) {
                                 mut arg_for_key := Expr()
@@ -7197,6 +7451,19 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                                 arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
                                 mut amp_str := "&"
                                 hoisted_val := amp_str.concat(h.temp_var)
+                                ctx.hoisted_exprs.set(arg_key, hoisted_val)
+                            }
+                            hoisted_map.set(h.index, h.temp_var)
+                        }
+                        // Hoist struct-returning FCall args when param is by-ref
+                        ref_hoisted := hoist_for_ref_params(args, param_by_ref, hoisted_map, result, indent, ctx, context)
+                        for rh: HoistedArg in ref_hoisted {
+                            if lt(rh.index, args.len()) {
+                                mut arg_for_key := Expr()
+                                args.get(rh.index, arg_for_key)
+                                arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
+                                mut amp_str := "&"
+                                hoisted_val := amp_str.concat(rh.temp_var)
                                 ctx.hoisted_exprs.set(arg_key, hoisted_val)
                             }
                         }
@@ -7252,13 +7519,16 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     fd_result := get_fcall_func_def(context, rhs_fcall)
                     if fd_result.found {
                         mut param_types := Vec.new(ValueType)
+                        mut param_by_ref := Vec.new(Bool)
                         for arg: Declaration in fd_result.func_def.args {
                             param_types.push(arg.value_type)
+                            param_by_ref.push(param_needs_by_ref(arg))
                         }
                         args := rhs_fcall.params
                         empty_hoisted := Map.new(I64, Str)
                         dynamic_hoisted := hoist_for_dynamic_params(args, param_types, empty_hoisted, result, indent, ctx, context)
                         // Record hoisted Dynamic params in hoisted_exprs with & prefix
+                        mut hoisted_map := Map.new(I64, Str)
                         for h: HoistedArg in dynamic_hoisted {
                             if lt(h.index, args.len()) {
                                 mut arg_for_key := Expr()
@@ -7266,6 +7536,19 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                                 arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
                                 mut amp_str := "&"
                                 hoisted_val := amp_str.concat(h.temp_var)
+                                ctx.hoisted_exprs.set(arg_key, hoisted_val)
+                            }
+                            hoisted_map.set(h.index, h.temp_var)
+                        }
+                        // Hoist struct-returning FCall args when param is by-ref
+                        ref_hoisted := hoist_for_ref_params(args, param_by_ref, hoisted_map, result, indent, ctx, context)
+                        for rh: HoistedArg in ref_hoisted {
+                            if lt(rh.index, args.len()) {
+                                mut arg_for_key := Expr()
+                                args.get(rh.index, arg_for_key)
+                                arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
+                                mut amp_str := "&"
+                                hoisted_val := amp_str.concat(rh.temp_var)
                                 ctx.hoisted_exprs.set(arg_key, hoisted_val)
                             }
                         }

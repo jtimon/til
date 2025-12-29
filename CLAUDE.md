@@ -4,21 +4,21 @@
 Read `doc/bot.org` for full guidelines. Key points below are frequently repeated corrections.
 
 ## Before commit
-1) Run `make tests` to verify everything works
+1) Run `make benchmark` to verify everything works
 2) Any changes made to rust code, we port to the equavalent files in til (self hosted implementation)
-3) Run `make tests` to verify everything works again after porting to til
+3) Run `make benchmark` to verify everything works again after porting to til
 4) If exit code 0, commit
 5) If non-zero, read output and fix
 
 ## CRITICAL: Port to TIL Immediately
 - **NEVER** test Rust changes incrementally without also porting to TIL
-- `make tests` uses the self-hosted til interpreter (`til_interpreted`) for some tests
+- `make benchmark` uses the self-hosted til interpreter (`til_interpreted`) for some tests
 - If Rust changes aren't ported to TIL, tests will segfault or fail mysteriously
 - **Workflow**: Make changes to both .rs and .til files together, THEN test
 - Testing just the Rust version with `rstil interpret` is NOT sufficient validation
 
 ## Various things
-- **ALWAYS** When running make commands (make, make tests, make til, etc.), run as normal: no wc, no head, no tail, no grep, no any other bullshit
+- **ALWAYS** When running make commands (make, make benchmark, make til, etc.), run as normal: no wc, no head, no tail, no grep, no any other bullshit
 - **NEVER** Ignore warnings from either rustc, rstil, til or gcc, always ask the user what to do about them
 - **NEVER** Use weird unicode symbols anywhere, stay ASCII
 - **NEVER** Use cat, use read, write or echo instead
@@ -74,14 +74,14 @@ Don't ask where tests go - they're organized by collection type:
 
 ## Build Commands
 - `make rstil` or `make` - Fast build, just compile rstil
-- `make tests` - Full test suite (slower, for final verification)
+- `make benchmark` - Full test suite (slower, for final verification)
 - Use `rstil interpret my_test.til` to test single files with the interpreter
 - Use `rstil run my_test.til` to test single files with the compiler (builds and runs)
 - use `rstil repl` (using echo, not cat) for fast doubts about til syntax and functionality (call exit(0) at the end to quit the repl cli)
 
 ## Permissions Already Granted
 Don't ask permission for:
-- `make`, `make tests`, `make rstil`, `rustc`
+- `make`, `make benchmark`, `make rstil`, `rustc`
 - `python3`, `python` - running any Python scripts within the project
 - `git status`, `git log`, `git diff`, `git add`, `git commit`
 - `timeout N ./bin/rstil file.til`
@@ -131,7 +131,7 @@ When porting code from Rust (`src/rs/`) to TIL (`src/self/`):
 - `doc/bot.org` - READ THIS for full guidelines (human-maintained, don't edit)
 - `doc/*.org` - Reference docs (read-only, except doc/todo/*.org)
 - `doc/todo/` - Shared workspace (can edit)
-- `doc/translate_rs2til.org` - Rust to TIL translation guide
+- `doc/rs2til.org` - Rust to TIL translation guide
 
 ## Task Naming Convention
 **NEVER use "Phase 1", "Phase 2", etc.** - This conflicts with compiler/interpreter phases.

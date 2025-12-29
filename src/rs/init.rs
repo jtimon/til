@@ -238,6 +238,33 @@ impl ScopeStack {
         None
     }
 
+    /// Check if a combined name (e.g., "Color.Green") refers to an enum constructor
+    pub fn is_enum_constructor(&self, combined_name: &str) -> bool {
+        let parts: Vec<&str> = combined_name.split('.').collect();
+        if parts.len() == 2 {
+            let enum_type = parts[0];
+            if let Some(enum_def) = self.lookup_enum(enum_type) {
+                let variant_name = parts[1];
+                return enum_def.contains_key(variant_name);
+            }
+        }
+        false
+    }
+
+    /// Check if a combined name refers to a struct constructor
+    pub fn is_struct_constructor(&self, combined_name: &str) -> bool {
+        let parts: Vec<&str> = combined_name.split('.').collect();
+        if parts.len() == 1 {
+            return self.lookup_struct(parts[0]).is_some();
+        }
+        false
+    }
+
+    /// Check if a combined name refers to a type constructor (enum or struct)
+    pub fn is_type_constructor(&self, combined_name: &str) -> bool {
+        self.is_enum_constructor(combined_name) || self.is_struct_constructor(combined_name)
+    }
+
     pub fn all_structs(&self) -> Vec<&SStructDef> {
         let mut result = Vec::new();
         for frame in self.frames.iter().rev() {

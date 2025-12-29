@@ -327,18 +327,14 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
                         return true; // Struct constructor with all comptime args
                     }
                     // Check if it's an enum constructor (e.g., Color.Green(true))
-                    let parts: Vec<&str> = combined_name.split('.').collect();
-                    if parts.len() == 2 {
-                        let enum_type = parts[0];
-                        if context.scope_stack.lookup_enum(enum_type).is_some() {
-                            // It's an enum constructor - check all args are comptime
-                            for i in 1..e.params.len() {
-                                if !is_comptime_evaluable(context, &e.params[i]) {
-                                    return false;
-                                }
+                    if context.scope_stack.is_enum_constructor(&combined_name) {
+                        // It's an enum constructor - check all args are comptime
+                        for i in 1..e.params.len() {
+                            if !is_comptime_evaluable(context, &e.params[i]) {
+                                return false;
                             }
-                            return true;
                         }
+                        return true;
                     }
                     return false;
                 },
@@ -1083,22 +1079,13 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     }
 
     // 4. Enum constructor (e.g., Color.Green(true)) - before arg transform
-    if !combined_name.is_empty() {
-        let parts: Vec<&str> = combined_name.split('.').collect();
-        if parts.len() == 2 {
-            let enum_type = parts[0];
-            if let Some(enum_def) = context.scope_stack.lookup_enum(enum_type) {
-                let variant_name = parts[1];
-                if enum_def.contains_key(variant_name) {
-                    // Transform arguments for enum constructor
-                    let mut transformed_params = Vec::new();
-                    for p in &e.params {
-                        transformed_params.push(precomp_expr(context, p)?);
-                    }
-                    return Ok(Expr::new_clone(e.node_type.clone(), &e, transformed_params));
-                }
-            }
+    if context.scope_stack.is_enum_constructor(&combined_name) {
+        // Transform arguments for enum constructor
+        let mut transformed_params = Vec::new();
+        for p in &e.params {
+            transformed_params.push(precomp_expr(context, p)?);
         }
+        return Ok(Expr::new_clone(e.node_type.clone(), &e, transformed_params));
     }
 
     // 5. Transform all arguments

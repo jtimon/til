@@ -696,7 +696,7 @@ main := proc(args: ..Str) {
     til_interpreted.push(TestEntry(path="src/test/underscore.til"))
     til_interpreted.push(TestEntry(path="src/test/variadic.til"))
     // til_interpreted.push(TestEntry(path="src/test/vecs.til"))  // TODO: Undefined symbol 'p1'
-    // til_interpreted.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: exit code 1 (no output)
+    // til_interpreted.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: segfaults
 
     // til_compiled: tests run with the self-hosted TIL compiler only
     mut til_compiled := Vec.new(TestEntry)

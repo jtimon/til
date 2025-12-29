@@ -39,11 +39,14 @@ Typer should emit an error like: "Cannot pass const variable 'original' to own p
 In typer.rs/typer.til, add a check when processing FCall args: if the parameter
 is ~own~ and the argument is a const variable, emit a type error.
 
+* Fixed Bugs
+
 ** Bug #60: ccodegen passes const/own args by value instead of by pointer
 :PROPERTIES:
 :DISCOVERED: 2025-12-28
+:FIXED: 2025-12-29
 :IMPACT: Stack overflow on recursive functions with large struct args
-:STATUS: Active
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -130,7 +133,28 @@ Requires changes in several places in ccodegen.rs:
 - I64: ~&69~ - INVALID, plain integer is rvalue
 - Type: ~&"Str"~ - gives wrong type (~char**~ instead of ~const char* const*~)
 
-* Fixed Bugs
+*** Solution
+Implemented all the planned fixes:
+1. Added ~param_needs_by_ref~ helper function to determine if param should be passed by pointer
+2. Changed ~param_by_ref~ calculation from ~is_mut~ to ~param_needs_by_ref(arg)~
+3. Added ~hoist_for_ref_params~ function to hoist I64 literals and function call results
+4. Updated ~emit_func_signature~ to emit const pointers for const params
+5. Updated ~emit_arg_with_param_type~ to handle by-ref params correctly
+6. Updated ~ext.c~ functions to accept pointers for const/own args
+7. Fixed hardcoded main args initialization to use compound literals for I64
+
+Files modified:
+- src/rs/ccodegen.rs, src/self/ccodegen.til
+- src/rs/init.rs, src/self/init.til (added is_enum_constructor helpers)
+- src/ext.c (updated function signatures)
+
+*Performance Impact:*
+Passing primitives (I64, Bool) by pointer adds overhead:
+- til_interpreted tests: ~8.5s -> ~13.8s per test (~60% slower)
+- Total til_interpreted: 338s -> 543s
+This is expected since primitives were previously passed by value (fast) and now
+require pointer indirection. The correctness fix was necessary to prevent stack
+overflow on recursive functions with large struct arguments.
 
 ** Bug #61: Optional args before variadic don't use default when type mismatches
 :PROPERTIES:

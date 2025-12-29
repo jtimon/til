@@ -760,85 +760,97 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
     combined_name := get_combined_name(context.path, func_expr)
 
     // Check if this is an enum constructor call (e.g., Color.Green(true))
-    parts := combined_name.split(".")
-    if parts.len().eq(2) {
+    if context.scope_stack.is_enum_constructor(combined_name) {
+        // Extract enum_type and variant_name
+        parts := combined_name.split(".")
         mut enum_type := ""
         parts.get(0, enum_type)
-        mut is_enum := false
-        _ := context.scope_stack.lookup_enum(enum_type)
-        is_enum = true
-        catch (err: KeyNotFoundError) {
-            // is_enum stays false - not an enum
+        mut variant_name := ""
+        parts.get(1, variant_name)
+
+        // Get the enum definition to check if this variant has a payload type
+        enum_def := context.scope_stack.lookup_enum(enum_type)
+        mut has_variant := false
+        mut has_payload := false
+        mut variant_type := ValueType.TCustom("")  // Will be set if payload exists
+        // Bug #38 fix: use helper method
+        mut payload_ptr := enum_def.get(variant_name)
+        has_variant = true
+        if not(NULL.eq(payload_ptr.data)) {
+            has_payload = true
+            memcpy(to_ptr(variant_type), payload_ptr.data, size_of(ValueType))
         }
-        if is_enum {
-            // This is an enum constructor!
-            mut variant_name := ""
-            parts.get(1, variant_name)
+        catch (err: KeyNotFoundError) {
+            // has_variant stays false - variant not found
+        }
 
-            // Get the enum definition to check if this variant has a payload type
-            enum_def := context.scope_stack.lookup_enum(enum_type)
-            mut has_variant := false
-            mut has_payload := false
-            mut variant_type := ValueType.TCustom("")  // Will be set if payload exists
-            // Bug #38 fix: use helper method
-            mut payload_ptr := enum_def.get(variant_name)
-            has_variant = true
-            if not(NULL.eq(payload_ptr.data)) {
-                has_payload = true
-                memcpy(to_ptr(variant_type), payload_ptr.data, size_of(ValueType))
-            }
-            catch (err: KeyNotFoundError) {
-                // has_variant stays false - variant not found
-            }
+        if has_variant {
+            if has_payload {
+                // This variant expects a payload
+                if e.params.len().lt(2) {
+                    throw e.error(context.path, "eval", format("Enum constructor ", enum_type, ".", variant_name, " expects a payload of type ", value_type_to_str(variant_type)))
+                }
 
-            if has_variant {
-                if has_payload {
-                    // This variant expects a payload
-                    if e.params.len().lt(2) {
-                        throw e.error(context.path, "eval", format("Enum constructor ", enum_type, ".", variant_name, " expects a payload of type ", value_type_to_str(variant_type)))
-                    }
+                // Evaluate the payload argument
+                payload_expr := e.get(1)
+                payload_result := eval_expr(context, payload_expr)
+                if payload_result.is_throw {
+                    return payload_result
+                }
 
-                    // Evaluate the payload argument
-                    payload_expr := e.get(1)
-                    payload_result := eval_expr(context, payload_expr)
-                    if payload_result.is_throw {
-                        return payload_result
-                    }
+                // Convert payload to bytes based on type
+                mut payload_bytes := Vec.new(U8)
+                mut handled_payload := false
 
-                    // Convert payload to bytes based on type
-                    mut payload_bytes := Vec.new(U8)
-                    mut handled_payload := false
+                switch variant_type {
+                case ValueType.TCustom(type_name):
+                    if type_name.eq("I64") {
+                        i64_val := I64.from_str(payload_result.value)
+                        payload_bytes = i64_to_le_bytes(i64_val)
+                        handled_payload = true
+                    } else {
+                        // Handle struct payloads
+                        struct_type_name := type_name
+                        mut type_symbol := SymbolInfo()
+                        type_symbol = context.scope_stack.lookup_symbol(struct_type_name)
+                        catch (err: KeyNotFoundError) {
+                            throw e.error(context.path, "eval", format("Unknown type '", struct_type_name, "'"))
+                        }
 
-                    switch variant_type {
-                    case ValueType.TCustom(type_name):
-                        if type_name.eq("I64") {
-                            i64_val := I64.from_str(payload_result.value)
-                            payload_bytes = i64_to_le_bytes(i64_val)
-                            handled_payload = true
-                        } else {
-                            // Handle struct payloads
-                            struct_type_name := type_name
-                            mut type_symbol := SymbolInfo()
-                            type_symbol = context.scope_stack.lookup_symbol(struct_type_name)
-                            catch (err: KeyNotFoundError) {
-                                throw e.error(context.path, "eval", format("Unknown type '", struct_type_name, "'"))
-                            }
+                        switch type_symbol.value_type {
+                        case ValueType.TType(TTypeDef.TStructDef):
+                            // Get struct size
+                            struct_size := context.get_type_size(struct_type_name)
 
-                            switch type_symbol.value_type {
-                            case ValueType.TType(TTypeDef.TStructDef):
-                                // Get struct size
-                                struct_size := context.get_type_size(struct_type_name)
+                            // Get struct variable name from the original expression or create temporary for literals
+                            mut struct_var_name := ""
+                            mut struct_var_set := false
+                            switch payload_expr.node_type {
+                            case NodeType.Identifier(ident_name):
+                                if struct_type_name.eq("Str") {
+                                    // For Str payloads with identifier expressions (like t.token_str),
+                                    // create a temporary Str from the evaluated result value
+                                    last_frame := context.scope_stack.last_frame()
+                                    temp_var_name := format("__temp_str_", I64.to_str(last_frame.arena_index.len()))
+                                    string_value := payload_result.value
 
-                                // Get struct variable name from the original expression or create temporary for literals
-                                mut struct_var_name := ""
-                                mut struct_var_set := false
-                                switch payload_expr.node_type {
-                                case NodeType.Identifier(ident_name):
+                                    // Add symbol entry before calling insert_string
+                                    context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))
+
+                                    EvalArena.insert_string(context, temp_var_name, string_value, e)
+                                    struct_var_name = temp_var_name
+                                    struct_var_set = true
+                                } else {
+                                    struct_var_name = ident_name
+                                    struct_var_set = true
+                                }
+                            case NodeType.LLiteral(lit):
+                                switch lit {
+                                case Literal.Str(_):
                                     if struct_type_name.eq("Str") {
-                                        // For Str payloads with identifier expressions (like t.token_str),
-                                        // create a temporary Str from the evaluated result value
-                                        last_frame := context.scope_stack.last_frame()
-                                        temp_var_name := format("__temp_str_", I64.to_str(last_frame.arena_index.len()))
+                                        // For string literals, create a temporary Str struct
+                                        last_frame2 := context.scope_stack.last_frame()
+                                        temp_var_name := format("__temp_str_", I64.to_str(last_frame2.arena_index.len()))
                                         string_value := payload_result.value
 
                                         // Add symbol entry before calling insert_string
@@ -847,103 +859,68 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                         EvalArena.insert_string(context, temp_var_name, string_value, e)
                                         struct_var_name = temp_var_name
                                         struct_var_set = true
-                                    } else {
-                                        struct_var_name = ident_name
-                                        struct_var_set = true
                                     }
-                                case NodeType.LLiteral(lit):
-                                    switch lit {
-                                    case Literal.Str(_):
-                                        if struct_type_name.eq("Str") {
-                                            // For string literals, create a temporary Str struct
-                                            last_frame2 := context.scope_stack.last_frame()
-                                            temp_var_name := format("__temp_str_", I64.to_str(last_frame2.arena_index.len()))
-                                            string_value := payload_result.value
+                                case Literal.Number(_):
+                                    if struct_type_name.eq("I64") {
+                                        // For I64 literals, create a temporary I64 struct
+                                        last_frame3 := context.scope_stack.last_frame()
+                                        temp_var_name := format("__temp_i64_", I64.to_str(last_frame3.arena_index.len()))
+                                        i64_value := payload_result.value
 
-                                            // Add symbol entry before calling insert_string
-                                            context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))
+                                        // Add symbol entry before calling insert_i64
+                                        context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom("I64")))
 
-                                            EvalArena.insert_string(context, temp_var_name, string_value, e)
-                                            struct_var_name = temp_var_name
-                                            struct_var_set = true
-                                        }
-                                    case Literal.Number(_):
-                                        if struct_type_name.eq("I64") {
-                                            // For I64 literals, create a temporary I64 struct
-                                            last_frame3 := context.scope_stack.last_frame()
-                                            temp_var_name := format("__temp_i64_", I64.to_str(last_frame3.arena_index.len()))
-                                            i64_value := payload_result.value
-
-                                            // Add symbol entry before calling insert_i64
-                                            context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom("I64")))
-
-                                            EvalArena.insert_i64(context, temp_var_name, i64_value, e)
-                                            struct_var_name = temp_var_name
-                                            struct_var_set = true
-                                        }
-                                    case:
-                                    }
-                                // Bug #56 fix: Handle FCall (e.g., x.clone()) for Str payloads
-                                case NodeType.FCall:
-                                    if struct_type_name.eq("Str") {
-                                        last_frame4 := context.scope_stack.last_frame()
-                                        temp_var_name := format("__temp_str_", I64.to_str(last_frame4.arena_index.len()))
-                                        string_value := payload_result.value
-
-                                        context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))
-
-                                        EvalArena.insert_string(context, temp_var_name, string_value, e)
+                                        EvalArena.insert_i64(context, temp_var_name, i64_value, e)
                                         struct_var_name = temp_var_name
                                         struct_var_set = true
                                     }
                                 case:
                                 }
+                            // Bug #56 fix: Handle FCall (e.g., x.clone()) for Str payloads
+                            case NodeType.FCall:
+                                if struct_type_name.eq("Str") {
+                                    last_frame4 := context.scope_stack.last_frame()
+                                    temp_var_name := format("__temp_str_", I64.to_str(last_frame4.arena_index.len()))
+                                    string_value := payload_result.value
 
-                                if not(struct_var_set) {
-                                    throw e.error(context.path, "eval", format("Enum variant payload must be a variable, literal, or function call, got ", enum_to_str(payload_expr.node_type)))
+                                    context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))
+
+                                    EvalArena.insert_string(context, temp_var_name, string_value, e)
+                                    struct_var_name = temp_var_name
+                                    struct_var_set = true
                                 }
+                            case:
+                            }
 
-                                // Get struct offset from arena
-                                mut offset := 0
-                                offset = context.scope_stack.lookup_var(struct_var_name)
-                                catch (err: KeyNotFoundError) {
-                                    throw e.error(context.path, "eval", format("Struct '", struct_var_name, "' not found in arena"))
-                                }
+                            if not(struct_var_set) {
+                                throw e.error(context.path, "eval", format("Enum variant payload must be a variable, literal, or function call, got ", enum_to_str(payload_expr.node_type)))
+                            }
 
-                                // Copy struct bytes from arena
-                                payload_bytes = arena_memory_slice(g_arena, offset, struct_size)
-                                handled_payload = true
+                            // Get struct offset from arena
+                            mut offset := 0
+                            offset = context.scope_stack.lookup_var(struct_var_name)
+                            catch (err: KeyNotFoundError) {
+                                throw e.error(context.path, "eval", format("Struct '", struct_var_name, "' not found in arena"))
+                            }
 
-                            case ValueType.TType(TTypeDef.TEnumDef):
-                                // Handle enum payloads
-                                // Get enum variable name from the original expression
-                                mut enum_var_name := ""
-                                mut enum_var_set := false
-                                switch payload_expr.node_type {
-                                case NodeType.Identifier(ident_name):
-                                    if payload_expr.params.len().eq(0) {
-                                        enum_var_name = ident_name
-                                        enum_var_set = true
-                                    } else {
-                                        // This is a nested enum constructor call (e.g., InnerEnum.ValueA(42))
-                                        last_frame4 := context.scope_stack.last_frame()
-                                        temp_var_name := format("__temp_enum_", I64.to_str(last_frame4.arena_index.len()))
+                            // Copy struct bytes from arena
+                            payload_bytes = arena_memory_slice(g_arena, offset, struct_size)
+                            handled_payload = true
 
-                                        nested_result := eval_expr(context, payload_expr)
-                                        if nested_result.is_throw {
-                                            return nested_result
-                                        }
-
-                                        context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom(struct_type_name)))
-
-                                        _ := EvalArena.insert_enum(context, temp_var_name, struct_type_name, nested_result.value, e)
-                                        enum_var_name = temp_var_name
-                                        enum_var_set = true
-                                    }
-                                case NodeType.FCall:
-                                    // This is a nested enum constructor call
-                                    last_frame5 := context.scope_stack.last_frame()
-                                    temp_var_name := format("__temp_enum_", I64.to_str(last_frame5.arena_index.len()))
+                        case ValueType.TType(TTypeDef.TEnumDef):
+                            // Handle enum payloads
+                            // Get enum variable name from the original expression
+                            mut enum_var_name := ""
+                            mut enum_var_set := false
+                            switch payload_expr.node_type {
+                            case NodeType.Identifier(ident_name):
+                                if payload_expr.params.len().eq(0) {
+                                    enum_var_name = ident_name
+                                    enum_var_set = true
+                                } else {
+                                    // This is a nested enum constructor call (e.g., InnerEnum.ValueA(42))
+                                    last_frame4 := context.scope_stack.last_frame()
+                                    temp_var_name := format("__temp_enum_", I64.to_str(last_frame4.arena_index.len()))
 
                                     nested_result := eval_expr(context, payload_expr)
                                     if nested_result.is_throw {
@@ -955,65 +932,80 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                     _ := EvalArena.insert_enum(context, temp_var_name, struct_type_name, nested_result.value, e)
                                     enum_var_name = temp_var_name
                                     enum_var_set = true
-                                case:
+                                }
+                            case NodeType.FCall:
+                                // This is a nested enum constructor call
+                                last_frame5 := context.scope_stack.last_frame()
+                                temp_var_name := format("__temp_enum_", I64.to_str(last_frame5.arena_index.len()))
+
+                                nested_result := eval_expr(context, payload_expr)
+                                if nested_result.is_throw {
+                                    return nested_result
                                 }
 
-                                if not(enum_var_set) {
-                                    throw e.error(context.path, "eval", format("Enum payload must be a variable identifier or enum constructor, got ", enum_to_str(payload_expr.node_type)))
-                                }
+                                context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom(struct_type_name)))
 
-                                // Get the full enum value including its payload
-                                enum_val := EvalArena.get_enum(context, enum_var_name, e)
-
-                                // Calculate total enum size: 8 bytes tag + payload bytes
-                                mut enum_bytes := Vec.new(U8)
-
-                                // Get the variant position
-                                inner_enum_def := context.scope_stack.lookup_enum(struct_type_name)
-                                variant_pos := Context.get_variant_pos(inner_enum_def, enum_val.enum_name, context.path, e)
-
-                                // Add 8 bytes for variant tag
-                                enum_bytes = i64_to_le_bytes(variant_pos)
-
-                                // Add payload bytes if present
-                                if not(NULL.eq(enum_val.payload.data)) {
-                                    mut enum_payload_vec := Vec.new(U8)
-                                    memcpy(to_ptr(enum_payload_vec), enum_val.payload.data, size_of(Vec))
-                                    for pi in 0..enum_payload_vec.len() {
-                                        mut pb := U8.from_i64(0)
-                                        enum_payload_vec.get(pi, pb)
-                                        enum_bytes.push(pb)
-                                    }
-                                }
-
-                                payload_bytes = enum_bytes
-                                handled_payload = true
+                                _ := EvalArena.insert_enum(context, temp_var_name, struct_type_name, nested_result.value, e)
+                                enum_var_name = temp_var_name
+                                enum_var_set = true
                             case:
-                                throw e.error(context.path, "eval", format("Unsupported payload type: ", value_type_to_str(variant_type)))
                             }
+
+                            if not(enum_var_set) {
+                                throw e.error(context.path, "eval", format("Enum payload must be a variable identifier or enum constructor, got ", enum_to_str(payload_expr.node_type)))
+                            }
+
+                            // Get the full enum value including its payload
+                            enum_val := EvalArena.get_enum(context, enum_var_name, e)
+
+                            // Calculate total enum size: 8 bytes tag + payload bytes
+                            mut enum_bytes := Vec.new(U8)
+
+                            // Get the variant position
+                            inner_enum_def := context.scope_stack.lookup_enum(struct_type_name)
+                            variant_pos := Context.get_variant_pos(inner_enum_def, enum_val.enum_name, context.path, e)
+
+                            // Add 8 bytes for variant tag
+                            enum_bytes = i64_to_le_bytes(variant_pos)
+
+                            // Add payload bytes if present
+                            if not(NULL.eq(enum_val.payload.data)) {
+                                mut enum_payload_vec := Vec.new(U8)
+                                memcpy(to_ptr(enum_payload_vec), enum_val.payload.data, size_of(Vec))
+                                for pi in 0..enum_payload_vec.len() {
+                                    mut pb := U8.from_i64(0)
+                                    enum_payload_vec.get(pi, pb)
+                                    enum_bytes.push(pb)
+                                }
+                            }
+
+                            payload_bytes = enum_bytes
+                            handled_payload = true
+                        case:
+                            throw e.error(context.path, "eval", format("Unsupported payload type: ", value_type_to_str(variant_type)))
                         }
-                    case:
-                        throw e.error(context.path, "eval", format("Unsupported payload type: ", value_type_to_str(variant_type)))
                     }
-
-                    // Store payload in temp location for insert_enum to use
-                    mut temp_payload := EnumPayload(data=payload_bytes, value_type=variant_type)
-                    context.temp_enum_payload.data = to_ptr(temp_payload)
-
-                    // Return the enum variant name
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    catch (err: KeyNotFoundError) { throw err.msg }
-                    return EvalResult.new(format(enum_type, ".", variant_name))
+                case:
+                    throw e.error(context.path, "eval", format("Unsupported payload type: ", value_type_to_str(variant_type)))
                 }
-            } else {
-                // This variant doesn't have a payload, but constructor was called with args
-                if e.params.len().gt(1) {
-                    throw e.error(context.path, "eval", format("Enum variant ", enum_type, ".", variant_name, " does not take a payload"))
-                }
+
+                // Store payload in temp location for insert_enum to use
+                mut temp_payload := EnumPayload(data=payload_bytes, value_type=variant_type)
+                context.temp_enum_payload.data = to_ptr(temp_payload)
+
+                // Return the enum variant name
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                catch (err: KeyNotFoundError) { throw err.msg }
+                return EvalResult.new(format(enum_type, ".", variant_name))
             }
-            if not(has_variant) {
-                throw e.error(context.path, "eval", format("Enum ", enum_type, " does not have variant ", variant_name))
+        } else {
+            // This variant doesn't have a payload, but constructor was called with args
+            if e.params.len().gt(1) {
+                throw e.error(context.path, "eval", format("Enum variant ", enum_type, ".", variant_name, " does not take a payload"))
             }
+        }
+        if not(has_variant) {
+            throw e.error(context.path, "eval", format("Enum ", enum_type, " does not have variant ", variant_name))
         }
     }
 

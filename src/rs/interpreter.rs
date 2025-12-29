@@ -936,18 +936,17 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
     let combined_name = &get_combined_name(&context.path, func_expr)?;
 
     // Check if this is an enum constructor call (e.g., Color.Green(true))
-    let parts: Vec<&str> = combined_name.split('.').collect();
-    if parts.len() == 2 {
+    if context.scope_stack.is_enum_constructor(combined_name) {
+        // Extract enum_type and variant_name
+        let parts: Vec<&str> = combined_name.split('.').collect();
         let enum_type = parts[0];
-        if context.scope_stack.lookup_enum(enum_type).is_some() {
-            // This is an enum constructor!
-            let variant_name = parts[1];
+        let variant_name = parts[1];
 
-            // Get the enum definition to check if this variant has a payload type
-            let enum_def = context.scope_stack.lookup_enum(enum_type).unwrap();
-            let variant_type = enum_def.get(variant_name).cloned();
+        // Get the enum definition to check if this variant has a payload type
+        let enum_def = context.scope_stack.lookup_enum(enum_type).unwrap();
+        let variant_type = enum_def.get(variant_name).cloned();
 
-            match variant_type {
+        match variant_type {
                 Some(Some(payload_type)) => {
                     // This variant expects a payload
                     if e.params.len() < 2 {
@@ -1146,10 +1145,9 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                     if e.params.len() > 1 {
                         return Err(e.error(&context.path, "eval", &format!("Enum variant {}.{} does not take a payload", enum_type, variant_name)));
                     }
-                },
-                None => {
-                    return Err(e.error(&context.path, "eval", &format!("Enum {} does not have variant {}", enum_type, variant_name)));
-                }
+            },
+            None => {
+                return Err(e.error(&context.path, "eval", &format!("Enum {} does not have variant {}", enum_type, variant_name)));
             }
         }
     }

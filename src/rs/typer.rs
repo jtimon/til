@@ -2005,16 +2005,8 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
             }
 
             // Check for enum constructors (e.g., Color.Green(true))
-            let parts: Vec<&str> = combined_name.split('.').collect();
-            if parts.len() == 2 {
-                let enum_type = parts[0];
-                if let Some(enum_def) = context.scope_stack.lookup_enum(enum_type) {
-                    let variant_name = parts[1];
-                    if enum_def.contains_key(variant_name) {
-                        // This is a valid enum constructor
-                        return Ok(None) // Allow enum construction
-                    }
-                }
+            if context.scope_stack.is_enum_constructor(&combined_name) {
+                return Ok(None) // Allow enum construction
             }
 
             // UFCS for chained calls: func(result, args) -> Type.func(result, args)

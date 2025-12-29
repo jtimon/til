@@ -12,9 +12,9 @@
 #define false ((til_Bool){0})
 
 // single_print: print a string without newline
-static inline void til_single_print(til_Str s)
+static inline void til_single_print(const til_Str* s)
 {
-    printf("%s", (char*)s.c_string);
+    printf("%s", (char*)s->c_string);
 }
 
 // print_flush: flush stdout
@@ -30,113 +30,113 @@ static inline til_I64 til_to_ptr(til_I64* p)
 }
 
 // Type conversion helpers
-static inline til_I64 til_u8_to_i64(til_U8 v)
+static inline til_I64 til_u8_to_i64(const til_U8* v)
 {
-    return (til_I64)v;
+    return (til_I64)*v;
 }
 
-static inline til_U8 til_i64_to_u8(til_I64 v)
+static inline til_U8 til_i64_to_u8(const til_I64* v)
 {
-    return (til_U8)v;
+    return (til_U8)*v;
 }
 
 // Arithmetic functions
-static inline til_Bool til_lt(til_I64 a, til_I64 b)
+static inline til_Bool til_lt(const til_I64* a, const til_I64* b)
 {
-    return (til_Bool){a < b};
+    return (til_Bool){*a < *b};
 }
 
-static inline til_Bool til_gt(til_I64 a, til_I64 b)
+static inline til_Bool til_gt(const til_I64* a, const til_I64* b)
 {
-    return (til_Bool){a > b};
+    return (til_Bool){*a > *b};
 }
 
-static inline til_I64 til_add(til_I64 a, til_I64 b)
+static inline til_I64 til_add(const til_I64* a, const til_I64* b)
 {
-    return a + b;
+    return *a + *b;
 }
 
-static inline til_I64 til_sub(til_I64 a, til_I64 b)
+static inline til_I64 til_sub(const til_I64* a, const til_I64* b)
 {
-    return a - b;
+    return *a - *b;
 }
 
-static inline til_I64 til_mul(til_I64 a, til_I64 b)
+static inline til_I64 til_mul(const til_I64* a, const til_I64* b)
 {
-    return a * b;
+    return *a * *b;
 }
 
-static inline til_I64 til_div(til_I64 a, til_I64 b)
+static inline til_I64 til_div(const til_I64* a, const til_I64* b)
 {
-    return b == 0 ? 0 : a / b;
+    return *b == 0 ? 0 : *a / *b;
 }
 
-static inline til_I64 til_mod(til_I64 a, til_I64 b)
+static inline til_I64 til_mod(const til_I64* a, const til_I64* b)
 {
-    return b == 0 ? 0 : a % b;
+    return *b == 0 ? 0 : *a % *b;
 }
 
 // Memory functions
-static inline int til_malloc(til_I64* _ret, til_AllocError* _err, til_I64 size)
+static inline int til_malloc(til_I64* _ret, til_AllocError* _err, const til_I64* size)
 {
-    *_ret = (til_I64)malloc((size_t)size);
+    *_ret = (til_I64)malloc((size_t)*size);
     return 0;
 }
 
-static inline void til_free(til_I64 ptr)
+static inline void til_free(const til_I64* ptr)
 {
-    free((void*)ptr);
+    free((void*)*ptr);
 }
 
-static inline void til_memcpy(til_I64 dest, til_I64 src, til_I64 n)
+static inline void til_memcpy(const til_I64* dest, const til_I64* src, const til_I64* n)
 {
-    memcpy((void*)dest, (void*)src, (size_t)n);
+    memcpy((void*)*dest, (void*)*src, (size_t)*n);
 }
 
-static inline til_I64 til_memcmp(til_I64 a, til_I64 b, til_I64 n)
+static inline til_I64 til_memcmp(const til_I64* a, const til_I64* b, const til_I64* n)
 {
-    return (til_I64)memcmp((void*)a, (void*)b, (size_t)n);
+    return (til_I64)memcmp((void*)*a, (void*)*b, (size_t)*n);
 }
 
-static inline void til_memset(til_I64 ptr, til_U8 value, til_I64 n)
+static inline void til_memset(const til_I64* ptr, const til_U8* value, const til_I64* n)
 {
-    memset((void*)ptr, (int)value, (size_t)n);
+    memset((void*)*ptr, (int)*value, (size_t)*n);
 }
 
 // Process control
-static inline void til_exit(til_I64 code)
+static inline void til_exit(const til_I64* code)
 {
-    exit((int)code);
+    exit((int)*code);
 }
 
 // String conversion functions
-static inline til_Str til_i64_to_str(til_I64 v)
+static inline til_Str til_i64_to_str(const til_I64* v)
 {
     char* buf = (char*)malloc(32);
     if (!buf) {
         til_Str s = {0, 0};
         return s;
     }
-    snprintf(buf, 32, "%lld", (long long)v);
+    snprintf(buf, 32, "%lld", (long long)*v);
     til_Str s;
     s.c_string = (til_I64)buf;
     s.cap = strlen(buf);
     return s;
 }
 
-static inline til_I64 til_str_to_i64(til_Str s)
+static inline til_I64 til_str_to_i64(const til_Str* s)
 {
-    return (til_I64)strtoll((const char*)s.c_string, NULL, 10);
+    return (til_I64)strtoll((const char*)s->c_string, NULL, 10);
 }
 
 // I/O functions
 
 // input_read_line: read a line from stdin, displaying prompt first
-static inline til_Str til_input_read_line(til_Str prompt)
+static inline til_Str til_input_read_line(const til_Str* prompt)
 {
     // Print the prompt if non-empty
-    if (prompt.cap > 0) {
-        printf("%.*s", (int)prompt.cap, (const char*)prompt.c_string);
+    if (prompt->cap > 0) {
+        printf("%.*s", (int)prompt->cap, (const char*)prompt->c_string);
         fflush(stdout);
     }
     char* buf = (char*)malloc(4096);
@@ -154,9 +154,9 @@ static inline til_Str til_input_read_line(til_Str prompt)
 }
 
 // readfile: read entire file contents
-static inline til_Str til_readfile(til_Str path)
+static inline til_Str til_readfile(const til_Str* path)
 {
-    FILE* f = fopen((const char*)path.c_string, "rb");
+    FILE* f = fopen((const char*)path->c_string, "rb");
     if (!f) {
         til_Str s = {0, 0};
         return s;
@@ -180,13 +180,13 @@ static inline til_Str til_readfile(til_Str path)
 }
 
 // writefile: write string to file
-static inline til_I64 til_writefile(til_Str path, til_Str contents)
+static inline til_I64 til_writefile(const til_Str* path, const til_Str* contents)
 {
-    FILE* f = fopen((const char*)path.c_string, "wb");
+    FILE* f = fopen((const char*)path->c_string, "wb");
     if (!f) {
         return -1;
     }
-    size_t written = fwrite((const char*)contents.c_string, 1, contents.cap, f);
+    size_t written = fwrite((const char*)contents->c_string, 1, contents->cap, f);
     fclose(f);
     return (til_I64)written;
 }
@@ -259,7 +259,7 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
 // TODO: Implement actual eval_file functionality for compiled mode if needed
 // This would require reading, parsing, and evaluating TIL files at runtime,
 // which would essentially embed the full interpreter into the compiled binary.
-static inline void til_eval_file(til_Str* path) {
+static inline void til_eval_file(const til_Str* path) {
     printf("Error: eval_file is not available in compiled mode.\n");
     printf("Use 'til repl' with the interpreted version instead.\n");
     exit(1);

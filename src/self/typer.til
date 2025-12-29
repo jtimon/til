@@ -2599,31 +2599,8 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
         }
 
         // Check for enum constructors (e.g., Color.Green(true))
-        if combined_name.contains(".") {
-            mut parts := combined_name.split(".")
-            if parts.len().eq(2) {
-                mut enum_type := ""
-                parts.get(0, enum_type)
-                mut enum_found := false
-                mut enum_def := SEnumDef()
-                enum_def = context.scope_stack.lookup_enum(enum_type)
-                enum_found = true
-                catch (enum_err: KeyNotFoundError) {
-                    // Enum not found, continue
-                }
-                if enum_found {
-                    mut variant_name := ""
-                    parts.get(1, variant_name)
-                    if enum_def.contains_key(variant_name) {  // Bug #38 fix
-                        // This is a valid enum constructor
-                        parts.delete()
-                        throw KeyNotFoundError(msg=format("Enum constructor: ", combined_name))
-                    }
-                }
-                parts.delete()
-            } else {
-                parts.delete()
-            }
+        if context.scope_stack.is_enum_constructor(combined_name) {
+            throw KeyNotFoundError(msg=format("Enum constructor: ", combined_name))
         }
 
         // UFCS for chained calls: func(result, args) -> Type.func(result, args)
