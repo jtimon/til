@@ -70,10 +70,28 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
         throw e.error(context.path, "precomp", "Named arguments are not supported for variadic functions")
     }
 
+    // Bug #61: Check if there are optional args before variadic that might need defaults
+    // This happens when the provided arg type doesn't match the optional arg type
+    mut has_optional_before_variadic := false
+    if is_variadic.and(func_def.args.len().gt(1)) {
+        mut j := 0
+        while j.lt(func_def.args.len().sub(1)) {
+            mut def_arg := Declaration()
+            func_def.args.get(j, def_arg)
+            if not(NULL.eq(def_arg.default_value.data)) {
+                has_optional_before_variadic = true
+            }
+            j.inc()
+        }
+    }
+
     // Check if we need to fill in default values (fewer args than params)
-    // Don't apply to variadic functions
+    // Don't apply to variadic functions (unless they have optional args before the variadic)
     mut needs_defaults := false
     if not(is_variadic).and(call_args_len.lt(func_def.args.len())) {
+        needs_defaults = true
+    }
+    if has_optional_before_variadic {
         needs_defaults = true
     }
 
@@ -84,6 +102,61 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
 
     mut result := Vec.new(Expr)
     result.push(e.get(0)) // Keep function identifier
+
+    // Bug #61: Handle variadic functions with optional args before the variadic
+    // Need to insert defaults for skipped optional args, then include all provided args
+    if has_optional_before_variadic {
+        mut def_arg_idx: I64 = 0
+        mut call_arg_idx: I64 = 0
+
+        // Process optional args before the variadic
+        while def_arg_idx.lt(func_def.args.len().sub(1)) {
+            mut def_arg := Declaration()
+            func_def.args.get(def_arg_idx, def_arg)
+
+            // Check if we have a provided arg that matches this def arg's type
+            mut matches := false
+            if call_arg_idx.lt(call_args_len) {
+                mut provided_arg := e.get(call_arg_idx.add(1))
+                mut found_type := ValueType.TCustom("")
+                found_type = get_value_type(context, provided_arg)
+                catch (type_err: Str) {}
+                expected := def_arg.value_type
+                switch expected {
+                case ValueType.TCustom(tn):
+                    if tn.eq("Dynamic").or(tn.eq("Type")) {
+                        matches = true
+                    } else {
+                        matches = value_type_to_str(expected).eq(value_type_to_str(found_type))
+                    }
+                case:
+                    matches = value_type_to_str(expected).eq(value_type_to_str(found_type))
+                }
+            }
+
+            if matches {
+                // Use provided arg
+                result.push(e.get(call_arg_idx.add(1)))
+                call_arg_idx.inc()
+            } else if not(NULL.eq(def_arg.default_value.data)) {
+                // Use default - dereference the Ptr to Expr
+                mut default_expr := Expr()
+                memcpy(to_ptr(default_expr), def_arg.default_value.data, size_of(Expr))
+                result.push(default_expr.clone())
+            } else {
+                throw e.error(context.path, "precomp", format("Missing argument for non-optional parameter '", def_arg.name, "'"))
+            }
+            def_arg_idx.inc()
+        }
+
+        // Add remaining provided args (for variadic)
+        while call_arg_idx.lt(call_args_len) {
+            result.push(e.get(call_arg_idx.add(1)))
+            call_arg_idx.inc()
+        }
+
+        return Expr.new_clone(NodeType.FCall, e, result)
+    }
 
     // Count positional args (before first named arg)
     mut positional_count := 0

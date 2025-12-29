@@ -492,18 +492,8 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
     }
 
     let max_arg_def = func_def.args.len();
+    let mut def_arg_idx: usize = 0;  // Bug #61: Track definition arg separately from provided arg
     for i in 0..e.params.len() - 1 {
-        let arg = match func_def.args.get(std::cmp::min(i, max_arg_def - 1)) {
-            Some(arg) => arg,
-            None => {
-                errors.push(e.lang_error(&context.path, "type", &format!("argument index {} out of bounds for function '{}'", i, f_name)));
-                return errors;
-            }
-        };
-        let expected_type = &match &arg.value_type {
-            ValueType::TMulti(inner_type_name) => str_to_value_type(&inner_type_name.clone()),
-            _ => arg.value_type.clone(),
-        };
         let arg_expr = match e.get(i + 1) {
             Ok(expr) => expr,
             Err(err) => {
@@ -511,8 +501,63 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
                 return errors;
             }
         };
+
         // Function call arguments are being used (passed to the function)
+        // This must happen BEFORE get_value_type so undefined symbol errors are detected
         errors.extend(check_types_with_context(context, &arg_expr, ExprContext::ValueUsed));
+
+        // Bug #61: Get provided type early to check if we should skip optional args
+        let found_type = match get_value_type(&context, arg_expr) {
+            Ok(val_type) => val_type,
+            Err(error_string) => {
+                errors.push(error_string);
+                return errors;
+            },
+        };
+
+        // Bug #61: Skip optional args before variadic when type doesn't match
+        while def_arg_idx < max_arg_def {
+            let current_def = &func_def.args[def_arg_idx];
+            let expected = match &current_def.value_type {
+                ValueType::TMulti(inner) => str_to_value_type(&inner.clone()),
+                _ => current_def.value_type.clone(),
+            };
+
+            // Check if types are compatible
+            let types_ok = match &expected {
+                ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => true,
+                _ => &expected == &found_type,
+            };
+
+            if types_ok {
+                break;  // Use this def arg
+            }
+
+            // Types don't match - check if we can skip this optional arg
+            let has_default = current_def.default_value.is_some();
+            let variadic_follows = def_arg_idx + 1 < max_arg_def &&
+                matches!(&func_def.args[def_arg_idx + 1].value_type, ValueType::TMulti(_));
+
+            if has_default && variadic_follows {
+                def_arg_idx += 1;
+                continue;
+            }
+
+            break;  // Can't skip, will report type error
+        }
+
+        let arg = match func_def.args.get(std::cmp::min(def_arg_idx, max_arg_def - 1)) {
+            Some(arg) => arg,
+            None => {
+                errors.push(e.lang_error(&context.path, "type", &format!("argument index {} out of bounds for function '{}'", def_arg_idx, f_name)));
+                return errors;
+            }
+        };
+        let expected_type = &match &arg.value_type {
+            ValueType::TMulti(inner_type_name) => str_to_value_type(&inner_type_name.clone()),
+            _ => arg.value_type.clone(),
+        };
+        // Note: check_types_with_context called earlier in loop (before found_type calculation)
 
         // Check mut parameter requirements
         if arg.is_mut {
@@ -584,13 +629,7 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
             }
         }
 
-        let found_type = match get_value_type(&context, arg_expr) {
-            Ok(val_type) => val_type,
-            Err(error_string) => {
-                errors.push(error_string);
-                return errors;
-            },
-        };
+        // Note: found_type was already computed at start of loop for Bug #61 skip logic
         match expected_type {
             ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => {}, // Accept any type for Dynamic/Type-typed argument
             ValueType::TCustom(tn) if tn == INFER_TYPE => {
@@ -620,6 +659,11 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
                     context.scope_stack.remove_symbol(var_name);
                 }
             }
+        }
+
+        // Bug #61: Advance def_arg_idx for non-variadic args
+        if !matches!(&arg.value_type, ValueType::TMulti(_)) {
+            def_arg_idx += 1;
         }
     }
 

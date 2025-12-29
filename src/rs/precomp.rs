@@ -73,9 +73,14 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
         return Err(e.error(&context.path, "precomp", "Named arguments are not supported for variadic functions"));
     }
 
+    // Bug #61: Check if there are optional args before variadic that might need defaults
+    // This happens when the provided arg type doesn't match the optional arg type
+    let has_optional_before_variadic = is_variadic && func_def.args.len() > 1 &&
+        func_def.args.iter().take(func_def.args.len() - 1).any(|a| a.default_value.is_some());
+
     // Check if we need to fill in default values (fewer args than params)
-    // Don't apply to variadic functions
-    let needs_defaults = !is_variadic && call_args.len() < func_def.args.len();
+    // Don't apply to variadic functions (unless they have optional args before the variadic)
+    let needs_defaults = (!is_variadic && call_args.len() < func_def.args.len()) || has_optional_before_variadic;
 
     // If no named args and no defaults needed, return unchanged
     if !has_named_args && !needs_defaults {
@@ -83,6 +88,50 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
     }
 
     let mut result = vec![e.params[0].clone()]; // Keep function identifier
+
+    // Bug #61: Handle variadic functions with optional args before the variadic
+    // Need to insert defaults for skipped optional args, then include all provided args
+    if has_optional_before_variadic {
+        let mut def_arg_idx: usize = 0;
+        let mut call_arg_idx: usize = 0;
+
+        // Process optional args before the variadic
+        while def_arg_idx < func_def.args.len() - 1 {  // -1 to stop before variadic
+            let def_arg = &func_def.args[def_arg_idx];
+
+            // Check if we have a provided arg that matches this def arg's type
+            let mut matches = false;
+            if call_arg_idx < call_args.len() {
+                let provided_arg = &call_args[call_arg_idx];
+                if let Ok(found_type) = get_value_type(&context, provided_arg) {
+                    let expected = &def_arg.value_type;
+                    matches = match expected {
+                        ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => true,
+                        _ => expected == &found_type,
+                    };
+                }
+            }
+
+            if matches {
+                // Use provided arg
+                result.push(call_args[call_arg_idx].clone());
+                call_arg_idx += 1;
+            } else if let Some(default_expr) = &def_arg.default_value {
+                // Use default
+                result.push((**default_expr).clone());
+            } else {
+                return Err(e.error(&context.path, "precomp", &format!("Missing argument for non-optional parameter '{}'", def_arg.name)));
+            }
+            def_arg_idx += 1;
+        }
+
+        // Add remaining provided args (for variadic)
+        for i in call_arg_idx..call_args.len() {
+            result.push(call_args[i].clone());
+        }
+
+        return Ok(Expr::new_clone(NodeType::FCall, e, result));
+    }
 
     // Count positional args (before first named arg)
     let mut positional_count = 0;

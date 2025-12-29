@@ -733,7 +733,7 @@ test_optional_before_variadic := proc() {
     assert_eq_str(loc(), "[2] hello world", log_with_level(2, "hello ", "world"))
 
     // Default level - should use default when type doesn't match
-    // Bug #61: Currently fails at type check - "hello" goes to level position causing type error
-    // assert_eq_str(loc(), "[1] hello world", log_with_level("hello ", "world"))
+    // Bug #61 fixed: typer now skips optional args before variadic when type doesn't match
+    assert_eq_str(loc(), "[1] hello world", log_with_level("hello ", "world"))
 }
-// test_optional_before_variadic() // TODO Bug #61: Uncomment when typer handles optional+variadic type mismatch
+test_optional_before_variadic()

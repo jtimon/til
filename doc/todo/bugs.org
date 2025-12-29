@@ -8,65 +8,6 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #61: Optional args before variadic don't use default when type mismatches
-:PROPERTIES:
-:DISCOVERED: 2025-12-29
-:IMPACT: Cannot have optional args before variadic with type-based defaulting
-:STATUS: Active
-:END:
-
-*** Description
-When a function has an optional argument (with default value) before a variadic
-argument, and the caller omits the optional arg, the typer doesn't detect that
-the provided arg type doesn't match and use the default.
-
-Example:
-#+BEGIN_SRC til
-log_with_level := func(level: I64 = 1, messages: ..Str) returns Str { ... }
-
-log_with_level(2, "hello", "world")  // Works: level=2, messages=["hello", "world"]
-log_with_level("hello", "world")     // FAILS: "hello" goes to level position (type error)
-#+END_SRC
-
-This prevents patterns like `run_cmd(mut output: Str, timeout: I64 = 0, args: ..Str)`.
-
-*** Reproducing
-See test_optional_before_variadic in src/test/args.til.
-The failing assert and the test call are commented out.
-
-*** Expected Behavior
-When the provided arg type doesn't match the expected param type AND the param
-has a default value, the typer should:
-1. Use the default value for that param
-2. Shift the provided arg to the next position (variadic in this case)
-
-*** Workaround
-Use separate functions: run_cmd (no timeout) and run_cmd_timeout (with timeout).
-
-*** Fix Plan
-Root cause: In check_fcall (typer.rs line ~496), arg matching is purely positional:
-#+BEGIN_SRC rust
-let arg = match func_def.args.get(std::cmp::min(i, max_arg_def - 1)) { ... }
-#+END_SRC
-
-Fix approach - type-aware matching when optional args exist:
-1. Before assigning arg to param, check if type matches
-2. If param has default AND type doesn't match AND variadic follows:
-   - Skip this param (use default)
-   - Continue checking next optional param
-3. Handle multiple optional args before variadic:
-#+BEGIN_SRC til
-func(a: I64 = 1, b: Str = "x", c: Bool = false, msgs: ..Str)
-func("hello")           // a=1, b="x", c=false, msgs=["hello"]
-func(5, "hello")        // a=5, b="x", c=false, msgs=["hello"]
-func(5, "y", "hello")   // a=5, b="y", c=false, msgs=["hello"]
-#+END_SRC
-
-Files to modify:
-- src/rs/typer.rs - check_fcall function (lines 474-627)
-- src/self/typer.til - same changes
-- src/test/args.til - uncomment test_optional_before_variadic (line 739)
-
 ** Bug #60: ccodegen passes const args by value instead of by pointer
 :PROPERTIES:
 :DISCOVERED: 2025-12-28
@@ -124,6 +65,34 @@ This affects emit_arg_with_param_type, emit_expr (for Identifier), and
 potentially other places where arguments are emitted or used.
 
 * Fixed Bugs
+
+** Bug #61: Optional args before variadic don't use default when type mismatches
+:PROPERTIES:
+:DISCOVERED: 2025-12-29
+:FIXED: 2025-12-29
+:IMPACT: Cannot have optional args before variadic with type-based defaulting
+:STATUS: Fixed
+:END:
+
+*** Description
+When a function has an optional argument (with default value) before a variadic
+argument, and the caller omits the optional arg, the typer doesn't detect that
+the provided arg type doesn't match and use the default.
+
+*** Fix
+Modified check_fcall in typer.rs to track definition arg index separately from
+provided arg index. When type doesn't match and the param has a default value
+and variadic follows, skip the optional param and continue matching.
+
+Also modified precompute_fcall_args in precomp.rs to insert default values for
+skipped optional args before variadic.
+
+Files modified:
+- src/rs/typer.rs - check_fcall with def_arg_idx tracking and skip logic
+- src/rs/precomp.rs - reorder_named_args with optional-before-variadic handling
+- src/self/typer.til - same changes
+- src/self/precomp.til - same changes
+- src/test/args.til - uncommented test_optional_before_variadic test
 
 ** Bug #62: U8 type annotations generate I64 in C codegen
 :PROPERTIES:

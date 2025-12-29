@@ -643,9 +643,83 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
     }
 
     max_arg_def := func_def.args.len()
+    mut def_arg_idx: I64 = 0  // Bug #61: Track definition arg separately from provided arg
     for i in 0..e_clone.params.len().sub(1) {
-        // min(i, max_arg_def - 1)
-        mut arg_idx := i
+        mut arg_expr := Expr()
+        arg_expr = e_clone.get(i.add(1))
+        catch (get_err: Str) {
+            errors.push(get_err)
+            return errors
+        }
+
+        // Function call arguments are being used (passed to the function)
+        // This must happen BEFORE get_value_type so undefined symbol errors are detected
+        errors.extend(check_types_with_context(context, arg_expr, ExprContext.ValueUsed))
+
+        // Bug #61: Get provided type early to check if we should skip optional args
+        mut found_type := ValueType.TCustom("")
+        found_type = get_value_type(context, arg_expr)
+        catch (error_string: Str) {
+            errors.push(error_string)
+            return errors
+        }
+
+        // Bug #61: Skip optional args before variadic when type doesn't match
+        while def_arg_idx.lt(max_arg_def) {
+            mut current_def := Declaration()
+            func_def.args.get(def_arg_idx, current_def)
+            catch (idx_err: IndexOutOfBoundsError) {
+                break
+            }
+
+            mut expected := current_def.value_type
+            switch current_def.value_type {
+            case ValueType.TMulti(inner):
+                expected = str_to_value_type(inner)
+            case:
+            }
+
+            // Check if types are compatible
+            mut types_ok := false
+            switch expected {
+            case ValueType.TCustom(tn):
+                if tn.eq("Dynamic").or(tn.eq("Type")) {
+                    types_ok = true
+                } else {
+                    types_ok = value_type_to_str(expected).eq(value_type_to_str(found_type))
+                }
+            case:
+                types_ok = value_type_to_str(expected).eq(value_type_to_str(found_type))
+            }
+
+            if types_ok {
+                break  // Use this def arg
+            }
+
+            // Types don't match - check if we can skip this optional arg
+            has_default := not(NULL.eq(current_def.default_value.data))
+            mut variadic_follows := false
+            if def_arg_idx.add(1).lt(max_arg_def) {
+                mut next_def := Declaration()
+                func_def.args.get(def_arg_idx.add(1), next_def)
+                catch (idx_err: IndexOutOfBoundsError) {}
+                switch next_def.value_type {
+                case ValueType.TMulti(_):
+                    variadic_follows = true
+                case:
+                }
+            }
+
+            if has_default.and(variadic_follows) {
+                def_arg_idx = def_arg_idx.add(1)
+                continue
+            }
+
+            break  // Can't skip, will report type error
+        }
+
+        // min(def_arg_idx, max_arg_def - 1)
+        mut arg_idx := def_arg_idx
         if arg_idx.gteq(max_arg_def) {
             arg_idx = max_arg_def.sub(1)
         }
@@ -653,7 +727,7 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
         mut arg := Declaration()
         func_def.args.get(arg_idx, arg)
         catch (idx_err: IndexOutOfBoundsError) {
-            errors.push(e_clone.lang_error(context.path, "type", format("argument index ", I64.to_str(i), " out of bounds for function '", f_name, "'")))
+            errors.push(e_clone.lang_error(context.path, "type", format("argument index ", I64.to_str(def_arg_idx), " out of bounds for function '", f_name, "'")))
             return errors
         }
 
@@ -666,15 +740,7 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
             // Keep as-is
         }
 
-        mut arg_expr := Expr()
-        arg_expr = e_clone.get(i.add(1))
-        catch (get_err: Str) {
-            errors.push(get_err)
-            return errors
-        }
-
-        // Function call arguments are being used (passed to the function)
-        errors.extend(check_types_with_context(context, arg_expr, ExprContext.ValueUsed))
+        // Note: check_types_with_context called earlier in loop (before found_type calculation)
 
         // Check mut parameter requirements
         if arg.is_mut {
@@ -758,13 +824,7 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
         }
 
-        mut found_type := ValueType.TCustom("")
-        found_type = get_value_type(context, arg_expr)
-        catch (error_string: Str) {
-            errors.push(error_string)
-            return errors
-        }
-
+        // Note: found_type was already computed at start of loop for Bug #61 skip logic
         // Check type compatibility
         switch expected_type {
         case ValueType.TCustom(tn):
@@ -803,6 +863,14 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case:
                 // Not an identifier
             }
+        }
+
+        // Bug #61: Advance def_arg_idx for non-variadic args
+        switch arg.value_type {
+        case ValueType.TMulti(_):
+            // Variadic - don't advance
+        case:
+            def_arg_idx = def_arg_idx.add(1)
         }
     }
 
