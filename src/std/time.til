@@ -1,0 +1,8 @@
+mode liba
+
+import("core.exit")
+
+now_ms := func() returns I64 {
+    TODO(loc(), "implement now_ms")
+    return 0
+}
