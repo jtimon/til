@@ -8,7 +8,7 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #60: ccodegen passes const args by value instead of by pointer
+** Bug #60: ccodegen passes const/own args by value instead of by pointer
 :PROPERTIES:
 :DISCOVERED: 2025-12-28
 :IMPACT: Stack overflow on recursive functions with large struct args
@@ -16,48 +16,58 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :END:
 
 *** Description
-In TIL, function arguments without `mut`, `copy`, or `own` modifiers should be
-passed as const by reference (const pointer in C). Currently, ccodegen.rs passes
-them by value, causing stack overflow when functions with large struct arguments
-(like Context, Expr) are called recursively.
+In TIL, function arguments should be passed as follows:
+- *const (default)*: by const pointer (const T*)
+- *own*: by pointer (T*) - caller transfers ownership
+- *mut*: by pointer (T*) - currently correct
+- *copy*: by value (T) - currently correct
+
+Currently, ccodegen.rs passes const and own args by value, causing stack
+overflow when functions with large struct arguments are called recursively.
 
 *** Reproducing
-#+BEGIN_SRC bash
-./bin/til build src/examples/empty.til  # Segfault (stack overflow)
+Inspect gen/c/test/args.c after running ~./bin/rstil run src/test/args.til~:
+
+#+BEGIN_SRC c
+// WRONG - const args passed by value:
+til_I64 til_test_i64_arg(const til_I64 til_n);
+til_Bool til_test_bool_arg(const til_Bool til_b);
+
+// WRONG - own args passed by value:
+til_I64 til_consume_i64(til_I64 til_n);
+til_I64 til_consume_vec(til_Vec2 til_v);
+
+// CORRECT - mut args passed by pointer:
+til_I64 til_mixed_params(const til_I64 til_normal, til_I64* til_m, til_I64 til_o);
+
+// CORRECT - copy args passed by value:
+til_I64 til_test_copy_i64(til_I64 til_x);
+til_Vec2 til_test_copy_struct(til_Vec2 til_v);
 #+END_SRC
 
-*** Root Cause
-In ccodegen.rs:2754-2758, the default case (no mut/copy/own) generates:
-#+BEGIN_SRC rust
-} else {
-    // const: pass by value, read-only
-    output.push_str("const ");
-    output.push_str(&arg_type);
-    output.push_str(" ");
-}
-#+END_SRC
+Expected signatures:
+#+BEGIN_SRC c
+// const args should be const pointers:
+til_I64 til_test_i64_arg(const til_I64* til_n);
+til_Bool til_test_bool_arg(const til_Bool* til_b);
 
-This produces `const til_Context til_context` (by value) instead of
-`const til_Context* til_context` (by pointer).
+// own args should be pointers:
+til_I64 til_consume_i64(til_I64* til_n);
+til_I64 til_consume_vec(til_Vec2* til_v);
+#+END_SRC
 
 *** Fix
 Requires changes in three places in ccodegen.rs:
 
-1. *emit_func_signature* - Change signature generation:
-#+BEGIN_SRC rust
-} else {
-    // const: pass by const pointer, read-only
-    output.push_str("const ");
-    output.push_str(&arg_type);
-    output.push_str("* ");
-}
-#+END_SRC
+1. *emit_func_signature* - Change signature generation for const and own:
+   - const: ~const til_Type* til_arg~
+   - own: ~til_Type* til_arg~
 
-2. *Call sites* - Pass address for const args:
+2. *Call sites* - Pass address for const/own args:
    - Currently: ~func(arg)~
    - Should be: ~func(&arg)~
 
-3. *Inside function bodies* - Dereference const pointer args:
+3. *Inside function bodies* - Dereference const/own pointer args:
    - Currently: ~til_arg.field~ or ~til_arg~
    - Should be: ~til_arg->field~ or ~(*til_arg)~
 
