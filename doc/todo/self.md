@@ -71,20 +71,46 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Also removed all `catch (err: DuplicatedKeyError)` blocks since `.set()` doesn't throw.
   - Simplified `declare_var` to just `throws Str` (matching Rust's `Result<(), String>`).
 
-### Current Focus (2025-12-28)
+### Current Focus (2025-12-30)
 **Fix all til_interpreted tests first, then til_compiled**
 
 Phase 1: Get all rs_common tests working with `./bin/til interpret`.
 
-Working tests (10):
-- empty.til, hello_cli.til, hello_lib.til, hello_liba.til, hello_pura.til
-- hello_pure.til, hello_script.til, bug48.til, exit.til, function_pointers.til
+Working tests (38/68):
+- examples: empty, hello_cli, hello_lib, hello_liba, hello_pura, hello_pure, hello_script, hello_test, lolalalo
+- tests: arithmetics, bools, branchless, bug41, bug46, bug48, bug57, c_mem, circular_test,
+  comparisons, constfold, cross_file_forward, eval, exit, fibonacci, flow, func_purity,
+  function_pointers, intro, literals, namespaces, parallel_cmd, pointers, return_value_usage,
+  scope_isolation, strings, u8, underscore, variadic
 
-Failing tests (57): See src/tests.til for TODO comments with specific errors.
+Failing tests (30/68) by category:
 
-Common error patterns in til_interpreted:
-- `___temp_return_val_X not found` - temp variable scoping issue in interpreter
-- `no body found for 'X'` - function resolution issue in interpreter
+**Source 'X' not found in caller context (10 tests)**
+- arenas ('0'), arrays ('10'), clone ('10'), deterministic ('1')
+- lists ('42'), loops ('10'), maps ('100'), modes ('panic')
+- mut_test ('10'), sets ('hello')
+
+**Enum variant payload type 'unknown' not yet supported (4 tests)**
+- bug56, editor_mode_test, enums, forward_declarations
+
+**Segmentation fault (5 tests)**
+- args, bug47, optional_args, ufcs, til.til help
+
+**Undefined symbol 'X' (2 tests)**
+- test_parser ('vt'), vecs ('p1')
+
+**Output mismatch (3 tests)**
+- bug49 (different error count)
+- bug50 (rstil vs til prefix)
+- undefined (rstil vs til prefix)
+
+**Other errors (6 tests)**
+- bug43 - assert_eq wrong value (expected '0', found '2130832128')
+- bug52 - concat: malloc failed
+- bug55 - assert_eq_str: expected 'hello', found ''
+- errors - string_from_context out of bounds
+- structs - assert_eq: expected '10', found garbage
+- test_lexer - String range comparisons not yet supported
 
 Phase 2: Once til_interpreted tests pass, fix til_compiled:
 ```bash
@@ -98,13 +124,13 @@ This is a separate scavenger bug that doesn't affect rstil.
 3. ~~Typer~~ ✓
 4. ~~Precomp~~ ✓
 5. Scavenger ← issues remain for some tests
-6. ~~Eval/Interpreter~~ ✓ (10/67 tests working)
+6. ~~Eval/Interpreter~~ ✓ (38/68 tests working)
 7. Builder/Codegen ← til_compiled not yet working
 
 ## Milestones
 1. ~~`./bin/til interpret src/examples/empty.til`~~ ✓ DONE
 2. ~~`./bin/til interpret src/examples/hello_script.til`~~ ✓ DONE
-3. All rs_common tests pass with `./bin/til interpret` ← current target (10/67 working)
+3. All til_interpreted tests pass ← current target (38/68 working, 56%)
 4. `./bin/til run src/examples/empty.til` (scavenger bug)
 
 ## Build Commands Reference (from Makefile)
