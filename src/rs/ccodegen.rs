@@ -4897,10 +4897,13 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     if decl.name == "_" {
         if !expr.params.is_empty() {
             output.push_str(&indent_str);
-            emit_expr(&expr.params[0], output, indent, ctx, context)?;
-            // emit_expr at statement level (indent > 0) adds ";\n" for FCall
-            // For other expressions, we may need to add it
-            if !output.ends_with(";\n") {
+            // FCall at statement level (indent > 0) adds ";\n" itself
+            // Other expressions need semicolon added explicitly
+            let is_fcall = matches!(&expr.params[0].node_type, NodeType::FCall);
+            if is_fcall {
+                emit_expr(&expr.params[0], output, indent, ctx, context)?;
+            } else {
+                emit_expr(&expr.params[0], output, 0, ctx, context)?;
                 output.push_str(";\n");
             }
         }

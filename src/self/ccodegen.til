@@ -6993,9 +6993,14 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             mut rhs := Expr()
             expr.params.get(0, rhs)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            result = emit_expr(rhs, result, indent, ctx, context)
-            if not(result.ends_with(";\n")) {
-                result = result.concat(";\n")
+            // FCall at statement level (indent > 0) adds ";\n" itself
+            // Other expressions need semicolon added explicitly
+            switch rhs.node_type {
+                case NodeType.FCall:
+                    result = emit_expr(rhs, result, indent, ctx, context)
+                case:
+                    result = emit_expr(rhs, result, 0, ctx, context)
+                    result = result.concat(";\n")
             }
         }
         return result
