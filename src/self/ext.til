@@ -684,3 +684,12 @@ proc_sleep := proc(mut context: Context, e: Expr) returns EvalResult throws Str 
 
     return EvalResult.new("")
 }
+
+proc_get_thread_count := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "get_thread_count", 0, true)
+
+    // Call host-provided get_thread_count (when running on rstil)
+    count := get_thread_count()
+
+    return EvalResult.new(count.to_str())
+}

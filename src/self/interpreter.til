@@ -3144,6 +3144,8 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return proc_check_cmd_status(context, e)
     } else if name.eq("sleep") {
         return proc_sleep(context, e)
+    } else if name.eq("get_thread_count") {
+        return proc_get_thread_count(context, e)
     } else if name.eq("eval_file") {
         return proc_eval_file(context, e)
     } else if name.eq("has_const") {

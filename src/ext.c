@@ -315,6 +315,13 @@ static inline int til_sleep(void* _err_v, const til_I64* ms) {
     return 0;
 }
 
+// get_thread_count: Returns number of logical processors (threads)
+static inline til_I64 til_get_thread_count(void) {
+    SYSTEM_INFO sysinfo;
+    GetSystemInfo(&sysinfo);
+    return (til_I64)sysinfo.dwNumberOfProcessors;
+}
+
 #else  // Unix
 
 #include <unistd.h>
@@ -357,6 +364,12 @@ static inline int til_sleep(void* _err_v, const til_I64* ms) {
     (void)_err_v;  // unused - sleep doesn't throw on success
     usleep((useconds_t)(*ms * 1000));
     return 0;
+}
+
+// get_thread_count: Returns number of logical processors (threads)
+static inline til_I64 til_get_thread_count(void) {
+    long count = sysconf(_SC_NPROCESSORS_ONLN);
+    return count > 0 ? (til_I64)count : 1;
 }
 
 #endif  // _WIN32

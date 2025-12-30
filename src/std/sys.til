@@ -77,3 +77,13 @@ wait_cmd := proc(pid: I64) returns I64 throws SleepError {
  * Throws: SleepError if the sleep is interrupted by a signal or an OS error occurs.
  */
 sleep := ext_proc(milliseconds: I64) throws SleepError;
+
+/**
+ * Returns the number of hardware threads available on the current system.
+ *
+ * This typically equals the number of logical processors (including hyperthreading).
+ * For example, a 4-core CPU with hyperthreading returns 8.
+ *
+ * Returns: Number of threads (always >= 1)
+ */
+get_thread_count := ext_proc() returns I64;

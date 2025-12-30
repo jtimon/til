@@ -1,0 +1,260 @@
+mode cli
+
+import("std.sys")
+import("std.io")
+
+// test.til - Single test executor
+// Called by tests.til for parallel execution
+//
+// Usage: rstil interpret test.til <mode> <expected_status> <file> [args...]
+//
+// Modes: rs_interpreted, rs_compiled, til_interpreted, til_compiled
+// For "common" tests, tests.til calls this twice with different modes.
+//
+// Output file naming: gen/out/<path_without_src>.<mode>.<args_with_underscores>.actual.out
+// Example: gen/out/test/foo.rs_interpreted.actual.out
+// Example: gen/out/til.rs_interpreted.help.actual.out
+
+// Parse time output like "real\t0m0.042s" -> milliseconds
+parse_time_ms := func(time_output: Str) returns I64 throws AllocError, IndexOutOfBoundsError {
+    lines := time_output.split("\n")
+    for line: Str in lines {
+        if line.starts_with("real") {
+            m_pos := line.find("m")
+            s_pos := line.find("s")
+            if m_pos.gt(0) {
+                if s_pos.gt(m_pos) {
+                    sec_str := get_substr(line, m_pos.add(1), s_pos)
+                    parts := sec_str.split(".")
+                    if parts.len().eq(2) {
+                        mut whole := ""
+                        mut frac := ""
+                        parts.get(0, whole)
+                        parts.get(1, frac)
+                        while frac.len().lt(3) {
+                            frac = frac.concat("0")
+                        }
+                        if frac.len().gt(3) {
+                            frac = get_substr(frac, 0, 3)
+                        }
+                        return whole.to_i64().mul(1000).add(frac.to_i64())
+                    }
+                }
+            }
+        }
+    }
+    return sub(0, 1)
+}
+
+// Format milliseconds as "0.042s"
+format_time := func(ms: I64) returns Str {
+    if ms.lt(0) {
+        return "N/A"
+    }
+    secs := ms.div(1000)
+    millis := ms.mod(1000)
+    mut millis_str := millis.to_str()
+    while millis_str.len().lt(3) {
+        millis_str = concat("0", millis_str)
+    }
+    return secs.to_str().concat(".").concat(millis_str).concat("s")
+}
+
+// Generate unique actual output file path
+// path: src/test/foo.til -> gen/out/test/foo
+// mode: rs_interpreted, til_compiled, etc.
+// args: "help" -> ".help", "help foo" -> ".help_foo", "" -> ""
+get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
+    // Convert src/test/foo.til -> gen/out/test/foo
+    base := path.replace(".til", "").replace("src/", "gen/out/")
+
+    mut args_part := ""
+    if cmd_args.len().gt(0) {
+        // Replace spaces with underscores for filename safety
+        args_part = concat(".", cmd_args.replace(" ", "_"))
+    }
+
+    return format(base, ".", test_mode, args_part, ".actual.out")
+}
+
+// Get expected .out file path (same as tests.til's get_out_path)
+// For common tests, both modes compare against .interpreted.out
+get_expected_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str throws AllocError {
+    base := path.replace(".til", "").replace("src/", "gen/out/")
+    mut suffix := ""
+    if not(cmd_args.eq("")) {
+        suffix = concat(".", cmd_args.replace(" ", "."))
+    }
+    return base.concat(suffix).concat(".").concat(test_mode).concat(".out")
+}
+
+// Format expected file content
+format_expected := func(cmd_args: Str, exit_code: I64, output: Str) returns Str {
+    mut result := "args: "
+    result = result.concat(cmd_args).concat("\n")
+    result = result.concat("expected_status: ").concat(exit_code.to_str()).concat("\n")
+    result = result.concat("output:\n")
+    result = result.concat(output)
+    return result
+}
+
+// Get command prefix for mode
+get_cmd_prefix := func(test_mode: Str) returns Str {
+    switch test_mode {
+    case "rs_interpreted":
+        return "./bin/rstil interpret "
+    case "rs_compiled":
+        return "./bin/rstil run "
+    case "til_interpreted":
+        return "./bin/til interpret "
+    case "til_compiled":
+        return "./bin/til run "
+    case:
+        return ""
+    }
+}
+
+// Get output mode (which .out file to compare against)
+// For most modes, it matches the mode name
+// But compiled modes still use "compiled" for output comparison
+get_out_mode := func(test_mode: Str) returns Str {
+    switch test_mode {
+    case "rs_interpreted":
+        return "interpreted"
+    case "rs_compiled":
+        return "compiled"
+    case "til_interpreted":
+        return "interpreted"
+    case "til_compiled":
+        return "compiled"
+    case:
+        return "interpreted"
+    }
+}
+
+// Ensure parent directory exists
+ensure_parent_dir := proc(file_path: Str) throws AllocError {
+    mut last_slash := 0
+    for i in 0..file_path.len() {
+        if file_path.get_char(i).eq("/") {
+            last_slash = i
+        }
+    }
+    if last_slash.gt(0) {
+        dir := get_substr(file_path, 0, last_slash)
+        mut result := ""
+        _ := result.run_cmd("mkdir", "-p", dir)
+    }
+
+    catch (err: IndexOutOfBoundsError) { /* ignore */ }
+}
+
+// test_mode: rs_interpreted, rs_compiled, til_interpreted, til_compiled
+// out_mode: interpreted or compiled - which .out file to compare against
+main := proc(test_mode: Str, out_mode: Str, expected_status_str: Str, file: Str, extra_args: ..Str) {
+    expected_status := expected_status_str.to_i64()
+
+    // Collect extra args into single string
+    mut cmd_args := ""
+    for arg: Str in extra_args {
+        if cmd_args.len().gt(0) {
+            cmd_args = cmd_args.concat(" ")
+        }
+        cmd_args = cmd_args.concat(arg)
+    }
+
+    // Get command prefix for mode
+    cmd_prefix := get_cmd_prefix(test_mode)
+    if cmd_prefix.eq("") {
+        println("ERROR: Unknown mode '", test_mode, "'")
+        exit(1)
+    }
+
+    // Build command
+    mut cmd := cmd_prefix.concat(file)
+    if cmd_args.len().gt(0) {
+        cmd = cmd.concat(" ").concat(cmd_args)
+    }
+
+    // Run with timing
+    wrapped := format("LC_ALL=C bash -c 'time ", cmd, "' 2>&1")
+    mut full_output := ""
+    exit_code := full_output.run_cmd("bash", "-c", wrapped)
+
+    // Parse timing and output
+    mut output := ""
+    mut time_ms := 0
+
+    // Truncate huge outputs to prevent hangs
+    max_output := 1000
+    mut truncated := full_output
+    if truncated.len().gt(max_output) {
+        start_pos := truncated.len().sub(max_output)
+        truncated = get_substr(truncated, start_pos, truncated.len())
+    }
+
+    split_pos := truncated.find("\nreal")
+    if split_pos.gt(0) {
+        output = get_substr(full_output, 0, full_output.len().sub(truncated.len()).add(split_pos))
+        time_output := get_substr(truncated, split_pos, truncated.len())
+        time_ms = parse_time_ms(time_output)
+    } else {
+        if split_pos.eq(0) {
+            output = ""
+            time_ms = parse_time_ms(truncated)
+        } else {
+            if truncated.starts_with("real") {
+                output = ""
+                time_ms = parse_time_ms(truncated)
+            } else {
+                output = full_output
+                time_ms = 0
+            }
+        }
+    }
+
+    // Check exit code
+    if not(exit_code.eq(expected_status)) {
+        println("FAIL (exit code): ", file)
+        println("  mode: ", test_mode)
+        println("  expected: ", expected_status.to_str())
+        println("  actual: ", exit_code.to_str())
+        if output.len().gt(0) {
+            println("  output: ", output)
+        }
+        exit(1)
+    }
+
+    // Compare output against expected
+    expected_path := get_expected_path(file, out_mode, cmd_args)
+    expected := readfile(expected_path)
+
+    mut args_str := ""
+    if cmd_args.len().gt(0) {
+        args_str = cmd_args
+    }
+    formatted := format("args: ", args_str, "\nexpected_status: ", expected_status.to_str(), "\noutput:\n", output)
+
+    if not(formatted.eq(expected)) {
+        // Write actual output for diff
+        actual_path := get_actual_path(file, test_mode, cmd_args)
+        ensure_parent_dir(actual_path)
+        _ := writefile(actual_path, formatted)
+
+        mut diff_output := ""
+        _ := diff_output.run_cmd("diff", "-u", expected_path, actual_path)
+
+        println("FAIL (output): ", file)
+        println("  mode: ", test_mode)
+        println(diff_output)
+        exit(1)
+    }
+
+    // Success - print timing info for tests.til to parse
+    // Format: PASS <time_ms>
+    println("PASS ", time_ms.to_str())
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: I64_OverflowError) { panic(loc(), err.msg) }
+}

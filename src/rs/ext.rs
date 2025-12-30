@@ -715,6 +715,17 @@ pub fn proc_sleep(context: &mut Context, e: &Expr) -> Result<EvalResult, String>
     Ok(EvalResult::new(""))
 }
 
+// get_thread_count: Returns number of hardware threads (logical CPUs)
+pub fn proc_get_thread_count(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "get_thread_count", 0, true)?;
+
+    let count = thread::available_parallelism()
+        .map(|n| n.get() as i64)
+        .unwrap_or(1);
+
+    Ok(EvalResult::new(&count.to_string()))
+}
+
 // ---------- Introspection functions
 
 pub fn func_has_const(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {

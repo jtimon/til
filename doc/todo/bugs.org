@@ -39,6 +39,42 @@ Typer should emit an error like: "Cannot pass const variable 'original' to own p
 In typer.rs/typer.til, add a check when processing FCall args: if the parameter
 is ~own~ and the argument is a const variable, emit a type error.
 
+** Bug #64: I64 args in main functions for mode cli don't work
+:PROPERTIES:
+:DISCOVERED: 2025-12-30
+:IMPACT: CLI programs must use Str for all args and parse manually
+:STATUS: Active
+:END:
+
+*** Description
+When using typed parameters in main for cli mode, I64 parameters cause a type error
+even when the caller provides a valid integer string.
+
+*** Reproducing
+#+BEGIN_SRC til
+mode cli
+main := proc(name: Str, count: I64) {
+    println("name:", name, "count:", count.to_str())
+}
+#+END_SRC
+
+Running: ~./bin/rstil interpret test.til hello 42~
+
+Error: ~calling function 'main' expects 'I64' for arg 'count', but 'Str' was provided~
+
+*** Workaround
+Use Str for all args and parse manually:
+#+BEGIN_SRC til
+main := proc(name: Str, count_str: Str) {
+    count := count_str.to_i64()
+    println("name:", name, "count:", count.to_str())
+}
+#+END_SRC
+
+*** Fix
+The interpreter/compiler should auto-convert Str args to I64 when the main
+function signature expects I64.
+
 * Fixed Bugs
 
 ** Bug #60: ccodegen passes const/own args by value instead of by pointer
