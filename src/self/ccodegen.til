@@ -8774,6 +8774,11 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         ind = add(ind, 1)
     }
 
+    // Statement level vs expression level:
+    // - indent > 0: statement level (can emit hoisting statements, adds semicolon)
+    // - indent == 0: expression level (nested in larger expression, no hoisting, no semicolons)
+    is_stmt_level := gt(indent, 0)
+
     // Check for type-qualified call on FCall result: func_name(fcall_result, args...)
     // This happens for chained method calls like delimiter.len().eq(0)
     // Parser produces: FCall { params: [Identifier("eq"), FCall { ... }, LLiteral(0)] }
@@ -8809,7 +8814,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     arg_i = add(arg_i, 1)
                 }
                 result = result.concat(")")
-                if gt(indent, 0) {
+                if is_stmt_level {
                     result = result.concat(";\n")
                 }
                 return result
@@ -8844,7 +8849,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             result = result.concat(til_name(enum_type_name)).concat("_to_str(")
             result = emit_expr(arg, result, 0, ctx, context)
             result = result.concat(")")
-            if gt(indent, 0) {
+            if is_stmt_level {
                 result = result.concat(";\n")
             }
 
@@ -8899,7 +8904,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             result = result.concat(")})")
         }
         result = result.concat(")")
-        if gt(indent, 0) {
+        if is_stmt_level {
             result = result.concat(";\n")
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -8939,7 +8944,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         case:
             result = emit_str_literal("unknown", result)
         }
-        if gt(indent, 0) {
+        if is_stmt_level {
             result = result.concat(";\n")
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -9003,7 +9008,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 result = emit_expr(arg, result, 0, ctx, context)
             }
         }
-        if gt(indent, 0) {
+        if is_stmt_level {
             result = result.concat(";\n")
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -9115,7 +9120,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat("){}")
             }
 
-            if gt(indent, 0) {
+            if is_stmt_level {
                 result = result.concat(";\n")
             }
             return result
@@ -9175,7 +9180,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         // Detect and construct variadic array if needed (only at statement level)
         mut variadic_arr_var := ""
         mut has_variadic_arr := false
-        if is_variadic.and(gt(indent, 0)) {
+        if is_variadic.and(is_stmt_level) {
             // Collect variadic args
             mut variadic_args := Vec.new(Expr)
             mut regular_end := add(variadic_info.regular_count, 1)  // +1 to skip func name
@@ -9279,8 +9284,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         }
 
         result = result.concat(")")
-        // Only add statement terminator if this is a statement (indent > 0)
-        if gt(indent, 0) {
+        // Only add statement terminator if this is a statement
+        if is_stmt_level {
             result = result.concat(";\n")
         }
 

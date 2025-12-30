@@ -6734,9 +6734,13 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     let indent_str = "    ".repeat(indent);
 
+    // Statement level vs expression level:
+    // - indent > 0: statement level (can emit hoisting statements, adds semicolon)
+    // - indent == 0: expression level (nested in larger expression, no hoisting, no semicolons)
+    let is_stmt_level = indent > 0;
+
     // Hoist throwing function calls from arguments (only at statement level)
-    // When indent > 0, we're at statement level and can emit hoisted calls
-    let mut hoisted: std::collections::HashMap<usize, String> = if indent > 0 && expr.params.len() > 1 {
+    let mut hoisted: std::collections::HashMap<usize, String> = if is_stmt_level && expr.params.len() > 1 {
         let args = &expr.params[1..];
         let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
         hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
@@ -6746,7 +6750,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     // Hoist non-lvalue args when param type is Dynamic (only at statement level)
     // Need to look up param types first
-    if indent > 0 && expr.params.len() > 1 {
+    if is_stmt_level && expr.params.len() > 1 {
         if let Some(fd) = get_fcall_func_def(context, expr) {
             let param_types: Vec<Option<ValueType>> = fd.args.iter()
                 .map(|a| Some(a.value_type.clone()))
@@ -6956,7 +6960,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                                     emit_expr(arg, output, 0, ctx, context)?;
                                 }
                                 output.push_str(")");
-                                if indent > 0 {
+                                if is_stmt_level {
                                     output.push_str(";\n");
                                 }
                                 return Ok(());
@@ -6995,9 +6999,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         }
 
                         // If we have throwing defaults, emit them as separate statements first
-                        // Only do inline hoisting at statement level (indent > 0)
+                        // Only do inline hoisting at statement level
                         // At expression level, hoisting was already done by hoist_throwing_expr
-                        if indent > 0 {
+                        if is_stmt_level {
                             for td in &throwing_defaults {
                                 // Get the function's throw types
                                 let throw_types = if let Some(first_param) = td.default_expr.params.first() {
@@ -7062,7 +7066,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     output.push_str("){}");
                 }
 
-                if indent > 0 {
+                if is_stmt_level {
                     output.push_str(";\n");
                 }
                 return Ok(());
@@ -7071,8 +7075,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // Regular function call
             // func_name already has underscores from get_func_name_string
             // Detect and construct variadic array if needed (only at statement level)
-            // At expression level (indent == 0), variadic calls are not supported directly
-            let variadic_arr_var: Option<String> = if indent > 0 {
+            // At expression level, variadic calls are not supported directly
+            let variadic_arr_var: Option<String> = if is_stmt_level {
                 if let Some(variadic_info) = ctx.func_variadic_args.get(&orig_func_name) {
                     let elem_type = variadic_info.elem_type.clone();
                     let regular_count = variadic_info.regular_count;
@@ -7181,8 +7185,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             }
 
             output.push_str(")");
-            // Only add statement terminator if this is a statement (indent > 0)
-            if indent > 0 {
+            // Only add statement terminator if this is a statement
+            if is_stmt_level {
                 output.push_str(";\n");
             }
 
