@@ -25,7 +25,7 @@ byte_to_str := func(byte: U8) returns Str throws AllocError {
 
 // General whitelist for all modes
 make_allowed_commands := proc() returns Array {
-    mut arr := Array.new(Str, 8)
+    mut arr := Array.new(Str, 9)
     arr.set(0, "ls")
     arr.set(1, "mkdir")
     arr.set(2, "find")
@@ -34,6 +34,7 @@ make_allowed_commands := proc() returns Array {
     arr.set(5, "diff")
     arr.set(6, "bash")
     arr.set(7, "rm")
+    arr.set(8, "cp")
     catch (err: AllocError) { panic(loc(), err.msg) }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return arr

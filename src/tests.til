@@ -795,6 +795,19 @@ main := proc(args: ..Str) {
         }
     }
 
+    // Build til.til once before running tests (instead of relying on Makefile)
+    println("Building til.til...")
+    mut build_output := ""
+    build_status := build_output.run_cmd("./bin/rstil", "build", "src/til.til")
+    if not(build_status.eq(0)) {
+        println("ERROR: Failed to build til.til")
+        println(build_output)
+        exit(1)
+    }
+    // Copy generated C to bootstrap
+    mut cp_output := ""
+    _ := cp_output.run_cmd("cp", "gen/c/til.c", "bootstrap/til.c")
+
     mut rs_common := Vec.new(TestEntry)
     // test a part of posix compatibility, it doesn't require the mode to be script, it can be compiled too, like roc
     // Ideally we should benchmark against at least bash, python, roc, Rust, C and HolyC for this kind of mode, both interpreted and compiled
