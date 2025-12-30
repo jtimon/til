@@ -212,11 +212,11 @@ test_rs_compiled := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
 }
 
 test_til_interpreted := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
-    return test_with_cmd(entry, "./bin/rstil run src/til.til interpret ", "til interpret", "interpreted", time_ms)
+    return test_with_cmd(entry, "./bin/til interpret ", "til interpret", "interpreted", time_ms)
 }
 
 test_til_compiled := proc(entry: TestEntry, mut time_ms: I64) returns Bool {
-    return test_with_cmd(entry, "./bin/rstil run src/til.til run ", "til run", "compiled", time_ms)
+    return test_with_cmd(entry, "./bin/til run ", "til run", "compiled", time_ms)
 }
 
 run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec) {
@@ -476,10 +476,10 @@ test_rs_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: 
 
 test_til_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: I64) returns I64 {
     mut errors_found := 0
-    if test_with_cmd(entry, "./bin/rstil run src/til.til interpret ", "til interpret", "interpreted", interpret_ms) {
+    if test_with_cmd(entry, "./bin/til interpret ", "til interpret", "interpreted", interpret_ms) {
         errors_found.inc()
     }
-    if test_with_cmd(entry, "./bin/rstil run src/til.til run ", "til run", "interpreted", compile_ms) {
+    if test_with_cmd(entry, "./bin/til run ", "til run", "interpreted", compile_ms) {
         errors_found.inc()
     }
     return errors_found
