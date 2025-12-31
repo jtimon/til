@@ -146,51 +146,14 @@ After gaining more experience with the self-hosted codebase, we may consider:
 
 For now, requiring explicit handling is the safer and clearer default.
 
-** TODO Reconsider Variable Shadowing Policy After Self-Hosting        :MEDIUM:
+** MOVED Variable Shadowing Policy - See Issue #66 in future.org      :MEDIUM:
 :PROPERTIES:
 :DISCOVERED: 2025-11-10
-:IMPACT: Language design, developer experience
+:MOVED: 2025-12-31
 :END:
 
-*** Current Behavior (Tested 2025-11-10)
-
-Based on tests in src/test/temporary_tests.til:
-
-1. **`_` reuse in same scope**: ✅ ALLOWED
-   - `_ := 5` followed by `_ := 10` works
-   - Universal in all languages - `_` is special
-
-2. **Regular variable same-scope shadowing**: ✅ ALLOWED
-   - `x := 5` followed by `x := 10` works
-   - Creates new binding, not reassignment (tested with `let` keyword behavior)
-
-3. **Type-change shadowing**: ❌ NOT ALLOWED
-   - `y := 5` followed by `y := "hello"` fails type checking
-   - Treated as reassignment to existing variable, not new binding
-
-4. **Nested-scope shadowing**: ⚠️ PARTIALLY WORKS
-   - Inner `z := 10` is allowed after outer `z := 5`
-   - BUT: Inner declaration MUTATES outer variable (z=10 after inner scope!)
-   - This is likely a bug - should create new binding in inner scope
-
-*** Issues with Current Behavior
-
-- Inconsistent: Allows same-scope shadowing but not type changes
-- Nested scope behavior is buggy (mutates instead of shadowing)
-- Different from most languages (Rust allows type changes, Go/Haskell prohibit same-scope)
-
-*** Decision Needed After Self-Hosting
-
-Should we:
-1. Allow full shadowing like Rust (including type changes)?
-2. Prohibit same-scope shadowing like Go/Haskell (except for `_`)?
-3. Fix nested-scope shadowing to create new bindings (not mutate)?
-
-*** Action Required
-- Fix nested-scope shadowing bug (high priority)
-- Evaluate shadowing usage in self-hosted codebase
-- Choose consistent shadowing policy
-- Implement in type checker
+This topic has been moved to doc/todo/future.org as Issue #66.
+See also Bug #65 in bugs.org for a specific shadowing-related bug.
 
 ** TODO Add Unicode Support to TIL                                    :MEDIUM:
 :PROPERTIES:

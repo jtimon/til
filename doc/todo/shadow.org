@@ -1,0 +1,79 @@
+* Plan: Fix Bug #65 - "Source 'X' not found in caller context"
+
+** Overview
+Rust/TIL divergence in interpreter causes 10 til_interpreted tests to fail.
+
+** Root Cause: Variable Name Divergence
+
+Rust (interpreter.rs:2099-2102) - shadows custom_type_name:
+#+begin_src rust
+let custom_type_name = &match custom_type_name.as_str() {
+    "Dynamic" | "Type" => value_type_to_str(...),
+    _ => custom_type_name.clone(),
+};
+// custom_type_name is now "I64" (shadowed)
+#+end_src
+
+TIL (interpreter.til:2142-2147) - uses different variable:
+#+begin_src til
+mut resolved_type_name := custom_type_name
+if custom_type_name.eq("Dynamic") {
+    resolved_type_name = value_type_to_str(...)
+}
+// custom_type_name still "Dynamic", resolved_type_name is "I64"
+#+end_src
+
+Then at line 2329, TIL uses custom_type_name instead of resolved_type_name.
+
+** Fix Strategy
+
+1. Both files use resolved_type_name (no shadowing)
+2. Enable gcc shadow warnings to catch future cases
+3. Local rule: forbid shadowing in Rust/C until TIL supports it
+
+** Step 1: Add gcc shadow warning
+
+1. Add -Wshadow to gcc flags in src/rs/target.rs:toolchain_extra_args
+2. Run make benchmark to see what gcc shadow warnings appear
+3. Review warnings, understand scope of shadowing in generated C code
+4. Commit: "Add -Wshadow to gcc flags"
+
+** Step 2: Document Bug #65 and Issue #66
+
+1. Add Bug #65 to doc/todo/bugs.org (references Issue #66)
+2. Create src/test/bug65.til with minimal reproduction (should FAIL with til)
+3. Create doc/todo/future.org (new file, structure like bugs.org)
+4. Add Issue #66 to future.org (long-term shadowing policy, references Bug #65)
+   - Issue #66 stays OPEN - not to be fixed now, just documented with tracking number
+5. Move shadowing content from post.org to future.org
+6. Update doc/todo/self.md reference
+7. Increment next_issue_num.txt to 67
+8. Commit: "Add Bug #65 and Issue #66: Dynamic parameter shadowing divergence"
+
+** Step 3: Fix Bug #65
+
+1. Change Rust interpreter.rs to use resolved_type_name instead of shadowing
+2. Change TIL interpreter.til to use resolved_type_name in switch (line 2329)
+3. Run make benchmark to verify 10 tests pass
+4. Document in CLAUDE.md: avoid shadowing in Rust (no automated warning)
+5. Commit: "Fix Bug #65: Use resolved_type_name in both Rust and TIL"
+
+Note: Issue #66 (shadowing policy) remains open for future consideration.
+
+** Files to Modify
+
+Step 1 (gcc warning):
+- src/rs/target.rs - add -Wshadow to toolchain_extra_args for gcc
+
+Step 2 (documentation):
+- doc/todo/bugs.org - add Bug #65
+- doc/todo/future.org - create file, add Issue #66
+- doc/todo/post.org - remove shadowing section (moved to future.org)
+- doc/todo/next_issue_num.txt - increment to 67
+- doc/todo/self.md - update reference
+- src/test/bug65.til - minimal reproduction
+
+Step 3 (fix):
+- src/rs/interpreter.rs - use resolved_type_name, no shadowing
+- src/self/interpreter.til - use resolved_type_name in switch
+- CLAUDE.md - document: avoid shadowing in Rust (no automated warning)

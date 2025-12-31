@@ -126,6 +126,10 @@ When porting code from Rust (`src/rs/`) to TIL (`src/self/`):
 - **Don't assume TIL lacks features** - if unsure, ask
 - **Don't add workarounds** - TIL has the same capabilities as Rust for this codebase
 - The goal is that both versions should be as close as possible, differing only in syntax
+- **AVOID variable shadowing in Rust** - TIL doesn't support shadowing the same way
+  - Instead of `let x = transform(x);`, use `let new_x = transform(x);`
+  - See Issue #66 in `doc/todo/future.org` for long-term policy
+  - Bug #65 was caused by shadowing divergence between Rust and TIL
 
 ## File Organization
 - `doc/bot.org` - READ THIS for full guidelines (human-maintained, don't edit)

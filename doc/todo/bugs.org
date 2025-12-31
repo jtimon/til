@@ -8,6 +8,57 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #65: "Source 'X' not found in caller context" with Dynamic parameters
+:PROPERTIES:
+:DISCOVERED: 2025-12-31
+:IMPACT: 10 til_interpreted tests fail (arenas, arrays, clone, lists, loops, maps, etc.)
+:STATUS: Active
+:RELATED: Issue #66 (shadowing policy)
+:END:
+
+*** Description
+When passing literal values to Dynamic parameters (e.g., ~v.push(10)~ on a Vec),
+the self-hosted TIL interpreter fails with "Source '10' not found in caller context".
+The Rust interpreter works correctly.
+
+*** Root Cause
+Rust/TIL divergence in interpreter.rs/interpreter.til:
+
+Rust (interpreter.rs:2099-2102) shadows custom_type_name:
+#+BEGIN_SRC rust
+let custom_type_name = &match custom_type_name.as_str() {
+    "Dynamic" | "Type" => value_type_to_str(...),
+    _ => custom_type_name.clone(),
+};
+// custom_type_name is now "I64" (shadowed)
+#+END_SRC
+
+TIL (interpreter.til:2142-2147) uses different variable:
+#+BEGIN_SRC til
+mut resolved_type_name := custom_type_name
+if custom_type_name.eq("Dynamic") {
+    resolved_type_name = value_type_to_str(...)
+}
+// custom_type_name still "Dynamic", resolved_type_name is "I64"
+#+END_SRC
+
+Then at line 2329, TIL switch uses ~custom_type_name~ ("Dynamic") instead of
+~resolved_type_name~ ("I64"), causing the wrong code path.
+
+*** Reproducing
+#+BEGIN_SRC til
+test := proc() {
+    mut v := Vec.new(I64)
+    v.push(10)  // ERROR: Source '10' not found in caller context
+}
+#+END_SRC
+
+Test file: src/test/bug65.til
+
+*** Fix
+Both Rust and TIL should use ~resolved_type_name~ (no shadowing).
+See Issue #66 for long-term shadowing policy discussion.
+
 ** Bug #63: Typer allows passing const variable to own parameter
 :PROPERTIES:
 :DISCOVERED: 2025-12-29
