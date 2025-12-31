@@ -4860,8 +4860,11 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                         }
                         i = j  // Skip past catch blocks
                         continue
-                    } else if and(gt(ctx.current_throw_types.len(), 0), eq(ctx.local_catch_labels.len(), 0)) {
-                        // No catch blocks, we're inside a throwing function, and no local catches
+                    } else if and(and(gt(ctx.current_throw_types.len(), 0), eq(ctx.local_catch_labels.len(), 0)), eq(func_level_catches.len(), 0)) {
+                        // Bug #68 fix: Also check func_level_catches.is_empty()
+                        // Without this check, we might propagate even when there are catches in the block
+                        // just because local_catch_labels was cleared after processing an earlier catch
+                        // No catch blocks, we're inside a throwing function, and no catches in this block
                         // Emit error propagation pattern
                         if has_decl {
                             result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
@@ -4875,24 +4878,35 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                     } else if or(gt(func_level_catches.len(), 0), gt(ctx.local_catch_labels.len(), 0)) {
                         // Has function-level catches or outer catches registered
                         // Bug #39 fix: Update local_catch_labels to point to NEXT catch for each type
+                        // This ensures each call jumps to the correct catch, not always the first one
                         // Build map with only catches AFTER current position
-                        ctx.local_catch_labels.clear()
+                        mut next_catches := Map.new(Str, CatchLabelInfo)
                         mut next_idx := 0
                         while lt(next_idx, all_catch_info.len()) {
                             mut catch_entry := CatchLabelInfoEntry()
                             all_catch_info.get(next_idx, catch_entry)
                             if gt(catch_entry.stmt_index, i) {
                                 // First catch of this type after current position
-                                if not(ctx.local_catch_labels.contains_key(catch_entry.type_name)) {
+                                if not(next_catches.contains_key(catch_entry.type_name)) {
                                     mut info := CatchLabelInfo()
                                     info.label = catch_entry.label
                                     info.temp_var = catch_entry.temp_var
-                                    ctx.local_catch_labels.set(catch_entry.type_name, info)
+                                    next_catches.set(catch_entry.type_name, info)
                                 }
                             }
                             next_idx = add(next_idx, 1)
                         }
                         catch (err: IndexOutOfBoundsError) { throw err.msg }
+                        catch (err: AllocError) { throw err.msg }
+                        // Replace local_catch_labels with only the next catches
+                        // This removes entries for types that have no more catches after this point
+                        ctx.local_catch_labels.clear()
+                        for type_name: Str in next_catches.keys {
+                            mut info := CatchLabelInfo()
+                            next_catches.get(type_name, info)
+                            ctx.local_catch_labels.set(type_name, info)
+                        }
+                        catch (err: KeyNotFoundError) { throw err.msg }
                         catch (err: AllocError) { throw err.msg }
 
                         if has_decl {

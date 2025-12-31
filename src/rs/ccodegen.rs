@@ -3644,8 +3644,11 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                     emit_throwing_call(fcall, &throw_types, &catch_blocks, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
                     i = j; // Skip past catch blocks
                     continue;
-                } else if !ctx.current_throw_types.is_empty() && ctx.local_catch_labels.is_empty() {
-                    // No catch blocks, we're inside a throwing function, and no local catches
+                } else if !ctx.current_throw_types.is_empty() && ctx.local_catch_labels.is_empty() && func_level_catches.is_empty() {
+                    // Bug #68 fix: Also check func_level_catches.is_empty()
+                    // Without this check, we might propagate even when there are catches in the block
+                    // just because local_catch_labels was cleared after processing an earlier catch
+                    // No catch blocks, we're inside a throwing function, and no catches in this block
                     // Emit error propagation pattern
                     emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, effective_indent, ctx, context)?;
                     i += 1;
