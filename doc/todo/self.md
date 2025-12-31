@@ -71,24 +71,20 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Also removed all `catch (err: DuplicatedKeyError)` blocks since `.set()` doesn't throw.
   - Simplified `declare_var` to just `throws Str` (matching Rust's `Result<(), String>`).
 
-### Current Focus (2025-12-30)
+### Current Focus (2025-12-31)
 **Fix all til_interpreted tests first, then til_compiled**
 
-Phase 1: Get all rs_common tests working with `./bin/til interpret`.
+Step 1: Get all rs_common tests working with `./bin/til interpret`.
 
-Working tests (38/68):
+Working tests (47/68):
 - examples: empty, hello_cli, hello_lib, hello_liba, hello_pura, hello_pure, hello_script, hello_test, lolalalo
-- tests: arithmetics, bools, branchless, bug41, bug46, bug48, bug57, c_mem, circular_test,
-  comparisons, constfold, cross_file_forward, eval, exit, fibonacci, flow, func_purity,
-  function_pointers, intro, literals, namespaces, parallel_cmd, pointers, return_value_usage,
-  scope_isolation, strings, u8, underscore, variadic
+- tests: arenas, arithmetics, arrays, bools, branchless, bug41, bug46, bug48, bug57, c_mem,
+  circular_test, clone, comparisons, constfold, cross_file_forward, deterministic, eval, exit,
+  fibonacci, flow, func_purity, function_pointers, intro, literals, lists, loops, maps,
+  mut_test, namespaces, parallel_cmd, pointers, return_value_usage, scope_isolation, sets,
+  strings, u8, underscore, variadic
 
-Failing tests (30/68) by category:
-
-**Source 'X' not found in caller context (10 tests)**
-- arenas ('0'), arrays ('10'), clone ('10'), deterministic ('1')
-- lists ('42'), loops ('10'), maps ('100'), modes ('panic')
-- mut_test ('10'), sets ('hello')
+Failing tests (21/68) by category:
 
 **Enum variant payload type 'unknown' not yet supported (4 tests)**
 - bug56, editor_mode_test, enums, forward_declarations
@@ -104,11 +100,12 @@ Failing tests (30/68) by category:
 - bug50 (rstil vs til prefix)
 - undefined (rstil vs til prefix)
 
-**Other errors (6 tests)**
+**Other errors (7 tests)**
 - bug43 - assert_eq wrong value (expected '0', found '2130832128')
 - bug52 - concat: malloc failed
 - bug55 - assert_eq_str: expected 'hello', found ''
 - errors - string_from_context out of bounds
+- modes - assert_eq failed: expected '0', found '65536'
 - structs - assert_eq: expected '10', found garbage
 - test_lexer - String range comparisons not yet supported
 
