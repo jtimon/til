@@ -81,13 +81,13 @@ Test organization (Issue #69):
   - til_compiled (`til run`) segfaults on all tests
   - When til_compiled works, tests can be promoted from rs_common
 
-**Total: 128/128 tests passing**
+**Total: 132/132 tests passing**
 
 Recent fixes (2025-12-31):
 - **Bug #71** (Fixed): TIL interpreter enum pattern binding use-after-free
   - Root cause: EnumVal.payload_type and payload are Ptr to stack variables in get_enum
   - Fix: Look up payload type from enum definition, read payload directly from arena
-  - Enabled: errors.til, ufcs.til in til_interpreted
+  - Enabled: errors.til, ufcs.til, bug43.til, bug52.til, modes.til, structs.til in til_interpreted
 - **Bug #70** (Fixed): C codegen variable type collision causing struct default garbage
   - Root cause: U8 and I64 branches both used variable `v`, C codegen reused `til_U8 til_v`
   - Fix: Renamed to `u8_val` and `i64_val` in eval_arena.til/.rs
@@ -96,26 +96,24 @@ Recent fixes (2025-12-31):
 - **Bug #67** (Fixed): Enum variant payload type empty string in til interpreter
 - **Bug #63** (Fixed): Typer now rejects const variable passed to own parameter
 
-Working til_interpreted tests (55):
+Working til_interpreted tests (59):
 - examples: empty, hello_cli, hello_lib, hello_liba, hello_pura, hello_pure, hello_script, hello_test, lolalalo
-- tests: arenas, arithmetics, arrays, bools, branchless, bug41, bug46, bug48, bug49, bug55, bug56, bug57,
+- tests: arenas, arithmetics, arrays, bools, branchless, bug41, bug43, bug46, bug48, bug49, bug52, bug55, bug56, bug57,
   c_mem, circular_test, clone, comparisons, constfold, cross_file_forward, deterministic, editor_mode_test,
   errors, eval, exit, fibonacci, flow, forward_declarations, func_purity, function_pointers, intro, literals,
-  lists, loops, maps, mut_test, namespaces, parallel_cmd, pointers, return_value_usage, scope_isolation,
-  sets, strings, u8, ufcs, underscore, undefined, variadic
+  lists, loops, maps, modes, mut_test, namespaces, parallel_cmd, pointers, return_value_usage, scope_isolation,
+  sets, strings, structs, u8, ufcs, underscore, undefined, variadic
 
-Failing til_interpreted tests (12) - still commented out:
+Failing til_interpreted tests (8) - still commented out:
 
-**Segmentation fault (6 tests)**
-- args, bug47, enums, test_parser, vecs, til.til help
+**Segmentation fault (4 tests)**
+- args, vecs, test_parser, til.til help
 
-**Garbage memory / wrong values (3 tests)**
-- bug43 - assert_eq failed (garbage memory)
-- modes - assert_eq failed (garbage memory)
-- structs - assert_eq failed (garbage memory)
+**Timeout/hang (1 test)**
+- bug47
 
-**Capacity/malloc errors (1 test)**
-- bug52 - capacity exceeded
+**Assert failure (1 test)**
+- enums - assert failed at line 99
 
 **Type/feature errors (2 tests)**
 - optional_args - type errors: optional args not recognized
@@ -139,7 +137,7 @@ This is a separate scavenger bug that doesn't affect rstil.
 ## Milestones
 1. ~~`./bin/til interpret src/examples/empty.til`~~ ✓ DONE
 2. ~~`./bin/til interpret src/examples/hello_script.til`~~ ✓ DONE
-3. All til_interpreted tests pass ← current target (53/68 working, 78%)
+3. All til_interpreted tests pass ← current target (59/67 working, 88%)
 4. `./bin/til run src/examples/empty.til` (scavenger bug)
 
 ## Build Commands Reference (from Makefile)
