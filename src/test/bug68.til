@@ -1,0 +1,20 @@
+mode test
+
+// Bug #68: TIL typer doesn't detect use-after-move for own parameters
+//
+// rstil produces 2 errors: type ERROR + init ERROR
+// til produces 1 error: init ERROR only
+//
+// The Bug #49 fix exists in both typer.rs and typer.til (remove_symbol call),
+// but the TIL version doesn't work - the symbol remains in scope.
+
+consume := proc(own n: I64) returns I64 {
+    return mul(n, 2)
+}
+
+test_use_after_move := proc() {
+    mut x := 42
+    result := consume(x)
+    println("x after:", I64.to_str(x))  // Should be undefined - x was moved
+}
+test_use_after_move()

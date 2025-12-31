@@ -47,6 +47,57 @@ Test files: src/test/bug56.til, src/test/enums.til
 3. Fix the parsing/storage of enum variant payload types
 4. Test all 4 affected tests
 
+** Bug #68: TIL typer doesn't remove symbol for own parameter (Bug #49 fix not working)
+:PROPERTIES:
+:DISCOVERED: 2025-12-31
+:IMPACT: til_interpreted output mismatch on bug49.til (1 error vs 2)
+:STATUS: Active
+:RELATED: Bug #49 (original fix), Bug #65 (similar Rust/TIL divergence)
+:END:
+
+*** Description
+The Bug #49 fix (remove_symbol for own parameters) exists in both typer.rs and typer.til,
+but the TIL version doesn't work. When a variable is passed to an ~own~ parameter:
+- rstil: 2 errors (type ERROR + init ERROR for undefined symbol)
+- til: 1 error (init ERROR only)
+
+The ~remove_symbol~ call at typer.til:861 is being executed, but the symbol remains
+findable by subsequent lookups.
+
+*** Code Location
+typer.til lines 854-866:
+#+BEGIN_SRC til
+// Bug #49: Handle ownership transfer for 'own' parameters
+if arg.is_own {
+    switch arg_expr.node_type {
+    case NodeType.Identifier(var_name):
+        if arg_expr.params.len().eq(0) {
+            _ := context.scope_stack.remove_symbol(var_name)
+        }
+    case:
+    }
+}
+#+END_SRC
+
+*** Investigation Notes
+- Tested that ~mut~ struct parameters persist modifications across function calls
+- Tested that nested struct field modifications work
+- The ~push~ and ~pop~ calls on scope_stack work correctly
+- ~remove_symbol~ in init.til uses get/modify/set pattern (lines 273-290)
+- Rust version uses ~last_mut()~ to directly modify
+
+*** Hypothesis
+The get/modify/set pattern in ~remove_symbol~ might not be propagating changes correctly
+when the ScopeStack is accessed through a chain of struct fields (~context.scope_stack~).
+
+*** Plan to Fix
+1. Add debug prints to verify remove_symbol is called and modifies the frame
+2. Check if the issue is in how Vec.set works for ScopeFrame
+3. Compare the scope state before/after remove_symbol call
+4. May need to trace through with gdb on generated C code
+
+Test file: src/test/bug68.til
+
 ** Bug #63: Typer allows passing const variable to own parameter
 :PROPERTIES:
 :DISCOVERED: 2025-12-29
