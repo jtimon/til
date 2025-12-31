@@ -46,6 +46,32 @@ function signature expects I64.
 
 * Fixed Bugs
 
+** Bug #71: TIL interpreter enum pattern binding use-after-free
+:PROPERTIES:
+:DISCOVERED: 2025-12-31
+:FIXED: 2025-12-31
+:IMPACT: Pattern binding in switch cases failed with "Type unknown not supported yet"
+:STATUS: Fixed
+:END:
+
+*** Description
+When pattern matching on enum variants with payloads (e.g., ~case TestEnum.TypeC(n)~),
+the bound variable ~n~ could not be used - accessing it gave "Type unknown not supported yet".
+
+*** Root Cause
+~EnumVal~ in TIL uses ~Ptr~ fields for ~payload~ and ~payload_type~, pointing to local
+stack variables in ~get_enum~. When ~get_enum~ returns, these pointers become stale
+(use-after-free). The Rust version uses owned ~Option<Vec<u8>>~ and ~Option<ValueType>~
+which don't have this issue.
+
+*** Fix
+Changed pattern binding code in ~interpreter.til~ to look up payload type directly from
+the enum definition (via ~lookup_enum~) and read payload bytes directly from the arena,
+instead of using the stale ~EnumVal.payload_type~ and ~EnumVal.payload~ pointers.
+
+*** Test
+~src/test/ufcs.til~ - tests pattern matching with I64 and Str enum payloads.
+
 ** Bug #70: C codegen variable type collision causes struct default garbage
 :PROPERTIES:
 :DISCOVERED: 2025-12-31

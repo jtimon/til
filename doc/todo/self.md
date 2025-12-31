@@ -76,38 +76,50 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 
 Test organization (Issue #69):
 - `rs_common` (67 tests): All rstil tests (includes 49 that also pass til_interpreted)
-- `til_interpreted` (50 tests): Tests that pass with `./bin/til interpret`
+- `til_interpreted` (53 tests): Tests that pass with `./bin/til interpret`
 - `all_common` (0 tests): Empty - requires all 4 modes including til_compiled
   - til_compiled (`til run`) segfaults on all tests
   - When til_compiled works, tests can be promoted from rs_common
 
-Working til_interpreted tests (50):
+**Total: 128/128 tests passing**
+
+Recent fixes (2025-12-31):
+- **Bug #71** (Fixed): TIL interpreter enum pattern binding use-after-free
+  - Root cause: EnumVal.payload_type and payload are Ptr to stack variables in get_enum
+  - Fix: Look up payload type from enum definition, read payload directly from arena
+  - Enabled: errors.til, ufcs.til in til_interpreted
+- **Bug #70** (Fixed): C codegen variable type collision causing struct default garbage
+  - Root cause: U8 and I64 branches both used variable `v`, C codegen reused `til_U8 til_v`
+  - Fix: Renamed to `u8_val` and `i64_val` in eval_arena.til/.rs
+  - Also added tmp_buf safety copy in insert_struct
+- **Bug #68** (Fixed): Consecutive catch blocks missing goto in generated C
+- **Bug #67** (Fixed): Enum variant payload type empty string in til interpreter
+- **Bug #63** (Fixed): Typer now rejects const variable passed to own parameter
+
+Working til_interpreted tests (55):
 - examples: empty, hello_cli, hello_lib, hello_liba, hello_pura, hello_pure, hello_script, hello_test, lolalalo
-- tests: arenas, arithmetics, arrays, bools, branchless, bug41, bug46, bug48, bug56, bug57, c_mem,
-  circular_test, clone, comparisons, constfold, cross_file_forward, deterministic, editor_mode_test,
-  eval, exit, fibonacci, flow, forward_declarations, func_purity, function_pointers, intro, literals,
+- tests: arenas, arithmetics, arrays, bools, branchless, bug41, bug46, bug48, bug49, bug55, bug56, bug57,
+  c_mem, circular_test, clone, comparisons, constfold, cross_file_forward, deterministic, editor_mode_test,
+  errors, eval, exit, fibonacci, flow, forward_declarations, func_purity, function_pointers, intro, literals,
   lists, loops, maps, mut_test, namespaces, parallel_cmd, pointers, return_value_usage, scope_isolation,
-  sets, strings, u8, underscore, variadic
+  sets, strings, u8, ufcs, underscore, undefined, variadic
 
-Failing til_interpreted tests (18) by category:
+Failing til_interpreted tests (12) - still commented out:
 
-**Segmentation fault (7 tests)**
-- args, bug47, enums, optional_args, test_parser, ufcs, til.til help
+**Segmentation fault (6 tests)**
+- args, bug47, enums, test_parser, vecs, til.til help
 
-**Output mismatch (2 tests)**
-- bug49 (1 vs 2 errors - Bug #68: remove_symbol not working in TIL typer)
-- bug50 (rstil vs til prefix in error message - see Issue #69 for test org solution)
+**Garbage memory / wrong values (3 tests)**
+- bug43 - assert_eq failed (garbage memory)
+- modes - assert_eq failed (garbage memory)
+- structs - assert_eq failed (garbage memory)
 
-**Other errors (9 tests)**
-- bug43 - assert_eq wrong value (expected '0', found '2130832128')
-- bug52 - concat: malloc failed
-- bug55 - assert_eq_str: expected 'hello', found ''
-- errors - string_from_context out of bounds
-- modes - assert_eq failed: expected '0', found '65536'
-- structs - assert_eq: expected '10', found garbage
+**Capacity/malloc errors (1 test)**
+- bug52 - capacity exceeded
+
+**Type/feature errors (2 tests)**
+- optional_args - type errors: optional args not recognized
 - test_lexer - String range comparisons not yet supported
-- undefined - concat: malloc failed (same as bug52)
-- vecs - concat: malloc failed (same as bug52)
 
 Phase 2: Once til_interpreted tests pass, fix til_compiled:
 ```bash
@@ -127,7 +139,7 @@ This is a separate scavenger bug that doesn't affect rstil.
 ## Milestones
 1. ~~`./bin/til interpret src/examples/empty.til`~~ ✓ DONE
 2. ~~`./bin/til interpret src/examples/hello_script.til`~~ ✓ DONE
-3. All til_interpreted tests pass ← current target (50/68 working, 74%)
+3. All til_interpreted tests pass ← current target (53/68 working, 78%)
 4. `./bin/til run src/examples/empty.til` (scavenger bug)
 
 ## Build Commands Reference (from Makefile)

@@ -499,14 +499,91 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                     // Match! Extract the payload and bind it to the variable
                     param_it.inc()
 
-                    // Extract payload into the binding variable if present
-                    if not(NULL.eq(enum_val.payload_type.data)) {
-                        // TODO: Full payload extraction - simplified for now
-                        // The Rust version handles I64, Str, struct, and enum payloads
-                        // This is complex byte manipulation that needs EvalArena support
-                        sym_info := SymbolInfo(value_type=ValueType.TCustom("I64"), is_mut=false, is_copy=false, is_own=false)
-                        context.scope_stack.declare_symbol(pattern_binding, sym_info)
-                        // TODO: EvalArena.insert_* based on payload type
+                    // Look up payload type from enum definition (not from EnumVal, which has stale pointers)
+                    mut enum_def := context.scope_stack.lookup_enum(enum_val.enum_type)
+                    catch (err: KeyNotFoundError) {
+                        throw case_expr.error(context.path, "eval", format("Enum definition '", enum_val.enum_type, "' not found"))
+                    }
+
+                    // Get variant's payload type from enum definition
+                    mut variant_payload_ptr := enum_def.get(enum_val.enum_name)
+                    catch (err: KeyNotFoundError) {
+                        // No payload type for this variant
+                    }
+
+                    // Check if payload exists (not NULL)
+                    if not(NULL.eq(variant_payload_ptr.data)) {
+                        mut payload_type := ValueType.TCustom("")
+                        memcpy(to_ptr(payload_type), variant_payload_ptr.data, size_of(ValueType))
+
+                        switch payload_type {
+                        case ValueType.TCustom(type_name):
+                            if type_name.eq("I64") {
+                                // Get the arena offset for this enum variable
+                                mut var_offset := context.scope_stack.lookup_var(enum_var_name)
+                                catch (err: KeyNotFoundError) {
+                                    throw case_expr.error(context.path, "eval", format("Variable '", enum_var_name, "' not found in arena"))
+                                }
+
+                                // I64 payload is 8 bytes after the enum tag
+                                payload_offset := add(var_offset, 8)
+                                mut i64_val : I64 = 0
+                                memcpy(to_ptr(i64_val), g_arena.get(payload_offset, 8), 8)
+
+                                // Declare symbol and insert into arena
+                                sym_info := SymbolInfo(value_type=ValueType.TCustom("I64"), is_mut=false, is_copy=false, is_own=false)
+                                context.scope_stack.declare_symbol(pattern_binding, sym_info)
+                                EvalArena.insert_i64(context, pattern_binding, i64_val.to_str(), case_expr)
+                            } else if type_name.eq("Str") {
+                                // Get the arena offset for this enum variable
+                                mut var_offset := context.scope_stack.lookup_var(enum_var_name)
+                                catch (err: KeyNotFoundError) {
+                                    throw case_expr.error(context.path, "eval", format("Variable '", enum_var_name, "' not found in arena"))
+                                }
+
+                                // Str payload is 16 bytes after the enum tag (c_string ptr + size)
+                                payload_offset := add(var_offset, 8)
+
+                                // Extract c_string pointer (first 8 bytes)
+                                mut ptr_offset : I64 = 0
+                                memcpy(to_ptr(ptr_offset), g_arena.get(payload_offset, 8), 8)
+
+                                // Extract size (next 8 bytes)
+                                mut str_size : I64 = 0
+                                memcpy(to_ptr(str_size), g_arena.get(add(payload_offset, 8), 8), 8)
+
+                                // Declare symbol first
+                                sym_info := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
+                                context.scope_stack.declare_symbol(pattern_binding, sym_info)
+
+                                // Read the actual string from arena and insert
+                                if str_size.gt(0).and(ptr_offset.gt(0)) {
+                                    // Read string bytes from arena
+                                    mut str_val := ""
+                                    mut i := 0
+                                    while i.lt(str_size) {
+                                        mut byte_val : U8 = U8.from_i64(0)
+                                        memcpy(to_ptr(byte_val), g_arena.get(add(ptr_offset, i), 1), 1)
+                                        str_val = format(str_val, byte_to_str(byte_val))
+                                        i = add(i, 1)
+                                    }
+                                    catch (err: U8_OverflowError) {
+                                        throw case_expr.error(context.path, "eval", "U8 overflow while reading Str payload")
+                                    }
+                                    EvalArena.insert_string(context, pattern_binding, str_val, case_expr)
+                                } else {
+                                    EvalArena.insert_string(context, pattern_binding, "", case_expr)
+                                }
+                            } else {
+                                // TODO: Other payload types not yet implemented
+                                sym_info := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
+                                context.scope_stack.declare_symbol(pattern_binding, sym_info)
+                            }
+                        case:
+                            // Non-custom type - declare symbol only
+                            sym_info := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
+                            context.scope_stack.declare_symbol(pattern_binding, sym_info)
+                        }
                     }
 
                     // Execute the case body with the bound variable available

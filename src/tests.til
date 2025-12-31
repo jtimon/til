@@ -1069,14 +1069,14 @@ main := proc(args: ..Str) {
     // til_interpreted.push(TestEntry(path="src/test/bug47.til"))  // TODO: Segmentation fault
     // til_interpreted.push(TestEntry(path="src/test/bug52.til"))  // TODO: capacity exceeded
     // til_interpreted.push(TestEntry(path="src/test/enums.til"))  // TODO: Segmentation fault
-    // til_interpreted.push(TestEntry(path="src/test/errors.til"))  // TODO: string_from_context out of bounds
+    til_interpreted.push(TestEntry(path="src/test/errors.til"))
     // til_interpreted.push(TestEntry(path="src/test/modes.til"))  // TODO: assert_eq failed (garbage memory)
     til_interpreted.push(TestEntry(path="src/test/mut_test.til"))
     // til_interpreted.push(TestEntry(path="src/test/optional_args.til"))  // TODO: type errors - optional args not recognized
     // til_interpreted.push(TestEntry(path="src/test/structs.til"))  // TODO: assert_eq failed (garbage memory)
     // til_interpreted.push(TestEntry(path="src/test/test_lexer.til"))  // TODO: String range comparisons
     // til_interpreted.push(TestEntry(path="src/test/test_parser.til"))  // TODO: Segmentation fault
-    // til_interpreted.push(TestEntry(path="src/test/ufcs.til"))  // TODO: string_from_context out of bounds
+    til_interpreted.push(TestEntry(path="src/test/ufcs.til"))
     // til_interpreted.push(TestEntry(path="src/test/vecs.til"))  // TODO: Segmentation fault
     // til_interpreted.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: Segmentation fault
 
