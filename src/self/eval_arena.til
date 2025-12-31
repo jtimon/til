@@ -441,15 +441,15 @@ EvalArena := struct {
                         g_arena.set(add(offset, field_offset), to_ptr(index), 8)
                     } else {
                         if type_name.eq("U8") {
-                            v := U8.from_str(default_value)
+                            u8_val := U8.from_str(default_value)
                             // Note: U8.from_str panics on invalid input, doesn't throw
-                            mut dest_u8 : U8 = v
+                            mut dest_u8 : U8 = u8_val
                             g_arena.set(add(offset, field_offset), to_ptr(dest_u8), 1)
                         } else {
                             if type_name.eq("I64") {
-                                v := I64.from_str(default_value)
+                                i64_val := I64.from_str(default_value)
                                 // Note: I64.from_str panics on invalid input, doesn't throw
-                                g_arena.set(add(offset, field_offset), to_ptr(v), 8)
+                                g_arena.set(add(offset, field_offset), to_ptr(i64_val), 8)
                             } else {
                                 // Check if it's a struct
                                 mut is_struct := true
@@ -656,11 +656,17 @@ EvalArena := struct {
         // Get struct size
         struct_size := ctx.get_type_size(custom_type_name)
 
-        // Allocate new memory
+        // CRITICAL: Copy template data BEFORE reserve() - reserve may reallocate
+        // the arena's backing Vec, invalidating any pointers from get()
+        tmp_buf := malloc(struct_size)
+        memcpy(tmp_buf, g_arena.get(template_offset, struct_size), struct_size)
+
+        // Allocate new memory (may reallocate arena)
         new_offset := g_arena.reserve(struct_size)
 
-        // memcpy from template
-        g_arena.set(new_offset, g_arena.get(template_offset, struct_size), struct_size)
+        // Copy from temporary buffer to new location
+        g_arena.set(new_offset, tmp_buf, struct_size)
+        free(tmp_buf)
 
         // Generate and apply mappings
         result := EvalArena.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)
@@ -682,6 +688,9 @@ EvalArena := struct {
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "insert_struct", "IndexOutOfBoundsError")
         }
+        catch (err: AllocError) {
+            throw e.lang_error(ctx.path, "insert_struct", "AllocError")
+        }
     }
 
     // Insert a struct from template into a specific frame (for function parameters).
@@ -689,11 +698,17 @@ EvalArena := struct {
         // Get struct size
         struct_size := ctx.get_type_size(custom_type_name)
 
-        // Allocate new memory
+        // CRITICAL: Copy template data BEFORE reserve() - reserve may reallocate
+        // the arena's backing Vec, invalidating any pointers from get()
+        tmp_buf := malloc(struct_size)
+        memcpy(tmp_buf, g_arena.get(template_offset, struct_size), struct_size)
+
+        // Allocate new memory (may reallocate arena)
         new_offset := g_arena.reserve(struct_size)
 
-        // memcpy from template
-        g_arena.set(new_offset, g_arena.get(template_offset, struct_size), struct_size)
+        // Copy from temporary buffer to new location
+        g_arena.set(new_offset, tmp_buf, struct_size)
+        free(tmp_buf)
 
         // Temporarily push frame for generate_struct_mappings
         ctx.scope_stack.frames.push(frame)

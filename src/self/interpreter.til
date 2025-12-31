@@ -313,7 +313,8 @@ create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) ret
 
     // Evaluate defaults and create template
     defaults := eval_struct_defaults(ctx, struct_type, e)
-    result := EvalArena.insert_struct_core(ctx, template_id, struct_type, 0, defaults, e)
+    // Pass negative value to indicate "allocate new memory" (since offset 0 is reserved/invalid)
+    result := EvalArena.insert_struct_core(ctx, template_id, struct_type, sub(0, 1), defaults, e)
 
     // Get the template's arena offset (first mapping is the base struct)
     if result.arena_mappings.len().eq(0) {

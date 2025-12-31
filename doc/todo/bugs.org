@@ -8,34 +8,6 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #70: mut_test fails with garbage memory on macOS (til_interpreted)
-:PROPERTIES:
-:DISCOVERED: 2025-12-31
-:IMPACT: test failure on macOS CI
-:STATUS: Active
-:RELATED: Bug #65 (likely caused by this fix)
-:END:
-
-*** Description
-~src/test/mut_test.til~ fails on macOS CI with ~til interpret~:
-#+BEGIN_EXAMPLE
-src/test/mut_test.til:65:19:assert_eq failed: expected '0', found '3328'
-#+END_EXAMPLE
-
-The failure is in ~test_const_to_const~ which reads ~v.x~ from a default-initialized Vec2.
-The value should be 0, but garbage memory is returned.
-
-*** Cause Analysis
-The failure started between commits 590410c (passed) and 4a6bedd (failed).
-The only til.c change in that range was commit ecf0567 (Bug #65 fix), which
-changed ~custom_type_name~ to ~resolved_type_name~ in ~eval_user_func_proc_call~.
-
-This affects how struct parameters are passed to functions. The Bug #65 fix may have
-introduced platform-specific undefined behavior that manifests on macOS but not Linux.
-
-*** Workaround
-Commented out ~mut_test.til~ from ~til_interpreted~ test category until fixed.
-
 ** Bug #64: I64 args in main functions for mode cli don't work
 :PROPERTIES:
 :DISCOVERED: 2025-12-30
@@ -73,6 +45,52 @@ The interpreter/compiler should auto-convert Str args to I64 when the main
 function signature expects I64.
 
 * Fixed Bugs
+
+** Bug #70: C codegen variable type collision causes struct default garbage
+:PROPERTIES:
+:DISCOVERED: 2025-12-31
+:FIXED: 2025-12-31
+:IMPACT: Struct fields with default I64 values returned garbage in til interpret
+:STATUS: Fixed
+:END:
+
+*** Description
+~src/test/mut_test.til~ failed with ~til interpret~, returning garbage values for
+struct fields with default I64 values:
+#+BEGIN_EXAMPLE
+src/test/mut_test.til:65:19:assert_eq failed: expected '0', found '2147395840'
+#+END_EXAMPLE
+
+*** Root Cause
+In ~src/self/eval_arena.til~'s ~insert_struct_core~, both U8 and I64 branches
+used a local variable named ~v~:
+#+BEGIN_SRC til
+if type_name.eq("U8") {
+    v := U8.from_str(default_value)  // v declared as U8
+    ...
+} else {
+    if type_name.eq("I64") {
+        v := I64.from_str(default_value)  // v redeclared as I64
+        ...
+#+END_SRC
+
+The C code generator reused the same variable declaration:
+#+BEGIN_SRC c
+til_U8 til_v;  // Declared as U8
+...
+til_v = til_I64_from_str(&til_default_value);  // Assigned I64 to U8!
+#+END_SRC
+
+This caused an 8-byte I64 value to be stored in a 1-byte U8 variable,
+then only 1 byte was copied to the arena, resulting in garbage values.
+
+*** Fix
+Renamed variables to be unique: ~u8_val~ for U8 branch, ~i64_val~ for I64 branch.
+This prevents variable name collisions across different type branches.
+
+Files modified:
+- ~src/self/eval_arena.til~ (TIL version)
+- ~src/rs/eval_arena.rs~ (Rust version, for consistency)
 
 ** Bug #63: Typer allows passing const variable to own parameter
 :PROPERTIES:

@@ -363,16 +363,16 @@ impl EvalArena {
                     } else {
                         match type_name.as_str() {
                             "U8" => {
-                                let v = default_value.parse::<u8>().map_err(|_| {
+                                let u8_val = default_value.parse::<u8>().map_err(|_| {
                                     e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid U8 default value '{}' for field '{}'", default_value, decl.name))
                                 })?;
-                                EvalArena::g().set(offset + field_offset, &[v])?;
+                                EvalArena::g().set(offset + field_offset, &[u8_val])?;
                             },
                             "I64" => {
-                                let v = default_value.parse::<i64>().map_err(|_| {
+                                let i64_val = default_value.parse::<i64>().map_err(|_| {
                                     e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid I64 default value '{}' for field '{}'", default_value, decl.name))
                                 })?;
-                                EvalArena::g().set(offset + field_offset, &v.to_ne_bytes())?;
+                                EvalArena::g().set(offset + field_offset, &i64_val.to_ne_bytes())?;
                             },
                             _ => {
                                 if ctx.scope_stack.lookup_struct(type_name).is_some() {
