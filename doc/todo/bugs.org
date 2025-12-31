@@ -36,37 +36,6 @@ introduced platform-specific undefined behavior that manifests on macOS but not 
 *** Workaround
 Commented out ~mut_test.til~ from ~til_interpreted~ test category until fixed.
 
-** Bug #63: Typer allows passing const variable to own parameter
-:PROPERTIES:
-:DISCOVERED: 2025-12-29
-:IMPACT: Incorrect ownership semantics, gcc warnings about discarding const
-:STATUS: Active
-:END:
-
-*** Description
-When a function has an ~own~ parameter, the typer should require the caller
-to pass a ~mut~ variable, just like it does for ~mut~ parameters. Currently,
-the typer allows passing const variables to ~own~ parameters.
-
-*** Reproducing
-#+BEGIN_SRC til
-consume := proc(own v: Vec2) returns I64 {
-    return add(v.x, v.y)
-}
-
-test := proc() {
-    original := Vec2(x=1, y=2)  // const, not mut
-    result := consume(original)  // Should error, but doesn't
-}
-#+END_SRC
-
-*** Expected behavior
-Typer should emit an error like: "Cannot pass const variable 'original' to own parameter 'v'"
-
-*** Fix
-In typer.rs/typer.til, add a check when processing FCall args: if the parameter
-is ~own~ and the argument is a const variable, emit a type error.
-
 ** Bug #64: I64 args in main functions for mode cli don't work
 :PROPERTIES:
 :DISCOVERED: 2025-12-30
@@ -104,6 +73,39 @@ The interpreter/compiler should auto-convert Str args to I64 when the main
 function signature expects I64.
 
 * Fixed Bugs
+
+** Bug #63: Typer allows passing const variable to own parameter
+:PROPERTIES:
+:DISCOVERED: 2025-12-29
+:FIXED: 2025-12-31
+:IMPACT: Incorrect ownership semantics, gcc warnings about discarding const
+:STATUS: Fixed
+:END:
+
+*** Description
+When a function has an ~own~ parameter, the typer should require the caller
+to pass a ~mut~ variable, just like it does for ~mut~ parameters. Currently,
+the typer allows passing const variables to ~own~ parameters.
+
+*** Reproducing
+#+BEGIN_SRC til
+consume := proc(own v: Vec2) returns I64 {
+    return add(v.x, v.y)
+}
+
+test := proc() {
+    original := Vec2(x=1, y=2)  // const, not mut
+    result := consume(original)  // Should error, but doesn't
+}
+#+END_SRC
+
+*** Expected behavior
+Typer should emit an error like: "Cannot pass const variable 'original' to own parameter 'v'"
+
+*** Fix Applied
+Added check in typer.rs and typer.til for ~is_own~ parameter, similar to existing
+~is_mut~ check. When processing FCall args, if the parameter is ~own~ and the
+argument is a const variable (identifier with ~!symbol_info.is_mut~), emit type error.
 
 ** Bug #68: TIL typer doesn't remove symbol for own parameter (Bug #49 fix not working)
 :PROPERTIES:

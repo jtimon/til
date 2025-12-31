@@ -559,31 +559,31 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
         };
         // Note: check_types_with_context called earlier in loop (before found_type calculation)
 
-        // Check mut parameter requirements
-        if arg.is_mut {
-            // The parameter expects mut, so the argument must be a mutable variable
+        // Check mut/own parameter requirements (Bug #48, Bug #63)
+        // Both mut and own parameters require mutable variables
+        if arg.is_mut || arg.is_own {
+            let param_kind = if arg.is_mut { "mut" } else { "own" };
             match &arg_expr.node_type {
                 NodeType::Identifier(var_name) => {
                     // Simple variable - check if it's mut
                     if let Some(symbol_info) = context.scope_stack.lookup_symbol(var_name) {
                         if !symbol_info.is_mut {
                             errors.push(arg_expr.error(&context.path, "type", &format!(
-                                "Cannot pass const variable '{}' to mut parameter '{}' of function '{}'.\n\
+                                "Cannot pass const variable '{}' to {} parameter '{}' of function '{}'.\n\
                                  Suggestion: declare '{}' as 'mut {}'.",
-                                var_name, arg.name, f_name, var_name, var_name
+                                var_name, param_kind, arg.name, f_name, var_name, var_name
                             )));
                         }
                     }
                 },
                 NodeType::LLiteral(_) => {
-                    // Bug #48: Literals cannot be passed to mut parameters
                     errors.push(arg_expr.error(&context.path, "type", &format!(
-                        "Cannot pass literal to mut parameter '{}'. Use a variable instead.",
-                        arg.name
+                        "Cannot pass literal to {} parameter '{}'. Use a variable instead.",
+                        param_kind, arg.name
                     )));
                 },
                 _ => {
-                    // FCall: Allow - function results like ptr_add() are valid for mut pointer params
+                    // FCall: Allow - function results can be passed to mut/own parameters
                     // Other node types: Shouldn't happen, but allow to avoid false positives
                 }
             }

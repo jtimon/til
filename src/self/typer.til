@@ -742,9 +742,11 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
 
         // Note: check_types_with_context called earlier in loop (before found_type calculation)
 
-        // Check mut parameter requirements
-        if arg.is_mut {
-            // The parameter expects mut, so the argument must be a mutable variable
+        // Check mut/own parameter requirements (Bug #48, Bug #63)
+        // Both mut and own parameters require mutable variables
+        if arg.is_mut.or(arg.is_own) {
+            mut param_kind := "own"
+            if arg.is_mut { param_kind = "mut" }
             switch arg_expr.node_type {
             case NodeType.Identifier(var_name):
                 // Simple variable - check if it's mut
@@ -758,17 +760,16 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 if symbol_found {
                     if not(symbol_info.is_mut) {
                         errors.push(arg_expr.error(context.path, "type", format(
-                            "Cannot pass const variable '", var_name, "' to mut parameter '", arg.name, "' of function '", f_name, "'.\nSuggestion: declare '", var_name, "' as 'mut ", var_name, "'."
+                            "Cannot pass const variable '", var_name, "' to ", param_kind, " parameter '", arg.name, "' of function '", f_name, "'.\nSuggestion: declare '", var_name, "' as 'mut ", var_name, "'."
                         )))
                     }
                 }
             case NodeType.LLiteral(_):
-                // Bug #48: Literals cannot be passed to mut parameters
                 errors.push(arg_expr.error(context.path, "type", format(
-                    "Cannot pass literal to mut parameter '", arg.name, "'. Use a variable instead."
+                    "Cannot pass literal to ", param_kind, " parameter '", arg.name, "'. Use a variable instead."
                 )))
             case:
-                // FCall: Allow - function results like ptr_add() are valid for mut pointer params
+                // FCall: Allow - function results can be passed to mut/own parameters
                 // Other node types: Shouldn't happen, but allow to avoid false positives
             }
         }
