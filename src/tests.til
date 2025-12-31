@@ -453,6 +453,63 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                                 }
                             }
                         }
+                        // For 4-phase tests (all_common: rs_interpreted, rs_compiled, til_interpreted, til_compiled)
+                        if num_phases.eq(4) {
+                            mut t0 := 0  // rs_interpreted
+                            mut t1 := 0  // rs_compiled
+                            mut t2 := 0  // til_interpreted
+                            mut t3 := 0  // til_compiled
+                            current.phase_times.get(0, t0)
+                            current.phase_times.get(1, t1)
+                            current.phase_times.get(2, t2)
+                            current.phase_times.get(3, t3)
+                            // Compare rstil modes: interpreted vs compiled
+                            mut rstil_faster := ""
+                            if t0.lt(t1) {
+                                rstil_faster = "interpreted"
+                            } else if t1.lt(t0) {
+                                rstil_faster = "compiled"
+                            }
+                            // Compare interpreted: rstil vs til
+                            mut interp_faster := ""
+                            if t0.lt(t2) {
+                                interp_faster = "rstil"
+                            } else if t2.lt(t0) {
+                                interp_faster = "til"
+                            }
+                            // Compare compiled: rstil vs til
+                            mut compiled_faster := ""
+                            if t1.lt(t3) {
+                                compiled_faster = "rstil"
+                            } else if t3.lt(t1) {
+                                compiled_faster = "til"
+                            }
+                            // Build annotation
+                            mut parts := Vec.new(Str)
+                            if rstil_faster.len().gt(0) {
+                                parts.push(format("rstil: faster ", rstil_faster))
+                            }
+                            if interp_faster.len().gt(0) {
+                                parts.push(format("interpreted: faster ", interp_faster))
+                            }
+                            if compiled_faster.len().gt(0) {
+                                parts.push(format("compiled: faster ", compiled_faster))
+                            }
+                            if parts.len().gt(0) {
+                                faster = " ("
+                                mut pi := 0
+                                while pi.lt(parts.len()) {
+                                    if pi.gt(0) {
+                                        faster = faster.concat(", ")
+                                    }
+                                    mut part := ""
+                                    parts.get(pi, part)
+                                    faster = faster.concat(part)
+                                    pi.inc()
+                                }
+                                faster = faster.concat(")")
+                            }
+                        }
 
                         println("[", completed_count.to_str(), "/", tests.len().to_str(), "] ", current.entry.path, args_display, " (", timing_str, ")", faster)
                         benchmark_content = benchmark_content.concat("- ").concat(current.entry.path).concat(" :: ").concat(bench_timing).concat(faster).concat("\n")
@@ -507,108 +564,139 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     mut benchmark_content := ""
 
     // til_interpreted
-    println("\n=== til_interpreted (", til_interpreted.len().to_str(), " tests) ===\n")
-    benchmark_content = benchmark_content.concat("* til_interpreted\n")
-    mut til_interp_phases := Vec.new(TestPhase)
-    til_interp_phases.push(TestPhase(test_mode="til_interpreted", out_mode="interpreted", label="til interpreted"))
     mut til_interp_totals := Vec.new(I64)
     til_interp_totals.push(0)
-    errors_found = errors_found.add(run_parallel(til_interpreted, til_interp_phases, parallelism, til_interp_totals, benchmark_content))
+    if til_interpreted.len().gt(0) {
+        println("\n=== til_interpreted (", til_interpreted.len().to_str(), " tests) ===\n")
+        benchmark_content = benchmark_content.concat("* til_interpreted\n")
+        mut til_interp_phases := Vec.new(TestPhase)
+        til_interp_phases.push(TestPhase(test_mode="til_interpreted", out_mode="interpreted", label="til interpreted"))
+        errors_found = errors_found.add(run_parallel(til_interpreted, til_interp_phases, parallelism, til_interp_totals, benchmark_content))
+    }
 
     // til_compiled
-    println("\n=== til_compiled (", til_compiled.len().to_str(), " tests) ===\n")
-    benchmark_content = benchmark_content.concat("\n* til_compiled\n")
-    mut til_compile_phases := Vec.new(TestPhase)
-    til_compile_phases.push(TestPhase(test_mode="til_compiled", out_mode="compiled", label="til compiled"))
     mut til_compile_totals := Vec.new(I64)
     til_compile_totals.push(0)
-    errors_found = errors_found.add(run_parallel(til_compiled, til_compile_phases, parallelism, til_compile_totals, benchmark_content))
+    if til_compiled.len().gt(0) {
+        println("\n=== til_compiled (", til_compiled.len().to_str(), " tests) ===\n")
+        benchmark_content = benchmark_content.concat("\n* til_compiled\n")
+        mut til_compile_phases := Vec.new(TestPhase)
+        til_compile_phases.push(TestPhase(test_mode="til_compiled", out_mode="compiled", label="til compiled"))
+        errors_found = errors_found.add(run_parallel(til_compiled, til_compile_phases, parallelism, til_compile_totals, benchmark_content))
+    }
 
     // til_common (both modes per test)
-    println("\n=== til_common (", til_common.len().to_str(), " tests) ===\n")
-    benchmark_content = benchmark_content.concat("\n* til_common\n")
-    mut til_common_phases := Vec.new(TestPhase)
-    til_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="interpreted", label="til interpreted"))
-    til_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="interpreted", label="til compiled"))
     mut til_common_totals := Vec.new(I64)
     til_common_totals.push(0)
     til_common_totals.push(0)
-    errors_found = errors_found.add(run_parallel(til_common, til_common_phases, parallelism, til_common_totals, benchmark_content))
+    if til_common.len().gt(0) {
+        println("\n=== til_common (", til_common.len().to_str(), " tests) ===\n")
+        benchmark_content = benchmark_content.concat("\n* til_common\n")
+        mut til_common_phases := Vec.new(TestPhase)
+        til_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="interpreted", label="til interpreted"))
+        til_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="interpreted", label="til compiled"))
+        errors_found = errors_found.add(run_parallel(til_common, til_common_phases, parallelism, til_common_totals, benchmark_content))
+    }
 
     // rs_interpreted
-    println("\n=== rs_interpreted (", rs_interpreted.len().to_str(), " tests) ===\n")
-    benchmark_content = benchmark_content.concat("\n* rs_interpreted\n")
-    mut rs_interp_phases := Vec.new(TestPhase)
-    rs_interp_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="interpreted", label="interpreted"))
     mut rs_interp_totals := Vec.new(I64)
     rs_interp_totals.push(0)
-    errors_found = errors_found.add(run_parallel(rs_interpreted, rs_interp_phases, parallelism, rs_interp_totals, benchmark_content))
+    if rs_interpreted.len().gt(0) {
+        println("\n=== rs_interpreted (", rs_interpreted.len().to_str(), " tests) ===\n")
+        benchmark_content = benchmark_content.concat("\n* rs_interpreted\n")
+        mut rs_interp_phases := Vec.new(TestPhase)
+        rs_interp_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="interpreted", label="interpreted"))
+        errors_found = errors_found.add(run_parallel(rs_interpreted, rs_interp_phases, parallelism, rs_interp_totals, benchmark_content))
+    }
 
     // rs_compiled
-    println("\n=== rs_compiled (", rs_compiled.len().to_str(), " tests) ===\n")
-    benchmark_content = benchmark_content.concat("\n* rs_compiled\n")
-    mut rs_compile_phases := Vec.new(TestPhase)
-    rs_compile_phases.push(TestPhase(test_mode="rs_compiled", out_mode="compiled", label="compiled"))
     mut rs_compile_totals := Vec.new(I64)
     rs_compile_totals.push(0)
-    errors_found = errors_found.add(run_parallel(rs_compiled, rs_compile_phases, parallelism, rs_compile_totals, benchmark_content))
+    if rs_compiled.len().gt(0) {
+        println("\n=== rs_compiled (", rs_compiled.len().to_str(), " tests) ===\n")
+        benchmark_content = benchmark_content.concat("\n* rs_compiled\n")
+        mut rs_compile_phases := Vec.new(TestPhase)
+        rs_compile_phases.push(TestPhase(test_mode="rs_compiled", out_mode="compiled", label="compiled"))
+        errors_found = errors_found.add(run_parallel(rs_compiled, rs_compile_phases, parallelism, rs_compile_totals, benchmark_content))
+    }
 
     // rs_common (both modes per test)
-    println("\n=== rs_common (", rs_common.len().to_str(), " tests) ===\n")
-    benchmark_content = benchmark_content.concat("\n* rs_common\n")
-    mut rs_common_phases := Vec.new(TestPhase)
-    rs_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="interpreted", label="interpreted"))
-    rs_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="interpreted", label="compiled"))
     mut rs_common_totals := Vec.new(I64)
     rs_common_totals.push(0)
     rs_common_totals.push(0)
-    errors_found = errors_found.add(run_parallel(rs_common, rs_common_phases, parallelism, rs_common_totals, benchmark_content))
+    if rs_common.len().gt(0) {
+        println("\n=== rs_common (", rs_common.len().to_str(), " tests) ===\n")
+        benchmark_content = benchmark_content.concat("\n* rs_common\n")
+        mut rs_common_phases := Vec.new(TestPhase)
+        rs_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="interpreted", label="interpreted"))
+        rs_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="interpreted", label="compiled"))
+        errors_found = errors_found.add(run_parallel(rs_common, rs_common_phases, parallelism, rs_common_totals, benchmark_content))
+    }
 
-    // all_common (3 modes: rs_interpreted, rs_compiled, til_interpreted - excludes til_compiled for now)
-    println("\n=== all_common (", all_common.len().to_str(), " tests) ===\n")
-    benchmark_content = benchmark_content.concat("\n* all_common\n")
-    mut all_common_phases := Vec.new(TestPhase)
-    all_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="interpreted", label="rs interpreted"))
-    all_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="interpreted", label="rs compiled"))
-    all_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="interpreted", label="til interpreted"))
+    // all_common (4 modes: rs_interpreted, rs_compiled, til_interpreted, til_compiled)
     mut all_common_totals := Vec.new(I64)
     all_common_totals.push(0)
     all_common_totals.push(0)
     all_common_totals.push(0)
-    errors_found = errors_found.add(run_parallel(all_common, all_common_phases, parallelism, all_common_totals, benchmark_content))
+    all_common_totals.push(0)
+    if all_common.len().gt(0) {
+        println("\n=== all_common (", all_common.len().to_str(), " tests) ===\n")
+        benchmark_content = benchmark_content.concat("\n* all_common\n")
+        mut all_common_phases := Vec.new(TestPhase)
+        all_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="interpreted", label="rs interpreted"))
+        all_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="compiled", label="rs compiled"))
+        all_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="interpreted", label="til interpreted"))
+        all_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="compiled", label="til compiled"))
+        errors_found = errors_found.add(run_parallel(all_common, all_common_phases, parallelism, all_common_totals, benchmark_content))
+    }
 
-    // Compute totals
+    // Compute totals (only for non-empty categories)
     mut total_til_interp := 0
     mut total_til_compile := 0
     mut total_rs_interp := 0
     mut total_rs_compile := 0
-    til_interp_totals.get(0, total_til_interp)
-    til_compile_totals.get(0, total_til_compile)
-    rs_interp_totals.get(0, total_rs_interp)
-    rs_compile_totals.get(0, total_rs_compile)
-    // Add common totals
-    mut til_common_interp := 0
-    mut til_common_compile := 0
-    til_common_totals.get(0, til_common_interp)
-    til_common_totals.get(1, til_common_compile)
-    total_til_interp = total_til_interp.add(til_common_interp)
-    total_til_compile = total_til_compile.add(til_common_compile)
-    mut rs_common_interp := 0
-    mut rs_common_compile := 0
-    rs_common_totals.get(0, rs_common_interp)
-    rs_common_totals.get(1, rs_common_compile)
-    total_rs_interp = total_rs_interp.add(rs_common_interp)
-    total_rs_compile = total_rs_compile.add(rs_common_compile)
-    // Add all_common totals (3 phases: rs_interp, rs_compile, til_interp)
-    mut all_common_rs_interp := 0
-    mut all_common_rs_compile := 0
-    mut all_common_til_interp := 0
-    all_common_totals.get(0, all_common_rs_interp)
-    all_common_totals.get(1, all_common_rs_compile)
-    all_common_totals.get(2, all_common_til_interp)
-    total_rs_interp = total_rs_interp.add(all_common_rs_interp)
-    total_rs_compile = total_rs_compile.add(all_common_rs_compile)
-    total_til_interp = total_til_interp.add(all_common_til_interp)
+    if til_interpreted.len().gt(0) {
+        til_interp_totals.get(0, total_til_interp)
+    }
+    if til_compiled.len().gt(0) {
+        til_compile_totals.get(0, total_til_compile)
+    }
+    if rs_interpreted.len().gt(0) {
+        rs_interp_totals.get(0, total_rs_interp)
+    }
+    if rs_compiled.len().gt(0) {
+        rs_compile_totals.get(0, total_rs_compile)
+    }
+    if til_common.len().gt(0) {
+        mut til_common_interp := 0
+        mut til_common_compile := 0
+        til_common_totals.get(0, til_common_interp)
+        til_common_totals.get(1, til_common_compile)
+        total_til_interp = total_til_interp.add(til_common_interp)
+        total_til_compile = total_til_compile.add(til_common_compile)
+    }
+    if rs_common.len().gt(0) {
+        mut rs_common_interp := 0
+        mut rs_common_compile := 0
+        rs_common_totals.get(0, rs_common_interp)
+        rs_common_totals.get(1, rs_common_compile)
+        total_rs_interp = total_rs_interp.add(rs_common_interp)
+        total_rs_compile = total_rs_compile.add(rs_common_compile)
+    }
+    if all_common.len().gt(0) {
+        mut all_common_rs_interp := 0
+        mut all_common_rs_compile := 0
+        mut all_common_til_interp := 0
+        mut all_common_til_compile := 0
+        all_common_totals.get(0, all_common_rs_interp)
+        all_common_totals.get(1, all_common_rs_compile)
+        all_common_totals.get(2, all_common_til_interp)
+        all_common_totals.get(3, all_common_til_compile)
+        total_rs_interp = total_rs_interp.add(all_common_rs_interp)
+        total_rs_compile = total_rs_compile.add(all_common_rs_compile)
+        total_til_interp = total_til_interp.add(all_common_til_interp)
+        total_til_compile = total_til_compile.add(all_common_til_compile)
+    }
 
     // Print and write totals
     println("")
@@ -831,9 +919,31 @@ main := proc(args: ..Str) {
     mut cp_output := ""
     _ := cp_output.run_cmd("cp", "gen/c/til.c", "bootstrap/til.c")
 
+    // rs_common: tests that pass with rstil (moved to all_common when til_compiled works)
     mut rs_common := Vec.new(TestEntry)
-    // test a part of posix compatibility, it doesn't require the mode to be script, it can be compiled too, like roc
-    // Ideally we should benchmark against at least bash, python, roc, Rust, C and HolyC for this kind of mode, both interpreted and compiled
+    // Tests with til_interpreted issues (can't be promoted to all_common even when til_compiled works)
+    rs_common.push(TestEntry(path="src/test/args.til"))  // til: Segmentation fault
+    rs_common.push(TestEntry(path="src/test/bug43.til"))  // til: assert_eq failed
+    rs_common.push(TestEntry(path="src/test/bug47.til"))  // til: Segmentation fault
+    rs_common.push(TestEntry(path="src/test/bug49.til", expected_status=1))  // til: output mismatch (Bug #68)
+    rs_common.push(TestEntry(path="src/test/bug50.til", expected_status=1))  // til: output mismatch (Issue #69)
+    rs_common.push(TestEntry(path="src/test/bug52.til"))  // til: malloc failed
+    rs_common.push(TestEntry(path="src/test/bug55.til"))  // til: assert_eq_str failed
+    rs_common.push(TestEntry(path="src/test/bug56.til"))  // til: enum payload (Bug #67)
+    rs_common.push(TestEntry(path="src/test/editor_mode_test.til"))  // til: enum payload (Bug #67)
+    rs_common.push(TestEntry(path="src/test/enums.til"))  // til: enum payload (Bug #67)
+    rs_common.push(TestEntry(path="src/test/errors.til"))  // til: string_from_context out of bounds
+    rs_common.push(TestEntry(path="src/test/forward_declarations.til"))  // til: enum payload (Bug #67)
+    rs_common.push(TestEntry(path="src/test/modes.til"))  // til: assert_eq failed
+    rs_common.push(TestEntry(path="src/test/optional_args.til"))  // til: Segmentation fault
+    rs_common.push(TestEntry(path="src/test/structs.til"))  // til: assert_eq failed
+    rs_common.push(TestEntry(path="src/test/test_lexer.til"))  // til: String range comparisons
+    rs_common.push(TestEntry(path="src/test/test_parser.til"))  // til: Segmentation fault
+    rs_common.push(TestEntry(path="src/test/ufcs.til"))  // til: Segmentation fault
+    rs_common.push(TestEntry(path="src/test/undefined.til", expected_status=1))  // til: malloc failed (Bug #52)
+    rs_common.push(TestEntry(path="src/test/vecs.til"))  // til: malloc failed (Bug #52)
+    rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))  // til: Segmentation fault
+    // Tests that pass with til_interpreted (promote to all_common when til_compiled works)
     rs_common.push(TestEntry(path="src/examples/hello_cli.til"))
     rs_common.push(TestEntry(path="src/examples/hello_lib.til"))
     rs_common.push(TestEntry(path="src/examples/hello_liba.til"))
@@ -843,21 +953,13 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/examples/hello_test.til"))
     rs_common.push(TestEntry(path="src/examples/lolalalo.til"))
     rs_common.push(TestEntry(path="src/test/arenas.til"))
-    rs_common.push(TestEntry(path="src/test/args.til"))
     rs_common.push(TestEntry(path="src/test/arithmetics.til"))
     rs_common.push(TestEntry(path="src/test/arrays.til"))
     rs_common.push(TestEntry(path="src/test/bools.til"))
     rs_common.push(TestEntry(path="src/test/branchless.til"))
     rs_common.push(TestEntry(path="src/test/bug41.til"))
-    rs_common.push(TestEntry(path="src/test/bug43.til"))
     rs_common.push(TestEntry(path="src/test/bug46.til"))
-    rs_common.push(TestEntry(path="src/test/bug47.til"))
     rs_common.push(TestEntry(path="src/test/bug48.til", expected_status=1))
-    rs_common.push(TestEntry(path="src/test/bug49.til", expected_status=1))
-    rs_common.push(TestEntry(path="src/test/bug50.til", expected_status=1))
-    rs_common.push(TestEntry(path="src/test/bug52.til"))
-    rs_common.push(TestEntry(path="src/test/bug55.til"))
-    rs_common.push(TestEntry(path="src/test/bug56.til"))
     rs_common.push(TestEntry(path="src/test/bug57.til"))
     rs_common.push(TestEntry(path="src/test/c_mem.til"))
     rs_common.push(TestEntry(path="src/test/circular_test.til"))
@@ -866,42 +968,28 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/constfold.til"))
     rs_common.push(TestEntry(path="src/test/cross_file_forward.til"))
     rs_common.push(TestEntry(path="src/test/deterministic.til"))
-    rs_common.push(TestEntry(path="src/test/editor_mode_test.til"))
-    rs_common.push(TestEntry(path="src/test/enums.til"))
-    rs_common.push(TestEntry(path="src/test/errors.til"))
     rs_common.push(TestEntry(path="src/test/eval.til"))
     rs_common.push(TestEntry(path="src/test/exit.til", expected_status=69))
     rs_common.push(TestEntry(path="src/test/fibonacci.til"))
     rs_common.push(TestEntry(path="src/test/flow.til"))
-    rs_common.push(TestEntry(path="src/test/forward_declarations.til"))
     rs_common.push(TestEntry(path="src/test/func_purity.til"))
     rs_common.push(TestEntry(path="src/test/function_pointers.til"))
     rs_common.push(TestEntry(path="src/test/intro.til"))
-    // rs_common.push(TestEntry(path="src/test/introspections.til")) // TODO: Add C impl for Introspection.has_const/has_field in src/ext.c
     rs_common.push(TestEntry(path="src/test/lists.til"))
     rs_common.push(TestEntry(path="src/test/literals.til"))
     rs_common.push(TestEntry(path="src/test/loops.til"))
     rs_common.push(TestEntry(path="src/test/maps.til"))
-    rs_common.push(TestEntry(path="src/test/modes.til"))
     rs_common.push(TestEntry(path="src/test/mut_test.til"))
     rs_common.push(TestEntry(path="src/test/namespaces.til"))
-    rs_common.push(TestEntry(path="src/test/optional_args.til"))
     rs_common.push(TestEntry(path="src/test/parallel_cmd.til"))
     rs_common.push(TestEntry(path="src/test/pointers.til"))
     rs_common.push(TestEntry(path="src/test/return_value_usage.til"))
     rs_common.push(TestEntry(path="src/test/scope_isolation.til"))
     rs_common.push(TestEntry(path="src/test/sets.til"))
     rs_common.push(TestEntry(path="src/test/strings.til"))
-    rs_common.push(TestEntry(path="src/test/structs.til"))
-    rs_common.push(TestEntry(path="src/test/test_lexer.til"))
-    rs_common.push(TestEntry(path="src/test/test_parser.til"))
     rs_common.push(TestEntry(path="src/test/u8.til"))
-    rs_common.push(TestEntry(path="src/test/ufcs.til"))
-    rs_common.push(TestEntry(path="src/test/undefined.til", expected_status=1)) // in both rs_interpreted and rs_compiled because interpret/run produce different output wrappers
     rs_common.push(TestEntry(path="src/test/underscore.til"))
     rs_common.push(TestEntry(path="src/test/variadic.til"))
-    rs_common.push(TestEntry(path="src/test/vecs.til"))
-    rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))
 
     mut rs_compiled := Vec.new(TestEntry)
 
@@ -920,9 +1008,11 @@ main := proc(args: ..Str) {
     // Input must end with exit(0) to break out of the infinite while loop
     // rs_interpreted.push(TestEntry(path="src/modes/repl.til"))
 
-    // til_interpreted: tests run with the self-hosted TIL interpreter only
+    // til_interpreted: tests that run with til interpret
+    // Tests here are also in rs_common until til_compiled works and they can be promoted to all_common
     mut til_interpreted := Vec.new(TestEntry)
-    til_interpreted.push(TestEntry(path="src/examples/empty.til", expected_status=0))
+    til_interpreted.push(TestEntry(path="src/examples/empty.til", expected_status=0))  // til-only (not in rs_common)
+    // Tests that pass with both rstil and til_interpreted (promote to all_common when til_compiled works)
     til_interpreted.push(TestEntry(path="src/examples/hello_cli.til"))
     til_interpreted.push(TestEntry(path="src/examples/hello_lib.til"))
     til_interpreted.push(TestEntry(path="src/examples/hello_liba.til"))
@@ -932,21 +1022,13 @@ main := proc(args: ..Str) {
     til_interpreted.push(TestEntry(path="src/examples/hello_test.til"))
     til_interpreted.push(TestEntry(path="src/examples/lolalalo.til"))
     til_interpreted.push(TestEntry(path="src/test/arenas.til"))
-    // til_interpreted.push(TestEntry(path="src/test/args.til"))  // TODO: Segmentation fault
     til_interpreted.push(TestEntry(path="src/test/arithmetics.til"))
     til_interpreted.push(TestEntry(path="src/test/arrays.til"))
     til_interpreted.push(TestEntry(path="src/test/bools.til"))
     til_interpreted.push(TestEntry(path="src/test/branchless.til"))
     til_interpreted.push(TestEntry(path="src/test/bug41.til"))
-    // til_interpreted.push(TestEntry(path="src/test/bug43.til"))  // TODO: assert_eq failed: expected '0', found '2130832128'
     til_interpreted.push(TestEntry(path="src/test/bug46.til"))
-    // til_interpreted.push(TestEntry(path="src/test/bug47.til"))  // TODO: Segmentation fault
     til_interpreted.push(TestEntry(path="src/test/bug48.til", expected_status=1))
-    // til_interpreted.push(TestEntry(path="src/test/bug49.til", expected_status=1))  // TODO: output mismatch (different error count)
-    // til_interpreted.push(TestEntry(path="src/test/bug50.til", expected_status=1))  // TODO: output mismatch (rstil vs til prefix)
-    // til_interpreted.push(TestEntry(path="src/test/bug52.til"))  // TODO: concat: malloc failed
-    // til_interpreted.push(TestEntry(path="src/test/bug55.til"))  // TODO: assert_eq_str failed: expected 'hello', found ''
-    // til_interpreted.push(TestEntry(path="src/test/bug56.til"))  // TODO: Enum variant payload type 'unknown' not yet supported
     til_interpreted.push(TestEntry(path="src/test/bug57.til"))
     til_interpreted.push(TestEntry(path="src/test/c_mem.til"))
     til_interpreted.push(TestEntry(path="src/test/circular_test.til"))
@@ -955,41 +1037,28 @@ main := proc(args: ..Str) {
     til_interpreted.push(TestEntry(path="src/test/constfold.til"))
     til_interpreted.push(TestEntry(path="src/test/cross_file_forward.til"))
     til_interpreted.push(TestEntry(path="src/test/deterministic.til"))
-    // til_interpreted.push(TestEntry(path="src/test/editor_mode_test.til"))  // TODO: Enum variant payload type 'unknown' not yet supported
-    // til_interpreted.push(TestEntry(path="src/test/enums.til"))  // TODO: Enum variant payload type 'unknown' not yet supported
-    // til_interpreted.push(TestEntry(path="src/test/errors.til"))  // TODO: string_from_context out of bounds
     til_interpreted.push(TestEntry(path="src/test/eval.til"))
     til_interpreted.push(TestEntry(path="src/test/exit.til", expected_status=69))
     til_interpreted.push(TestEntry(path="src/test/fibonacci.til"))
     til_interpreted.push(TestEntry(path="src/test/flow.til"))
-    // til_interpreted.push(TestEntry(path="src/test/forward_declarations.til"))  // TODO: Enum variant payload type 'unknown' not yet supported
     til_interpreted.push(TestEntry(path="src/test/func_purity.til"))
     til_interpreted.push(TestEntry(path="src/test/function_pointers.til"))
     til_interpreted.push(TestEntry(path="src/test/intro.til"))
-    til_interpreted.push(TestEntry(path="src/test/literals.til"))
     til_interpreted.push(TestEntry(path="src/test/lists.til"))
+    til_interpreted.push(TestEntry(path="src/test/literals.til"))
     til_interpreted.push(TestEntry(path="src/test/loops.til"))
     til_interpreted.push(TestEntry(path="src/test/maps.til"))
-    // til_interpreted.push(TestEntry(path="src/test/modes.til"))  // TODO: assert_eq failed: expected '0', found '65536'
     til_interpreted.push(TestEntry(path="src/test/mut_test.til"))
     til_interpreted.push(TestEntry(path="src/test/namespaces.til"))
-    // til_interpreted.push(TestEntry(path="src/test/optional_args.til"))  // TODO: Segmentation fault
     til_interpreted.push(TestEntry(path="src/test/parallel_cmd.til"))
     til_interpreted.push(TestEntry(path="src/test/pointers.til"))
     til_interpreted.push(TestEntry(path="src/test/return_value_usage.til"))
     til_interpreted.push(TestEntry(path="src/test/scope_isolation.til"))
     til_interpreted.push(TestEntry(path="src/test/sets.til"))
     til_interpreted.push(TestEntry(path="src/test/strings.til"))
-    // til_interpreted.push(TestEntry(path="src/test/structs.til"))  // TODO: assert_eq failed: expected '10', found garbage
-    // til_interpreted.push(TestEntry(path="src/test/test_lexer.til"))  // TODO: String range comparisons not yet supported
-    // til_interpreted.push(TestEntry(path="src/test/test_parser.til"))  // TODO: Segmentation fault
     til_interpreted.push(TestEntry(path="src/test/u8.til"))
-    // til_interpreted.push(TestEntry(path="src/test/ufcs.til"))  // TODO: Segmentation fault
-    // til_interpreted.push(TestEntry(path="src/test/undefined.til", expected_status=1))  // TODO: concat: malloc failed (same as bug52)
     til_interpreted.push(TestEntry(path="src/test/underscore.til"))
     til_interpreted.push(TestEntry(path="src/test/variadic.til"))
-    // til_interpreted.push(TestEntry(path="src/test/vecs.til"))  // TODO: concat: malloc failed (same as bug52)
-    // til_interpreted.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: Segmentation fault
 
     // til_compiled: tests run with the self-hosted TIL compiler only
     mut til_compiled := Vec.new(TestEntry)
@@ -999,12 +1068,10 @@ main := proc(args: ..Str) {
     mut til_common := Vec.new(TestEntry)
     // til_common.push(TestEntry(path="src/examples/empty.til", expected_status=0)) // TODO: Fix "func 'Bool' returns multiple values" error
 
-    // all_common: tests run with ALL compilers (rs_interpreted, rs_compiled, til_interpreted)
-    // Excludes til_compiled for now since no tests pass with it yet
-    // Tests here must produce identical output across all 3 modes
+    // all_common: tests run with ALL 4 modes (rs_interpreted, rs_compiled, til_interpreted, til_compiled)
+    // Currently empty - til_compiled (til run) segfaults on all tests
+    // When til_compiled starts working, tests can be promoted here from rs_common
     mut all_common := Vec.new(TestEntry)
-    // Move tests here from rs_common + til_interpreted once they pass identically
-    // Tests with rstil/til divergences (like bug50 prefix mismatch) stay in separate categories
 
     // Parse remaining args (after -j was extracted)
     if remaining_args.len().eq(0) {

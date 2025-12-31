@@ -74,9 +74,14 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 ### Current Focus (2025-12-31)
 **Fix all til_interpreted tests first, then til_compiled**
 
-Step 1: Get all rs_common tests working with `./bin/til interpret`.
+Test organization (Issue #69):
+- `rs_common` (67 tests): All rstil tests (includes 46 that also pass til_interpreted)
+- `til_interpreted` (47 tests): Tests that pass with `./bin/til interpret`
+- `all_common` (0 tests): Empty - requires all 4 modes including til_compiled
+  - til_compiled (`til run`) segfaults on all tests
+  - When til_compiled works, tests can be promoted from rs_common
 
-Working tests (47/68):
+Working til_interpreted tests (47):
 - examples: empty, hello_cli, hello_lib, hello_liba, hello_pura, hello_pure, hello_script, hello_test, lolalalo
 - tests: arenas, arithmetics, arrays, bools, branchless, bug41, bug46, bug48, bug57, c_mem,
   circular_test, clone, comparisons, constfold, cross_file_forward, deterministic, eval, exit,
@@ -84,7 +89,7 @@ Working tests (47/68):
   mut_test, namespaces, parallel_cmd, pointers, return_value_usage, scope_isolation, sets,
   strings, u8, underscore, variadic
 
-Failing tests (21/68) by category:
+Failing til_interpreted tests (21) by category:
 
 **Enum variant payload type 'unknown' not yet supported (4 tests)**
 - bug56, editor_mode_test, enums, forward_declarations

@@ -94,24 +94,35 @@ that runs all modes. Previously tests were either in ~rs_common~ (rstil only)
 or ~til_interpreted~ (til only), with no way to verify identical behavior.
 
 *** Solution Implemented
-Added ~all_common~ category in tests.til that runs 3 modes:
+Added ~all_common~ category in tests.til that runs 4 modes:
 - rs_interpreted (rstil interpret)
 - rs_compiled (rstil run)
 - til_interpreted (til interpret)
+- til_compiled (til run)
 
-til_compiled excluded for now (no tests pass with it yet).
+Currently empty - ~til run~ segfaults on all tests (self-hosted compiler broken).
+When ~til run~ starts working, tests can be promoted from ~rs_common~.
 
 *** Test Categorization Strategy
-- ~all_common~: Tests producing identical output across all 3 modes
-- ~rs_common~: Tests with rstil-specific behavior or output
-- ~til_interpreted~: Tests with til-specific behavior or temporary divergences
+- ~all_common~: Tests producing identical output across all 4 modes (currently empty)
+- ~rs_common~: Tests that pass with rstil (67 tests)
+- ~til_interpreted~: Tests that pass with til interpret (47 tests)
+  - 46 tests are in BOTH rs_common and til_interpreted (duplicated for validation)
+  - 1 test (empty.til) is til-only
 - ~rs_interpreted~, ~rs_compiled~: Mode-specific tests
+- Empty categories are skipped in benchmark output
 
 *** Example: bug50
 bug50.til produces ~rstil type ERROR~ vs ~til type ERROR~ (binary name in output).
 It stays in ~rs_common~ until either:
 1. Binary name removed from error messages, OR
 2. Output normalization added to test comparison
+
+*** Benchmark Annotations
+4-phase all_common tests will show timing comparisons:
+- ~(rstil: faster interpreted)~ or ~(rstil: faster compiled)~ - comparing rstil modes
+- ~(interpreted: faster rstil)~ or ~(interpreted: faster til)~ - comparing interpreters
+- ~(compiled: faster rstil)~ or ~(compiled: faster til)~ - comparing compilers
 
 *** Files Modified
 - src/tests.til: Added all_common Vec, processing in run_all_tests(), updated usage()
