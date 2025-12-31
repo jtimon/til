@@ -566,6 +566,26 @@ map.set(key, value)  // Overwrites if key exists, like Rust
 Use ~Map.insert()~ only when you want to enforce unique keys (throws on duplicate).
 Use ~Map.set()~ when you want Rust's HashMap.insert behavior (overwrites).
 
+** Map.keys is a field, not a method
+
+In Rust, ~.keys()~ is a method that returns an iterator. In TIL, ~.keys~ is a field (Vec) that you access directly:
+
+Rust:
+#+begin_src rust
+for key in map.keys() {
+    // use key
+}
+#+end_src
+
+TIL:
+#+begin_src til
+// WRONG - keys is not a method
+for key: Str in map.keys() { ... }
+
+// CORRECT - keys is a field (Vec)
+for key: Str in map.keys { ... }
+#+end_src
+
 ** Catch blocks placement
 
 Catch blocks CANNOT be placed in unreachable code (after the final return/throw of a function).
