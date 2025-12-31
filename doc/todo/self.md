@@ -94,7 +94,7 @@ Failing tests (21/68) by category:
 
 **Output mismatch (2 tests)**
 - bug49 (1 vs 2 errors - Bug #68: remove_symbol not working in TIL typer)
-- bug50 (rstil vs til prefix in error message)
+- bug50 (rstil vs til prefix in error message - see Issue #69 for test org solution)
 
 **Other errors (9 tests)**
 - bug43 - assert_eq wrong value (expected '0', found '2130832128')

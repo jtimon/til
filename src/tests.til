@@ -501,9 +501,9 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
 
 // ============ End parallel execution ============
 
-run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, parallelism: I64) {
+run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, rs_interpreted: Vec, rs_compiled: Vec, rs_common: Vec, all_common: Vec, parallelism: I64) {
     mut errors_found := 0
-    total_tests := til_interpreted.len().add(til_compiled.len()).add(til_common.len()).add(rs_interpreted.len()).add(rs_compiled.len()).add(rs_common.len())
+    total_tests := til_interpreted.len().add(til_compiled.len()).add(til_common.len()).add(rs_interpreted.len()).add(rs_compiled.len()).add(rs_common.len()).add(all_common.len())
     mut benchmark_content := ""
 
     // til_interpreted
@@ -564,6 +564,19 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     rs_common_totals.push(0)
     errors_found = errors_found.add(run_parallel(rs_common, rs_common_phases, parallelism, rs_common_totals, benchmark_content))
 
+    // all_common (3 modes: rs_interpreted, rs_compiled, til_interpreted - excludes til_compiled for now)
+    println("\n=== all_common (", all_common.len().to_str(), " tests) ===\n")
+    benchmark_content = benchmark_content.concat("\n* all_common\n")
+    mut all_common_phases := Vec.new(TestPhase)
+    all_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="interpreted", label="rs interpreted"))
+    all_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="interpreted", label="rs compiled"))
+    all_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="interpreted", label="til interpreted"))
+    mut all_common_totals := Vec.new(I64)
+    all_common_totals.push(0)
+    all_common_totals.push(0)
+    all_common_totals.push(0)
+    errors_found = errors_found.add(run_parallel(all_common, all_common_phases, parallelism, all_common_totals, benchmark_content))
+
     // Compute totals
     mut total_til_interp := 0
     mut total_til_compile := 0
@@ -586,6 +599,16 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     rs_common_totals.get(1, rs_common_compile)
     total_rs_interp = total_rs_interp.add(rs_common_interp)
     total_rs_compile = total_rs_compile.add(rs_common_compile)
+    // Add all_common totals (3 phases: rs_interp, rs_compile, til_interp)
+    mut all_common_rs_interp := 0
+    mut all_common_rs_compile := 0
+    mut all_common_til_interp := 0
+    all_common_totals.get(0, all_common_rs_interp)
+    all_common_totals.get(1, all_common_rs_compile)
+    all_common_totals.get(2, all_common_til_interp)
+    total_rs_interp = total_rs_interp.add(all_common_rs_interp)
+    total_rs_compile = total_rs_compile.add(all_common_rs_compile)
+    total_til_interp = total_til_interp.add(all_common_til_interp)
 
     // Print and write totals
     println("")
@@ -772,7 +795,7 @@ usage := proc() {
     println("regen <mode> <status> <file> [args]: regenerates specific .out file.")
     println("help: prints this.")
     println("")
-    println("Modes: rs_interpreted, rs_compiled, rs_common, til_interpreted, til_compiled, til_common")
+    println("Modes: rs_interpreted, rs_compiled, rs_common, til_interpreted, til_compiled, til_common, all_common")
 }
 
 main := proc(args: ..Str) {
@@ -976,17 +999,24 @@ main := proc(args: ..Str) {
     mut til_common := Vec.new(TestEntry)
     // til_common.push(TestEntry(path="src/examples/empty.til", expected_status=0)) // TODO: Fix "func 'Bool' returns multiple values" error
 
+    // all_common: tests run with ALL compilers (rs_interpreted, rs_compiled, til_interpreted)
+    // Excludes til_compiled for now since no tests pass with it yet
+    // Tests here must produce identical output across all 3 modes
+    mut all_common := Vec.new(TestEntry)
+    // Move tests here from rs_common + til_interpreted once they pass identically
+    // Tests with rstil/til divergences (like bug50 prefix mismatch) stay in separate categories
+
     // Parse remaining args (after -j was extracted)
     if remaining_args.len().eq(0) {
         // Default: run tests
-        run_all_tests(til_interpreted, til_compiled, til_common, rs_interpreted, rs_compiled, rs_common, parallelism)
+        run_all_tests(til_interpreted, til_compiled, til_common, rs_interpreted, rs_compiled, rs_common, all_common, parallelism)
     } else {
         mut cmd := ""
         remaining_args.get(0, cmd)
         switch cmd {
         case "test":
             if remaining_args.len().eq(1) {
-                run_all_tests(til_interpreted, til_compiled, til_common, rs_interpreted, rs_compiled, rs_common, parallelism)
+                run_all_tests(til_interpreted, til_compiled, til_common, rs_interpreted, rs_compiled, rs_common, all_common, parallelism)
             } else if remaining_args.len().lt(3) {
                 println("Error: test requires <mode> and <file>")
                 usage()

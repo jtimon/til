@@ -79,3 +79,39 @@ This rule is documented in CLAUDE.md.
 *** References
 - Bug #65: Specific instance where shadowing caused divergence
 - doc/todo/post.org: Original shadowing discussion (moved here)
+
+** Issue #69: Test Organization - all_common category
+:PROPERTIES:
+:DISCOVERED: 2025-12-31
+:IMPACT: Test infrastructure, rstil/til output validation
+:STATUS: Implemented
+:RELATED: bug50 (rstil vs til prefix mismatch)
+:END:
+
+*** Background
+Tests that pass with BOTH rstil and til (with identical output) need a category
+that runs all modes. Previously tests were either in ~rs_common~ (rstil only)
+or ~til_interpreted~ (til only), with no way to verify identical behavior.
+
+*** Solution Implemented
+Added ~all_common~ category in tests.til that runs 3 modes:
+- rs_interpreted (rstil interpret)
+- rs_compiled (rstil run)
+- til_interpreted (til interpret)
+
+til_compiled excluded for now (no tests pass with it yet).
+
+*** Test Categorization Strategy
+- ~all_common~: Tests producing identical output across all 3 modes
+- ~rs_common~: Tests with rstil-specific behavior or output
+- ~til_interpreted~: Tests with til-specific behavior or temporary divergences
+- ~rs_interpreted~, ~rs_compiled~: Mode-specific tests
+
+*** Example: bug50
+bug50.til produces ~rstil type ERROR~ vs ~til type ERROR~ (binary name in output).
+It stays in ~rs_common~ until either:
+1. Binary name removed from error messages, OR
+2. Output normalization added to test comparison
+
+*** Files Modified
+- src/tests.til: Added all_common Vec, processing in run_all_tests(), updated usage()
