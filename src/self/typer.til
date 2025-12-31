@@ -247,13 +247,13 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
             dummy_func = context.scope_stack.lookup_func(name)
             func_found = true
             catch (err: KeyNotFoundError) {
-                // Not found
+                func_found = false  // Bug #68 fix: is_some() = false when throws
             }
             mut dummy_symbol := SymbolInfo()
             dummy_symbol = context.scope_stack.lookup_symbol(name)
             symbol_found = true
             catch (err: KeyNotFoundError) {
-                // Not found
+                symbol_found = false  // Bug #68 fix: is_some() = false when throws
             }
             if not(func_found.or(symbol_found)) {
                 errors.push(e.error(context.path, "type", format("Undefined symbol '", name, "'")))
@@ -3045,4 +3045,3 @@ basic_mode_checks := proc(context: Context, e: Expr) returns Vec throws Str {
 
     return errors
 }
-

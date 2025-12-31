@@ -1,20 +1,35 @@
+// Bug #68: Consecutive catch blocks for same error type - second goto missing
+//
+// Import typer and call check_types_with_context directly to reproduce the
+// exact generated C code that has the bug in til.c
+
 mode test
 
-// Bug #68: TIL typer doesn't detect use-after-move for own parameters
-//
-// rstil produces 2 errors: type ERROR + init ERROR
-// til produces 1 error: init ERROR only
-//
-// The Bug #49 fix exists in both typer.rs and typer.til (remove_symbol call),
-// but the TIL version doesn't work - the symbol remains in scope.
+import("self.init")
+import("self.parser")
+import("self.typer")
 
-consume := proc(own n: I64) returns I64 {
-    return mul(n, 2)
+test_bug68 := proc() {
+    // Create a minimal context
+    mut context := Context()
+    context.path = "test.til"
+    context.scope_stack.push(ScopeType.Global)
+
+    // Create an Identifier expression for a nonexistent symbol "x"
+    mut e := Expr()
+    e.node_type = NodeType.Identifier("x")
+    e.line = 1
+    e.col = 1
+
+    // Call check_types_with_context - this has the buggy pattern
+    errors := check_types_with_context(context, e, ExprContext.ValueUsed)
+
+    // Should get 1 error: "Undefined symbol 'x'"
+    assert_eq(loc(), 1, errors.len())
+
+    catch (err: Str) {
+        panic(loc(), "unexpected Str error: ", err)
+    }
 }
 
-test_use_after_move := proc() {
-    mut x := 42
-    result := consume(x)
-    println("x after:", I64.to_str(x))  // Should be undefined - x was moved
-}
-test_use_after_move()
+test_bug68()

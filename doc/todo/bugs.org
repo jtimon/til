@@ -40,24 +40,53 @@ if arg.is_own {
 }
 #+END_SRC
 
-*** Investigation Notes
-- Tested that ~mut~ struct parameters persist modifications across function calls
-- Tested that nested struct field modifications work
-- The ~push~ and ~pop~ calls on scope_stack work correctly
-- ~remove_symbol~ in init.til uses get/modify/set pattern (lines 273-290)
-- Rust version uses ~last_mut()~ to directly modify
+*** Investigation Notes (2025-12-31)
+- Debug prints confirmed ~remove_symbol~ IS being called and modifies the frame correctly
+- After removal, ~lookup_symbol~ correctly shows ~contains_key=false~ for all frames
+- BUT ~symbol_found~ is still set to ~true~ after the catch block
 
-*** Hypothesis
-The get/modify/set pattern in ~remove_symbol~ might not be propagating changes correctly
-when the ScopeStack is accessed through a chain of struct fields (~context.scope_stack~).
+*** Root Cause Hypothesis
+Examined generated C code in bootstrap/til.c. Found that when there are TWO consecutive
+catch blocks for the SAME error type, the second one is MISSING the ~goto~ statement:
+
+~lookup_func~ (first catch - CORRECT):
+#+BEGIN_SRC c
+int _status_104 = til_ScopeStack_lookup_func(...);
+if (_status_104 == 1) { ... goto _catch_KeyNotFoundError_96; }  // <-- goto EXISTS
+til_func_found = true;
+if (0) { _catch_KeyNotFoundError_96: ... }
+#+END_SRC
+
+~lookup_symbol~ (second catch - BROKEN):
+#+BEGIN_SRC c
+int _status_105 = til_ScopeStack_lookup_symbol(...);
+// <-- NO GOTO HERE! Missing: if (_status_105 == 1) { goto _catch_97; }
+til_symbol_found = true;
+if (0) { _catch_KeyNotFoundError_97: ... }
+#+END_SRC
+
+This is a ccodegen.rs bug: consecutive catch blocks for same error type lose their goto.
+
+*** Reproducing Test
+Test file: src/test/bug68.til
+
+- ~rstil interpret src/test/bug68.til~ → PASS (symbol_found=false, catch works)
+- ~rstil run src/test/bug68.til~ → FAIL (symbol_found=true, catch doesn't execute)
+
+The test imports typer.til and calls ~check_types_with_context~ directly, which
+contains the buggy consecutive catch pattern.
+
+*** Partial Fix Applied
+Added explicit ~func_found = false~ and ~symbol_found = false~ in catch blocks in typer.til.
+This is correct - per rs2til.org, catching KeyNotFoundError is like ~.is_some() = false~.
+The catch blocks now have the right code, but ccodegen.rs doesn't generate the goto to reach them.
 
 *** Plan to Fix
-1. Add debug prints to verify remove_symbol is called and modifies the frame
-2. Check if the issue is in how Vec.set works for ScopeFrame
-3. Compare the scope state before/after remove_symbol call
-4. May need to trace through with gdb on generated C code
-
-Test file: src/test/bug68.til
+1. ✓ Created reproducing test (bug68.til)
+2. ✓ Verified ~rstil interpret~ works but ~rstil run~ fails
+3. ✓ Added explicit false assignments in catch blocks (typer.til)
+4. Find the bug in ccodegen.rs that handles catch block goto generation
+5. Fix in Rust, port to TIL
 
 ** Bug #63: Typer allows passing const variable to own parameter
 :PROPERTIES:
