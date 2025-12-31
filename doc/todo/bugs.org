@@ -8,6 +8,45 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #67: Enum variant payload type comes through as empty string in til
+:PROPERTIES:
+:DISCOVERED: 2025-12-31
+:IMPACT: 4 til_interpreted tests fail (bug56, editor_mode_test, enums, forward_declarations)
+:STATUS: Active
+:END:
+
+*** Description
+When an enum has a variant with a payload type (e.g., ~Variant1: Str~), the self-hosted
+TIL interpreter receives the type as empty string, causing "uses undefined type ''" errors.
+The Rust interpreter works correctly.
+
+*** Errors Seen
+#+BEGIN_SRC
+src/test/bug56.til:5:11: type ERROR: Enum variant 'Variant1' uses undefined type ''.
+src/test/bug56.til:17:12: til init ERROR: Enum variant payload type 'unknown' not yet supported
+#+END_SRC
+
+*** Investigation Notes
+- ~str_to_value_type~ in parser.til looks identical to parser.rs (lines 523-541 vs 284-292)
+- Both have catch-all: ~return ValueType.TCustom(arg_type)~
+- The type name is being lost somewhere in the enum parsing chain before it reaches the typer
+- Need to trace where enum variant types are parsed and stored
+
+*** Reproducing
+#+BEGIN_SRC til
+MyEnum := enum {
+    Variant1: Str,  // This fails with til, works with rstil
+}
+#+END_SRC
+
+Test files: src/test/bug56.til, src/test/enums.til
+
+*** Plan to Fix
+1. Add debug prints in parser.til where enum variants are parsed
+2. Compare with parser.rs to find the divergence
+3. Fix the parsing/storage of enum variant payload types
+4. Test all 4 affected tests
+
 ** Bug #63: Typer allows passing const variable to own parameter
 :PROPERTIES:
 :DISCOVERED: 2025-12-29
