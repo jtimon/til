@@ -89,18 +89,15 @@ Failing tests (21/68) by category:
 **Enum variant payload type 'unknown' not yet supported (4 tests)**
 - bug56, editor_mode_test, enums, forward_declarations
 
-**Segmentation fault (5 tests)**
-- args, bug47, optional_args, ufcs, til.til help
-
-**Undefined symbol 'X' (2 tests)**
-- test_parser ('vt'), vecs ('p1')
+**Segmentation fault (6 tests)**
+- args, bug47, optional_args, test_parser, ufcs, til.til help
 
 **Output mismatch (3 tests)**
 - bug49 (different error count)
 - bug50 (rstil vs til prefix)
 - undefined (rstil vs til prefix)
 
-**Other errors (7 tests)**
+**Other errors (8 tests)**
 - bug43 - assert_eq wrong value (expected '0', found '2130832128')
 - bug52 - concat: malloc failed
 - bug55 - assert_eq_str: expected 'hello', found ''
@@ -108,6 +105,7 @@ Failing tests (21/68) by category:
 - modes - assert_eq failed: expected '0', found '65536'
 - structs - assert_eq: expected '10', found garbage
 - test_lexer - String range comparisons not yet supported
+- vecs - concat: malloc failed (same as bug52)
 
 Phase 2: Once til_interpreted tests pass, fix til_compiled:
 ```bash

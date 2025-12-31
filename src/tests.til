@@ -959,7 +959,7 @@ main := proc(args: ..Str) {
     til_interpreted.push(TestEntry(path="src/test/strings.til"))
     // til_interpreted.push(TestEntry(path="src/test/structs.til"))  // TODO: assert_eq failed: expected '10', found garbage
     // til_interpreted.push(TestEntry(path="src/test/test_lexer.til"))  // TODO: String range comparisons not yet supported
-    // til_interpreted.push(TestEntry(path="src/test/test_parser.til"))  // TODO: Undefined symbol 'vt'
+    // til_interpreted.push(TestEntry(path="src/test/test_parser.til"))  // TODO: Segmentation fault
     til_interpreted.push(TestEntry(path="src/test/u8.til"))
     // til_interpreted.push(TestEntry(path="src/test/ufcs.til"))  // TODO: Segmentation fault
     // til_interpreted.push(TestEntry(path="src/test/undefined.til", expected_status=1))  // TODO: output mismatch (rstil vs til prefix)
