@@ -200,16 +200,21 @@ toolchain_extra_args := func(target: Target, lang: Lang) returns Vec throws Allo
     case Target.MacosArm64:
         result.push("-target")
         result.push("arm64-apple-macos11")
+        result.push("-Wshadow")
     case Target.MacosX64:
         result.push("-target")
         result.push("x86_64-apple-macos10.12")
+        result.push("-Wshadow")
     case Target.Wasm32:
         result.push("--target=wasm32")
         result.push("-nostdlib")
         result.push("-Wl,--no-entry")
         result.push("-Wl,--export-all")
+        result.push("-Wshadow")
+    case Target.TempleosX86:
+        TODO(loc(), "HolyC doesn't support -Wshadow")
     case:
-        // No extra args needed
+        result.push("-Wshadow")  // gcc and mingw support -Wshadow
     }
     return result
 }

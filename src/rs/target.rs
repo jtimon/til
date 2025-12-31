@@ -142,10 +142,11 @@ pub fn toolchain_command(target: &Target, lang: &Lang) -> Result<&'static str, S
 
 pub fn toolchain_extra_args(target: &Target, _lang: &Lang) -> Vec<&'static str> {
     match target {
-        Target::MacosArm64 => vec!["-target", "arm64-apple-macos11"],
-        Target::MacosX64 => vec!["-target", "x86_64-apple-macos10.12"],
-        Target::Wasm32 => vec!["--target=wasm32", "-nostdlib", "-Wl,--no-entry", "-Wl,--export-all"],
-        _ => vec![],
+        Target::MacosArm64 => vec!["-target", "arm64-apple-macos11", "-Wshadow"],
+        Target::MacosX64 => vec!["-target", "x86_64-apple-macos10.12", "-Wshadow"],
+        Target::Wasm32 => vec!["--target=wasm32", "-nostdlib", "-Wl,--no-entry", "-Wl,--export-all", "-Wshadow"],
+        Target::TempleosX86 => todo!("HolyC doesn't support -Wshadow"),
+        _ => vec!["-Wshadow"],  // gcc and mingw support -Wshadow
     }
 }
 
