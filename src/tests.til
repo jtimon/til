@@ -929,11 +929,11 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/bug50.til", expected_status=1))  // til: output mismatch (Issue #69)
     rs_common.push(TestEntry(path="src/test/bug52.til"))  // til: malloc failed
     rs_common.push(TestEntry(path="src/test/bug55.til"))  // til: assert_eq_str failed
-    rs_common.push(TestEntry(path="src/test/bug56.til"))  // til: enum payload (Bug #67)
-    rs_common.push(TestEntry(path="src/test/editor_mode_test.til"))  // til: enum payload (Bug #67)
-    rs_common.push(TestEntry(path="src/test/enums.til"))  // til: enum payload (Bug #67)
+    rs_common.push(TestEntry(path="src/test/bug56.til"))
+    rs_common.push(TestEntry(path="src/test/editor_mode_test.til"))
+    rs_common.push(TestEntry(path="src/test/enums.til"))  // til: Segmentation fault
     rs_common.push(TestEntry(path="src/test/errors.til"))  // til: string_from_context out of bounds
-    rs_common.push(TestEntry(path="src/test/forward_declarations.til"))  // til: enum payload (Bug #67)
+    rs_common.push(TestEntry(path="src/test/forward_declarations.til"))
     rs_common.push(TestEntry(path="src/test/modes.til"))  // til: assert_eq failed
     rs_common.push(TestEntry(path="src/test/optional_args.til"))  // til: Segmentation fault
     rs_common.push(TestEntry(path="src/test/structs.til"))  // til: assert_eq failed
@@ -1029,6 +1029,7 @@ main := proc(args: ..Str) {
     til_interpreted.push(TestEntry(path="src/test/bug41.til"))
     til_interpreted.push(TestEntry(path="src/test/bug46.til"))
     til_interpreted.push(TestEntry(path="src/test/bug48.til", expected_status=1))
+    til_interpreted.push(TestEntry(path="src/test/bug56.til"))
     til_interpreted.push(TestEntry(path="src/test/bug57.til"))
     til_interpreted.push(TestEntry(path="src/test/c_mem.til"))
     til_interpreted.push(TestEntry(path="src/test/circular_test.til"))
@@ -1037,10 +1038,12 @@ main := proc(args: ..Str) {
     til_interpreted.push(TestEntry(path="src/test/constfold.til"))
     til_interpreted.push(TestEntry(path="src/test/cross_file_forward.til"))
     til_interpreted.push(TestEntry(path="src/test/deterministic.til"))
+    til_interpreted.push(TestEntry(path="src/test/editor_mode_test.til"))
     til_interpreted.push(TestEntry(path="src/test/eval.til"))
     til_interpreted.push(TestEntry(path="src/test/exit.til", expected_status=69))
     til_interpreted.push(TestEntry(path="src/test/fibonacci.til"))
     til_interpreted.push(TestEntry(path="src/test/flow.til"))
+    til_interpreted.push(TestEntry(path="src/test/forward_declarations.til"))
     til_interpreted.push(TestEntry(path="src/test/func_purity.til"))
     til_interpreted.push(TestEntry(path="src/test/function_pointers.til"))
     til_interpreted.push(TestEntry(path="src/test/intro.til"))

@@ -75,27 +75,24 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 **Fix all til_interpreted tests first, then til_compiled**
 
 Test organization (Issue #69):
-- `rs_common` (67 tests): All rstil tests (includes 46 that also pass til_interpreted)
-- `til_interpreted` (47 tests): Tests that pass with `./bin/til interpret`
+- `rs_common` (67 tests): All rstil tests (includes 49 that also pass til_interpreted)
+- `til_interpreted` (50 tests): Tests that pass with `./bin/til interpret`
 - `all_common` (0 tests): Empty - requires all 4 modes including til_compiled
   - til_compiled (`til run`) segfaults on all tests
   - When til_compiled works, tests can be promoted from rs_common
 
-Working til_interpreted tests (47):
+Working til_interpreted tests (50):
 - examples: empty, hello_cli, hello_lib, hello_liba, hello_pura, hello_pure, hello_script, hello_test, lolalalo
-- tests: arenas, arithmetics, arrays, bools, branchless, bug41, bug46, bug48, bug57, c_mem,
-  circular_test, clone, comparisons, constfold, cross_file_forward, deterministic, eval, exit,
-  fibonacci, flow, func_purity, function_pointers, intro, literals, lists, loops, maps,
-  mut_test, namespaces, parallel_cmd, pointers, return_value_usage, scope_isolation, sets,
-  strings, u8, underscore, variadic
+- tests: arenas, arithmetics, arrays, bools, branchless, bug41, bug46, bug48, bug56, bug57, c_mem,
+  circular_test, clone, comparisons, constfold, cross_file_forward, deterministic, editor_mode_test,
+  eval, exit, fibonacci, flow, forward_declarations, func_purity, function_pointers, intro, literals,
+  lists, loops, maps, mut_test, namespaces, parallel_cmd, pointers, return_value_usage, scope_isolation,
+  sets, strings, u8, underscore, variadic
 
-Failing til_interpreted tests (21) by category:
+Failing til_interpreted tests (18) by category:
 
-**Enum variant payload type 'unknown' not yet supported (4 tests)**
-- bug56, editor_mode_test, enums, forward_declarations
-
-**Segmentation fault (6 tests)**
-- args, bug47, optional_args, test_parser, ufcs, til.til help
+**Segmentation fault (7 tests)**
+- args, bug47, enums, optional_args, test_parser, ufcs, til.til help
 
 **Output mismatch (2 tests)**
 - bug49 (1 vs 2 errors - Bug #68: remove_symbol not working in TIL typer)
@@ -130,7 +127,7 @@ This is a separate scavenger bug that doesn't affect rstil.
 ## Milestones
 1. ~~`./bin/til interpret src/examples/empty.til`~~ ✓ DONE
 2. ~~`./bin/til interpret src/examples/hello_script.til`~~ ✓ DONE
-3. All til_interpreted tests pass ← current target (38/68 working, 56%)
+3. All til_interpreted tests pass ← current target (50/68 working, 74%)
 4. `./bin/til run src/examples/empty.til` (scavenger bug)
 
 ## Build Commands Reference (from Makefile)

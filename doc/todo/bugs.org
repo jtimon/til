@@ -8,45 +8,6 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #67: Enum variant payload type comes through as empty string in til
-:PROPERTIES:
-:DISCOVERED: 2025-12-31
-:IMPACT: 4 til_interpreted tests fail (bug56, editor_mode_test, enums, forward_declarations)
-:STATUS: Active
-:END:
-
-*** Description
-When an enum has a variant with a payload type (e.g., ~Variant1: Str~), the self-hosted
-TIL interpreter receives the type as empty string, causing "uses undefined type ''" errors.
-The Rust interpreter works correctly.
-
-*** Errors Seen
-#+BEGIN_SRC
-src/test/bug56.til:5:11: type ERROR: Enum variant 'Variant1' uses undefined type ''.
-src/test/bug56.til:17:12: til init ERROR: Enum variant payload type 'unknown' not yet supported
-#+END_SRC
-
-*** Investigation Notes
-- ~str_to_value_type~ in parser.til looks identical to parser.rs (lines 523-541 vs 284-292)
-- Both have catch-all: ~return ValueType.TCustom(arg_type)~
-- The type name is being lost somewhere in the enum parsing chain before it reaches the typer
-- Need to trace where enum variant types are parsed and stored
-
-*** Reproducing
-#+BEGIN_SRC til
-MyEnum := enum {
-    Variant1: Str,  // This fails with til, works with rstil
-}
-#+END_SRC
-
-Test files: src/test/bug56.til, src/test/enums.til
-
-*** Plan to Fix
-1. Add debug prints in parser.til where enum variants are parsed
-2. Compare with parser.rs to find the divergence
-3. Fix the parsing/storage of enum variant payload types
-4. Test all 4 affected tests
-
 ** Bug #68: TIL typer doesn't remove symbol for own parameter (Bug #49 fix not working)
 :PROPERTIES:
 :DISCOVERED: 2025-12-31
@@ -166,6 +127,47 @@ The interpreter/compiler should auto-convert Str args to I64 when the main
 function signature expects I64.
 
 * Fixed Bugs
+
+** Bug #67: Enum variant payload type comes through as empty string in til
+:PROPERTIES:
+:DISCOVERED: 2025-12-31
+:FIXED: 2025-12-31
+:IMPACT: 4 til_interpreted tests affected (bug56, editor_mode_test, enums, forward_declarations)
+:STATUS: Fixed (3 of 4 tests)
+:END:
+
+*** Description
+When an enum has a variant with a payload type (e.g., ~Variant1: Str~), the self-hosted
+TIL interpreter receives the type as empty string, causing "uses undefined type ''" errors.
+The Rust interpreter works correctly.
+
+*** Root Cause
+In parser.til, ~to_ptr(payload_type)~ was storing a pointer to a stack variable that
+became invalid when the loop continued or function returned. The Rust version uses
+~Option<Box<ValueType>>~ which properly heap-allocates, but the TIL translation using
+~Ptr~ (per rs2til.org for Option fields) requires explicit heap allocation.
+
+Two locations affected:
+1. ~EnumVariant.clone()~ - stored pointer to stack variable ~cloned_type~
+2. ~enum_definition()~ - stored pointer to stack variable ~payload_type~
+
+*** Fix
+Used malloc to allocate heap memory instead of storing stack pointer:
+#+BEGIN_SRC til
+// In EnumVariant.clone():
+result.payload_type.data = malloc(size_of(ValueType))
+memcpy(result.payload_type.data, self.payload_type.data, size_of(ValueType))
+
+// In enum_definition():
+payload_ptr.data = malloc(size_of(ValueType))
+memcpy(payload_ptr.data, to_ptr(payload_type), size_of(ValueType))
+#+END_SRC
+
+*** Results
+- bug56.til: Fixed (now in til_interpreted)
+- editor_mode_test.til: Fixed (now in til_interpreted)
+- forward_declarations.til: Fixed (now in til_interpreted)
+- enums.til: Still segfaults (different bug, not enum payload related)
 
 ** Bug #65: "Source 'X' not found in caller context" with Dynamic parameters
 :PROPERTIES:

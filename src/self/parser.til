@@ -27,9 +27,9 @@ EnumVariant := struct {
         mut result := EnumVariant()
         result.name = self.name.clone()
         if not(NULL.eq(self.payload_type.data)) {
-            mut vt := ValueType.TCustom("")
-            memcpy(to_ptr(vt), self.payload_type.data, size_of(ValueType))
-            result.payload_type.data = to_ptr(vt)
+            // Bug #67 fix: allocate heap memory for ValueType (stack ptr would be dangling)
+            result.payload_type.data = malloc(size_of(ValueType))
+            memcpy(result.payload_type.data, self.payload_type.data, size_of(ValueType))
         }
         return result
     }
@@ -1040,9 +1040,11 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
                 case TokenType.Identifier:
                     enum_val_type := next2_t.token_str
                     // Some(ValueType) - store pointer to payload type
+                    // Bug #67 fix: allocate heap memory (stack ptr would be dangling after loop)
                     mut payload_type := str_to_value_type(enum_val_type)
                     mut payload_ptr := Ptr()
-                    payload_ptr.data = to_ptr(payload_type)
+                    payload_ptr.data = malloc(size_of(ValueType))
+                    memcpy(payload_ptr.data, to_ptr(payload_type), size_of(ValueType))
                     mut variant := EnumVariant()
                     variant.name = enum_val_name
                     variant.payload_type = payload_ptr
