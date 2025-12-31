@@ -962,10 +962,10 @@ main := proc(args: ..Str) {
     // til_interpreted.push(TestEntry(path="src/test/test_parser.til"))  // TODO: Segmentation fault
     til_interpreted.push(TestEntry(path="src/test/u8.til"))
     // til_interpreted.push(TestEntry(path="src/test/ufcs.til"))  // TODO: Segmentation fault
-    // til_interpreted.push(TestEntry(path="src/test/undefined.til", expected_status=1))  // TODO: output mismatch (rstil vs til prefix)
+    // til_interpreted.push(TestEntry(path="src/test/undefined.til", expected_status=1))  // TODO: concat: malloc failed (same as bug52)
     til_interpreted.push(TestEntry(path="src/test/underscore.til"))
     til_interpreted.push(TestEntry(path="src/test/variadic.til"))
-    // til_interpreted.push(TestEntry(path="src/test/vecs.til"))  // TODO: Undefined symbol 'p1'
+    // til_interpreted.push(TestEntry(path="src/test/vecs.til"))  // TODO: concat: malloc failed (same as bug52)
     // til_interpreted.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: Segmentation fault
 
     // til_compiled: tests run with the self-hosted TIL compiler only

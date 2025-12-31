@@ -92,12 +92,11 @@ Failing tests (21/68) by category:
 **Segmentation fault (6 tests)**
 - args, bug47, optional_args, test_parser, ufcs, til.til help
 
-**Output mismatch (3 tests)**
+**Output mismatch (2 tests)**
 - bug49 (different error count)
 - bug50 (rstil vs til prefix)
-- undefined (rstil vs til prefix)
 
-**Other errors (8 tests)**
+**Other errors (9 tests)**
 - bug43 - assert_eq wrong value (expected '0', found '2130832128')
 - bug52 - concat: malloc failed
 - bug55 - assert_eq_str: expected 'hello', found ''
@@ -105,6 +104,7 @@ Failing tests (21/68) by category:
 - modes - assert_eq failed: expected '0', found '65536'
 - structs - assert_eq: expected '10', found garbage
 - test_lexer - String range comparisons not yet supported
+- undefined - concat: malloc failed (same as bug52)
 - vecs - concat: malloc failed (same as bug52)
 
 Phase 2: Once til_interpreted tests pass, fix til_compiled:
