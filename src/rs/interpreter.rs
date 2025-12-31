@@ -2096,13 +2096,14 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 }
 
                 // Resolve Dynamic/Type to actual type first
-                let custom_type_name = &match custom_type_name.as_str() {
+                // Note: Use resolved_type_name (not shadowing) to match TIL translation
+                let resolved_type_name = match custom_type_name.as_str() {
                     "Dynamic" | "Type" => value_type_to_str(&get_value_type(context, &current_arg)?),
                     _ => custom_type_name.clone(),
                 };
 
                 // Create resolved ValueType for the parameter
-                let resolved_value_type = ValueType::TCustom(custom_type_name.clone());
+                let resolved_value_type = ValueType::TCustom(resolved_type_name.clone());
 
                 // Now push to mut_args with the resolved type
                 if arg.is_mut {
@@ -2126,7 +2127,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             } else {
                                 id_.clone()
                             };
-                            mut_args.push(MutArgEntry { arg_name: arg.name.clone(), source_name: full_id, value_type: ValueType::TCustom(custom_type_name.clone()) });
+                            mut_args.push(MutArgEntry { arg_name: arg.name.clone(), source_name: full_id, value_type: ValueType::TCustom(resolved_type_name.clone()) });
                         },
                         _ => {
                             return Err(e.lang_error(&context.path, "eval", "mut arguments must be passed as identifiers or field access"))
@@ -2188,7 +2189,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 // - Only base offset stored in arena_index
                 // - Field offsets calculated dynamically from struct definitions
                 // - Inline memory layout means sharing base offset shares all fields
-                if !arg.is_copy && !arg.is_own && custom_type_name != "Type" {
+                if !arg.is_copy && !arg.is_own && resolved_type_name != "Type" {
                     if let NodeType::Identifier(source_var) = &current_arg.node_type {
                         // Only share offset for SIMPLE identifiers (no field access, no params)
                         // Field access like s.cap is also an Identifier node but has params
@@ -2247,7 +2248,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     // (expressions must allocate fresh memory)
                 }
 
-                match custom_type_name.as_str() {
+                match resolved_type_name.as_str() {
                     "I64" => {
                         EvalArena::insert_i64_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
                     },
@@ -2258,13 +2259,13 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         EvalArena::insert_string_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
                     },
                     _ => {
-                        let custom_symbol = context.scope_stack.lookup_symbol(custom_type_name).ok_or_else(|| {
-                            return e.lang_error(&context.path, "eval", &format!( "Undefined symbol for custom type '{}'", custom_type_name))
+                        let custom_symbol = context.scope_stack.lookup_symbol(&resolved_type_name).ok_or_else(|| {
+                            return e.lang_error(&context.path, "eval", &format!( "Undefined symbol for custom type '{}'", resolved_type_name))
                         })?;
                         match custom_symbol.value_type {
                             ValueType::TType(TTypeDef::TEnumDef) => {
                                 // Transfer payload from outer context if present (temp_enum_payload already on context)
-                                EvalArena::insert_enum_into_frame(context, &mut function_frame, &arg.name, &custom_type_name, &result_str, e)?;
+                                EvalArena::insert_enum_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, &result_str, e)?;
                             },
                             ValueType::TType(TTypeDef::TStructDef) => {
                                 // Bug #10 fix: Handle field access chains like s.items
@@ -2326,7 +2327,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                         };
 
                                         // For pass-by-reference (non-copy, non-own, non-Type), just share the offset
-                                        if !arg.is_copy && !arg.is_own && custom_type_name != "Type" {
+                                        if !arg.is_copy && !arg.is_own && resolved_type_name != "Type" {
                                             let src_offset = if let Some(offset) = context.scope_stack.lookup_var(id_) {
                                                 offset
                                             } else if id_.contains('.') {
@@ -2380,7 +2381,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             pass_by_ref_params.insert(arg.name.clone());
                                         } else {
                                             // For copy parameters, allocate and copy
-                                            insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &custom_type_name, e)?;
+                                            insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
 
                                             // Push frame temporarily for copy_fields (needs dest accessible)
                                             context.scope_stack.frames.push(function_frame);
@@ -2398,7 +2399,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                     context.scope_stack.frames.last_mut().unwrap().arena_index.insert(new_key, mapping.offset);
                                                 }
 
-                                                EvalArena::copy_fields(context, &custom_type_name, &saved.temp_src_key, &arg.name, e)?;
+                                                EvalArena::copy_fields(context, &resolved_type_name, &saved.temp_src_key, &arg.name, e)?;
 
                                                 // Clean up temp keys
                                                 for mapping in saved.offsets.iter() {
@@ -2428,7 +2429,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                                                 context.scope_stack.frames.last_mut().unwrap().arena_index.insert(id_.clone(), src_offset);
                                                 context.scope_stack.declare_symbol(id_.clone(), src_symbol);
-                                                EvalArena::copy_fields(context, &custom_type_name, &id_, &arg.name, e)?;
+                                                EvalArena::copy_fields(context, &resolved_type_name, &id_, &arg.name, e)?;
                                                 context.scope_stack.remove_var(id_);
                                                 context.scope_stack.remove_symbol(id_);
                                             }
@@ -2440,7 +2441,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     _ => {
                                         // For expression arguments (like Vec.new(Expr)), the struct is already
                                         // allocated and evaluated in result_str. We need to copy it to the parameter.
-                                        insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &custom_type_name, e)?;
+                                        insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
 
                                         // Push frame temporarily for copy_fields
                                         context.scope_stack.frames.push(function_frame);
@@ -2453,7 +2454,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                                         context.scope_stack.frames.last_mut().unwrap().arena_index.insert(source_id.clone(), src_offset);
                                         context.scope_stack.declare_symbol(source_id.clone(), src_symbol);
-                                        EvalArena::copy_fields(context, &custom_type_name, &source_id, &arg.name, e)?;
+                                        EvalArena::copy_fields(context, &resolved_type_name, &source_id, &arg.name, e)?;
                                         context.scope_stack.remove_var(&source_id);
                                         context.scope_stack.remove_symbol(&source_id);
 
@@ -2480,7 +2481,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             },
                             _ => {
                                 return Err(e.lang_error(&context.path, "eval", &format!("Cannot use '{}' of type '{}' as an argument. Custom types can only be struct or enum.",
-                                                                         &arg.name, &custom_type_name)))
+                                                                         &arg.name, &resolved_type_name)))
                             },
                         }
                     },

@@ -2245,7 +2245,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     // - Only base offset stored in arena_index
                     // - Field offsets calculated dynamically from struct definitions
                     // - Inline memory layout means sharing base offset shares all fields
-                    if not(arg.is_copy).and(not(arg.is_own)).and(not(custom_type_name.eq("Type"))) {
+                    if not(arg.is_copy).and(not(arg.is_own)).and(not(resolved_type_name.eq("Type"))) {
                         switch current_arg.node_type {
                         case NodeType.Identifier(source_var):
                             // Only share offset for SIMPLE identifiers (no field access, no params)
@@ -2326,7 +2326,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     }
 
                     {
-                        switch custom_type_name {
+                        switch resolved_type_name {
                         case "I64":
                             EvalArena.insert_i64_into_frame(context, function_frame, arg.name, result_str, e)
                         case "U8":
@@ -2337,11 +2337,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             // Custom type (enum or struct)
                             mut custom_symbol := SymbolInfo()
                             mut custom_symbol_found := false
-                            custom_symbol = context.scope_stack.lookup_symbol(custom_type_name)
+                            custom_symbol = context.scope_stack.lookup_symbol(resolved_type_name)
                             custom_symbol_found = true
                             catch (err: KeyNotFoundError) { }
                             if not(custom_symbol_found) {
-                                throw e.lang_error(context.path, "eval", format("Undefined symbol for custom type '", custom_type_name, "'"))
+                                throw e.lang_error(context.path, "eval", format("Undefined symbol for custom type '", resolved_type_name, "'"))
                             }
                             mut is_enum_def := false
                             mut is_struct_def := false
@@ -2357,7 +2357,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             }
                             if is_enum_def {
                                 // Transfer payload from outer context if present (temp_enum_payload already on context)
-                                _ := EvalArena.insert_enum_into_frame(context, function_frame, arg.name, custom_type_name, result_str, e)
+                                _ := EvalArena.insert_enum_into_frame(context, function_frame, arg.name, resolved_type_name, result_str, e)
                             } else if is_struct_def {
                                 // Bug #10 fix: Handle field access chains like s.items
                                 mut source_id := ""
@@ -2440,7 +2440,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     mut should_share_offset := false
                                     if not(arg.is_copy) {
                                         if not(arg.is_own) {
-                                            if not(custom_type_name.eq("Type")) {
+                                            if not(resolved_type_name.eq("Type")) {
                                                 should_share_offset = true
                                             }
                                         }
@@ -2524,7 +2524,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     }
                                     if not(should_share_offset) {
                                         // For copy parameters, allocate and copy
-                                        insert_struct_instance_into_frame(context, function_frame, arg.name, custom_type_name, e)
+                                        insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)
 
                                         // Push frame temporarily for copy_fields (needs dest accessible)
                                         context.scope_stack.frames.push(function_frame)
@@ -2549,7 +2549,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                 context.scope_stack.frames.set(lf9_idx, lf9)
                                             }
 
-                                            EvalArena.copy_fields(context, custom_type_name, saved_offsets.temp_src_key, arg.name, e)
+                                            EvalArena.copy_fields(context, resolved_type_name, saved_offsets.temp_src_key, arg.name, e)
 
                                             // Clean up temp keys
                                             for ci in 0..saved_offsets.offsets.len() {
@@ -2596,7 +2596,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             lf10.arena_index.set(id_.clone(), src_offset)
                                             context.scope_stack.frames.set(lf10_idx, lf10)
                                             context.scope_stack.declare_symbol(id_.clone(), src_symbol.clone())
-                                            EvalArena.copy_fields(context, custom_type_name, id_, arg.name, e)
+                                            EvalArena.copy_fields(context, resolved_type_name, id_, arg.name, e)
                                             _ := context.scope_stack.remove_var(id_)
                                             _ := context.scope_stack.remove_symbol(id_)
                                         }
@@ -2607,7 +2607,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 } else {
                                     // For expression arguments (like Vec.new(Expr)), the struct is already
                                     // allocated and evaluated in result_str. We need to copy it to the parameter.
-                                    insert_struct_instance_into_frame(context, function_frame, arg.name, custom_type_name, e)
+                                    insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)
 
                                     // Push frame temporarily for copy_fields
                                     context.scope_stack.frames.push(function_frame)
@@ -2628,7 +2628,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     lf11.arena_index.set(source_id.clone(), src_offset)
                                     context.scope_stack.frames.set(lf11_idx, lf11)
                                     context.scope_stack.declare_symbol(source_id.clone(), src_symbol.clone())
-                                    EvalArena.copy_fields(context, custom_type_name, source_id, arg.name, e)
+                                    EvalArena.copy_fields(context, resolved_type_name, source_id, arg.name, e)
                                     _ := context.scope_stack.remove_var(source_id)
                                     _ := context.scope_stack.remove_symbol(source_id)
 
@@ -2660,7 +2660,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     }
                                 }
                             } else {
-                                throw e.lang_error(context.path, "eval", format("Cannot use '", arg.name, "' of type '", custom_type_name, "' as an argument. Custom types can only be struct or enum."))
+                                throw e.lang_error(context.path, "eval", format("Cannot use '", arg.name, "' of type '", resolved_type_name, "' as an argument. Custom types can only be struct or enum."))
                             }
                         }
                         }
