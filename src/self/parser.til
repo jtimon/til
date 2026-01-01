@@ -2003,12 +2003,18 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
                 // Check if p1 is an Identifier using switch (tag() doesn't exist in TIL)
                 switch p1nt {
                     case NodeType.Identifier(binding_var):
-                        // Convert FCall to Pattern
-                        mut pattern_info := PatternInfo()
-                        pattern_info.variant_name = variant_name
-                        pattern_info.binding_var = binding_var.clone()
-                        // Bug #27 FIXED - can now inline Vec.new(Expr) as function argument
-                        return Expr.new_explicit(NodeType.Pattern(pattern_info), Vec.new(Expr), left.line, left.col)
+                        // Bug #77 fix: Only treat as a binding variable if it's a simple identifier
+                        // (no nested params like TTypeDef.TEnumDef)
+                        if p1.params.len().eq(0) {
+                            // Convert FCall to Pattern
+                            mut pattern_info := PatternInfo()
+                            pattern_info.variant_name = variant_name
+                            pattern_info.binding_var = binding_var.clone()
+                            // Bug #27 FIXED - can now inline Vec.new(Expr) as function argument
+                            return Expr.new_explicit(NodeType.Pattern(pattern_info), Vec.new(Expr), left.line, left.col)
+                        }
+                        // Otherwise, it's a nested pattern like ValueType.TType(TTypeDef.TEnumDef)
+                        // Keep it as FCall for now (will be handled by interpreter)
                     case:
                 }
             }

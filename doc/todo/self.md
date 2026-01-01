@@ -72,23 +72,19 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Simplified `declare_var` to just `throws Str` (matching Rust's `Result<(), String>`).
 
 ### Current Focus (2026-01-01)
-**Fix all til_interpreted tests first, then til_compiled**
+**All til_interpreted tests now pass! Next: til_compiled**
 
-#### til_interpreted Progress: 65/67 tests (97%)
+#### til_interpreted Progress: 67/67 tests (100%) ✓ COMPLETE
 
-| Category | Count | Tests |
-|----------|-------|-------|
-| Slow/Performance | 1 | til.til help (slow, not segfault) |
-| Value_type corruption | 1 | Bug #73 / bug47 (TTypeDef stored as TType(TStructDef) instead of TType(TEnumDef), causes "Struct 'TTypeDef' not found" at init.til:826 when importing self.init) |
-
-**Total: 138/138 tests passing**
+**Total: 140/140 tests passing**
 
 Test organization (Issue #69):
-- `til_interpreted` (65 tests): Tests that pass with `./bin/til interpret`
+- `til_interpreted` (67 tests): All tests pass with `./bin/til interpret`
 - `rs_common` (67 tests): All rstil tests
 - `all_common` (0 tests): Requires til_compiled to work
 
 Recent fixes:
+- **Bug #77** (2026-01-01): Nested enum patterns incorrectly treated as bindings - parser matched `TTypeDef.TEnumDef` as binding variable "TTypeDef" instead of nested pattern. Fix: check if identifier has params before treating as binding.
 - **Bug #76** (2026-01-01): Optional args not working in til_interpreted - parser stored pointer to local variable instead of heap-allocated memory for default_value
 - **Bug #75** (2026-01-01): String range comparison support - add Str.cmp() method for "0".."9" patterns
 - **Bug #74** (2026-01-01): Mut enum write-back loses payload - add Bug #38 fix to interpreter.til
@@ -115,8 +111,8 @@ This is a separate scavenger bug that doesn't affect rstil.
 ## Milestones
 1. ~~`./bin/til interpret src/examples/empty.til`~~ ✓ DONE
 2. ~~`./bin/til interpret src/examples/hello_script.til`~~ ✓ DONE
-3. All til_interpreted tests pass ← current target (65/67 working, 97%)
-4. `./bin/til run src/examples/empty.til` (scavenger bug)
+3. ~~All til_interpreted tests pass~~ ✓ DONE (67/67 working, 100%)
+4. `./bin/til run src/examples/empty.til` ← current target (scavenger bug)
 
 ## Build Commands Reference (from Makefile)
 - `make rstil` - Build Rust-based TIL compiler

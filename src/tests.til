@@ -1066,7 +1066,7 @@ main := proc(args: ..Str) {
     // Tests that fail with til_interpreted (TODO: fix these)
     til_interpreted.push(TestEntry(path="src/test/args.til"))
     til_interpreted.push(TestEntry(path="src/test/bug43.til"))
-    // til_interpreted.push(TestEntry(path="src/test/bug47.til"))  // TODO: timeout/hang
+    til_interpreted.push(TestEntry(path="src/test/bug47.til"))
     til_interpreted.push(TestEntry(path="src/test/bug52.til"))
     til_interpreted.push(TestEntry(path="src/test/enums.til"))
     til_interpreted.push(TestEntry(path="src/test/errors.til"))
@@ -1078,7 +1078,7 @@ main := proc(args: ..Str) {
     til_interpreted.push(TestEntry(path="src/test/test_parser.til"))  // slow (~28s) but works
     til_interpreted.push(TestEntry(path="src/test/ufcs.til"))
     til_interpreted.push(TestEntry(path="src/test/vecs.til"))
-    // til_interpreted.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: Segmentation fault
+    til_interpreted.push(TestEntry(path="src/til.til", cmd_args="help"))  // slow (~4min) but works
 
     // til_compiled: tests run with the self-hosted TIL compiler only
     mut til_compiled := Vec.new(TestEntry)
