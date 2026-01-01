@@ -405,7 +405,8 @@ get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBo
         throw IndexOutOfBoundsError(msg=format(loc(), "get_substr: end index ", end.to_str(), " is greater than string length ", I64.to_str(s.len())))
     }
     if start.eq(end) {
-        throw IndexOutOfBoundsError(msg=format(loc(), "get_substr: start and end are the same (", start.to_str(), "), no substring"))
+        // Return empty string when start==end (like Rust's s[0..0])
+        return ""
     }
 
     mut substr := Str()
