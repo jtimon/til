@@ -1064,7 +1064,7 @@ main := proc(args: ..Str) {
     til_interpreted.push(TestEntry(path="src/test/undefined.til", expected_status=1))
     til_interpreted.push(TestEntry(path="src/test/variadic.til"))
     // Tests that fail with til_interpreted (TODO: fix these)
-    // til_interpreted.push(TestEntry(path="src/test/args.til"))  // TODO: Segmentation fault
+    til_interpreted.push(TestEntry(path="src/test/args.til"))
     til_interpreted.push(TestEntry(path="src/test/bug43.til"))
     // til_interpreted.push(TestEntry(path="src/test/bug47.til"))  // TODO: timeout/hang
     til_interpreted.push(TestEntry(path="src/test/bug52.til"))
