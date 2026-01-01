@@ -1022,7 +1022,6 @@ main := proc(args: ..Str) {
     // til_interpreted: tests that run with til interpret
     // Tests here are also in rs_common until til_compiled works and they can be promoted to all_common
     mut til_interpreted := Vec.new(TestEntry)
-    til_interpreted.push(TestEntry(path="src/examples/empty.til", expected_status=0))  // til-only (not in rs_common)
     // Tests that pass with both rstil and til_interpreted (promote to all_common when til_compiled works)
     til_interpreted.push(TestEntry(path="src/examples/hello_cli.til"))
     til_interpreted.push(TestEntry(path="src/examples/hello_lib.til"))
@@ -1093,16 +1092,13 @@ main := proc(args: ..Str) {
 
     // til_compiled: tests run with the self-hosted TIL compiler only
     mut til_compiled := Vec.new(TestEntry)
-    // til_compiled.push(TestEntry(path="src/examples/empty.til", expected_status=0)) // TODO: Fix "func 'Bool' returns multiple values" error
-
     // til_common: tests run with BOTH self-hosted TIL interpreter and compiler
     mut til_common := Vec.new(TestEntry)
-    // til_common.push(TestEntry(path="src/examples/empty.til", expected_status=0)) // TODO: Fix "func 'Bool' returns multiple values" error
 
     // all_common: tests run with ALL 4 modes (rs_interpreted, rs_compiled, til_interpreted, til_compiled)
-    // Currently empty - til_compiled (til run) segfaults on all tests
     // When til_compiled starts working, tests can be promoted here from rs_common
     mut all_common := Vec.new(TestEntry)
+    all_common.push(TestEntry(path="src/examples/empty.til"))
 
     // Parse remaining args (after -j was extracted)
     if remaining_args.len().eq(0) {

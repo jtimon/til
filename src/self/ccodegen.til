@@ -79,7 +79,7 @@ CodegenContext := struct {
     // Map of hoisted expression addresses to their temp variable names
     // Used to track deeply nested variadic/throwing calls that have been hoisted
     // Key is "line:col" string, value is temp var name (Str)
-    mut hoisted_exprs: Map = Map.new(Str, Str)
+    mut hoisted_exprs: Map = Map.new(I64, Str)
     // Map of locally-caught error types to (catch label, temp variable name)
     // Used for throw statements and throwing calls when there's an outer catch block
     // Key is error type name, value is struct with label and temp_var
@@ -837,9 +837,9 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
             result = result.concat(indent_str).concat(TIL_PREFIX).concat("Array_delete(&").concat(variadic_arr_var).concat(");\n")
         }
 
-        // Record in hoisted_exprs map using line:col as key
-        mut expr_key := expr.line.to_str().concat(":").concat(expr.col.to_str())
-        ctx.hoisted_exprs.set(expr_key, temp_var)
+        // Record in hoisted_exprs map using expression address
+        expr_addr := to_ptr(expr)
+        ctx.hoisted_exprs.set(expr_addr, temp_var)
 
         return result
     }
@@ -940,9 +940,9 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
             // Emit Array.delete for the variadic array
             result = result.concat(indent_str).concat(TIL_PREFIX).concat("Array_delete(&").concat(variadic_arr_var).concat(");\n")
 
-            // Record in hoisted_exprs map using line:col as key
-            mut expr_key := expr.line.to_str().concat(":").concat(expr.col.to_str())
-            ctx.hoisted_exprs.set(expr_key, temp_var)
+            // Record in hoisted_exprs map using expression address
+            expr_addr := to_ptr(expr)
+            ctx.hoisted_exprs.set(expr_addr, temp_var)
 
             return result
         }
@@ -2878,9 +2878,15 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // 4a: top-level functions
     switch ast.node_type {
     case NodeType.Body:
+        mut func_count := 0
         for child: Expr in ast.params {
             if is_func_declaration(child) {
+                switch child.node_type {
+                case NodeType.Declaration(decl):
+                case:
+                }
                 output = emit_func_declaration(child, output, ctx, context)
+                func_count = func_count.add(1)
             }
         }
     case:
@@ -2889,9 +2895,15 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // 4b: struct functions (with mangled names)
     switch ast.node_type {
     case NodeType.Body:
+        mut struct_count := 0
         for child: Expr in ast.params {
             if is_struct_declaration(child) {
+                switch child.node_type {
+                case NodeType.Declaration(decl):
+                case:
+                }
                 output = emit_struct_func_bodies(child, output, ctx, context)
+                struct_count = struct_count.add(1)
             }
         }
     case:
@@ -2912,7 +2924,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     output = output.concat("int main(int argc, char** argv) {\n")
 
     // Clear hoisted_exprs to avoid cross-contamination from function passes
-    ctx.hoisted_exprs = Map.new(Str, Str)
+    ctx.hoisted_exprs = Map.new(I64, Str)
 
     // Re-populate declared_vars with global declarations (functions clear declared_vars)
     // This ensures global declarations emit only assignments in main(), not redeclarations
@@ -3177,8 +3189,13 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
     mut result := output
 
     // Check if hoisted temp var exists for this arg index
-    mut idx_str := I64.to_str(arg_idx)
-    if hoisted.contains_key(idx_str) {
+    mut temp_var := ""
+    mut found_hoisted := false
+    hoisted.get(arg_idx, temp_var)
+    found_hoisted = true
+    catch (err: KeyNotFoundError) { }
+
+    if found_hoisted {
         // Hoisted temp var is an lvalue - add & if param is Dynamic or by-ref
         if param_by_ref {
             result = result.concat("&")
@@ -3191,9 +3208,22 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
             case:
             }
         }
-        mut temp_var := ""
-        hoisted.get(idx_str, temp_var)
         result = result.concat(temp_var)
+        return result
+    }
+
+    // Also check ctx.hoisted_exprs for expressions hoisted via other mechanisms
+    arg_addr := to_ptr(arg)
+    if ctx.hoisted_exprs.contains_key(arg_addr) {
+        mut temp_expr := ""
+        ctx.hoisted_exprs.get(arg_addr, temp_expr)
+        // hoisted_exprs may store just the temp var name or with & prefix
+        // Add & if param is by-ref and temp_expr doesn't already start with &
+        if param_by_ref.and(not(temp_expr.starts_with("&"))) {
+            result = result.concat("&")
+        }
+        result = result.concat(temp_expr)
+        catch (err: KeyNotFoundError) { }
         return result
     }
 
@@ -3247,6 +3277,27 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                 }
                 return result
             } else {
+                // Check if this is an enum constructor (Type.Variant) - need temp variable
+                if arg.params.len().gt(0) {
+                    mut first_param := Expr()
+                    arg.params.get(0, first_param)
+                    switch first_param.node_type {
+                    case NodeType.Identifier(field_name):
+                        combined := name.concat(".").concat(field_name)
+                        if context.scope_stack.is_enum_constructor(combined) {
+                            // Enum constructor passed as Dynamic - need temp variable
+                            c_type := TIL_PREFIX.concat(name)
+                            temp_var := next_mangled(ctx)
+                            result = result.concat("(").concat(TIL_PREFIX).concat("Dynamic*)({ ")
+                            result = result.concat(c_type).concat(" ").concat(temp_var).concat(" = ")
+                            result = emit_expr(arg, result, 0, ctx, context)
+                            result = result.concat("; &").concat(temp_var).concat("; })")
+                            return result
+                        }
+                    case:
+                    }
+                    catch (err: IndexOutOfBoundsError) { }
+                }
                 // Field access like member.name - need (til_Dynamic*)&(var.field)
                 // Check if base is a mut param (pointer) or regular variable
                 mut base_is_pointer := ctx.current_ref_params.contains(name)
@@ -3270,10 +3321,10 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
             }
         case:
         }
-        // For non-identifier args (literals, compound literals), emit with &
+        // For non-identifier args (literals, compound literals), emit with (til_Dynamic*)&
         // But first check if already hoisted (hoisted_exprs already includes & prefix)
-        arg_addr := to_ptr(arg)
-        if Map.contains_key(ctx.hoisted_exprs, arg_addr.to_str()) {
+        dyn_arg_addr := to_ptr(arg)
+        if ctx.hoisted_exprs.contains_key(dyn_arg_addr) {
             // Already hoisted with & prefix - just emit it
             result = emit_expr(arg, result, 0, ctx, context)
         } else {
@@ -3307,14 +3358,57 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                 }
                 return result
             } else {
+                // Check if this is a struct constant access (Type.CONSTANT) vs field access (var.field)
+                if arg.params.len().gt(0) {
+                    mut first_param := Expr()
+                    arg.params.get(0, first_param)
+                    switch first_param.node_type {
+                    case NodeType.Identifier(field_name):
+                        // Check if 'name' is a struct type and 'field_name' is a constant
+                        mut struct_def := context.scope_stack.lookup_struct(name)
+                        // Check if this field is a constant (in default_values and not mut)
+                        if struct_def.default_values.contains_key(field_name) {
+                            // Struct constant - emit &til_StructName_constant
+                            result = result.concat("&").concat(til_name(name)).concat("_").concat(field_name)
+                            return result
+                        }
+                        catch (err: KeyNotFoundError) { }
+                        // Bug #60: Check if this is an enum constructor (Type.Variant)
+                        // Enum constructors need a temp variable to take address
+                        combined := name.concat(".").concat(field_name)
+                        if context.scope_stack.is_enum_constructor(combined) {
+                            // Get the enum type for C type name
+                            c_type := TIL_PREFIX.concat(name)
+                            temp_var := next_mangled(ctx)
+                            result = result.concat("({ ").concat(c_type).concat(" ").concat(temp_var).concat(" = ")
+                            result = emit_expr(arg, result, 0, ctx, context)
+                            result = result.concat("; &").concat(temp_var).concat("; })")
+                            return result
+                        }
+                    case:
+                    }
+                    catch (err: IndexOutOfBoundsError) { }
+                }
+                // Handle UFCS placeholder "_" - chained expression like get_foo().bar
+                // The base expression (params[0]) may be an rvalue (function call), so use temp var
+                if name.eq("_").and(arg.params.len().gt(0)) {
+                    // Get the type of the full expression for the temp var
+                    mut c_type := "int"
+                    mut vt := get_value_type(context, arg)
+                    c_type = til_type_to_c(vt)
+                    catch (err: Str) { c_type = "int" }
+                    temp_var := next_mangled(ctx)
+                    result = result.concat("({ ").concat(c_type).concat(" ").concat(temp_var).concat(" = ")
+                    result = emit_expr(arg, result, 0, ctx, context)
+                    result = result.concat("; &").concat(temp_var).concat("; })")
+                    return result
+                }
                 // Field access like self.type_names - need &(self->field) or &(var.field)
                 // Check if base is a mut param (pointer) or regular variable
                 mut base_is_pointer := ctx.current_ref_params.contains(name)
                 result = result.concat("&").concat(til_name(name))
                 mut i := 0
-                while lt(i, arg.params.len()) {
-                    mut param := Expr()
-                    arg.params.get(i, param)
+                for param: Expr in arg.params {
                     switch param.node_type {
                     case NodeType.Identifier(field):
                         if base_is_pointer.and(i.eq(0)) {
@@ -3327,13 +3421,69 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                     }
                     i = add(i, 1)
                 }
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
                 return result
             }
         case:
         }
-        // For non-identifier args, emit as-is (may cause compile error, but that's a user error)
-        result = emit_expr(arg, result, 0, ctx, context)
+        // For non-identifier args that need by-ref passing:
+        // - Str literals become compound literals, can use &((til_Str){...})
+        // - FCall results are rvalues, use compound literal: &(Type){fcall()}
+        // - I64 literals use compound literal: &(til_I64){42}
+        switch arg.node_type {
+        case NodeType.LLiteral(lit):
+            switch lit {
+            case Literal.Str(_):
+                result = result.concat("&")
+                result = emit_expr(arg, result, 0, ctx, context)
+            case:
+                result = emit_expr(arg, result, 0, ctx, context)
+            }
+        case NodeType.FCall:
+            // Bug #60: FCall result is rvalue, can't take address directly
+            // For simple typedefs like I64: use compound literal &(Type){fcall()}
+            // For struct types: use GCC statement expression ({ Type _t = fcall(); &_t; })
+            fd_result := get_fcall_func_def(context, arg)
+            if fd_result.found {
+                fd := fd_result.func_def
+                if fd.return_types.len().gt(0) {
+                    mut ret_type := ValueType.TCustom("")
+                    fd.return_types.get(0, ret_type)
+                    c_type := til_type_to_c(ret_type)
+                    // Check if return type is a simple typedef (I64) vs struct
+                    // I64 is the only simple typedef - all others are structs
+                    mut is_simple_type := false
+                    switch ret_type {
+                    case ValueType.TCustom(name):
+                        if name.eq("I64") {
+                            is_simple_type = true
+                        }
+                    case:
+                    }
+                    if is_simple_type {
+                        result = result.concat("&(").concat(c_type).concat("){")
+                        result = emit_expr(arg, result, 0, ctx, context)
+                        result = result.concat("}")
+                    } else {
+                        temp_var := next_mangled(ctx)
+                        result = result.concat("({ ").concat(c_type).concat(" ").concat(temp_var).concat(" = ")
+                        result = emit_expr(arg, result, 0, ctx, context)
+                        result = result.concat("; &").concat(temp_var).concat("; })")
+                    }
+                    catch (err: Str) {
+                        result = emit_expr(arg, result, 0, ctx, context)
+                    }
+                    catch (err: IndexOutOfBoundsError) {
+                        result = emit_expr(arg, result, 0, ctx, context)
+                    }
+                } else {
+                    result = emit_expr(arg, result, 0, ctx, context)
+                }
+            } else {
+                result = emit_expr(arg, result, 0, ctx, context)
+            }
+        case:
+            result = emit_expr(arg, result, 0, ctx, context)
+        }
         return result
     }
 
@@ -3351,8 +3501,6 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
     }
 
     result = emit_expr(arg, result, 0, ctx, context)
-
-    catch (err: KeyNotFoundError) { throw err.msg }
 
     return result
 }
@@ -3373,59 +3521,110 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: Str, mut ctx: 
     }
     mut func_name := func_name_result.name
 
-    // Check for struct construction: TypeName() -> (til_TypeName){defaults...}
-    // Struct names are PascalCase, no nested identifiers, no args
-    mut first_char := func_name.char_at(0)
-    // 65 = 'A', 90 = 'Z'
-    mut char_A : U8 = 65
-    mut char_Z : U8 = 90
-    if not(U8.lt(first_char, char_A)).and(not(U8.gt(first_char, char_Z))) {
-        // Uppercase letter
-        if not(func_name.contains("_")) {
-            // Not a Type_method call
-            if expr.params.len().eq(1) {
-                // No constructor args
-                result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat(")")
+    // Check for struct construction: TypeName() or TypeName(x=10, y=20)
+    // Use lookup_struct to verify this is a known struct type
+    mut has_named_args := false
+    mut nai := 1
+    while lt(nai, expr.params.len()) {
+        mut narg := Expr()
+        expr.params.get(nai, narg)
+        switch narg.node_type {
+        case NodeType.NamedArg(_):
+            has_named_args = true
+        case:
+        }
+        nai = add(nai, 1)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    }
 
-                // Look up struct definition to get default values
-                mut struct_found := false
-                mut struct_def := context.scope_stack.lookup_struct(func_name)
-                struct_found = true
-                catch (err: KeyNotFoundError) { }
+    mut struct_def_opt_found := false
+    mut struct_def := SStructDef()
+    struct_def = context.scope_stack.lookup_struct(func_name)
+    struct_def_opt_found = true
+    catch (err: KeyNotFoundError) { }
 
-                if struct_found {
-                    if struct_def.members.len().eq(0).or(struct_def.default_values.len().eq(0)) {
-                        result = result.concat("{}")
-                    } else {
-                        result = result.concat("{")
-                        mut is_first := true
-                        for member: Declaration in struct_def.members {
-                            if not(member.is_mut) {
-                                continue
-                            }
-                            if not(is_first) {
-                                result = result.concat(", ")
-                            }
-                            is_first = false
-                            result = result.concat(".").concat(member.name).concat(" = ")
-                            mut default_found := false
-                            mut default_expr := Expr()
-                            struct_def.default_values.get(member.name, default_expr)
-                            default_found = true
-                            catch (err: KeyNotFoundError) { }
-                            if default_found {
-                                result = emit_expr(default_expr, result, 0, ctx, context)
-                            } else {
-                                result = result.concat("0")
-                            }
+    if struct_def_opt_found {
+        if or(expr.params.len().eq(1), has_named_args) {
+            // No args OR only named args (struct literal)
+            result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat(")")
+
+            if struct_def.members.len().eq(0).or(struct_def.default_values.len().eq(0)) {
+                result = result.concat("{}")
+            } else {
+                // Build map of named arg values
+                mut named_values := Map.new(Str, Expr)
+                mut pai := 1
+                while lt(pai, expr.params.len()) {
+                    mut parg := Expr()
+                    expr.params.get(pai, parg)
+                    switch parg.node_type {
+                    case NodeType.NamedArg(field_name):
+                        if gt(parg.params.len(), 0) {
+                            mut value_expr := Expr()
+                            parg.params.get(0, value_expr)
+                            named_values.set(field_name, value_expr)
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
                         }
-                        result = result.concat("}")
+                    case:
                     }
-                } else {
-                    result = result.concat("{}")
+                    pai = add(pai, 1)
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
                 }
-                return result
+                catch (err: AllocError) { throw err.msg }
+
+                result = result.concat("{")
+                mut is_first := true
+                for member: Declaration in struct_def.members {
+                    if not(member.is_mut) {
+                        continue
+                    }
+                    if not(is_first) {
+                        result = result.concat(", ")
+                    }
+                    is_first = false
+                    result = result.concat(".").concat(member.name).concat(" = ")
+
+                    // Use named arg value if provided, otherwise use default
+                    mut named_found := false
+                    mut named_expr := Expr()
+                    named_values.get(member.name, named_expr)
+                    named_found = true
+                    catch (err: KeyNotFoundError) { }
+
+                    if named_found {
+                        result = emit_expr(named_expr, result, 0, ctx, context)
+                    } else {
+                        mut default_found := false
+                        mut default_expr := Expr()
+                        struct_def.default_values.get(member.name, default_expr)
+                        default_found = true
+                        catch (err: KeyNotFoundError) { }
+
+                        if default_found {
+                            // Check if this was a throwing default - use hoisted temp var
+                            mut key := func_name.concat(":").concat(member.name)
+                            mut hoisted_temp := ""
+                            mut hoisted_found := false
+                            ctx.hoisted_struct_defaults.get(key, hoisted_temp)
+                            hoisted_found = true
+                            catch (err: KeyNotFoundError) { }
+
+                            if hoisted_found {
+                                result = result.concat(hoisted_temp)
+                            } else if is_throwing_fcall(default_expr, context) {
+                                // Shouldn't happen - throwing defaults should be hoisted
+                                result = result.concat("/* ERROR: unhoisted throwing default */")
+                            } else {
+                                result = emit_expr(default_expr, result, 0, ctx, context)
+                            }
+                        } else {
+                            result = result.concat("0")
+                        }
+                    }
+                }
+                result = result.concat("}")
             }
+            return result
         }
     }
 
@@ -4336,11 +4535,10 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
 emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // Check if this expression has been hoisted (for nested variadic/throwing calls)
-    // Use line:col as unique key
-    mut expr_key := expr.line.to_str().concat(":").concat(expr.col.to_str())
-    if ctx.hoisted_exprs.contains_key(expr_key) {
+    expr_addr := to_ptr(expr)
+    if ctx.hoisted_exprs.contains_key(expr_addr) {
         mut temp_var := ""
-        ctx.hoisted_exprs.get(expr_key, temp_var)
+        ctx.hoisted_exprs.get(expr_addr, temp_var)
         catch (err: KeyNotFoundError) { /* should not happen since we just checked contains_key */ }
         return output.concat(temp_var)
     }
@@ -6699,14 +6897,83 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
     // Check if the thrown expression itself is a throwing function call (e.g., throw format(...))
     // If so, we need to hoist it first to ensure proper error handling
-    mut hoisted_key := ctx.hoisted_exprs.len()
+    thrown_expr_addr := to_ptr(thrown_expr)
     mut result := output
     result = hoist_throwing_expr(thrown_expr, result, indent, ctx, context)
-    mut hoisted_temp := ""
-    mut was_hoisted := gt(ctx.hoisted_exprs.len(), hoisted_key)
-    if was_hoisted {
+    // Check if thrown_expr was hoisted (its address is now in hoisted_exprs)
+    if ctx.hoisted_exprs.contains_key(thrown_expr_addr) {
         // The thrown expression was hoisted to a temp variable
-        Map.get(ctx.hoisted_exprs, hoisted_key, hoisted_temp)
+        // Now we just need to throw the temp variable value
+        mut hoisted_temp := ""
+        ctx.hoisted_exprs.get(thrown_expr_addr, hoisted_temp)
+        catch (err: KeyNotFoundError) { throw "emit_throw: hoisted key not found" }
+
+        // Get the type of the hoisted value
+        mut thrown_type_name := ""
+        mut lookup_result := get_fcall_func_def(context, thrown_expr)
+        if lookup_result.found {
+            if lookup_result.func_def.return_types.len().gt(0) {
+                mut ret_type := ValueType.TCustom("")
+                lookup_result.func_def.return_types.get(0, ret_type)
+                switch ret_type {
+                case ValueType.TCustom(type_name):
+                    thrown_type_name = type_name
+                case:
+                    thrown_type_name = value_type_to_str(ret_type)
+                }
+                catch (err: IndexOutOfBoundsError) { throw "emit_throw: index error getting return type" }
+            } else {
+                throw "ccodegen: throwing function has no return type"
+            }
+        } else {
+            throw "ccodegen: could not find throwing function definition"
+        }
+
+        // Generate indentation string
+        mut indent_str := ""
+        mut ind := 0
+        while lt(ind, indent) {
+            indent_str = indent_str.concat("    ")
+            ind = add(ind, 1)
+        }
+
+        // Check if this type is locally caught
+        mut has_local_catch := false
+        mut info := CatchLabelInfo()
+        ctx.local_catch_labels.get(thrown_type_name, info)
+        has_local_catch = true
+        catch (err: KeyNotFoundError) { }
+
+        if has_local_catch {
+            result = result.concat(indent_str).concat(info.temp_var).concat(" = ").concat(hoisted_temp).concat(";\n")
+            result = result.concat(indent_str).concat("goto ").concat(info.label).concat(";\n")
+            return result
+        }
+
+        // Find the index of this type in current_throw_types
+        mut error_index := sub(0, 1)  // -1 = not found
+        mut i := 0
+        while lt(i, ctx.current_throw_types.len()) {
+            mut vt := ValueType.TCustom("")
+            ctx.current_throw_types.get(i, vt)
+            switch vt {
+            case ValueType.TCustom(name):
+                if name.eq(thrown_type_name) {
+                    error_index = i
+                }
+            case:
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw "emit_throw: index error in throw types" }
+
+        if lt(error_index, 0) {
+            throw format("ccodegen: thrown type '", thrown_type_name, "' not found in function's throw types")
+        }
+
+        result = result.concat(indent_str).concat("*_err").concat(add(error_index, 1).to_str()).concat(" = ").concat(hoisted_temp).concat(";\n")
+        result = result.concat(indent_str).concat("return ").concat(add(error_index, 1).to_str()).concat(";\n")
+        return result
     }
 
     // Get the thrown type name from the expression
@@ -6785,8 +7052,6 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         ind = add(ind, 1)
     }
 
-    mut result := output
-
     // Check if this type is locally caught (has a catch block at function level)
     mut has_local_catch := false
     mut local_label := ""
@@ -6799,13 +7064,44 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     catch (err: KeyNotFoundError) { }
 
     if has_local_catch {
+        // Hoist any throwing function calls in the thrown expression
+        mut hoisted := Map.new(I64, Str)
+        switch thrown_expr.node_type {
+        case NodeType.FCall:
+            if gt(thrown_expr.params.len(), 1) {
+                // Create args Vec with elements starting from index 1 (skip function name)
+                mut args := Vec.new(Expr)
+                mut ai := 1
+                while lt(ai, thrown_expr.params.len()) {
+                    mut arg := Expr()
+                    thrown_expr.params.get(ai, arg)
+                    args.push(arg)
+                    ai = add(ai, 1)
+                }
+                mut hoisted_vec := hoist_throwing_args(args, result, indent, ctx, context)
+                mut hi := 0
+                while lt(hi, hoisted_vec.len()) {
+                    mut h := HoistedArg()
+                    hoisted_vec.get(hi, h)
+                    hoisted.set(h.index, h.temp_var)
+                    hi = add(hi, 1)
+                }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                catch (err: AllocError) { throw err.msg }
+            }
+        case:
+        }
+
         // Store the error value in temp variable
         result = result.concat(indent_str)
         result = result.concat(local_temp_var)
         result = result.concat(" = ")
-        if was_hoisted {
-            result = result.concat(hoisted_temp)
-        } else {
+
+        // Emit the thrown expression
+        switch thrown_expr.node_type {
+        case NodeType.FCall:
+            result = emit_fcall_with_hoisted(thrown_expr, hoisted, result, ctx, context)
+        case:
             result = emit_expr(thrown_expr, result, 0, ctx, context)
         }
         result = result.concat(";\n")
@@ -6841,12 +7137,42 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         throw format("ccodegen: thrown type '", thrown_type_name, "' not found in function's throw types")
     }
 
+    // Hoist throwing function calls from arguments of the thrown expression
+    // E.g., throw Error.new(format(...)) needs to hoist format() first
+    mut hoisted := Map.new(I64, Str)
+    switch thrown_expr.node_type {
+    case NodeType.FCall:
+        if gt(thrown_expr.params.len(), 1) {
+            // Create args Vec with elements starting from index 1 (skip function name)
+            mut args := Vec.new(Expr)
+            mut ai := 1
+            while lt(ai, thrown_expr.params.len()) {
+                mut arg := Expr()
+                thrown_expr.params.get(ai, arg)
+                args.push(arg)
+                ai = add(ai, 1)
+            }
+            mut hoisted_vec := hoist_throwing_args(args, result, indent, ctx, context)
+            mut hi := 0
+            while lt(hi, hoisted_vec.len()) {
+                mut h := HoistedArg()
+                hoisted_vec.get(hi, h)
+                hoisted.set(h.index, h.temp_var)
+                hi = add(hi, 1)
+            }
+        }
+    case:
+    }
+
     // Store the error value in the appropriate error pointer
     // Note: error params are 1-based (_err1, _err2, etc.)
     result = format(result, indent_str, "*_err", add(error_index, 1).to_str(), " = ")
-    if was_hoisted {
-        result = result.concat(hoisted_temp)
-    } else {
+
+    // Emit the thrown expression, using hoisted temp vars for arguments
+    switch thrown_expr.node_type {
+    case NodeType.FCall:
+        result = emit_fcall_with_hoisted(thrown_expr, hoisted, result, ctx, context)
+    case:
         result = emit_expr(thrown_expr, result, 0, ctx, context)
     }
     result = result.concat(";\n")
@@ -7469,10 +7795,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                             if lt(h.index, args.len()) {
                                 mut arg_for_key := Expr()
                                 args.get(h.index, arg_for_key)
-                                arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
-                                mut amp_str := "&"
-                                hoisted_val := amp_str.concat(h.temp_var)
-                                ctx.hoisted_exprs.set(arg_key, hoisted_val)
+                                expr_addr := to_ptr(arg_for_key)
+                                hoisted_val := concat("&", h.temp_var)
+                                ctx.hoisted_exprs.set(expr_addr, hoisted_val)
                             }
                             hoisted_map.set(h.index, h.temp_var)
                         }
@@ -7482,10 +7807,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                             if lt(rh.index, args.len()) {
                                 mut arg_for_key := Expr()
                                 args.get(rh.index, arg_for_key)
-                                arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
-                                mut amp_str := "&"
-                                hoisted_val := amp_str.concat(rh.temp_var)
-                                ctx.hoisted_exprs.set(arg_key, hoisted_val)
+                                expr_addr := to_ptr(arg_for_key)
+                                hoisted_val := concat("&", rh.temp_var)
+                                ctx.hoisted_exprs.set(expr_addr, hoisted_val)
                             }
                         }
                     }
@@ -7554,10 +7878,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                             if lt(h.index, args.len()) {
                                 mut arg_for_key := Expr()
                                 args.get(h.index, arg_for_key)
-                                arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
-                                mut amp_str := "&"
-                                hoisted_val := amp_str.concat(h.temp_var)
-                                ctx.hoisted_exprs.set(arg_key, hoisted_val)
+                                expr_addr := to_ptr(arg_for_key)
+                                hoisted_val := concat("&", h.temp_var)
+                                ctx.hoisted_exprs.set(expr_addr, hoisted_val)
                             }
                             hoisted_map.set(h.index, h.temp_var)
                         }
@@ -7567,10 +7890,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                             if lt(rh.index, args.len()) {
                                 mut arg_for_key := Expr()
                                 args.get(rh.index, arg_for_key)
-                                arg_key := arg_for_key.line.to_str().concat(":").concat(arg_for_key.col.to_str())
-                                mut amp_str := "&"
-                                hoisted_val := amp_str.concat(rh.temp_var)
-                                ctx.hoisted_exprs.set(arg_key, hoisted_val)
+                                expr_addr := to_ptr(arg_for_key)
+                                hoisted_val := concat("&", rh.temp_var)
+                                ctx.hoisted_exprs.set(expr_addr, hoisted_val)
                             }
                         }
                     }
@@ -8235,9 +8557,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 output = output.concat(");\n")
             }
 
-            // Record in hoisted_exprs map using line:col as key
-            mut arg_key := arg.line.to_str().concat(":").concat(arg.col.to_str())
-            ctx.hoisted_exprs.set(arg_key, temp_var)
+            // Record in hoisted_exprs map using expression address
+            arg_addr := to_ptr(arg)
+            ctx.hoisted_exprs.set(arg_addr, temp_var)
 
             mut hoisted_arg := HoistedArg()
             hoisted_arg.index = idx
@@ -8345,9 +8667,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             output = output.concat(variadic_arr_var)
             output = output.concat(");\n")
 
-            // Record in hoisted_exprs map using line:col as key
-            mut arg_key := arg.line.to_str().concat(":").concat(arg.col.to_str())
-            ctx.hoisted_exprs.set(arg_key, temp_var)
+            // Record in hoisted_exprs map using expression address
+            arg_addr := to_ptr(arg)
+            ctx.hoisted_exprs.set(arg_addr, temp_var)
 
             mut hoisted_arg := HoistedArg()
             hoisted_arg.index = idx

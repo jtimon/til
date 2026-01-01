@@ -7,7 +7,39 @@ Short list of things NOT to do in Rust code for this project.
 ** 1. Don't use panic!() directly
 Use ~return Err(...)~ instead. TIL error handling is explicit.
 
-** 2. Avoid iterator chains, use for loops
+** 2. Don't use variable shadowing
+TIL doesn't support variable shadowing. Use different names instead.
+
+Bad:
+#+begin_src rust
+let x = get_value();
+let x = transform(x);  // shadows previous x
+#+end_src
+
+Good:
+#+begin_src rust
+let x = get_value();
+let transformed_x = transform(x);  // different name
+#+end_src
+
+** 3. Don't use tuples, use structs
+Tuples don't exist in TIL. Use named structs for straightforward translation.
+
+Bad:
+#+begin_src rust
+fn get_bounds() -> (i64, i64) { (0, 100) }
+let (min, max) = get_bounds();
+#+end_src
+
+Good:
+#+begin_src rust
+struct Bounds { min: i64, max: i64 }
+fn get_bounds() -> Bounds { Bounds { min: 0, max: 100 } }
+let bounds = get_bounds();
+// use bounds.min, bounds.max
+#+end_src
+
+** 4. Avoid iterator chains, use for loops
 Iterator chains like ~.iter().map().collect()~ are hard to translate to TIL.
 Use explicit for loops instead.
 

@@ -72,30 +72,34 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Simplified `declare_var` to just `throws Str` (matching Rust's `Result<(), String>`).
 
 ### Current Focus (2026-01-01)
-**All til_interpreted tests pass! Now working on til_compiled**
+**til_compiled now works for empty.til!**
 
-#### til_interpreted Progress: 67/67 tests (100%) ✓ COMPLETE
+#### til_interpreted Progress: 63/63 tests (100%) ✓ COMPLETE
 
-**Total: 140/140 tests passing**
+#### til_compiled Progress: 1/1 tests (100%) ✓ empty.til WORKING
 
-Test organization (Issue #69):
-- `til_interpreted` (67 tests): All tests pass with `./bin/til interpret`
+**Total: 137/137 tests passing**
+
+Test organization:
+- `til_interpreted` (63 tests): All tests pass with `./bin/til interpret`
 - `rs_common` (67 tests): All rstil tests
-- `all_common` (0 tests): Requires til_compiled to work
+- `all_common` (1 test): empty.til - passes all 4 modes (rs_interpreted, rs_compiled, til_interpreted, til_compiled)
 
-#### til_compiled Progress (2026-01-01)
+**Bug #79** (Fixed 2026-01-01): til_compiled NamedArg error in emit_throw
+- Root cause: ccodegen.til diverged from ccodegen.rs in several ways:
+  1. `hoisted_exprs` used `Map(Str, Str)` but Rust uses `HashMap<usize, String>` (pointer keys)
+  2. `emit_throw` used length-based detection instead of early return pattern like Rust
+  3. Extra `if was_hoisted` checks that don't exist in Rust code
+  4. Variable shadowing (`arg_addr` declared twice in same function scope)
+- Fix:
+  1. Changed `hoisted_exprs` to `Map(I64, Str)` with `to_ptr()` keys
+  2. Used `ctx.hoisted_exprs.contains_key(thrown_expr_addr)` for detection
+  3. Removed `if was_hoisted` blocks, kept only else content (early return handles hoisted case)
+  4. Renamed second `arg_addr` to `dyn_arg_addr` to avoid shadowing
 
-**Bug #78** (Fixed): TIL scavenger/ccodegen divergence from Rust
-- scavenger.til: Added ComputeReachableResult struct, moved variadic handling to call site
-- ccodegen.til topological_sort_types: Changed List to Vec parameter, use Map for nested Vecs
-- rs2til.org: Added "Implicit panics become throws Str" documentation
-
-**Current status**: `./bin/til build src/examples/empty.til`
-- Scavenger phase: ✓ completes
-- Pass 1b (topological sort): ✓ completes, emits 12 types
-- Crash: Happens after Pass 1b, somewhere in later emit passes
-
-**Next step**: Locate which pass crashes after Pass 1b
+Also added to doc/rs.org:
+- Rule 2: Don't use variable shadowing (TIL doesn't support it)
+- Rule 3: Don't use tuples, use structs (TIL has no tuples)
 
 Recent til_interpreted fixes:
 - **Bug #77** (2026-01-01): Nested enum patterns incorrectly treated as bindings
@@ -119,8 +123,9 @@ Recent til_interpreted fixes:
 ## Milestones
 1. ~~`./bin/til interpret src/examples/empty.til`~~ ✓ DONE
 2. ~~`./bin/til interpret src/examples/hello_script.til`~~ ✓ DONE
-3. ~~All til_interpreted tests pass~~ ✓ DONE (67/67 working, 100%)
-4. `./bin/til run src/examples/empty.til` ← current target (scavenger bug)
+3. ~~All til_interpreted tests pass~~ ✓ DONE (63/63 working, 100%)
+4. ~~`./bin/til run src/examples/empty.til`~~ ✓ DONE (Bug #79)
+5. `./bin/til run src/examples/hello_script.til` ← next target
 
 ## Build Commands Reference (from Makefile)
 - `make rstil` - Build Rust-based TIL compiler
@@ -247,7 +252,7 @@ Call tracing showed:
 - Call #478 sees corrupted data: `? line=26726118198`
 - Corruption happens BETWEEN these calls, during check_types_with_context
 
-### Debug Strategy
+### Debug Strategy for Finding Corrupted Data
 To find the exact line causing corruption:
 1. Add debug print with `e.to_str()` after EVERY line in check_types_with_context
 2. Run test once
@@ -255,6 +260,69 @@ To find the exact line causing corruption:
 4. That line (or function called on that line) is the culprit
 5. Drill into that function with more prints
 6. Repeat until exact codegen bug found
+
+### Debug Strategy for Locating Segfault Crashes (til_compiled)
+When `./bin/til build` or `./bin/til run` crashes with a segfault:
+
+**Step 1: Add debug prints between major phases**
+Add `println("DEBUG builder N: phase name")` between each major phase in builder.til:
+- After parse_file
+- After Context.new
+- After core.til init/typer
+- After mode imports
+- After main file init/typer
+- After AST collection
+- After precomp
+- After scavenger
+- After emit
+
+**Step 2: Narrow down the phase**
+Run `timeout 30 ./bin/til build src/examples/empty.til 2>&1` and look for last debug message.
+Example output:
+```
+DEBUG builder 15: before scavenger
+DEBUG builder 16: after scavenger
+Segmentation fault
+```
+This tells you the crash is AFTER scavenger, inside emit().
+
+**Step 3: Add debug prints inside the crashing phase**
+For emit() in ccodegen.til, add prints after each Pass:
+```
+println("DEBUG emit 2: pass 0 done")
+println("DEBUG emit 3: pass 0a done")
+...
+```
+
+**Step 4: Narrow to specific loop iteration**
+When crash is inside a loop (e.g., Pass 4a emitting functions), add iteration info:
+```
+println("DEBUG emit 7a: emitting func ", func_count.to_str(), " (", decl.name, ")")
+```
+Output:
+```
+DEBUG emit 7a: emitting func 26 (print_flush)
+DEBUG emit 7a: emitting func 27 (get_substr)
+Segmentation fault
+```
+Now you know the crash is in `emit_func_declaration` for `get_substr`.
+
+**Step 5: Add debug prints inside the function**
+Add prints at the start and end of each major section in the crashing function.
+Binary search: add prints at 1/2 point, then 1/4 or 3/4, etc.
+
+**Step 6: Compare with Rust**
+Once you find the exact line/operation that crashes:
+1. Check if the same code exists in the Rust version (src/rs/*.rs)
+2. Look for differences in how data structures are accessed
+3. Common issues: off-by-one, null pointer, wrong type size
+
+**Important**: Rebuild after adding debug prints:
+```
+make til && timeout 30 ./bin/til build src/examples/empty.til 2>&1
+```
+
+**Cleanup**: Remove debug prints after fixing the bug
 
 ### Previous Test (2025-12-19)
 The original bug47.til was testing something different (static buffer issue

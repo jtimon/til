@@ -401,6 +401,9 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
     mut pos := 0
     mut line := 1
     mut start_line_pos := sub(0, 1)
+    mut current_char := ""
+    mut next_two := ""
+    mut esc := ""
 
     while pos.lt(eof_pos) {
         start := pos
@@ -440,7 +443,7 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
             scan_push_token(tokens, TokenType.Number, source.get_substr(start, pos), line, start.sub(start_line_pos))
         } else {
 
-            current_char := source.get_substr(pos, pos.add(1))
+            current_char = source.get_substr(pos, pos.add(1))
             mut token_type := TokenType.Invalid
             mut should_process_token := true
             switch current_char {
@@ -557,7 +560,7 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                     mut should_continue_parsing := true
 
                     while pos.lt(eof_pos.sub(1)).and(should_continue_parsing) {
-                        next_two := source.get_substr(pos, pos.add(2))
+                        next_two = source.get_substr(pos, pos.add(2))
 
                         if next_two.eq("/*") {
                             depth.inc()
@@ -600,7 +603,7 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                         if source.get_substr(pos, pos.add(1)).eq("\\") {
                             pos.inc() // if it's the escape character, skip it
                             if lt(pos.add(1), eof_pos) {
-                                esc := source.get_substr(pos, pos.add(1))
+                                esc = source.get_substr(pos, pos.add(1))
                                 switch esc {
                                 case "\"":
                                     lit_string = format(lit_string, "\"")
@@ -757,6 +760,7 @@ print_lex_errors := proc(tokens: Vec, path: Str) returns I64 throws Str {
 }
 
 print_if_lex_error := proc(path: Str, tokens: Vec, index: I64, t: Token, mut errors_found: I64) throws Str {
+    mut suggestion := ""
     switch t.token_type {
     case TokenType.Invalid:
         print_lex_error(path, t, errors_found, "Invalid character")
@@ -771,7 +775,7 @@ print_if_lex_error := proc(path: Str, tokens: Vec, index: I64, t: Token, mut err
         print_lex_error(path, t, errors_found, "No need to use 'const', everything is const by default unless 'mut' is used")
 
     case TokenType.Var:
-        suggestion := build_var_suggestion(tokens, index)
+        suggestion = build_var_suggestion(tokens, index)
         print_lex_error(path, t, errors_found, format("Keyword 'var' is not supported\n", suggestion))
 
     case TokenType.Fn:
