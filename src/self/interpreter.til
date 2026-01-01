@@ -617,6 +617,67 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                                         throw case_expr.error(context.path, "eval", format("Struct '", pattern_binding, "' not found in arena"))
                                     }
                                     g_arena.set(dest_offset, g_arena.get(payload_offset, struct_size), struct_size)
+                                case ValueType.TType(TTypeDef.TEnumDef):
+                                    // Handle enum payloads
+                                    // Read the payload bytes from outer enum
+                                    mut var_offset := context.scope_stack.lookup_var(enum_var_name)
+                                    catch (err: KeyNotFoundError) {
+                                        throw case_expr.error(context.path, "eval", format("Variable '", enum_var_name, "' not found in arena"))
+                                    }
+
+                                    // Enum payload starts 8 bytes after the outer enum tag
+                                    payload_offset := add(var_offset, 8)
+
+                                    // Read inner enum variant tag (first 8 bytes of payload)
+                                    mut variant_pos : I64 = 0
+                                    memcpy(to_ptr(variant_pos), g_arena.get(payload_offset, 8), 8)
+
+                                    // Get inner enum definition
+                                    mut inner_enum_def := context.scope_stack.lookup_enum(type_name)
+                                    catch (err: KeyNotFoundError) {
+                                        throw case_expr.error(context.path, "eval", format("Enum definition for '", type_name, "' not found"))
+                                    }
+
+                                    // Find variant name by matching position
+                                    variant_name := Context.variant_pos_to_str(inner_enum_def, variant_pos, context.path, case_expr)
+
+                                    // Check if this variant has its own payload
+                                    mut inner_payload_ptr := inner_enum_def.get(variant_name)
+                                    catch (err: KeyNotFoundError) {
+                                        // No inner payload
+                                    }
+
+                                    // Set temp_enum_payload if inner payload exists
+                                    if not(NULL.eq(inner_payload_ptr.data)) {
+                                        mut inner_payload_type := ValueType.TCustom("")
+                                        memcpy(to_ptr(inner_payload_type), inner_payload_ptr.data, size_of(ValueType))
+
+                                        // Get the inner payload size
+                                        inner_payload_size := EvalArena.get_payload_size_for_type(context, inner_payload_type, add(payload_offset, 8), case_expr)
+
+                                        if inner_payload_size.gt(0) {
+                                            // Copy inner payload bytes
+                                            mut inner_payload_data := Vec.new(U8)
+                                            mut pi := 0
+                                            while pi.lt(inner_payload_size) {
+                                                mut byte_val : U8 = 0
+                                                memcpy(to_ptr(byte_val), g_arena.get(add(add(payload_offset, 8), pi), 1), 1)
+                                                inner_payload_data.push(byte_val)
+                                                pi = add(pi, 1)
+                                            }
+                                            // Set temp_enum_payload for insert_enum
+                                            mut temp_payload := EnumPayload(data=inner_payload_data, value_type=inner_payload_type)
+                                            context.temp_enum_payload.data = to_ptr(temp_payload)
+                                        }
+                                    }
+
+                                    // Declare symbol
+                                    sym_info := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=false, is_copy=false, is_own=false)
+                                    context.scope_stack.declare_symbol(pattern_binding, sym_info)
+
+                                    // Insert enum using the proper insert_enum function
+                                    enum_val_str := format(type_name, ".", variant_name)
+                                    _ := EvalArena.insert_enum(context, pattern_binding, type_name, enum_val_str, case_expr)
                                 case:
                                     // Other custom types - just declare symbol
                                     sym_info := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)

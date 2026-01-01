@@ -973,8 +973,13 @@ EvalArena := struct {
                             payload_bytes.push(byte_val)
                             pi = add(pi, 1)
                         }
-                        result.payload.data = to_ptr(payload_bytes)
-                        result.payload_type.data = to_ptr(payload_type)
+                        // Bug #72 fix: Heap-allocate Vec and ValueType structs so they survive function return
+                        heap_vec_ptr := malloc(size_of(Vec))
+                        memcpy(heap_vec_ptr, to_ptr(payload_bytes), size_of(Vec))
+                        result.payload.data = heap_vec_ptr
+                        heap_type_ptr := malloc(size_of(ValueType))
+                        memcpy(heap_type_ptr, to_ptr(payload_type), size_of(ValueType))
+                        result.payload_type.data = heap_type_ptr
                     }
                 }
             case:
@@ -1148,8 +1153,14 @@ EvalArena := struct {
                             payload_bytes.push(byte_val)
                             pi = add(pi, 1)
                         }
-                        result.payload.data = to_ptr(payload_bytes)
-                        result.payload_type.data = to_ptr(variant_payload_type)
+                        // Bug #72 fix: Heap-allocate Vec and ValueType structs so they survive function return
+                        // (payload_bytes and variant_payload_type are stack-local, their pointers become stale)
+                        heap_vec_ptr := malloc(size_of(Vec))
+                        memcpy(heap_vec_ptr, to_ptr(payload_bytes), size_of(Vec))
+                        result.payload.data = heap_vec_ptr
+                        heap_type_ptr := malloc(size_of(ValueType))
+                        memcpy(heap_type_ptr, to_ptr(variant_payload_type), size_of(ValueType))
+                        result.payload_type.data = heap_type_ptr
                     }
                 }
             case:
