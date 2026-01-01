@@ -112,8 +112,8 @@ Failing til_interpreted tests (8) - still commented out:
 **Timeout/hang (1 test)**
 - bug47
 
-**Assert failure (1 test)**
-- enums - assert failed at line 99
+**Global enum copy bug (1 test)**
+- enums - Bug #72: copying global enum with payload segfaults
 
 **Type/feature errors (2 tests)**
 - optional_args - type errors: optional args not recognized

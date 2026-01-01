@@ -8,6 +8,38 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #72: Copying global enum with payload segfaults in til interpreter
+:PROPERTIES:
+:DISCOVERED: 2025-12-31
+:IMPACT: enums.til test fails with til interpret
+:STATUS: Active
+:END:
+
+*** Description
+When a global enum variable has a payload (e.g., ~Color.Green(true)~) and is copied
+to a local variable inside a function, the til interpreter segfaults.
+
+*** Reproducing
+#+BEGIN_SRC til
+mode test
+Color := enum {
+    Unknown,
+    Green: Bool,
+}
+bbb := Color.Green(true)  // Global with Bool payload
+
+test := proc() {
+    local_bbb := bbb  // SEGFAULT here
+    println(enum_to_str(local_bbb))
+}
+test()
+#+END_SRC
+
+*** Notes
+- Works correctly with ~rstil interpret~
+- Works correctly with local variables (only globals trigger the bug)
+- Pattern binding fix (Bug #71) works correctly for local enum variables
+
 ** Bug #64: I64 args in main functions for mode cli don't work
 :PROPERTIES:
 :DISCOVERED: 2025-12-30
@@ -68,6 +100,8 @@ which don't have this issue.
 Changed pattern binding code in ~interpreter.til~ to look up payload type directly from
 the enum definition (via ~lookup_enum~) and read payload bytes directly from the arena,
 instead of using the stale ~EnumVal.payload_type~ and ~EnumVal.payload~ pointers.
+
+Supports all payload types: I64, Str, and structs (including Bool and custom structs).
 
 *** Test
 ~src/test/ufcs.til~ - tests pattern matching with I64 and Str enum payloads.

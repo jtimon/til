@@ -575,9 +575,53 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                                     EvalArena.insert_string(context, pattern_binding, "", case_expr)
                                 }
                             } else {
-                                // TODO: Other payload types not yet implemented
-                                sym_info := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
-                                context.scope_stack.declare_symbol(pattern_binding, sym_info)
+                                // Handle custom types (structs and enums)
+                                mut type_symbol := context.scope_stack.lookup_symbol(type_name)
+                                catch (err: KeyNotFoundError) {
+                                    throw case_expr.error(context.path, "eval", format("Unknown type '", type_name, "'"))
+                                }
+
+                                switch type_symbol.value_type {
+                                case ValueType.TType(TTypeDef.TStructDef):
+                                    // Handle struct payloads (including Bool)
+                                    // Get the arena offset for this enum variable
+                                    mut var_offset := context.scope_stack.lookup_var(enum_var_name)
+                                    catch (err: KeyNotFoundError) {
+                                        throw case_expr.error(context.path, "eval", format("Variable '", enum_var_name, "' not found in arena"))
+                                    }
+
+                                    // Struct payload starts 8 bytes after the enum tag
+                                    payload_offset := add(var_offset, 8)
+
+                                    // Get struct size
+                                    struct_size := context.get_type_size(type_name)
+                                    catch (err: Str) {
+                                        throw case_expr.error(context.path, "eval", err)
+                                    }
+
+                                    // Declare symbol
+                                    sym_info := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=false, is_copy=false, is_own=false)
+                                    context.scope_stack.declare_symbol(pattern_binding, sym_info)
+
+                                    // Allocate struct in arena from template
+                                    mut template_offset := 0
+                                    g_arena.default_instances.get(type_name, template_offset)
+                                    catch (err: KeyNotFoundError) {
+                                        throw case_expr.error(context.path, "eval", format("Template for '", type_name, "' not found"))
+                                    }
+                                    EvalArena.insert_struct(context, pattern_binding, type_name, template_offset, case_expr)
+
+                                    // Get destination offset and copy payload bytes
+                                    mut dest_offset := context.scope_stack.lookup_var(pattern_binding)
+                                    catch (err: KeyNotFoundError) {
+                                        throw case_expr.error(context.path, "eval", format("Struct '", pattern_binding, "' not found in arena"))
+                                    }
+                                    g_arena.set(dest_offset, g_arena.get(payload_offset, struct_size), struct_size)
+                                case:
+                                    // Other custom types - just declare symbol
+                                    sym_info := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
+                                    context.scope_stack.declare_symbol(pattern_binding, sym_info)
+                                }
                             }
                         case:
                             // Non-custom type - declare symbol only
