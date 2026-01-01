@@ -76,14 +76,16 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 
 #### til_interpreted Progress: 63/63 tests (100%) ✓ COMPLETE
 
-#### til_compiled Progress: 1/1 tests (100%) ✓ empty.til WORKING
+#### til_compiled Progress: 33/64 tests (52%)
 
-**Total: 137/137 tests passing**
+**Total: 105/105 tests passing**
 
 Test organization:
-- `til_interpreted` (63 tests): All tests pass with `./bin/til interpret`
-- `rs_common` (67 tests): All rstil tests
-- `all_common` (1 test): empty.til - passes all 4 modes (rs_interpreted, rs_compiled, til_interpreted, til_compiled)
+- `all_common` (33 tests): Pass all 4 modes (rs_interpreted, rs_compiled, til_interpreted, til_compiled)
+- `til_interpreted` (31 tests): Pass til_interpreted but not til_compiled yet
+- `rs_common` (35 tests): rstil tests that don't yet pass til_compiled
+- `rs_compiled` (2 tests): rstil run only tests
+- `rs_interpreted` (4 tests): rstil interpret only tests
 
 **Bug #79** (Fixed 2026-01-01): til_compiled NamedArg error in emit_throw
 - Root cause: ccodegen.til diverged from ccodegen.rs in several ways:
@@ -117,15 +119,16 @@ Recent til_interpreted fixes:
 3. ~~Typer~~ ✓
 4. ~~Precomp~~ ✓
 5. Scavenger ← issues remain for some tests
-6. ~~Eval/Interpreter~~ ✓ (38/68 tests working)
-7. Builder/Codegen ← til_compiled not yet working
+6. ~~Eval/Interpreter~~ ✓ (63/63 tests working)
+7. Builder/Codegen ← 33/64 tests working (52%)
 
 ## Milestones
 1. ~~`./bin/til interpret src/examples/empty.til`~~ ✓ DONE
 2. ~~`./bin/til interpret src/examples/hello_script.til`~~ ✓ DONE
 3. ~~All til_interpreted tests pass~~ ✓ DONE (63/63 working, 100%)
 4. ~~`./bin/til run src/examples/empty.til`~~ ✓ DONE (Bug #79)
-5. `./bin/til run src/examples/hello_script.til` ← next target
+5. ~~til_compiled 52% passing~~ ✓ DONE (33/64 tests)
+6. All til_compiled tests pass ← next target
 
 ## Build Commands Reference (from Makefile)
 - `make rstil` - Build Rust-based TIL compiler
