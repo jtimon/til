@@ -74,51 +74,26 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 ### Current Focus (2026-01-01)
 **Fix all til_interpreted tests first, then til_compiled**
 
-Test organization (Issue #69):
-- `rs_common` (67 tests): All rstil tests (includes 49 that also pass til_interpreted)
-- `til_interpreted` (60 tests): Tests that pass with `./bin/til interpret`
-- `all_common` (0 tests): Empty - requires all 4 modes including til_compiled
-  - til_compiled (`til run`) segfaults on all tests
-  - When til_compiled works, tests can be promoted from rs_common
+#### til_interpreted Progress: 60/67 tests (90%)
+
+| Category | Count | Tests |
+|----------|-------|-------|
+| Segfault | 4 | args, vecs, test_parser, til.til help |
+| Timeout | 1 | bug47 |
+| Feature gaps | 2 | optional_args (optional args), test_lexer (string ranges) |
 
 **Total: 133/133 tests passing**
 
-Recent fixes (2026-01-01):
-- **Bug #72** (Fixed): Copying global enum with payload segfaults in til interpreter
-  - Root cause: get_enum returns EnumVal with Ptr to stack-local Vec/ValueType structs
-  - Fix: Heap-allocate Vec and ValueType in get_enum/get_enum_at_offset using malloc
-  - Also added TEnumDef case in pattern binding to properly handle nested enum payloads
-  - Enabled: enums.til in til_interpreted
+Test organization (Issue #69):
+- `til_interpreted` (60 tests): Tests that pass with `./bin/til interpret`
+- `rs_common` (67 tests): All rstil tests
+- `all_common` (0 tests): Requires til_compiled to work
 
-Recent fixes (2025-12-31):
-- **Bug #71** (Fixed): TIL interpreter enum pattern binding use-after-free
-  - Root cause: EnumVal.payload_type and payload are Ptr to stack variables in get_enum
-  - Fix: Look up payload type from enum definition, read payload directly from arena
-  - Enabled: errors.til, ufcs.til, bug43.til, bug52.til, modes.til, structs.til in til_interpreted
-- **Bug #70** (Fixed): C codegen variable type collision causing struct default garbage
-- **Bug #68** (Fixed): Consecutive catch blocks missing goto in generated C
-- **Bug #67** (Fixed): Enum variant payload type empty string in til interpreter
-- **Bug #63** (Fixed): Typer now rejects const variable passed to own parameter
-
-Working til_interpreted tests (60):
-- examples: empty, hello_cli, hello_lib, hello_liba, hello_pura, hello_pure, hello_script, hello_test, lolalalo
-- tests: arenas, arithmetics, arrays, bools, branchless, bug41, bug43, bug46, bug48, bug49, bug52, bug55, bug56, bug57,
-  c_mem, circular_test, clone, comparisons, constfold, cross_file_forward, deterministic, editor_mode_test,
-  enums, errors, eval, exit, fibonacci, flow, forward_declarations, func_purity, function_pointers, intro, literals,
-  lists, loops, maps, modes, mut_test, namespaces, parallel_cmd, pointers, return_value_usage, scope_isolation,
-  sets, strings, structs, u8, ufcs, underscore, undefined, variadic
-
-Failing til_interpreted tests (7) - still commented out:
-
-**Segmentation fault (4 tests)**
-- args, vecs, test_parser, til.til help
-
-**Timeout/hang (1 test)**
-- bug47
-
-**Type/feature errors (2 tests)**
-- optional_args - type errors: optional args not recognized
-- test_lexer - String range comparisons not yet supported
+Recent fixes:
+- **Bug #72** (2026-01-01): Global enum copy segfault - heap-allocate Vec/ValueType in get_enum
+- **Bug #71** (2025-12-31): Enum pattern binding use-after-free - lookup from enum definition
+- **Bug #70** (2025-12-31): C codegen variable type collision
+- **Bug #68** (2025-12-31): Consecutive catch blocks missing goto
 
 Phase 2: Once til_interpreted tests pass, fix til_compiled:
 ```bash
