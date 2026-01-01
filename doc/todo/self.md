@@ -79,7 +79,7 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 | Category | Count | Tests |
 |----------|-------|-------|
 | Segfault | 4 | args, vecs, test_parser, til.til help |
-| Timeout | 1 | bug47 |
+| Value_type corruption | 1 | Bug #73 / bug47 (TTypeDef stored as TType(TStructDef) instead of TType(TEnumDef), causes "Struct 'TTypeDef' not found" at init.til:826 when importing self.init) |
 | Feature gaps | 2 | optional_args (optional args), test_lexer (string ranges) |
 
 **Total: 133/133 tests passing**
