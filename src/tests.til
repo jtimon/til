@@ -310,6 +310,18 @@ parse_test_result := proc(result_file: Str, exit_status: I64, mut time_ms: I64, 
 // phases: Vec of TestPhase (1 for single-mode, 2 for common tests)
 // phase_totals: mut Vec of I64, one per phase for accumulating times
 run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals: Vec, mut benchmark_content: Str) returns I64 {
+    // Ensure tmp directory exists for result files
+    mut mkdir_out := ""
+    _ := mkdir_out.run_cmd("mkdir", "-p", "tmp")
+
+    // Ensure expected output files exist before spawning tests
+    for entry: TestEntry in tests {
+        for phase: TestPhase in phases {
+            out_path := get_out_path(entry.path, phase.out_mode, entry.cmd_args)
+            ensure_out_file(entry.path, entry.cmd_args, out_path, phase.out_mode)
+        }
+    }
+
     mut errors := 0
     mut pending_idx := 0
     mut running := Vec.new(RunningTest)
