@@ -41,6 +41,7 @@
 - src/test/forward_declarations.til :: til interpreted: 0.000s
 - src/test/func_purity.til :: til interpreted: 0.000s
 - src/test/function_pointers.til :: til interpreted: 0.000s
+- src/test/mut_test.til :: til interpreted: 0.000s
 - src/test/intro.til :: til interpreted: 0.000s
 - src/test/lists.til :: til interpreted: 0.000s
 - src/test/literals.til :: til interpreted: 0.000s
@@ -59,14 +60,14 @@
 - src/test/namespaces.til :: til interpreted: 0.000s
 - src/examples/lolalalo.til :: til interpreted: 0.000s
 - src/test/loops.til :: til interpreted: 0.000s
-- src/test/ufcs.til :: til interpreted: 0.000s
-- src/test/structs.til :: til interpreted: 0.000s
-- src/test/mut_test.til :: til interpreted: 0.000s
-- src/test/errors.til :: til interpreted: 0.000s
 - src/test/vecs.til :: til interpreted: 0.000s
-- src/test/modes.til :: til interpreted: 0.000s
+- src/test/ufcs.til :: til interpreted: 0.000s
 - src/test/enums.til :: til interpreted: 0.000s
+- src/test/errors.til :: til interpreted: 0.000s
+- src/test/modes.til :: til interpreted: 0.000s
+- src/test/structs.til :: til interpreted: 0.000s
 - src/test/maps.til :: til interpreted: 0.000s
+- src/test/test_lexer.til :: til interpreted: 0.000s
 
 * rs_interpreted
 - src/test/memcmp_str_interpreted.til :: interpreted: 0.000s

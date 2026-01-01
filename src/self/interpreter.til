@@ -742,8 +742,10 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                     end_val := I64.from_str(end.value)
                     is_match = val.gteq(start_val).and(val.lteq(end_val))
                 } else {
-                    // String ranges not supported in self-hosted interpreter
-                    throw e.lang_error(context.path, "eval", "String range comparisons not yet supported")
+                    // Lexicographic string comparison
+                    cmp_start := result_to_switch.value.cmp(start.value)
+                    cmp_end := result_to_switch.value.cmp(end.value)
+                    is_match = cmp_start.gteq(0).and(cmp_end.lteq(0))
                 }
             } else {
                 result_case := eval_expr(context, case_expr)

@@ -74,22 +74,23 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 ### Current Focus (2026-01-01)
 **Fix all til_interpreted tests first, then til_compiled**
 
-#### til_interpreted Progress: 61/67 tests (91%)
+#### til_interpreted Progress: 62/67 tests (92%)
 
 | Category | Count | Tests |
 |----------|-------|-------|
 | Segfault | 3 | args, test_parser, til.til help |
 | Value_type corruption | 1 | Bug #73 / bug47 (TTypeDef stored as TType(TStructDef) instead of TType(TEnumDef), causes "Struct 'TTypeDef' not found" at init.til:826 when importing self.init) |
-| Feature gaps | 2 | optional_args (optional args), test_lexer (string ranges) |
+| Feature gaps | 1 | optional_args (optional args) |
 
-**Total: 134/134 tests passing**
+**Total: 135/135 tests passing**
 
 Test organization (Issue #69):
-- `til_interpreted` (61 tests): Tests that pass with `./bin/til interpret`
+- `til_interpreted` (62 tests): Tests that pass with `./bin/til interpret`
 - `rs_common` (67 tests): All rstil tests
 - `all_common` (0 tests): Requires til_compiled to work
 
 Recent fixes:
+- **Bug #75** (2026-01-01): String range comparison support - add Str.cmp() method for "0".."9" patterns
 - **Bug #74** (2026-01-01): Mut enum write-back loses payload - add Bug #38 fix to interpreter.til
 - **Bug #72** (2026-01-01): Global enum copy segfault - heap-allocate Vec/ValueType in get_enum
 - **Bug #71** (2025-12-31): Enum pattern binding use-after-free - lookup from enum definition

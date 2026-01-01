@@ -282,6 +282,27 @@ Str := struct {
         return byte_val
     }
 
+    /** Lexicographic comparison: returns negative if self < other, 0 if equal, positive if self > other */
+    cmp := func(self: Str, other: Str) returns I64 {
+        mut min_len := self.len()
+        if other.len().lt(min_len) {
+            min_len = other.len()
+        }
+        for i in 0..min_len {
+            a_byte := self.char_at(i)
+            b_byte := other.char_at(i)
+            a_val := U8.to_i64(a_byte)
+            b_val := U8.to_i64(b_byte)
+            if a_val.lt(b_val) {
+                return sub(0, 1)
+            }
+            if a_val.gt(b_val) {
+                return 1
+            }
+        }
+        return sub(self.len(), other.len())
+    }
+
     /** Replace first n occurrences of 'from' with 'to' */
     replacen := func(self: Str, from: Str, to: Str, n: I64) returns Str throws AllocError {
         if from.len().eq(0) {

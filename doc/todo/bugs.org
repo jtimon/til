@@ -135,6 +135,59 @@ case MutArgValue.Enum(enum_val):
 *** Test
 ~src/test/vecs.til~ - now passes with ~til interpret~.
 
+** Bug #75: TIL interpreter missing string range comparison support
+:PROPERTIES:
+:DISCOVERED: 2026-01-01
+:FIXED: 2026-01-01
+:IMPACT: test_lexer.til fails - lexer uses case "0".."9" patterns
+:STATUS: Fixed
+:END:
+
+*** Description
+The TIL interpreter threw "String range comparisons not yet supported" when
+encountering switch case patterns like ~case "0".."9"~ in lexer.til. This
+blocked the test_lexer.til test from running with ~./bin/til interpret~.
+
+*** Root Cause
+The Rust interpreter uses native string comparison operators (~>=~ and ~<=~)
+for lexicographic comparison, but TIL's interpreter.til was throwing an error
+instead of implementing the comparison.
+
+*** Fix
+Added ~Str.cmp()~ method to str.til that performs lexicographic comparison:
+#+BEGIN_SRC til
+cmp := func(self: Str, other: Str) returns I64 {
+    mut min_len := self.len()
+    if other.len().lt(min_len) {
+        min_len = other.len()
+    }
+    for i in 0..min_len {
+        a_byte := self.char_at(i)
+        b_byte := other.char_at(i)
+        a_val := U8.to_i64(a_byte)
+        b_val := U8.to_i64(b_byte)
+        if a_val.lt(b_val) {
+            return sub(0, 1)
+        }
+        if a_val.gt(b_val) {
+            return 1
+        }
+    }
+    return sub(self.len(), other.len())
+}
+#+END_SRC
+
+Updated interpreter.til to use it instead of throwing:
+#+BEGIN_SRC til
+// Lexicographic string comparison
+cmp_start := result_to_switch.value.cmp(start.value)
+cmp_end := result_to_switch.value.cmp(end.value)
+is_match = cmp_start.gteq(0).and(cmp_end.lteq(0))
+#+END_SRC
+
+*** Test
+~src/test/test_lexer.til~ - now passes with ~til interpret~.
+
 ** Bug #72: Copying global enum with payload segfaults in til interpreter
 :PROPERTIES:
 :DISCOVERED: 2025-12-31
