@@ -82,6 +82,25 @@ test_strings := proc() {
     med_pos := med_str.find("\nreal")
     test(loc(), med_pos.gt(0), "find in medium string should work")
 
+    // get_substr with start==end returns empty string (regression test)
+    assert_eq_str(loc(), "", get_substr("hello", 0, 0))
+    assert_eq_str(loc(), "", get_substr("hello", 3, 3))
+    assert_eq_str(loc(), "", get_substr("hello", 5, 5))
+
+    // replacen tests (regression: match at position 0 was broken)
+    src_path := "src/examples/empty.c"
+    assert_eq_str(loc(), "gen/c/examples/empty.c", src_path.replacen("src/", "gen/c/", 1))
+    src_path2 := "src/test.c"
+    assert_eq_str(loc(), "gen/c/test.c", src_path2.replacen("src/", "gen/c/", 1))
+    no_match := "hello world"
+    assert_eq_str(loc(), "hello world", no_match.replacen("foo", "bar", 1))  // no match
+    match_start := "foo world"
+    assert_eq_str(loc(), "bar world", match_start.replacen("foo", "bar", 1))  // match at start
+    match_end := "hello foo"
+    assert_eq_str(loc(), "hello bar", match_end.replacen("foo", "bar", 1))  // match at end
+    multi := "foo foo foo"
+    assert_eq_str(loc(), "bar bar foo", multi.replacen("foo", "bar", 2))  // n=2
+
     catch(err: I64_OverflowError) {
         panic(loc(), "Unexpected I64_OverflowError")
     }
