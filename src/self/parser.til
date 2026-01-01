@@ -98,11 +98,13 @@ Declaration := struct {
         result.is_mut = self.is_mut
         result.is_copy = self.is_copy
         result.is_own = self.is_own
-        // Clone default_value if present
+        // Clone default_value if present (must allocate heap memory like Rust's Box<Expr>)
         if not(NULL.eq(self.default_value.data)) {
             mut default_expr := Expr()
             memcpy(to_ptr(default_expr), self.default_value.data, size_of(Expr))
-            result.default_value.data = to_ptr(default_expr.clone())
+            mut cloned_expr := default_expr.clone()
+            result.default_value.data = malloc(size_of(Expr))
+            memcpy(result.default_value.data, to_ptr(cloned_expr), size_of(Expr))
         }
         return result
     }
@@ -788,7 +790,9 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                 case TokenType.Equal:
                     lexer.advance(1)  // consume '='
                     mut default_expr := parse_primary(lexer)
-                    decl.default_value.data = to_ptr(default_expr)
+                    // Must allocate heap memory - to_ptr(default_expr) would create dangling pointer
+                    decl.default_value.data = malloc(size_of(Expr))
+                    memcpy(decl.default_value.data, to_ptr(default_expr), size_of(Expr))
                 case:
                     // No default value
                 }

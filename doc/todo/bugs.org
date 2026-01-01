@@ -188,6 +188,48 @@ is_match = cmp_start.gteq(0).and(cmp_end.lteq(0))
 *** Test
 ~src/test/test_lexer.til~ - now passes with ~til interpret~.
 
+** Bug #76: Optional function arguments not working in til_interpreted
+:PROPERTIES:
+:DISCOVERED: 2026-01-01
+:FIXED: 2026-01-01
+:IMPACT: optional_args.til fails - functions with default arg values have args.len() = 0
+:STATUS: Fixed
+:END:
+
+*** Description
+Functions with optional arguments (e.g., ~greeting: Str = "Hello"~) were failing
+in the til-interpreted tests with "expects at most 0 args" error. The function's
+args.len() was 0 when looked up, even though it was declared with correct args.
+
+*** Root Cause
+In ~parse_func_proc_args~ in parser.til, when parsing optional argument default
+values, the code was:
+#+BEGIN_SRC til
+case TokenType.Equal:
+    lexer.advance(1)  // consume '='
+    mut default_expr := parse_primary(lexer)
+    decl.default_value.data = to_ptr(default_expr)  // BUG: pointer to local!
+#+END_SRC
+
+~default_expr~ is a local variable on the stack. Taking a pointer to it with
+~to_ptr(default_expr)~ creates a dangling pointer when the function returns.
+This is a use-after-free bug - the memory at that address gets reused for other
+data, corrupting the default_value pointer.
+
+*** Fix
+Allocate heap memory for the Expr and copy it there:
+#+BEGIN_SRC til
+case TokenType.Equal:
+    lexer.advance(1)  // consume '='
+    mut default_expr := parse_primary(lexer)
+    // Must allocate heap memory - to_ptr(default_expr) would create dangling pointer
+    decl.default_value.data = malloc(size_of(Expr))
+    memcpy(decl.default_value.data, to_ptr(default_expr), size_of(Expr))
+#+END_SRC
+
+*** Test
+~src/test/optional_args.til~ - now passes with ~til interpret~.
+
 ** Bug #72: Copying global enum with payload segfaults in til interpreter
 :PROPERTIES:
 :DISCOVERED: 2025-12-31

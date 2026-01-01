@@ -74,22 +74,22 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 ### Current Focus (2026-01-01)
 **Fix all til_interpreted tests first, then til_compiled**
 
-#### til_interpreted Progress: 62/67 tests (92%)
+#### til_interpreted Progress: 63/67 tests (94%)
 
 | Category | Count | Tests |
 |----------|-------|-------|
 | Segfault | 3 | args, test_parser, til.til help |
 | Value_type corruption | 1 | Bug #73 / bug47 (TTypeDef stored as TType(TStructDef) instead of TType(TEnumDef), causes "Struct 'TTypeDef' not found" at init.til:826 when importing self.init) |
-| Feature gaps | 1 | optional_args (optional args) |
 
-**Total: 135/135 tests passing**
+**Total: 136/136 tests passing**
 
 Test organization (Issue #69):
-- `til_interpreted` (62 tests): Tests that pass with `./bin/til interpret`
+- `til_interpreted` (63 tests): Tests that pass with `./bin/til interpret`
 - `rs_common` (67 tests): All rstil tests
 - `all_common` (0 tests): Requires til_compiled to work
 
 Recent fixes:
+- **Bug #76** (2026-01-01): Optional args not working in til_interpreted - parser stored pointer to local variable instead of heap-allocated memory for default_value
 - **Bug #75** (2026-01-01): String range comparison support - add Str.cmp() method for "0".."9" patterns
 - **Bug #74** (2026-01-01): Mut enum write-back loses payload - add Bug #38 fix to interpreter.til
 - **Bug #72** (2026-01-01): Global enum copy segfault - heap-allocate Vec/ValueType in get_enum
@@ -115,7 +115,7 @@ This is a separate scavenger bug that doesn't affect rstil.
 ## Milestones
 1. ~~`./bin/til interpret src/examples/empty.til`~~ ✓ DONE
 2. ~~`./bin/til interpret src/examples/hello_script.til`~~ ✓ DONE
-3. All til_interpreted tests pass ← current target (59/67 working, 88%)
+3. All til_interpreted tests pass ← current target (63/67 working, 94%)
 4. `./bin/til run src/examples/empty.til` (scavenger bug)
 
 ## Build Commands Reference (from Makefile)
