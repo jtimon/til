@@ -330,3 +330,14 @@ make til && timeout 30 ./bin/til build src/examples/empty.til 2>&1
 ### Previous Test (2025-12-19)
 The original bug47.til was testing something different (static buffer issue
 in ext.c's til_i64_to_str). That has been renamed to bug52.til.
+
+### Bug #80: ccodegen.til Divergence (2026-01-01)
+
+See `doc/todo/bugs.org` Bug #80 for full details.
+
+**Summary**: ccodegen.til generates different C code than ccodegen.rs. The method to find
+divergences is to diff the generated C files from rstil vs til builds. 8 major divergences
+were found including missing til_ prefixes, wrong struct definition style, and parameter
+passing by value instead of pointer.
+
+**Action Required**: Systematically compare ccodegen.rs with ccodegen.til and fix all divergences.

@@ -8,6 +8,88 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #80: ccodegen.til generates different C code than ccodegen.rs
+:PROPERTIES:
+:DISCOVERED: 2026-01-01
+:IMPACT: til_compiled fails - ./bin/til build/run generates invalid C code
+:STATUS: Active
+:END:
+
+*** Description
+The self-hosted TIL compiler generates C code that differs from the Rust compiler's output.
+The generated C code fails to compile with gcc due to multiple issues.
+
+*** Method to Find Divergences
+Compare generated C files from rstil vs til:
+
+#+BEGIN_SRC bash
+# Step 1: Build with rstil and save the generated C file
+./bin/rstil build src/examples/hello_script.til
+cp gen/c/examples/hello_script.c tmp/hello_script_rstil.c
+
+# Step 2: Build with til and save the generated C file
+./bin/til build src/examples/hello_script.til
+cp gen/c/examples/hello_script.c tmp/hello_script_til.c
+
+# Step 3: Diff both files
+diff tmp/hello_script_rstil.c tmp/hello_script_til.c | head -200
+#+END_SRC
+
+*** Findings
+The diff revealed these divergences:
+
+1. *Struct definition style*
+   - rstil: ~struct til_Str { ... };~
+   - til: ~typedef struct { ... } Str;~
+   - Missing ~til_~ prefix on typedef name
+
+2. *Field types for Str fields*
+   - rstil: ~til_Str msg;~
+   - til: ~const char* msg;~
+   - Wrong type - should be til_Str, not const char*
+
+3. *Missing til_ prefix on constants*
+   - rstil: ~const til_I64 til_NULL = 0;~
+   - til: ~const I64 NULL = 0;~
+   - Both the type and variable name are missing prefix
+
+4. *Missing til_ prefix on function names*
+   - rstil: ~til_Bool til_not(...)~
+   - til: ~til_Bool not(...)~
+   - Function names must have til_ prefix
+
+5. *Parameter passing style*
+   - rstil: ~const til_Str* type_name~ (pointer)
+   - til: ~til_Str type_name~ (by value)
+   - Wrong - should pass structs by pointer
+
+6. *Forward declarations location*
+   - rstil: Forward declarations before ~#include <ext.c>~
+   - til: Forward declarations after helper functions
+   - Order matters for C compilation
+
+7. *Helper functions placement*
+   - til has ~single_print~, ~print_flush~, ~u8_to_i64~ etc. before forward declarations
+   - rstil doesn't have these at that location (they're in ext.c or later)
+
+8. *Struct member access*
+   - rstil: ~type_name->c_string~ (pointer dereference)
+   - til: ~type_name.c_string~ (value access)
+   - Follows from #5 - if parameter is pointer, must use ->
+
+*** Root Cause
+ccodegen.til has diverged significantly from ccodegen.rs and needs to be re-synced.
+
+*** Files That Must Match
+All self-hosted TIL files must match their Rust counterparts:
+- ~ccodegen.til~ must match ~ccodegen.rs~
+- ~til.til~ must match ~rstil.rs~
+- ~builder.til~ must match ~builder.rs~
+- ~target.til~ must match ~target.rs~
+
+*** Fix
+Systematically compare each .rs file with its .til counterpart and fix all divergences.
+Use the diff method above to verify generated C code is identical.
 
 ** Bug #64: I64 args in main functions for mode cli don't work
 :PROPERTIES:
