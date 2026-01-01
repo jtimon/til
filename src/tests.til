@@ -1077,7 +1077,7 @@ main := proc(args: ..Str) {
     // til_interpreted.push(TestEntry(path="src/test/test_lexer.til"))  // TODO: String range comparisons
     // til_interpreted.push(TestEntry(path="src/test/test_parser.til"))  // TODO: Segmentation fault
     til_interpreted.push(TestEntry(path="src/test/ufcs.til"))
-    // til_interpreted.push(TestEntry(path="src/test/vecs.til"))  // TODO: Segmentation fault
+    til_interpreted.push(TestEntry(path="src/test/vecs.til"))
     // til_interpreted.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: Segmentation fault
 
     // til_compiled: tests run with the self-hosted TIL compiler only

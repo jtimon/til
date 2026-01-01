@@ -43,6 +43,7 @@
 - src/test/function_pointers.til :: til interpreted: 0.000s
 - src/test/intro.til :: til interpreted: 0.000s
 - src/test/lists.til :: til interpreted: 0.000s
+- src/test/literals.til :: til interpreted: 0.000s
 - src/test/bug52.til :: til interpreted: 0.000s
 - src/test/bug43.til :: til interpreted: 0.000s
 - src/test/variadic.til :: til interpreted: 0.000s
@@ -56,13 +57,13 @@
 - src/test/pointers.til :: til interpreted: 0.000s
 - src/test/parallel_cmd.til :: til interpreted: 0.000s
 - src/test/namespaces.til :: til interpreted: 0.000s
-- src/test/literals.til :: til interpreted: 0.000s
-- src/test/loops.til :: til interpreted: 0.000s
 - src/examples/lolalalo.til :: til interpreted: 0.000s
+- src/test/loops.til :: til interpreted: 0.000s
 - src/test/ufcs.til :: til interpreted: 0.000s
 - src/test/structs.til :: til interpreted: 0.000s
 - src/test/mut_test.til :: til interpreted: 0.000s
 - src/test/errors.til :: til interpreted: 0.000s
+- src/test/vecs.til :: til interpreted: 0.000s
 - src/test/modes.til :: til interpreted: 0.000s
 - src/test/enums.til :: til interpreted: 0.000s
 - src/test/maps.til :: til interpreted: 0.000s
@@ -70,8 +71,8 @@
 * rs_interpreted
 - src/test/memcmp_str_interpreted.til :: interpreted: 0.000s
 - src/test/precomp_throw.til :: interpreted: 0.000s
-- src/examples/hello_safe_script.til :: interpreted: 0.000s
 - src/test/introspections.til :: interpreted: 0.000s
+- src/examples/hello_safe_script.til :: interpreted: 0.000s
 
 * rs_compiled
 - src/test/precomp_throw.til :: compiled: 0.000s

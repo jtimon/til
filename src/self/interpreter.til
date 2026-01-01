@@ -666,8 +666,11 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                                                 pi = add(pi, 1)
                                             }
                                             // Set temp_enum_payload for insert_enum
+                                            // Bug #74 fix: Heap-allocate EnumPayload to avoid use-after-free
                                             mut temp_payload := EnumPayload(data=inner_payload_data, value_type=inner_payload_type)
-                                            context.temp_enum_payload.data = to_ptr(temp_payload)
+                                            heap_payload_ptr := malloc(size_of(EnumPayload))
+                                            memcpy(heap_payload_ptr, to_ptr(temp_payload), size_of(EnumPayload))
+                                            context.temp_enum_payload.data = heap_payload_ptr
                                         }
                                     }
 
@@ -1173,8 +1176,11 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                 }
 
                 // Store payload in temp location for insert_enum to use
+                // Bug #74 fix: Heap-allocate EnumPayload to avoid use-after-free
                 mut temp_payload := EnumPayload(data=payload_bytes, value_type=variant_type)
-                context.temp_enum_payload.data = to_ptr(temp_payload)
+                heap_payload_ptr := malloc(size_of(EnumPayload))
+                memcpy(heap_payload_ptr, to_ptr(temp_payload), size_of(EnumPayload))
+                context.temp_enum_payload.data = heap_payload_ptr
 
                 // Return the enum variant name
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -1684,8 +1690,11 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
                 // Read payload_type from Ptr
                 mut payload_type := ValueType.TCustom("")
                 memcpy(to_ptr(payload_type), enum_val.payload_type.data, size_of(ValueType))
+                // Bug #74 fix: Heap-allocate EnumPayload to avoid use-after-free
                 mut temp_payload := EnumPayload(data=payload_vec.clone(), value_type=payload_type)
-                context.temp_enum_payload.data = to_ptr(temp_payload)
+                heap_payload_ptr := malloc(size_of(EnumPayload))
+                memcpy(heap_payload_ptr, to_ptr(temp_payload), size_of(EnumPayload))
+                context.temp_enum_payload.data = heap_payload_ptr
             }
         }
         return EvalResult.new(format(custom_type_name, ".", enum_val.enum_name))
@@ -1768,8 +1777,11 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
                             // Read payload_type from Ptr
                             mut payload_type := ValueType.TCustom("")
                             memcpy(to_ptr(payload_type), enum_val.payload_type.data, size_of(ValueType))
+                            // Bug #74 fix: Heap-allocate EnumPayload to avoid use-after-free
                             mut temp_payload := EnumPayload(data=payload_vec.clone(), value_type=payload_type)
-                            context.temp_enum_payload.data = to_ptr(temp_payload)
+                            heap_payload_ptr := malloc(size_of(EnumPayload))
+                            memcpy(heap_payload_ptr, to_ptr(temp_payload), size_of(EnumPayload))
+                            context.temp_enum_payload.data = heap_payload_ptr
                         }
                     }
                     return EvalResult.new(format(curr_type_name_str, ".", enum_val.enum_name))
@@ -2315,10 +2327,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
                     // Restore enum payload if we saved it
                     if has_enum_backup {
-                        // Allocate space for the backup and copy it
+                        // Bug #74 fix: Heap-allocate EnumPayload to avoid use-after-free
                         mut temp_payload := EnumPayload()
                         temp_payload = enum_payload_backup
-                        context.temp_enum_payload.data = to_ptr(temp_payload)
+                        heap_payload_ptr := malloc(size_of(EnumPayload))
+                        memcpy(heap_payload_ptr, to_ptr(temp_payload), size_of(EnumPayload))
+                        context.temp_enum_payload.data = heap_payload_ptr
                     }
 
                     // Resolve Dynamic/Type to actual type first
@@ -3138,6 +3152,19 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         case MutArgValue.Str(val):
             EvalArena.insert_string(context, c.source_name, val, e)
         case MutArgValue.Enum(enum_val):
+            // Bug #38 fix: Set temp_enum_payload so insert_enum preserves the payload
+            if not(NULL.eq(enum_val.payload.data)).and(not(NULL.eq(enum_val.payload_type.data))) {
+                // Read payload Vec and ValueType from the pointers
+                mut payload_vec := Vec.new(U8)
+                memcpy(to_ptr(payload_vec), enum_val.payload.data, size_of(Vec))
+                mut payload_type := ValueType.TCustom("")
+                memcpy(to_ptr(payload_type), enum_val.payload_type.data, size_of(ValueType))
+                // Create EnumPayload and set temp_enum_payload
+                mut temp_payload := EnumPayload(data=payload_vec.clone(), value_type=payload_type)
+                heap_payload_ptr := malloc(size_of(EnumPayload))
+                memcpy(heap_payload_ptr, to_ptr(temp_payload), size_of(EnumPayload))
+                context.temp_enum_payload.data = heap_payload_ptr
+            }
             _ := EvalArena.insert_enum(context, c.source_name, enum_val.enum_type, format(enum_val.enum_type, ".", enum_val.enum_name), e)
         case MutArgValue.Struct(struct_data):
             mut lf12_idx := context.scope_stack.frames.len().sub(1)
@@ -3233,8 +3260,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             if not(NULL.eq(saved_enum_value.payload_type.data)) {
                                 mut payload_type := ValueType.TCustom("")
                                 memcpy(to_ptr(payload_type), saved_enum_value.payload_type.data, size_of(ValueType))
+                                // Bug #74 fix: Heap-allocate EnumPayload to avoid use-after-free
                                 mut temp_payload := EnumPayload(data=payload_vec.clone(), value_type=payload_type)
-                                context.temp_enum_payload.data = to_ptr(temp_payload)
+                                heap_payload_ptr := malloc(size_of(EnumPayload))
+                                memcpy(heap_payload_ptr, to_ptr(temp_payload), size_of(EnumPayload))
+                                context.temp_enum_payload.data = heap_payload_ptr
                             }
                         }
 

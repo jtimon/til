@@ -95,6 +95,46 @@ function signature expects I64.
 
 * Fixed Bugs
 
+** Bug #74: TIL interpreter mut enum parameter write-back loses payload
+:PROPERTIES:
+:DISCOVERED: 2026-01-01
+:FIXED: 2026-01-01
+:IMPACT: vecs.til test fails - enum payload lost when extracting via switch
+:STATUS: Fixed
+:END:
+
+*** Description
+When a mut enum parameter is passed to a function (like Vec.get), and that function
+modifies the enum (via memcpy), the payload is lost when writing back to the caller.
+
+*** Root Cause
+TIL's interpreter.til was missing the Bug #38 fix in the ~MutArgValue.Enum~ case
+of the mut argument write-back logic. Rust sets ~context.temp_enum_payload~ before
+calling ~insert_enum~ to preserve the payload data, but TIL was not doing this.
+
+*** Fix
+Added the Bug #38 fix to interpreter.til line 3154-3167:
+#+BEGIN_SRC til
+case MutArgValue.Enum(enum_val):
+    // Bug #38 fix: Set temp_enum_payload so insert_enum preserves the payload
+    if not(NULL.eq(enum_val.payload.data)).and(not(NULL.eq(enum_val.payload_type.data))) {
+        // Read payload Vec and ValueType from the pointers
+        mut payload_vec := Vec.new(U8)
+        memcpy(to_ptr(payload_vec), enum_val.payload.data, size_of(Vec))
+        mut payload_type := ValueType.TCustom("")
+        memcpy(to_ptr(payload_type), enum_val.payload_type.data, size_of(ValueType))
+        // Create EnumPayload and set temp_enum_payload
+        mut temp_payload := EnumPayload(data=payload_vec.clone(), value_type=payload_type)
+        heap_payload_ptr := malloc(size_of(EnumPayload))
+        memcpy(heap_payload_ptr, to_ptr(temp_payload), size_of(EnumPayload))
+        context.temp_enum_payload.data = heap_payload_ptr
+    }
+    _ := EvalArena.insert_enum(...)
+#+END_SRC
+
+*** Test
+~src/test/vecs.til~ - now passes with ~til interpret~.
+
 ** Bug #72: Copying global enum with payload segfaults in til interpreter
 :PROPERTIES:
 :DISCOVERED: 2025-12-31
