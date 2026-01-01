@@ -1564,7 +1564,7 @@ get_type_name := func(expr: Expr) returns Str {
 
 // Topologically sort type declarations (structs and enums-with-payloads) by their dependencies
 // Returns indices into the original vector in sorted order
-topological_sort_types := func(types: List) returns Vec throws Str {
+topological_sort_types := func(types: Vec) returns Vec throws Str {
     mut result := Vec.new(I64)
     mut n := types.len()
 
@@ -1574,7 +1574,6 @@ topological_sort_types := func(types: List) returns Vec throws Str {
     while lt(idx, n) {
         mut expr := Expr()
         types.get(idx, expr)
-        catch (err: IndexOutOfBoundsError) { return result }
         mut name := get_type_name(expr)
         if gt(name.len(), 0) {
             name_to_idx.set(name, idx)
@@ -1582,33 +1581,34 @@ topological_sort_types := func(types: List) returns Vec throws Str {
         idx = add(idx, 1)
     }
 
-    // Build adjacency list (dependencies)
-    mut deps_list := List.new()  // List of Vec(I64) - deps_list[i] = dependencies of type i
+    // Build adjacency list (dependencies) - use Map since we need to modify elements
+    // deps[idx] = list of indices that idx depends on
+    mut deps := Map.new(I64, Vec)
     idx = 0
     while lt(idx, n) {
-        mut empty_vec := Vec.new(I64)
-        deps_list.push(Vec, empty_vec)
+        deps.set(idx, Vec.new(I64))
         idx = add(idx, 1)
     }
     idx = 0
     while lt(idx, n) {
         mut expr := Expr()
         types.get(idx, expr)
-        catch (err: IndexOutOfBoundsError) { return result }
-        mut deps := get_type_dependencies(expr)
+        mut type_deps := get_type_dependencies(expr)
         mut dep_idx := 0
-        while lt(dep_idx, deps.len()) {
+        while lt(dep_idx, type_deps.len()) {
             mut dep_name := ""
-            deps.get(dep_idx, dep_name)
+            type_deps.get(dep_idx, dep_name)
             if name_to_idx.contains_key(dep_name) {
                 mut dep_type_idx := 0
                 name_to_idx.get(dep_name, dep_type_idx)
-                catch (err: KeyNotFoundError) { }
+                catch (err: KeyNotFoundError) { throw err.msg }
                 if not(dep_type_idx.eq(idx)) {
-                    mut type_deps := Vec.new(I64)
-                    deps_list.get(idx, type_deps)
-                    catch (err: IndexOutOfBoundsError) { return result }
-                    type_deps.push(dep_type_idx)
+                    // Get, modify, set back
+                    mut idx_deps := Vec.new(I64)
+                    deps.get(idx, idx_deps)
+                    catch (err: KeyNotFoundError) { throw err.msg }
+                    idx_deps.push(dep_type_idx)
+                    deps.set(idx, idx_deps)
                 }
             }
             dep_idx = add(dep_idx, 1)
@@ -1618,26 +1618,27 @@ topological_sort_types := func(types: List) returns Vec throws Str {
 
     // Kahn's algorithm for topological sort
     // If A depends on B, B must come first, so reverse the edges
-    mut reverse_deps := List.new()  // List of Vec(I64)
+    mut reverse_deps := Map.new(I64, Vec)
     idx = 0
     while lt(idx, n) {
-        mut empty_vec := Vec.new(I64)
-        reverse_deps.push(Vec, empty_vec)
+        reverse_deps.set(idx, Vec.new(I64))
         idx = add(idx, 1)
     }
     idx = 0
     while lt(idx, n) {
         mut dep_list := Vec.new(I64)
-        deps_list.get(idx, dep_list)
-        catch (err: IndexOutOfBoundsError) { return result }
+        deps.get(idx, dep_list)
+        catch (err: KeyNotFoundError) { throw err.msg }
         mut dep_idx := 0
         while lt(dep_idx, dep_list.len()) {
             mut dep := 0
             dep_list.get(dep_idx, dep)
+            // Get, modify, set back
             mut rev_deps := Vec.new(I64)
             reverse_deps.get(dep, rev_deps)
-            catch (err: IndexOutOfBoundsError) { return result }
+            catch (err: KeyNotFoundError) { throw err.msg }
             rev_deps.push(idx)
+            reverse_deps.set(dep, rev_deps)
             dep_idx = add(dep_idx, 1)
         }
         idx = add(idx, 1)
@@ -1654,7 +1655,7 @@ topological_sort_types := func(types: List) returns Vec throws Str {
     while lt(idx, n) {
         mut dep_list := Vec.new(I64)
         reverse_deps.get(idx, dep_list)
-        catch (err: IndexOutOfBoundsError) { return result }
+        catch (err: KeyNotFoundError) { throw err.msg }
         mut dep_idx := 0
         while lt(dep_idx, dep_list.len()) {
             mut dep := 0
@@ -1688,7 +1689,7 @@ topological_sort_types := func(types: List) returns Vec throws Str {
         // For each node that current points to, decrement in-degree
         mut edges := Vec.new(I64)
         reverse_deps.get(current, edges)
-        catch (err: IndexOutOfBoundsError) { return result }
+        catch (err: KeyNotFoundError) { throw err.msg }
         mut edge_idx := 0
         while lt(edge_idx, edges.len()) {
             mut next := 0
@@ -2724,13 +2725,13 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     switch ast.node_type {
     case NodeType.Body:
         // Collect all struct declarations and enums-with-payloads
-        mut type_decls := List.new()
+        mut type_decls := Vec.new(Expr)
         for child: Expr in ast.params {
             if is_struct_declaration(child) {
-                type_decls.push(Expr, child)
+                type_decls.push(child)
             } else if is_enum_declaration(child) {
                 if is_enum_with_payloads(child) {
-                    type_decls.push(Expr, child)
+                    type_decls.push(child)
                 }
             }
         }
@@ -2767,6 +2768,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     output = output.concat("static inline void print_flush(void) { fflush(stdout); }\n")
     output = output.concat("// to_ptr: get pointer address as integer\n")
     output = format(output, "static inline ", TIL_PREFIX, "I64 to_ptr(", TIL_PREFIX, "I64* p) { return (", TIL_PREFIX, "I64)p; }\n\n")
+
 
     // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
     switch ast.node_type {

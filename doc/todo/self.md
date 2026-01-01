@@ -72,7 +72,7 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Simplified `declare_var` to just `throws Str` (matching Rust's `Result<(), String>`).
 
 ### Current Focus (2026-01-01)
-**All til_interpreted tests now pass! Next: til_compiled**
+**All til_interpreted tests pass! Now working on til_compiled**
 
 #### til_interpreted Progress: 67/67 tests (100%) ✓ COMPLETE
 
@@ -83,21 +83,29 @@ Test organization (Issue #69):
 - `rs_common` (67 tests): All rstil tests
 - `all_common` (0 tests): Requires til_compiled to work
 
-Recent fixes:
-- **Bug #77** (2026-01-01): Nested enum patterns incorrectly treated as bindings - parser matched `TTypeDef.TEnumDef` as binding variable "TTypeDef" instead of nested pattern. Fix: check if identifier has params before treating as binding.
-- **Bug #76** (2026-01-01): Optional args not working in til_interpreted - parser stored pointer to local variable instead of heap-allocated memory for default_value
-- **Bug #75** (2026-01-01): String range comparison support - add Str.cmp() method for "0".."9" patterns
-- **Bug #74** (2026-01-01): Mut enum write-back loses payload - add Bug #38 fix to interpreter.til
-- **Bug #72** (2026-01-01): Global enum copy segfault - heap-allocate Vec/ValueType in get_enum
-- **Bug #71** (2025-12-31): Enum pattern binding use-after-free - lookup from enum definition
+#### til_compiled Progress (2026-01-01)
+
+**Bug #78** (Fixed): TIL scavenger/ccodegen divergence from Rust
+- scavenger.til: Added ComputeReachableResult struct, moved variadic handling to call site
+- ccodegen.til topological_sort_types: Changed List to Vec parameter, use Map for nested Vecs
+- rs2til.org: Added "Implicit panics become throws Str" documentation
+
+**Current status**: `./bin/til build src/examples/empty.til`
+- Scavenger phase: ✓ completes
+- Pass 1b (topological sort): ✓ completes, emits 12 types
+- Crash: Happens after Pass 1b, somewhere in later emit passes
+
+**Next step**: Locate which pass crashes after Pass 1b
+
+Recent til_interpreted fixes:
+- **Bug #77** (2026-01-01): Nested enum patterns incorrectly treated as bindings
+- **Bug #76** (2026-01-01): Optional args not working in til_interpreted
+- **Bug #75** (2026-01-01): String range comparison support
+- **Bug #74** (2026-01-01): Mut enum write-back loses payload
+- **Bug #72** (2026-01-01): Global enum copy segfault
+- **Bug #71** (2025-12-31): Enum pattern binding use-after-free
 - **Bug #70** (2025-12-31): C codegen variable type collision
 - **Bug #68** (2025-12-31): Consecutive catch blocks missing goto
-
-Phase 2: Once til_interpreted tests pass, fix til_compiled:
-```bash
-./bin/til run src/examples/empty.til  # Currently: "no body found for 'start.eq'"
-```
-This is a separate scavenger bug that doesn't affect rstil.
 
 ## Compiler Phases
 1. ~~Parser~~ ✓

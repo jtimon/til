@@ -47,6 +47,39 @@ function signature expects I64.
 
 * Fixed Bugs
 
+** Bug #78: TIL scavenger/ccodegen divergence from Rust
+:PROPERTIES:
+:DISCOVERED: 2026-01-01
+:FIXED: 2026-01-01
+:IMPACT: til_compiled (./bin/til build/run) crashes
+:STATUS: Fixed
+:END:
+
+*** Description
+The self-hosted TIL compiler crashed when running ~./bin/til build src/examples/empty.til~.
+Multiple divergences between Rust and TIL implementations were causing issues.
+
+*** Root Causes and Fixes
+
+1. **scavenger.til compute_reachable return type**: TIL version handled
+   ~needs_variadic_support~ inside the function with a recursive call, while Rust
+   handled it at the call site. Fixed by adding ~ComputeReachableResult~ struct
+   to both Rust and TIL, returning both values and handling at call site.
+
+2. **ccodegen.til topological_sort_types**: TIL version used ~List~ with nested
+   ~Vec~ elements, but modifications to copies didn't persist (TIL collections
+   return copies, not references). Fixed by:
+   - Changed parameter from ~List~ to ~Vec~
+   - Changed internal ~List~ of ~Vec~ to ~Map<I64, Vec>~ with get/modify/set pattern
+   - All catch blocks now throw ~err.msg~ instead of being empty (matching Rust panics)
+
+3. **rs2til.org documentation**: Added new section "Implicit panics become throws Str"
+   documenting that Rust code that would panic should throw Str in TIL.
+
+*** Current Status
+Scavenger and topological sort phases complete successfully. Crash now occurs
+later in emit phase - investigation continues.
+
 ** Bug #77: Nested enum patterns incorrectly treated as binding variables
 :PROPERTIES:
 :DISCOVERED: 2026-01-01

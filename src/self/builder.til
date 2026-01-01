@@ -307,11 +307,17 @@ build := proc(path: Str) returns Str throws Str {
 
     mut merged_ast := Expr.new_explicit(NodeType.Body, all_params, main_ast.line, main_ast.col)
 
+    // DEBUG: trace segfault
+
     // Scavenger phase: Remove unused function declarations
     merged_ast = scavenger_expr(context, merged_ast)
 
+    // DEBUG: trace segfault
+
     // Generate C code
     mut c_code := emit(merged_ast, context)
+
+    // DEBUG: trace segfault
 
     // Write output file to ./gen/c/ directory instead of alongside source
     mut c_filename := path.replace(".til", ".c")

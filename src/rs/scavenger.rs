@@ -5,6 +5,12 @@ use crate::rs::init::Context;
 use crate::rs::parser::{Declaration, Expr, NodeType, SStructDef};
 use std::collections::{HashMap, HashSet};
 
+/// Result type for compute_reachable
+pub struct ComputeReachableResult {
+    pub reachable: HashSet<String>,
+    pub needs_variadic_support: bool,
+}
+
 // ---------- Helper functions
 
 /// Rebuild a struct without unreachable methods
@@ -178,12 +184,12 @@ fn register_declarations(context: &mut Context, e: &Expr) {
 
 /// Compute the transitive closure of reachable functions starting from roots.
 /// Uses context.scope_stack.lookup_func() to find function bodies.
-/// Returns (reachable_set, needs_variadic_support).
+/// Returns ComputeReachableResult with reachable set and needs_variadic_support flag.
 fn compute_reachable(
     context: &Context,
     roots: &HashSet<String>,
     e: &Expr,
-) -> Result<(HashSet<String>, bool), String> {
+) -> Result<ComputeReachableResult, String> {
     let mut reachable: HashSet<String> = HashSet::new();
     let mut worklist: Vec<String> = Vec::new();
     let mut needs_variadic_support = false;
@@ -286,7 +292,7 @@ fn compute_reachable(
         }
     }
 
-    Ok((reachable, needs_variadic_support))
+    Ok(ComputeReachableResult { reachable, needs_variadic_support })
 }
 
 // ---------- Main entry point
@@ -359,7 +365,9 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
         // Step 2: Compute reachable functions (transitive closure)
         // First pass: compute reachable and detect if variadic support is needed
-        let (mut reachable, needs_variadic_support) = compute_reachable(context, &roots, e)?;
+        let cr_result = compute_reachable(context, &roots, e)?;
+        let mut reachable = cr_result.reachable;
+        let needs_variadic_support = cr_result.needs_variadic_support;
 
         // If any variadic function was found, add Array methods and recompute closure
         // to include their dependencies (like U8.from_i64)
@@ -376,8 +384,9 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             for method in &array_methods {
                 extended_roots.insert(method.clone());
             }
-            let (new_reachable, _) = compute_reachable(context, &extended_roots, e)?;
-            reachable = new_reachable;
+            let new_cr_result = compute_reachable(context, &extended_roots, e)?;
+            reachable = new_cr_result.reachable;
+            // Ignore needs_variadic_support on second pass
         }
 
         // Step 3: Build new AST - only include reachable function declarations

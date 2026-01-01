@@ -236,9 +236,16 @@ register_declarations := proc(mut context: Context, e: Expr) throws Str {
     register_declarations_recursive(context, e)
 }
 
+/// Result type for compute_reachable (mimics Rust's tuple return)
+ComputeReachableResult := struct {
+    mut reachable: Set = Set.new(Str)
+    mut needs_variadic_support: Bool = false
+}
+
 /// Compute the transitive closure of reachable functions starting from roots.
 /// Uses context.scope_stack.lookup_func() to find function bodies.
-compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set throws Str {
+/// Returns (reachable_set, needs_variadic_support).
+compute_reachable := proc(context: Context, roots: Set, e: Expr) returns ComputeReachableResult throws Str {
     mut reachable := Set.new(Str)
     mut worklist := Vec.new(Str)
     mut needs_variadic_support := false
@@ -262,7 +269,6 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
         func_def = context.scope_stack.lookup_func(func_name)
         found_func = true
         catch (err: KeyNotFoundError) {
-            // Not a function
         }
 
         if found_func {
@@ -279,7 +285,6 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
             }
 
             if func_def.is_ext() {
-                // External function - no body to walk
                 continue
             }
             mut called := Set.new(Str)
@@ -333,15 +338,12 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
                     enum_def = context.scope_stack.lookup_enum(enum_name)
                     found_enum = true
                     catch (err: KeyNotFoundError) {
-                        // Not an enum
                     }
                     catch (err: IndexOutOfBoundsError) {
-                        // get_substr failed
                     }
                 }
 
                 if found_enum {
-                    // Enum constructor - no body to walk
                     continue
                 }
 
@@ -349,10 +351,8 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
                 if dot_pos.lt(0).or(dot_pos.eq(0)) {
                     mut enum_def := SEnumDef()
                     enum_def = context.scope_stack.lookup_enum(func_name)
-                    // Enum type reference - no body to walk
                     continue
                     catch (err: KeyNotFoundError) {
-                        // Not an enum type name, continue checking
                     }
                 }
 
@@ -443,34 +443,12 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
         }
     }
 
-    // If any variadic function was found, add Array methods and recompute closure
-    if needs_variadic_support {
-        mut extended_roots := Set.new(Str)
-        // Copy original roots
-        ri = 0
-        while ri.lt(roots.len()) {
-            mut root := ""
-            roots.get(ri, root)
-            _ := extended_roots.insert(root.clone())
-            ri.inc()
-        }
-        // Add Array methods
-        // REM: RS:377 clones method strings, but TIL string literals are already owned values
-        _ := extended_roots.insert("Array.new")
-        _ := extended_roots.insert("Array.set")
-        _ := extended_roots.insert("Array.get")
-        _ := extended_roots.insert("Array.delete")
-        _ := extended_roots.insert("Array.len")
-        // Recompute (recursive call, but needs_variadic_support will be ignored on second pass)
-        return compute_reachable(context, extended_roots, e)
-    }
-
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
 
-    return reachable
+    return ComputeReachableResult(reachable=reachable, needs_variadic_support=needs_variadic_support)
 }
 
 // ---------- Main entry point
@@ -478,12 +456,18 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Set thr
 /// Remove unused function declarations from the AST.
 /// This runs after precomp, so UFCS is already resolved.
 scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    // DEBUG
+
     // Only process Body nodes at the top level
     switch e.node_type {
     case NodeType.Body:
+        // DEBUG
+
         // Step 0: Register all functions and structs from the transformed AST into scope_stack
         // This mirrors what the interpreter does - it builds scope_stack as it walks the AST
         register_declarations(context, e)
+
+        // DEBUG
 
         // Step 1: Determine root functions based on mode
         mut roots := Set.new(Str)
@@ -512,11 +496,14 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 k.inc()
             }
         } else {
-            if context.mode_def.allows_base_calls.or(context.mode_def.allows_base_anything) {
+            mut abc := context.mode_def.allows_base_calls
+            mut aba := context.mode_def.allows_base_anything
+            if abc.or(aba) {
                 // script/safe_script/test: all top-level non-declaration statements are roots
                 // Walk them to find called functions
                 mut i := 0
-                while i.lt(e.params.len()) {
+                mut len := e.params.len()
+                while i.lt(len) {
                     stmt := e.get(i)
                     switch stmt.node_type {
                     case NodeType.Declaration(decl):
@@ -562,7 +549,34 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         }
 
         // Step 2: Compute reachable functions (transitive closure)
-        reachable := compute_reachable(context, roots, e)
+        // First pass: compute reachable and detect if variadic support is needed
+        mut cr_result := compute_reachable(context, roots, e)
+        mut reachable := cr_result.reachable
+        mut needs_variadic_support := cr_result.needs_variadic_support
+
+        // If any variadic function was found, add Array methods and recompute closure
+        // to include their dependencies (like U8.from_i64)
+        if needs_variadic_support {
+            mut extended_roots := Set.new(Str)
+            // Copy original roots
+            mut ri := 0
+            while ri.lt(roots.len()) {
+                mut root := ""
+                roots.get(ri, root)
+                _ := extended_roots.insert(root.clone())
+                ri.inc()
+            }
+            // Add Array methods
+            _ := extended_roots.insert("Array.new")
+            _ := extended_roots.insert("Array.set")
+            _ := extended_roots.insert("Array.get")
+            _ := extended_roots.insert("Array.delete")
+            _ := extended_roots.insert("Array.len")
+            // Recompute
+            mut new_cr_result := compute_reachable(context, extended_roots, e)
+            reachable = new_cr_result.reachable
+            // Ignore needs_variadic_support on second pass
+        }
 
         // Step 3: Build new AST - only include reachable function declarations
         // For structs, rebuild them without unreachable methods
@@ -600,6 +614,8 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         }
 
         mut result_node_type := node_type_clone(e.node_type)
+
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
         catch (err: AllocError) { throw err.msg }
 
         return Expr(node_type=result_node_type, params=new_params, line=e.line, col=e.col)

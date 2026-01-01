@@ -650,6 +650,38 @@ for i in vec.len().sub(1)..sub(0, 1) {
 }
 #+end_src
 
+*** Implicit panics become throws Str
+
+When Rust code would implicitly panic (e.g., array out-of-bounds, unwrap on None), TIL should
+throw a Str error. The function signature must include ~throws Str~.
+
+Rust (implicit panic on out-of-bounds):
+#+begin_src rust
+fn process(items: &[Item]) -> Result {
+    for i in 0..items.len() {
+        let item = items[i];  // Would panic if somehow out of bounds
+        // ...
+    }
+}
+#+end_src
+
+TIL (catch and throw Str):
+#+begin_src til
+process := func(items: Vec) returns Result throws Str {
+    for i in 0..items.len() {
+        mut item := Item()
+        items.get(i, item)
+        // ...
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+}
+#+end_src
+
+This pattern applies to:
+- Array/Vec indexing that would panic in Rust -> catch IndexOutOfBoundsError, throw err.msg
+- Map access that would panic in Rust -> catch KeyNotFoundError, throw err.msg
+- Any operation that would call ~unwrap()~ or ~expect()~ in Rust
+
 *** lang_error for better error messages (TIL improvement over Rust)
 
 When a function has an ~Expr~ parameter, use ~e.lang_error()~ instead of ~panic()~ for
