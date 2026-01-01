@@ -1075,7 +1075,7 @@ main := proc(args: ..Str) {
     til_interpreted.push(TestEntry(path="src/test/optional_args.til"))
     til_interpreted.push(TestEntry(path="src/test/structs.til"))
     til_interpreted.push(TestEntry(path="src/test/test_lexer.til"))
-    // til_interpreted.push(TestEntry(path="src/test/test_parser.til"))  // TODO: Segmentation fault
+    til_interpreted.push(TestEntry(path="src/test/test_parser.til"))  // slow (~28s) but works
     til_interpreted.push(TestEntry(path="src/test/ufcs.til"))
     til_interpreted.push(TestEntry(path="src/test/vecs.til"))
     // til_interpreted.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: Segmentation fault

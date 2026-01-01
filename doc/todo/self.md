@@ -74,17 +74,17 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 ### Current Focus (2026-01-01)
 **Fix all til_interpreted tests first, then til_compiled**
 
-#### til_interpreted Progress: 64/67 tests (95%)
+#### til_interpreted Progress: 65/67 tests (97%)
 
 | Category | Count | Tests |
 |----------|-------|-------|
-| Segfault | 2 | test_parser, til.til help |
+| Slow/Performance | 1 | til.til help (slow, not segfault) |
 | Value_type corruption | 1 | Bug #73 / bug47 (TTypeDef stored as TType(TStructDef) instead of TType(TEnumDef), causes "Struct 'TTypeDef' not found" at init.til:826 when importing self.init) |
 
-**Total: 137/137 tests passing**
+**Total: 138/138 tests passing**
 
 Test organization (Issue #69):
-- `til_interpreted` (64 tests): Tests that pass with `./bin/til interpret`
+- `til_interpreted` (65 tests): Tests that pass with `./bin/til interpret`
 - `rs_common` (67 tests): All rstil tests
 - `all_common` (0 tests): Requires til_compiled to work
 
@@ -115,7 +115,7 @@ This is a separate scavenger bug that doesn't affect rstil.
 ## Milestones
 1. ~~`./bin/til interpret src/examples/empty.til`~~ ✓ DONE
 2. ~~`./bin/til interpret src/examples/hello_script.til`~~ ✓ DONE
-3. All til_interpreted tests pass ← current target (64/67 working, 95%)
+3. All til_interpreted tests pass ← current target (65/67 working, 97%)
 4. `./bin/til run src/examples/empty.til` (scavenger bug)
 
 ## Build Commands Reference (from Makefile)
