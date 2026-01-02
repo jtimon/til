@@ -136,7 +136,6 @@ All enums and functions match:
 | VariadicFCallInfo | Y | Y | |
 | - | - | FuncNameResult | TIL only (helper result type) |
 | - | - | TypeArgResult | TIL only (helper result type) |
-| - | - | ReceiverTypeResult | TIL only (helper result type) |
 | - | - | FuncLookupResult | TIL only (helper result type) |
 
 ***** Helper Functions - Present
@@ -156,7 +155,6 @@ All enums and functions match:
 | value_type_to_c_name | Y | Y | |
 | has_str | - | Y | TIL only |
 | add_var_declared | - | Y | TIL only |
-| lookup_receiver_type | - | Y | TIL only |
 | get_field_type_dependency | Y | - | Rust only |
 
 ***** Type/Struct/Enum Detection - Present

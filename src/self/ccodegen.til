@@ -290,22 +290,6 @@ is_throwing_fcall := proc(expr: Expr, context: Context) returns Bool {
     return false
 }
 
-// Result type for receiver type lookup
-ReceiverTypeResult := struct {
-    mut found: Bool = false
-    mut value_type: ValueType = ValueType.TCustom("")
-}
-
-// Look up receiver type from scope_stack
-lookup_receiver_type := func(context: Context, name: Str) returns ReceiverTypeResult {
-    mut result := ReceiverTypeResult()
-    mut symbol := context.scope_stack.lookup_symbol(name)
-    result.found = true
-    result.value_type = symbol.value_type
-    catch (err: KeyNotFoundError) { }
-    return result
-}
-
 // Convert TIL type to C type. Returns Err if the type can't be represented in C (e.g., functions, infer)
 til_type_to_c := func(til_type: ValueType) returns Str throws Str {
     switch til_type {
