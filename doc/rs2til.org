@@ -297,13 +297,13 @@ switch expr.node_type {
 case NodeType.FCall:
     mut func_name := get_func_name_string(first_param)
     catch (err: KeyNotFoundError) {
-        // Equivalent to Rust's None case - just skip
+        // REM: Equivalent to Rust's None case - just skip
     }
     // func_name is valid here
 
     mut struct_def := lookup_struct(func_name)
     catch (err: KeyNotFoundError) {
-        // Equivalent to Rust's None case - just skip
+        // REM: Equivalent to Rust's None case - just skip
     }
     // struct_def is valid here
     process_struct_literal(func_name, struct_def)
@@ -350,11 +350,13 @@ catch (err: KeyNotFoundError) {
 Only place catches immediately after each call when you need DIFFERENT behavior for
 each None case (e.g., skip vs error, or different fallback values).
 
-When Rust's None case does nothing (no else branch), TIL uses an empty catch:
+When Rust's None case does nothing (no else branch), TIL uses an empty catch.
+IMPORTANT: Never leave catch blocks completely empty - always add a "// REM:" comment
+explaining why the catch is empty:
 #+begin_src til
 mut result := some_function_that_returns_option()
 catch (err: KeyNotFoundError) {
-    // Rust's None case did nothing, so we do nothing here
+    // REM: Rust's None case did nothing, so we do nothing here
 }
 // Continue with result if it was found
 #+end_src
@@ -947,6 +949,57 @@ The git diff shows exactly what lines changed, making the translation mechanical
 
 *DO NOT* test Rust changes first and port later - the self-hosted til tests will fail.
 
+* Style: Method Chaining vs Function Calls
+
+For readability, prefer method chaining style over function call style for comparison
+and boolean operations:
+
+** Comparisons
+
+#+begin_src til
+// PREFERRED: method chaining
+if func_def.return_types.len().gt(0) { ... }
+if x.lt(y) { ... }
+if name.eq("foo") { ... }
+
+// AVOID: function call style
+if gt(func_def.return_types.len(), 0) { ... }
+if lt(x, y) { ... }
+if eq(name, "foo") { ... }
+#+end_src
+
+** Boolean operations
+
+#+begin_src til
+// PREFERRED: method chaining
+if found.and(has_return_type) { ... }
+if is_empty.or(is_null) { ... }
+if value.not() { ... }
+
+// AVOID: function call style
+if and(found, has_return_type) { ... }
+if or(is_empty, is_null) { ... }
+if not(value) { ... }
+#+end_src
+
+The method chaining style reads more naturally left-to-right and matches how Rust
+code is typically written.
+
+** Exception: Literals
+
+Numerical and string literals cannot use UFCS syntax - use function call style instead:
+
+#+begin_src til
+// Literals require function call style
+add(34, 35)      // can't write 34.add(35)
+concat("a", "b") // can't write "a".concat("b")
+gt(0, x)         // can't write 0.gt(x)
+
+// But struct literals CAN use UFCS
+MyStruct().method()  // works fine
+Vec.new(I64).push(x) // works fine
+#+end_src
+
 * Summary
 
 The translation is mechanical:
@@ -971,3 +1024,4 @@ The translation is mechanical:
 16. Enums with Str/Vec payloads need deep clone functions (~literal_clone~, ~node_type_clone~, etc.); simple enums copy by value
 17. ~HashMap.insert()~ -> ~Map.set()~ (Rust overwrites, TIL's ~insert~ throws on duplicate; use ~set~ to match Rust behavior)
 18. ~vec.extend(std::iter::repeat(v).take(n))~ -> ~vec.extend_with(v, n)~
+19. Prefer method chaining: ~x.gt(0)~ over ~gt(x, 0)~, ~a.and(b)~ over ~and(a, b)~
