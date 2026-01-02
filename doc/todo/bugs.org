@@ -39,34 +39,37 @@ The diff revealed these divergences:
    - til: ~const char* msg;~
    - Fix: Removed wrong special case in til_type_to_c that returned ~const char*~ for Str
 
-3. *Missing til_ prefix on constants*
+**** Remaining issues for empty.til (boilerplate/header):
+
+3. *Forward declarations missing*
+   - rstil emits forward declarations before ~#include <ext.c>~
+   - til doesn't emit them at all
+
+4. *~#include <ext.c>~ vs inline helpers*
+   - rstil: ~#include <ext.c>~
+   - til: emits inline helpers (u8_to_i64, single_print, etc.) instead
+   - Should use #include <ext.c> like rstil
+
+5. *Constants missing til_ prefix*
    - rstil: ~const til_I64 til_NULL = 0;~
    - til: ~const I64 NULL = 0;~
    - Both the type and variable name are missing prefix
 
-4. *Missing til_ prefix on function names*
-   - rstil: ~til_Bool til_not(...)~
-   - til: ~til_Bool not(...)~
-   - Function names must have til_ prefix
+**** Remaining issues for empty.til (function bodies):
 
-5. *Parameter passing style*
+6. *Parameter passing style*
    - rstil: ~const til_Str* type_name~ (pointer)
    - til: ~til_Str type_name~ (by value)
    - Wrong - should pass structs by pointer
 
-6. *Forward declarations location*
-   - rstil: Forward declarations before ~#include <ext.c>~
-   - til: Forward declarations after helper functions
-   - Order matters for C compilation
+7. *Temp variable naming*
+   - rstil: ~_tmp_til_U8_from_i64_19~ (incrementing counter)
+   - til: ~_tmp_U8_from_i64__tmp_~ (reuses same name, causes conflicts)
 
-7. *Helper functions placement*
-   - til has ~single_print~, ~print_flush~, ~u8_to_i64~ etc. before forward declarations
-   - rstil doesn't have these at that location (they're in ext.c or later)
-
-8. *Struct member access*
-   - rstil: ~type_name->c_string~ (pointer dereference)
-   - til: ~type_name.c_string~ (value access)
-   - Follows from #5 - if parameter is pointer, must use ->
+8. *Function call argument passing*
+   - rstil: ~til_I64_to_str(&til_MAX_U8)~ (address-of for pointer params)
+   - til: ~til_I64_to_str(til_MAX_U8)~ (by value)
+   - Follows from #6 - if param is pointer, must use &
 
 *** Root Cause
 ccodegen.til has diverged significantly from ccodegen.rs and needs to be re-synced.
