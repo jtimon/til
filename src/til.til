@@ -3,6 +3,7 @@ mode cli
 import("self.builder")      // interpreter, ext (via chain) - main_interpret, interpret_file, interpret_file_with_context
 import("self.eval_arena")   // g_arena
 import("self.lexer")        // LANG_NAME
+import("self.target")       // Target, Lang, detect_current_target, default_lang_for_target
 import("std.sys")           // run_cmd
 
 CURRENT_VERSION := "til_0.0.1" // REM: No point in advancing versions until it compiles itself
@@ -22,153 +23,275 @@ interpret_file_or_exit := proc(path: Str, args: Vec) {
     }
 }
 
-build_file_or_exit := proc(path: Str) {
-    _ := build(path)
+build_file_or_exit := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) {
+    mut output_path := build(path, target, lang, translate_only)
     catch (err: Str) {
-        println("Build error: ", err)
+        println("ERROR: ", err)
         exit(1)
+    }
+    if translate_only {
+        println("Generated: ", output_path)
     }
 }
 
-translate_file_or_exit := proc(path: Str) {
-    _ := build(path)
-    // Compute output path (same logic as builder.til)
-    mut c_filename := path.replace(".til", ".c")
-    mut output_path := c_filename
-    if c_filename.starts_with("src/") {
-        output_path = c_filename.replacen("src/", "gen/c/", 1)
-    } else {
-        output_path = concat("gen/c/", c_filename)
-    }
-    println("Generated: ", output_path)
-
+run_file_or_exit := proc(path: Str, target: Target, lang: Lang, extra_args: Vec) {
+    mut exe_path := build(path, target, lang, false)
     catch (err: Str) {
-        println("Build error: ", err)
+        println("ERROR: ", err)
         exit(1)
     }
-    catch (err: AllocError) {
-        println("Build error: ", err.msg)
-        exit(1)
-    }
-}
 
-run_file_or_exit := proc(path: Str) {
-    _ := build(path)
-    catch (err: Str) {
-        println("Build error: ", err)
+    // Run the compiled binary with any extra arguments
+    // Note: TIL's run_cmd captures output, while Rust's Command.status() inherits stdout
+    // We use spawn_cmd + wait_cmd to inherit stdout behavior
+    mut cmd_str := exe_path
+    mut i := 0
+    while i.lt(extra_args.len()) {
+        mut arg := ""
+        extra_args.get(i, arg)
+        cmd_str = cmd_str.concat(" ").concat(arg)
+        i.inc()
+    }
+    mut pid := spawn_cmd(cmd_str)
+    catch (err: SpawnError) {
+        println("Failed to run '", exe_path, "': ", err.msg)
         exit(1)
     }
-    // Run the compiled binary
-    mut exe_path := path.replace(".til", "")
-    _ := run_cmd(exe_path)
-    catch (err: AllocError) {
+    mut exit_code := wait_cmd(pid)
+    catch (err: SleepError) {
+        println("Failed to wait for '", exe_path, "': ", err.msg)
+        exit(1)
+    }
+    if not(exit_code.eq(0)) {
+        exit(exit_code)
+    }
+
+    catch (err: IndexOutOfBoundsError) {
         println("Failed to run binary: ", err.msg)
         exit(1)
     }
 }
 
 usage := proc() {
-    println("Usage: ", LANG_NAME, " [command] [path]\n");
-    println("Entering no arguments is equavalent to: '", LANG_NAME, " repl'");
-    println("Entering a single argument that's not a command is interpreted as a path, equivalent to: '", LANG_NAME, " interpret <path>'\n");
+    println("Usage: ", LANG_NAME, " [command] [path] [options]\n")
+    println("Entering no arguments is equavalent to: ", LANG_NAME, " repl")
+    println("Entering a single argument that's not a command is interpreted as a path, equivalent to: ", LANG_NAME, " interpret <path>\n")
 
-    println("Commands:\n");
+    println("Commands:\n")
 
-    println("repl: read eval print loop.");
-    println("interpret: reads a file in provided <path> and evaluates it.");
-    println("build: reads a file in provided <path> and compiles it.");
-    println("translate: reads a file in provided <path> and generates source code (no compilation).");
-    println("run: reads a file in provided <path>, compiles and runs it.");
-    println("help: Prints this.\n");
-    println("version, --version, -v: Prints version.\n");
+    println("repl: read eval print loop.")
+    println("interpret: reads a file in provided <path> and evaluates it.")
+    println("build: reads a file in provided <path> and compiles it.")
+    println("translate: reads a file in provided <path> and generates source code (no compilation).")
+    println("run: reads a file in provided <path>, compiles and runs it.")
+    println("help: Prints this.\n")
+
+    println("Build/Translate Options:\n")
+    println("--target=TARGET   Cross-compile for target platform.")
+    println("                  Supported: linux-x64, linux-arm64, windows-x64, macos-x64, macos-arm64")
+    println("--lang=LANG       Output language for codegen (default: c).")
+    println("                  Supported: c\n")
+}
+
+// Result type for parse_build_options
+ParseBuildOptionsResult := struct {
+    mut remaining: Vec = Vec()
+    mut target: Target = Target.LinuxX64
+    mut lang: Lang = Lang.C
+    mut translate_only: Bool = false
+}
+
+// Parse --target=X and --lang=X options from args
+parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws Str {
+    mut result := ParseBuildOptionsResult()
+    result.remaining = Vec.new(Str)
+    mut has_target := false
+    mut has_lang := false
+
+    mut i := 0
+    while i.lt(args.len()) {
+        mut arg := ""
+        args.get(i, arg)
+
+        if arg.starts_with("--target=") {
+            mut value := arg.get_substr(9, arg.len())
+            result.target = target_from_str(value)
+            has_target = true
+        } else if arg.starts_with("--lang=") {
+            mut value := arg.get_substr(7, arg.len())
+            result.lang = lang_from_str(value)
+            has_lang = true
+        } else if arg.eq("--translate") {
+            result.translate_only = true
+        } else {
+            result.remaining.push(arg)
+        }
+        i.inc()
+    }
+
+    // Default target is current platform
+    if not(has_target) {
+        result.target = detect_current_target()
+    }
+    // Default lang is determined by target
+    if not(has_lang) {
+        result.lang = default_lang_for_target(result.target)
+    }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
+    return result
 }
 
 main := proc(args: ..Str) {
+    // Note: Unlike Rust's env::args(), TIL's args does NOT include the program name.
+    // So args[0] is the first actual argument (e.g., "interpret"), not "til".
 
     if gt(args.len(), 1) {
-        mut main_args := Vec.new(Str)
-        mut i := 0
-        for arg: Str in args {
-            if i.gt(0) {
-                main_args.push(arg)
-            }
+        // We have at least 2 args: command + path (equivalent to Rust's args.len() > 2)
+        mut command := ""
+        args.get(0, command)
+        catch(err: IndexOutOfBoundsError) { }
+
+        // Build remaining_args from args[1..] (paths and options)
+        mut remaining_args := Vec.new(Str)
+        mut i := 1
+        while i.lt(args.len()) {
+            mut arg := ""
+            args.get(i, arg)
+            remaining_args.push(arg)
             i.inc()
         }
-        catch(e: AllocError) {
+        catch (err: IndexOutOfBoundsError) { }
+        catch (err: AllocError) {
             println("Fatal: Failed to allocate argument array")
-            return
+            exit(1)
         }
 
-        mut cmd := ""
-        args.get(0, cmd)
-        catch(err: IndexOutOfBoundsError) {
-            // REM: It is fine to args.get(0) here, we just checked
-        }
-        mut val1 := ""
-        args.get(1, val1)
-        catch(err: IndexOutOfBoundsError) {
-            // REM: It is fine to args.get(1) here, we just checked
-        }
-        switch cmd {
+        switch command {
         case "interpret" :
-            // Pass remaining args after path (like Rust's args[3..])
-            mut interp_args := Vec.new(Str)
+            // interpret doesn't use build options, just pass remaining args
+            mut path := ""
+            args.get(1, path)
+            // main_args are args[2..] (after command and path)
+            mut main_args := Vec.new(Str)
             mut j := 2
             while j.lt(args.len()) {
                 mut arg := ""
                 args.get(j, arg)
-                interp_args.push(arg)
+                main_args.push(arg)
                 j.inc()
             }
-            interpret_file_or_exit(val1, interp_args)
+            interpret_file_or_exit(path, main_args)
             catch (err: IndexOutOfBoundsError) { }
             catch (err: AllocError) {
                 println("Fatal: Failed to allocate argument array")
                 exit(1)
             }
-        case "repl"      :
-            interpret_file_or_exit(REPL_PATH, Vec.new(Str))
-        case "build"     :
-            build_file_or_exit(val1)
+        case "build" :
+            // Parse build options from remaining args
+            mut opts := parse_build_options(remaining_args)
+            catch (err: Str) {
+                println("Error: ", err)
+                exit(1)
+            }
+            if opts.remaining.len().eq(0) {
+                println("Error: No path specified")
+                usage()
+                exit(1)
+            }
+            mut path := ""
+            opts.remaining.get(0, path)
+            build_file_or_exit(path, opts.target, opts.lang, opts.translate_only)
+            catch (err: IndexOutOfBoundsError) { }
         case "translate" :
-            translate_file_or_exit(val1)
-        case "run"       :
-            run_file_or_exit(val1)
+            // Parse build options from remaining args
+            mut opts := parse_build_options(remaining_args)
+            catch (err: Str) {
+                println("Error: ", err)
+                exit(1)
+            }
+            if opts.remaining.len().eq(0) {
+                println("Error: No path specified")
+                usage()
+                exit(1)
+            }
+            mut path := ""
+            opts.remaining.get(0, path)
+            // translate command forces translate_only = true
+            build_file_or_exit(path, opts.target, opts.lang, true)
+            catch (err: IndexOutOfBoundsError) { }
+        case "run" :
+            // Parse build options from remaining args
+            mut opts := parse_build_options(remaining_args)
+            catch (err: Str) {
+                println("Error: ", err)
+                exit(1)
+            }
+            if opts.remaining.len().eq(0) {
+                println("Error: No path specified")
+                usage()
+                exit(1)
+            }
+            mut path := ""
+            opts.remaining.get(0, path)
+            // Pass remaining paths as arguments to the compiled program
+            mut extra_args := Vec.new(Str)
+            mut k := 1
+            while k.lt(opts.remaining.len()) {
+                mut arg := ""
+                opts.remaining.get(k, arg)
+                extra_args.push(arg)
+                k.inc()
+            }
+            run_file_or_exit(path, opts.target, opts.lang, extra_args)
+            catch (err: IndexOutOfBoundsError) { }
+            catch (err: AllocError) { }
+        case "repl" :
+            usage()
         case:
-            println("command '", cmd, "' not implemented.")
+            println("command '", command, "' not implemented.")
             usage()
             exit(1)
         }
+        return
 
     } else if gt(args.len(), 0) {
+        // We have exactly 1 arg (equivalent to Rust's args.len() > 1)
         mut path := ""
         args.get(0, path)
-        catch(err: IndexOutOfBoundsError) {
-            // REM: It is fine to args.get(0) here, we just checked
-        }
+        catch(err: IndexOutOfBoundsError) { }
+
         switch path {
-        // case "version" | "--version" | "-v": println(CURRENT_VERSION) // TODO Some syntax to 'or' cases
         case "repl"      :
             interpret_file_or_exit(REPL_PATH, Vec.new(Str))
-
-        case "version"   : println(CURRENT_VERSION)
-        case "--version" : println(CURRENT_VERSION)
-        case "-v"        : println(CURRENT_VERSION)
-
-        case "--help"    : usage()
-        case "-help"     : usage()
-        case "help"      : usage()
-
-        case "ast"       : usage()
-        case "build"     : usage()
-        case "translate" : usage()
-        case "interpret" : usage()
-        case "run"       : usage()
+        case "ast" :
+            usage()
+        case "interpret" :
+            usage()
+        case "build" :
+            usage()
+        case "translate" :
+            usage()
+        case "run" :
+            usage()
+        case "help" :
+            usage()
+        case "-help" :
+            usage()
+        case "--help" :
+            usage()
+        case "--version" :
+            usage()
+        case "-v" :
+            usage()
         case:
             interpret_file_or_exit(path, Vec.new(Str))
         }
-    } else {
-        // If no arguments, then repl/interactive "mode"
-        interpret_file_or_exit(REPL_PATH, Vec.new(Str))
+        return
     }
+
+    // If no arguments, then repl/interactive "mode"
+    interpret_file_or_exit(REPL_PATH, Vec.new(Str))
 }

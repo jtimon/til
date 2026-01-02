@@ -7207,11 +7207,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     }
 }
 
-// Helper to emit a Str compound literal: ((til_Str){(til_I64)"...", len})
-// This is valid in both constant initializers and expressions (unlike til_Str_from_literal)
-fn emit_str_literal(s: &str, output: &mut String) {
-    output.push_str(&format!("(({}Str){{({}I64)\"", TIL_PREFIX, TIL_PREFIX));
-    // Escape special characters for C string literals
+// Helper to escape a string for C string literals
+fn escape_c_string(s: &str, output: &mut String) {
     for c in s.chars() {
         match c {
             '\n' => output.push_str("\\n"),
@@ -7222,6 +7219,13 @@ fn emit_str_literal(s: &str, output: &mut String) {
             _ => output.push(c),
         }
     }
+}
+
+// Helper to emit a Str compound literal: ((til_Str){(til_I64)"...", len})
+// This is valid in both constant initializers and expressions (unlike til_Str_from_literal)
+fn emit_str_literal(s: &str, output: &mut String) {
+    output.push_str(&format!("(({}Str){{({}I64)\"", TIL_PREFIX, TIL_PREFIX));
+    escape_c_string(s, output);
     output.push_str(&format!("\", {}}})", s.len()));
 }
 
@@ -7233,17 +7237,7 @@ fn emit_literal(lit: &Literal, output: &mut String, context: &Context) -> Result
                 emit_str_literal(s, output);
             } else {
                 output.push('"');
-                // Escape special characters for C string literals
-                for c in s.chars() {
-                    match c {
-                        '\n' => output.push_str("\\n"),
-                        '\r' => output.push_str("\\r"),
-                        '\t' => output.push_str("\\t"),
-                        '\\' => output.push_str("\\\\"),
-                        '"' => output.push_str("\\\""),
-                        _ => output.push(c),
-                    }
-                }
+                escape_c_string(s, output);
                 output.push('"');
             }
             Ok(())

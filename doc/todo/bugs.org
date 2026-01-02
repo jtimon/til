@@ -91,6 +91,113 @@ All self-hosted TIL files must match their Rust counterparts:
 Systematically compare each .rs file with its .til counterpart and fix all divergences.
 Use the diff method above to verify generated C code is identical.
 
+*** Progress: ccodegen.rs -> ccodegen.til (function by function)
+
+| Line | Function                      | Status  |
+|------|-------------------------------|---------|
+|   74 | next_mangled                  | DONE    |
+|   85 | til_name                      | DONE    |
+|   95 | emit_struct_literal_assign    | DONE    |
+|  108 | emit_struct_literal_start     | DONE    |
+|  119 | til_func_name                 | DONE    |
+|  128 | get_func_name_string          | DONE    |
+|  149 | get_til_func_name_string      | DONE    |
+|  173 | get_type_arg_name             | DONE    |
+|  193 | get_fcall_func_def            | DONE    |
+|  205 | param_needs_by_ref            | DONE    |
+|  218 | get_field_type_dependency     | DONE    |
+|  233 | get_struct_dependencies       | DONE    |
+|  252 | get_struct_name               | DONE    |
+|  264 | get_enum_dependencies         | DONE    |
+|  287 | get_enum_name                 | DONE    |
+|  299 | get_type_dependencies         | DONE    |
+|  310 | get_type_name                 | DONE    |
+|  322 | topological_sort_types        | DONE    |
+|  392 | check_throwing_fcall          | DONE    |
+|  407 | hoist_throwing_expr           | DONE    |
+|  738 | hoist_throwing_args           | DONE    |
+| 1009 | hoist_for_dynamic_params      | DONE    |
+| 1164 | hoist_for_ref_params          | DONE    |
+| 1295 | hoist_variadic_args           | DONE    |
+| 1474 | detect_variadic_fcall         | DONE    |
+| 1492 | emit_fcall_name_and_args_for_throwing | DONE |
+| 1599 | emit_arg_or_hoisted           | DONE    |
+| 1612 | emit_arg_with_param_type      | DONE    |
+| 1931 | emit (main)                   | DONE    |
+| 2214 | is_struct_declaration         | DONE    |
+| 2226 | is_enum_declaration           | DONE    |
+| 2239 | is_constant_declaration       | DONE    |
+| 2262 | is_throwing_fcall             | DONE    |
+| 2272 | emit_constant_declaration     | DONE    |
+| 2327 | is_global_declaration         | DONE    |
+| 2353 | emit_global_declaration       | DONE    |
+| 2385 | collect_func_info             | DONE    |
+| 2437 | collect_nested_func_info      | DONE    |
+| 2505 | emit_struct_declaration       | DONE    |
+| 2540 | emit_struct_constants         | DONE    |
+| 2584 | emit_enum_size_of_constant    | DONE    |
+| 2607 | emit_size_of_function         | DONE    |
+| 2634 | enum_has_payloads             | DONE    |
+| 2644 | is_enum_with_payloads         | DONE    |
+| 2656 | emit_enum_with_payloads       | DONE    |
+| 2765 | emit_enum_declaration         | DONE    |
+| 2826 | emit_enum_to_str_function     | DONE    |
+| 2874 | emit_enum_to_str_for_declaration | DONE |
+| 2891 | emit_struct_func_prototypes   | DONE    |
+| 2913 | emit_struct_func_body         | DONE    |
+| 2998 | emit_struct_func_bodies       | DONE    |
+| 3018 | til_type_to_c                 | DONE    |
+| 3035 | value_type_to_c_name          | DONE    |
+| 3050 | emit_func_signature           | DONE    |
+| 3157 | emit_func_prototype           | DONE    |
+| 3177 | is_func_declaration           | DONE    |
+| 3189 | emit_func_declaration         | DONE    |
+| 3286 | emit_expr                     | DONE    |
+| 3395 | emit_body                     | DONE    |
+| 3407 | emit_stmts                    | DONE    |
+| 3726 | get_fcall_func_name           | DONE    |
+| 3734 | prescan_func_level_catches    | DONE    |
+| 3752 | emit_variadic_call            | DONE    |
+| 3917 | emit_throwing_call            | DONE    |
+| 4232 | emit_throwing_call_propagate  | DONE    |
+| 4505 | emit_throwing_call_with_goto  | DONE    |
+| 4784 | emit_declaration              | DONE    |
+| 5239 | get_struct_construction_type  | DONE    |
+| 5262 | get_enum_construction_type    | DONE    |
+| 5301 | emit_funcdef                  | DONE    |
+| 5315 | emit_assignment               | DONE    |
+| 5366 | emit_return                   | DONE    |
+| 5479 | emit_throw                    | DONE    |
+| 5702 | emit_fcall_with_hoisted       | DONE    |
+| 5868 | emit_if                       | DONE    |
+| 5968 | emit_while                    | DONE    |
+| 6049 | emit_break                    | DONE    |
+| 6056 | emit_continue                 | DONE    |
+| 6136 | get_case_variant_info         | DONE    |
+| 6173 | parse_pattern_variant_name    | DONE    |
+| 6186 | collect_declarations_in_body  | DONE    |
+| 6202 | collect_declarations_recursive | DONE   |
+| 6267 | emit_switch                   | DONE    |
+| 6654 | emit_fcall                    | DONE    |
+| 7211 | escape_c_string               | DONE    |
+| 7226 | emit_str_literal              | DONE    |
+| 7232 | emit_literal                  | DONE    |
+
+*** REGRESSION WARNING (2026-01-02)
+Changes made while marking functions as DONE have broken the self-hosted compiler:
+- ./bin/til build src/til.til now hangs (infinite loop)
+- make benchmark shows 34/105 tests failing (til_compiled tests)
+- Could not compare C output between rstil and til due to infinite loop
+
+Key changes made that may have caused regression:
+1. emit_enum_declaration: added til_name() call for enum_name
+2. emit_size_of_function: changed from til_Str to const til_Str* parameter
+3. emit_enum_with_payloads: changed from "typedef struct {...} Name" to "struct Name {...}"
+4. emit_arg_with_param_type: added Number literal handling and get_value_type fallback
+5. emit_fcall_name_and_args_for_throwing: added has_param_type parameter
+
+Work is on branch wip_bug80. Needs investigation to identify which change caused the regression.
+
 ** Bug #64: I64 args in main functions for mode cli don't work
 :PROPERTIES:
 :DISCOVERED: 2025-12-30

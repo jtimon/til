@@ -4,7 +4,9 @@ import("self.interpreter")
 import("self.precomp")
 import("self.scavenger")
 import("self.ccodegen")
+import("self.target")       // Target, Lang, toolchain_command, toolchain_extra_args, executable_extension, validate_lang_for_target, lang_to_str
 import("std.io")            // writefile
+import("std.sys")           // run_cmd
 
 // Note: import_path_to_file_path is available from init.til (via interpreter.til)
 
@@ -153,9 +155,21 @@ merge_dep_params := proc(dep: Expr, mut all_params: Vec) throws Str {
     catch (err: AllocError) { throw err.msg }
 }
 
-// Build a TIL source file to C (default target)
-// Returns the generated C code as a string
-build := proc(path: Str) returns Str throws Str {
+// Build a TIL source file with target, lang, and translate_only options
+// Returns the output path (executable or source file)
+build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) returns Str throws Str {
+    // Validate lang is supported for target
+    validate_lang_for_target(lang, target)
+
+    // Currently only C is fully supported
+    switch lang {
+    case Lang.C:
+        // Supported
+    case Lang.TIL:
+        throw "Lang 'til' is not supported yet. TIL-to-TIL translation is a placeholder for future debugging features."
+    case:
+        throw format("Lang '", lang_to_str(lang), "' is not supported yet. Only 'c' is currently implemented.")
+    }
 
     // Parse main file
     mut main_result := parse_file(path)
@@ -317,26 +331,74 @@ build := proc(path: Str) returns Str throws Str {
 
     // Write output file to ./gen/c/ directory instead of alongside source
     mut c_filename := path.replace(".til", ".c")
-    mut output_path := c_filename
+    mut source_output_path := c_filename
     if c_filename.starts_with("src/") {
-        output_path = c_filename.replacen("src/", "gen/c/", 1)
+        source_output_path = c_filename.replacen("src/", "gen/c/", 1)
     } else {
-        output_path = concat("gen/c/", c_filename)
+        source_output_path = concat("gen/c/", c_filename)
     }
     // Create output directory if it doesn't exist
     // Extract parent directory path (everything up to last /)
-    mut last_slash := output_path.rfind("/")
+    mut last_slash := source_output_path.rfind("/")
     if gt(last_slash, 0) {
-        mut parent_dir := output_path.get_substr(0, last_slash)
+        mut parent_dir := source_output_path.get_substr(0, last_slash)
         mut mkdir_output := ""
         _ := run_cmd(mkdir_output, "mkdir", "-p", parent_dir)
     }
-    _ := writefile(output_path, c_code)
+    _ := writefile(source_output_path, c_code)
 
-    // TODO: Compile with gcc (run_cmd not available in lib mode yet)
+    // If translate_only, return the source file path
+    if translate_only {
+        return source_output_path
+    }
+
+    // Get toolchain command for target
+    mut compiler := toolchain_command(target, lang)
+
+    // Compile - output to bin/ directory in project root, preserving relative path
+    // e.g., src/til.til -> bin/til, src/examples/hello_script.til -> bin/examples/hello_script
+    mut exe_extension := executable_extension(target)
+    mut bin_filename := path.replace(".til", exe_extension)
+    mut exe_path_str := bin_filename
+    if bin_filename.starts_with("src/") {
+        exe_path_str = bin_filename.replacen("src/", "bin/", 1)
+    } else {
+        exe_path_str = concat("bin/", bin_filename)
+    }
+    // Create bin directory if it doesn't exist
+    mut exe_last_slash := exe_path_str.rfind("/")
+    if gt(exe_last_slash, 0) {
+        mut exe_parent_dir := exe_path_str.get_substr(0, exe_last_slash)
+        mut mkdir_bin_output := ""
+        _ := run_cmd(mkdir_bin_output, "mkdir", "-p", exe_parent_dir)
+    }
+
+    // Build command with extra args for target
+    mut cmd_str := compiler.concat(" -I src")
+    mut extra_args := toolchain_extra_args(target, lang)
+    mut arg_idx := 0
+    while arg_idx.lt(extra_args.len()) {
+        mut extra_arg := ""
+        extra_args.get(arg_idx, extra_arg)
+        cmd_str = cmd_str.concat(" ").concat(extra_arg)
+        arg_idx.inc()
+    }
+    cmd_str = cmd_str.concat(" ").concat(source_output_path).concat(" -o ").concat(exe_path_str)
+
+    mut pid := spawn_cmd(cmd_str)
+    catch (err: SpawnError) {
+        throw format("Failed to run ", compiler, ": ", err.msg)
+    }
+    mut exit_code := wait_cmd(pid)
+    catch (err: SleepError) {
+        throw format("Failed to wait for ", compiler, ": ", err.msg)
+    }
+    if not(exit_code.eq(0)) {
+        throw format(compiler, " failed")
+    }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
 
-    return c_code
+    return exe_path_str
 }
