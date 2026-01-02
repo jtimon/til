@@ -237,38 +237,29 @@ get_til_func_name_string := func(first_param: Expr) returns FuncNameResult throw
     return result
 }
 
-// Result type for get_type_arg_name
-TypeArgResult := struct {
-    mut found: Bool = false
-    mut type_name: Str = ""
-}
-
 // Check if an expression is a type identifier (a Type parameter at call site)
 // Returns the type name if it is, so it can be emitted as a string literal
 // Matches interpreter.rs behavior (line 1703-1713)
 // Only matches STANDALONE identifiers - not field access like Vec.INIT_CAP
-get_type_arg_name := func(expr: Expr, context: Context) returns TypeArgResult {
-    mut result := TypeArgResult()
+get_type_arg_name := func(expr: Expr, context: Context) returns Str throws KeyNotFoundError {
     switch expr.node_type {
     case NodeType.Identifier(name):
         // Only match standalone identifiers (no field access)
         if gt(expr.params.len(), 0) {
-            return result  // This is field access like Vec.INIT_CAP, not a type arg
+            throw KeyNotFoundError(msg="field access, not type arg")
         }
         // Check if this identifier is a type name (struct, enum, or builtin type)
         mut symbol := context.scope_stack.lookup_symbol(name)
         switch symbol.value_type {
         case ValueType.TType(type_name):
-            result.found = true
-            result.type_name = name
+            return name
         case:
             // Not a type
         }
-        catch (err: KeyNotFoundError) { }
     case:
         // Not an identifier
     }
-    return result
+    throw KeyNotFoundError(msg="not a type identifier")
 }
 
 // Add a variable to declared_vars
@@ -3212,9 +3203,14 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
     }
 
     // Check if arg is a type identifier - emit as string literal (matches interpreter.rs)
-    mut type_arg_result := get_type_arg_name(arg, context)
-    if type_arg_result.found {
-        result = result.concat("\"").concat(type_arg_result.type_name).concat("\"")
+    mut type_arg_handled := false
+    {
+        mut type_arg := get_type_arg_name(arg, context)
+        result = result.concat("\"").concat(type_arg).concat("\"")
+        type_arg_handled = true
+        catch (err: KeyNotFoundError) { }
+    }
+    if type_arg_handled {
         return result
     }
 
@@ -3629,23 +3625,29 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: Str, mut ctx: 
         expr.params.get(add(i, 1), arg)
 
         // Check if arg is a type identifier - emit as string literal
-        mut type_arg_result := get_type_arg_name(arg, context)
-        if type_arg_result.found {
-            result = result.concat("\"").concat(type_arg_result.type_name).concat("\"")
-        } else if func_lookup.found {
-            mut param_type := ValueType.TCustom("")  // Empty TCustom represents None
-            mut has_param_type := false
-            mut by_ref := false
-            if lt(i, func_lookup.func_def.args.len()) {
-                mut arg_def := Declaration()
-                func_lookup.func_def.args.get(i, arg_def)
-                param_type = arg_def.value_type
-                has_param_type = true
-                by_ref = arg_def.is_mut
+        mut type_arg_handled := false
+        {
+            mut type_arg_name := get_type_arg_name(arg, context)
+            result = result.concat("\"").concat(type_arg_name).concat("\"")
+            type_arg_handled = true
+            catch (err: KeyNotFoundError) { }
+        }
+        if not(type_arg_handled) {
+            if func_lookup.found {
+                mut param_type := ValueType.TCustom("")  // Empty TCustom represents None
+                mut has_param_type := false
+                mut by_ref := false
+                if lt(i, func_lookup.func_def.args.len()) {
+                    mut arg_def := Declaration()
+                    func_lookup.func_def.args.get(i, arg_def)
+                    param_type = arg_def.value_type
+                    has_param_type = true
+                    by_ref = arg_def.is_mut
+                }
+                result = emit_arg_with_param_type(arg, i, hoisted, param_type, has_param_type, by_ref, result, ctx, context)
+            } else {
+                result = emit_arg_or_hoisted(arg, i, hoisted, result, ctx, context)
             }
-            result = emit_arg_with_param_type(arg, i, hoisted, param_type, has_param_type, by_ref, result, ctx, context)
-        } else {
-            result = emit_arg_or_hoisted(arg, i, hoisted, result, ctx, context)
         }
         i = add(i, 1)
     }
@@ -5742,12 +5744,16 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                 result = result.concat(hoisted_temp)
             } else {
                 // Check if arg is a type identifier - emit as string literal
-                mut type_arg := get_type_arg_name(arg, context)
-                if type_arg.found {
+                mut type_arg_handled := false
+                {
+                    mut type_arg_name := get_type_arg_name(arg, context)
                     result = result.concat("\"")
-                    result = result.concat(type_arg.type_name)
+                    result = result.concat(type_arg_name)
                     result = result.concat("\"")
-                } else {
+                    type_arg_handled = true
+                    catch (err: KeyNotFoundError) { }
+                }
+                if not(type_arg_handled) {
                     // Check if param is Dynamic and arg is simple identifier
                     if is_dynamic_param {
                         switch arg.node_type {
@@ -6275,12 +6281,16 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
                 result = result.concat(hoisted_temp)
             } else {
                 // Check if arg is a type identifier - emit as string literal
-                mut type_arg := get_type_arg_name(arg, context)
-                if type_arg.found {
+                mut type_arg_handled := false
+                {
+                    mut type_arg_name := get_type_arg_name(arg, context)
                     result = result.concat("\"")
-                    result = result.concat(type_arg.type_name)
+                    result = result.concat(type_arg_name)
                     result = result.concat("\"")
-                } else {
+                    type_arg_handled = true
+                    catch (err: KeyNotFoundError) { }
+                }
+                if not(type_arg_handled) {
                     // Check if param is Dynamic and arg is simple identifier
                     if is_dynamic_param {
                         switch arg.node_type {
@@ -6743,12 +6753,16 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
                 result = result.concat(hoisted_temp)
             } else {
                 // Check if arg is a type identifier - emit as string literal
-                mut type_arg := get_type_arg_name(arg, context)
-                if type_arg.found {
+                mut type_arg_handled := false
+                {
+                    mut type_arg_name := get_type_arg_name(arg, context)
                     result = result.concat("\"")
-                    result = result.concat(type_arg.type_name)
+                    result = result.concat(type_arg_name)
                     result = result.concat("\"")
-                } else {
+                    type_arg_handled = true
+                    catch (err: KeyNotFoundError) { }
+                }
+                if not(type_arg_handled) {
                     // Check if param is Dynamic and arg is simple identifier
                     if is_dynamic_param {
                         switch arg.node_type {
