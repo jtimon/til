@@ -1,4 +1,4 @@
-.PHONY: all tests repl til clean benchmark regen test-cross
+.PHONY: all tests repl clean benchmark regen test-cross
 all: rstil
 
 clean:
@@ -17,15 +17,18 @@ bin/rstil: $(RSTIL_SRCS)
 
 rstil: bin/rstil
 
-# TODO Self hosting
-til: rstil
-	./bin/rstil build src/til.til
-	@cp gen/c/til.c bootstrap/til.c 2>/dev/null || true
-	# ./bin/til build src/til.til
+# TIL sources for self-hosted compiler
+TIL_SRCS := src/til.til $(wildcard src/self/*.til) $(wildcard src/core/*.til) $(wildcard src/std/*.til) $(wildcard src/modes/*.til)
 
-tests: rstil
+bin/til: bin/rstil $(TIL_SRCS)
+	./bin/rstil build src/til.til
+	cp gen/c/til.c bootstrap/til.c
+
+til: bin/til
+
+tests: til
 	./bin/rstil interpret src/tests.til
-	@cp gen/c/test/constfold.c src/test/constfold.c 2>/dev/null || true
+	cp gen/c/test/constfold.c src/test/constfold.c
 	@echo "Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c"
 
 regen: rstil til
