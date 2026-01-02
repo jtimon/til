@@ -269,6 +269,96 @@ if map.contains_key(key) {
 }
 #+end_src
 
+** Multiple if let Some in sequence (catch ordering)
+
+When Rust has multiple ~if let Some~ checks that can each fail independently, TIL must
+place the catch IMMEDIATELY after each throwing call. This is because TIL catches handle
+errors from ALL code above them, not just the most recent call.
+
+Rust:
+#+begin_src rust
+// Nested if-let where None cases are ignored (no else branches)
+if let NodeType::FCall = &expr.node_type {
+    if let Some(func_name) = get_func_name_string(&expr.params[0]) {
+        // func_name is valid here
+        if let Some(struct_def) = context.scope_stack.lookup_struct(&func_name) {
+            // struct_def is valid here, use both func_name and struct_def
+            process_struct_literal(func_name, struct_def);
+        }
+        // If lookup_struct returns None, we just skip this block
+    }
+    // If get_func_name_string returns None, we skip the whole thing
+}
+#+end_src
+
+TIL (CORRECT - catch immediately after each throwing call):
+#+begin_src til
+switch expr.node_type {
+case NodeType.FCall:
+    mut func_name := get_func_name_string(first_param)
+    catch (err: KeyNotFoundError) {
+        // Equivalent to Rust's None case - just skip
+    }
+    // func_name is valid here
+
+    mut struct_def := lookup_struct(func_name)
+    catch (err: KeyNotFoundError) {
+        // Equivalent to Rust's None case - just skip
+    }
+    // struct_def is valid here
+    process_struct_literal(func_name, struct_def)
+case:
+}
+#+end_src
+
+TIL (WRONG - catches at end will fail):
+#+begin_src til
+// BUG: This does NOT work!
+switch expr.node_type {
+case NodeType.FCall:
+    mut func_name := get_func_name_string(first_param)  // throws KeyNotFoundError
+    mut struct_def := lookup_struct(func_name)          // also throws KeyNotFoundError
+
+    // These catches are WRONG because:
+    // 1. First catch handles errors from BOTH calls above
+    // 2. Second catch has nothing left to catch (type error!)
+    catch (err: KeyNotFoundError) { }  // catches from get_func_name_string AND lookup_struct
+    catch (err: KeyNotFoundError) { }  // ERROR: nothing throws this anymore!
+case:
+}
+#+end_src
+
+Key insight: In TIL, ~catch~ blocks catch errors from ALL code that came before them,
+not from a specific call. So when multiple calls throw the same error type, you MUST
+place catches immediately after each call to handle them separately.
+
+However, when all catches would do the same thing (e.g., panic, or rethrow as Str),
+you can consolidate them into ONE catch at the end. This can make TIL code SIMPLER
+than Rust:
+
+#+begin_src til
+// When all error handling is the same, ONE catch at the end suffices
+mut func_name := get_func_name_string(first_param)  // throws KeyNotFoundError
+mut struct_def := lookup_struct(func_name)          // throws KeyNotFoundError
+process(func_name, struct_def)
+
+catch (err: KeyNotFoundError) {
+    panic(loc(), "unexpected None: ", err.msg)  // handles BOTH calls
+}
+#+end_src
+
+Only place catches immediately after each call when you need DIFFERENT behavior for
+each None case (e.g., skip vs error, or different fallback values).
+
+When Rust's None case does nothing (no else branch), TIL uses an empty catch:
+#+begin_src til
+mut result := some_function_that_returns_option()
+catch (err: KeyNotFoundError) {
+    // Rust's None case did nothing, so we do nothing here
+}
+// Continue with result if it was found
+#+end_src
+
 ** Reverse iteration
 
 Rust: ~items.iter().rev()~
