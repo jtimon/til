@@ -85,6 +85,177 @@ All self-hosted TIL files must match their Rust counterparts:
 Systematically compare each .rs file with its .til counterpart and fix all divergences.
 Use the diff method above to verify generated C code is identical.
 
+*** Comprehensive Comparison
+
+**** target.rs vs target.til - COMPLETE MATCH
+All enums and functions match:
+- Enums: Lang, Target
+- Functions: lang_from_str, lang_to_str, lang_file_extension, target_from_str, target_to_str,
+  default_lang_for_target, supported_langs_for_target, is_lang_supported_for_target,
+  validate_lang_for_target, toolchain_command, toolchain_extra_args, executable_extension,
+  detect_current_target
+
+**** builder.rs vs builder.til - NEEDS REVIEW
+| Rust | TIL | Status |
+|------|-----|--------|
+| parse_file | parse_file | ? |
+| collect_imports | collect_imports_single | Different name |
+| merge_asts | - | Missing in TIL |
+| is_import_call | is_import_call | ? |
+| build | build | ? |
+| - | merge_dep_params | TIL only |
+| - | get_import_path | TIL only |
+
+**** rstil.rs vs til.til - NEEDS REVIEW
+| Rust | TIL | Status |
+|------|-----|--------|
+| parse_build_options | - | Not ported (CLI arg parsing) |
+| usage | usage | ? |
+| interpret_file_or_exit | interpret_file_or_exit | ? |
+| build_file_or_exit | build_file_or_exit | ? |
+| run_file_or_exit | run_file_or_exit | ? |
+| main | main | ? |
+| - | translate_file_or_exit | TIL only |
+
+**** ccodegen.rs vs ccodegen.til - PARTIAL MATCH
+
+***** Structs - All Present
+| Name | Rust | TIL | Notes |
+|------|------|-----|-------|
+| CodegenContext | Y | Y | |
+| VariadicParamInfo | Y | Y | |
+| CatchLabelInfo | Y | Y | |
+| CatchLabelInfoEntry | Y | Y | |
+| ParamTypeInfo | Y | Y | |
+| ThrowingDefault | Y | Y | |
+| CollectedDeclaration | Y | Y | |
+| SwitchCaseInfo | Y | Y | |
+| HoistedArg | Y | Y | |
+| VariantInfo | Y | Y | |
+| ThrowingFCallInfo | Y | Y | |
+| VariadicFCallInfo | Y | Y | |
+| - | - | FuncNameResult | TIL only (helper result type) |
+| - | - | TypeArgResult | TIL only (helper result type) |
+| - | - | ReceiverTypeResult | TIL only (helper result type) |
+| - | - | FuncLookupResult | TIL only (helper result type) |
+
+***** Helper Functions - Present
+| Function | Rust | TIL | Notes |
+|----------|------|-----|-------|
+| next_mangled | Y | Y | |
+| til_name | Y | Y | |
+| emit_struct_literal_assign | Y | Y | |
+| emit_struct_literal_start | Y | Y | |
+| til_func_name | Y | Y | |
+| get_func_name_string | Y | Y | |
+| get_til_func_name_string | Y | Y | |
+| get_type_arg_name | Y | Y | |
+| get_fcall_func_def | Y | Y | |
+| param_needs_by_ref | Y | Y | |
+| til_type_to_c | Y | Y | |
+| value_type_to_c_name | Y | Y | |
+| has_str | - | Y | TIL only |
+| add_var_declared | - | Y | TIL only |
+| lookup_receiver_type | - | Y | TIL only |
+| get_field_type_dependency | Y | - | Rust only |
+
+***** Type/Struct/Enum Detection - Present
+| Function | Rust | TIL |
+|----------|------|-----|
+| is_struct_declaration | Y | Y |
+| is_enum_declaration | Y | Y |
+| is_enum_with_payloads | Y | Y |
+| is_constant_declaration | Y | Y |
+| is_global_declaration | Y | Y |
+| is_throwing_fcall | Y | Y |
+| is_func_declaration | Y | Y |
+| enum_has_payloads | Y | Y |
+| variant_has_payload | - | Y |
+| get_struct_name | Y | Y |
+| get_struct_dependencies | Y | Y |
+| get_enum_name | Y | Y |
+| get_enum_dependencies | Y | Y |
+| get_type_name | Y | Y |
+| get_type_dependencies | Y | Y |
+| get_fcall_func_name | Y | Y |
+| get_struct_construction_type | Y | Y |
+| get_enum_construction_type | Y | Y |
+| get_case_variant_info | Y | Y |
+| parse_pattern_variant_name | Y | Y |
+
+***** Topological Sort - Present
+| Function | Rust | TIL |
+|----------|------|-----|
+| topological_sort_types | Y | Y |
+| topological_sort_structs | - | Y |
+
+***** Emit Functions - All Present
+| Function | Rust | TIL |
+|----------|------|-----|
+| emit | Y (pub) | Y |
+| emit_struct_declaration | Y | Y |
+| emit_struct_constants | Y | Y |
+| emit_struct_func_prototypes | Y | Y |
+| emit_struct_func_body | Y | - |
+| emit_struct_func_bodies | Y | Y |
+| emit_enum_declaration | Y | Y |
+| emit_enum_with_payloads | Y | Y |
+| emit_enum_to_str_function | Y | Y |
+| emit_enum_to_str_for_declaration | Y | Y |
+| emit_enum_size_of_constant | Y | Y |
+| emit_size_of_function | Y | Y |
+| emit_func_signature | Y | Y |
+| emit_func_prototype | Y | Y |
+| emit_func_declaration | Y | Y |
+| emit_constant_declaration | Y | Y |
+| emit_global_declaration | Y | Y |
+| emit_expr | Y | Y |
+| emit_body | Y | Y |
+| emit_stmts | Y | Y |
+| emit_if | Y | Y |
+| emit_while | Y | Y |
+| emit_break | Y | Y |
+| emit_continue | Y | Y |
+| emit_switch | Y | Y |
+| emit_fcall | Y | Y |
+| emit_declaration | Y | Y |
+| emit_funcdef | Y | Y |
+| emit_assignment | Y | Y |
+| emit_return | Y | Y |
+| emit_throw | Y | Y |
+| emit_literal | Y | Y |
+| emit_str_literal | Y | Y |
+| emit_identifier_without_nested | - | Y |
+| prescan_func_level_catches | - | Y |
+
+***** Hoisting/Throwing Functions - Present
+| Function | Rust | TIL |
+|----------|------|-----|
+| check_throwing_fcall | Y | Y |
+| hoist_throwing_expr | Y | Y |
+| hoist_throwing_args | Y | Y |
+| hoist_for_ref_params | Y | Y |
+| hoist_for_dynamic_params | Y | Y |
+| hoist_variadic_args | Y | Y |
+| detect_variadic_fcall | Y | Y |
+| emit_variadic_call | Y | Y |
+| emit_throwing_call | Y | Y |
+| emit_throwing_call_propagate | Y | Y |
+| emit_throwing_call_with_goto | Y | Y |
+| emit_fcall_with_hoisted | Y | Y |
+| emit_fcall_name_and_args_for_throwing | Y | Y |
+| emit_arg_or_hoisted | Y | Y |
+| emit_arg_with_param_type | Y | Y |
+| emit_arg_with_mut | - | Y |
+
+***** Collection Functions - Present
+| Function | Rust | TIL |
+|----------|------|-----|
+| collect_func_info | Y | Y |
+| collect_nested_func_info | Y | Y |
+| collect_declarations_in_body | Y | Y |
+| collect_declarations_recursive | Y | Y |
+
 ** Bug #64: I64 args in main functions for mode cli don't work
 :PROPERTIES:
 :DISCOVERED: 2025-12-30
