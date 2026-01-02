@@ -1,4 +1,4 @@
-.PHONY: all tests repl clean benchmark regen test-cross
+.PHONY: all tests repl clean benchmark regen test-cross til_til diff_til
 all: rstil
 
 clean:
@@ -20,11 +20,28 @@ rstil: bin/rstil
 # TIL sources for self-hosted compiler
 TIL_SRCS := src/til.til $(wildcard src/self/*.til) $(wildcard src/core/*.til) $(wildcard src/std/*.til) $(wildcard src/modes/*.til)
 
-bin/til: bin/rstil $(TIL_SRCS)
+# Build til.til using rstil
+bin/rstil_til: bin/rstil $(TIL_SRCS)
 	./bin/rstil build src/til.til
 	cp gen/c/til.c bootstrap/til.c
+	cp bin/til bin/rstil_til
 
-rstil_til: bin/til
+rstil_til: bin/rstil_til
+
+# Build til.til using the self-hosted compiler (til builds itself)
+# TODO FIX: Currently hangs - even ./bin/til translate src/til.til takes >2min
+bin/til_til: bin/rstil_til $(TIL_SRCS)
+	@mkdir -p tmp
+	./bin/til build src/til.til
+	cp gen/c/til.c tmp/til_by_til.c
+	cp bin/til bin/til_til
+
+til_til: bin/til_til
+
+# Compare C output from rstil vs til
+# TODO FIX: Currently blocked by til_til hanging
+diff_til: bin/rstil_til bin/til_til
+	diff bootstrap/til.c tmp/til_by_til.c
 
 tests: rstil_til
 	./bin/rstil interpret src/tests.til
