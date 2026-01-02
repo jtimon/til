@@ -312,10 +312,9 @@ til_type_to_c := func(til_type: ValueType) returns Str throws Str {
     case ValueType.TCustom(name):
         if name.eq(INFER_TYPE) {
             throw "Cannot convert inferred type to C"
-        } else if name.eq("Str") {
-            return "const char*"
         } else {
-            return concat(TIL_PREFIX, name)  // All types get til_ prefix
+            // All types get TIL_PREFIX
+            return concat(TIL_PREFIX, name)
         }
     case ValueType.TFunction:
         throw "Cannot convert function type to C"
@@ -2102,7 +2101,8 @@ emit_constant_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenConte
     return result
 }
 
-// Emit a struct declaration as a C typedef struct (only mut fields become struct fields)
+// Emit a struct declaration as a C struct (only mut fields become struct fields)
+// Forward declarations are emitted separately, so we use "struct Name { ... };" here
 emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
     mut result := output
     switch expr.node_type {
@@ -2118,7 +2118,7 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
             expr.params.get(0, first)
             switch first.node_type {
             case NodeType.StructDef(struct_def):
-                result = result.concat("typedef struct {\n")
+                result = result.concat("struct ").concat(til_name(decl.name)).concat(" {\n")
                 for member: Declaration in struct_def.members {
                     // Only emit mut fields as struct members
                     if not(member.is_mut) {
@@ -2126,7 +2126,7 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
                     }
                     result = result.concat("    ").concat(til_type_to_c(member.value_type)).concat(" ").concat(member.name).concat(";\n")
                 }
-                result = result.concat("} ").concat(decl.name).concat(";\n\n")
+                result = result.concat("};\n\n")
                 return result
             case:
                 throw "emit_struct_declaration: not a struct"

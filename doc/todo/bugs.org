@@ -29,15 +29,15 @@ Use the til_diff.til script to compare C output from rstil vs rstil_til:
 *** Findings
 The diff revealed these divergences:
 
-1. *Struct definition style*
+1. *Struct definition style* - FIXED
    - rstil: ~struct til_Str { ... };~
    - til: ~typedef struct { ... } Str;~
-   - Missing ~til_~ prefix on typedef name
+   - Fix: Changed emit_struct_declaration to use ~struct til_Name { };~ format
 
-2. *Field types for Str fields*
+2. *Field types for Str fields* - FIXED
    - rstil: ~til_Str msg;~
    - til: ~const char* msg;~
-   - Wrong type - should be til_Str, not const char*
+   - Fix: Removed wrong special case in til_type_to_c that returned ~const char*~ for Str
 
 3. *Missing til_ prefix on constants*
    - rstil: ~const til_I64 til_NULL = 0;~
