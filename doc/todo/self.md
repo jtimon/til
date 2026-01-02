@@ -335,9 +335,8 @@ in ext.c's til_i64_to_str). That has been renamed to bug52.til.
 
 See `doc/todo/bugs.org` Bug #80 for full details.
 
-**Summary**: ccodegen.til generates different C code than ccodegen.rs. The method to find
-divergences is to diff the generated C files from rstil vs til builds. 8 major divergences
-were found including missing til_ prefixes, wrong struct definition style, and parameter
-passing by value instead of pointer.
+**Summary**: ccodegen.til generates different C code than ccodegen.rs.
+
+**To find divergences**: `./bin/rstil interpret src/til_diff.til <file.til>`
 
 **Action Required**: Systematically compare ccodegen.rs with ccodegen.til and fix all divergences.

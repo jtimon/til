@@ -1,0 +1,96 @@
+// Compare C output from rstil vs rstil_til for any .til file
+// Usage: ./bin/rstil interpret src/til_diff.til <file.til>
+
+mode cli
+
+import("std.sys")
+import("std.io")
+
+main := proc(file_path: Str) {
+    println("Comparing C output for: ", file_path)
+
+    // Get base name for temp files
+    // e.g., src/examples/hello_script.til -> hello_script
+    mut base_name := file_path.clone()
+    // Find last slash
+    mut last_slash := 0
+    for i in 0..base_name.len() {
+        if base_name.get_char(i).eq("/") {
+            last_slash = i
+        }
+    }
+    // Remove directory path
+    if last_slash.gt(0) {
+        base_name = get_substr(base_name, last_slash.add(1), base_name.len())
+    }
+    // Remove .til extension
+    if base_name.ends_with(".til") {
+        base_name = get_substr(base_name, 0, base_name.len().sub(4))
+    }
+
+    mut rstil_c := "tmp/rstil_"
+    rstil_c = rstil_c.concat(base_name)
+    rstil_c = rstil_c.concat(".c")
+    mut til_c := "tmp/til_"
+    til_c = til_c.concat(base_name)
+    til_c = til_c.concat(".c")
+
+    // Build gen path: src/examples/hello_script.til -> gen/c/examples/hello_script.c
+    mut gen_path := file_path.clone()
+    if gen_path.starts_with("src/") {
+        gen_path = get_substr(gen_path, 4, gen_path.len())
+    }
+    if gen_path.ends_with(".til") {
+        gen_path = get_substr(gen_path, 0, gen_path.len().sub(4))
+    }
+    gen_path = gen_path.concat(".c")
+    mut gen_full := "gen/c/"
+    gen_full = gen_full.concat(gen_path)
+
+    // Run rstil translate
+    println("Running: ./bin/rstil translate ", file_path)
+    mut rstil_output := ""
+    rstil_status := rstil_output.run_cmd("./bin/rstil", "translate", file_path)
+    if not(rstil_status.eq(0)) {
+        println("ERROR: rstil translate failed:")
+        println(rstil_output)
+        exit(1)
+    }
+
+    // Copy generated C to temp location
+    mut cp1_output := ""
+    _ := cp1_output.run_cmd("cp", gen_full, rstil_c)
+
+    // Run rstil_til translate (use bash since ./bin/rstil_til not in whitelist)
+    mut til_cmd := "./bin/rstil_til translate "
+    til_cmd = til_cmd.concat(file_path)
+    println("Running: ", til_cmd)
+    mut til_output := ""
+    til_status := til_output.run_cmd("bash", "-c", til_cmd)
+    if not(til_status.eq(0)) {
+        println("ERROR: rstil_til translate failed:")
+        println(til_output)
+        exit(1)
+    }
+
+    // Copy generated C to temp location
+    mut cp2_output := ""
+    _ := cp2_output.run_cmd("cp", gen_full, til_c)
+
+    // Diff the two files
+    println("Diffing: ", rstil_c, " vs ", til_c)
+    mut diff_output := ""
+    diff_status := diff_output.run_cmd("diff", rstil_c, til_c)
+
+    if diff_status.eq(0) {
+        println("OK: No differences found!")
+        exit(0)
+    } else {
+        println("DIFF:")
+        println(diff_output)
+        exit(1)
+    }
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}

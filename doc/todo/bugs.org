@@ -20,19 +20,10 @@ The self-hosted TIL compiler generates C code that differs from the Rust compile
 The generated C code fails to compile with gcc due to multiple issues.
 
 *** Method to Find Divergences
-Compare generated C files from rstil vs til:
+Use the til_diff.til script to compare C output from rstil vs rstil_til:
 
 #+BEGIN_SRC bash
-# Step 1: Build with rstil and save the generated C file
-./bin/rstil build src/examples/hello_script.til
-cp gen/c/examples/hello_script.c tmp/hello_script_rstil.c
-
-# Step 2: Build with til and save the generated C file
-./bin/til build src/examples/hello_script.til
-cp gen/c/examples/hello_script.c tmp/hello_script_til.c
-
-# Step 3: Diff both files
-diff tmp/hello_script_rstil.c tmp/hello_script_til.c | head -200
+./bin/rstil interpret src/til_diff.til src/examples/hello_script.til
 #+END_SRC
 
 *** Findings
