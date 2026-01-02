@@ -134,8 +134,13 @@ All enums and functions match:
 | VariantInfo | Y | Y | |
 | ThrowingFCallInfo | Y | Y | |
 | VariadicFCallInfo | Y | Y | |
-| - | - | FuncNameResult | TIL only (helper result type) |
-| - | - | FuncLookupResult | TIL only (helper result type) |
+| - | - | FuncNameResult | TIL only (helper result type) - caused segfault when removed |
+| - | - | FuncLookupResult | TIL only (helper result type) - caused segfault when removed |
+
+NOTE: Attempted to remove FuncLookupResult (2026-01-02) by changing get_fcall_func_def
+to throw KeyNotFoundError instead of returning result struct. All 18 call sites were
+updated mechanically. Result: til_compiled tests segfaulted. Reverted. Same issue
+previously occurred with FuncNameResult. These may require deeper investigation.
 
 ***** Helper Functions - Present
 | Function | Rust | TIL | Notes |
