@@ -1,4 +1,4 @@
-.PHONY: all tests repl til clean benchmark
+.PHONY: all tests repl til clean benchmark regen test-cross
 all: rstil
 
 clean:
@@ -8,9 +8,14 @@ clean:
 repl: rstil
 	rlwrap ./bin/rstil repl
 
-rstil: src/rstil.rs
+# Rust sources for rstil
+RSTIL_SRCS := src/rstil.rs $(wildcard src/rs/*.rs)
+
+bin/rstil: $(RSTIL_SRCS)
 	@mkdir -p bin
 	rustc src/rstil.rs -o bin/rstil
+
+rstil: bin/rstil
 
 # TODO Self hosting
 til: rstil
