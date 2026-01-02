@@ -24,14 +24,14 @@ bin/til: bin/rstil $(TIL_SRCS)
 	./bin/rstil build src/til.til
 	cp gen/c/til.c bootstrap/til.c
 
-til: bin/til
+rstil_til: bin/til
 
-tests: til
+tests: rstil_til
 	./bin/rstil interpret src/tests.til
 	cp gen/c/test/constfold.c src/test/constfold.c
 	@echo "Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c"
 
-regen: rstil til
+regen: rstil rstil_til
 	./bin/rstil interpret src/tests.til regen
 	@echo "Regenerated all test outputs"
 
@@ -39,7 +39,7 @@ benchmark: tests
 	@cp gen/benchmark.org doc/benchmark.org
 	@echo "Benchmark saved to doc/benchmark.org, can be committed"
 
-test-cross: rstil til
+test-cross: rstil rstil_til
 	@echo "=== Cross-compilation tests ==="
 	@echo "linux-arm64..."
 	./bin/rstil build src/examples/hello_script.til --target=linux-arm64

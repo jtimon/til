@@ -179,7 +179,7 @@ They were in:
 3. Don't forget to port changes to src/self/ccodegen.til after fixing Rust version
 
 *** Current build state
-- `make til` hangs (rstil build src/til.til doesn't complete in 30s)
+- `make rstil_til` hangs (rstil build src/til.til doesn't complete in 30s)
 - `make benchmark` fails at gcc stage with ~100+ errors
 - The generated C code has issues with literal hoisting in many code paths
 

@@ -132,7 +132,7 @@ Recent til_interpreted fixes:
 
 ## Build Commands Reference (from Makefile)
 - `make rstil` - Build Rust-based TIL compiler
-- `make til` - Build self-hosted TIL compiler (uses rstil to compile til.til)
+- `make rstil_til` - Build self-hosted TIL compiler (uses rstil to compile til.til)
 - `make benchmark` - Run full test suite with timing
 
 ## Methodology for Each Issue Encountered
@@ -322,7 +322,7 @@ Once you find the exact line/operation that crashes:
 
 **Important**: Rebuild after adding debug prints:
 ```
-make til && timeout 30 ./bin/til build src/examples/empty.til 2>&1
+make rstil_til && timeout 30 ./bin/til build src/examples/empty.til 2>&1
 ```
 
 **Cleanup**: Remove debug prints after fixing the bug

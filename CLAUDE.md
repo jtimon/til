@@ -18,7 +18,7 @@ Read `doc/bot.org` for full guidelines. Key points below are frequently repeated
 - Testing just the Rust version with `rstil interpret` is NOT sufficient validation
 
 ## Various things
-- **ALWAYS** When running make commands (make, make benchmark, make til, etc.), run as normal: no wc, no head, no tail, no grep, no any other bullshit
+- **ALWAYS** When running make commands (make, make benchmark, make rstil_til, etc.), run as normal: no wc, no head, no tail, no grep, no any other bullshit
 - **NEVER** Ignore warnings from either rustc, rstil, til or gcc, always ask the user what to do about them
 - **NEVER** Use weird unicode symbols anywhere, stay ASCII
 - **NEVER** Use cat, use read, write or echo instead
