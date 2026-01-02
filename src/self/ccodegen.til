@@ -5,6 +5,7 @@ mode liba
 
 import("self.parser")  // Expr, NodeType, Literal
 import("self.init")    // Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType
+import("self.typer")   // get_func_def_for_fcall
 
 // Prefix for all TIL-generated C names (structs, functions, etc.)
 TIL_PREFIX := "til_"
@@ -160,24 +161,16 @@ til_func_name := func(name: Str) returns Str {
     return concat(TIL_PREFIX, name.replace(".", "_"))
 }
 
-// Result type for get_func_name_string
-FuncNameResult := struct {
-    mut found: Bool = false
-    mut name: Str = ""
-}
-
 // Get function name from FCall's first param, handling both AST patterns:
 // - Identifier("func") with params = [] -> "func"
 // - Identifier("I64.inc") with params = [] -> "I64_inc" (from precomp)
 // - Identifier("Vec") with params = [Identifier("new")] -> "Vec_new" (from parser)
 // Returns the C-ready name with underscores (not dots)
-get_func_name_string := func(first_param: Expr) returns FuncNameResult throws Str {
-    mut result := FuncNameResult()
+get_func_name_string := func(first_param: Expr) returns Str throws KeyNotFoundError {
     switch first_param.node_type {
     case NodeType.Identifier(name):
         if first_param.params.len().eq(0) {
-            result.found = true
-            result.name = name.replace(".", "_")
+            return name.replace(".", "_")
         } else {
             mut parts := name
             mut i := 0
@@ -191,28 +184,25 @@ get_func_name_string := func(first_param: Expr) returns FuncNameResult throws St
                 }
                 i = add(i, 1)
             }
-            result.found = true
-            result.name = parts
+            return parts
         }
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
-    return result
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    throw KeyNotFoundError(msg="get_func_name_string: not an identifier")
 }
 
 // Get TIL function name from FCall's first param (for scope lookups)
 // Returns the dot-separated name like "Vec.new" or "I64.inc"
 // This avoids the fragile .replacen('_', ".", 1) hack which breaks on type names with underscores
-get_til_func_name_string := func(first_param: Expr) returns FuncNameResult throws Str {
-    mut result := FuncNameResult()
+get_til_func_name_string := func(first_param: Expr) returns Str throws KeyNotFoundError {
     switch first_param.node_type {
     case NodeType.Identifier(name):
         if first_param.params.len().eq(0) {
             // Already has dots (from precomp) or is a simple name
-            result.found = true
-            result.name = name
+            return name
         } else {
             // Build dotted name from nested identifiers
             mut parts := name
@@ -227,14 +217,13 @@ get_til_func_name_string := func(first_param: Expr) returns FuncNameResult throw
                 }
                 i = i.add(1)
             }
-            result.found = true
-            result.name = parts
+            return parts
         }
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    return result
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    throw KeyNotFoundError(msg="get_til_func_name_string: not an identifier")
 }
 
 // Result type for get_type_arg_name
@@ -271,11 +260,6 @@ get_type_arg_name := func(expr: Expr, context: Context) returns TypeArgResult {
     return result
 }
 
-// Add a variable to declared_vars
-add_var_declared := proc(mut ctx: CodegenContext, name: Str) throws AllocError {
-    _ := ctx.declared_vars.insert(name)
-}
-
 // Check if an expression is a function call that uses out-params (i.e., the function throws)
 // Such calls cannot be used inline in struct initializers - they need separate statements
 is_throwing_fcall := proc(expr: Expr, context: Context) returns Bool {
@@ -288,22 +272,6 @@ is_throwing_fcall := proc(expr: Expr, context: Context) returns Bool {
     case:
     }
     return false
-}
-
-// Result type for receiver type lookup
-ReceiverTypeResult := struct {
-    mut found: Bool = false
-    mut value_type: ValueType = ValueType.TCustom("")
-}
-
-// Look up receiver type from scope_stack
-lookup_receiver_type := func(context: Context, name: Str) returns ReceiverTypeResult {
-    mut result := ReceiverTypeResult()
-    mut symbol := context.scope_stack.lookup_symbol(name)
-    result.found = true
-    result.value_type = symbol.value_type
-    catch (err: KeyNotFoundError) { }
-    return result
 }
 
 // Convert TIL type to C type. Returns Err if the type can't be represented in C (e.g., functions, infer)
@@ -397,8 +365,8 @@ detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext) returns VariadicF
     // Get function name with dots (for lookup in variadic map)
     mut first := Expr()
     expr.params.get(0, first)
-    mut func_name_result := get_func_name_string(first)
-    if not(func_name_result.found) {
+    mut func_name := get_func_name_string(first)
+    catch (err: KeyNotFoundError) {
         return result
     }
     // For simple identifiers (after precomp), use the name directly
@@ -409,10 +377,10 @@ detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext) returns VariadicF
         case NodeType.Identifier(name):
             orig_func_name = name
         case:
-            orig_func_name = func_name_result.name.replace("_", ".")
+            orig_func_name = func_name.replace("_", ".")
         }
     } else {
-        orig_func_name = func_name_result.name.replace("_", ".")
+        orig_func_name = func_name.replace("_", ".")
     }
 
     // Look up in func_variadic_args
@@ -955,91 +923,95 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
             mut first_param := Expr()
             expr.params.get(0, first_param)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            mut func_name_result := get_func_name_string(first_param)
-            if func_name_result.found {
-                mut func_name := func_name_result.name
-                mut has_named_args := false
-                mut nai := 1
-                while lt(nai, expr.params.len()) {
-                    mut narg := Expr()
-                    expr.params.get(nai, narg)
-                    switch narg.node_type {
-                    case NodeType.NamedArg(field_name):
-                        has_named_args = true
-                    case:
-                    }
-                    nai = add(nai, 1)
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
+            mut func_name := get_func_name_string(first_param)
+            mut func_name_found := true
+            catch (err: KeyNotFoundError) {
+                func_name_found = false
+            }
+            if not(func_name_found) {
+                return result
+            }
+            mut has_named_args := false
+            mut nai := 1
+            while lt(nai, expr.params.len()) {
+                mut narg := Expr()
+                expr.params.get(nai, narg)
+                switch narg.node_type {
+                case NodeType.NamedArg(field_name):
+                    has_named_args = true
+                case:
                 }
+                nai = add(nai, 1)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+            }
 
-                // Check if func_name is a known struct
-                mut found_struct := false
-                mut struct_def := context.scope_stack.lookup_struct(func_name)
-                found_struct = true
-                catch (err: KeyNotFoundError) { }
+            // Check if func_name is a known struct
+            mut found_struct := false
+            mut struct_def := context.scope_stack.lookup_struct(func_name)
+            found_struct = true
+            catch (err: KeyNotFoundError) { }
 
-                if found_struct {
-                    if or(eq(expr.params.len(), 1), has_named_args) {
-                        // This is a struct literal - check for throwing defaults
-                        // Build set of named arg names that are provided
-                        mut provided_names := Set.new(Str)
-                        mut pai := 1
-                        while lt(pai, expr.params.len()) {
-                            mut parg := Expr()
-                            expr.params.get(pai, parg)
-                            switch parg.node_type {
-                            case NodeType.NamedArg(field_name):
-                                _ := provided_names.insert(field_name)
-                                catch (err: AllocError) { throw err.msg }
-                            case:
-                            }
-                            pai = add(pai, 1)
-                            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            if found_struct {
+                if or(eq(expr.params.len(), 1), has_named_args) {
+                    // This is a struct literal - check for throwing defaults
+                    // Build set of named arg names that are provided
+                    mut provided_names := Set.new(Str)
+                    mut pai := 1
+                    while lt(pai, expr.params.len()) {
+                        mut parg := Expr()
+                        expr.params.get(pai, parg)
+                        switch parg.node_type {
+                        case NodeType.NamedArg(field_name):
+                            _ := provided_names.insert(field_name)
+                            catch (err: AllocError) { throw err.msg }
+                        case:
                         }
+                        pai = add(pai, 1)
+                        catch (err: IndexOutOfBoundsError) { throw err.msg }
+                    }
 
-                        // For each member with a default that's a throwing call and not overridden, emit temp var
-                        for member: Declaration in struct_def.members {
-                            if not(member.is_mut) {
-                                continue
-                            }
-                            if provided_names.contains(member.name) {
-                                continue  // Named arg overrides default
-                            }
-                            // Check if there's a default value for this member
-                            mut default_expr := Expr()
-                            mut has_default := false
-                            struct_def.default_values.get(member.name, default_expr)
-                            has_default = true
-                            catch (err: KeyNotFoundError) { }
+                    // For each member with a default that's a throwing call and not overridden, emit temp var
+                    for member: Declaration in struct_def.members {
+                        if not(member.is_mut) {
+                            continue
+                        }
+                        if provided_names.contains(member.name) {
+                            continue  // Named arg overrides default
+                        }
+                        // Check if there's a default value for this member
+                        mut default_expr := Expr()
+                        mut has_default := false
+                        struct_def.default_values.get(member.name, default_expr)
+                        has_default = true
+                        catch (err: KeyNotFoundError) { }
 
-                            if has_default {
-                                if is_throwing_fcall(default_expr, context) {
-                                    // Get the function's throw types
-                                    mut throw_types := Vec.new(ValueType)
-                                    if gt(default_expr.params.len(), 0) {
-                                        mut def_first := Expr()
-                                        default_expr.params.get(0, def_first)
-                                        catch (err: IndexOutOfBoundsError) { throw err.msg }
-                                        mut lookup_name_result := get_til_func_name_string(def_first)
-                                        if lookup_name_result.found {
-                                            mut fd := context.scope_stack.lookup_func(lookup_name_result.name)
-                                            throw_types = fd.throw_types
-                                            catch (err: KeyNotFoundError) { }
-                                        }
+                        if has_default {
+                            if is_throwing_fcall(default_expr, context) {
+                                // Get the function's throw types
+                                mut throw_types := Vec.new(ValueType)
+                                if gt(default_expr.params.len(), 0) {
+                                    mut def_first := Expr()
+                                    default_expr.params.get(0, def_first)
+                                    catch (err: IndexOutOfBoundsError) { throw err.msg }
+                                    mut lookup_name := get_til_func_name_string(def_first)
+                                    mut fd := context.scope_stack.lookup_func(lookup_name)
+                                    throw_types = fd.throw_types
+                                    catch (err: KeyNotFoundError) {
+                                        // lookup failed - skip
                                     }
-
-                                    mut temp_name := next_mangled(ctx)
-                                    // Emit the function call with out-param using emit_throwing_call_propagate
-                                    result = emit_throwing_call_propagate(default_expr, throw_types, temp_name, "", result, indent, ctx, context)
-                                    // Record that this struct default was hoisted using "struct_name:member_name" key
-                                    mut key := func_name.concat(":").concat(member.name)
-                                    ctx.hoisted_struct_defaults.set(key, temp_name)
-                                    catch (err: AllocError) { throw err.msg }
-                                } else {
-                                    // Also recursively hoist any throwing expressions in the default
-                                    // This handles nested struct constructors with throwing defaults
-                                    result = hoist_throwing_expr(default_expr, result, indent, ctx, context)
                                 }
+
+                                mut temp_name := next_mangled(ctx)
+                                // Emit the function call with out-param using emit_throwing_call_propagate
+                                result = emit_throwing_call_propagate(default_expr, throw_types, temp_name, "", result, indent, ctx, context)
+                                // Record that this struct default was hoisted using "struct_name:member_name" key
+                                mut key := func_name.concat(":").concat(member.name)
+                                ctx.hoisted_struct_defaults.set(key, temp_name)
+                                catch (err: AllocError) { throw err.msg }
+                            } else {
+                                // Also recursively hoist any throwing expressions in the default
+                                // This handles nested struct constructors with throwing defaults
+                                result = hoist_throwing_expr(default_expr, result, indent, ctx, context)
                             }
                         }
                     }
@@ -1379,17 +1351,15 @@ get_fcall_func_name := func(expr: Expr) returns Str throws Str {
 
     mut first := Expr()
     expr.params.get(0, first)
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // get_func_name_string already handles both nested identifiers (Type.method)
     // and precomp'd strings ("Type.method"), returning "Type_method" format
-    mut func_name_result := get_func_name_string(first)
-    if func_name_result.found {
-        return func_name_result.name
+    mut func_name := get_func_name_string(first)
+    catch (err: KeyNotFoundError) {
+        return ""  // not found - return empty string
     }
-
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-
-    return ""
+    return func_name
 }
 
 // Check if an expression is a struct declaration (Name := struct {...})
@@ -3515,11 +3485,10 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: Str, mut ctx: 
     // Get function name (handles both nested identifiers and precomp'd "Type.method" strings)
     mut first := Expr()
     expr.params.get(0, first)
-    mut func_name_result := get_func_name_string(first)
-    if not(func_name_result.found) {
+    mut func_name := get_func_name_string(first)
+    catch (err: KeyNotFoundError) {
         throw "emit_fcall_with_hoisted: FCall first param not Identifier"
     }
-    mut func_name := func_name_result.name
 
     // Check for struct construction: TypeName() or TypeName(x=10, y=20)
     // Use lookup_struct to verify this is a known struct type
@@ -5018,12 +4987,12 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
 
         if has_fcall {
             // eval functions from std.meta are only available in interpret mode
-            mut func_name_result := get_til_func_name_string(maybe_fcall.get(0))
-            if func_name_result.found {
-                fn_name := func_name_result.name
-                if or(or(fn_name.eq("eval_file"), fn_name.eq("eval_to_str")), or(fn_name.eq("eval_to_ast_str"), fn_name.eq("eval_to_expr"))) {
-                    throw maybe_fcall.error(context.path, "ccodegen", format(fn_name, "() is only available in interpret mode, not in build/run"))
-                }
+            mut fn_name := get_til_func_name_string(maybe_fcall.get(0))
+            if or(or(fn_name.eq("eval_file"), fn_name.eq("eval_to_str")), or(fn_name.eq("eval_to_ast_str"), fn_name.eq("eval_to_expr"))) {
+                throw maybe_fcall.error(context.path, "ccodegen", format(fn_name, "() is only available in interpret mode, not in build/run"))
+            }
+            catch (err: KeyNotFoundError) {
+                // not an identifier - skip eval function check
             }
 
             // Check if this function is a throwing function
@@ -7647,25 +7616,27 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 while lt(td_idx, throwing_defaults.len()) {
                     mut td := ThrowingDefault()
                     throwing_defaults.get(td_idx, td)
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
                     // Get the function's throw types
                     mut throw_types := Vec.new(ValueType)
                     if gt(td.default_expr.params.len(), 0) {
                         mut first_param := Expr()
                         td.default_expr.params.get(0, first_param)
+                        catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+                        mut fcall_func_name_found := false
                         mut fcall_func_name := get_func_name_string(first_param)
-                        if fcall_func_name.found {
-                            mut lookup_name := fcall_func_name.name.replace("_", ".")
-                            mut func_def_found := false
+                        fcall_func_name_found = true
+                        catch (err: KeyNotFoundError) { }
+
+                        if fcall_func_name_found {
+                            mut lookup_name := fcall_func_name.replace("_", ".")
                             mut func_def := context.scope_stack.lookup_func(lookup_name)
-                            func_def_found = true
+                            throw_types = func_def.throw_types
                             catch (err: KeyNotFoundError) { }
-                            if func_def_found {
-                                throw_types = func_def.throw_types
-                            }
                         }
                     }
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
                     catch (err: AllocError) { throw err.msg }
 
                     mut temp_name := "_default_"
@@ -9072,11 +9043,10 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Get function name (handles both nested identifiers and precomp'd "Type.method" strings)
-    mut func_name_result := get_func_name_string(first)
-    if not(func_name_result.found) {
+    mut func_name := get_func_name_string(first)
+    catch (err: KeyNotFoundError) {
         throw "ccodegen: FCall first param not Identifier"
     }
-    mut func_name := func_name_result.name
 
     // For builtins, we need the original name without underscore conversion
     mut orig_func_name := ""
