@@ -1,5 +1,5 @@
-// trust.til - TIL from RUSt Translator (Issue #81)
-// Translates Rust code to TIL using patterns from rs2til.org
+// rs2til.til - Rust to TIL translator (Issue #81)
+// Translates Rust code to TIL using patterns from doc/rs2til.org
 // Grows incrementally - only handles what's been tested
 
 mode cli
@@ -171,7 +171,7 @@ translate := proc(source: Str) returns Str throws Str {
 
 // Main entry point
 main := proc(input_file: Str) {
-    println("trust.til - Rust to TIL translator")
+    println("rs2til.til - Rust to TIL translator")
     println("Input: ", input_file)
 
     source := readfile(input_file)

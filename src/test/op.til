@@ -1,0 +1,35 @@
+mode test
+
+// I64.add - binary method in I64 struct namespace
+test(loc(), I64.add(1, 2).eq(3), "I64.add: I64.add(1, 2) == 3")
+test(loc(), I64.add(0, 0).eq(0), "I64.add: I64.add(0, 0) == 0")
+
+a := 10
+b := 20
+test(loc(), a.add(b).eq(30), "I64.add: a.add(b) == 30 via UFCS")
+
+// add - variadic standalone function for I64
+test(loc(), add(1).eq(1), "add: add(1) == 1")
+test(loc(), add(1, 2).eq(3), "add: add(1, 2) == 3")
+test(loc(), add(1, 2, 3).eq(6), "add: add(1, 2, 3) == 6")
+test(loc(), add(1, 2, 3, 4).eq(10), "add: add(1, 2, 3, 4) == 10")
+test(loc(), add(10, 20, 30, 40, 50).eq(150), "add: add(10, 20, 30, 40, 50) == 150")
+
+// U8.add - binary method in U8 struct namespace
+test_u8_add := proc() {
+    x : U8 = 1
+    y : U8 = 2
+    z := U8.add(x, y)
+    test(loc(), z.to_i64().eq(3), "U8.add: U8.add(1, 2) == 3")
+
+    p : U8 = 100
+    q : U8 = 50
+    r := U8.add(p, q)
+    test(loc(), r.to_i64().eq(150), "U8.add: U8.add(100, 50) == 150")
+
+    catch (err: U8_OverflowError) {
+        println("ERROR:", err.msg)
+        exit(1)
+    }
+}
+test_u8_add()

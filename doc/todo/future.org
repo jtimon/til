@@ -132,7 +132,7 @@ It stays in ~rs_common~ until either:
 :DISCOVERED: 2026-01-03
 :IMPACT: Build system, dogfooding, portability
 :STATUS: Open
-:RELATED: Issue #81 (trust.til - another tool in TIL)
+:RELATED: Issue #81 (rs2til.til - another tool in TIL)
 :END:
 
 *** Background

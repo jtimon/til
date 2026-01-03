@@ -59,7 +59,7 @@ Measured 2026-01-02.
 
 * Tools
 
-** Issue #81: trust.til - Rust to TIL Translator
+** Issue #81: rs2til.til - Rust to TIL Translator
 
 A tool to mechanically translate Rust code to TIL, using patterns from rs2til.org.
 
@@ -70,7 +70,7 @@ A tool to mechanically translate Rust code to TIL, using patterns from rs2til.or
 
 *** Architecture
 #+begin_src
-src/tools/trust.til        - Main translator
+src/tools/rs2til.til       - Main translator
 src/tools/lex/lex.til      - Generic lexer infrastructure
 src/tools/lex/rs.til       - Rust-specific tokens/keywords
 #+end_src
