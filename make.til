@@ -4,6 +4,30 @@
 
 mode make
 
-main := proc() {
-    TODO(loc(), "make.til not yet implemented")
+import("std.io")
+import("std.sys")
+
+build_rstil := proc() {
+    mut mkdir_out := ""
+    _ := mkdir_out.run_cmd("mkdir", "-p", "bin")
+    println("rustc src/rstil.rs -o bin/rstil")
+    mut output := ""
+    exit_code := output.run_cmd("bash", "-c", "rustc src/rstil.rs -o bin/rstil")
+    if output.len().gt(0) {
+        println(output)
+    }
+    if not(exit_code.eq(0)) {
+        exit(exit_code)
+    }
+}
+
+main := proc(target: Str) {
+    switch target {
+    case "rstil":
+        build_rstil()
+    case:
+        println("Unknown target: ", target)
+        println("Available targets: rstil")
+        exit(1)
+    }
 }

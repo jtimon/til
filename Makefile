@@ -12,8 +12,7 @@ repl: rstil
 RSTIL_SRCS := src/rstil.rs $(wildcard src/rs/*.rs)
 
 bin/rstil: $(RSTIL_SRCS)
-	@mkdir -p bin
-	rustc src/rstil.rs -o bin/rstil
+	./make.til rstil
 
 rstil: bin/rstil
 
