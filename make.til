@@ -41,15 +41,25 @@ build_rstil_til := proc() {
     _ := cp2_out.run_cmd("cp", "bin/til", "bin/rstil_til")
 }
 
+clean := proc() {
+    // Keep bin/rstil - it's needed to run make.til
+    cmd := "rm -rf bin/til bin/rstil_til bin/til_til bin/examples bin/test bin/tmp gen/*"
+    println(cmd)
+    mut output := ""
+    _ := output.run_cmd("bash", "-c", cmd)
+}
+
 main := proc(target: Str) {
     switch target {
     case "rstil":
         build_rstil()
     case "rstil_til":
         build_rstil_til()
+    case "clean":
+        clean()
     case:
         println("Unknown target: ", target)
-        println("Available targets: rstil, rstil_til")
+        println("Available targets: rstil, rstil_til, clean")
         exit(1)
     }
 }

@@ -2,7 +2,7 @@
 all: rstil
 
 clean:
-	rm -rf bin/* gen/*
+	./make.til clean
 
 # REPL = Read-Eval-Print-Loop
 repl: rstil
