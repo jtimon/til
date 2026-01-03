@@ -126,3 +126,51 @@ It stays in ~rs_common~ until either:
 
 *** Files Modified
 - src/tests.til: Added all_common Vec, processing in run_all_tests(), updated usage()
+
+** Issue #82: make.til - Replace Makefile with TIL
+:PROPERTIES:
+:DISCOVERED: 2026-01-03
+:IMPACT: Build system, dogfooding, portability
+:STATUS: Open
+:RELATED: Issue #81 (trust.til - another tool in TIL)
+:END:
+
+*** Background
+The current Makefile works but is external to the TIL ecosystem. A make.til
+with shebang would:
+- Dogfood TIL for build orchestration
+- Reduce external dependencies
+- Allow richer build logic in a familiar language
+
+*** Requirements
+
+1. *New mode: make*
+   - ~mode make~ for build scripts
+   - Appropriate permissions for file ops, shell commands
+
+2. *File modification tracking*
+   - Need to check if source files are newer than targets
+   - Implies: file stat functionality (mtime)
+
+3. *Dependency graph*
+   - Track which targets depend on which sources
+   - Only rebuild what's needed
+
+*** Example Structure
+#+begin_src til
+#!/usr/bin/env til interpret
+mode make
+
+// Makefile content in TIL syntax
+#+end_src
+
+*** Implementation Notes
+
+File stat would need new builtins:
+- ~file_mtime(path: Str) returns I64~ - modification time as epoch
+- Or ~file_newer(a: Str, b: Str) returns Bool~ - simpler comparison
+
+*** Open Questions
+- How to handle parallel builds?
+- Should it support general make-like syntax or be TIL-native?
+- Bootstrap problem: how to build til before make.til can run?

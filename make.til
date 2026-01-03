@@ -1,0 +1,11 @@
+#!/usr/bin/env -S ./bin/rstil interpret
+// make.til - TIL build system (Issue #82)
+// Replaces Makefile with TIL syntax
+
+mode cli
+
+// TODO: mode make when implemented
+
+main := proc() {
+    TODO(loc(), "make.til not yet implemented")
+}
