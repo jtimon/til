@@ -1,0 +1,27 @@
+// Rust-specific lexer configuration
+// Only add what's needed - grow incrementally
+
+mode liba
+
+import("core.vec")
+
+// Rust reserved words (minimal set for current needs)
+get_reserved_words := func() returns Vec throws AllocError {
+    mut words := Vec.new(Str)
+    words.push("fn")
+    // Add more as needed:
+    // words.push("let")
+    // words.push("mut")
+    // words.push("pub")
+    // words.push("struct")
+    // words.push("enum")
+    // words.push("impl")
+    // words.push("return")
+    // words.push("if")
+    // words.push("else")
+    // words.push("while")
+    // words.push("for")
+    // words.push("in")
+    // words.push("match")
+    return words
+}

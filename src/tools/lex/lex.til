@@ -1,0 +1,242 @@
+// Generic lexer infrastructure for tools
+// Language-specific configuration (reserved words etc) is separate
+
+mode liba
+
+import("core.vec")
+
+// Generic token types - languages can extend with reserved words
+TokenType := enum {
+    Eof,
+
+    // Single-character tokens
+    LeftParen, RightParen,
+    LeftBrace, RightBrace,
+    LeftBracket, RightBracket,
+    Comma, Semicolon, Colon,
+
+    // Operators
+    Plus, Minus, Star, Slash,
+    Equal,
+
+    // Literals
+    Identifier,
+    String,
+    Number,
+
+    // Reserved word (language-specific, check token_str)
+    Reserved,
+
+    // Errors
+    Invalid,
+}
+
+Token := struct {
+    mut token_type: TokenType = TokenType.Invalid
+    mut token_str: Str = ""
+    mut line: I64 = 1
+    mut col: I64 = 1
+}
+
+LexerState := struct {
+    mut source: Str = ""
+    mut pos: I64 = 0
+    mut line: I64 = 1
+    mut col: I64 = 1
+    mut reserved_words: Vec = Vec.new(Str)
+}
+
+// Check if a word is reserved
+is_reserved := func(state: LexerState, word: Str) returns Bool {
+    for w: Str in state.reserved_words {
+        if w.eq(word) {
+            return true
+        }
+    }
+    return false
+}
+
+// Peek current character
+peek_char := func(state: LexerState) returns Str {
+    if state.pos.gteq(state.source.len()) {
+        return ""
+    }
+    result := state.source.get_substr(state.pos, state.pos.add(1))
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    return result
+}
+
+// Advance and return current character
+advance := proc(mut state: LexerState) returns Str {
+    if state.pos.gteq(state.source.len()) {
+        return ""
+    }
+    c := state.source.get_substr(state.pos, state.pos.add(1))
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    state.pos = state.pos.add(1)
+    if c.eq("\n") {
+        state.line = state.line.add(1)
+        state.col = 1
+    } else {
+        state.col = state.col.add(1)
+    }
+    return c
+}
+
+// Skip whitespace
+skip_whitespace := proc(mut state: LexerState) {
+    while state.pos.lt(state.source.len()) {
+        c := peek_char(state)
+        if c.eq(" ").or(c.eq("\t")).or(c.eq("\n")).or(c.eq("\r")) {
+            _ := advance(state)
+        } else {
+            break
+        }
+    }
+}
+
+// Check if character is alpha or underscore
+is_alpha := func(c: Str) returns Bool {
+    if c.len().eq(0) {
+        return false
+    }
+    switch c {
+    case "a".."z": return true
+    case "A".."Z": return true
+    case "_": return true
+    case: return false
+    }
+}
+
+// Check if character is digit
+is_digit := func(c: Str) returns Bool {
+    if c.len().eq(0) {
+        return false
+    }
+    switch c {
+    case "0".."9": return true
+    case: return false
+    }
+}
+
+// Check if character is alphanumeric or underscore
+is_alnum := func(c: Str) returns Bool {
+    return is_alpha(c).or(is_digit(c))
+}
+
+// Scan identifier or reserved word
+scan_identifier := proc(mut state: LexerState) returns Token {
+    start_col := state.col
+    mut word := ""
+    while is_alnum(peek_char(state)) {
+        word = word.concat(advance(state))
+    }
+
+    mut t := Token()
+    t.line = state.line
+    t.col = start_col
+    t.token_str = word
+
+    if is_reserved(state, word) {
+        t.token_type = TokenType.Reserved
+    } else {
+        t.token_type = TokenType.Identifier
+    }
+    return t
+}
+
+// Scan a single token
+scan_token := proc(mut state: LexerState) returns Token {
+    skip_whitespace(state)
+
+    if state.pos.gteq(state.source.len()) {
+        mut t := Token()
+        t.token_type = TokenType.Eof
+        t.line = state.line
+        t.col = state.col
+        return t
+    }
+
+    c := peek_char(state)
+    start_line := state.line
+    start_col := state.col
+
+    // Single character tokens
+    switch c {
+    case "(":
+        _ := advance(state)
+        return Token(token_type=TokenType.LeftParen, token_str="(", line=start_line, col=start_col)
+    case ")":
+        _ := advance(state)
+        return Token(token_type=TokenType.RightParen, token_str=")", line=start_line, col=start_col)
+    case "{":
+        _ := advance(state)
+        return Token(token_type=TokenType.LeftBrace, token_str="{", line=start_line, col=start_col)
+    case "}":
+        _ := advance(state)
+        return Token(token_type=TokenType.RightBrace, token_str="}", line=start_line, col=start_col)
+    case "[":
+        _ := advance(state)
+        return Token(token_type=TokenType.LeftBracket, token_str="[", line=start_line, col=start_col)
+    case "]":
+        _ := advance(state)
+        return Token(token_type=TokenType.RightBracket, token_str="]", line=start_line, col=start_col)
+    case ",":
+        _ := advance(state)
+        return Token(token_type=TokenType.Comma, token_str=",", line=start_line, col=start_col)
+    case ";":
+        _ := advance(state)
+        return Token(token_type=TokenType.Semicolon, token_str=";", line=start_line, col=start_col)
+    case ":":
+        _ := advance(state)
+        return Token(token_type=TokenType.Colon, token_str=":", line=start_line, col=start_col)
+    case "+":
+        _ := advance(state)
+        return Token(token_type=TokenType.Plus, token_str="+", line=start_line, col=start_col)
+    case "-":
+        _ := advance(state)
+        return Token(token_type=TokenType.Minus, token_str="-", line=start_line, col=start_col)
+    case "*":
+        _ := advance(state)
+        return Token(token_type=TokenType.Star, token_str="*", line=start_line, col=start_col)
+    case "/":
+        _ := advance(state)
+        return Token(token_type=TokenType.Slash, token_str="/", line=start_line, col=start_col)
+    case "=":
+        _ := advance(state)
+        return Token(token_type=TokenType.Equal, token_str="=", line=start_line, col=start_col)
+    case:
+    }
+
+    // Identifier or reserved word
+    if is_alpha(c) {
+        return scan_identifier(state)
+    }
+
+    // Unknown character
+    _ := advance(state)
+    return Token(token_type=TokenType.Invalid, token_str=c, line=start_line, col=start_col)
+}
+
+// Scan all tokens from source
+scan_tokens := proc(source: Str, reserved_words: Vec) returns Vec throws AllocError {
+    mut state := LexerState()
+    state.source = source
+    state.reserved_words = reserved_words
+
+    mut tokens := Vec.new(Token)
+
+    while true {
+        t := scan_token(state)
+        tokens.push(t)
+        switch t.token_type {
+        case TokenType.Eof:
+            return tokens
+        case:
+        }
+    }
+
+    return tokens
+}

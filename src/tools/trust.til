@@ -1,0 +1,188 @@
+// trust.til - TIL from RUSt Translator (Issue #81)
+// Translates Rust code to TIL using patterns from rs2til.org
+// Grows incrementally - only handles what's been tested
+
+mode cli
+
+import("core.vec")
+import("std.io")
+import("tools.lex.lex")
+import("tools.lex.rs")
+
+// Translator state
+TranslatorState := struct {
+    mut tokens: Vec = Vec.new(Token)
+    mut pos: I64 = 0
+}
+
+// Check if at end
+is_eof := func(state: TranslatorState) returns Bool {
+    if state.pos.gteq(state.tokens.len()) {
+        return true
+    }
+    mut t := Token()
+    state.tokens.get(state.pos, t)
+    switch t.token_type {
+    case TokenType.Eof:
+        return true
+    case:
+        return false
+    }
+    catch (err: IndexOutOfBoundsError) {
+        // REM: Can't happen - checked bounds above
+        return true
+    }
+}
+
+// Peek current token
+peek := func(state: TranslatorState) returns Token {
+    mut t := Token()
+    state.tokens.get(state.pos, t)
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    return t
+}
+
+// Advance to next token
+next_token := proc(mut state: TranslatorState) returns Token {
+    mut t := Token()
+    state.tokens.get(state.pos, t)
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    state.pos = state.pos.add(1)
+    return t
+}
+
+// Check if current token matches expected type
+check := func(state: TranslatorState, token_type: TokenType) returns Bool {
+    if state.pos.gteq(state.tokens.len()) {
+        return false
+    }
+    t := peek(state)
+    switch t.token_type {
+    case TokenType.Eof:
+        return false
+    case:
+    }
+    // Compare token types
+    switch token_type {
+    case TokenType.Reserved:
+        switch t.token_type {
+        case TokenType.Reserved: return true
+        case: return false
+        }
+    case TokenType.Identifier:
+        switch t.token_type {
+        case TokenType.Identifier: return true
+        case: return false
+        }
+    case TokenType.LeftParen:
+        switch t.token_type {
+        case TokenType.LeftParen: return true
+        case: return false
+        }
+    case TokenType.RightParen:
+        switch t.token_type {
+        case TokenType.RightParen: return true
+        case: return false
+        }
+    case TokenType.LeftBrace:
+        switch t.token_type {
+        case TokenType.LeftBrace: return true
+        case: return false
+        }
+    case TokenType.RightBrace:
+        switch t.token_type {
+        case TokenType.RightBrace: return true
+        case: return false
+        }
+    case:
+        return false
+    }
+}
+
+// Check if current token is a specific reserved word
+check_reserved := func(state: TranslatorState, word: Str) returns Bool {
+    if state.pos.gteq(state.tokens.len()) {
+        return false
+    }
+    t := peek(state)
+    switch t.token_type {
+    case TokenType.Reserved:
+        return t.token_str.eq(word)
+    case:
+        return false
+    }
+}
+
+// Expect a token type or throw error
+expect := proc(mut state: TranslatorState, token_type: TokenType, msg: Str) returns Token throws Str {
+    if check(state, token_type) {
+        return next_token(state)
+    }
+    t := peek(state)
+    throw format("Line ", t.line.to_str(), ": Expected ", msg, ", got '", t.token_str, "'")
+}
+
+// Translate a function definition: fn name() {} -> name := proc() {}
+translate_fn := proc(mut state: TranslatorState) returns Str throws Str {
+    // Skip 'fn'
+    _ := next_token(state)
+
+    // Get function name
+    name_token := expect(state, TokenType.Identifier, "function name")
+
+    // Expect ()
+    _ := expect(state, TokenType.LeftParen, "(")
+    _ := expect(state, TokenType.RightParen, ")")
+
+    // Expect {}
+    _ := expect(state, TokenType.LeftBrace, "{")
+    _ := expect(state, TokenType.RightBrace, "}")
+
+    // Generate TIL: name := proc() {}
+    result := format(name_token.token_str, " := proc() {}\n")
+    catch (err: AllocError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
+    return result
+}
+
+// Translate source code
+translate := proc(source: Str) returns Str throws Str {
+    reserved := get_reserved_words()
+    tokens := scan_tokens(source, reserved)
+    catch (err: AllocError) { throw err.msg }
+
+    mut state := TranslatorState()
+    state.tokens = tokens
+
+    mut output := ""
+
+    while not(is_eof(state)) {
+        if check_reserved(state, "fn") {
+            output = output.concat(translate_fn(state))
+        } else {
+            t := next_token(state)
+            throw format("Line ", t.line.to_str(), ": Unexpected token '", t.token_str, "'")
+        }
+    }
+
+    return output
+}
+
+// Main entry point
+main := proc(input_file: Str) {
+    println("trust.til - Rust to TIL translator")
+    println("Input: ", input_file)
+
+    source := readfile(input_file)
+    output := translate(source)
+
+    println("")
+    println("Output:")
+    println(output)
+
+    catch (err: Str) {
+        println("Error: ", err)
+        exit(1)
+    }
+}

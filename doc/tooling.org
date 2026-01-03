@@ -1,0 +1,84 @@
+#+TITLE: TIL Tooling
+
+* Codebase Size Statistics
+
+Measured 2026-01-02.
+
+** src/rs/ (Rust implementation)
+
+| File | Lines | % |
+|------|-------|---|
+| ccodegen.rs | 7,257 | 35% |
+| interpreter.rs | 3,096 | 15% |
+| typer.rs | 2,292 | 11% |
+| parser.rs | 1,694 | 8% |
+| init.rs | 1,545 | 7% |
+| precomp.rs | 1,203 | 6% |
+| eval_arena.rs | 1,148 | 6% |
+| ext.rs | 780 | 4% |
+| lexer.rs | 637 | 3% |
+| scavenger.rs | 429 | 2% |
+| builder.rs | 331 | 2% |
+| target.rs | 188 | 1% |
+| mode.rs | 132 | 1% |
+| arena.rs | 60 | 0% |
+| precomp_ext.rs | 50 | 0% |
+| *Total* | *20,842* | |
+
+** src/self/ (TIL implementation)
+
+| File | Lines | % |
+|------|-------|---|
+| ccodegen.til | 9,683 | 36% |
+| interpreter.til | 3,646 | 13% |
+| typer.til | 3,048 | 11% |
+| parser.til | 2,310 | 9% |
+| init.til | 2,263 | 8% |
+| precomp.til | 1,554 | 6% |
+| eval_arena.til | 1,522 | 6% |
+| lexer.til | 865 | 3% |
+| ext.til | 696 | 3% |
+| scavenger.til | 629 | 2% |
+| builder.til | 342 | 1% |
+| target.til | 237 | 1% |
+| mode.til | 180 | 1% |
+| precomp_ext.til | 55 | 0% |
+| *Total* | *27,030* | |
+
+** Key Observations
+
+1. *ccodegen is NOT bigger than everything else combined*
+   - It's ~35% of total, not >50%
+   - But it IS the largest single file by far (next is interpreter at ~3k)
+
+2. *TIL is ~30% more verbose than Rust*
+   - 27,030 vs 20,842 lines
+   - Expected due to TIL's more explicit syntax
+
+3. *Top 4 files are same in both*: ccodegen, interpreter, typer, parser
+
+* Tools
+
+** Issue #81: trust.til - Rust to TIL Translator
+
+A tool to mechanically translate Rust code to TIL, using patterns from rs2til.org.
+
+*** Purpose
+- Automate the tedious parts of porting Rust to TIL
+- Reduce human error in translation
+- Speed up self-hosting work
+
+*** Architecture
+#+begin_src
+src/tools/trust.til        - Main translator
+src/tools/lex/lex.til      - Generic lexer infrastructure
+src/tools/lex/rs.til       - Rust-specific tokens/keywords
+#+end_src
+
+*** Approach
+- Incremental: start with simplest case (empty main), grow from there
+- Need-by-use: only add lexer features as needed
+- Written in TIL (dogfooding)
+
+*** Status
+In development.
