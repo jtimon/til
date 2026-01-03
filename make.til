@@ -21,13 +21,35 @@ build_rstil := proc() {
     }
 }
 
+build_rstil_til := proc() {
+    println("./bin/rstil build src/til.til")
+    mut output := ""
+    exit_code := output.run_cmd("./bin/rstil", "build", "src/til.til")
+    if output.len().gt(0) {
+        println(output)
+    }
+    if not(exit_code.eq(0)) {
+        exit(exit_code)
+    }
+
+    println("cp gen/c/til.c bootstrap/til.c")
+    mut cp1_out := ""
+    _ := cp1_out.run_cmd("cp", "gen/c/til.c", "bootstrap/til.c")
+
+    println("cp bin/til bin/rstil_til")
+    mut cp2_out := ""
+    _ := cp2_out.run_cmd("cp", "bin/til", "bin/rstil_til")
+}
+
 main := proc(target: Str) {
     switch target {
     case "rstil":
         build_rstil()
+    case "rstil_til":
+        build_rstil_til()
     case:
         println("Unknown target: ", target)
-        println("Available targets: rstil")
+        println("Available targets: rstil, rstil_til")
         exit(1)
     }
 }

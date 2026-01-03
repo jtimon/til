@@ -21,9 +21,7 @@ TIL_SRCS := src/til.til $(wildcard src/self/*.til) $(wildcard src/core/*.til) $(
 
 # Build til.til using rstil
 bin/rstil_til: bin/rstil $(TIL_SRCS)
-	./bin/rstil build src/til.til
-	cp gen/c/til.c bootstrap/til.c
-	cp bin/til bin/rstil_til
+	./make.til rstil_til
 
 rstil_til: bin/rstil_til
 
