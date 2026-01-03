@@ -8,45 +8,29 @@ import("std.io")
 import("std.sys")
 
 build_rstil := proc() {
-    mut mkdir_out := ""
-    _ := mkdir_out.run_cmd("mkdir", "-p", "bin")
-    println("rustc src/rstil.rs -o bin/rstil")
-    mut output := ""
-    exit_code := output.run_cmd("bash", "-c", "rustc src/rstil.rs -o bin/rstil")
-    if output.len().gt(0) {
-        println(output)
-    }
+    mut out := ""
+    _ := out.run_cmd("mkdir", "-p", "bin")
+    exit_code := out.run_print_cmd("rustc", "src/rstil.rs", "-o", "bin/rstil")
     if not(exit_code.eq(0)) {
         exit(exit_code)
     }
 }
 
 build_rstil_til := proc() {
-    println("./bin/rstil build src/til.til")
-    mut output := ""
-    exit_code := output.run_cmd("./bin/rstil", "build", "src/til.til")
-    if output.len().gt(0) {
-        println(output)
-    }
+    mut out := ""
+    exit_code := out.run_print_cmd("./bin/rstil", "build", "src/til.til")
     if not(exit_code.eq(0)) {
         exit(exit_code)
     }
-
-    println("cp gen/c/til.c bootstrap/til.c")
-    mut cp1_out := ""
-    _ := cp1_out.run_cmd("cp", "gen/c/til.c", "bootstrap/til.c")
-
-    println("cp bin/til bin/rstil_til")
-    mut cp2_out := ""
-    _ := cp2_out.run_cmd("cp", "bin/til", "bin/rstil_til")
+    _ := out.run_print_cmd("cp", "gen/c/til.c", "bootstrap/til.c")
+    _ := out.run_print_cmd("cp", "bin/til", "bin/rstil_til")
 }
 
 clean := proc() {
     // Keep bin/rstil - it's needed to run make.til
-    cmd := "rm -rf bin/til bin/rstil_til bin/til_til bin/examples bin/test bin/tmp gen/*"
-    println(cmd)
-    mut output := ""
-    _ := output.run_cmd("bash", "-c", cmd)
+    // Note: glob expansion requires bash -c
+    mut out := ""
+    _ := out.run_print_cmd("bash", "-c", "rm -rf bin/til bin/rstil_til bin/til_til bin/examples bin/test bin/tmp gen/*")
 }
 
 main := proc(target: Str) {

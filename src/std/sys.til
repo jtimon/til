@@ -13,11 +13,40 @@ WaitError := struct {
     mut msg: Str = ""
 }
 
-// WARNING: run_cmd executes shell commands.
-// In mode safe_script, only whitelisted commands are allowed (configurable).
-// In other modes, arbitrary commands can be executed - use with caution.
-// Returns exit code, output is written to mut output_str arg.
+/**
+ * Executes a command using exec-style semantics (not shell).
+ * Args are passed directly: run_cmd("ls", "-la", "/path")
+ * NOT as a shell string: run_cmd("ls -la /path") -- this would fail
+ * For shell command strings, use: run_cmd("bash", "-c", "your command here")
+ *
+ * WARNING: In mode safe_script, only whitelisted commands are allowed.
+ * In other modes, arbitrary commands can be executed - use with caution.
+ *
+ * Returns exit code, output is written to mut output_str arg.
+ */
 run_cmd := ext_proc(mut output_str: Str, args: ..Str) returns I64;
+
+/**
+ * Like run_cmd but prints the command before executing it.
+ */
+run_print_cmd := proc(mut output_str: Str, args: ..Str) returns I64 {
+    mut cmd := ""
+    for arg: Str in args {
+        if cmd.len().gt(0) {
+            cmd = format(cmd, " ", arg)
+        } else {
+            cmd = arg
+        }
+    }
+    println(cmd)
+    exit_code := output_str.run_cmd("bash", "-c", cmd)
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: I64_OverflowError) { panic(loc(), err.msg) }
+
+    return exit_code
+}
 
 /**
  * Spawns a new process by executing the given command string.

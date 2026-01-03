@@ -8,6 +8,94 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #83: No spread/splat operator for variadic argument forwarding
+:PROPERTIES:
+:DISCOVERED: 2026-01-03
+:IMPACT: Cannot forward variadic args to another variadic function
+:STATUS: Active (workaround exists)
+:END:
+
+*** Description
+TIL lacks a spread/splat operator to expand an array into variadic arguments.
+This prevents forwarding variadic args from one function to another.
+
+*** TIL Example (currently broken)
+#+BEGIN_SRC til
+run_print_cmd := proc(mut output_str: Str, args: ..Str) returns I64 {
+    println(args)
+    return output_str.run_cmd(args)  // FAILS: args is Array, not spread
+}
+#+END_SRC
+
+*** Other languages
+
+**** JavaScript - prefix ~...~
+#+BEGIN_SRC javascript
+function wrapper(...args) {
+    return inner(...args);  // spread with ...
+}
+#+END_SRC
+
+**** Python - prefix ~*~
+#+BEGIN_SRC python
+def wrapper(*args):
+    return inner(*args)  # unpack with *
+#+END_SRC
+
+**** Ruby - prefix ~*~
+#+BEGIN_SRC ruby
+def wrapper(*args)
+    inner(*args)  # splat with *
+#+END_SRC
+
+**** Kotlin - prefix ~*~
+#+BEGIN_SRC kotlin
+fun wrapper(vararg args: String) {
+    inner(*args)  // spread with *
+}
+#+END_SRC
+
+**** Lua - ~unpack()~ / ~table.unpack()~
+#+BEGIN_SRC lua
+function wrapper(...)
+    local args = {...}
+    return inner(unpack(args))
+end
+#+END_SRC
+
+**** Go - suffix ~...~
+#+BEGIN_SRC go
+func wrapper(args ...string) {
+    inner(args...)  // spread with suffix ...
+}
+#+END_SRC
+
+*** Syntax options for TIL
+| Option | Syntax                   | Notes                                    |
+|--------+--------------------------+------------------------------------------|
+| A      | ~run_cmd(args...)~         | Go-style, suffix                         |
+| B      | ~run_cmd(*args)~           | Python/Ruby/Kotlin-style, prefix         |
+| C      | ~run_cmd(...args)~         | JavaScript-style, prefix                 |
+| D      | ~run_cmd(..args)~          | TIL-style, matches ~..Str~ in declaration |
+| E      | ~run_cmd(args.to_variadic())~ | Method on Array, no special syntax needed |
+
+*** Workaround
+For shell commands, build a command string with a for-in loop and use ~bash -c~:
+#+BEGIN_SRC til
+run_print_cmd := proc(mut output_str: Str, args: ..Str) returns I64 {
+    mut cmd := ""
+    for arg: Str in args {
+        if cmd.len().gt(0) {
+            cmd = format(cmd, " ", arg)
+        } else {
+            cmd = arg
+        }
+    }
+    println(cmd)
+    return output_str.run_cmd("bash", "-c", cmd)
+}
+#+END_SRC
+
 ** Bug #80: ccodegen.til generates different C code than ccodegen.rs
 :PROPERTIES:
 :DISCOVERED: 2026-01-01
