@@ -7,23 +7,30 @@ mode make
 import("std.io")
 import("std.sys")
 
+build_common := proc(mut out: Str) returns I64 {
+    return out.run_cmd("mkdir", "-p", "bin")
+}
+
 build_rstil := proc() {
     mut out := ""
-    _ := out.run_cmd("mkdir", "-p", "bin")
-    exit_code := out.run_print_cmd("rustc", "src/rstil.rs", "-o", "bin/rstil")
-    if not(exit_code.eq(0)) {
-        exit(exit_code)
+    mut status := 0
+    status = out.build_common()
+    status = out.run_print_cmd("rustc", "src/rstil.rs", "-o", "bin/rstil")
+    if status.eq(0).not() {
+        exit(status)
     }
 }
 
 build_rstil_til := proc() {
     mut out := ""
-    exit_code := out.run_print_cmd("./bin/rstil", "build", "src/til.til")
-    if not(exit_code.eq(0)) {
-        exit(exit_code)
+    mut status := 0
+    status = out.build_common()
+    status = out.run_print_cmd("./bin/rstil", "build", "src/til.til")
+    status = out.run_print_cmd("cp", "gen/c/til.c", "bootstrap/til.c")
+    status = out.run_print_cmd("cp", "bin/til", "bin/rstil_til")
+    if status.eq(0).not() {
+        exit(status)
     }
-    _ := out.run_print_cmd("cp", "gen/c/til.c", "bootstrap/til.c")
-    _ := out.run_print_cmd("cp", "bin/til", "bin/rstil_til")
 }
 
 clean := proc() {
