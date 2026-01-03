@@ -2,9 +2,7 @@
 // make.til - TIL build system (Issue #82)
 // Replaces Makefile with TIL syntax
 
-mode cli
-
-// TODO: mode make when implemented
+mode make
 
 main := proc() {
     TODO(loc(), "make.til not yet implemented")

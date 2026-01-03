@@ -108,6 +108,16 @@ pub fn mode_from_name(mode_name: &str, path: &str, t: &Token) -> Result<ModeDef,
                     imports                 : vec!["modes.test".to_string()],
                     allowed_procs_in_funcs  : vec!["panic".to_string()],
         }),
+        "make" => Ok(
+            ModeDef{name                    : mode_name.to_string(),
+                    allows_procs            : true,
+                    allows_base_calls       : true,
+                    allows_base_mut         : true,
+                    allows_base_anything    : false,
+                    needs_main_proc         : true,
+                    imports                 : vec![],
+                    allowed_procs_in_funcs  : vec!["panic".to_string()],
+        }),
 
         _  => return Err(t.error(path, &format!("{} interpreter implementation doesn't support mode '{}'", LANG_NAME, mode_name))),
     };

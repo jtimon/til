@@ -38,7 +38,8 @@ can_be_imported := func(mode_def: ModeDef) returns Bool {
 
 // TODO: Add Vec literals so we can use vec!["panic"] instead of creating a Vec and pushing
 mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef throws Str, AllocError {
-    if mode_name.eq("lib") {
+    switch mode_name {
+    case "lib":
         mut allowed_procs_in_funcs := Vec.new(Str)
         allowed_procs_in_funcs.push("panic")
         return ModeDef(
@@ -49,8 +50,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
             allows_base_anything   = false,
             needs_main_proc        = false,
             allowed_procs_in_funcs = allowed_procs_in_funcs)
-    }
-    if mode_name.eq("liba") {
+    case "liba":
         mut allowed_procs_in_funcs := Vec.new(Str)
         allowed_procs_in_funcs.push("panic")
         allowed_procs_in_funcs.push("print")
@@ -63,8 +63,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
             allows_base_anything   = false,
             needs_main_proc        = false,
             allowed_procs_in_funcs = allowed_procs_in_funcs)
-    }
-    if mode_name.eq("pure") {
+    case "pure":
         mut allowed_procs_in_funcs := Vec.new(Str)
         allowed_procs_in_funcs.push("panic")
         return ModeDef(
@@ -75,8 +74,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
             allows_base_anything   = false,
             needs_main_proc        = false,
             allowed_procs_in_funcs = allowed_procs_in_funcs)
-    }
-    if mode_name.eq("pura") {
+    case "pura":
         mut allowed_procs_in_funcs := Vec.new(Str)
         allowed_procs_in_funcs.push("panic")
         allowed_procs_in_funcs.push("print")
@@ -89,8 +87,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
             allows_base_anything   = false,
             needs_main_proc        = false,
             allowed_procs_in_funcs = allowed_procs_in_funcs)
-    }
-    if mode_name.eq("script") {
+    case "script":
         mut allowed_procs_in_funcs := Vec.new(Str)
         allowed_procs_in_funcs.push("panic")
         return ModeDef(
@@ -101,8 +98,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
             allows_base_anything   = true,
             needs_main_proc        = false,
             allowed_procs_in_funcs = allowed_procs_in_funcs)
-    }
-    if mode_name.eq("safe_script") {
+    case "safe_script":
         mut safe_script_imports := Vec.new(Str)
         safe_script_imports.push("modes.safe_script")
         mut allowed_procs_in_funcs := Vec.new(Str)
@@ -116,8 +112,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
             needs_main_proc        = false,
             imports                = safe_script_imports,
             allowed_procs_in_funcs = allowed_procs_in_funcs)
-    }
-    if mode_name.eq("cli") {
+    case "cli":
         mut allowed_procs_in_funcs := Vec.new(Str)
         allowed_procs_in_funcs.push("panic")
         return ModeDef(
@@ -128,8 +123,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
             allows_base_anything   = false,
             needs_main_proc        = true,
             allowed_procs_in_funcs = allowed_procs_in_funcs)
-    }
-    if mode_name.eq("test") {
+    case "test":
         mut test_imports := Vec.new(Str)
         test_imports.push("modes.test")
         mut allowed_procs_in_funcs := Vec.new(Str)
@@ -143,9 +137,20 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
             needs_main_proc        = false,
             imports                = test_imports,
             allowed_procs_in_funcs = allowed_procs_in_funcs)
+    case "make":
+        mut allowed_procs_in_funcs := Vec.new(Str)
+        allowed_procs_in_funcs.push("panic")
+        return ModeDef(
+            name                   = mode_name,
+            allows_procs           = true,
+            allows_base_calls      = true,
+            allows_base_mut        = true,
+            allows_base_anything   = false,
+            needs_main_proc        = true,
+            allowed_procs_in_funcs = allowed_procs_in_funcs)
+    case:
+        throw t.error(path, format(LANG_NAME, " interpreter implementation doesn't support mode '", mode_name, "'"))
     }
-
-    throw t.error(path, format(LANG_NAME, " interpreter implementation doesn't support mode '", mode_name, "'"))
 }
 
 parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str {
