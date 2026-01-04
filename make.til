@@ -42,7 +42,6 @@ build_rstil := proc() {
     for f: Str in rs_files { deps.push(f) }
 
     if needs_rebuild("bin/rstil", deps).not() {
-        println("bin/rstil is up to date")
         return
     }
 
@@ -91,7 +90,6 @@ build_rstil_til := proc() {
     for f: Str in mode_files { deps.push(f) }
 
     if needs_rebuild("bin/rstil_til", deps).not() {
-        println("bin/rstil_til is up to date")
         return
     }
 
@@ -174,7 +172,14 @@ diff_til := proc() {
     }
 }
 
-main := proc(target: Str) {
+main := proc(args: ..Str) {
+    if not(args.len().eq(1)) {
+        println("Usage: make.til <target>")
+        println("Available targets: clean, rstil, repl, rstil_til, til_til, tests, regen, benchmark, test-cross, diff_til")
+        exit(1)
+    }
+    mut target := ""
+    args.get(0, target)
     switch target {
     case "clean":
         run_clean()
@@ -201,4 +206,6 @@ main := proc(target: Str) {
         println("Available targets: clean, rstil, repl, rstil_til, til_til, tests, regen, benchmark, test-cross, diff_til")
         exit(1)
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
