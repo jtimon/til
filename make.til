@@ -6,13 +6,30 @@ mode make
 import("std.io")
 import("std.sys")
 
+// Run command with streaming output (prints as it goes)
+run_stream_cmd := proc(cmd: Str) returns I64 {
+    println(cmd)
+    pid := spawn_cmd(cmd)
+    status := wait_cmd(pid)
+
+    catch (err: SpawnError) {
+        println("ERROR: ", err.msg)
+        exit(1)
+    }
+    catch (err: SleepError) {
+        println("ERROR: ", err.msg)
+        exit(1)
+    }
+
+    return status
+}
+
 build_rstil_til := proc() {
-    mut out := ""
     mut status := 0
-    status = out.run_cmd("mkdir", "-p", "bin")
-    status = out.run_print_cmd("./bin/rstil", "build", "src/til.til")
-    status = out.run_print_cmd("cp", "gen/c/til.c", "bootstrap/til.c")
-    status = out.run_print_cmd("cp", "bin/til", "bin/rstil_til")
+    status = run_stream_cmd("mkdir -p bin")
+    status = run_stream_cmd("./bin/rstil build src/til.til")
+    status = run_stream_cmd("cp gen/c/til.c bootstrap/til.c")
+    status = run_stream_cmd("cp bin/til bin/rstil_til")
     if status.eq(0).not() {
         exit(1)
     }
@@ -21,22 +38,20 @@ build_rstil_til := proc() {
 // WARNING: This target currently hangs!
 // ./bin/til translate src/til.til takes >2min and doesn't complete
 build_til_til := proc() {
-    mut out := ""
     mut status := 0
-    status = out.run_cmd("mkdir", "-p", "tmp")
-    status = out.run_print_cmd("./bin/til", "build", "src/til.til")
-    status = out.run_print_cmd("cp", "gen/c/til.c", "tmp/til_by_til.c")
-    status = out.run_print_cmd("cp", "bin/til", "bin/til_til")
+    status = run_stream_cmd("mkdir -p tmp")
+    status = run_stream_cmd("./bin/til build src/til.til")
+    status = run_stream_cmd("cp gen/c/til.c tmp/til_by_til.c")
+    status = run_stream_cmd("cp bin/til bin/til_til")
     if status.eq(0).not() {
         exit(1)
     }
 }
 
 run_tests := proc() {
-    mut out := ""
     mut status := 0
-    status = out.run_print_cmd("./bin/rstil", "interpret", "src/tests.til")
-    status = out.run_print_cmd("cp", "gen/c/test/constfold.c", "src/test/constfold.c")
+    status = run_stream_cmd("./bin/rstil interpret src/tests.til")
+    status = run_stream_cmd("cp gen/c/test/constfold.c src/test/constfold.c")
     println("Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c")
     if status.eq(0).not() {
         exit(1)
@@ -44,9 +59,8 @@ run_tests := proc() {
 }
 
 run_regen := proc() {
-    mut out := ""
     mut status := 0
-    status = out.run_print_cmd("./bin/rstil", "interpret", "src/tests.til", "regen")
+    status = run_stream_cmd("./bin/rstil interpret src/tests.til regen")
     println("Regenerated all test outputs")
     if status.eq(0).not() {
         exit(1)
@@ -55,24 +69,22 @@ run_regen := proc() {
 
 run_benchmark := proc() {
     run_tests()
-    mut out := ""
-    _ := out.run_cmd("cp", "gen/benchmark.org", "doc/benchmark.org")
+    _ := run_stream_cmd("cp gen/benchmark.org doc/benchmark.org")
     println("Benchmark saved to doc/benchmark.org, can be committed")
 }
 
 run_test_cross := proc() {
-    mut out := ""
     mut status := 0
     println("=== Cross-compilation tests ===")
     println("linux-arm64...")
-    status = out.run_print_cmd("./bin/rstil", "build", "src/examples/hello_script.til", "--target=linux-arm64")
-    status = out.run_print_cmd("qemu-aarch64", "-L", "/usr/aarch64-linux-gnu", "./bin/examples/hello_script")
+    status = run_stream_cmd("./bin/rstil build src/examples/hello_script.til --target=linux-arm64")
+    status = run_stream_cmd("qemu-aarch64 -L /usr/aarch64-linux-gnu ./bin/examples/hello_script")
     println("linux-riscv64...")
-    status = out.run_print_cmd("./bin/rstil", "build", "src/examples/hello_script.til", "--target=linux-riscv64")
-    status = out.run_print_cmd("qemu-riscv64", "-L", "/usr/riscv64-linux-gnu", "./bin/examples/hello_script")
+    status = run_stream_cmd("./bin/rstil build src/examples/hello_script.til --target=linux-riscv64")
+    status = run_stream_cmd("qemu-riscv64 -L /usr/riscv64-linux-gnu ./bin/examples/hello_script")
     println("windows-x64...")
-    status = out.run_print_cmd("./bin/rstil", "build", "src/examples/hello_script.til", "--target=windows-x64")
-    status = out.run_print_cmd("wine", "./bin/examples/hello_script.exe")
+    status = run_stream_cmd("./bin/rstil build src/examples/hello_script.til --target=windows-x64")
+    status = run_stream_cmd("wine ./bin/examples/hello_script.exe")
     // TODO: macos-x64, macos-arm64 (no emulator available)
     // TODO: wasm32 (needs libc/wasi support)
     println("=== All cross-compilation tests passed ===")
@@ -81,9 +93,8 @@ run_test_cross := proc() {
 // WARNING: This target depends on til_til which hangs
 diff_til := proc() {
     // Compare C output from rstil vs til
-    mut out := ""
     mut status := 0
-    status = out.run_print_cmd("diff", "bootstrap/til.c", "tmp/til_by_til.c")
+    status = run_stream_cmd("diff bootstrap/til.c tmp/til_by_til.c")
     if status.eq(0).not() {
         exit(1)
     }
