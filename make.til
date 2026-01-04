@@ -5,6 +5,7 @@ mode make
 
 import("std.io")
 import("std.sys")
+import("core.vec")
 
 // Run command with streaming output (prints as it goes)
 run_stream_cmd := proc(cmd: Str) returns I64 {
@@ -24,7 +25,76 @@ run_stream_cmd := proc(cmd: Str) returns I64 {
     return status
 }
 
+run_clean := proc() {
+    _ := run_stream_cmd("rm -rf bin/* gen/*")
+}
+
+// REPL = Read-Eval-Print-Loop
+run_repl := proc() {
+    _ := run_stream_cmd("rlwrap ./bin/rstil repl")
+}
+
+build_rstil := proc() {
+    // Check if rstil needs rebuilding
+    mut deps := Vec.new(Str)
+    deps.push("src/rstil.rs")
+    rs_files := glob_files("src/rs/*.rs")
+    for f: Str in rs_files { deps.push(f) }
+
+    if needs_rebuild("bin/rstil", deps).not() {
+        println("bin/rstil is up to date")
+        return
+    }
+
+    mut status := 0
+    status = run_stream_cmd("mkdir -p bin")
+    status = run_stream_cmd("rustc src/rstil.rs -o bin/rstil")
+    if status.eq(0).not() {
+        exit(1)
+    }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
+}
+
+/**
+ * Checks if target needs to be rebuilt based on dependency modification times.
+ * Returns true if target doesn't exist or any dependency is newer than target.
+ */
+needs_rebuild := proc(target: Str, deps: Vec) returns Bool {
+    target_mtime := file_mtime(target)
+    neg_one := sub(0, 1)
+    if target_mtime.eq(neg_one) {
+        return true  // target doesn't exist
+    }
+    for dep: Str in deps {
+        dep_mtime := file_mtime(dep)
+        if dep_mtime.gt(target_mtime) {
+            return true  // dependency is newer
+        }
+    }
+    return false
+}
+
 build_rstil_til := proc() {
+    // Collect dependencies
+    mut deps := Vec.new(Str)
+    deps.push("bin/rstil")
+    deps.push("src/til.til")
+    self_files := glob_files("src/self/*.til")
+    for f: Str in self_files { deps.push(f) }
+    core_files := glob_files("src/core/*.til")
+    for f: Str in core_files { deps.push(f) }
+    std_files := glob_files("src/std/*.til")
+    for f: Str in std_files { deps.push(f) }
+    mode_files := glob_files("src/modes/*.til")
+    for f: Str in mode_files { deps.push(f) }
+
+    if needs_rebuild("bin/rstil_til", deps).not() {
+        println("bin/rstil_til is up to date")
+        return
+    }
+
     mut status := 0
     status = run_stream_cmd("mkdir -p bin")
     status = run_stream_cmd("./bin/rstil build src/til.til")
@@ -33,6 +103,9 @@ build_rstil_til := proc() {
     if status.eq(0).not() {
         exit(1)
     }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 
 // WARNING: This target currently hangs!
@@ -49,6 +122,7 @@ build_til_til := proc() {
 }
 
 run_tests := proc() {
+    build_rstil_til()
     mut status := 0
     status = run_stream_cmd("./src/tests.til")
     status = run_stream_cmd("cp gen/c/test/constfold.c src/test/constfold.c")
@@ -102,6 +176,12 @@ diff_til := proc() {
 
 main := proc(target: Str) {
     switch target {
+    case "clean":
+        run_clean()
+    case "rstil":
+        build_rstil()
+    case "repl":
+        run_repl()
     case "rstil_til":
         build_rstil_til()
     case "til_til":
@@ -118,7 +198,7 @@ main := proc(target: Str) {
         diff_til()
     case:
         println("Unknown target: ", target)
-        println("Available targets: rstil_til, til_til, tests, regen, benchmark, test-cross, diff_til")
+        println("Available targets: clean, rstil, repl, rstil_til, til_til, tests, regen, benchmark, test-cross, diff_til")
         exit(1)
     }
 }
