@@ -2436,6 +2436,7 @@ Modified type checker and code generator to special-case "_" declarations:
 1. In =emit_constant_declaration()=: Use =next_mangled()= to generate unique names for "_" declarations
 2. In =emit_global_declaration()=: Use =next_mangled()= to generate unique names for "_" declarations
 3. In =emit_declaration()=: Use =next_mangled()= to generate unique names for "_" declarations
+4. In =emit_variadic_call()=: Skip variable declaration entirely for "_", just emit the function call (2026-01-04)
 
 This approach:
 - Allows multiple "_" declarations in the same TIL scope
@@ -2450,13 +2451,13 @@ _ := context.imports_typer_done.insert(path)
 #+END_EXAMPLE
 
 *** Test Coverage
-- src/test/underscore.til: Tests multiple "_" declarations at both top-level and function scope
+- src/test/underscore.til: Tests multiple "_" declarations at both top-level and function scope, including variadic function calls
 
 *** Files Modified
 - src/rs/init.rs: declare_var, init_context
-- src/rs/ccodegen.rs: emit_constant_declaration, emit_global_declaration, emit_declaration
+- src/rs/ccodegen.rs: emit_constant_declaration, emit_global_declaration, emit_declaration, emit_variadic_call
 - src/self/init.til: declare_var, init_context
-- src/self/ccodegen.til: emit_constant_declaration, emit_global_declaration, emit_declaration
+- src/self/ccodegen.til: emit_constant_declaration, emit_global_declaration, emit_declaration, emit_variadic_call
 
 ** Bug #33: for-in loops don't work with enum collections
 :PROPERTIES:

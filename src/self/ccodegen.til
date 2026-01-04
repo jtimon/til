@@ -5249,49 +5249,76 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
         }
     }
 
-    // For declarations: declare the variable
+    // For declarations: declare the variable (skip for "_" - Bug #35)
     if gt(decl_name.len(), 0) {
-        result = result.concat(indent_str)
-        result = result.concat(ret_type)
-        result = result.concat(" ")
-        result = result.concat(til_name(decl_name))
-        result = result.concat(" = ")
+        if decl_name.eq("_") {
+            // Bug #35: For underscore, just call the function (discard result)
+            result = result.concat(indent_str)
+            result = result.concat(TIL_PREFIX)
+            result = result.concat(func_name.replace(".", "_"))
+            result = result.concat("(")
 
-        // Emit function call
-        result = result.concat(TIL_PREFIX)
-        result = result.concat(func_name.replace(".", "_"))
-        result = result.concat("(")
+            mut rai := 0
+            while lt(rai, regular_count) {
+                if gt(rai, 0) {
+                    result = result.concat(", ")
+                }
+                mut by_ref := false
+                param_by_ref.get(rai, by_ref)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, by_ref, result, ctx, context)
+                rai = add(rai, 1)
+            }
 
-        // Emit regular args first
-        mut rai := 0
-        while lt(rai, regular_count) {
-            if gt(rai, 0) {
+            if gt(regular_count, 0) {
                 result = result.concat(", ")
             }
-            mut by_ref := false
-            param_by_ref.get(rai, by_ref)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, by_ref, result, ctx, context)
-            rai = add(rai, 1)
-        }
+            result = result.concat("&")
+            result = result.concat(variadic_arr_var)
+            result = result.concat(");\n")
+        } else {
+            result = result.concat(indent_str)
+            result = result.concat(ret_type)
+            result = result.concat(" ")
+            result = result.concat(til_name(decl_name))
+            result = result.concat(" = ")
 
-        // Emit variadic array pointer
-        if gt(regular_count, 0) {
-            result = result.concat(", ")
-        }
-        result = result.concat("&")
-        result = result.concat(variadic_arr_var)
-        result = result.concat(");\n")
+            // Emit function call
+            result = result.concat(TIL_PREFIX)
+            result = result.concat(func_name.replace(".", "_"))
+            result = result.concat("(")
 
-        // Add variable to scope
-        if lookup_result.found {
-            if gt(lookup_result.func_def.return_types.len(), 0) {
-                mut first_type := ValueType.TCustom("")
-                lookup_result.func_def.return_types.get(0, first_type)
-                context.scope_stack.declare_symbol(decl_name, SymbolInfo(value_type=first_type, is_mut=true))
+            // Emit regular args first
+            mut rai := 0
+            while lt(rai, regular_count) {
+                if gt(rai, 0) {
+                    result = result.concat(", ")
+                }
+                mut by_ref := false
+                param_by_ref.get(rai, by_ref)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, by_ref, result, ctx, context)
+                rai = add(rai, 1)
             }
+
+            // Emit variadic array pointer
+            if gt(regular_count, 0) {
+                result = result.concat(", ")
+            }
+            result = result.concat("&")
+            result = result.concat(variadic_arr_var)
+            result = result.concat(");\n")
+
+            // Add variable to scope
+            if lookup_result.found {
+                if gt(lookup_result.func_def.return_types.len(), 0) {
+                    mut first_type := ValueType.TCustom("")
+                    lookup_result.func_def.return_types.get(0, first_type)
+                    context.scope_stack.declare_symbol(decl_name, SymbolInfo(value_type=first_type, is_mut=true))
+                }
+            }
+            _ := ctx.declared_vars.insert(til_name(decl_name))
         }
-        _ := ctx.declared_vars.insert(til_name(decl_name))
     } else {
         if gt(assign_name.len(), 0) {
             // Assignment

@@ -3802,49 +3802,74 @@ fn emit_variadic_call(
         "int".to_string()
     };
 
-    // For declarations: declare the variable
+    // For declarations: declare the variable (skip for "_" - Bug #35)
     if let Some(var_name) = decl_name {
-        output.push_str(&indent_str);
-        output.push_str(&ret_type);
-        output.push_str(" ");
-        output.push_str(&til_name(var_name));
-        output.push_str(" = ");
+        if var_name == "_" {
+            // Bug #35: For underscore, just call the function (discard result)
+            output.push_str(&indent_str);
+            output.push_str(TIL_PREFIX);
+            output.push_str(&func_name.replace('.', "_"));
+            output.push_str("(");
 
-        // Emit function call
-        output.push_str(TIL_PREFIX);
-        output.push_str(&func_name.replace('.', "_"));
-        output.push_str("(");
+            let args: Vec<_> = fcall.params.iter().skip(1).collect();
+            for (i, arg) in args.iter().take(regular_count).enumerate() {
+                if i > 0 {
+                    output.push_str(", ");
+                }
+                let param_type = param_types.get(i).and_then(|p| p.as_ref());
+                let by_ref = param_by_ref.get(i).copied().unwrap_or(false);
+                emit_arg_with_param_type(arg, i, &hoisted, param_type, by_ref, output, ctx, context)?;
+            }
 
-        // Emit regular args first
-        let args: Vec<_> = fcall.params.iter().skip(1).collect();
-        for (i, arg) in args.iter().take(regular_count).enumerate() {
-            if i > 0 {
+            if regular_count > 0 {
                 output.push_str(", ");
             }
-            let param_type = param_types.get(i).and_then(|p| p.as_ref());
-            let by_ref = param_by_ref.get(i).copied().unwrap_or(false);
-            emit_arg_with_param_type(arg, i, &hoisted, param_type, by_ref, output, ctx, context)?;
-        }
+            output.push_str("&");
+            output.push_str(&variadic_arr_var);
+            output.push_str(");\n");
+        } else {
+            output.push_str(&indent_str);
+            output.push_str(&ret_type);
+            output.push_str(" ");
+            output.push_str(&til_name(var_name));
+            output.push_str(" = ");
 
-        // Emit variadic array pointer
-        if regular_count > 0 {
-            output.push_str(", ");
-        }
-        output.push_str("&");
-        output.push_str(&variadic_arr_var);
+            // Emit function call
+            output.push_str(TIL_PREFIX);
+            output.push_str(&func_name.replace('.', "_"));
+            output.push_str("(");
 
-        output.push_str(");\n");
-
-        // Add variable to scope
-        if let Some(fd) = get_fcall_func_def(context, fcall) {
-            if let Some(first_type) = fd.return_types.first() {
-                context.scope_stack.declare_symbol(
-                    var_name.to_string(),
-                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
-                );
+            // Emit regular args first
+            let args: Vec<_> = fcall.params.iter().skip(1).collect();
+            for (i, arg) in args.iter().take(regular_count).enumerate() {
+                if i > 0 {
+                    output.push_str(", ");
+                }
+                let param_type = param_types.get(i).and_then(|p| p.as_ref());
+                let by_ref = param_by_ref.get(i).copied().unwrap_or(false);
+                emit_arg_with_param_type(arg, i, &hoisted, param_type, by_ref, output, ctx, context)?;
             }
+
+            // Emit variadic array pointer
+            if regular_count > 0 {
+                output.push_str(", ");
+            }
+            output.push_str("&");
+            output.push_str(&variadic_arr_var);
+
+            output.push_str(");\n");
+
+            // Add variable to scope
+            if let Some(fd) = get_fcall_func_def(context, fcall) {
+                if let Some(first_type) = fd.return_types.first() {
+                    context.scope_stack.declare_symbol(
+                        var_name.to_string(),
+                        SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false, is_comptime_const: false }
+                    );
+                }
+            }
+            ctx.declared_vars.insert(til_name(var_name));
         }
-        ctx.declared_vars.insert(til_name(var_name));
     } else if let Some(var_name) = assign_name {
         // Assignment
         output.push_str(&indent_str);

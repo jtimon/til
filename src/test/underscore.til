@@ -20,5 +20,19 @@ test_multiple_underscore_decls := proc() {
     println("test_multiple_underscore_decls PASSED")
 }
 
+// Test multiple _ declarations with variadic function calls
+// This tests a different code path in ccodegen (emit_variadic_call)
+variadic_func := func(args: ..I64) returns I64 {
+    return args.len()
+}
+
+test_multiple_underscore_variadic := proc() {
+    // Multiple _ declarations with variadic calls should also work
+    _ := variadic_func(1, 2, 3)
+    _ := variadic_func(4, 5)
+
+    println("test_multiple_underscore_variadic PASSED")
+}
+
 test_multiple_underscore_decls()
-println("test_underscore_toplevel PASSED")
+test_multiple_underscore_variadic()
