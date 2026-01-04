@@ -155,7 +155,7 @@ translate := proc(source: Str) returns Str throws Str {
     mut state := TranslatorState()
     state.tokens = tokens
 
-    mut output := ""
+    mut output := "mode script\n\n"
 
     while not(is_eof(state)) {
         if check_reserved(state, "fn") {
@@ -171,15 +171,9 @@ translate := proc(source: Str) returns Str throws Str {
 
 // Main entry point
 main := proc(input_file: Str) {
-    println("rs2til.til - Rust to TIL translator")
-    println("Input: ", input_file)
-
     source := readfile(input_file)
     output := translate(source)
-
-    println("")
-    println("Output:")
-    println(output)
+    print(output)
 
     catch (err: Str) {
         println("Error: ", err)
