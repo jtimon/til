@@ -1,3 +1,4 @@
+#!/usr/bin/env -S ./bin/rstil interpret
 mode cli
 
 import("std.sys")

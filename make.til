@@ -50,7 +50,7 @@ build_til_til := proc() {
 
 run_tests := proc() {
     mut status := 0
-    status = run_stream_cmd("./bin/rstil interpret src/tests.til")
+    status = run_stream_cmd("./src/tests.til")
     status = run_stream_cmd("cp gen/c/test/constfold.c src/test/constfold.c")
     println("Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c")
     if status.eq(0).not() {
@@ -60,7 +60,7 @@ run_tests := proc() {
 
 run_regen := proc() {
     mut status := 0
-    status = run_stream_cmd("./bin/rstil interpret src/tests.til regen")
+    status = run_stream_cmd("./src/tests.til regen")
     println("Regenerated all test outputs")
     if status.eq(0).not() {
         exit(1)
