@@ -957,6 +957,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/return_value_usage.til"))
     rs_common.push(TestEntry(path="src/test/sets.til"))
     rs_common.push(TestEntry(path="src/test/underscore.til"))
+    rs_common.push(TestEntry(path="src/test/extra_syscalls.til"))  // TODO: glob_files segfaults in til_compiled
 
     mut rs_compiled := Vec.new(TestEntry)
 
@@ -1011,6 +1012,7 @@ main := proc(args: ..Str) {
     til_interpreted.push(TestEntry(path="src/test/undefined.til", expected_status=1))
     til_interpreted.push(TestEntry(path="src/test/underscore.til"))
     til_interpreted.push(TestEntry(path="src/test/vecs.til"))
+    // til_interpreted.push(TestEntry(path="src/test/extra_syscalls.til"))  // TODO: gets stuck, segfaults in til_compiled
     // til_interpreted.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO slow (~4min) but works
 
     // til_compiled: tests run with the self-hosted TIL compiler only

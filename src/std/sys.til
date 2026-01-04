@@ -142,3 +142,33 @@ list_dir := proc(path: Str) returns Vec throws AllocError, IndexOutOfBoundsError
     }
     return raw.split("\n")
 }
+
+/**
+ * Simple glob for "dir/\*.ext" patterns.
+ * Only supports patterns like "path/to/dir/\*.suffix".
+ * Returns full paths (dir + "/" + filename).
+ */
+glob_files := proc(pattern: Str) returns Vec throws AllocError, IndexOutOfBoundsError {
+    // Find last slash to split dir/pattern
+    mut last_slash := 0
+    for i in 0..pattern.len() {
+        if pattern.get_char(i).eq("/") {
+            last_slash = i
+        }
+    }
+
+    dir := get_substr(pattern, 0, last_slash)
+    file_pattern := get_substr(pattern, last_slash.add(1), pattern.len())
+
+    // Extract suffix from "*.til" -> ".til"
+    star_pos := file_pattern.find("*")
+    suffix := get_substr(file_pattern, star_pos.add(1), file_pattern.len())
+
+    mut result := Vec.new(Str)
+    for f: Str in list_dir(dir) {
+        if f.ends_with(suffix) {
+            result.push(format(dir, "/", f))
+        }
+    }
+    return result
+}
