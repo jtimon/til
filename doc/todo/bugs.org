@@ -345,18 +345,20 @@ previously occurred with FuncNameResult. These may require deeper investigation.
 | collect_declarations_in_body | Y | Y |
 | collect_declarations_recursive | Y | Y |
 
-** Bug #64: I64 args in main functions for mode cli don't work
+** Bug #64: Custom main args in mode cli don't work properly
 :PROPERTIES:
 :DISCOVERED: 2025-12-30
-:IMPACT: CLI programs must use Str for all args and parse manually
+:IMPACT: CLI programs must use args: ..Str and parse manually
 :STATUS: Active
 :END:
 
 *** Description
-When using typed parameters in main for cli mode, I64 parameters cause a type error
-even when the caller provides a valid integer string.
+Mode cli has two issues with custom main signatures:
 
-*** Reproducing
+1. I64 parameters cause a type error even when the caller provides a valid integer string (interpreted mode)
+2. Custom named parameters don't work at all in compiled mode - only ~args: ..Str~ works
+
+*** Reproducing Issue 1 (I64 args in interpreted mode)
 #+BEGIN_SRC til
 mode cli
 main := proc(name: Str, count: I64) {
@@ -368,18 +370,32 @@ Running: ~./bin/rstil interpret test.til hello 42~
 
 Error: ~calling function 'main' expects 'I64' for arg 'count', but 'Str' was provided~
 
-*** Workaround
-Use Str for all args and parse manually:
+*** Reproducing Issue 2 (custom named args in compiled mode)
 #+BEGIN_SRC til
-main := proc(name: Str, count_str: Str) {
-    count := count_str.to_i64()
+mode cli
+main := proc(name: Str, value: Str) {
+    println("name:", name, "value:", value)
+}
+#+END_SRC
+
+Running: ~./bin/rstil run test.til hello world~
+
+Error: C codegen produces ~til_main(&_main_args)~ with 1 arg but til_main expects 2+.
+The C codegen only handles the standard ~args: ..Str~ pattern.
+
+*** Workaround
+Use ~args: ..Str~ and parse manually:
+#+BEGIN_SRC til
+main := proc(args: ..Str) {
+    name := args.get(0)
+    count := args.get(1).to_i64()
     println("name:", name, "count:", count.to_str())
 }
 #+END_SRC
 
 *** Fix
-The interpreter/compiler should auto-convert Str args to I64 when the main
-function signature expects I64.
+1. The interpreter should auto-convert Str args to I64 when main expects I64.
+2. The C codegen should unpack argv into individual named parameters for custom signatures.
 
 * Fixed Bugs
 
