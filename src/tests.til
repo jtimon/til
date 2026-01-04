@@ -1078,6 +1078,7 @@ main := proc(args: ..Str) {
     // all_common.push(TestEntry(path="src/test/sets.til"))  // TODO: not tested yet
     all_common.push(TestEntry(path="src/test/strings.til"))
     all_common.push(TestEntry(path="src/test/structs.til"))
+    all_common.push(TestEntry(path="src/test/syscalls.til"))
     // all_common.push(TestEntry(path="src/test/test_lexer.til"))  // TODO: segfault
     all_common.push(TestEntry(path="src/test/u8.til"))
     // all_common.push(TestEntry(path="src/test/ufcs.til"))  // TODO: segfault

@@ -694,3 +694,29 @@ proc_get_thread_count := proc(mut context: Context, e: Expr) returns EvalResult 
 
     return EvalResult.new(count.to_str())
 }
+
+func_file_mtime := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "file_mtime", 1, false)
+
+    path_result := eval_expr(context, e.get(1))
+    if path_result.is_throw { return path_result }
+    path := path_result.value
+
+    // Call host-provided file_mtime (when running on rstil)
+    mtime := file_mtime(path)
+
+    return EvalResult.new(mtime.to_str())
+}
+
+func_list_dir_raw := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "list_dir_raw", 1, false)
+
+    path_result := eval_expr(context, e.get(1))
+    if path_result.is_throw { return path_result }
+    path := path_result.value
+
+    // Call host-provided list_dir_raw (when running on rstil)
+    raw := list_dir_raw(path)
+
+    return EvalResult.new(raw)
+}

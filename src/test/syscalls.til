@@ -1,0 +1,62 @@
+mode test
+
+import("std.sys")
+import("core.vec")
+
+// Test file_mtime on existing file
+test_file_mtime_exists := proc() {
+    // This test file itself should exist
+    mtime := file_mtime("src/test/syscalls.til")
+    if mtime.lt(0) {
+        panic(loc(), "file_mtime returned -1 for existing file")
+    }
+    // Sanity check: mtime should be after year 2020 (timestamp > 1577836800)
+    if mtime.lt(1577836800) {
+        panic(loc(), "file_mtime returned unreasonably old timestamp")
+    }
+}
+test_file_mtime_exists()
+
+// Test file_mtime on non-existing file
+test_file_mtime_not_exists := proc() {
+    mtime := file_mtime("nonexistent_file_12345.xyz")
+    neg_one := sub(0, 1)
+    if not(mtime.eq(neg_one)) {
+        panic(loc(), "file_mtime should return -1 for non-existing file")
+    }
+}
+test_file_mtime_not_exists()
+
+// Test list_dir on existing directory
+test_list_dir_exists := proc() {
+    files := list_dir("src/test")
+    if files.len().lt(1) {
+        panic(loc(), "list_dir returned empty for src/test which has many files")
+    }
+    // Check that syscalls.til is in the list
+    mut found := false
+    for f: Str in files {
+        if f.eq("syscalls.til") {
+            found = true
+        }
+    }
+    if not(found) {
+        panic(loc(), "list_dir did not find syscalls.til in src/test")
+    }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
+}
+test_list_dir_exists()
+
+// Test list_dir on non-existing directory
+test_list_dir_not_exists := proc() {
+    files := list_dir("nonexistent_directory_12345")
+    if not(files.len().eq(0)) {
+        panic(loc(), "list_dir should return empty vec for non-existing directory")
+    }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
+}
+test_list_dir_not_exists()

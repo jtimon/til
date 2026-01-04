@@ -3361,6 +3361,10 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return proc_sleep(context, e)
     } else if name.eq("get_thread_count") {
         return proc_get_thread_count(context, e)
+    } else if name.eq("file_mtime") {
+        return func_file_mtime(context, e)
+    } else if name.eq("list_dir_raw") {
+        return func_list_dir_raw(context, e)
     } else if name.eq("eval_file") {
         return proc_eval_file(context, e)
     } else if name.eq("has_const") {

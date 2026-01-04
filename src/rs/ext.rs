@@ -726,6 +726,45 @@ pub fn proc_get_thread_count(context: &mut Context, e: &Expr) -> Result<EvalResu
     Ok(EvalResult::new(&count.to_string()))
 }
 
+// file_mtime: Returns file modification time as Unix timestamp, -1 if not exists
+pub fn func_file_mtime(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "file_mtime", 1, false)?;
+
+    let path = eval_or_throw!(context, e.get(1)?);
+
+    match fs::metadata(&path) {
+        Ok(metadata) => {
+            match metadata.modified() {
+                Ok(time) => {
+                    let duration = time.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+                    Ok(EvalResult::new(&(duration.as_secs() as i64).to_string()))
+                }
+                Err(_) => Ok(EvalResult::new("-1")),
+            }
+        }
+        Err(_) => Ok(EvalResult::new("-1")),
+    }
+}
+
+// list_dir_raw: List files in a directory, returns newline-separated Str
+pub fn func_list_dir_raw(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "list_dir_raw", 1, false)?;
+
+    let path = eval_or_throw!(context, e.get(1)?);
+
+    match fs::read_dir(&path) {
+        Ok(entries) => {
+            let names: Vec<String> = entries
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|name| !name.starts_with('.'))
+                .collect();
+            Ok(EvalResult::new(&names.join("\n")))
+        }
+        Err(_) => Ok(EvalResult::new("")),
+    }
+}
+
 // ---------- Introspection functions
 
 pub fn func_has_const(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {

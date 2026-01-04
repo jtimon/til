@@ -322,6 +322,51 @@ static inline til_I64 til_get_thread_count(void) {
     return (til_I64)sysinfo.dwNumberOfProcessors;
 }
 
+// file_mtime: Returns file modification time as Unix timestamp, -1 if not exists
+static inline til_I64 til_file_mtime(const til_Str* path) {
+    HANDLE h = CreateFileA((char*)path->c_string, GENERIC_READ,
+        FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) return -1;
+    FILETIME ft;
+    if (!GetFileTime(h, NULL, NULL, &ft)) { CloseHandle(h); return -1; }
+    CloseHandle(h);
+    // Convert FILETIME to Unix timestamp
+    ULARGE_INTEGER ull;
+    ull.LowPart = ft.dwLowDateTime;
+    ull.HighPart = ft.dwHighDateTime;
+    return (til_I64)((ull.QuadPart - 116444736000000000ULL) / 10000000ULL);
+}
+
+// list_dir_raw: List files in a directory, returns newline-separated Str
+static inline til_Str til_list_dir_raw(const til_Str* path) {
+    char pattern[1024];
+    snprintf(pattern, sizeof(pattern), "%s/*", (char*)path->c_string);
+
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pattern, &fd);
+    if (h == INVALID_HANDLE_VALUE) return (til_Str){0, 0};
+
+    char buf[65536];
+    size_t pos = 0;
+    int first = 1;
+    do {
+        if (fd.cFileName[0] == '.') continue;  // skip . and ..
+        size_t len = strlen(fd.cFileName);
+        if (pos + len + 2 >= sizeof(buf)) break;  // buffer full
+        if (!first) buf[pos++] = '\n';
+        memcpy(buf + pos, fd.cFileName, len);
+        pos += len;
+        first = 0;
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
+    buf[pos] = '\0';
+
+    // Allocate and copy result
+    char* result = (char*)malloc(pos + 1);
+    memcpy(result, buf, pos + 1);
+    return (til_Str){(til_I64)result, pos};
+}
+
 #else  // Unix
 
 #include <unistd.h>
@@ -370,6 +415,42 @@ static inline int til_sleep(void* _err_v, const til_I64* ms) {
 static inline til_I64 til_get_thread_count(void) {
     long count = sysconf(_SC_NPROCESSORS_ONLN);
     return count > 0 ? (til_I64)count : 1;
+}
+
+// file_mtime: Returns file modification time as Unix timestamp, -1 if not exists
+#include <sys/stat.h>
+static inline til_I64 til_file_mtime(const til_Str* path) {
+    struct stat st;
+    if (stat((char*)path->c_string, &st) != 0) return -1;
+    return (til_I64)st.st_mtime;
+}
+
+// list_dir_raw: List files in a directory, returns newline-separated Str
+#include <dirent.h>
+static inline til_Str til_list_dir_raw(const til_Str* path) {
+    DIR* d = opendir((char*)path->c_string);
+    if (!d) return (til_Str){0, 0};
+
+    char buf[65536];
+    size_t pos = 0;
+    int first = 1;
+    struct dirent* entry;
+    while ((entry = readdir(d)) != NULL) {
+        if (entry->d_name[0] == '.') continue;  // skip . and ..
+        size_t len = strlen(entry->d_name);
+        if (pos + len + 2 >= sizeof(buf)) break;  // buffer full
+        if (!first) buf[pos++] = '\n';
+        memcpy(buf + pos, entry->d_name, len);
+        pos += len;
+        first = 0;
+    }
+    closedir(d);
+    buf[pos] = '\0';
+
+    // Allocate and copy result
+    char* result = (char*)malloc(pos + 1);
+    memcpy(result, buf, pos + 1);
+    return (til_Str){(til_I64)result, pos};
 }
 
 #endif  // _WIN32

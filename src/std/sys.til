@@ -116,3 +116,29 @@ sleep := ext_proc(milliseconds: I64) throws SleepError;
  * Returns: Number of threads (always >= 1)
  */
 get_thread_count := ext_proc() returns I64;
+
+/**
+ * Returns the modification time of a file as Unix timestamp (seconds since epoch).
+ * Returns -1 if the file does not exist or cannot be accessed.
+ */
+file_mtime := ext_proc(path: Str) returns I64;
+
+/**
+ * Lists files in a directory (raw version returning newline-separated string).
+ * Returns filenames only (not full paths), excluding "." and "..".
+ * Returns empty string if directory doesn't exist.
+ */
+list_dir_raw := ext_proc(path: Str) returns Str;
+
+/**
+ * Lists files in a directory.
+ * Returns filenames only (not full paths), excluding "." and "..".
+ * Returns empty vector (of Str) if directory doesn't exist.
+ */
+list_dir := proc(path: Str) returns Vec throws AllocError, IndexOutOfBoundsError {
+    raw := list_dir_raw(path)
+    if raw.len().eq(0) {
+        return Vec.new(Str)
+    }
+    return raw.split("\n")
+}
