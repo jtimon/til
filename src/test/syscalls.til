@@ -1,7 +1,6 @@
 mode test
 
 import("std.sys")
-import("core.vec")
 
 // Test file_mtime on existing file
 test_file_mtime_exists := proc() {
@@ -27,36 +26,24 @@ test_file_mtime_not_exists := proc() {
 }
 test_file_mtime_not_exists()
 
-// Test list_dir on existing directory
-test_list_dir_exists := proc() {
-    files := list_dir("src/test")
-    if files.len().lt(1) {
-        panic(loc(), "list_dir returned empty for src/test which has many files")
+// Test list_dir_raw on existing directory
+test_list_dir_raw_exists := proc() {
+    raw := list_dir_raw("src/test")
+    if raw.len().lt(1) {
+        panic(loc(), "list_dir_raw returned empty for src/test which has many files")
     }
-    // Check that syscalls.til is in the list
-    mut found := false
-    for f: Str in files {
-        if f.eq("syscalls.til") {
-            found = true
-        }
+    // Check that syscalls.til is in the raw string
+    if raw.find("syscalls.til").lt(0) {
+        panic(loc(), "list_dir_raw did not find syscalls.til in src/test")
     }
-    if not(found) {
-        panic(loc(), "list_dir did not find syscalls.til in src/test")
-    }
-
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
-test_list_dir_exists()
+test_list_dir_raw_exists()
 
-// Test list_dir on non-existing directory
-test_list_dir_not_exists := proc() {
-    files := list_dir("nonexistent_directory_12345")
-    if not(files.len().eq(0)) {
-        panic(loc(), "list_dir should return empty vec for non-existing directory")
+// Test list_dir_raw on non-existing directory
+test_list_dir_raw_not_exists := proc() {
+    raw := list_dir_raw("nonexistent_directory_12345")
+    if not(raw.len().eq(0)) {
+        panic(loc(), "list_dir_raw should return empty string for non-existing directory")
     }
-
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
-test_list_dir_not_exists()
+test_list_dir_raw_not_exists()

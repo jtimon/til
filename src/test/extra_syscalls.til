@@ -3,7 +3,29 @@ mode test
 import("std.sys")
 import("core.vec")
 
-// Test glob_files
+// Test list_dir wrapper (uses list_dir_raw + split)
+test_list_dir := proc() {
+    files := list_dir("src/test")
+    if files.len().lt(10) {
+        panic(loc(), "list_dir should find many files in src/test")
+    }
+    // Check that syscalls.til is in the list
+    mut found := false
+    for f: Str in files {
+        if f.eq("syscalls.til") {
+            found = true
+        }
+    }
+    if not(found) {
+        panic(loc(), "list_dir did not find syscalls.til in src/test")
+    }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
+}
+test_list_dir()
+
+// Test glob_files wrapper (uses list_dir + ends_with filter)
 test_glob_files := proc() {
     files := glob_files("src/test/*.til")
     // Should find many .til files
