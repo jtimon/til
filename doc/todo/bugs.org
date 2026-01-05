@@ -441,7 +441,7 @@ All enums and functions match:
 | CatchLabelInfoEntry | DIVERGE | TIL has extra ~catch_block: Expr~ field |
 | ParamTypeInfo | MATCH | Changed to use ~Ptr~ for value_type, removed ~has_type~ |
 | SwitchCaseInfo | MATCH | Struct removed entirely from both Rust and TIL - parser enforces default-last |
-| ThrowingFCallInfo | DIVERGE | Fixed: both use ~return_types: Vec~. TIL still has extra ~is_throwing: Bool~ |
+| ThrowingFCallInfo | MATCH | Struct removed entirely from both Rust and TIL - logic inlined at call sites |
 | VariadicFCallInfo | DIVERGE | TIL has extra ~is_variadic: Bool~ field |
 | CodegenContext | MATCH | Rust changed to ~String~ with ~""~ = None per rs2til.org |
 
@@ -554,7 +554,7 @@ NOTE: Same common divergence patterns as Emit Functions (see above).
 
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
-| check_throwing_fcall | Y | Y | DIVERGE | Rust returns Option, TIL throws; TIL inlines func lookup logic |
+| check_throwing_fcall | N | N | MATCH | Function removed entirely from both - logic inlined at 3 call sites |
 | hoist_throwing_expr | Y | Y | DIVERGE | Common patterns |
 | hoist_throwing_args | Y | Y | DIVERGE | Common patterns |
 | hoist_for_ref_params | Y | Y | DIVERGE | Common patterns |

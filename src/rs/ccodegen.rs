@@ -389,19 +389,6 @@ fn topological_sort_types(types: &[&Expr]) -> Vec<usize> {
     result
 }
 
-/// Check if an expression is a throwing function call
-/// Returns Some(ThrowingFCallInfo) if it is, None otherwise
-fn check_throwing_fcall(expr: &Expr, _ctx: &CodegenContext, context: &Context) -> Option<ThrowingFCallInfo> {
-    if let NodeType::FCall = &expr.node_type {
-        if let Some(fd) = get_fcall_func_def(context, expr) {
-            if !fd.throw_types.is_empty() {
-                return Some(ThrowingFCallInfo { throw_types: fd.throw_types.clone(), return_types: fd.return_types.clone() });
-            }
-        }
-    }
-    None
-}
-
 /// Hoist a single expression if it's a throwing call, or recursively hoist throwing calls within it.
 /// Returns Some(temp_var_name) if the expression itself was hoisted, None otherwise.
 /// The hoisted_exprs map in ctx is updated with any sub-expressions that were hoisted.
@@ -415,7 +402,9 @@ fn hoist_throwing_expr(
     let indent_str = "    ".repeat(indent);
 
     // Check if this expression itself is a throwing call
-    if let Some(throwing_info) = check_throwing_fcall(expr, ctx, context) {
+    if let NodeType::FCall = &expr.node_type {
+    if let Some(throwing_fd) = get_fcall_func_def(context, expr) {
+    if !throwing_fd.throw_types.is_empty() {
         // First, recursively hoist any throwing calls in this call's arguments
         let nested_hoisted: std::collections::HashMap<usize, String> = if expr.params.len() > 1 {
             let nested_args = &expr.params[1..];
@@ -428,8 +417,8 @@ fn hoist_throwing_expr(
         let temp_var = next_mangled(ctx);
 
         // Determine the C type for the temp variable
-        let c_type = if !throwing_info.return_types.is_empty() {
-            til_type_to_c(throwing_info.return_types.first().unwrap()).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
+        let c_type = if !throwing_fd.return_types.is_empty() {
+            til_type_to_c(throwing_fd.return_types.first().unwrap()).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
         } else {
             return Err(expr.lang_error(&context.path, "ccodegen", "Cannot hoist throwing call with no return type"));
         };
@@ -443,7 +432,7 @@ fn hoist_throwing_expr(
 
         // Declare error variables for each throw type
         let temp_suffix = next_mangled(ctx);
-        for (err_idx, throw_type) in throwing_info.throw_types.iter().enumerate() {
+        for (err_idx, throw_type) in throwing_fd.throw_types.iter().enumerate() {
             if let ValueType::TCustom(type_name) = throw_type {
                 output.push_str(&indent_str);
                 output.push_str(&til_name(type_name));
@@ -475,14 +464,14 @@ fn hoist_throwing_expr(
         output.push_str(" = ");
 
         // Emit the function name and args (using nested hoisted temps)
-        emit_fcall_name_and_args_for_throwing(expr, &temp_var, &temp_suffix, &throwing_info.throw_types, &nested_hoisted, variadic_arr_var.as_deref(), output, ctx, context)?;
+        emit_fcall_name_and_args_for_throwing(expr, &temp_var, &temp_suffix, &throwing_fd.throw_types, &nested_hoisted, variadic_arr_var.as_deref(), output, ctx, context)?;
 
         output.push_str(";\n");
 
         // Emit error checking - propagate or goto based on context
         // Check if there are local catch labels for these error types
         let mut has_local_catch = false;
-        for throw_type in &throwing_info.throw_types {
+        for throw_type in &throwing_fd.throw_types {
             if let ValueType::TCustom(type_name) = throw_type {
                 if ctx.local_catch_labels.contains_key(type_name) {
                     has_local_catch = true;
@@ -493,7 +482,7 @@ fn hoist_throwing_expr(
 
         if has_local_catch {
             // Use goto for local catches
-            for (err_idx, throw_type) in throwing_info.throw_types.iter().enumerate() {
+            for (err_idx, throw_type) in throwing_fd.throw_types.iter().enumerate() {
                 if let ValueType::TCustom(type_name) = throw_type {
                     if let Some(catch_info) = ctx.local_catch_labels.get(type_name) {
                         output.push_str(&indent_str);
@@ -520,7 +509,7 @@ fn hoist_throwing_expr(
             output.push_str(&temp_suffix);
             output.push_str(" != 0) {\n");
 
-            for (err_idx, throw_type) in throwing_info.throw_types.iter().enumerate() {
+            for (err_idx, throw_type) in throwing_fd.throw_types.iter().enumerate() {
                 if let ValueType::TCustom(type_name) = throw_type {
                     for (curr_idx, curr_throw) in ctx.current_throw_types.iter().enumerate() {
                         if let ValueType::TCustom(curr_type_name) = curr_throw {
@@ -564,7 +553,7 @@ fn hoist_throwing_expr(
         ctx.hoisted_exprs.insert(expr_addr, temp_var.clone());
 
         return Ok(Some(temp_var));
-    }
+    }}}
 
     // Check if this is a non-throwing variadic call - also needs hoisting
     if let NodeType::FCall = &expr.node_type {
@@ -748,12 +737,16 @@ fn hoist_throwing_args(
 
     for (idx, arg) in args.iter().enumerate() {
         // Check if it's a throwing call
-        let throwing_info = check_throwing_fcall(arg, ctx, context);
+        let throwing_fd_opt = if let NodeType::FCall = &arg.node_type {
+            get_fcall_func_def(context, arg).filter(|fd| !fd.throw_types.is_empty())
+        } else {
+            None
+        };
         // Check if it's a variadic call (even if not throwing)
         let variadic_info = detect_variadic_fcall(arg, ctx);
 
         // Handle throwing calls (may also be variadic)
-        if let Some(throwing_fcall_info) = throwing_info {
+        if let Some(throwing_fd) = throwing_fd_opt {
             // RECURSIVELY hoist any throwing calls in this call's arguments first
             let nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
                 let nested_args = &arg.params[1..];
@@ -766,8 +759,8 @@ fn hoist_throwing_args(
             let temp_var = next_mangled(ctx);
 
             // Determine the C type for the temp variable
-            let c_type = if !throwing_fcall_info.return_types.is_empty() {
-                til_type_to_c(throwing_fcall_info.return_types.first().unwrap()).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))?
+            let c_type = if !throwing_fd.return_types.is_empty() {
+                til_type_to_c(throwing_fd.return_types.first().unwrap()).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))?
             } else {
                 return Err(arg.lang_error(&context.path, "ccodegen", "Cannot hoist throwing call with no return type"));
             };
@@ -781,7 +774,7 @@ fn hoist_throwing_args(
 
             // Declare error variables for each throw type
             let temp_suffix = next_mangled(ctx);
-            for (err_idx, throw_type) in throwing_fcall_info.throw_types.iter().enumerate() {
+            for (err_idx, throw_type) in throwing_fd.throw_types.iter().enumerate() {
                 if let ValueType::TCustom(type_name) = throw_type {
                     output.push_str(&indent_str);
                     output.push_str(&til_name(type_name));
@@ -813,7 +806,7 @@ fn hoist_throwing_args(
             output.push_str(" = ");
 
             // Emit the function name and args (using nested hoisted temps)
-            emit_fcall_name_and_args_for_throwing(arg, &temp_var, &temp_suffix, &throwing_fcall_info.throw_types, &nested_hoisted, variadic_arr_var.as_deref(), output, ctx, context)?;
+            emit_fcall_name_and_args_for_throwing(arg, &temp_var, &temp_suffix, &throwing_fd.throw_types, &nested_hoisted, variadic_arr_var.as_deref(), output, ctx, context)?;
 
             output.push_str(";\n");
 
@@ -825,7 +818,7 @@ fn hoist_throwing_args(
 
             // Propagate error based on status value
             // For now, propagate to corresponding error pointer in current function
-            for (err_idx, throw_type) in throwing_fcall_info.throw_types.iter().enumerate() {
+            for (err_idx, throw_type) in throwing_fd.throw_types.iter().enumerate() {
                 if let ValueType::TCustom(type_name) = throw_type {
                     // Find matching throw type in current function
                     for (curr_idx, curr_throw) in ctx.current_throw_types.iter().enumerate() {
@@ -1103,18 +1096,22 @@ fn hoist_for_dynamic_params(
             }
             NodeType::FCall => {
                 // For function calls, try to determine return type
-                if let Some(throwing_fcall_info) = check_throwing_fcall(arg, ctx, context) {
-                    if throwing_fcall_info.return_types.is_empty() {
-                        return Err(arg.lang_error(&context.path, "ccodegen", "Throwing call has no return type"));
-                    }
-                    til_type_to_c(throwing_fcall_info.return_types.first().unwrap()).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
-                } else if let Some(func_name) = get_fcall_func_name(arg) {
-                    // Non-throwing function call - look up return type
-                    if let Some(fd) = get_fcall_func_def(context, arg) {
+                if let Some(fd) = get_fcall_func_def(context, arg) {
+                    if !fd.throw_types.is_empty() {
+                        // Throwing call
+                        if fd.return_types.is_empty() {
+                            return Err(arg.lang_error(&context.path, "ccodegen", "Throwing call has no return type"));
+                        }
+                        til_type_to_c(fd.return_types.first().unwrap()).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
+                    } else {
+                        // Non-throwing call
                         let ret_type = fd.return_types.first()
                             .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Function has no return type"))?;
                         til_type_to_c(ret_type).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
-                    } else if func_name.contains('_') {
+                    }
+                } else if let Some(func_name) = get_fcall_func_name(arg) {
+                    // get_fcall_func_def returned None - check for constructors
+                    if func_name.contains('_') {
                         // Check if this is an enum constructor (Type_Variant)
                         let parts: Vec<&str> = func_name.splitn(2, '_').collect();
                         if parts.len() == 2 {
@@ -6140,11 +6137,6 @@ struct CollectedDeclaration {
 }
 
 
-// Info about a throwing function call
-struct ThrowingFCallInfo {
-    throw_types: Vec<ValueType>,
-    return_types: Vec<ValueType>,
-}
 
 // Info about a variadic function call
 #[derive(Clone)]

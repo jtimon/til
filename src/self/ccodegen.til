@@ -397,13 +397,6 @@ detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext) returns VariadicF
     return result
 }
 
-// Result type for check_throwing_fcall
-ThrowingFCallInfo := struct {
-    mut is_throwing: Bool = false
-    mut throw_types: Vec = Vec.new(ValueType)
-    mut return_types: Vec = Vec.new(ValueType)
-}
-
 // Result type for hoisted arguments
 HoistedArg := struct {
     mut index: I64 = 0
@@ -579,58 +572,6 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
 }
 
 // Forward declaration - get_fcall_func_name is defined later in the file
-// We'll use a simplified version here that just gets the basic name
-
-// Check if an expression is a throwing function call
-// Returns info about the throwing call if it is one
-check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) returns ThrowingFCallInfo throws Str {
-    mut result := ThrowingFCallInfo()
-    switch expr.node_type {
-    case NodeType.FCall:
-        // Get function name (simplified - just basic name extraction)
-        if gt(expr.params.len(), 0) {
-            mut first := Expr()
-            expr.params.get(0, first)
-            mut func_name := ""
-            switch first.node_type {
-            case NodeType.Identifier(name):
-                if gt(first.params.len(), 0) {
-                    // Type-qualified: Type.method - method is the LAST param (AST is flat)
-                    mut method_idx := sub(first.params.len(), 1)
-                    mut method_expr := Expr()
-                    first.params.get(method_idx, method_expr)
-                    switch method_expr.node_type {
-                    case NodeType.Identifier(method_name):
-                        func_name = method_name
-                    case:
-                        // Not identifier
-                    }
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
-                } else {
-                    func_name = name
-                }
-            case:
-                // Not identifier
-            }
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-
-            if gt(func_name.len(), 0) {
-                mut lookup_result := get_fcall_func_def(context, expr)
-                if lookup_result.found {
-                    if gt(lookup_result.func_def.throw_types.len(), 0) {
-                        result.is_throwing = true
-                        result.throw_types = lookup_result.func_def.throw_types
-                        result.return_types = lookup_result.func_def.return_types
-                    }
-                }
-            }
-        }
-    case:
-        // Not an FCall
-    }
-    return result
-}
-
 // Hoist a single expression if it's a throwing call, or recursively hoist throwing calls within it.
 // Returns the output string with hoisted code prepended.
 hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
@@ -643,8 +584,11 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
     }
 
     // Check if this expression itself is a throwing call
-    mut throwing_info := check_throwing_fcall(expr, ctx, context)
-    if throwing_info.is_throwing {
+    switch expr.node_type {
+    case NodeType.FCall:
+        mut throwing_fd := get_fcall_func_def(context, expr)
+        if throwing_fd.found {
+        if gt(throwing_fd.func_def.throw_types.len(), 0) {
         // First, recursively hoist any throwing calls in this call's arguments
         mut nested_hoisted := Map.new(I64, Str)
         if gt(expr.params.len(), 1) {
@@ -665,9 +609,9 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
 
         // Determine the C type for the temp variable
         mut c_type := ""
-        if throwing_info.return_types.len().gt(0) {
+        if throwing_fd.func_def.return_types.len().gt(0) {
             mut first_ret := ValueType.TCustom("")
-            throwing_info.return_types.get(0, first_ret)
+            throwing_fd.func_def.return_types.get(0, first_ret)
             c_type = til_type_to_c(first_ret)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
         } else {
@@ -680,9 +624,9 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         // Declare error variables for each throw type
         mut temp_suffix := next_mangled(ctx)
         mut err_idx := 0
-        while lt(err_idx, throwing_info.throw_types.len()) {
+        while lt(err_idx, throwing_fd.func_def.throw_types.len()) {
             mut throw_type := ValueType.TCustom("")
-            throwing_info.throw_types.get(err_idx, throw_type)
+            throwing_fd.func_def.throw_types.get(err_idx, throw_type)
             switch throw_type {
             case ValueType.TCustom(type_name):
                 result = result.concat(indent_str).concat(til_name(type_name)).concat(" _err").concat(err_idx.to_str()).concat("_").concat(temp_suffix).concat(";\n")
@@ -715,7 +659,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         result = result.concat(indent_str).concat("int _status_").concat(temp_suffix).concat(" = ")
 
         // Emit the function name and args (using nested hoisted temps)
-        result = emit_fcall_name_and_args_for_throwing(expr, temp_var, temp_suffix, throwing_info.throw_types, nested_hoisted, variadic_arr_var, result, ctx, context)
+        result = emit_fcall_name_and_args_for_throwing(expr, temp_var, temp_suffix, throwing_fd.func_def.throw_types, nested_hoisted, variadic_arr_var, result, ctx, context)
 
         result = result.concat(";\n")
 
@@ -723,9 +667,9 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         // Check if there are local catch labels for these error types
         mut has_local_catch := false
         mut throw_check_idx := 0
-        while lt(throw_check_idx, throwing_info.throw_types.len()) {
+        while lt(throw_check_idx, throwing_fd.func_def.throw_types.len()) {
             mut throw_type := ValueType.TCustom("")
-            throwing_info.throw_types.get(throw_check_idx, throw_type)
+            throwing_fd.func_def.throw_types.get(throw_check_idx, throw_type)
             switch throw_type {
             case ValueType.TCustom(type_name):
                 if ctx.local_catch_labels.contains_key(type_name) {
@@ -741,9 +685,9 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         if has_local_catch {
             // Use goto for local catches
             err_idx = 0
-            while lt(err_idx, throwing_info.throw_types.len()) {
+            while lt(err_idx, throwing_fd.func_def.throw_types.len()) {
                 mut throw_type := ValueType.TCustom("")
-                throwing_info.throw_types.get(err_idx, throw_type)
+                throwing_fd.func_def.throw_types.get(err_idx, throw_type)
                 switch throw_type {
                 case ValueType.TCustom(type_name):
                     if ctx.local_catch_labels.contains_key(type_name) {
@@ -764,9 +708,9 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
             result = result.concat(indent_str).concat("if (_status_").concat(temp_suffix).concat(" != 0) {\n")
 
             err_idx = 0
-            while lt(err_idx, throwing_info.throw_types.len()) {
+            while lt(err_idx, throwing_fd.func_def.throw_types.len()) {
                 mut throw_type := ValueType.TCustom("")
-                throwing_info.throw_types.get(err_idx, throw_type)
+                throwing_fd.func_def.throw_types.get(err_idx, throw_type)
                 switch throw_type {
                 case ValueType.TCustom(type_name):
                     mut curr_idx := 0
@@ -805,6 +749,8 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         ctx.hoisted_exprs.set(expr_addr, temp_var)
 
         return result
+    }}
+    case:
     }
 
     // Check if this is a non-throwing variadic call - also needs hoisting
@@ -8369,12 +8315,22 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
         args.get(idx, arg)
 
         // Check if it's a throwing call
-        mut throwing_info := check_throwing_fcall(arg, ctx, context)
+        mut throwing_fd := FuncLookupResult()
+        switch arg.node_type {
+        case NodeType.FCall:
+            mut fd_result := get_fcall_func_def(context, arg)
+            if fd_result.found {
+                if gt(fd_result.func_def.throw_types.len(), 0) {
+                    throwing_fd = fd_result
+                }
+            }
+        case:
+        }
         // Check if it's a variadic call (even if not throwing)
         mut variadic_info := detect_variadic_fcall(arg, ctx)
 
         // Handle throwing calls (may also be variadic)
-        if throwing_info.is_throwing {
+        if throwing_fd.found {
             // RECURSIVELY hoist any throwing calls in this call's arguments first
             mut nested_hoisted := Map.new(I64, Str)
             if gt(arg.params.len(), 1) {
@@ -8393,9 +8349,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             // Determine C type for temp variable
             mut c_type := ""
-            if throwing_info.return_types.len().gt(0) {
+            if throwing_fd.func_def.return_types.len().gt(0) {
                 mut first_ret := ValueType.TCustom("")
-                throwing_info.return_types.get(0, first_ret)
+                throwing_fd.func_def.return_types.get(0, first_ret)
                 c_type = til_type_to_c(first_ret)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
             } else {
@@ -8412,9 +8368,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             // Declare error variables for each throw type
             mut temp_suffix := next_mangled(ctx)
             mut err_idx := 0
-            while lt(err_idx, throwing_info.throw_types.len()) {
+            while lt(err_idx, throwing_fd.func_def.throw_types.len()) {
                 mut throw_type := ValueType.TCustom("")
-                throwing_info.throw_types.get(err_idx, throw_type)
+                throwing_fd.func_def.throw_types.get(err_idx, throw_type)
                 switch throw_type {
                 case ValueType.TCustom(type_name):
                     output = output.concat(indent_str)
@@ -8453,7 +8409,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             output = output.concat("int _status_")
             output = output.concat(temp_suffix)
             output = output.concat(" = ")
-            output = emit_fcall_name_and_args_for_throwing(arg, temp_var, temp_suffix, throwing_info.throw_types, nested_hoisted, variadic_arr_var, output, ctx, context)
+            output = emit_fcall_name_and_args_for_throwing(arg, temp_var, temp_suffix, throwing_fd.func_def.throw_types, nested_hoisted, variadic_arr_var, output, ctx, context)
             output = output.concat(";\n")
 
             // Emit error checking - propagate if any error occurred
@@ -8464,9 +8420,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             // Propagate error to current function's error pointers
             err_idx = 0
-            while lt(err_idx, throwing_info.throw_types.len()) {
+            while lt(err_idx, throwing_fd.func_def.throw_types.len()) {
                 mut throw_type := ValueType.TCustom("")
-                throwing_info.throw_types.get(err_idx, throw_type)
+                throwing_fd.func_def.throw_types.get(err_idx, throw_type)
                 switch throw_type {
                 case ValueType.TCustom(type_name):
                     // Find matching throw type in current function
@@ -8799,34 +8755,34 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
             }
         case NodeType.FCall:
             // For function calls, try to determine return type
-            mut info := check_throwing_fcall(arg, ctx, context)
-            if info.is_throwing {
-                if info.return_types.len().gt(0) {
-                    mut first_ret := ValueType.TCustom("")
-                    info.return_types.get(0, first_ret)
-                    c_type = til_type_to_c(first_ret)
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
+            mut fd_result := get_fcall_func_def(context, arg)
+            if fd_result.found {
+                if gt(fd_result.func_def.throw_types.len(), 0) {
+                    // Throwing call
+                    if fd_result.func_def.return_types.len().gt(0) {
+                        mut first_ret := ValueType.TCustom("")
+                        fd_result.func_def.return_types.get(0, first_ret)
+                        c_type = til_type_to_c(first_ret)
+                        catch (err: IndexOutOfBoundsError) { throw err.msg }
+                    } else {
+                        throw "Throwing call has no return type"
+                    }
                 } else {
-                    throw "Throwing call has no return type"
-                }
-            } else {
-                // Non-throwing function call - look up return type
-                mut fd_result := get_fcall_func_def(context, arg)
-                if fd_result.found {
+                    // Non-throwing function call - use return type
                     if gt(fd_result.func_def.return_types.len(), 0) {
                         mut ret_type := ValueType.TCustom("")
                         fd_result.func_def.return_types.get(0, ret_type)
                         c_type = til_type_to_c(ret_type)
                         catch (err: IndexOutOfBoundsError) { throw err.msg }
                     }
-                } else {
-                    // Check if this is a struct constructor like Ptr()
-                    mut func_name := get_fcall_func_name(arg)
-                    if gt(func_name.len(), 0) {
-                        mut struct_def := context.scope_stack.lookup_struct(func_name)
-                        c_type = til_name(func_name)
-                        catch (err: KeyNotFoundError) { }
-                    }
+                }
+            } else {
+                // Check if this is a struct constructor like Ptr()
+                mut func_name := get_fcall_func_name(arg)
+                if gt(func_name.len(), 0) {
+                    mut struct_def := context.scope_stack.lookup_struct(func_name)
+                    c_type = til_name(func_name)
+                    catch (err: KeyNotFoundError) { }
                 }
             }
         case:
