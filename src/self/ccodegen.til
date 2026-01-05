@@ -155,23 +155,18 @@ get_func_name_string := func(first_param: Expr) returns Str throws Str, KeyNotFo
             return name.replace(".", "_")
         } else {
             mut parts := name
-            mut i := 0
-            while lt(i, first_param.params.len()) {
-                mut p := Expr()
-                first_param.params.get(i, p)
+            for p: Expr in first_param.params {
                 switch p.node_type {
                 case NodeType.Identifier(part):
                     parts = parts.concat("_").concat(part)
                 case:
                 }
-                i = add(i, 1)
             }
             return parts
         }
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     throw KeyNotFoundError(msg="first param not Identifier")
 }
@@ -179,7 +174,7 @@ get_func_name_string := func(first_param: Expr) returns Str throws Str, KeyNotFo
 // Get TIL function name from FCall's first param (for scope lookups)
 // Returns the dot-separated name like "Vec.new" or "I64.inc"
 // This avoids the fragile .replacen('_', ".", 1) hack which breaks on type names with underscores
-get_til_func_name_string := func(first_param: Expr) returns Str throws Str, KeyNotFoundError {
+get_til_func_name_string := func(first_param: Expr) returns Str throws KeyNotFoundError {
     switch first_param.node_type {
     case NodeType.Identifier(name):
         if first_param.params.len().eq(0) {
@@ -188,23 +183,18 @@ get_til_func_name_string := func(first_param: Expr) returns Str throws Str, KeyN
         } else {
             // Build dotted name from nested identifiers
             mut parts := name
-            mut i := 0
-            while lt(i, first_param.params.len()) {
-                mut p := Expr()
-                first_param.params.get(i, p)
+            for p: Expr in first_param.params {
                 switch p.node_type {
                 case NodeType.Identifier(part):
                     parts = parts.concat(".").concat(part)
                 case:
                 }
-                i = i.add(1)
             }
             return parts
         }
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     throw KeyNotFoundError(msg="first param not Identifier")
 }
 
@@ -1364,19 +1354,14 @@ get_struct_dependencies := func(expr: Expr) returns Vec throws Str {
 get_enum_dependencies := func(expr: Expr) returns Vec throws Str {
     mut deps := Vec.new(Str)
     switch expr.node_type {
-    case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+    case NodeType.Declaration(_):
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return deps }
             switch first.node_type {
             case NodeType.EnumDef(enum_def):
-                // Bug #38 fix: use variants Vec
-                mut i := 0
-                while lt(i, enum_def.variants.len()) {
-                    mut ev := EnumVariant()
-                    enum_def.variants.get(i, ev)
-                    catch (err: IndexOutOfBoundsError) { return deps }
+                for ev: EnumVariant in enum_def.variants {
                     payload_ptr := ev.payload_type
                     // Check if payload exists (not NULL)
                     if not(NULL.eq(payload_ptr.data)) {
@@ -1385,10 +1370,10 @@ get_enum_dependencies := func(expr: Expr) returns Vec throws Str {
                         switch payload_type {
                         case ValueType.TCustom(type_name):
                             // Skip primitives (but NOT Str or Bool - they're structs)
-                            if not(Str.eq(type_name, "I64")) {
-                                if not(Str.eq(type_name, "U8")) {
-                                    if not(Str.eq(type_name, "Dynamic")) {
-                                        if not(Str.eq(type_name, "Type")) {
+                            if not(type_name.eq("I64")) {
+                                if not(type_name.eq("U8")) {
+                                    if not(type_name.eq("Dynamic")) {
+                                        if not(type_name.eq("Type")) {
                                             deps.push(type_name)
                                         }
                                     }
@@ -1397,7 +1382,6 @@ get_enum_dependencies := func(expr: Expr) returns Vec throws Str {
                         case:
                         }
                     }
-                    i = add(i, 1)
                 }
             case:
             }
