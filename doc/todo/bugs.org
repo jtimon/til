@@ -8,6 +8,31 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #84: run_cmd output capture broken in compiled mode
+:PROPERTIES:
+:DISCOVERED: 2026-01-05
+:IMPACT: Cannot use compiled test.til
+:STATUS: Active
+:END:
+
+*** Description
+The =run_cmd= ext_proc doesn't capture command output correctly in compiled mode.
+The mutable output string parameter remains empty (or gets only a newline).
+
+*** Reproduction
+#+BEGIN_SRC til
+mut output := ""
+exit_code := output.run_cmd("bash", "-c", "echo hello")
+// Interpreted: output = "hello\n", len = 6
+// Compiled: output = "\n", len = 1
+#+END_SRC
+
+*** Test
+src/test/syscalls.til has =test_run_cmd_output()= (currently commented out).
+
+*** Blocking
+This blocks using compiled =bin/test= for faster test execution.
+
 ** Bug #83: No spread/splat operator for variadic argument forwarding
 :PROPERTIES:
 :DISCOVERED: 2026-01-03

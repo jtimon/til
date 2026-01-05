@@ -47,3 +47,16 @@ test_list_dir_raw_not_exists := proc() {
     }
 }
 test_list_dir_raw_not_exists()
+
+// Test run_cmd captures output correctly
+test_run_cmd_output := proc() {
+    mut output := ""
+    exit_code := output.run_cmd("bash", "-c", "echo hello")
+    if not(exit_code.eq(0)) {
+        panic(loc(), "run_cmd returned non-zero exit code")
+    }
+    if not(output.eq("hello\n")) {
+        panic(loc(), format("run_cmd output mismatch: expected 'hello\\n' (len 6), got '", output, "' (len ", output.len().to_str(), ")"))
+    }
+}
+// test_run_cmd_output()  // TODO Bug #84: run_cmd output capture broken in compiled mode
