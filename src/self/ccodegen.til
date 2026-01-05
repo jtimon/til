@@ -2451,7 +2451,7 @@ emit_struct_func_prototypes := proc(expr: Expr, output: Str, ctx: CodegenContext
             expr.params.get(0, first)
             switch first.node_type {
             case NodeType.StructDef(struct_def):
-                mut struct_name := decl.name
+                mut struct_name := til_name(decl.name)
                 mut i := 0
                 while lt(i, struct_def.members.len()) {
                     mut member := Declaration()
@@ -2498,7 +2498,7 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
             expr.params.get(0, first)
             switch first.node_type {
             case NodeType.StructDef(struct_def):
-                mut struct_name := decl.name
+                mut struct_name := til_name(decl.name)
                 mut i := 0
                 while lt(i, struct_def.members.len()) {
                     mut member := Declaration()

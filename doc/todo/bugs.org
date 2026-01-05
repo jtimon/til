@@ -133,7 +133,7 @@ The diff revealed these divergences:
    - rstil emits forward declarations before ~#include <ext.c>~
    - til emits them after
    - Top-level function names now have til_ prefix (FIXED via emit_func_prototype/declaration)
-   - Struct function names still missing til_ prefix (e.g. ~Array_len~ vs ~til_Array_len~)
+   - Struct function names now have til_ prefix (FIXED via emit_struct_func_prototypes/bodies)
 
 4. *~#include <ext.c>~ vs inline helpers* - FIXED
    - rstil: ~#include <ext.c>~
