@@ -800,9 +800,8 @@ ensure_parent_dir := proc(file_path: Str) throws AllocError {
 // Auto-generate missing .out files
 // test_mode: "interpreted" uses rstil interpret, "compiled" uses rstil run
 ensure_out_file := proc(path: Str, cmd_args: Str, out_path: Str, test_mode: Str) {
-    mut ls_result := ""
-    _ := ls_result.run_cmd("ls", out_path)
-    if not(ls_result.contains(".out")) {
+    // file_mtime returns -1 if file doesn't exist
+    if file_mtime(out_path).lt(0) {
         mut output := ""
         mut cmd := ""
         if test_mode.eq("compiled") {
