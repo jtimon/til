@@ -15,6 +15,10 @@ Str := struct {
         return self.cap
     }
 
+    is_empty := func(self: Str) returns Bool {
+        return self.cap.eq(0)
+    }
+
     eq := func(self: Str, other: Str) returns Bool {
         if not(self.cap.eq(other.cap)) {
             return false

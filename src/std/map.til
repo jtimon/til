@@ -299,6 +299,11 @@ Map := struct {
         return self._size
     }
 
+    /** Check if map is empty. */
+    is_empty := func(self: Map) returns Bool {
+        return self._size.eq(0)
+    }
+
     /** Clear all entries from map (reset to empty). */
     clear := proc(mut self: Map) {
         self._size = 0

@@ -21,6 +21,11 @@ Vec := struct {
         return self._len
     }
 
+    /** Check if vec is empty. */
+    is_empty := func(self: Vec) returns Bool {
+        return self._len.eq(0)
+    }
+
     /** Get total size in bytes. */
     size := func(self: Vec) returns I64 {
         return mul(self._len, self.type_size)
