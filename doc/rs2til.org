@@ -614,6 +614,12 @@ Translation rules for this pattern:
 | ~expr.params[0]~ | ~mut first := T(); expr.params.get(0, first); catch...~ | get()+catch pattern |
 | Single ~false~ at end | Single ~return false~ at end | Empty default cases fall through |
 
+Note on ~is_empty()~: We added ~is_empty()~ methods to Vec, Map, and Str specifically to make
+LLM-assisted Rust-to-TIL translation easier. The original TIL idiom was ~len().gt(0)~ for
+non-empty checks and ~len().eq(0)~ for empty checks - these are semantically equivalent and
+still work fine. Using ~is_empty()~ just makes the translation more mechanical since it
+matches Rust's method name directly.
+
 Key insight: Empty ~case:~ blocks don't need ~return false~ - they fall through to the
 single ~return false~ at the end. This matches Rust's structure where the final ~false~
 is only reached when no early ~return true~ happened.
