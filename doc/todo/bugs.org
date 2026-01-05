@@ -448,13 +448,14 @@ All enums and functions match:
 ****** TIL-only Structs (UNNECESSARY per rs2til.org)
 | Struct | Fields | Issue |
 |--------|--------|-------|
-| FuncNameResult | ~found: Bool~, ~name: Str~ | ~Option<T>~ returns should ~throw KeyNotFoundError~ |
 | FuncLookupResult | ~found: Bool~, ~func_def: SFuncDef~ | ~Option<T>~ returns should ~throw KeyNotFoundError~ |
 
-NOTE: Attempted to remove FuncLookupResult (2026-01-02) by changing get_fcall_func_def
+NOTE: FuncNameResult removed (2026-01-05) - get_func_name_string and get_til_func_name_string
+now throw KeyNotFoundError instead of returning result struct. Callers use try/catch pattern.
+
+Attempted to remove FuncLookupResult (2026-01-02) by changing get_fcall_func_def
 to throw KeyNotFoundError instead of returning result struct. All 18 call sites were
-updated mechanically. Result: til_compiled tests segfaulted. Reverted. Same issue
-previously occurred with FuncNameResult. These may require deeper investigation.
+updated mechanically. Result: til_compiled tests segfaulted. Reverted. Needs deeper investigation.
 
 ***** Helper Functions - Present
 | Function | Rust | TIL | Status | Notes |
@@ -464,8 +465,8 @@ previously occurred with FuncNameResult. These may require deeper investigation.
 | emit_struct_literal_assign | Y | Y | MATCH | Uses push_str like Rust |
 | emit_struct_literal_start | Y | Y | MATCH | Uses push_str like Rust |
 | til_func_name | Y | Y | MATCH | |
-| get_func_name_string | Y | Y | DIVERGE | TIL uses FuncNameResult struct instead of Option, parts is Str not Vec |
-| get_til_func_name_string | Y | Y | DIVERGE | TIL uses FuncNameResult struct instead of Option |
+| get_func_name_string | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |
+| get_til_func_name_string | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |
 | get_type_arg_name | Y | Y | MATCH | Option->throws is correct rs2til.org translation |
 | get_fcall_func_def | Y | Y | DIVERGE | TIL uses FuncLookupResult struct instead of Option (should use throws) |
 | param_needs_by_ref | Y | Y | MATCH | |
@@ -492,7 +493,7 @@ previously occurred with FuncNameResult. These may require deeper investigation.
 | get_enum_dependencies | Y | Y | DIVERGE | Loop style differs, extra variables |
 | get_type_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
 | get_type_dependencies | Y | Y | DIVERGE | Similar structure but empty return logic differs |
-| get_fcall_func_name | Y | Y | DIVERGE | Rust returns Option, TIL uses FuncNameResult struct |
+| get_fcall_func_name | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |
 | get_struct_construction_type | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel, loop style differs |
 | get_enum_construction_type | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
 | get_case_variant_info | Y | Y | DIVERGE | Rust uses match, TIL uses switch + mut result variable |
