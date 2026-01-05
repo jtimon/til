@@ -5689,7 +5689,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             if found_hoisted {
                 result = result.concat(hoisted_temp)
             } else if is_dynamic_param {
-                result = result.concat("(til_Dynamic*)&")
+                result = result.concat("(").concat(TIL_PREFIX).concat("Dynamic*)&")
                 result = emit_expr(arg, result, 0, ctx, context)
             } else if by_ref {
                 result = result.concat("&")
@@ -9030,7 +9030,9 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         output = output.concat(arr_var)
         output = output.concat(", ")
         output = output.concat(I64.to_str(i))
-        output = output.concat(", &")
+        output = output.concat(", (")
+        output = output.concat(TIL_PREFIX)
+        output = output.concat("Dynamic*)&")
         output = output.concat(temp)
         output = output.concat(");\n")
 

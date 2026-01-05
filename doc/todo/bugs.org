@@ -343,23 +343,24 @@ output.push_str("\";\n");
 4. Emit temp variable declarations before Array.new call
 5. Pass ~&type_temp~ and ~&count_temp~ instead of inline literals
 
-***** Issue 11: Dynamic casting - need ~(til_Dynamic*)&val~
+***** Issue 11: Dynamic casting - need ~(til_Dynamic*)&val~ - FIXED
 
 *Symptom*: Array.get/set calls missing Dynamic pointer cast
 
-*Location*: ~emit_variadic_call~ or wherever Array.get/set is emitted
+*Location*: ~hoist_variadic_args~ and ~emit_throwing_call_with_goto~
 
-*Rust reference*: Look for ~(til_Dynamic*)~ casts in ccodegen.rs
+*Rust reference*: ccodegen.rs lines 1439-1442 shows ~(til_Dynamic*)&~ pattern
 
 *Analysis*:
 When passing values to Array.set which expects ~til_Dynamic*~, we need:
 - ~(til_Dynamic*)&value~ for the value argument
-TIL ccodegen just passes ~value~ without cast or address-of.
+TIL ccodegen was just passing ~&value~ without the Dynamic cast.
 
-*Fix steps*:
-1. In hoist_variadic_args or emit_variadic_call, find Array.set emission
-2. Add ~(til_Dynamic*)&~ prefix when passing value to Dynamic* param
-3. Similarly for Array.get output parameter
+*Fix applied*:
+1. In ~hoist_variadic_args~ (line 9033): Changed ~", &"~ to ~", (til_Dynamic*)&"~
+   using TIL_PREFIX for consistency with Rust
+2. In ~emit_throwing_call_with_goto~ (line 5692): Changed hardcoded
+   ~"(til_Dynamic*)&"~ to use TIL_PREFIX (~"(".concat(TIL_PREFIX).concat("Dynamic*)&")~)
 
 ***** Issue 3: Forward declarations position - FIXED
 
