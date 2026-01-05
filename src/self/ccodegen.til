@@ -401,8 +401,7 @@ detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext) returns VariadicF
 ThrowingFCallInfo := struct {
     mut is_throwing: Bool = false
     mut throw_types: Vec = Vec.new(ValueType)
-    mut return_type: ValueType = ValueType.TCustom("")
-    mut has_return_type: Bool = false
+    mut return_types: Vec = Vec.new(ValueType)
 }
 
 // Result type for hoisted arguments
@@ -621,13 +620,7 @@ check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) 
                     if gt(lookup_result.func_def.throw_types.len(), 0) {
                         result.is_throwing = true
                         result.throw_types = lookup_result.func_def.throw_types
-                        if gt(lookup_result.func_def.return_types.len(), 0) {
-                            mut first_ret := ValueType.TCustom("")
-                            lookup_result.func_def.return_types.get(0, first_ret)
-                            result.return_type = first_ret
-                            result.has_return_type = true
-                            catch (err: IndexOutOfBoundsError) { throw err.msg }
-                        }
+                        result.return_types = lookup_result.func_def.return_types
                     }
                 }
             }
@@ -671,9 +664,14 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         mut temp_var := next_mangled(ctx)
 
         // Determine the C type for the temp variable
-        mut c_type := "int"
-        if throwing_info.has_return_type {
-            c_type = til_type_to_c(throwing_info.return_type)
+        mut c_type := ""
+        if throwing_info.return_types.len().gt(0) {
+            mut first_ret := ValueType.TCustom("")
+            throwing_info.return_types.get(0, first_ret)
+            c_type = til_type_to_c(first_ret)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+        } else {
+            throw "Cannot hoist throwing call with no return type"
         }
 
         // Declare temp variable
@@ -8394,9 +8392,14 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             mut temp_var := next_mangled(ctx)
 
             // Determine C type for temp variable
-            mut c_type := "int"
-            if throwing_info.has_return_type {
-                c_type = til_type_to_c(throwing_info.return_type)
+            mut c_type := ""
+            if throwing_info.return_types.len().gt(0) {
+                mut first_ret := ValueType.TCustom("")
+                throwing_info.return_types.get(0, first_ret)
+                c_type = til_type_to_c(first_ret)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+            } else {
+                throw "Cannot hoist throwing call with no return type"
             }
 
             // Declare temp variable
@@ -8798,8 +8801,13 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
             // For function calls, try to determine return type
             mut info := check_throwing_fcall(arg, ctx, context)
             if info.is_throwing {
-                if info.has_return_type {
-                    c_type = til_type_to_c(info.return_type)
+                if info.return_types.len().gt(0) {
+                    mut first_ret := ValueType.TCustom("")
+                    info.return_types.get(0, first_ret)
+                    c_type = til_type_to_c(first_ret)
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
+                } else {
+                    throw "Throwing call has no return type"
                 }
             } else {
                 // Non-throwing function call - look up return type

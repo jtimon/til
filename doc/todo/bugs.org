@@ -441,7 +441,7 @@ All enums and functions match:
 | CatchLabelInfoEntry | DIVERGE | TIL has extra ~catch_block: Expr~ field |
 | ParamTypeInfo | MATCH | Changed to use ~Ptr~ for value_type, removed ~has_type~ |
 | SwitchCaseInfo | MATCH | Struct removed entirely from both Rust and TIL - parser enforces default-last |
-| ThrowingFCallInfo | DIVERGE | TIL has extra ~is_throwing: Bool~, uses ~has_return_type: Bool~ instead of Ptr |
+| ThrowingFCallInfo | DIVERGE | Fixed: both use ~return_types: Vec~. TIL still has extra ~is_throwing: Bool~ |
 | VariadicFCallInfo | DIVERGE | TIL has extra ~is_variadic: Bool~ field |
 | CodegenContext | MATCH | Rust changed to ~String~ with ~""~ = None per rs2til.org |
 

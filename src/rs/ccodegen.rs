@@ -395,8 +395,7 @@ fn check_throwing_fcall(expr: &Expr, _ctx: &CodegenContext, context: &Context) -
     if let NodeType::FCall = &expr.node_type {
         if let Some(fd) = get_fcall_func_def(context, expr) {
             if !fd.throw_types.is_empty() {
-                let return_type = fd.return_types.first().cloned();
-                return Some(ThrowingFCallInfo { throw_types: fd.throw_types.clone(), return_type });
+                return Some(ThrowingFCallInfo { throw_types: fd.throw_types.clone(), return_types: fd.return_types.clone() });
             }
         }
     }
@@ -429,8 +428,8 @@ fn hoist_throwing_expr(
         let temp_var = next_mangled(ctx);
 
         // Determine the C type for the temp variable
-        let c_type = if let Some(ret_type) = &throwing_info.return_type {
-            til_type_to_c(ret_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
+        let c_type = if !throwing_info.return_types.is_empty() {
+            til_type_to_c(throwing_info.return_types.first().unwrap()).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
         } else {
             return Err(expr.lang_error(&context.path, "ccodegen", "Cannot hoist throwing call with no return type"));
         };
@@ -767,8 +766,8 @@ fn hoist_throwing_args(
             let temp_var = next_mangled(ctx);
 
             // Determine the C type for the temp variable
-            let c_type = if let Some(ret_type) = &throwing_fcall_info.return_type {
-                til_type_to_c(ret_type).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))?
+            let c_type = if !throwing_fcall_info.return_types.is_empty() {
+                til_type_to_c(throwing_fcall_info.return_types.first().unwrap()).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))?
             } else {
                 return Err(arg.lang_error(&context.path, "ccodegen", "Cannot hoist throwing call with no return type"));
             };
@@ -1105,9 +1104,10 @@ fn hoist_for_dynamic_params(
             NodeType::FCall => {
                 // For function calls, try to determine return type
                 if let Some(throwing_fcall_info) = check_throwing_fcall(arg, ctx, context) {
-                    let ret = throwing_fcall_info.return_type
-                        .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Throwing call has no return type"))?;
-                    til_type_to_c(&ret).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
+                    if throwing_fcall_info.return_types.is_empty() {
+                        return Err(arg.lang_error(&context.path, "ccodegen", "Throwing call has no return type"));
+                    }
+                    til_type_to_c(throwing_fcall_info.return_types.first().unwrap()).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
                 } else if let Some(func_name) = get_fcall_func_name(arg) {
                     // Non-throwing function call - look up return type
                     if let Some(fd) = get_fcall_func_def(context, arg) {
@@ -6143,7 +6143,7 @@ struct CollectedDeclaration {
 // Info about a throwing function call
 struct ThrowingFCallInfo {
     throw_types: Vec<ValueType>,
-    return_type: Option<ValueType>,
+    return_types: Vec<ValueType>,
 }
 
 // Info about a variadic function call
