@@ -1276,13 +1276,13 @@ get_fcall_func_name := func(expr: Expr) returns Str throws Str {
 // Check if an expression is a struct declaration (Name := struct {...})
 is_struct_declaration := func(expr: Expr) returns Bool {
     switch expr.node_type {
-    case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+    case NodeType.Declaration(_):
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return false }
             switch first.node_type {
-            case NodeType.StructDef(struct_def):
+            case NodeType.StructDef(_):
                 return true
             case:
                 return false

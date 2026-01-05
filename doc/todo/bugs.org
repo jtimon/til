@@ -472,7 +472,7 @@ All unnecessary result structs have been removed:
 ***** Type/Struct/Enum Detection - Present
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
-| is_struct_declaration | Y | Y | DIVERGE | Extra unused vars (decl, struct_def), uses get() vs direct indexing |
+| is_struct_declaration | Y | Y | MATCH | Removed unused vars, uses method chaining (2026-01-05) |
 | is_enum_declaration | Y | Y | DIVERGE | Same pattern: extra vars, get() vs direct indexing |
 | is_enum_with_payloads | Y | Y | DIVERGE | Same pattern: extra vars, get() vs direct indexing |
 | is_constant_declaration | Y | Y | DIVERGE | Same pattern: extra vars, get() vs direct indexing |
