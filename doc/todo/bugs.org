@@ -454,8 +454,8 @@ All unnecessary result structs have been removed:
 ***** Helper Functions - Present
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
-| next_mangled | Y | Y | DIVERGE | TIL uses len()>0 check instead of Option match, no func_name variable |
-| til_name | Y | Y | DIVERGE | TIL uses separate if statements instead of match pattern |
+| next_mangled | Y | Y | MATCH | Uses func_name variable and method chaining (2026-01-05) |
+| til_name | Y | Y | MATCH | Combined if statements match Rust match arms (2026-01-05) |
 | emit_struct_literal_assign | Y | Y | MATCH | Uses push_str like Rust |
 | emit_struct_literal_start | Y | Y | MATCH | Uses push_str like Rust |
 | til_func_name | Y | Y | MATCH | |

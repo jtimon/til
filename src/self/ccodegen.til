@@ -91,13 +91,12 @@ CodegenContext := struct {
     mut hoisted_struct_defaults: Map = Map.new(Str, Str)
 }
 
-// Generate unique mangled name using context counter (deterministic)
-// Includes function name prefix for uniqueness across functions
 next_mangled := proc(mut ctx: CodegenContext) returns Str {
     n := ctx.mangling_counter
     ctx.mangling_counter.inc()
-    if gt(ctx.current_function_name.len(), 0) {
-        return concat("_tmp_", ctx.current_function_name).concat("_").concat(n.to_str())
+    func_name := ctx.current_function_name
+    if func_name.len().gt(0) {
+        return concat("_tmp_", func_name).concat("_").concat(n.to_str())
     }
     return concat("_tmp_", n.to_str())
 }
@@ -105,10 +104,10 @@ next_mangled := proc(mut ctx: CodegenContext) returns Str {
 // Returns the C name for a TIL identifier - adds TIL_PREFIX
 // Exceptions: C keywords (true, false), pointer deref (*name), and generated names (_ prefix)
 til_name := func(name: Str) returns Str {
-    if name.eq("true") { return "true" }
-    if name.eq("false") { return "false" }
-    if name.starts_with("*") { return name }
-    if name.starts_with("_") { return name }
+    // "true" | "false" => name.to_string()
+    if name.eq("true").or(name.eq("false")) { return name }
+    // _ if name.starts_with('*') || name.starts_with('_') => name.to_string()
+    if name.starts_with("*").or(name.starts_with("_")) { return name }
     return concat(TIL_PREFIX, name)
 }
 
