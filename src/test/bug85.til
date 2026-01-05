@@ -1,0 +1,17 @@
+// Bug #85: Typer accepts struct literal with non-existent field name
+// This file should FAIL type checking but currently passes
+
+mode test
+
+TestStruct := struct {
+    mut msg: Str = ""
+    mut count: I64 = 0
+}
+
+// This should be a type error: 'nonexistent' is not a field of TestStruct
+mut s := TestStruct(nonexistent="hello")
+
+// This should also be a type error: 'key' is not a field
+mut s2 := TestStruct(key="test", value=42)
+
+println("Bug #85: This should not print - type checker should have rejected the code")

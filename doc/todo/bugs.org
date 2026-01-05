@@ -658,6 +658,48 @@ Arguments weren't quoted, so =bash -c echo hello= was executed instead of =bash 
 *** Test
 =src/test/syscalls.til= has =test_run_cmd_output()= which verifies output capture works.
 
+** Bug #85: Typer accepts struct literal with non-existent field name
+:PROPERTIES:
+:DISCOVERED: 2026-01-05
+:IMPACT: Silent code generation with wrong semantics
+:STATUS: Open
+:END:
+
+*** Description
+The type checker accepts struct literals with field names that don't exist in the struct definition.
+
+*** Example
+#+begin_src til
+KeyNotFoundError := struct {
+    mut msg: Str = ""
+}
+
+// This should be a type error but compiles successfully:
+throw KeyNotFoundError(key="not variadic")
+// Should be: throw KeyNotFoundError(msg="not variadic")
+#+end_src
+
+The struct only has a ~msg~ field, but ~key=~ is accepted without error.
+
+*** Expected behavior
+The typer should report an error like:
+#+begin_example
+type ERROR: Field 'key' does not exist in struct 'KeyNotFoundError'
+#+end_example
+
+*** Impact
+- Silent bugs where struct fields are misnamed
+- Generated C code may have undefined behavior
+- Discovered during Bug #80 work when ~KeyNotFoundError(key="...")~ was accidentally used
+
+*** Reproduction
+=src/test/bug85.til= - currently fails at eval phase with:
+#+begin_example
+src/test/bug85.til:12:21: eval ERROR: Field 'nonexistent' not found in struct 'TestStruct'
+#+end_example
+
+The error should be caught at type phase, not eval phase.
+
 ** Bug #78: TIL scavenger/ccodegen divergence from Rust
 :PROPERTIES:
 :DISCOVERED: 2026-01-01
