@@ -2728,7 +2728,44 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip type pass
     }
 
-    // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
+    // Pass 2: emit function prototypes (forward declarations)
+    // 2a: top-level functions
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            if is_func_declaration(child) {
+                output = emit_func_prototype(child, output, ctx)
+            }
+        }
+    case:
+        // Not a body, skip prototype pass
+    }
+    // 2b: struct functions (with mangled names)
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            if is_struct_declaration(child) {
+                output = emit_struct_func_prototypes(child, output, ctx)
+            }
+        }
+    case:
+        // Not a body, skip struct func prototype pass
+    }
+    // 2c: hoisted nested function prototypes (collected in Pass 0a)
+    if gt(ctx.hoisted_prototypes.len(), 0) {
+        output = output.concat("\n// Nested function prototypes (hoisted)\n")
+        for proto: Str in ctx.hoisted_prototypes {
+            output = output.concat(proto)
+        }
+    }
+    output = output.concat("\n")
+
+    // Pass 3: include external C interface (after structs and forward decls)
+    // Use angle brackets to search only -I paths (src/), not the current directory
+    // This avoids including generated c/self/ext.c instead of the hand-written src/ext.c
+    output = output.concat("#include <ext.c>\n\n")
+
+    // Pass 4: emit struct constants (non-mut, non-function fields with mangled names)
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
@@ -2740,7 +2777,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip constants pass
     }
 
-    // Pass 2a: emit size_of constants for enums
+    // Pass 4a: emit size_of constants for enums
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
@@ -2752,7 +2789,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip enum size_of pass
     }
 
-    // Pass 2a2: emit enum_to_str functions for all enums
+    // Pass 4a2: emit enum_to_str functions for all enums
     // This must come after structs are defined (Str is needed for return type)
     switch ast.node_type {
     case NodeType.Body:
@@ -2765,7 +2802,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip enum_to_str pass
     }
 
-    // Pass 2b: emit top-level constants (non-mut declarations with literal values)
+    // Pass 4b: emit top-level constants (non-mut declarations with literal values)
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
@@ -2777,7 +2814,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip top-level constants pass
     }
 
-    // Pass 2c: emit global declarations (non-constant, non-func/struct/enum declarations)
+    // Pass 4c: emit global declarations (non-constant, non-func/struct/enum declarations)
     // These need to be file-scope statics so functions can access them
     switch ast.node_type {
     case NodeType.Body:
@@ -2790,50 +2827,11 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip global declarations pass
     }
 
-    // Pass 2d: emit til_size_of function (runtime type size lookup)
+    // Pass 4d: emit til_size_of function (runtime type size lookup)
     output = emit_size_of_function(output, ctx)
 
-    output = output.concat("\n")
-
-    // Pass 3: emit function prototypes (forward declarations)
-    // 3a: top-level functions
-    switch ast.node_type {
-    case NodeType.Body:
-        for child: Expr in ast.params {
-            if is_func_declaration(child) {
-                output = emit_func_prototype(child, output, ctx)
-            }
-        }
-    case:
-        // Not a body, skip prototype pass
-    }
-    // 3b: struct functions (with mangled names)
-    switch ast.node_type {
-    case NodeType.Body:
-        for child: Expr in ast.params {
-            if is_struct_declaration(child) {
-                output = emit_struct_func_prototypes(child, output, ctx)
-            }
-        }
-    case:
-        // Not a body, skip struct func prototype pass
-    }
-    // 3c: hoisted nested function prototypes (collected in Pass 0a)
-    if gt(ctx.hoisted_prototypes.len(), 0) {
-        output = output.concat("\n// Nested function prototypes (hoisted)\n")
-        for proto: Str in ctx.hoisted_prototypes {
-            output = output.concat(proto)
-        }
-    }
-    output = output.concat("\n")
-
-    // Pass 3d: include external C interface (after structs and forward decls)
-    // Use angle brackets to search only -I paths (src/), not the current directory
-    // This avoids including generated c/self/ext.c instead of the hand-written src/ext.c
-    output = output.concat("#include <ext.c>\n\n")
-
-    // Pass 4: emit function definitions
-    // 4a: top-level functions
+    // Pass 5: emit function definitions
+    // 5a: top-level functions
     switch ast.node_type {
     case NodeType.Body:
         mut func_count := 0
@@ -2850,7 +2848,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     case:
         // Not a body, skip function pass
     }
-    // 4b: struct functions (with mangled names)
+    // 5b: struct functions (with mangled names)
     switch ast.node_type {
     case NodeType.Body:
         mut struct_count := 0
@@ -2868,9 +2866,9 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip struct func body pass
     }
 
-    // 4c: hoisted nested function definitions
+    // 5c: hoisted nested function definitions
     // These were collected during emit_func_declaration when encountering nested functions
-    // (prototypes were already emitted in Pass 3c)
+    // (prototypes were already emitted in Pass 2c)
     if gt(ctx.hoisted_functions.len(), 0) {
         output = output.concat("\n// Hoisted nested function definitions\n")
         for func_code: Str in ctx.hoisted_functions {
@@ -2901,7 +2899,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     case:
     }
 
-    // Pass 5: emit non-struct, non-function, non-enum, non-constant statements
+    // Pass 6: emit non-struct, non-function, non-enum, non-constant statements
     // Collect them into a Vec and use emit_stmts for proper variadic/throwing call handling
     switch ast.node_type {
     case NodeType.Body:

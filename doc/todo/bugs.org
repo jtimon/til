@@ -129,11 +129,12 @@ The diff revealed these divergences:
 
 **** Remaining issues for empty.til (boilerplate/header):
 
-3. *Forward declarations position differs*
+3. *Forward declarations position differs* - FIXED
    - rstil emits forward declarations before ~#include <ext.c>~
    - til emits them after
    - Top-level function names now have til_ prefix (FIXED via emit_func_prototype/declaration)
    - Struct function names now have til_ prefix (FIXED via emit_struct_func_prototypes/bodies)
+   - Fix: Reordered passes in emit() to match Rust (prototypes → ext.c → constants)
 
 4. *~#include <ext.c>~ vs inline helpers* - FIXED
    - rstil: ~#include <ext.c>~
@@ -303,7 +304,7 @@ TIL ccodegen just passes ~value~ without cast or address-of.
 2. Add ~(til_Dynamic*)&~ prefix when passing value to Dynamic* param
 3. Similarly for Array.get output parameter
 
-***** Issue 3: Forward declarations position
+***** Issue 3: Forward declarations position - FIXED
 
 *Symptom*: Forward declarations appear after ~#include <ext.c>~ instead of before
 
@@ -320,11 +321,12 @@ The pass order in emit() differs between Rust and TIL. Rust emits:
 
 TIL has different ordering. Need to match Rust's pass sequence.
 
-*Fix steps*:
-1. Read ~emit~ function in both ccodegen.rs and ccodegen.til
-2. Identify pass order difference
-3. Reorder passes in TIL to match Rust
-4. Key: Forward decls (emit_func_prototype) must come before ext.c include
+*Fix applied*: Reordered passes in emit() to match Rust:
+- Pass 2: function prototypes (forward declarations)
+- Pass 3: #include <ext.c>
+- Pass 4: constants and til_size_of
+- Pass 5: function definitions
+- Pass 6: other statements
 
 *** Root Cause
 ccodegen.til has diverged significantly from ccodegen.rs and needs to be re-synced.
