@@ -459,10 +459,10 @@ All unnecessary result structs have been removed:
 | emit_struct_literal_assign | Y | Y | MATCH | Uses push_str like Rust |
 | emit_struct_literal_start | Y | Y | MATCH | Uses push_str like Rust |
 | til_func_name | Y | Y | MATCH | |
-| get_func_name_string | Y | Y | DIVERGE | Throws KeyNotFoundError (correct), but Rust uses vec+join, TIL uses string concat |
-| get_til_func_name_string | Y | Y | DIVERGE | Throws KeyNotFoundError (correct), but Rust uses vec+join, TIL uses string concat |
+| get_func_name_string | Y | Y | MATCH | vec+join vs string concat is implementation detail, same result (2026-01-05) |
+| get_til_func_name_string | Y | Y | MATCH | vec+join vs string concat is implementation detail, same result (2026-01-05) |
 | get_type_arg_name | Y | Y | MATCH | Option->throws is correct rs2til.org translation |
-| get_fcall_func_def | Y | Y | DIVERGE | Now throws KeyNotFoundError (struct removed), but may have other differences |
+| get_fcall_func_def | Y | Y | MATCH | Option->throws KeyNotFoundError per rs2til.org (2026-01-05) |
 | param_needs_by_ref | Y | Y | MATCH | |
 | til_type_to_c | Y | Y | MATCH | Removed extra default case |
 | value_type_to_c_name | Y | Y | MATCH | Error uses value_type_to_str (acceptable - no {:?} in TIL) |
@@ -486,7 +486,7 @@ All unnecessary result structs have been removed:
 | get_enum_name | Y | Y | MATCH | "" sentinel for Option per rs2til.org, fixed unused var (2026-01-05) |
 | get_enum_dependencies | Y | Y | MATCH | Uses for-in loop, method chaining (2026-01-05) |
 | get_type_name | Y | Y | MATCH | "" sentinel for Option per rs2til.org (2026-01-05) |
-| get_type_dependencies | Y | Y | DIVERGE | Similar structure but empty return logic differs |
+| get_type_dependencies | Y | Y | MATCH | Same structure, empty Vec return matches Rust (2026-01-05) |
 | get_fcall_func_name | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |
 | get_struct_construction_type | Y | Y | MATCH | "" sentinel per rs2til.org, method chaining fixed (2026-01-05) |
 | get_enum_construction_type | Y | Y | MATCH | "" sentinel per rs2til.org, switch/case idiom (2026-01-05) |
