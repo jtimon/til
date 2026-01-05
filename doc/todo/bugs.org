@@ -438,7 +438,7 @@ All enums and functions match:
 | VariantInfo | MATCH | |
 | CollectedDeclaration | MATCH | |
 | ThrowingDefault | MATCH | |
-| CatchLabelInfoEntry | DIVERGE | TIL has extra ~catch_block: Expr~ field |
+| CatchLabelInfoEntry | PARTIAL | TIL has extra ~catch_block: Expr~ - cannot remove (causes hangs in til_compiled), assignment removed |
 | ParamTypeInfo | MATCH | Changed to use ~Ptr~ for value_type, removed ~has_type~ |
 | SwitchCaseInfo | MATCH | Struct removed entirely from both Rust and TIL - parser enforces default-last |
 | ThrowingFCallInfo | MATCH | Struct removed entirely from both Rust and TIL - logic inlined at call sites |

@@ -22,13 +22,13 @@ CatchLabelInfo := struct {
 }
 
 // Info about a catch block for code generation
-// Note: TIL version has catch_block field, Rust accesses stmts[i] directly
+// Note: TIL has extra catch_block field - removing it causes til_compiled to hang (Bug #80)
 CatchLabelInfoEntry := struct {
     mut stmt_index: I64 = 0      // Index in stmts array
     mut type_name: Str = ""      // Error type being caught (e.g., "Str", "IndexOutOfBoundsError")
     mut label: Str = ""          // Goto label for this catch
     mut temp_var: Str = ""       // Temp variable holding the thrown value
-    mut catch_block: Expr = Expr()
+    mut catch_block: Expr = Expr()  // DO NOT REMOVE - causes hangs in til_compiled
 }
 
 // Info about a function parameter's type and whether passed by reference
@@ -4682,7 +4682,6 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                     entry.type_name = err_type_name
                     entry.label = label
                     entry.temp_var = temp_var
-                    entry.catch_block = scan_stmt
                     all_catch_info.push(entry)
                 case:
                 }
