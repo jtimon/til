@@ -2728,23 +2728,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip type pass
     }
 
-    // Pass 1c: emit helper functions (after structs are defined)
-    output = output.concat("\n// Type conversion helpers\n")
-    output = format(output, "static inline ", TIL_PREFIX, "I64 u8_to_i64(", TIL_PREFIX, "U8 v) { return (", TIL_PREFIX, "I64)v; }\n")
-    output = format(output, "static inline ", TIL_PREFIX, "U8 i64_to_u8(", TIL_PREFIX, "I64 v) { return (", TIL_PREFIX, "U8)v; }\n")
-    if has_str(context) {
-        output = output.concat("// single_print: print a string without newline\n")
-        output = format(output, "static inline void single_print(", TIL_PREFIX, "Str s) { printf(\"%s\", (char*)s.c_string); }\n")
-    } else {
-        output = output.concat("\n// single_print: print a string without newline (no Str defined)\n")
-        output = output.concat("static inline void single_print(const char* s) { printf(\"%s\", s); }\n")
-    }
-    output = output.concat("// print_flush: flush stdout\n")
-    output = output.concat("static inline void print_flush(void) { fflush(stdout); }\n")
-    output = output.concat("// to_ptr: get pointer address as integer\n")
-    output = format(output, "static inline ", TIL_PREFIX, "I64 to_ptr(", TIL_PREFIX, "I64* p) { return (", TIL_PREFIX, "I64)p; }\n\n")
-
-
     // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
     switch ast.node_type {
     case NodeType.Body:
