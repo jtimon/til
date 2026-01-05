@@ -114,6 +114,43 @@ Use the til_diff.til script to compare C output from rstil vs rstil_til:
 ./bin/rstil interpret src/til_diff.til src/examples/hello_script.til
 #+END_SRC
 
+*** Methodology: Fix Once, Fix Correctly
+
+CRITICAL: The goal is to fix Bug #80 ONCE, correctly. Not to move fast.
+
+**** Why Conservative Status Updates Matter
+- Marking uncertain items as MATCH creates false confidence
+- If we later discover false MATCHes, we must reset Status column and re-read ALL functions
+- Multiple careful passes are better than one fast pass followed by a full reset
+- Only mark MATCH when 100% certain: either actual code change made, or line-by-line verification done
+
+**** Rules for Status Column
+1. *MATCH* - Only when:
+   - Actual code fix was made and tested (method chaining, for-in loops, unused vars, etc.)
+   - Line-by-line comparison confirms semantic equivalence
+   - rs2til.org explicitly documents the pattern as acceptable
+2. *DIVERGE* - When in doubt:
+   - Assumed patterns are "acceptable" without verification
+   - Similar but not verified identical
+   - rs2til.org doesn't explicitly cover the case
+3. *DELETED* - Function removed from TIL to match Rust
+
+**** Incremental Pass Workflow
+1. Pick one DIVERGE item
+2. Read Rust version line-by-line
+3. Read TIL version line-by-line
+4. Either fix TIL to match, or verify it already matches
+5. Run ~time timeout 600 make benchmark~
+6. If passes: Update Status, commit immediately
+7. If fails: Revert, keep as DIVERGE, move to next
+
+**** Final Bulk Pass (Last Resort)
+Only when incremental passes stop making progress:
+1. Translate ALL remaining DIVERGE items at once
+2. No testing until complete
+3. Very risky - minimize items reaching this phase
+4. If fails, bisect to find problem
+
 *** Findings
 The diff revealed these divergences:
 
@@ -459,10 +496,10 @@ All unnecessary result structs have been removed:
 | emit_struct_literal_assign | Y | Y | MATCH | Uses push_str like Rust |
 | emit_struct_literal_start | Y | Y | MATCH | Uses push_str like Rust |
 | til_func_name | Y | Y | MATCH | |
-| get_func_name_string | Y | Y | MATCH | vec+join vs string concat is implementation detail, same result (2026-01-05) |
-| get_til_func_name_string | Y | Y | MATCH | vec+join vs string concat is implementation detail, same result (2026-01-05) |
+| get_func_name_string | Y | Y | DIVERGE | Throws KeyNotFoundError (correct), but Rust uses vec+join, TIL uses string concat |
+| get_til_func_name_string | Y | Y | DIVERGE | Throws KeyNotFoundError (correct), but Rust uses vec+join, TIL uses string concat |
 | get_type_arg_name | Y | Y | MATCH | Option->throws is correct rs2til.org translation |
-| get_fcall_func_def | Y | Y | MATCH | Option->throws KeyNotFoundError per rs2til.org (2026-01-05) |
+| get_fcall_func_def | Y | Y | DIVERGE | Now throws KeyNotFoundError (struct removed), but may have other differences |
 | param_needs_by_ref | Y | Y | MATCH | |
 | til_type_to_c | Y | Y | MATCH | Removed extra default case |
 | value_type_to_c_name | Y | Y | MATCH | Error uses value_type_to_str (acceptable - no {:?} in TIL) |
@@ -485,13 +522,13 @@ All unnecessary result structs have been removed:
 | get_struct_dependencies | Y | Y | MATCH | Now uses get_field_type_dependency helper (2026-01-05) |
 | get_enum_name | Y | Y | MATCH | "" sentinel for Option per rs2til.org, fixed unused var (2026-01-05) |
 | get_enum_dependencies | Y | Y | MATCH | Uses for-in loop, method chaining (2026-01-05) |
-| get_type_name | Y | Y | MATCH | "" sentinel for Option per rs2til.org (2026-01-05) |
-| get_type_dependencies | Y | Y | MATCH | Same structure, empty Vec return matches Rust (2026-01-05) |
+| get_type_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
+| get_type_dependencies | Y | Y | DIVERGE | Similar structure but empty return logic differs |
 | get_fcall_func_name | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |
-| get_struct_construction_type | Y | Y | MATCH | "" sentinel per rs2til.org, method chaining fixed (2026-01-05) |
-| get_enum_construction_type | Y | Y | MATCH | "" sentinel per rs2til.org, switch/case idiom (2026-01-05) |
-| get_case_variant_info | Y | Y | MATCH | switch/case and mut result are acceptable TIL idioms (2026-01-05) |
-| parse_pattern_variant_name | Y | Y | MATCH | catch blocks are acceptable TIL idiom for error handling (2026-01-05) |
+| get_struct_construction_type | Y | Y | MATCH | Method chaining fixed (2026-01-05), actual code change |
+| get_enum_construction_type | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
+| get_case_variant_info | Y | Y | DIVERGE | Rust uses match, TIL uses switch + mut result variable |
+| parse_pattern_variant_name | Y | Y | DIVERGE | TIL has extra catch blocks for error handling |
 
 ***** Topological Sort - Present
 | Function | Rust | TIL | Status | Notes |
@@ -508,8 +545,8 @@ NOTE: All emit functions follow common divergence patterns:
 
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
-| emit | Y (pub) | Y | DIVERGE | Switch vs if-let, collect_nested_func_info uses "" vs None |
-| emit_struct_declaration | Y | Y | DIVERGE | Uses continue vs if block, different error handling |
+| emit | Y (pub) | Y | DIVERGE | collect_nested_func_info uses "" vs None - needs review |
+| emit_struct_declaration | Y | Y | DIVERGE | Uses continue vs if block - needs review |
 | emit_struct_constants | Y | Y | DIVERGE | Common patterns |
 | emit_struct_func_prototypes | Y | Y | DIVERGE | Common patterns |
 | emit_struct_func_body | Y | Y | MATCH | Added 2026-01-05 - extracted from emit_struct_func_bodies |
