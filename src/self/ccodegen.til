@@ -297,8 +297,6 @@ til_type_to_c := func(til_type: ValueType) returns Str throws Str {
         throw "Cannot convert Type to C"
     case ValueType.TMulti:
         throw "Cannot convert multi-type to C"
-    case:
-        throw "Cannot convert unknown type to C"
     }
 }
 

@@ -463,8 +463,8 @@ previously occurred with FuncNameResult. These may require deeper investigation.
 | get_type_arg_name | Y | Y | MATCH | Option->throws is correct rs2til.org translation |
 | get_fcall_func_def | Y | Y | DIVERGE | TIL uses FuncLookupResult struct instead of Option (should use throws) |
 | param_needs_by_ref | Y | Y | MATCH | |
-| til_type_to_c | Y | Y | DIVERGE | TIL has extra default case that Rust doesn't have |
-| value_type_to_c_name | Y | Y | DIVERGE | Comments differ, error message format differs |
+| til_type_to_c | Y | Y | MATCH | Removed extra default case |
+| value_type_to_c_name | Y | Y | MATCH | Error uses value_type_to_str (acceptable - no {:?} in TIL) |
 | has_str | - | Y | DELETE | Not in Rust - remove from TIL |
 | get_field_type_dependency | Y | - | PORT | Missing from TIL - needs porting |
 
