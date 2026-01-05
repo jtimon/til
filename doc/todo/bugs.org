@@ -481,11 +481,11 @@ All unnecessary result structs have been removed:
 | is_func_declaration | Y | Y | MATCH | Removed unused vars, uses method chaining (2026-01-05) |
 | enum_has_payloads | Y | Y | MATCH | Uses for-in loop like Rust iterator (2026-01-05) |
 | variant_has_payload | - | - | DELETED | Removed 2026-01-05 - was not in Rust |
-| get_struct_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
+| get_struct_name | Y | Y | MATCH | "" sentinel for Option per rs2til.org, fixed unused var (2026-01-05) |
 | get_struct_dependencies | Y | Y | MATCH | Now uses get_field_type_dependency helper (2026-01-05) |
-| get_enum_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
+| get_enum_name | Y | Y | MATCH | "" sentinel for Option per rs2til.org, fixed unused var (2026-01-05) |
 | get_enum_dependencies | Y | Y | MATCH | Uses for-in loop, method chaining (2026-01-05) |
-| get_type_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
+| get_type_name | Y | Y | MATCH | "" sentinel for Option per rs2til.org (2026-01-05) |
 | get_type_dependencies | Y | Y | DIVERGE | Similar structure but empty return logic differs |
 | get_fcall_func_name | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |
 | get_struct_construction_type | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel, loop style differs |

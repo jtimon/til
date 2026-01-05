@@ -1401,7 +1401,7 @@ get_enum_name := func(expr: Expr) returns Str {
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return "" }
             switch first.node_type {
-            case NodeType.EnumDef(enum_def):
+            case NodeType.EnumDef(_):
                 return decl.name
             case:
                 return ""
