@@ -446,16 +446,10 @@ All enums and functions match:
 | CodegenContext | MATCH | Rust changed to ~String~ with ~""~ = None per rs2til.org |
 
 ****** TIL-only Structs (UNNECESSARY per rs2til.org)
-| Struct | Fields | Issue |
-|--------|--------|-------|
-| FuncLookupResult | ~found: Bool~, ~func_def: SFuncDef~ | ~Option<T>~ returns should ~throw KeyNotFoundError~ |
-
-NOTE: FuncNameResult removed (2026-01-05) - get_func_name_string and get_til_func_name_string
-now throw KeyNotFoundError instead of returning result struct. Callers use try/catch pattern.
-
-Attempted to remove FuncLookupResult (2026-01-02) by changing get_fcall_func_def
-to throw KeyNotFoundError instead of returning result struct. All 18 call sites were
-updated mechanically. Result: til_compiled tests segfaulted. Reverted. Needs deeper investigation.
+All unnecessary result structs have been removed:
+- FuncNameResult removed (2026-01-05) - get_func_name_string/get_til_func_name_string now throw KeyNotFoundError
+- FuncLookupResult removed (2026-01-05) - get_fcall_func_def now throws KeyNotFoundError, callers use
+  scoped catch blocks (if true { }) to distinguish between different KeyNotFoundError sources
 
 ***** Helper Functions - Present
 | Function | Rust | TIL | Status | Notes |
@@ -468,7 +462,7 @@ updated mechanically. Result: til_compiled tests segfaulted. Reverted. Needs dee
 | get_func_name_string | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |
 | get_til_func_name_string | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |
 | get_type_arg_name | Y | Y | MATCH | Option->throws is correct rs2til.org translation |
-| get_fcall_func_def | Y | Y | DIVERGE | TIL uses FuncLookupResult struct instead of Option (should use throws) |
+| get_fcall_func_def | Y | Y | DIVERGE | Now throws KeyNotFoundError (struct removed), but may have other differences |
 | param_needs_by_ref | Y | Y | MATCH | |
 | til_type_to_c | Y | Y | MATCH | Removed extra default case |
 | value_type_to_c_name | Y | Y | MATCH | Error uses value_type_to_str (acceptable - no {:?} in TIL) |
@@ -483,7 +477,7 @@ updated mechanically. Result: til_compiled tests segfaulted. Reverted. Needs dee
 | is_enum_with_payloads | Y | Y | DIVERGE | Same pattern: extra vars, get() vs direct indexing |
 | is_constant_declaration | Y | Y | DIVERGE | Same pattern: extra vars, get() vs direct indexing |
 | is_global_declaration | Y | Y | DIVERGE | Same pattern: extra vars, get() vs direct indexing |
-| is_throwing_fcall | Y | Y | DIVERGE | Uses FuncLookupResult struct instead of Option |
+| is_throwing_fcall | Y | Y | DIVERGE | No longer uses FuncLookupResult, but may have other differences |
 | is_func_declaration | Y | Y | DIVERGE | Same pattern: extra vars, get() vs direct indexing |
 | enum_has_payloads | Y | Y | DIVERGE | Uses loop index + get() vs iterator |
 | variant_has_payload | - | Y | DELETE | Not in Rust - remove from TIL |
