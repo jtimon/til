@@ -152,12 +152,29 @@ ensure_parent_dir := proc(file_path: Str) throws AllocError {
 
 // test_mode: rs_interpreted, rs_compiled, til_interpreted, til_compiled
 // out_mode: interpreted or compiled - which .out file to compare against
-main := proc(test_mode: Str, out_mode: Str, expected_status_str: Str, file: Str, extra_args: ..Str) {
+main := proc(args: ..Str) {
+    if args.len().lt(4) {
+        println("Usage: test_runner <mode> <out_mode> <expected_status> <file> [args...]")
+        exit(1)
+    }
+
+    // Extract required args
+    mut test_mode := ""
+    mut out_mode := ""
+    mut expected_status_str := ""
+    mut file := ""
+    args.get(0, test_mode)
+    args.get(1, out_mode)
+    args.get(2, expected_status_str)
+    args.get(3, file)
+
     expected_status := expected_status_str.to_i64()
 
     // Collect extra args into single string
     mut cmd_args := ""
-    for arg: Str in extra_args {
+    for i in 4..args.len() {
+        mut arg := ""
+        args.get(i, arg)
         if cmd_args.len().gt(0) {
             cmd_args = cmd_args.concat(" ")
         }

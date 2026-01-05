@@ -119,12 +119,43 @@ build_til_til := proc() {
     }
 }
 
-build_tests := proc() {
+build_test_runner := proc() {
     build_rstil_til()
+
+    // Collect dependencies - same as rstil_til plus test.til
+    mut deps := Vec.new(Str)
+    deps.push("bin/rstil")
+    deps.push("src/test_runner.til")
+    self_files := glob_files("src/self/*.til")
+    for f: Str in self_files { deps.push(f) }
+    core_files := glob_files("src/core/*.til")
+    for f: Str in core_files { deps.push(f) }
+    std_files := glob_files("src/std/*.til")
+    for f: Str in std_files { deps.push(f) }
+    mode_files := glob_files("src/modes/*.til")
+    for f: Str in mode_files { deps.push(f) }
+
+    if needs_rebuild("bin/test_runner", deps).not() {
+        return
+    }
+
+    mut status := 0
+    status = run_stream_cmd("./bin/rstil build src/test_runner.til")
+    if status.eq(0).not() {
+        exit(1)
+    }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: AllocError) { panic(loc(), err.msg) }
+}
+
+build_tests := proc() {
+    build_test_runner()  // tests.til spawns test_runner for each test
 
     // Collect dependencies - same as rstil_til plus tests.til
     mut deps := Vec.new(Str)
     deps.push("bin/rstil")
+    deps.push("bin/test_runner")
     deps.push("src/tests.til")
     self_files := glob_files("src/self/*.til")
     for f: Str in self_files { deps.push(f) }

@@ -266,8 +266,8 @@ get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str th
 // test.til handles: run command, compare output, report result
 // Output is redirected to a result file for later reading
 spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns RunningTest throws SpawnError, AllocError, IndexOutOfBoundsError, I64_OverflowError {
-    // Build command: ./src/test.til <mode> <out_mode> <expected_status> <file> [args...]
-    mut cmd := format("./src/test.til ", phase.test_mode, " ", phase.out_mode, " ", entry.expected_status.to_str(), " ", entry.path)
+    // Build command: ./bin/test_runner <mode> <out_mode> <expected_status> <file> [args...]
+    mut cmd := format("./bin/test_runner ", phase.test_mode, " ", phase.out_mode, " ", entry.expected_status.to_str(), " ", entry.path)
     if entry.cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
@@ -408,7 +408,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                         mut next_phase := TestPhase()
                         phases.get(next_phase_idx, next_phase)
 
-                        mut cmd := format("./src/test.til ", next_phase.test_mode, " ", next_phase.out_mode, " ", current.entry.expected_status.to_str(), " ", current.entry.path)
+                        mut cmd := format("./bin/test_runner ", next_phase.test_mode, " ", next_phase.out_mode, " ", current.entry.expected_status.to_str(), " ", current.entry.path)
                         if current.entry.cmd_args.len().gt(0) {
                             cmd = cmd.concat(" ").concat(current.entry.cmd_args)
                         }
