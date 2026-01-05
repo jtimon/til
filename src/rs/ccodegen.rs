@@ -6139,11 +6139,6 @@ struct CollectedDeclaration {
     value_type: ValueType,
 }
 
-// Info about a switch case pattern and its body
-struct SwitchCaseInfo<'a> {
-    case_pattern: &'a Expr,
-    case_body: Option<&'a Expr>,
-}
 
 // Info about a throwing function call
 struct ThrowingFCallInfo {
@@ -6360,57 +6355,12 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     emit_expr(switch_expr, output, 0, ctx, context)?;
     output.push_str(";\n");
 
-    // Collect cases, separating default case
-    let mut cases: Vec<SwitchCaseInfo> = Vec::new();
-    let mut default_body: Option<&Expr> = None;
-    let mut i = 1;
-    while i < expr.params.len() {
-        let case_pattern = &expr.params[i];
-        let case_body = if i + 1 < expr.params.len() {
-            Some(&expr.params[i + 1])
-        } else {
-            None
-        };
-
-        if matches!(case_pattern.node_type, NodeType::DefaultCase) {
-            default_body = case_body;
-        } else {
-            cases.push(SwitchCaseInfo { case_pattern, case_body });
-        }
-        i += 2;
-    }
-
     // Hoist declarations from all case bodies to before the if/else chain
     // This ensures variables declared in switch cases are visible after the switch
     // (TIL has function-level scoping, not block-level scoping)
-    for switch_case in &cases {
-        if let Some(body) = switch_case.case_body {
-            let decls = collect_declarations_in_body(body, context);
-            for decl in decls {
-                // Only emit if not already declared
-                let c_var_name = til_name(&decl.name);
-                if !ctx.declared_vars.contains(&c_var_name) {
-                    if let Ok(c_type) = til_type_to_c(&decl.value_type) {
-                        output.push_str(&indent_str);
-                        output.push_str(&c_type);
-                        output.push_str(" ");
-                        output.push_str(&c_var_name);
-                        output.push_str(";\n");
-                        ctx.declared_vars.insert(c_var_name);
-                        // Also register in scope_stack so get_value_type can find it
-                        context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
-                            value_type: decl.value_type.clone(),
-                            is_mut: false,
-                            is_copy: false,
-                            is_own: false,
-                            is_comptime_const: false,
-                        });
-                    }
-                }
-            }
-        }
-    }
-    if let Some(body) = &default_body {
+    let mut i = 1;
+    while i + 1 < expr.params.len() {
+        let body = &expr.params[i + 1];
         let decls = collect_declarations_in_body(body, context);
         for decl in decls {
             let c_var_name = til_name(&decl.name);
@@ -6433,19 +6383,44 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 }
             }
         }
+        i += 2;
     }
 
-    // Emit if/else if chain for non-default cases
-    for (case_idx, switch_case) in cases.iter().enumerate() {
+    // Emit if/else if chain for cases
+    // Default case (if present) is guaranteed to be last by parser
+    let mut i = 1;
+    let mut first_case = true;
+    let mut has_cases = false;
+    while i + 1 < expr.params.len() {
+        let case_pattern = &expr.params[i];
+        let case_body = &expr.params[i + 1];
+        has_cases = true;
+
+        // Check if this is the default case (guaranteed last by parser)
+        if matches!(case_pattern.node_type, NodeType::DefaultCase) {
+            // Default case - emit as else block
+            if !first_case {
+                output.push_str(&indent_str);
+                output.push_str("} else {\n");
+            }
+            let saved_declared_vars = ctx.declared_vars.clone();
+            emit_body(case_body, output, indent + 1, ctx, context)?;
+            ctx.declared_vars = saved_declared_vars;
+            i += 2;
+            continue;
+        }
+
+        // Regular case - emit if/else if
         output.push_str(&indent_str);
-        if case_idx == 0 {
+        if first_case {
             output.push_str("if (");
+            first_case = false;
         } else {
             output.push_str("} else if (");
         }
 
         // Emit the condition based on pattern type
-        match &switch_case.case_pattern.node_type {
+        match &case_pattern.node_type {
             NodeType::Pattern(pattern_info) => {
                 // Enum pattern with payload binding: compare tag
                 let mut info = parse_pattern_variant_name(&pattern_info.variant_name);
@@ -6474,33 +6449,33 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
             },
             NodeType::Range => {
                 // Range: low <= val && val <= high
-                if switch_case.case_pattern.params.len() < 2 {
+                if case_pattern.params.len() < 2 {
                     return Err("ccodegen: Range requires start and end values".to_string());
                 }
                 if is_str_switch {
                     // For string ranges, use strcmp: strcmp(low, val) <= 0 && strcmp(val, high) <= 0
                     output.push_str("strcmp((char*)");
-                    emit_expr(&switch_case.case_pattern.params[0], output, 0, ctx, context)?;
+                    emit_expr(&case_pattern.params[0], output, 0, ctx, context)?;
                     output.push_str(".c_string, (char*)");
                     output.push_str(&switch_var);
                     output.push_str(".c_string) <= 0 && strcmp((char*)");
                     output.push_str(&switch_var);
                     output.push_str(".c_string, (char*)");
-                    emit_expr(&switch_case.case_pattern.params[1], output, 0, ctx, context)?;
+                    emit_expr(&case_pattern.params[1], output, 0, ctx, context)?;
                     output.push_str(".c_string) <= 0");
                 } else {
-                    emit_expr(&switch_case.case_pattern.params[0], output, 0, ctx, context)?;
+                    emit_expr(&case_pattern.params[0], output, 0, ctx, context)?;
                     output.push_str(" <= ");
                     output.push_str(&switch_var);
                     output.push_str(" && ");
                     output.push_str(&switch_var);
                     output.push_str(" <= ");
-                    emit_expr(&switch_case.case_pattern.params[1], output, 0, ctx, context)?;
+                    emit_expr(&case_pattern.params[1], output, 0, ctx, context)?;
                 }
                 output.push_str(") {\n");
             },
             NodeType::Identifier(_name) => {
-                let info = get_case_variant_info(switch_case.case_pattern);
+                let info = get_case_variant_info(case_pattern);
                 if !info.variant_name.is_empty() {
                     // Enum variant without payload
                     output.push_str(&switch_var);
@@ -6519,13 +6494,13 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     output.push_str("til_Str_eq(&");
                     output.push_str(&switch_var);
                     output.push_str(", &");
-                    emit_expr(switch_case.case_pattern, output, 0, ctx, context)?;
+                    emit_expr(case_pattern, output, 0, ctx, context)?;
                     output.push_str(").data");
                 } else {
                     // Regular value comparison
                     output.push_str(&switch_var);
                     output.push_str(" == ");
-                    emit_expr(switch_case.case_pattern, output, 0, ctx, context)?;
+                    emit_expr(case_pattern, output, 0, ctx, context)?;
                 }
                 output.push_str(") {\n");
             },
@@ -6535,20 +6510,20 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     output.push_str("til_Str_eq(&");
                     output.push_str(&switch_var);
                     output.push_str(", &");
-                    emit_expr(switch_case.case_pattern, output, 0, ctx, context)?;
+                    emit_expr(case_pattern, output, 0, ctx, context)?;
                     output.push_str(").data");
                 } else {
                     // Regular literal comparison
                     output.push_str(&switch_var);
                     output.push_str(" == ");
-                    emit_expr(switch_case.case_pattern, output, 0, ctx, context)?;
+                    emit_expr(case_pattern, output, 0, ctx, context)?;
                 }
                 output.push_str(") {\n");
             },
             NodeType::FCall => {
                 // FCall pattern: Type.Variant(payload) - enum variant with payload argument
                 // For example: ValueType.TType(TTypeDef.TEnumDef)
-                let info = get_case_variant_info(switch_case.case_pattern);
+                let info = get_case_variant_info(case_pattern);
                 if !info.variant_name.is_empty() && enum_has_payloads_flag {
                     // Compare tag first
                     output.push_str(&switch_var);
@@ -6559,8 +6534,8 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
 
                     // Check if there's a payload argument to compare
                     // params[0] is Type.Variant identifier, params[1+] are arguments
-                    if switch_case.case_pattern.params.len() > 1 {
-                        let payload_expr = &switch_case.case_pattern.params[1];
+                    if case_pattern.params.len() > 1 {
+                        let payload_expr = &case_pattern.params[1];
                         // Check if payload is also an enum variant (Type.Variant pattern)
                         let payload_info = get_case_variant_info(payload_expr);
                         if !payload_info.variant_name.is_empty() {
@@ -6589,7 +6564,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     // Not an enum pattern - fall through to generic comparison
                     output.push_str(&switch_var);
                     output.push_str(" == ");
-                    emit_expr(switch_case.case_pattern, output, 0, ctx, context)?;
+                    emit_expr(case_pattern, output, 0, ctx, context)?;
                     output.push_str(") {\n");
                 }
             },
@@ -6600,12 +6575,12 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     output.push_str("til_Str_eq(&");
                     output.push_str(&switch_var);
                     output.push_str(", &");
-                    emit_expr(switch_case.case_pattern, output, 0, ctx, context)?;
+                    emit_expr(case_pattern, output, 0, ctx, context)?;
                     output.push_str(").data");
                 } else {
                     output.push_str(&switch_var);
                     output.push_str(" == ");
-                    emit_expr(switch_case.case_pattern, output, 0, ctx, context)?;
+                    emit_expr(case_pattern, output, 0, ctx, context)?;
                 }
                 output.push_str(") {\n");
             },
@@ -6614,63 +6589,50 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         // Emit case body
         // For pattern matching with binding variables, we need to add the binding to scope
         // so that get_value_type can resolve it during body emission
-        if let Some(body) = switch_case.case_body {
-            // Save declared_vars for block scope - variables declared in this case body
-            // should not affect other case bodies
-            let saved_declared_vars = ctx.declared_vars.clone();
-
-            if let NodeType::Pattern(pattern_info) = &switch_case.case_pattern.node_type {
-                // Get the payload type from the enum definition
-                let info = parse_pattern_variant_name(&pattern_info.variant_name);
-                let payload_type_opt: Option<ValueType> = if let Some(ValueType::TCustom(ref enum_name)) = switch_type {
-                    context.scope_stack.lookup_enum(enum_name)
-                        .and_then(|enum_def| enum_def.get(&info.variant_name).cloned())
-                        .flatten()
-                } else {
-                    None
-                };
-
-                if let Some(payload_type) = payload_type_opt {
-                    // Push scope and declare binding variable
-                    context.scope_stack.push(ScopeType::Block);
-                    context.scope_stack.declare_symbol(
-                        pattern_info.binding_var.clone(),
-                        SymbolInfo {
-                            value_type: payload_type,
-                            is_mut: false,
-                            is_copy: false,
-                            is_own: false,
-                            is_comptime_const: false,
-                        }
-                    );
-                    emit_body(body, output, indent + 1, ctx, context)?;
-                    context.scope_stack.pop().ok();
-                } else {
-                    emit_body(body, output, indent + 1, ctx, context)?;
-                }
-            } else {
-                emit_body(body, output, indent + 1, ctx, context)?;
-            }
-
-            // Restore declared_vars after case body
-            ctx.declared_vars = saved_declared_vars;
-        }
-    }
-
-    // Emit default case as final else (if present)
-    if let Some(body) = default_body {
-        if !cases.is_empty() {
-            output.push_str(&indent_str);
-            output.push_str("} else {\n");
-        }
-        // Save declared_vars for default case body
+        // Save declared_vars for block scope - variables declared in this case body
+        // should not affect other case bodies
         let saved_declared_vars = ctx.declared_vars.clone();
-        emit_body(body, output, indent + 1, ctx, context)?;
+
+        if let NodeType::Pattern(pattern_info) = &case_pattern.node_type {
+            // Get the payload type from the enum definition
+            let info = parse_pattern_variant_name(&pattern_info.variant_name);
+            let payload_type_opt: Option<ValueType> = if let Some(ValueType::TCustom(ref enum_name)) = switch_type {
+                context.scope_stack.lookup_enum(enum_name)
+                    .and_then(|enum_def| enum_def.get(&info.variant_name).cloned())
+                    .flatten()
+            } else {
+                None
+            };
+
+            if let Some(payload_type) = payload_type_opt {
+                // Push scope and declare binding variable
+                context.scope_stack.push(ScopeType::Block);
+                context.scope_stack.declare_symbol(
+                    pattern_info.binding_var.clone(),
+                    SymbolInfo {
+                        value_type: payload_type,
+                        is_mut: false,
+                        is_copy: false,
+                        is_own: false,
+                        is_comptime_const: false,
+                    }
+                );
+                emit_body(case_body, output, indent + 1, ctx, context)?;
+                context.scope_stack.pop().ok();
+            } else {
+                emit_body(case_body, output, indent + 1, ctx, context)?;
+            }
+        } else {
+            emit_body(case_body, output, indent + 1, ctx, context)?;
+        }
+
+        // Restore declared_vars after case body
         ctx.declared_vars = saved_declared_vars;
+        i += 2;
     }
 
     // Close the if/else chain
-    if !cases.is_empty() || default_body.is_some() {
+    if has_cases {
         output.push_str(&indent_str);
         output.push_str("}\n");
     }

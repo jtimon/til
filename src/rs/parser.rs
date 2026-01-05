@@ -1506,15 +1506,20 @@ fn parse_switch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     lexer.advance(1)?;
 
     let mut end_found = false;
+    let mut seen_default = false;
     while lexer.current < lexer.len() && !end_found {
         let mut next_t = lexer.peek();
         if next_t.token_type != TokenType::Case {
             return Err(next_t.error(&lexer.path, &format!("Expected 'case' in switch, found '{:?}'", next_t.token_type)));
         }
+        if seen_default {
+            return Err(next_t.error(&lexer.path, "default case must be last in switch"));
+        }
 
         lexer.advance(1)?;
         next_t = lexer.peek();
         if next_t.token_type == TokenType::Colon {
+            seen_default = true;
             params.push(Expr::new_parse(NodeType::DefaultCase, t.clone(), Vec::new()));
         } else {
             let prim = match parse_case_expr(lexer) {

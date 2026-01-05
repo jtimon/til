@@ -440,7 +440,7 @@ All enums and functions match:
 | ThrowingDefault | MATCH | |
 | CatchLabelInfoEntry | DIVERGE | TIL has extra ~catch_block: Expr~ field |
 | ParamTypeInfo | MATCH | Changed to use ~Ptr~ for value_type, removed ~has_type~ |
-| SwitchCaseInfo | DIVERGE | Rust ~Option<&Expr>~ -> TIL uses ~has_case_body: Bool~ flag instead of Ptr |
+| SwitchCaseInfo | MATCH | Struct removed entirely from both Rust and TIL - parser enforces default-last |
 | ThrowingFCallInfo | DIVERGE | TIL has extra ~is_throwing: Bool~, uses ~has_return_type: Bool~ instead of Ptr |
 | VariadicFCallInfo | DIVERGE | TIL has extra ~is_variadic: Bool~ field |
 | CodegenContext | MATCH | Rust changed to ~String~ with ~""~ = None per rs2til.org |
@@ -537,7 +537,7 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_while | Y | Y | DIVERGE | Common patterns |
 | emit_break | Y | Y | DIVERGE | Common patterns |
 | emit_continue | Y | Y | DIVERGE | Common patterns |
-| emit_switch | Y | Y | DIVERGE | Common patterns |
+| emit_switch | Y | Y | MATCH | Removed SwitchCaseInfo, parser enforces default-last |
 | emit_fcall | Y | Y | DIVERGE | get_til_func_name_string replaced with replacen() hack |
 | emit_declaration | Y | Y | DIVERGE | Common patterns |
 | emit_funcdef | Y | Y | DIVERGE | Common patterns |

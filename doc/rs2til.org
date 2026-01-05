@@ -3,6 +3,18 @@ Translation patterns for converting Rust code to TIL, primarily for self-hosting
 
 See also: [[file:rs.org][Rust Rules]] - things NOT to do in Rust code.
 
+* IMPORTANT: These Are RULES, Not Recommendations
+
+This document contains RULES to follow, not suggestions or recommendations. When porting Rust code to TIL:
+
+1. Follow these patterns EXACTLY as documented
+2. NEVER use shortcuts or workarounds without stopping to ask and getting explicit consent first
+3. If something is unclear or seems difficult, ASK instead of inventing alternatives
+
+Before translating complex Rust patterns, ask: "Is this complexity necessary in Rust itself?"
+Often the simplest TIL translation comes from simplifying the source (e.g., parser enforcement
+can eliminate runtime Option checks, intermediate structs may be avoidable by iterating directly).
+
 * Overview
 
 TIL and Rust have different idioms, but the translation is mechanical. This guide documents the patterns discovered when analyzing lexer.rs, parser.rs, and init.rs against their TIL counterparts.

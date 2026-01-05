@@ -2047,6 +2047,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
     }
 
     mut end_found := false
+    mut seen_default := false
     while lexer.current.lt(lexer.len()).and(not(end_found)) {
         mut next_t := lexer.peek()
         ntt := next_t.token_type
@@ -2056,12 +2057,16 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
         case:
             throw next_t.error(lexer.path, format("Expected 'case' in switch, found '", token_type_to_str(next_t.token_type), "'"))
         }
+        if seen_default {
+            throw next_t.error(lexer.path, "default case must be last in switch")
+        }
 
         lexer.advance(1)
         next_t = lexer.peek()
         ntt2 := next_t.token_type
         switch ntt2 {
         case TokenType.Colon:
+            seen_default = true
             default_case_expr := Expr.new_parse(NodeType.DefaultCase, t.clone(), Vec.new(Expr))
             params.push(default_case_expr)
         case:
