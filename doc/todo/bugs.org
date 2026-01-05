@@ -564,7 +564,7 @@ NOTE: Same common divergence patterns as Emit Functions (see above).
 | emit_fcall_name_and_args_for_throwing | Y | Y | DIVERGE | Common patterns |
 | emit_arg_or_hoisted | Y | Y | DIVERGE | Common patterns |
 | emit_arg_with_param_type | Y | Y | DIVERGE | Common patterns |
-| emit_arg_with_mut | - | Y | DELETE | Not in Rust - Rust uses emit_arg_with_param_type |
+| emit_arg_with_mut | - | - | DELETED | Removed 2026-01-05 - Rust uses emit_arg_with_param_type |
 
 ***** Collection Functions - Present
 NOTE: Same common divergence patterns.

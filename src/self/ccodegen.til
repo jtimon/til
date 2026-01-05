@@ -4934,6 +4934,24 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
         pi = add(pi, 1)
     }
 
+    // Calculate param_types for emit_arg_with_param_type
+    mut param_types := Vec.new(ValueType)
+    pi = 0
+    while lt(pi, sub(fcall.params.len(), 1)) {
+        if got_lookup {
+            if lt(pi, lookup_fd.args.len()) {
+                mut arg_decl := Declaration()
+                lookup_fd.args.get(pi, arg_decl)
+                param_types.push(arg_decl.value_type)
+            } else {
+                param_types.push(ValueType.TCustom(""))
+            }
+        } else {
+            param_types.push(ValueType.TCustom(""))
+        }
+        pi = add(pi, 1)
+    }
+
     // Hoist any throwing function calls in arguments BEFORE constructing variadic array
     mut hoisted := Map.new(I64, Str)
     if gt(fcall.params.len(), 1) {
@@ -4996,10 +5014,17 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 if gt(rai, 0) {
                     result = result.concat(", ")
                 }
+                mut arg := Expr()
+                fcall.params.get(add(rai, 1), arg)
+                mut param_type := ValueType.TCustom("")
+                mut has_param_type := false
+                param_types.get(rai, param_type)
+                has_param_type = true
+                catch (err: IndexOutOfBoundsError) { }
                 mut by_ref := false
                 param_by_ref.get(rai, by_ref)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, by_ref, result, ctx, context)
+                result = emit_arg_with_param_type(arg, rai, hoisted, param_type, has_param_type, by_ref, result, ctx, context)
                 rai = add(rai, 1)
             }
 
@@ -5027,10 +5052,17 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 if gt(rai, 0) {
                     result = result.concat(", ")
                 }
+                mut arg := Expr()
+                fcall.params.get(add(rai, 1), arg)
+                mut param_type := ValueType.TCustom("")
+                mut has_param_type := false
+                param_types.get(rai, param_type)
+                has_param_type = true
+                catch (err: IndexOutOfBoundsError) { }
                 mut by_ref := false
                 param_by_ref.get(rai, by_ref)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, by_ref, result, ctx, context)
+                result = emit_arg_with_param_type(arg, rai, hoisted, param_type, has_param_type, by_ref, result, ctx, context)
                 rai = add(rai, 1)
             }
 
@@ -5070,10 +5102,17 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 if gt(rai, 0) {
                     result = result.concat(", ")
                 }
+                mut arg := Expr()
+                fcall.params.get(add(rai, 1), arg)
+                mut param_type := ValueType.TCustom("")
+                mut has_param_type := false
+                param_types.get(rai, param_type)
+                has_param_type = true
+                catch (err: IndexOutOfBoundsError) { }
                 mut by_ref := false
                 param_by_ref.get(rai, by_ref)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, by_ref, result, ctx, context)
+                result = emit_arg_with_param_type(arg, rai, hoisted, param_type, has_param_type, by_ref, result, ctx, context)
                 rai = add(rai, 1)
             }
 
@@ -5097,10 +5136,17 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 if gt(rai, 0) {
                     result = result.concat(", ")
                 }
+                mut arg := Expr()
+                fcall.params.get(add(rai, 1), arg)
+                mut param_type := ValueType.TCustom("")
+                mut has_param_type := false
+                param_types.get(rai, param_type)
+                has_param_type = true
+                catch (err: IndexOutOfBoundsError) { }
                 mut by_ref := false
                 param_by_ref.get(rai, by_ref)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_arg_with_mut(fcall, add(rai, 1), hoisted, by_ref, result, ctx, context)
+                result = emit_arg_with_param_type(arg, rai, hoisted, param_type, has_param_type, by_ref, result, ctx, context)
                 rai = add(rai, 1)
             }
 
@@ -5123,38 +5169,6 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
-
-    return result
-}
-
-/// Helper to emit an argument with by-ref parameter handling
-emit_arg_with_mut := proc(fcall: Expr, arg_idx: I64, hoisted: Map, by_ref: Bool, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
-    mut result := output
-
-    // Check if this arg was hoisted
-    mut hoisted_var := ""
-    mut was_hoisted := false
-    hoisted.get(sub(arg_idx, 1), hoisted_var)
-    was_hoisted = true
-    catch (err: KeyNotFoundError) { }
-
-    if was_hoisted {
-        // Use hoisted temp var
-        if by_ref {
-            result = result.concat("&")
-        }
-        result = result.concat(hoisted_var)
-    } else {
-        // Emit the argument expression
-        mut arg := Expr()
-        fcall.params.get(arg_idx, arg)
-        if by_ref {
-            result = result.concat("&")
-        }
-        result = emit_expr(arg, result, 0, ctx, context)
-    }
-
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     return result
 }
