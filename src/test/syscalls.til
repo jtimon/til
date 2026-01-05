@@ -59,4 +59,4 @@ test_run_cmd_output := proc() {
         panic(loc(), format("run_cmd output mismatch: expected 'hello\\n' (len 6), got '", output, "' (len ", output.len().to_str(), ")"))
     }
 }
-// test_run_cmd_output()  // TODO Bug #84: run_cmd output capture broken in compiled mode
+test_run_cmd_output()

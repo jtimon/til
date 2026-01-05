@@ -211,8 +211,9 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
         return -1;
     }
 
-    // Build command string: "cmd arg1 arg2 ..."
-    // For simplicity, we'll just concatenate with spaces (no shell escaping)
+    // Build command string: "cmd 'arg1' 'arg2' ..."
+    // Arguments (except command) are single-quoted for shell safety
+    // Single quotes within args are escaped as '\''
     char cmd_buf[8192];
     cmd_buf[0] = '\0';
     size_t cmd_len = 0;
@@ -223,11 +224,36 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
             if (cmd_len < sizeof(cmd_buf) - 1) {
                 cmd_buf[cmd_len++] = ' ';
             }
+            // Quote arguments (not the command itself)
+            if (cmd_len < sizeof(cmd_buf) - 1) {
+                cmd_buf[cmd_len++] = '\'';
+            }
         }
+        const char* arg_str = (const char*)arg->c_string;
         size_t arg_len = arg->cap;
-        if (cmd_len + arg_len < sizeof(cmd_buf) - 1) {
-            memcpy(cmd_buf + cmd_len, (const char*)arg->c_string, arg_len);
-            cmd_len += arg_len;
+        if (i == 0) {
+            // Command: no quoting needed
+            if (cmd_len + arg_len < sizeof(cmd_buf) - 1) {
+                memcpy(cmd_buf + cmd_len, arg_str, arg_len);
+                cmd_len += arg_len;
+            }
+        } else {
+            // Argument: escape single quotes as '\''
+            for (size_t j = 0; j < arg_len && cmd_len < sizeof(cmd_buf) - 5; j++) {
+                if (arg_str[j] == '\'') {
+                    // End quote, escaped quote, start quote: '\''
+                    cmd_buf[cmd_len++] = '\'';
+                    cmd_buf[cmd_len++] = '\\';
+                    cmd_buf[cmd_len++] = '\'';
+                    cmd_buf[cmd_len++] = '\'';
+                } else {
+                    cmd_buf[cmd_len++] = arg_str[j];
+                }
+            }
+            // Close quote
+            if (cmd_len < sizeof(cmd_buf) - 1) {
+                cmd_buf[cmd_len++] = '\'';
+            }
         }
     }
     cmd_buf[cmd_len] = '\0';

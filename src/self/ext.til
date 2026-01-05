@@ -548,20 +548,37 @@ proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws St
         }
     }
 
-    mut args := Vec.new(Str)
+    // Build shell command string: cmd 'arg1' 'arg2' ...
+    // Single quotes within args are escaped as '\''
+    mut cmd_str := cmd
     for i in 3..e.params.len() {
         arg_result := eval_expr(context, e.get(i))
         if arg_result.is_throw {
             return arg_result
         }
-        args.push(arg_result.value)
+        arg := arg_result.value
+        // Escape single quotes and wrap in single quotes
+        escaped := arg.replace("'", "'\\''")
+        cmd_str = cmd_str.concat(" '").concat(escaped).concat("'")
     }
+
+    // Run via bash -c to execute the command string
+    mut output := ""
+    exit_code := output.run_cmd("bash", "-c", cmd_str)
+
+    // Assign output to mut output variable
+    mut var_name := ""
+    switch output_var.node_type {
+    case NodeType.Identifier(name):
+        var_name = name
+    case:
+        throw e.error(context.path, "eval", "run_cmd first argument must be an identifier")
+    }
+    EvalArena.insert_primitive(context, var_name, ValueType.TCustom("Str"), output, e)
 
     catch (err: AllocError) { throw err.msg }
 
-    // TODO: Call run_cmd once we have Vec-to-variadic splat
-    // run_cmd is imported from safe_script but expects variadic ..Str, not Vec
-    throw e.error(context.path, "eval", "run_cmd not yet implemented in self-hosted interpreter (needs Vec-to-variadic)")
+    return EvalResult.new(exit_code.to_str())
 }
 
 // ---------- Introspection functions
