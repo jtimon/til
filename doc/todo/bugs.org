@@ -154,13 +154,177 @@ The diff revealed these divergences:
    - Fix: emit_size_of_function now uses pointer param, call sites use &
 
 7. *Temp variable naming*
-   - rstil: ~_tmp_til_U8_from_i64_19~ (incrementing counter)
-   - til: ~_tmp_U8_from_i64__tmp_~ (reuses same name, causes conflicts)
+   - rstil: ~_tmp_or_0~, ~_tmp_or_1~, etc. (incrementing counter)
+   - til: ~_tmp_or__tmp_~ (counter not incrementing, outputs "_tmp_" instead of number)
 
 8. *Function call argument passing*
    - rstil: ~til_I64_to_str(&til_MAX_U8)~ (address-of for pointer params)
    - til: ~til_I64_to_str(til_MAX_U8)~ (by value)
-   - Follows from #6 - if param is pointer, must use &
+   - Follows from pointer param handling - if param is pointer, must use &
+
+9. *Pointer dereference style*
+   - rstil: ~(*til_b).data~ (explicit dereference then field access)
+   - til: ~til_b.data~ (direct field access on pointer - wrong)
+
+10. *Literal hoisting for pointer params*
+    - rstil: Hoists Type and I64 literals into temp variables, then passes &temp
+      #+BEGIN_EXAMPLE
+      til_Type _tmp_or_4 = "Str";
+      til_I64 _tmp_or_5 = 0;
+      int _arr_status = til_Array_new(&_tmp_or_2, &_err_alloc, _tmp_or_4, &_tmp_or_5);
+      #+END_EXAMPLE
+    - til: Passes literals inline without hoisting
+      #+BEGIN_EXAMPLE
+      int _arr_status = til_Array_new(&_tmp_or__tmp_, &_err_alloc, "Str", 0);
+      #+END_EXAMPLE
+
+11. *Dynamic pointer casting*
+    - rstil: ~(til_Dynamic*)&til_val~ (explicit cast to Dynamic pointer)
+    - til: ~til_val~ (missing cast and address-of)
+
+**** Detailed Fix Analysis
+
+***** Issue 7: Temp naming - ~next_mangled~ produces "_tmp_" instead of counter number
+
+*Symptom*: All temp vars have suffix ~_tmp_~ instead of incrementing numbers (0, 1, 2...)
+
+*Location*: ~src/self/ccodegen.til~ lines 112-119
+
+*Rust reference*: ~src/rs/ccodegen.rs~ lines 74-80
+
+*Analysis*:
+The ~next_mangled~ function looks correct:
+#+BEGIN_SRC til
+next_mangled := proc(mut ctx: CodegenContext) returns Str {
+    n := ctx.mangling_counter
+    ctx.mangling_counter.inc()
+    if gt(ctx.current_function_name.len(), 0) {
+        return concat("_tmp_", ctx.current_function_name).concat("_").concat(n.to_str())
+    }
+    return concat("_tmp_", n.to_str())
+}
+#+END_SRC
+
+The Rust version is essentially identical but n.to_str() correctly returns "0", "1", etc.
+
+*Suspected cause*: Either ~n.to_str()~ is returning ~"_tmp_"~ due to some type confusion,
+or the counter isn't being properly saved/restored. Key difference: Rust uses
+~ctx.mangling_counter = 0~ to reset counter per function, TIL might be missing this reset.
+
+*Fix steps*:
+1. Verify ~emit_func_declaration~ resets ~ctx.mangling_counter = 0~ after saving old value
+2. Verify ~n.to_str()~ in TIL ccodegen returns correct integer string
+3. Add debug println to trace what n.to_str() actually returns
+4. Check if there's variable shadowing causing ~n~ to get wrong value
+
+***** Issue 8: Argument passing - missing ~&~ for pointer params
+
+*Symptom*: Function calls pass values directly instead of addresses
+
+*Location*: Multiple emit_* functions that generate function call arguments
+
+*Rust reference*: Rust uses ~format!("&{}", ...)~ or ~output.push_str("&")~ for ref params
+
+*Analysis*:
+When a function parameter is by-ref (pointer), the caller must use ~&var~ syntax.
+TIL ccodegen is emitting just ~var~ without the address-of operator.
+
+*Fix steps*:
+1. In ~emit_arg_with_param_type~ (or equivalent), check if param is by-ref
+2. If param is by-ref and arg is not already an address expression, prepend "&"
+3. Key functions to check: ~emit_fcall~, ~emit_arg_or_hoisted~, ~emit_arg_with_param_type~
+
+***** Issue 9: Pointer dereference - ~til_b.data~ should be ~(*til_b).data~
+
+*Symptom*: Field access on pointer params uses ~.~ instead of ~->~ or ~(*ptr).~
+
+*Location*: ~emit_identifier~ or ~emit_expr~ when handling field access
+
+*Rust reference*: Look for how field access on mutable (pointer) params is emitted
+
+*Analysis*:
+When accessing a field on a mutable parameter (which is passed as pointer),
+the C code needs explicit dereference: ~(*ptr).field~ or ~ptr->field~.
+TIL ccodegen is treating the pointer like a value type.
+
+*Fix steps*:
+1. In ~emit_expr~ field access case, check if base variable is in ~current_ref_params~
+2. If it's a ref param, emit ~(*var).field~ instead of ~var.field~
+3. Rust uses ~ctx.current_ref_params.contains(&name)~ to check
+
+***** Issue 10: Literal hoisting - Type and I64 literals need temp variables
+
+*Symptom*: Can't take address of string/integer literal for pointer params
+
+*Location*: ~hoist_variadic_args~ and ~emit_variadic_call~
+
+*Rust reference*: ~src/rs/ccodegen.rs~ lines 1352-1371 (Bug #60 fix)
+
+*Analysis*:
+When calling Array.new, the Type and I64 params need hoisting because:
+- Can't do ~&"Str"~ (address of string literal for const char* const*)
+- Can't do ~&0~ (address of integer literal)
+
+Rust solution (Bug #60):
+#+BEGIN_SRC rust
+// Bug #60: Hoist Type and I64 literals for Array.new call
+let type_temp = next_mangled(ctx);
+output.push_str(&indent_str);
+output.push_str(TIL_PREFIX);
+output.push_str("Type ");
+output.push_str(&type_temp);
+output.push_str(" = \"");
+output.push_str(elem_type);
+output.push_str("\";\n");
+#+END_SRC
+
+*Fix steps*:
+1. Find ~hoist_variadic_args~ in ccodegen.til
+2. Add hoisting for Type literal (elem_type string)
+3. Add hoisting for I64 literal (count)
+4. Emit temp variable declarations before Array.new call
+5. Pass ~&type_temp~ and ~&count_temp~ instead of inline literals
+
+***** Issue 11: Dynamic casting - need ~(til_Dynamic*)&val~
+
+*Symptom*: Array.get/set calls missing Dynamic pointer cast
+
+*Location*: ~emit_variadic_call~ or wherever Array.get/set is emitted
+
+*Rust reference*: Look for ~(til_Dynamic*)~ casts in ccodegen.rs
+
+*Analysis*:
+When passing values to Array.set which expects ~til_Dynamic*~, we need:
+- ~(til_Dynamic*)&value~ for the value argument
+TIL ccodegen just passes ~value~ without cast or address-of.
+
+*Fix steps*:
+1. In hoist_variadic_args or emit_variadic_call, find Array.set emission
+2. Add ~(til_Dynamic*)&~ prefix when passing value to Dynamic* param
+3. Similarly for Array.get output parameter
+
+***** Issue 3: Forward declarations position
+
+*Symptom*: Forward declarations appear after ~#include <ext.c>~ instead of before
+
+*Location*: ~emit~ function main pass ordering
+
+*Rust reference*: Check pass ordering in ccodegen.rs ~emit~ function
+
+*Analysis*:
+The pass order in emit() differs between Rust and TIL. Rust emits:
+1. Typedefs
+2. Forward declarations
+3. ~#include <ext.c>~
+4. Function bodies
+
+TIL has different ordering. Need to match Rust's pass sequence.
+
+*Fix steps*:
+1. Read ~emit~ function in both ccodegen.rs and ccodegen.til
+2. Identify pass order difference
+3. Reorder passes in TIL to match Rust
+4. Key: Forward decls (emit_func_prototype) must come before ext.c include
 
 *** Root Cause
 ccodegen.til has diverged significantly from ccodegen.rs and needs to be re-synced.
