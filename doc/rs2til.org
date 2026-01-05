@@ -566,6 +566,58 @@ reserve := proc(mut self: Arena, size: I64) returns I64 throws Str {
 // Call sites: arena.reserve(size)  -- ? is implicit
 #+end_src
 
+** Nested if-let detection patterns
+
+Rust uses nested ~if let~ for checking type hierarchies (common in AST traversal).
+TIL uses nested ~switch/case~ with ~get()+catch~ for array access.
+
+Rust:
+#+begin_src rust
+fn is_struct_declaration(expr: &Expr) -> bool {
+    if let NodeType::Declaration(_) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::StructDef(_) = &expr.params[0].node_type {
+                return true;
+            }
+        }
+    }
+    false
+}
+#+end_src
+
+TIL:
+#+begin_src til
+is_struct_declaration := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.Declaration(_):
+        if not(expr.params.is_empty()) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return false }
+            switch first.node_type {
+            case NodeType.StructDef(_):
+                return true
+            case:
+            }
+        }
+    case:
+    }
+    return false
+}
+#+end_src
+
+Translation rules for this pattern:
+| Rust | TIL | Notes |
+|------|-----|-------|
+| ~if let Pattern = expr { ... }~ | ~switch expr { case Pattern: ... case: }~ | Empty default case required |
+| ~!expr.is_empty()~ | ~not(expr.is_empty())~ | Use ~not()~ for negation |
+| ~expr.params[0]~ | ~mut first := T(); expr.params.get(0, first); catch...~ | get()+catch pattern |
+| Single ~false~ at end | Single ~return false~ at end | Empty default cases fall through |
+
+Key insight: Empty ~case:~ blocks don't need ~return false~ - they fall through to the
+single ~return false~ at the end. This matches Rust's structure where the final ~false~
+is only reached when no early ~return true~ happened.
+
 ** Default switch case syntax
 
 Rust uses ~_~ for catch-all. TIL uses empty ~case:~
