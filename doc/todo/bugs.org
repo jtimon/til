@@ -459,8 +459,8 @@ All unnecessary result structs have been removed:
 | emit_struct_literal_assign | Y | Y | MATCH | Uses push_str like Rust |
 | emit_struct_literal_start | Y | Y | MATCH | Uses push_str like Rust |
 | til_func_name | Y | Y | MATCH | |
-| get_func_name_string | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |
-| get_til_func_name_string | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |
+| get_func_name_string | Y | Y | DIVERGE | Throws KeyNotFoundError (correct), but Rust uses vec+join, TIL uses string concat |
+| get_til_func_name_string | Y | Y | DIVERGE | Throws KeyNotFoundError (correct), but Rust uses vec+join, TIL uses string concat |
 | get_type_arg_name | Y | Y | MATCH | Option->throws is correct rs2til.org translation |
 | get_fcall_func_def | Y | Y | DIVERGE | Now throws KeyNotFoundError (struct removed), but may have other differences |
 | param_needs_by_ref | Y | Y | MATCH | |
@@ -480,7 +480,7 @@ All unnecessary result structs have been removed:
 | is_throwing_fcall | Y | Y | DIVERGE | No longer uses FuncLookupResult, but may have other differences |
 | is_func_declaration | Y | Y | DIVERGE | Same pattern: extra vars, get() vs direct indexing |
 | enum_has_payloads | Y | Y | DIVERGE | Uses loop index + get() vs iterator |
-| variant_has_payload | - | Y | DELETE | Not in Rust - remove from TIL |
+| variant_has_payload | - | - | DELETED | Removed 2026-01-05 - was not in Rust |
 | get_struct_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
 | get_struct_dependencies | Y | Y | DIVERGE | Rust uses get_field_type_dependency helper, TIL inlines logic |
 | get_enum_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
@@ -497,7 +497,7 @@ All unnecessary result structs have been removed:
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
 | topological_sort_types | Y | Y | DIVERGE | Rust uses Vec<Vec>, TIL uses Map<I64, Vec>, different loop styles |
-| topological_sort_structs | - | Y | DELETE | Old function, Rust uses topological_sort_types |
+| topological_sort_structs | - | - | DELETED | Removed 2026-01-05 - old function, Rust uses topological_sort_types |
 
 ***** Emit Functions - All Present
 NOTE: All emit functions follow common divergence patterns:
@@ -541,7 +541,7 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_throw | Y | Y | DIVERGE | Common patterns |
 | emit_literal | Y | Y | DIVERGE | Common patterns |
 | emit_str_literal | Y | Y | DIVERGE | Common patterns |
-| emit_identifier_without_nested | - | Y | DELETE | Not in Rust - remove from TIL |
+| emit_identifier_without_nested | - | - | DELETED | Removed 2026-01-05 - was not in Rust |
 | prescan_func_level_catches | Y | Y | DIVERGE | Common patterns |
 
 ***** Hoisting/Throwing Functions - Present
