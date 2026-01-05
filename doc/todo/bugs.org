@@ -292,23 +292,26 @@ TIL ccodegen is emitting just ~var~ without the address-of operator.
 2. If param is by-ref and arg is not already an address expression, prepend "&"
 3. Key functions to check: ~emit_fcall~, ~emit_arg_or_hoisted~, ~emit_arg_with_param_type~
 
-***** Issue 9: Pointer dereference - ~til_b.data~ should be ~(*til_b).data~
+***** Issue 9: Pointer dereference - ~til_b.data~ should be ~(*til_b).data~ - FIXED
 
 *Symptom*: Field access on pointer params uses ~.~ instead of ~->~ or ~(*ptr).~
 
-*Location*: ~emit_identifier~ or ~emit_expr~ when handling field access
+*Location*: Three places where ~current_ref_params~ is populated
 
-*Rust reference*: Look for how field access on mutable (pointer) params is emitted
+*Rust reference*: ccodegen.rs lines 2927-2930 and 3206-3209 and 4852-4855
 
-*Analysis*:
-When accessing a field on a mutable parameter (which is passed as pointer),
-the C code needs explicit dereference: ~(*ptr).field~ or ~ptr->field~.
-TIL ccodegen is treating the pointer like a value type.
+*Root cause*:
+TIL only added ~mut~ params to ~current_ref_params~, but Rust adds ALL non-copy
+params (Bug #60 fix). Non-copy params (including const struct params) are passed
+by pointer in C, so they need dereference when accessed as values.
 
-*Fix steps*:
-1. In ~emit_expr~ field access case, check if base variable is in ~current_ref_params~
-2. If it's a ref param, emit ~(*var).field~ instead of ~var.field~
-3. Rust uses ~ctx.current_ref_params.contains(&name)~ to check
+*Fix applied*:
+Changed three locations from ~if arg.is_mut~ to ~if not(arg.is_copy)~:
+1. ~emit_struct_func_bodies~ (line 2527)
+2. ~emit_func_declaration~ (line 3065)
+3. ~emit_declaration~ for nested functions (line 7408)
+
+Added "Bug #60" comment to match Rust for future reference.
 
 ***** Issue 10: Literal hoisting - Type and I64 literals need temp variables
 

@@ -2523,7 +2523,8 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             while lt(arg_idx, func_def.args.len()) {
                                 mut arg := Declaration()
                                 func_def.args.get(arg_idx, arg)
-                                if arg.is_mut {
+                                // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
+                                if not(arg.is_copy) {
                                     ctx.current_ref_params.push(arg.name)
                                 }
                                 switch arg.value_type {
@@ -3060,8 +3061,8 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 while lt(arg_idx, func_def.args.len()) {
                     mut arg := Declaration()
                     func_def.args.get(arg_idx, arg)
-                    // Track mut params
-                    if arg.is_mut {
+                    // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
+                    if not(arg.is_copy) {
                         ctx.current_ref_params.push(arg.name)
                     }
                     switch arg.value_type {
@@ -7403,7 +7404,8 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 while lt(arg_idx, func_def.args.len()) {
                     mut arg := Declaration()
                     func_def.args.get(arg_idx, arg)
-                    if arg.is_mut {
+                    // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
+                    if not(arg.is_copy) {
                         ctx.current_ref_params.push(arg.name)
                     }
                     switch arg.value_type {
