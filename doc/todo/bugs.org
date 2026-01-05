@@ -467,7 +467,7 @@ All unnecessary result structs have been removed:
 | til_type_to_c | Y | Y | MATCH | Removed extra default case |
 | value_type_to_c_name | Y | Y | MATCH | Error uses value_type_to_str (acceptable - no {:?} in TIL) |
 | has_str | - | - | DELETED | Removed 2026-01-05 - inlined at call sites like Rust |
-| get_field_type_dependency | Y | - | PORT | Missing from TIL - needs porting |
+| get_field_type_dependency | Y | Y | MATCH | Added 2026-01-05 - returns empty for None |
 
 ***** Type/Struct/Enum Detection - Present
 | Function | Rust | TIL | Status | Notes |
@@ -482,7 +482,7 @@ All unnecessary result structs have been removed:
 | enum_has_payloads | Y | Y | DIVERGE | Uses loop index + get() vs iterator |
 | variant_has_payload | - | - | DELETED | Removed 2026-01-05 - was not in Rust |
 | get_struct_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
-| get_struct_dependencies | Y | Y | DIVERGE | Rust uses get_field_type_dependency helper, TIL inlines logic |
+| get_struct_dependencies | Y | Y | MATCH | Now uses get_field_type_dependency helper (2026-01-05) |
 | get_enum_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
 | get_enum_dependencies | Y | Y | DIVERGE | Loop style differs, extra variables |
 | get_type_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
@@ -512,8 +512,8 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_struct_declaration | Y | Y | DIVERGE | Uses continue vs if block, different error handling |
 | emit_struct_constants | Y | Y | DIVERGE | Common patterns |
 | emit_struct_func_prototypes | Y | Y | DIVERGE | Common patterns |
-| emit_struct_func_body | Y | - | PORT | Missing from TIL - needs porting |
-| emit_struct_func_bodies | Y | Y | DIVERGE | Common patterns |
+| emit_struct_func_body | Y | Y | MATCH | Added 2026-01-05 - extracted from emit_struct_func_bodies |
+| emit_struct_func_bodies | Y | Y | MATCH | Now uses emit_struct_func_body helper (2026-01-05) |
 | emit_enum_declaration | Y | Y | DIVERGE | Common patterns |
 | emit_enum_with_payloads | Y | Y | DIVERGE | Common patterns |
 | emit_enum_to_str_function | Y | Y | DIVERGE | Common patterns |

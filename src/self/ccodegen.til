@@ -1316,8 +1316,23 @@ get_struct_name := func(expr: Expr) returns Str {
     }
 }
 
-// Get struct dependencies (other struct types used as mut fields)
-// Returns a Vec of type names (Str) that this struct depends on
+// Extract struct field type dependencies for topological sorting
+// Returns the type name if it's a custom type that needs to be defined first
+// Returns empty string if no dependency (like Rust's Option::None)
+get_field_type_dependency := func(value_type: ValueType) returns Str {
+    switch value_type {
+    case ValueType.TCustom(name):
+        // I64 and U8 are primitives, not struct dependencies
+        if name.eq("I64").or(name.eq("U8")).or(name.eq(INFER_TYPE)) {
+            return ""
+        }
+        return name
+    case:
+        return ""
+    }
+}
+
+// Get struct dependencies (other struct types used as fields)
 get_struct_dependencies := func(expr: Expr) returns Vec throws Str {
     mut deps := Vec.new(Str)
     switch expr.node_type {
@@ -1329,16 +1344,11 @@ get_struct_dependencies := func(expr: Expr) returns Vec throws Str {
             switch first.node_type {
             case NodeType.StructDef(struct_def):
                 for member: Declaration in struct_def.members {
-                    if not(member.is_mut) {
-                        continue
-                    }
-                    switch member.value_type {
-                    case ValueType.TCustom(type_name):
-                        // I64 and U8 are primitives, not struct deps
-                        if not(Str.eq(type_name, "I64")).and(not(Str.eq(type_name, "U8"))).and(not(Str.eq(type_name, INFER_TYPE))) {
-                            deps.push(type_name)
+                    if member.is_mut {
+                        dep := get_field_type_dependency(member.value_type)
+                        if dep.len().gt(0) {
+                            deps.push(dep)
                         }
-                    case:
                     }
                 }
             case:
@@ -2257,7 +2267,103 @@ emit_struct_func_prototypes := proc(expr: Expr, output: Str, ctx: CodegenContext
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 }
 
-// Emit struct function bodies with mangled names: StructName_funcname
+// Emit a struct function body with mangled name: StructName_funcname
+emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: SFuncDef, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+    // Skip external functions
+    if func_def.is_ext() {
+        return output
+    }
+
+    mut result := output
+
+    // Set current function context
+    ctx.current_throw_types = func_def.throw_types
+    ctx.current_return_types = func_def.return_types
+    // Track mut params for pointer dereference (-> vs .)
+    ctx.current_ref_params = Vec.new(Str)
+    // Track variadic params - they're passed as til_Array* so need dereference
+    ctx.current_variadic_params = Map.new(Str, Str)
+    mut arg_idx := 0
+    while lt(arg_idx, func_def.args.len()) {
+        mut arg := Declaration()
+        func_def.args.get(arg_idx, arg)
+        // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
+        if not(arg.is_copy) {
+            ctx.current_ref_params.push(arg.name)
+        }
+        switch arg.value_type {
+        case ValueType.TMulti(elem_type_name):
+            // elem_type is the type name string like "Bool"
+            ctx.current_variadic_params.set(arg.name, til_name(elem_type_name))
+        case:
+        }
+        arg_idx = add(arg_idx, 1)
+    }
+
+    // Push a new scope frame for this function (like interpreter does)
+    context.scope_stack.push(ScopeType.Function)
+    // Register function parameters in the frame
+    mut param_idx := 0
+    while lt(param_idx, func_def.args.len()) {
+        mut param := Declaration()
+        func_def.args.get(param_idx, param)
+        mut value_type := param.value_type
+        switch param.value_type {
+        case ValueType.TMulti(elem_type):
+            value_type = ValueType.TCustom("Array")
+        case:
+        }
+        mut sym := SymbolInfo(value_type=value_type, is_mut=param.is_mut, is_copy=param.is_copy, is_own=param.is_own)
+        context.scope_stack.declare_symbol(param.name, sym)
+        param_idx = add(param_idx, 1)
+    }
+
+    // Clear declared_vars and hoisted_struct_defaults for new function scope
+    ctx.declared_vars = Set.new(Str)
+    ctx.hoisted_struct_defaults = Map.new(Str, Str)
+
+    mangled_name := struct_name.concat("_").concat(member.name)
+
+    // Save and set current function name for deterministic temp naming (Bug #42 fix)
+    mut prev_function_name := ctx.current_function_name
+    mut prev_mangling_counter := ctx.mangling_counter
+    ctx.current_function_name = mangled_name
+    ctx.mangling_counter = 0
+
+    result = emit_func_signature(mangled_name, func_def, result, ctx)
+    result = result.concat(" {\n")
+
+    // Emit function body with catch pattern detection
+    result = emit_stmts(func_def.body, result, 1, ctx, context)
+
+    // For throwing void functions, add implicit return 0 at end
+    if gt(func_def.throw_types.len(), 0) {
+        if eq(func_def.return_types.len(), 0) {
+            result = result.concat("    return 0;\n")
+        }
+    }
+
+    result = result.concat("}\n\n")
+
+    // Restore previous function name and counter
+    ctx.current_function_name = prev_function_name
+    ctx.mangling_counter = prev_mangling_counter
+
+    // Pop the function scope frame
+    _ := context.scope_stack.pop()
+
+    // Clear current function context
+    ctx.current_throw_types = Vec.new(ValueType)
+    ctx.current_return_types = Vec.new(ValueType)
+    ctx.current_ref_params = Vec.new(Str)
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
+    return result
+}
+
+// Emit struct function bodies for all functions in a struct
 emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
     switch expr.node_type {
@@ -2267,108 +2373,18 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
             expr.params.get(0, first)
             switch first.node_type {
             case NodeType.StructDef(struct_def):
-                mut struct_name := til_name(decl.name)
+                struct_name := til_name(decl.name)
                 mut i := 0
                 while lt(i, struct_def.members.len()) {
                     mut member := Declaration()
                     struct_def.members.get(i, member)
-                    // Check if default_value is a function
+                    // Check if default_value is a function definition
                     mut func_expr := Expr()
                     struct_def.default_values.get(member.name, func_expr)
                     switch func_expr.node_type {
                     case NodeType.FuncDef(func_def):
-                        // Skip external functions
-                        if func_def.is_ext() {
-                            // do nothing
-                        } else {
-                            // Set current function context
-                            ctx.current_throw_types = func_def.throw_types
-                            ctx.current_return_types = func_def.return_types
-                            // Track mut params for pointer dereference (-> vs .)
-                            ctx.current_ref_params = Vec.new(Str)
-                            // Track variadic params - they're passed as til_Array* so need dereference
-                            ctx.current_variadic_params = Map.new(Str, Str)
-                            mut arg_idx := 0
-                            while lt(arg_idx, func_def.args.len()) {
-                                mut arg := Declaration()
-                                func_def.args.get(arg_idx, arg)
-                                // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
-                                if not(arg.is_copy) {
-                                    ctx.current_ref_params.push(arg.name)
-                                }
-                                switch arg.value_type {
-                                case ValueType.TMulti(elem_type_name):
-                                    // elem_type is the type name string like "Bool"
-                                    ctx.current_variadic_params.set(arg.name, til_name(elem_type_name))
-                                case:
-                                }
-                                arg_idx = add(arg_idx, 1)
-                            }
-                            catch (err: IndexOutOfBoundsError) { throw err.msg }
-                            catch (err: AllocError) { throw err.msg }
-
-                            // Clear declared_vars and hoisted_struct_defaults for new function scope
-                            ctx.declared_vars = Set.new(Str)
-                            ctx.hoisted_struct_defaults = Map.new(Str, Str)
-
-                            // Push a new scope frame for this function (like interpreter does)
-                            context.scope_stack.push(ScopeType.Function)
-                            // Register function parameters in the frame
-                            mut param_idx := 0
-                            while lt(param_idx, func_def.args.len()) {
-                                mut param := Declaration()
-                                func_def.args.get(param_idx, param)
-                                mut value_type := param.value_type
-                                switch param.value_type {
-                                case ValueType.TMulti(elem_type):
-                                    value_type = ValueType.TCustom("Array")
-                                case:
-                                }
-                                mut sym := SymbolInfo(value_type=value_type, is_mut=param.is_mut, is_copy=param.is_copy, is_own=param.is_own)
-                                context.scope_stack.declare_symbol(param.name, sym)
-                                param_idx = add(param_idx, 1)
-                            }
-                            catch (err: IndexOutOfBoundsError) { throw err.msg }
-
-                            // Use emit_func_signature with mangled name
-                            mut mangled_name := struct_name.concat("_").concat(member.name)
-
-                            // Save and set current function name for deterministic temp naming (Bug #42 fix)
-                            mut prev_function_name := ctx.current_function_name
-                            mut prev_mangling_counter := ctx.mangling_counter
-                            ctx.current_function_name = mangled_name
-                            ctx.mangling_counter = 0
-
-                            result = emit_func_signature(mangled_name, func_def, result, ctx)
-                            result = result.concat(" {\n")
-
-                            // Emit function body with catch pattern detection
-                            result = emit_stmts(func_def.body, result, 1, ctx, context)
-
-                            // For throwing void functions, add implicit return 0
-                            if gt(func_def.throw_types.len(), 0) {
-                                if eq(func_def.return_types.len(), 0) {
-                                    result = result.concat("    return 0;\n")
-                                }
-                            }
-
-                            result = result.concat("}\n\n")
-
-                            // Restore previous function name and counter
-                            ctx.current_function_name = prev_function_name
-                            ctx.mangling_counter = prev_mangling_counter
-
-                            // Pop the function scope frame
-                            _ := context.scope_stack.pop()
-                            catch (err: IndexOutOfBoundsError) { throw err.msg }
-
-                            // Clear current function context
-                            ctx.current_throw_types = Vec.new(ValueType)
-                            ctx.current_return_types = Vec.new(ValueType)
-                            ctx.current_ref_params = Vec.new(Str)
-                        }
+                        result = emit_struct_func_body(struct_name, member, func_def, result, ctx, context)
                     case:
-                        // Not a function
                     }
                     catch (err: KeyNotFoundError) { /* skip member with no default */ }
                     i = add(i, 1)
