@@ -117,28 +117,28 @@ pub struct EvalResult {
     pub is_throw: bool,
     pub is_break: bool,
     pub is_continue: bool,
-    pub thrown_type: Option<String>,
+    pub thrown_type: String,  // Empty string means no thrown type
 }
 
 impl EvalResult {
     pub fn new(value: &str) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: false, is_throw: false, is_break: false, is_continue: false, thrown_type: None}
+        return EvalResult{value: value.to_string(), is_return: false, is_throw: false, is_break: false, is_continue: false, thrown_type: String::new()}
     }
 
     pub fn new_return(value: &str) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: true, is_throw: false, is_break: false, is_continue: false, thrown_type: None}
+        return EvalResult{value: value.to_string(), is_return: true, is_throw: false, is_break: false, is_continue: false, thrown_type: String::new()}
     }
 
     pub fn new_throw(value: &str, thrown_type: ValueType) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: false, is_throw: true, is_break: false, is_continue: false, thrown_type: Some(value_type_to_str(&thrown_type))}
+        return EvalResult{value: value.to_string(), is_return: false, is_throw: true, is_break: false, is_continue: false, thrown_type: value_type_to_str(&thrown_type)}
     }
 
     pub fn new_break() -> EvalResult {
-        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: true, is_continue: false, thrown_type: None}
+        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: true, is_continue: false, thrown_type: String::new()}
     }
 
     pub fn new_continue() -> EvalResult {
-        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: false, is_continue: true, thrown_type: None}
+        return EvalResult{value: "".to_string(), is_return: false, is_throw: false, is_break: false, is_continue: true, thrown_type: String::new()}
     }
 }
 
@@ -307,7 +307,7 @@ fn eval_struct_defaults(ctx: &mut Context, struct_type: &str, e: &Expr) -> Resul
                 // Now evaluate the default expression (template exists if needed)
                 let res = eval_expr(ctx, default_expr)?;
                 if res.is_throw {
-                    return Err(e.lang_error(&ctx.path, "eval_struct_defaults", &format!("thrown '{}' while evaluating default for field '{}'", res.thrown_type.unwrap_or_default(), decl.name)));
+                    return Err(e.lang_error(&ctx.path, "eval_struct_defaults", &format!("thrown '{}' while evaluating default for field '{}'", res.thrown_type, decl.name)));
                 }
                 // Clone res.value before move so we can use it later for nested structs
                 let instance_id = res.value.clone();
@@ -1806,7 +1806,8 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                         NodeType::Identifier(name) => name,
                         _ => return Err(stmt.lang_error(&context.path, "eval", "Catch type must be an identifier")),
                     };
-                    if let Some(thrown_type) = &throw_result.thrown_type {
+                    let thrown_type = &throw_result.thrown_type;
+                    if !thrown_type.is_empty() {
                         if type_name == thrown_type {
                             // Bind the error variable to the caught error value
                             context.scope_stack.declare_symbol(var_name.to_string(), SymbolInfo {
@@ -2507,7 +2508,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     if result.is_throw {
         // When throwing from a method, we need to copy the thrown struct's arena_index entries
         // from the function frame to the caller frame so that catch blocks can access fields
-        if let Some(thrown_type_name) = &result.thrown_type {
+        let thrown_type_name = &result.thrown_type;
+        if !thrown_type_name.is_empty() {
             // Check if this is a custom type (struct)
             if let Some(type_symbol) = context.scope_stack.lookup_symbol(thrown_type_name) {
                 if type_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {

@@ -443,7 +443,7 @@ All enums and functions match:
 | SwitchCaseInfo | DIVERGE | Rust ~Option<&Expr>~ -> TIL uses ~has_case_body: Bool~ flag instead of Ptr |
 | ThrowingFCallInfo | DIVERGE | TIL has extra ~is_throwing: Bool~, uses ~has_return_type: Bool~ instead of Ptr |
 | VariadicFCallInfo | DIVERGE | TIL has extra ~is_variadic: Bool~ field |
-| CodegenContext | DIVERGE | Rust ~Option<String>~ -> TIL uses ~Str = ""~ instead of Ptr |
+| CodegenContext | DIVERGE | Rust uses ~Option<String>~, TIL uses ~Str = ""~. FIX: Change Rust to ~String~ per rs2til.org |
 
 ****** TIL-only Structs (UNNECESSARY per rs2til.org)
 | Struct | Fields | Issue |

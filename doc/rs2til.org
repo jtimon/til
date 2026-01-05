@@ -586,7 +586,38 @@ if not(NULL.eq(func_ptr.data)) {
 }
 #+end_src
 
-** Option<T> struct fields -> Ptr
+** Option<String> -> Avoid in Rust, use String with "" as None
+
+For ~Option<String>~ struct fields, avoid using ~Option~ in Rust. Use ~String~ directly
+where empty string ~""~ represents ~None~. This is simpler than ~Ptr~ and natural for strings.
+
+Rust:
+#+begin_src rust
+struct CodegenContext {
+    // Empty string means None/no current function
+    current_function_name: String,
+}
+
+// Usage
+if !ctx.current_function_name.is_empty() {
+    // has a function name
+}
+#+end_src
+
+TIL:
+#+begin_src til
+CodegenContext := struct {
+    // Empty string means None/no current function
+    mut current_function_name: Str = ""
+}
+
+// Usage
+if ctx.current_function_name.len().gt(0) {
+    // has a function name
+}
+#+end_src
+
+** Option<T> struct fields -> Ptr (for non-String types)
 
 Rust uses ~Option<T>~ for optional struct fields. TIL uses ~Ptr~ where ~NULL~ represents ~None~:
 

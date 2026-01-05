@@ -34,8 +34,8 @@ struct CodegenContext {
     // Map of locally-caught error types to catch label info
     // For explicit throw statements that have a local catch block
     local_catch_labels: HashMap<String, CatchLabelInfo>,
-    // Current function name for nested function name mangling (None at top-level)
-    current_function_name: Option<String>,
+    // Current function name for nested function name mangling (empty at top-level)
+    current_function_name: String,
     // C code for hoisted nested function definitions
     hoisted_functions: Vec<String>,
     // C code for hoisted nested function prototypes
@@ -60,7 +60,7 @@ impl CodegenContext {
             known_types: Vec::new(),
             hoisted_exprs: HashMap::new(),
             local_catch_labels: HashMap::new(),
-            current_function_name: None,
+            current_function_name: String::new(),
             hoisted_functions: Vec::new(),
             hoisted_prototypes: Vec::new(),
             nested_func_names: HashMap::new(),
@@ -74,9 +74,11 @@ impl CodegenContext {
 fn next_mangled(ctx: &mut CodegenContext) -> String {
     let n = ctx.mangling_counter;
     ctx.mangling_counter += 1;
-    match &ctx.current_function_name {
-        Some(func_name) => format!("_tmp_{}_{}", func_name, n),
-        None => format!("_tmp_{}", n),
+    let func_name = &ctx.current_function_name;
+    if !func_name.is_empty() {
+        format!("_tmp_{}_{}", func_name, n)
+    } else {
+        format!("_tmp_{}", n)
     }
 }
 
@@ -2964,7 +2966,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     // Save and set current function name for deterministic temp naming (Bug #42 fix)
     let prev_function_name = ctx.current_function_name.clone();
     let prev_mangling_counter = ctx.mangling_counter;
-    ctx.current_function_name = Some(mangled_name.clone());
+    ctx.current_function_name = mangled_name.clone();
     ctx.mangling_counter = 0;
 
     emit_func_signature(&mangled_name, func_def, output)?;
@@ -3249,7 +3251,7 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 // Save and set current function name for nested function mangling
                 let prev_function_name = ctx.current_function_name.clone();
                 let prev_mangling_counter = ctx.mangling_counter;
-                ctx.current_function_name = Some(decl.name.clone());
+                ctx.current_function_name = decl.name.clone();
                 ctx.mangling_counter = 0;  // Reset counter per-function for determinism
 
                 emit_func_signature(&func_name, func_def, output)?;
@@ -4815,8 +4817,8 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             }
 
             // Handle nested function declarations - hoist to top level with mangled name
-            if ctx.current_function_name.is_some() {
-                let parent_name = ctx.current_function_name.as_ref().unwrap();
+            if !ctx.current_function_name.is_empty() {
+                let parent_name = &ctx.current_function_name;
                 let mangled_name = format!("{}_{}", parent_name, decl.name);
 
                 // Register the name mapping so function calls can find it
@@ -4845,7 +4847,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
                 ctx.current_throw_types = func_def.throw_types.clone();
                 ctx.current_return_types = func_def.return_types.clone();
-                ctx.current_function_name = Some(mangled_name.clone());
+                ctx.current_function_name = mangled_name.clone();
                 ctx.mangling_counter = 0;  // Reset counter per-function for determinism
 
                 // Bug #60: Track ref and variadic params - all non-copy args are by pointer

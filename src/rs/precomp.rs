@@ -375,7 +375,7 @@ fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
     // Check if the function threw an exception during evaluation
     if result.is_throw {
-        let thrown_type = result.thrown_type.as_deref().unwrap_or("unknown");
+        let thrown_type = if result.thrown_type.is_empty() { "unknown" } else { &result.thrown_type };
         return Err(e.error(&context.path, "precomp",
             &format!("Exception '{}' thrown during precomputation: {}", thrown_type, result.value)));
     }
@@ -523,9 +523,11 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     // Bug #40 fix: Use per-function counter and include function name for deterministic output
     let forin_id = context.precomp_forin_counter;
     context.precomp_forin_counter += 1;
-    let index_var_name = match &context.current_precomp_func {
-        Some(func_name) => format!("_for_i_{}_{}", func_name, forin_id),
-        None => format!("_for_i_{}", forin_id),
+    let func_name = &context.current_precomp_func;
+    let index_var_name = if !func_name.is_empty() {
+        format!("_for_i_{}_{}", func_name, forin_id)
+    } else {
+        format!("_for_i_{}", forin_id)
     };
     let index_decl = Declaration {
         name: index_var_name.clone(),
@@ -807,7 +809,7 @@ fn precomp_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) 
         let saved_func = context.current_precomp_func.clone();
         let saved_counter = context.precomp_forin_counter;
         if is_func {
-            context.current_precomp_func = Some(name.clone());
+            context.current_precomp_func = name.clone();
             context.precomp_forin_counter = 0;
         }
 
@@ -903,7 +905,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     let saved_func = context.current_precomp_func.clone();
     let saved_counter = context.precomp_forin_counter;
     if is_func_decl {
-        context.current_precomp_func = Some(decl.name.clone());
+        context.current_precomp_func = decl.name.clone();
         context.precomp_forin_counter = 0;
     }
 
