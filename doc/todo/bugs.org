@@ -442,7 +442,7 @@ All enums and functions match:
 | ParamTypeInfo | MATCH | Changed to use ~Ptr~ for value_type, removed ~has_type~ |
 | SwitchCaseInfo | MATCH | Struct removed entirely from both Rust and TIL - parser enforces default-last |
 | ThrowingFCallInfo | MATCH | Struct removed entirely from both Rust and TIL - logic inlined at call sites |
-| VariadicFCallInfo | DIVERGE | TIL has extra ~is_variadic: Bool~ field |
+| VariadicFCallInfo | MATCH | Removed ~is_variadic~ field, detect_variadic_fcall throws KeyNotFoundError |
 | CodegenContext | MATCH | Rust changed to ~String~ with ~""~ = None per rs2til.org |
 
 ****** TIL-only Structs (UNNECESSARY per rs2til.org)
