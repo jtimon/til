@@ -52,6 +52,11 @@ Str := struct {
         return cloned
     }
 
+    /** Append a string to self (mutates self). Equivalent to Rust's push_str. */
+    push_str := proc(mut self: Str, s: Str) {
+        self = self.concat(s)
+    }
+
     size := func(self: Str) returns I64 {
         return self.cap
     }

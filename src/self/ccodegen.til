@@ -130,28 +130,28 @@ til_name := func(name: Str) returns Str {
 
 // Emit a struct literal, using compound literal syntax if already_declared
 // e.g., " = {0}" vs " = (til_TypeName){0}"
-emit_struct_literal_assign := proc(output: Str, type_name: Str, already_declared: Bool, literal_content: Str) returns Str {
-    mut result := output.concat(" = ")
+emit_struct_literal_assign := proc(mut output: Str, type_name: Str, already_declared: Bool, literal_content: Str) returns Str {
+    output.push_str(" = ")
     if already_declared {
-        result = result.concat("(")
-        result = result.concat(til_name(type_name))
-        result = result.concat(")")
+        output.push_str("(")
+        output.push_str(til_name(type_name))
+        output.push_str(")")
     }
-    result = result.concat(literal_content)
-    result = result.concat(";\n")
-    return result
+    output.push_str(literal_content)
+    output.push_str(";\n")
+    return output
 }
 
 // Start a struct literal assignment - caller will emit content and closing brace
 // e.g., " = " vs " = (til_TypeName)"
-emit_struct_literal_start := proc(output: Str, type_name: Str, already_declared: Bool) returns Str {
-    mut result := output.concat(" = ")
+emit_struct_literal_start := proc(mut output: Str, type_name: Str, already_declared: Bool) returns Str {
+    output.push_str(" = ")
     if already_declared {
-        result = result.concat("(")
-        result = result.concat(til_name(type_name))
-        result = result.concat(")")
+        output.push_str("(")
+        output.push_str(til_name(type_name))
+        output.push_str(")")
     }
-    return result
+    return output
 }
 
 // Returns the C name for a TIL function - adds TIL_PREFIX and converts dots to underscores
