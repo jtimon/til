@@ -2013,7 +2013,7 @@ emit_constant_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenConte
     case NodeType.Declaration(decl):
         if gt(expr.params.len(), 0) {
             // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
-            mut var_name := decl.name
+            mut var_name := til_name(decl.name)
             if decl.name.eq("_") {
                 var_name = next_mangled(ctx)
             }
@@ -2030,7 +2030,7 @@ emit_constant_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenConte
                     if not(decl.is_mut) {
                         result = result.concat("const ")
                     }
-                    result = result.concat("I64 ").concat(var_name).concat(" = ").concat(n).concat(";\n")
+                    result = result.concat(til_name("I64 ")).concat(var_name).concat(" = ").concat(n).concat(";\n")
                 case Literal.Str(s):
                     if has_str(context) {
                         if not(decl.is_mut) {

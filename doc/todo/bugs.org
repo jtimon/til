@@ -138,10 +138,11 @@ The diff revealed these divergences:
    - til: emits inline helpers (u8_to_i64, single_print, etc.) instead
    - Should use #include <ext.c> like rstil
 
-5. *Constants missing til_ prefix*
+5. *Constants missing til_ prefix* - FIXED
    - rstil: ~const til_I64 til_NULL = 0;~
    - til: ~const I64 NULL = 0;~
    - Both the type and variable name are missing prefix
+   - Fix: Changed emit_constant_declaration to use til_name() for both var_name and type
 
 **** Remaining issues for empty.til (function bodies):
 
