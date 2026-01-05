@@ -473,13 +473,13 @@ All unnecessary result structs have been removed:
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
 | is_struct_declaration | Y | Y | MATCH | Removed unused vars, uses method chaining (2026-01-05) |
-| is_enum_declaration | Y | Y | DIVERGE | Same pattern: extra vars, get() vs direct indexing |
-| is_enum_with_payloads | Y | Y | DIVERGE | Same pattern: extra vars, get() vs direct indexing |
-| is_constant_declaration | Y | Y | DIVERGE | Same pattern: extra vars, get() vs direct indexing |
-| is_global_declaration | Y | Y | DIVERGE | Same pattern: extra vars, get() vs direct indexing |
+| is_enum_declaration | Y | Y | MATCH | Removed unused vars, uses method chaining (2026-01-05) |
+| is_enum_with_payloads | Y | Y | MATCH | Removed unused vars, uses method chaining (2026-01-05) |
+| is_constant_declaration | Y | Y | MATCH | Removed unused vars, uses method chaining (2026-01-05) |
+| is_global_declaration | Y | Y | MATCH | Removed unused vars, uses method chaining (2026-01-05) |
 | is_throwing_fcall | Y | Y | DIVERGE | No longer uses FuncLookupResult, but may have other differences |
-| is_func_declaration | Y | Y | DIVERGE | Same pattern: extra vars, get() vs direct indexing |
-| enum_has_payloads | Y | Y | DIVERGE | Uses loop index + get() vs iterator |
+| is_func_declaration | Y | Y | MATCH | Removed unused vars, uses method chaining (2026-01-05) |
+| enum_has_payloads | Y | Y | MATCH | Uses for-in loop like Rust iterator (2026-01-05) |
 | variant_has_payload | - | - | DELETED | Removed 2026-01-05 - was not in Rust |
 | get_struct_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
 | get_struct_dependencies | Y | Y | MATCH | Now uses get_field_type_dependency helper (2026-01-05) |

@@ -1623,13 +1623,13 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
 // Check if an expression is an enum declaration (Name := enum {...})
 is_enum_declaration := func(expr: Expr) returns Bool {
     switch expr.node_type {
-    case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+    case NodeType.Declaration(_):
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return false }
             switch first.node_type {
-            case NodeType.EnumDef(enum_def):
+            case NodeType.EnumDef(_):
                 return true
             case:
                 return false
@@ -1644,8 +1644,8 @@ is_enum_declaration := func(expr: Expr) returns Bool {
 // Check if an expression is an enum declaration with payloads
 is_enum_with_payloads := func(expr: Expr) returns Bool {
     switch expr.node_type {
-    case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+    case NodeType.Declaration(_):
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return false }
@@ -1671,12 +1671,12 @@ is_constant_declaration := func(expr: Expr) returns Bool {
         if decl.is_mut {
             return false
         }
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return false }
             switch first.node_type {
-            case NodeType.LLiteral(lit):
+            case NodeType.LLiteral(_):
                 return true
             // Bool identifiers (true/false) are constants
             case NodeType.Identifier(name):
@@ -1684,11 +1684,11 @@ is_constant_declaration := func(expr: Expr) returns Bool {
                     return true
                 }
                 return false
-            case NodeType.StructDef(struct_def):
+            case NodeType.StructDef(_):
                 return false
-            case NodeType.EnumDef(enum_def):
+            case NodeType.EnumDef(_):
                 return false
-            case NodeType.FuncDef(func_def):
+            case NodeType.FuncDef(_):
                 return false
             case:
                 return false
@@ -1710,21 +1710,21 @@ is_global_declaration := func(expr: Expr) returns Bool {
         if decl.name.eq("true").or(decl.name.eq("false")) {
             return false
         }
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return false }
             switch first.node_type {
             // Skip these - they have their own handling
-            case NodeType.StructDef(struct_def):
+            case NodeType.StructDef(_):
                 return false
-            case NodeType.EnumDef(enum_def):
+            case NodeType.EnumDef(_):
                 return false
-            case NodeType.FuncDef(func_def):
+            case NodeType.FuncDef(_):
                 return false
             // Skip literal constants - they're handled by is_constant_declaration
             // (only non-mut literals are constants)
-            case NodeType.LLiteral(lit):
+            case NodeType.LLiteral(_):
                 if not(decl.is_mut) {
                     return false
                 }
@@ -2012,16 +2012,12 @@ emit_size_of_function := proc(output: Str, ctx: CodegenContext) returns Str thro
 }
 
 // Check if an enum has any payloads
-// Bug #38 fix: use variants Vec
 enum_has_payloads := func(enum_def: SEnumDef) returns Bool {
-    for i in 0..enum_def.variants.len() {
-        mut ev := EnumVariant()
-        enum_def.variants.get(i, ev)
+    for ev: EnumVariant in enum_def.variants {
         if not(NULL.eq(ev.payload_type.data)) {
             return true
         }
     }
-    catch (err: IndexOutOfBoundsError) { return false }
     return false
 }
 
@@ -2761,13 +2757,13 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
 // Check if an expression is a function declaration (name := proc/func)
 is_func_declaration := func(expr: Expr) returns Bool {
     switch expr.node_type {
-    case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+    case NodeType.Declaration(_):
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return false }
             switch first.node_type {
-            case NodeType.FuncDef(func_def):
+            case NodeType.FuncDef(_):
                 return true
             case:
                 return false
