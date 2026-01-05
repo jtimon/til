@@ -1606,7 +1606,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
 is_enum_declaration := func(expr: Expr) returns Bool {
     switch expr.node_type {
     case NodeType.Declaration(_):
-        if expr.params.len().gt(0) {
+        if not(expr.params.is_empty()) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return false }
@@ -1614,13 +1614,11 @@ is_enum_declaration := func(expr: Expr) returns Bool {
             case NodeType.EnumDef(_):
                 return true
             case:
-                return false
             }
         }
-        return false
     case:
-        return false
     }
+    return false
 }
 
 // Check if an expression is an enum declaration with payloads
