@@ -2204,18 +2204,18 @@ emit_enum_size_of_constant := proc(expr: Expr, output: Str, mut ctx: CodegenCont
 // Emit til_size_of function for runtime type size lookup
 emit_size_of_function := proc(output: Str, ctx: CodegenContext) returns Str throws Str {
     mut result := output
-    result = result.concat("\nstatic inline ").concat(TIL_PREFIX).concat("I64 ").concat(TIL_PREFIX).concat("size_of(").concat(TIL_PREFIX).concat("Str type_name) {\n")
+    result = result.concat("\nstatic inline ").concat(TIL_PREFIX).concat("I64 ").concat(TIL_PREFIX).concat("size_of(const ").concat(TIL_PREFIX).concat("Str* type_name) {\n")
 
     // All known types from structs and enums
     mut i := 0
     while lt(i, ctx.known_types.len()) {
         mut type_name := ""
         ctx.known_types.get(i, type_name)
-        result = result.concat("    if (strcmp((char*)type_name.c_string, \"").concat(type_name).concat("\") == 0) return ").concat(TIL_PREFIX).concat("size_of_").concat(type_name).concat(";\n")
+        result = result.concat("    if (strcmp((char*)type_name->c_string, \"").concat(type_name).concat("\") == 0) return ").concat(TIL_PREFIX).concat("size_of_").concat(type_name).concat(";\n")
         i = add(i, 1)
     }
 
-    result = result.concat("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name.c_string);\n").concat("    exit(1);\n}\n")
+    result = result.concat("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name->c_string);\n").concat("    exit(1);\n}\n")
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
@@ -9233,7 +9233,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         mut arg := Expr()
         expr.params.get(1, arg)
         result = result.concat(TIL_PREFIX)
-        result = result.concat("size_of(")
+        result = result.concat("size_of(&")
         // If it's a literal type name, emit compound literal
         // If it's a variable, the variable already holds a Type (which is const char*)
         switch arg.node_type {

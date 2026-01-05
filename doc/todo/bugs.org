@@ -146,10 +146,10 @@ The diff revealed these divergences:
 
 **** Remaining issues for empty.til (function bodies):
 
-6. *Parameter passing style*
+6. *Parameter passing style in size_of* - FIXED
    - rstil: ~const til_Str* type_name~ (pointer)
    - til: ~til_Str type_name~ (by value)
-   - Wrong - should pass structs by pointer
+   - Fix: emit_size_of_function now uses pointer param, call sites use &
 
 7. *Temp variable naming*
    - rstil: ~_tmp_til_U8_from_i64_19~ (incrementing counter)
