@@ -427,23 +427,29 @@ All enums and functions match:
 
 **** ccodegen.rs vs ccodegen.til - PARTIAL MATCH
 
-***** Structs - All Present
-| Name | Rust | TIL | Notes |
-|------|------|-----|-------|
-| CodegenContext | Y | Y | |
-| VariadicParamInfo | Y | Y | |
-| CatchLabelInfo | Y | Y | |
-| CatchLabelInfoEntry | Y | Y | |
-| ParamTypeInfo | Y | Y | |
-| ThrowingDefault | Y | Y | |
-| CollectedDeclaration | Y | Y | |
-| SwitchCaseInfo | Y | Y | |
-| HoistedArg | Y | Y | |
-| VariantInfo | Y | Y | |
-| ThrowingFCallInfo | Y | Y | |
-| VariadicFCallInfo | Y | Y | |
-| - | - | FuncNameResult | TIL only (helper result type) - caused segfault when removed |
-| - | - | FuncLookupResult | TIL only (helper result type) - caused segfault when removed |
+***** Structs - Comparison
+
+****** Structs in Both
+| Struct | Status | Notes |
+|--------|--------|-------|
+| VariadicParamInfo | MATCH | |
+| CatchLabelInfo | MATCH | |
+| HoistedArg | MATCH | |
+| VariantInfo | MATCH | |
+| CollectedDeclaration | MATCH | |
+| ThrowingDefault | MATCH | |
+| CatchLabelInfoEntry | DIVERGE | TIL has extra ~catch_block: Expr~ field |
+| ParamTypeInfo | DIVERGE | Rust ~Option<ValueType>~ -> TIL uses ~has_type: Bool~ flag instead of Ptr |
+| SwitchCaseInfo | DIVERGE | Rust ~Option<&Expr>~ -> TIL uses ~has_case_body: Bool~ flag instead of Ptr |
+| ThrowingFCallInfo | DIVERGE | TIL has extra ~is_throwing: Bool~, uses ~has_return_type: Bool~ instead of Ptr |
+| VariadicFCallInfo | DIVERGE | TIL has extra ~is_variadic: Bool~ field |
+| CodegenContext | DIVERGE | Rust ~Option<String>~ -> TIL uses ~Str = ""~ instead of Ptr |
+
+****** TIL-only Structs (UNNECESSARY per rs2til.org)
+| Struct | Fields | Issue |
+|--------|--------|-------|
+| FuncNameResult | ~found: Bool~, ~name: Str~ | ~Option<T>~ returns should ~throw KeyNotFoundError~ |
+| FuncLookupResult | ~found: Bool~, ~func_def: SFuncDef~ | ~Option<T>~ returns should ~throw KeyNotFoundError~ |
 
 NOTE: Attempted to remove FuncLookupResult (2026-01-02) by changing get_fcall_func_def
 to throw KeyNotFoundError instead of returning result struct. All 18 call sites were
