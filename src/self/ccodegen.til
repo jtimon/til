@@ -1691,9 +1691,7 @@ is_global_declaration := func(expr: Expr) returns Bool {
             switch first.node_type {
             // Skip these - they have their own handling
             case NodeType.StructDef(_):
-                return false
             case NodeType.EnumDef(_):
-                return false
             case NodeType.FuncDef(_):
                 return false
             // Skip literal constants - they're handled by is_constant_declaration
@@ -1718,10 +1716,9 @@ is_global_declaration := func(expr: Expr) returns Bool {
                 return true
             }
         }
-        return false
     case:
-        return false
     }
+    return false
 }
 
 // Emit a global declaration as a static variable at file scope (type only, no initializer)
