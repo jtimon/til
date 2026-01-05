@@ -188,13 +188,16 @@ The diff revealed these divergences:
 ***** Issue 7: Temp naming - ~next_mangled~ produces "_tmp_" instead of counter number
 
 *Symptom*: All temp vars have suffix ~_tmp_~ instead of incrementing numbers (0, 1, 2...)
+- rstil output: ~_tmp_or_0~, ~_tmp_or_1~, ~_tmp_or_2~ (incrementing)
+- til output: ~_tmp_or__tmp_~ (all same, counter value replaced by "_tmp_")
 
 *Location*: ~src/self/ccodegen.til~ lines 112-119
 
 *Rust reference*: ~src/rs/ccodegen.rs~ lines 74-80
 
-*Analysis*:
-The ~next_mangled~ function looks correct:
+****** Investigation findings
+
+The ~next_mangled~ function itself looks correct:
 #+BEGIN_SRC til
 next_mangled := proc(mut ctx: CodegenContext) returns Str {
     n := ctx.mangling_counter
@@ -206,17 +209,71 @@ next_mangled := proc(mut ctx: CodegenContext) returns Str {
 }
 #+END_SRC
 
-The Rust version is essentially identical but n.to_str() correctly returns "0", "1", etc.
+However, investigation revealed *TWO locations missing the counter reset pattern*:
 
-*Suspected cause*: Either ~n.to_str()~ is returning ~"_tmp_"~ due to some type confusion,
-or the counter isn't being properly saved/restored. Key difference: Rust uses
-~ctx.mangling_counter = 0~ to reset counter per function, TIL might be missing this reset.
+****** Missing reset #1: ~emit_func_declaration~ (lines 3043-3120)
 
-*Fix steps*:
-1. Verify ~emit_func_declaration~ resets ~ctx.mangling_counter = 0~ after saving old value
-2. Verify ~n.to_str()~ in TIL ccodegen returns correct integer string
-3. Add debug println to trace what n.to_str() actually returns
-4. Check if there's variable shadowing causing ~n~ to get wrong value
+TIL code (WRONG):
+#+BEGIN_SRC til
+// Save and set current function name for nested function mangling
+mut prev_function_name := ctx.current_function_name
+ctx.current_function_name = decl.name
+// MISSING: prev_mangling_counter save and reset!
+#+END_SRC
+
+Rust code (CORRECT - lines 3250-3253):
+#+BEGIN_SRC rust
+let prev_function_name = ctx.current_function_name.clone();
+let prev_mangling_counter = ctx.mangling_counter;
+ctx.current_function_name = Some(decl.name.clone());
+ctx.mangling_counter = 0;  // Reset counter per-function for determinism
+#+END_SRC
+
+TIL also missing restore at end (line 3120 only restores ~prev_function_name~).
+
+****** Missing reset #2: ~emit_declaration~ nested function handling (lines 7384-7463)
+
+TIL saves/restores these context fields:
+- ~saved_throw_types~, ~saved_return_types~
+- ~saved_mut_params~, ~saved_variadic_params~
+- ~saved_declared_vars~, ~saved_function_name~
+
+But does NOT save/restore ~mangling_counter~!
+
+Rust (lines 4844, 4849, 4905) correctly does:
+#+BEGIN_SRC rust
+let prev_mangling_counter = ctx.mangling_counter;
+ctx.mangling_counter = 0;  // Reset counter per-function for determinism
+// ... later ...
+ctx.mangling_counter = prev_mangling_counter;
+#+END_SRC
+
+****** Correctly handled: ~emit_struct_func_bodies~ (lines 2566-2589)
+
+This case DOES have correct handling:
+#+BEGIN_SRC til
+mut prev_mangling_counter := ctx.mangling_counter
+ctx.current_function_name = mangled_name
+ctx.mangling_counter = 0
+// ... function body ...
+ctx.mangling_counter = prev_mangling_counter
+#+END_SRC
+
+****** Unexplained symptom
+
+The missing resets would cause the counter to keep incrementing globally (47, 48, 49...),
+but the actual symptom is ~n.to_str()~ returning ~"_tmp_"~ instead of any number.
+This suggests there may be an *additional issue* beyond missing resets, possibly:
+- Type confusion where ~n~ is somehow a Str instead of I64
+- Bug in how method calls on local variables are compiled
+- Some form of variable shadowing in TIL's scoping
+
+****** Fix steps
+
+1. Add counter save/reset/restore to ~emit_func_declaration~ (3 lines)
+2. Add counter save/reset/restore to ~emit_declaration~ nested function case (3 lines)
+3. Test if this fixes the symptom
+4. If symptom persists, investigate method call compilation for ~n.to_str()~
 
 ***** Issue 8: Argument passing - missing ~&~ for pointer params
 
