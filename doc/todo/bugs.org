@@ -477,14 +477,14 @@ All unnecessary result structs have been removed:
 | is_enum_with_payloads | Y | Y | MATCH | Removed unused vars, uses method chaining (2026-01-05) |
 | is_constant_declaration | Y | Y | MATCH | Removed unused vars, uses method chaining (2026-01-05) |
 | is_global_declaration | Y | Y | MATCH | Removed unused vars, uses method chaining (2026-01-05) |
-| is_throwing_fcall | Y | Y | DIVERGE | No longer uses FuncLookupResult, but may have other differences |
+| is_throwing_fcall | Y | Y | MATCH | proc vs func is TIL idiom, logic matches Rust (2026-01-05) |
 | is_func_declaration | Y | Y | MATCH | Removed unused vars, uses method chaining (2026-01-05) |
 | enum_has_payloads | Y | Y | MATCH | Uses for-in loop like Rust iterator (2026-01-05) |
 | variant_has_payload | - | - | DELETED | Removed 2026-01-05 - was not in Rust |
 | get_struct_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
 | get_struct_dependencies | Y | Y | MATCH | Now uses get_field_type_dependency helper (2026-01-05) |
 | get_enum_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
-| get_enum_dependencies | Y | Y | DIVERGE | Loop style differs, extra variables |
+| get_enum_dependencies | Y | Y | MATCH | Uses for-in loop, method chaining (2026-01-05) |
 | get_type_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
 | get_type_dependencies | Y | Y | DIVERGE | Similar structure but empty return logic differs |
 | get_fcall_func_name | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |

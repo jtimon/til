@@ -1294,7 +1294,7 @@ get_struct_name := func(expr: Expr) returns Str {
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return "" }
             switch first.node_type {
-            case NodeType.StructDef(struct_def):
+            case NodeType.StructDef(_):
                 return decl.name
             case:
                 return ""
