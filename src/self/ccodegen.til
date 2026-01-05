@@ -206,7 +206,7 @@ get_type_arg_name := func(expr: Expr, context: Context) returns Str throws KeyNo
     switch expr.node_type {
     case NodeType.Identifier(name):
         // Only match standalone identifiers (no field access)
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             throw KeyNotFoundError(msg="field access, not type arg")
         }
         // Check if this identifier is a type name (struct, enum, or builtin type)
@@ -239,7 +239,7 @@ is_throwing_fcall := proc(expr: Expr, context: Context) returns Bool {
         got_fd = true
         catch (err: KeyNotFoundError) { /* REM None case in Rust */ }
         if got_fd {
-            return gt(fd.throw_types.len(), 0)
+            return fd.throw_types.len().gt(0)
         }
     case:
     }
@@ -544,7 +544,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         got_throwing_fd = true
         catch (err: KeyNotFoundError) { /* REM None case in Rust */ }
         if got_throwing_fd {
-        if gt(throwing_fd.throw_types.len(), 0) {
+        if throwing_fd.throw_types.len().gt(0) {
         // First, recursively hoist any throwing calls in this call's arguments
         mut nested_hoisted := Map.new(I64, Str)
         if gt(expr.params.len(), 1) {
@@ -768,7 +768,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         result = result.concat(indent_str).concat(temp_var).concat(" = ")
 
         // Emit function name
-        if gt(func_name.len(), 0) {
+        if func_name.len().gt(0) {
             result = result.concat(til_func_name(func_name))
         }
         result = result.concat("(")
@@ -823,7 +823,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
     // Check if this is a struct literal with throwing default values
     switch expr.node_type {
     case NodeType.FCall:
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first_param := Expr()
             expr.params.get(0, first_param)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -891,7 +891,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                                 if is_throwing_fcall(default_expr, context) {
                                     // Get the function's throw types
                                     mut throw_types := Vec.new(ValueType)
-                                    if gt(default_expr.params.len(), 0) {
+                                    if default_expr.params.len().gt(0) {
                                         mut def_first := Expr()
                                         default_expr.params.get(0, def_first)
                                         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -957,7 +957,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
 collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             switch first.node_type {
@@ -1031,12 +1031,12 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
 collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_func_name: Str) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             switch first.node_type {
             case NodeType.FuncDef(func_def):
-                if gt(parent_func_name.len(), 0) {
+                if parent_func_name.len().gt(0) {
                     // This is a nested function - record it for hoisting
                     mut mangled_name := concat(parent_func_name, "_")
                     mangled_name = mangled_name.concat(decl.name)
@@ -1128,7 +1128,7 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_fun
 //   RetType func_name(args...)
 emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx: CodegenContext) returns Str throws Str {
     mut result := output
-    mut is_throwing := gt(func_def.throw_types.len(), 0)
+    mut is_throwing := func_def.throw_types.len().gt(0)
 
     if is_throwing {
         // Throwing function returns int status code
@@ -1152,7 +1152,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
 
     if is_throwing {
         // Output params first: return value pointer, then error pointers
-        if gt(func_def.return_types.len(), 0) {
+        if func_def.return_types.len().gt(0) {
             mut ret_type := ValueType.TCustom("")
             func_def.return_types.get(0, ret_type)
             result = result.concat(til_type_to_c(ret_type)).concat("* _ret")
@@ -1289,7 +1289,7 @@ is_struct_declaration := func(expr: Expr) returns Bool {
 get_struct_name := func(expr: Expr) returns Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return "" }
@@ -1327,7 +1327,7 @@ get_struct_dependencies := func(expr: Expr) returns Vec throws Str {
     mut deps := Vec.new(Str)
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return deps }
@@ -1396,7 +1396,7 @@ get_enum_dependencies := func(expr: Expr) returns Vec throws Str {
 get_enum_name := func(expr: Expr) returns Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return "" }
@@ -1449,7 +1449,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
         mut expr := Expr()
         types.get(idx, expr)
         mut name := get_type_name(expr)
-        if gt(name.len(), 0) {
+        if name.len().gt(0) {
             name_to_idx.set(name, idx)
         }
         idx = add(idx, 1)
@@ -1555,7 +1555,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
     }
 
     // Process queue
-    while gt(queue.len(), 0) {
+    while queue.len().gt(0) {
         mut current := 0
         queue.pop(current)
         result.push(current)
@@ -1740,7 +1740,7 @@ emit_global_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
             mut var_name := til_name(decl.name)
             if decl.name.eq("_") {
@@ -1779,7 +1779,7 @@ emit_constant_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenConte
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
             mut var_name := til_name(decl.name)
             if decl.name.eq("_") {
@@ -1861,7 +1861,7 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
         if decl.name.eq("Bool") { return result }
         if decl.name.eq("Dynamic") { return result }
         if decl.name.eq("Type") { return result }
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             switch first.node_type {
@@ -1893,7 +1893,7 @@ emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             switch first.node_type {
@@ -1945,7 +1945,7 @@ emit_enum_size_of_constant := proc(expr: Expr, output: Str, mut ctx: CodegenCont
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             switch first.node_type {
@@ -2093,7 +2093,7 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             switch first.node_type {
@@ -2205,7 +2205,7 @@ emit_struct_func_prototypes := proc(expr: Expr, output: Str, ctx: CodegenContext
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             switch first.node_type {
@@ -2317,7 +2317,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     result = emit_stmts(func_def.body, result, 1, ctx, context)
 
     // For throwing void functions, add implicit return 0 at end
-    if gt(func_def.throw_types.len(), 0) {
+    if func_def.throw_types.len().gt(0) {
         if eq(func_def.return_types.len(), 0) {
             result = result.concat("    return 0;\n")
         }
@@ -2348,7 +2348,7 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             switch first.node_type {
@@ -2518,7 +2518,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip struct func prototype pass
     }
     // 2c: hoisted nested function prototypes (collected in Pass 0a)
-    if gt(ctx.hoisted_prototypes.len(), 0) {
+    if ctx.hoisted_prototypes.len().gt(0) {
         output = output.concat("\n// Nested function prototypes (hoisted)\n")
         for proto: Str in ctx.hoisted_prototypes {
             output = output.concat(proto)
@@ -2635,7 +2635,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // 5c: hoisted nested function definitions
     // These were collected during emit_func_declaration when encountering nested functions
     // (prototypes were already emitted in Pass 2c)
-    if gt(ctx.hoisted_functions.len(), 0) {
+    if ctx.hoisted_functions.len().gt(0) {
         output = output.concat("\n// Hoisted nested function definitions\n")
         for func_code: Str in ctx.hoisted_functions {
             output = output.concat(func_code)
@@ -2764,7 +2764,7 @@ emit_func_prototype := proc(expr: Expr, output: Str, ctx: CodegenContext) return
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -2795,7 +2795,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -2870,7 +2870,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 result = emit_stmts(func_def.body, result, 1, ctx, context)
 
                 // For throwing void functions, add implicit return 0
-                if gt(func_def.throw_types.len(), 0) {
+                if func_def.throw_types.len().gt(0) {
                     if eq(func_def.return_types.len(), 0) {
                         result = result.concat("    return 0;\n")
                     }
@@ -3288,7 +3288,7 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: Str, mut ctx: 
                     expr.params.get(pai, parg)
                     switch parg.node_type {
                     case NodeType.NamedArg(field_name):
-                        if gt(parg.params.len(), 0) {
+                        if parg.params.len().gt(0) {
                             mut value_expr := Expr()
                             parg.params.get(0, value_expr)
                             named_values.set(field_name, value_expr)
@@ -3433,7 +3433,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
         c_var_name := til_name(decl.name)
         if not(ctx.declared_vars.contains(c_var_name)) {
             c_type := til_type_to_c(decl.value_type)
-            if gt(c_type.len(), 0) {
+            if c_type.len().gt(0) {
                 result = result.concat(indent_str)
                 result = result.concat(c_type)
                 result = result.concat(" ")
@@ -3453,7 +3453,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
             c_var_name := til_name(decl.name)
             if not(ctx.declared_vars.contains(c_var_name)) {
                 c_type := til_type_to_c(decl.value_type)
-                if gt(c_type.len(), 0) {
+                if c_type.len().gt(0) {
                     result = result.concat(indent_str)
                     result = result.concat(c_type)
                     result = result.concat(" ")
@@ -3545,7 +3545,7 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         c_var_name := til_name(decl.name)
         if not(ctx.declared_vars.contains(c_var_name)) {
             c_type := til_type_to_c(decl.value_type)
-            if gt(c_type.len(), 0) {
+            if c_type.len().gt(0) {
                 result = result.concat(indent_str)
                 result = result.concat(c_type)
                 result = result.concat(" ")
@@ -3756,7 +3756,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         mut value_type := decl.value_type
         switch decl.value_type {
         case ValueType.TCustom(type_name):
-            if type_name.eq(INFER_TYPE).and(gt(expr.params.len(), 0)) {
+            if type_name.eq(INFER_TYPE).and(expr.params.len().gt(0)) {
                 mut first := Expr()
                 expr.params.get(0, first)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -3891,7 +3891,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         case NodeType.Pattern(pattern_info):
             is_enum_switch = true
         case NodeType.Identifier(name):
-            if gt(case_pattern.params.len(), 0) {
+            if case_pattern.params.len().gt(0) {
                 is_enum_switch = true
             } else if name.contains(".") {
                 is_enum_switch = true
@@ -3939,7 +3939,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             c_var_name := til_name(decl.name)
             if not(ctx.declared_vars.contains(c_var_name)) {
                 c_type := til_type_to_c(decl.value_type)
-                if gt(c_type.len(), 0) {
+                if c_type.len().gt(0) {
                     result = result.concat(indent_str)
                     result = result.concat(c_type)
                     result = result.concat(" ")
@@ -4051,14 +4051,14 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             result = result.concat(") {\n")
         case NodeType.Identifier(name):
             info := get_case_variant_info(case_pattern)
-            if gt(info.variant_name.len(), 0) {
+            if info.variant_name.len().gt(0) {
                 // Enum variant without payload
                 result = result.concat(switch_var)
                 if enum_has_payloads_flag {
                     result = result.concat(".tag")
                 }
                 result = result.concat(" == ")
-                if gt(info.type_name.len(), 0) {
+                if info.type_name.len().gt(0) {
                     result = result.concat("til_")
                     result = result.concat(info.type_name)
                     result = result.concat("_")
@@ -4097,7 +4097,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             // FCall pattern: Type.Variant(payload) - enum variant with payload argument
             // For example: ValueType.TType(TTypeDef.TEnumDef)
             info := get_case_variant_info(case_pattern)
-            if gt(info.variant_name.len(), 0).and(enum_has_payloads_flag) {
+            if info.variant_name.len().gt(0).and(enum_has_payloads_flag) {
                 // Compare tag first
                 result = result.concat(switch_var)
                 result = result.concat(".tag == til_")
@@ -4113,7 +4113,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                     catch (err: IndexOutOfBoundsError) { throw err.msg }
                     // Check if payload is also an enum variant (Type.Variant pattern)
                     payload_info := get_case_variant_info(payload_expr)
-                    if gt(payload_info.variant_name.len(), 0) {
+                    if payload_info.variant_name.len().gt(0) {
                         // Payload is an enum variant - compare payload field
                         result = result.concat(" && ")
                         result = result.concat(switch_var)
@@ -4127,7 +4127,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                     // TODO: handle non-enum payloads if needed
                 }
                 result = result.concat(") {\n")
-            } else if gt(info.variant_name.len(), 0) {
+            } else if info.variant_name.len().gt(0) {
                 // Enum without payloads - simple tag comparison
                 result = result.concat(switch_var)
                 result = result.concat(" == til_")
@@ -4252,7 +4252,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
         // When name is "_", params[0] is an expression to emit first,
         // then params[1..] are the field chain
         if name.eq("_") {
-            if gt(expr.params.len(), 0) {
+            if expr.params.len().gt(0) {
                 // Emit the base expression (params[0])
                 mut result := emit_expr(expr.get(0), output, indent, ctx, context)
                 // Then emit the field chain
@@ -4271,7 +4271,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
         }
 
         // Check for type-qualified access (Type.field)
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first_char := name.get_substr(0, 1)
             // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.til)
             if first_char.is_uppercase() {
@@ -4311,7 +4311,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
         // Regular identifier or field access (b.val -> til_b.val)
         // For ref params (which are pointers in C), use -> for field access
         mut is_ref_param := ctx.current_ref_params.contains(name)
-        if is_ref_param.and(gt(expr.params.len(), 0)) {
+        if is_ref_param.and(expr.params.len().gt(0)) {
             // Ref param with field access: til_self->field1.field2.field3
             // First field uses -> (self is a pointer), rest use . (struct values)
             mut result := concat(output, til_name(name))
@@ -4477,7 +4477,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                 c_var_name := til_name(decl.name)
                 if not(ctx.declared_vars.contains(c_var_name)) {
                     c_type := til_type_to_c(decl.value_type)
-                    if gt(c_type.len(), 0) {
+                    if c_type.len().gt(0) {
                         result = result.concat(indent_str)
                         result = result.concat(c_type)
                         result = result.concat(" ")
@@ -4676,7 +4676,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
             has_fcall = true
         case NodeType.Declaration(decl):
             // Check if declaration has an FCall as initializer
-            if gt(stmt.params.len(), 0) {
+            if stmt.params.len().gt(0) {
                 mut first := Expr()
                 stmt.params.get(0, first)
                 switch first.node_type {
@@ -4692,7 +4692,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
             }
         case NodeType.Assignment(name):
             // Check if assignment has an FCall as RHS
-            if gt(stmt.params.len(), 0) {
+            if stmt.params.len().gt(0) {
                 mut first := Expr()
                 stmt.params.get(0, first)
                 switch first.node_type {
@@ -4730,7 +4730,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
             got_lookup = true
             catch (err: KeyNotFoundError) { /* REM None case in Rust */ }
             if got_lookup {
-                if gt(lookup_fd.throw_types.len(), 0) {
+                if lookup_fd.throw_types.len().gt(0) {
                     mut throw_types := lookup_fd.throw_types
 
                     // Collect subsequent catch blocks
@@ -4750,7 +4750,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                         catch (err: IndexOutOfBoundsError) { throw next_stmt.lang_error(context.path, "ccodegen", err.msg) }
                     }
 
-                    if and(gt(catch_blocks.len(), 0), eq(func_level_catches.len(), 0)) {
+                    if and(catch_blocks.len().gt(0), eq(func_level_catches.len(), 0)) {
                         // Immediate catches AND no function-level catches - handle inline
                         if has_decl {
                             result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, maybe_decl_name, "", result, indent, ctx, context)
@@ -4761,7 +4761,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                         }
                         i = j  // Skip past catch blocks
                         continue
-                    } else if and(and(gt(ctx.current_throw_types.len(), 0), eq(ctx.local_catch_labels.len(), 0)), eq(func_level_catches.len(), 0)) {
+                    } else if and(and(ctx.current_throw_types.len().gt(0), eq(ctx.local_catch_labels.len(), 0)), eq(func_level_catches.len(), 0)) {
                         // Bug #68 fix: Also check func_level_catches.is_empty()
                         // Without this check, we might propagate even when there are catches in the block
                         // just because local_catch_labels was cleared after processing an earlier catch
@@ -4776,7 +4776,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                         }
                         i = add(i, 1)
                         continue
-                    } else if or(gt(func_level_catches.len(), 0), gt(ctx.local_catch_labels.len(), 0)) {
+                    } else if or(func_level_catches.len().gt(0), ctx.local_catch_labels.len().gt(0)) {
                         // Has function-level catches or outer catches registered
                         // Bug #39 fix: Update local_catch_labels to point to NEXT catch for each type
                         // This ensures each call jumps to the correct catch, not always the first one
@@ -4849,7 +4849,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                 // Check that this is NOT a throwing function (those are handled above)
                 mut is_throwing := false
                 mut lookup_fd := get_fcall_func_def(context, maybe_fcall)
-                is_throwing = gt(lookup_fd.throw_types.len(), 0)
+                is_throwing = lookup_fd.throw_types.len().gt(0)
                 catch (err: KeyNotFoundError) { /* REM None case in Rust */ }
 
                 if not(is_throwing) {
@@ -4978,13 +4978,13 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
 
     // Determine return type if we need to declare a variable
     mut ret_type := "int"
-    if gt(decl_name.len(), 0).or(gt(assign_name.len(), 0)) {
+    if decl_name.len().gt(0).or(assign_name.len().gt(0)) {
         if got_lookup {
-            if gt(lookup_fd.return_types.len(), 0) {
+            if lookup_fd.return_types.len().gt(0) {
                 mut first_ret := ValueType.TCustom("")
                 lookup_fd.return_types.get(0, first_ret)
                 mut c_type := til_type_to_c(first_ret)
-                if gt(c_type.len(), 0) {
+                if c_type.len().gt(0) {
                     ret_type = c_type
                 }
             }
@@ -4992,7 +4992,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
     }
 
     // For declarations: declare the variable (skip for "_" - Bug #35)
-    if gt(decl_name.len(), 0) {
+    if decl_name.len().gt(0) {
         if decl_name.eq("_") {
             // Bug #35: For underscore, just call the function (discard result)
             result = result.concat(indent_str)
@@ -5067,7 +5067,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
 
             // Add variable to scope
             if got_lookup {
-                if gt(lookup_fd.return_types.len(), 0) {
+                if lookup_fd.return_types.len().gt(0) {
                     mut first_type := ValueType.TCustom("")
                     lookup_fd.return_types.get(0, first_type)
                     context.scope_stack.declare_symbol(decl_name, SymbolInfo(value_type=first_type, is_mut=true))
@@ -5076,7 +5076,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             _ := ctx.declared_vars.insert(til_name(decl_name))
         }
     } else {
-        if gt(assign_name.len(), 0) {
+        if assign_name.len().gt(0) {
             // Assignment
             result = result.concat(indent_str)
             result = result.concat(til_name(assign_name))
@@ -5187,7 +5187,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     mut mangled_name := ""
     ctx.nested_func_names.get(func_name, mangled_name)
     catch (err: KeyNotFoundError) { }
-    if gt(mangled_name.len(), 0) {
+    if mangled_name.len().gt(0) {
         func_name = mangled_name
     }
 
@@ -5202,12 +5202,12 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     func_def_found = true
     catch (err: KeyNotFoundError) { }
     if func_def_found {
-        func_has_return = gt(func_def.return_types.len(), 0)
+        func_has_return = func_def.return_types.len().gt(0)
     }
     mut needs_ret := false
     if func_has_return {
-        if gt(decl_name.len(), 0) { needs_ret = true }
-        if gt(assign_name.len(), 0) { needs_ret = true }
+        if decl_name.len().gt(0) { needs_ret = true }
+        if assign_name.len().gt(0) { needs_ret = true }
     }
 
     // Calculate param_types early for Dynamic hoisting
@@ -5294,7 +5294,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     mut ret_type := "int"
     if needs_ret {
         mut fd := context.scope_stack.lookup_func(func_name)
-        if gt(fd.return_types.len(), 0) {
+        if fd.return_types.len().gt(0) {
             mut first_ret := ValueType.TCustom("")
             fd.return_types.get(0, first_ret)
             ret_type = til_type_to_c(first_ret)
@@ -5310,7 +5310,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // For declarations: declare the variable BEFORE the if block so it's visible after
     // Skip for underscore _ which is just a discard
-    if gt(decl_name.len(), 0) {
+    if decl_name.len().gt(0) {
         if not(decl_name.eq("_")) {
             result = result.concat(indent_str)
             result = result.concat(ret_type)
@@ -5319,7 +5319,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             result = result.concat(";\n")
             // Add to scope_stack for type resolution
             mut fd := context.scope_stack.lookup_func(func_name)
-            if gt(fd.return_types.len(), 0) {
+            if fd.return_types.len().gt(0) {
                 mut first_type := ValueType.TCustom("")
                 fd.return_types.get(0, first_type)
                 context.scope_stack.declare_symbol(decl_name, SymbolInfo(value_type=first_type, is_mut=true))
@@ -5460,7 +5460,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         }
 
         // Emit variadic array pointer
-        if gt(variadic_arr_var.len(), 0) {
+        if variadic_arr_var.len().gt(0) {
             if gt(param_count, 0) {
                 result = result.concat(", ")
             }
@@ -5559,7 +5559,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // Success case: assign return value to target variable
     // Skip for underscore _ which is just a discard
-    if gt(decl_name.len(), 0) {
+    if decl_name.len().gt(0) {
         if not(decl_name.eq("_")) {
             // Declaration: assign to newly declared variable (declared before if block)
             mut inner_indent := ""
@@ -5575,7 +5575,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             result = result.concat(";\n")
         }
     } else {
-        if gt(assign_name.len(), 0) {
+        if assign_name.len().gt(0) {
             // Assignment: assign to existing variable
             mut inner_indent := ""
             ind = 0
@@ -5733,7 +5733,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut mangled_name := ""
     ctx.nested_func_names.get(func_name, mangled_name)
     catch (err: KeyNotFoundError) { }
-    if gt(mangled_name.len(), 0) {
+    if mangled_name.len().gt(0) {
         func_name = mangled_name
     }
 
@@ -5748,12 +5748,12 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     func_def_found = true
     catch (err: KeyNotFoundError) { }
     if func_def_found {
-        func_has_return = gt(func_def.return_types.len(), 0)
+        func_has_return = func_def.return_types.len().gt(0)
     }
     mut needs_ret := false
     if func_has_return {
-        if gt(decl_name.len(), 0) { needs_ret = true }
-        if gt(assign_name.len(), 0) { needs_ret = true }
+        if decl_name.len().gt(0) { needs_ret = true }
+        if assign_name.len().gt(0) { needs_ret = true }
     }
 
     // Calculate param_types early for Dynamic hoisting
@@ -5839,7 +5839,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut ret_type := "int"
     if needs_ret {
         mut fd := context.scope_stack.lookup_func(func_name)
-        if gt(fd.return_types.len(), 0) {
+        if fd.return_types.len().gt(0) {
             mut first_ret := ValueType.TCustom("")
             fd.return_types.get(0, first_ret)
             ret_type = til_type_to_c(first_ret)
@@ -5859,7 +5859,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // For declarations: declare the variable BEFORE the if block so it's visible after
     // Skip for underscore _ which is just a discard
-    if gt(decl_name.len(), 0) {
+    if decl_name.len().gt(0) {
         if not(decl_name.eq("_")) {
             result = result.concat(indent_str)
             result = result.concat(ret_type)
@@ -5868,7 +5868,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             result = result.concat(";\n")
             // Add to scope_stack for type resolution
             mut fd := context.scope_stack.lookup_func(func_name)
-            if gt(fd.return_types.len(), 0) {
+            if fd.return_types.len().gt(0) {
                 mut first_type := ValueType.TCustom("")
                 fd.return_types.get(0, first_type)
                 context.scope_stack.declare_symbol(decl_name, SymbolInfo(value_type=first_type, is_mut=true))
@@ -6001,7 +6001,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         }
 
         // Emit variadic array pointer
-        if gt(variadic_arr_var.len(), 0) {
+        if variadic_arr_var.len().gt(0) {
             if gt(param_count, 0) {
                 result = result.concat(", ")
             }
@@ -6141,7 +6141,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Success case: assign return value to target variable if needed
     // Skip for underscore _ which is just a discard
-    if gt(decl_name.len(), 0) {
+    if decl_name.len().gt(0) {
         if not(decl_name.eq("_")) {
             result = result.concat(indent_str)
             result = result.concat(decl_name)
@@ -6150,7 +6150,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             result = result.concat(";\n")
         }
     } else {
-        if gt(assign_name.len(), 0) {
+        if assign_name.len().gt(0) {
             result = result.concat(indent_str)
             // Check if assignment target is a field access on a mut param (self.field)
             // If so, emit with -> instead of .
@@ -6210,7 +6210,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut mangled_name := ""
     ctx.nested_func_names.get(func_name, mangled_name)
     catch (err: KeyNotFoundError) { }
-    if gt(mangled_name.len(), 0) {
+    if mangled_name.len().gt(0) {
         func_name = mangled_name
     }
 
@@ -6225,12 +6225,12 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     func_def_found = true
     catch (err: KeyNotFoundError) { }
     if func_def_found {
-        func_has_return = gt(func_def.return_types.len(), 0)
+        func_has_return = func_def.return_types.len().gt(0)
     }
     mut needs_ret := false
     if func_has_return {
-        if gt(decl_name.len(), 0) { needs_ret = true }
-        if gt(assign_name.len(), 0) { needs_ret = true }
+        if decl_name.len().gt(0) { needs_ret = true }
+        if assign_name.len().gt(0) { needs_ret = true }
     }
 
     // Calculate param_types early for Dynamic hoisting
@@ -6315,7 +6315,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut ret_type := "int"
     if needs_ret {
         mut fd := context.scope_stack.lookup_func(func_name)
-        if gt(fd.return_types.len(), 0) {
+        if fd.return_types.len().gt(0) {
             mut first_ret := ValueType.TCustom("")
             fd.return_types.get(0, first_ret)
             ret_type = til_type_to_c(first_ret)
@@ -6335,7 +6335,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // For declarations: declare the variable BEFORE
     // Skip for underscore _ which is just a discard
-    if gt(decl_name.len(), 0) {
+    if decl_name.len().gt(0) {
         if not(decl_name.eq("_")) {
             result = result.concat(indent_str)
             result = result.concat(ret_type)
@@ -6344,7 +6344,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             result = result.concat(";\n")
             // Add to scope_stack for type resolution
             mut fd := context.scope_stack.lookup_func(func_name)
-            if gt(fd.return_types.len(), 0) {
+            if fd.return_types.len().gt(0) {
                 mut first_type := ValueType.TCustom("")
                 fd.return_types.get(0, first_type)
                 context.scope_stack.declare_symbol(decl_name, SymbolInfo(value_type=first_type, is_mut=true))
@@ -6476,7 +6476,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         }
 
         // Emit variadic array pointer
-        if gt(variadic_arr_var.len(), 0) {
+        if variadic_arr_var.len().gt(0) {
             if gt(param_count, 0) {
                 result = result.concat(", ")
             }
@@ -6609,7 +6609,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Success case: assign return value to target variable if needed
     // Skip for underscore _ which is just a discard
-    if gt(decl_name.len(), 0) {
+    if decl_name.len().gt(0) {
         if not(decl_name.eq("_")) {
             result = result.concat(indent_str)
             result = result.concat(til_name(decl_name))
@@ -6618,7 +6618,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             result = result.concat(";\n")
         }
     } else {
-        if gt(assign_name.len(), 0) {
+        if assign_name.len().gt(0) {
             result = result.concat(indent_str)
             // Check if assignment target is a field access on a mut param (self.field)
             // If so, emit with -> instead of .
@@ -6755,7 +6755,7 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
     switch thrown_expr.node_type {
     case NodeType.FCall:
-        if gt(thrown_expr.params.len(), 0) {
+        if thrown_expr.params.len().gt(0) {
             mut first_param := Expr()
             thrown_expr.params.get(0, first_param)
             switch first_param.node_type {
@@ -6769,7 +6769,7 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 catch (err: KeyNotFoundError) { /* REM None case in Rust */ }
                 if got_lookup {
                     // It's a function - use its return type as the thrown type
-                    if gt(lookup_fd.return_types.len(), 0) {
+                    if lookup_fd.return_types.len().gt(0) {
                         mut ret_type := ValueType.TFunction(FunctionType.FTFunc)
                         lookup_fd.return_types.get(0, ret_type)
                         switch ret_type {
@@ -6967,7 +6967,7 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 get_struct_construction_type := func(expr: Expr, context: Context) returns Str {
     switch expr.node_type {
     case NodeType.FCall:
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return "" }
@@ -7020,7 +7020,7 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str thr
     // Check FCall case: Type.Variant(value) or Type.Variant()
     switch expr.node_type {
     case NodeType.FCall:
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { return "" }
@@ -7029,7 +7029,7 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str thr
                 // Use lookup_enum to check if this is a known enum type
                 mut enum_def := context.scope_stack.lookup_enum(type_name)
                 // Check if there's a nested identifier (the variant)
-                if gt(first.params.len(), 0) {
+                if first.params.len().gt(0) {
                     mut nested := Expr()
                     first.params.get(0, nested)
                     catch (err: IndexOutOfBoundsError) { return "" }
@@ -7054,7 +7054,7 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str thr
         // Check Identifier case: Type.Variant (no parentheses, no payload)
         // Use lookup_enum to check if this is a known enum type
         mut enum_def := context.scope_stack.lookup_enum(type_name)
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut nested := Expr()
             expr.params.get(0, nested)
             catch (err: IndexOutOfBoundsError) { return "" }
@@ -7081,7 +7081,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     is_mut := decl.is_mut
 
     // Skip inline ext_func/ext_proc declarations - they're just declaring external functions exist
-    if gt(expr.params.len(), 0) {
+    if expr.params.len().gt(0) {
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -7096,12 +7096,12 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     }
 
     // Skip NULL - it's a C macro for 0
-    if Str.eq(name, "NULL") { return output }
+    if name.eq("NULL") { return output }
 
     // Bug #35: For underscore declarations, just emit the expression (discard result)
     // This avoids C redeclaration errors and matches the semantics of discarding
     if name.eq("_") {
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut ind := 0
             while lt(ind, indent) {
                 result = result.concat("    ")
@@ -7131,14 +7131,14 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     }
 
     // Check if this is a function definition - skip or hoist depending on context
-    if gt(expr.params.len(), 0) {
+    if expr.params.len().gt(0) {
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         switch first.node_type {
         case NodeType.FuncDef(func_def):
             // Check if we're inside a function (nested function declaration)
-            if gt(ctx.current_function_name.len(), 0) {
+            if ctx.current_function_name.len().gt(0) {
                 // Nested function - hoist it to top level with mangled name
                 mut mangled_name := ctx.current_function_name.concat("_").concat(name)
 
@@ -7207,7 +7207,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 func_output = emit_stmts(func_def.body, func_output, 1, ctx, context)
 
                 // For throwing void functions, add implicit return 0
-                if gt(func_def.throw_types.len(), 0) {
+                if func_def.throw_types.len().gt(0) {
                     if eq(func_def.return_types.len(), 0) {
                         func_output = func_output.concat("    return 0;\n")
                     }
@@ -7247,7 +7247,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
 
     // Hoist any throwing function calls in the RHS expression before emitting the declaration
     // This ensures throwing calls are properly handled with error checking
-    if gt(expr.params.len(), 0) {
+    if expr.params.len().gt(0) {
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -7257,7 +7257,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     // For underscore declarations, just emit the expression (discard result)
     // This avoids C redeclaration errors and matches the semantics of discarding
     if name.eq("_") {
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
             result = emit_expr(first, result, indent, ctx, context)
@@ -7279,7 +7279,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
 
     // Check if this is a struct construction (TypeName())
     mut struct_type := ""
-    if gt(expr.params.len(), 0) {
+    if expr.params.len().gt(0) {
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -7288,7 +7288,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
 
     // Check if this is an enum construction (Type.Variant or Type.Variant(value))
     mut enum_type := ""
-    if gt(expr.params.len(), 0) {
+    if expr.params.len().gt(0) {
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -7299,14 +7299,14 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     // Use the inferred type from struct/enum construction if available,
     // or use get_value_type to get return type of function calls like Vec.new(Str)
     mut var_type := decl.value_type
-    if gt(struct_type.len(), 0) {
+    if struct_type.len().gt(0) {
         var_type = ValueType.TCustom(struct_type)
-    } else if gt(enum_type.len(), 0) {
+    } else if enum_type.len().gt(0) {
         var_type = ValueType.TCustom(enum_type)
     } else {
         switch decl.value_type {
         case ValueType.TCustom(type_name):
-            if Str.eq(type_name, INFER_TYPE).and(gt(expr.params.len(), 0)) {
+            if type_name.eq(INFER_TYPE).and(expr.params.len().gt(0)) {
                 // Try get_value_type (handles function calls like Vec.new)
                 mut first := Expr()
                 expr.params.get(0, first)
@@ -7327,7 +7327,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     // Use til_name() since that's what hoisting code uses when inserting into declared_vars
     already_declared := ctx.declared_vars.contains(til_name(name))
 
-    if gt(struct_type.len(), 0) {
+    if struct_type.len().gt(0) {
         // Extract type_name from struct_type (like Rust's if let Some(type_name) = struct_type)
         type_name := struct_type
 
@@ -7335,7 +7335,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
 
         // Build map of named arg values from struct literal
         mut named_values := Map.new(Str, Expr)
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut first_param := Expr()
             expr.params.get(0, first_param)
             mut literal_arg_idx := 1
@@ -7344,7 +7344,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 first_param.params.get(literal_arg_idx, literal_arg)
                 switch literal_arg.node_type {
                 case NodeType.NamedArg(field_name):
-                    if gt(literal_arg.params.len(), 0) {
+                    if literal_arg.params.len().gt(0) {
                         mut value_expr := Expr()
                         literal_arg.params.get(0, value_expr)
                         named_values.set(field_name, value_expr)
@@ -7426,7 +7426,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
 
                     // Get the function's throw types
                     mut throw_types := Vec.new(ValueType)
-                    if gt(td.default_expr.params.len(), 0) {
+                    if td.default_expr.params.len().gt(0) {
                         mut first_param := Expr()
                         td.default_expr.params.get(0, first_param)
                         mut fcall_func_name := get_func_name_string(first_param)
@@ -7480,7 +7480,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                     named_values.get(member.name, value_expr)
                     has_named_value = true
                     catch (err: KeyNotFoundError) { }
-                    if has_named_value.and(gt(value_expr.params.len(), 0).or(gt(value_expr.line, 0))) {
+                    if has_named_value.and(value_expr.params.len().gt(0).or(value_expr.line.gt(0))) {
                         result = emit_expr(value_expr, result, 0, ctx, context)
                     } else {
                         mut default_expr := Expr()
@@ -7523,7 +7523,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             result = result.concat(til_name(name))
             result = emit_struct_literal_assign(result, struct_type, already_declared, "{0}")
         }
-    } else if gt(enum_type.len(), 0) {
+    } else if enum_type.len().gt(0) {
         // Enum variable declaration
         if not(already_declared) {
             if not(is_mut) {
@@ -7542,7 +7542,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         result = result.concat(";\n")
     } else if is_mut {
         // Hoist Dynamic params in RHS if it's an FCall (needed for methods like Set.contains)
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut rhs_fcall := Expr()
             expr.params.get(0, rhs_fcall)
             switch rhs_fcall.node_type {
@@ -7618,7 +7618,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             _ := ctx.declared_vars.insert(til_name(name))
         }
         result = result.concat(til_name(name))
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             result = result.concat(" = ")
             mut first := Expr()
             expr.params.get(0, first)
@@ -7629,7 +7629,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     } else {
         // const declaration
         // Hoist Dynamic params in RHS if it's an FCall (needed for methods like Set.contains)
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut rhs_fcall := Expr()
             expr.params.get(0, rhs_fcall)
             switch rhs_fcall.node_type {
@@ -7706,7 +7706,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             _ := ctx.declared_vars.insert(til_name(name))
         }
         result = result.concat(til_name(name))
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             result = result.concat(" = ")
             mut first := Expr()
             expr.params.get(0, first)
@@ -7752,7 +7752,7 @@ emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx
     mut result := output
 
     // Hoist any throwing function calls nested in the RHS expression
-    if gt(expr.params.len(), 0) {
+    if expr.params.len().gt(0) {
         mut rhs_expr := Expr()
         expr.params.get(0, rhs_expr)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -7801,7 +7801,7 @@ emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx
         result = result.concat(til_name(name))
     }
     result = result.concat(" = ")
-    if gt(expr.params.len(), 0) {
+    if expr.params.len().gt(0) {
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -7822,9 +7822,9 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     result = result.concat(indent_str)
 
     // Check if we're in a throwing function
-    if gt(ctx.current_throw_types.len(), 0) {
+    if ctx.current_throw_types.len().gt(0) {
         // Throwing function: *_ret = value; return 0;
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut return_expr := Expr()
             expr.params.get(0, return_expr)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -7839,7 +7839,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 got_lookup = true
                 catch (err: KeyNotFoundError) { /* REM None case in Rust */ }
                 if got_lookup {
-                    if gt(lookup_fd.throw_types.len(), 0) {
+                    if lookup_fd.throw_types.len().gt(0) {
                         // Return expression is a throwing function call - emit with error propagation
                         // The result will be stored via the assign_name "*_ret"
                         result = emit_throwing_call_propagate(return_expr, lookup_fd.throw_types, "", "*_ret", result, indent, ctx, context)
@@ -7869,7 +7869,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     } else {
         // Non-throwing function: normal return
         // Check if return expression is a variadic function call
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut return_expr := Expr()
             expr.params.get(0, return_expr)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -7919,7 +7919,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
                 // Emit the function name
                 mut func_name := get_fcall_func_name(return_expr)
-                if gt(func_name.len(), 0) {
+                if func_name.len().gt(0) {
                     result = result.concat(til_func_name(func_name))
                 }
                 result = result.concat("(")
@@ -7971,7 +7971,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         }
 
         // Hoist any throwing function calls nested in the return expression
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             mut return_expr := Expr()
             expr.params.get(0, return_expr)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -7980,7 +7980,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
         // Regular non-variadic return
         result = result.concat("return")
-        if gt(expr.params.len(), 0) {
+        if expr.params.len().gt(0) {
             result = result.concat(" ")
             mut first_param := Expr()
             expr.params.get(0, first_param)
@@ -8010,7 +8010,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
 
     switch first.node_type {
     case NodeType.Identifier(name):
-        if gt(first.params.len(), 0) {
+        if first.params.len().gt(0) {
             // Type-qualified: Type.method()
             // AST is FLAT: a.b.c is Identifier("a") { params: [Identifier("b"), Identifier("c")] }
             // Method is the LAST param, not the first
@@ -8109,7 +8109,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
                 got_lookup = true
                 catch (err: KeyNotFoundError) { /* REM None case in Rust */ }
                 if got_lookup {
-                    if gt(lookup_fd.args.len(), 0) {
+                    if lookup_fd.args.len().gt(0) {
                         mut first_arg := Declaration()
                         lookup_fd.args.get(0, first_arg)
                         called_self_is_mut = first_arg.is_mut
@@ -8212,7 +8212,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
         switch arg.node_type {
         case NodeType.FCall:
             mut fd := get_fcall_func_def(context, arg)
-            if gt(fd.throw_types.len(), 0) {
+            if fd.throw_types.len().gt(0) {
                 throwing_fd = fd
                 throwing_fd_found = true
             }
@@ -8410,7 +8410,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             got_fd = true
             catch (err: KeyNotFoundError) { /* REM None case in Rust */ }
             if got_fd {
-                if gt(fd.return_types.len(), 0) {
+                if fd.return_types.len().gt(0) {
                     mut ret_type := ValueType.TCustom("")
                     fd.return_types.get(0, ret_type)
                     c_type = til_type_to_c(ret_type)
@@ -8443,7 +8443,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             // Emit function name
             mut func_name := get_fcall_func_name(arg)
-            if gt(func_name.len(), 0) {
+            if func_name.len().gt(0) {
                 output = output.concat(til_func_name(func_name))
             }
             output = output.concat("(")
@@ -8511,7 +8511,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                     // For struct literals like Expr() passed as arguments, their throwing default field values
                     // (e.g., params = Vec.new(Expr)) need to be hoisted BEFORE the struct literal is created
                     func_name := get_fcall_func_name(arg)
-                    if gt(func_name.len(), 0) {
+                    if func_name.len().gt(0) {
                         mut is_struct := false
                         _ := context.scope_stack.lookup_struct(func_name)
                         is_struct = true
@@ -8617,7 +8617,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
             }
         case NodeType.Identifier(var_name):
             // Could be: enum constructor (Type.Variant), field access (var.field), or method call
-            if gt(arg.params.len(), 0) {
+            if arg.params.len().gt(0) {
                 mut first_param := Expr()
                 arg.params.get(0, first_param)
                 switch first_param.node_type {
@@ -8667,7 +8667,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
             got_fd = true
             catch (err: KeyNotFoundError) { /* REM None case in Rust */ }
             if got_fd {
-                if gt(fd.throw_types.len(), 0) {
+                if fd.throw_types.len().gt(0) {
                     // Throwing call
                     if fd.return_types.len().gt(0) {
                         mut first_ret := ValueType.TCustom("")
@@ -8679,7 +8679,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                     }
                 } else {
                     // Non-throwing function call - use return type
-                    if gt(fd.return_types.len(), 0) {
+                    if fd.return_types.len().gt(0) {
                         mut ret_type := ValueType.TCustom("")
                         fd.return_types.get(0, ret_type)
                         c_type = til_type_to_c(ret_type)
@@ -8689,7 +8689,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
             } else {
                 // Check if this is a struct constructor like Ptr()
                 mut func_name := get_fcall_func_name(arg)
-                if gt(func_name.len(), 0) {
+                if func_name.len().gt(0) {
                     mut struct_def := context.scope_stack.lookup_struct(func_name)
                     c_type = til_name(func_name)
                     catch (err: KeyNotFoundError) { }
@@ -8948,7 +8948,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     // Check if this is a call to a nested (hoisted) function - use mangled name
     mut mangled_name := ""
     ctx.nested_func_names.get(orig_func_name, mangled_name)
-    if gt(mangled_name.len(), 0) {
+    if mangled_name.len().gt(0) {
         func_name = mangled_name
     }
     catch (err: KeyNotFoundError) { /* not a nested function, use original name */ }
@@ -9239,7 +9239,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     expr.params.get(nav_idx, nav_expr)
                     switch nav_expr.node_type {
                     case NodeType.NamedArg(field_name):
-                        if gt(nav_expr.params.len(), 0) {
+                        if nav_expr.params.len().gt(0) {
                             mut value_expr := Expr()
                             nav_expr.params.get(0, value_expr)
                             named_values.set(field_name, value_expr)
@@ -9272,7 +9272,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                             // Use named arg value if provided, otherwise use default
                             mut value_expr := Expr()
                             named_values.get(member.name, value_expr)
-                            if gt(value_expr.params.len(), 0).or(gt(value_expr.line, 0)) {
+                            if value_expr.params.len().gt(0).or(value_expr.line.gt(0)) {
                                 // Found named arg value
                                 result = emit_expr(value_expr, result, 0, ctx, context)
                             } else {
@@ -9449,7 +9449,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 // For ext_func, don't treat mut as pass-by-reference
                 mut arg_idx := sub(i, 1)
                 mut should_add_ampersand := false
-                if gt(param_info.len(), 0).and(not(is_ext_func)) {
+                if param_info.len().gt(0).and(not(is_ext_func)) {
                     if lt(arg_idx, param_info.len()) {
                         mut info := ParamTypeInfo()
                         param_info.get(arg_idx, info)
