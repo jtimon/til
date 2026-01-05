@@ -466,7 +466,7 @@ All unnecessary result structs have been removed:
 | param_needs_by_ref | Y | Y | MATCH | |
 | til_type_to_c | Y | Y | MATCH | Removed extra default case |
 | value_type_to_c_name | Y | Y | MATCH | Error uses value_type_to_str (acceptable - no {:?} in TIL) |
-| has_str | - | Y | DELETE | Not in Rust - remove from TIL |
+| has_str | - | - | DELETED | Removed 2026-01-05 - inlined at call sites like Rust |
 | get_field_type_dependency | Y | - | PORT | Missing from TIL - needs porting |
 
 ***** Type/Struct/Enum Detection - Present
@@ -523,7 +523,7 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_func_signature | Y | Y | DIVERGE | Common patterns |
 | emit_func_prototype | Y | Y | DIVERGE | Common patterns |
 | emit_func_declaration | Y | Y | DIVERGE | Common patterns |
-| emit_constant_declaration | Y | Y | DIVERGE | Uses has_str() helper (DELETE), common patterns |
+| emit_constant_declaration | Y | Y | DIVERGE | Common patterns (has_str check now inlined like Rust) |
 | emit_global_declaration | Y | Y | DIVERGE | Common patterns |
 | emit_expr | Y | Y | DIVERGE | Common patterns |
 | emit_body | Y | Y | DIVERGE | Common patterns |

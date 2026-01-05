@@ -91,15 +91,6 @@ CodegenContext := struct {
     mut hoisted_struct_defaults: Map = Map.new(Str, Str)
 }
 
-// Helper to check if Str struct is defined in context
-has_str := func(context: Context) returns Bool {
-    mut found := false
-    _ := context.scope_stack.lookup_struct("Str")
-    found = true
-    catch (err: KeyNotFoundError) { }
-    return found
-}
-
 // Generate unique mangled name using context counter (deterministic)
 // Includes function name prefix for uniqueness across functions
 next_mangled := proc(mut ctx: CodegenContext) returns Str {
@@ -1816,7 +1807,12 @@ emit_constant_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenConte
                     }
                     result = result.concat(til_name("I64 ")).concat(var_name).concat(" = ").concat(n).concat(";\n")
                 case Literal.Str(s):
-                    if has_str(context) {
+                    // Check if Str struct is defined (inline, like Rust)
+                    mut has_str := false
+                    _ := context.scope_stack.lookup_struct("Str")
+                    has_str = true
+                    catch (err: KeyNotFoundError) { }
+                    if has_str {
                         if not(decl.is_mut) {
                             result = result.concat("const ")
                         }
@@ -9520,7 +9516,12 @@ emit_literal := proc(lit: Literal, output: Str, context: Context) returns Str th
     mut result := ""
     switch lit {
     case Literal.Str(s):
-        if has_str(context) {
+        // Check if Str struct is defined (inline, like Rust)
+        mut has_str := false
+        _ := context.scope_stack.lookup_struct("Str")
+        has_str = true
+        catch (err: KeyNotFoundError) { }
+        if has_str {
             result = emit_str_literal(s, output)
         } else {
             result = format(output, "\"", s, "\"")
