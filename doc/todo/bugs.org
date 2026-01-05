@@ -515,7 +515,7 @@ All unnecessary result structs have been removed:
 | is_constant_declaration | Y | Y | MATCH | Single return false at end, added Rust comments, commit ded07f40 |
 | is_global_declaration | Y | Y | MATCH | Single return false at end, grouped cases, commit fdae1c87 |
 | is_throwing_fcall | Y | Y | MATCH | proc vs func is TIL idiom, logic matches Rust (2026-01-05) |
-| is_func_declaration | Y | Y | DIVERGE | Needs single return false at end pattern |
+| is_func_declaration | Y | Y | MATCH | Single return false at end |
 | enum_has_payloads | Y | Y | MATCH | Uses for-in loop like Rust iterator (2026-01-05) |
 | variant_has_payload | - | - | DELETED | Removed 2026-01-05 - was not in Rust |
 | get_struct_name | Y | Y | MATCH | "" sentinel for Option per rs2til.org, fixed unused var (2026-01-05) |
