@@ -8970,7 +8970,29 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         i = add(i, 1)
     }
 
+    // Bug #60: Hoist Type and I64 literals for Array.new call
+    // Type param needs hoisting because we can't take address of string literal for const char* const*
+    mut type_temp := next_mangled(ctx)
+    output = output.concat(indent_str)
+    output = output.concat(TIL_PREFIX)
+    output = output.concat("Type ")
+    output = output.concat(type_temp)
+    output = output.concat(" = \"")
+    output = output.concat(elem_type)
+    output = output.concat("\";\n")
+
+    // Capacity param needs hoisting because we can't take address of integer literal
+    mut count_temp := next_mangled(ctx)
+    output = output.concat(indent_str)
+    output = output.concat(TIL_PREFIX)
+    output = output.concat("I64 ")
+    output = output.concat(count_temp)
+    output = output.concat(" = ")
+    output = output.concat(I64.to_str(variadic_count))
+    output = output.concat(";\n")
+
     // Emit Array.new call with error handling
+    // int _status = til_Array_new(&arr, &_err_alloc, type_temp, &count_temp);
     output = output.concat(indent_str)
     output = output.concat("int _arr_status_")
     output = output.concat(err_suffix)
@@ -8980,10 +9002,11 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     output = output.concat(arr_var)
     output = output.concat(", &_err_alloc_")
     output = output.concat(err_suffix)
-    output = output.concat(", \"")
-    output = output.concat(elem_type)
-    output = output.concat("\", ")
-    output = output.concat(I64.to_str(variadic_count))
+    // Bug #60: Type is already const char*, pass by value (no &)
+    output = output.concat(", ")
+    output = output.concat(type_temp)
+    output = output.concat(", &")
+    output = output.concat(count_temp)
     output = output.concat(");\n")
 
     // Emit error check for Array.new

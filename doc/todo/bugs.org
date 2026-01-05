@@ -313,38 +313,28 @@ Changed three locations from ~if arg.is_mut~ to ~if not(arg.is_copy)~:
 
 Added "Bug #60" comment to match Rust for future reference.
 
-***** Issue 10: Literal hoisting - Type and I64 literals need temp variables
+***** Issue 10: Literal hoisting - Type and I64 literals need temp variables - FIXED
 
 *Symptom*: Can't take address of string/integer literal for pointer params
 
-*Location*: ~hoist_variadic_args~ and ~emit_variadic_call~
+*Location*: ~hoist_variadic_args~ function (line 8973)
 
-*Rust reference*: ~src/rs/ccodegen.rs~ lines 1352-1371 (Bug #60 fix)
+*Rust reference*: ~src/rs/ccodegen.rs~ lines 1352-1389 (Bug #60 fix)
 
-*Analysis*:
+*Root cause*:
 When calling Array.new, the Type and I64 params need hoisting because:
 - Can't do ~&"Str"~ (address of string literal for const char* const*)
 - Can't do ~&0~ (address of integer literal)
 
-Rust solution (Bug #60):
-#+BEGIN_SRC rust
-// Bug #60: Hoist Type and I64 literals for Array.new call
-let type_temp = next_mangled(ctx);
-output.push_str(&indent_str);
-output.push_str(TIL_PREFIX);
-output.push_str("Type ");
-output.push_str(&type_temp);
-output.push_str(" = \"");
-output.push_str(elem_type);
-output.push_str("\";\n");
-#+END_SRC
+TIL was passing literals directly but Rust hoists them into temp vars.
 
-*Fix steps*:
-1. Find ~hoist_variadic_args~ in ccodegen.til
-2. Add hoisting for Type literal (elem_type string)
-3. Add hoisting for I64 literal (count)
-4. Emit temp variable declarations before Array.new call
-5. Pass ~&type_temp~ and ~&count_temp~ instead of inline literals
+*Fix applied*:
+Added hoisting for Type and I64 params before Array.new call:
+1. ~til_Type type_temp = "elem_type";~
+2. ~til_I64 count_temp = N;~
+3. Pass ~type_temp~ (no &, already const char*) and ~&count_temp~ to Array.new
+
+Added Bug #60 comments to match Rust.
 
 ***** Issue 11: Dynamic casting - need ~(til_Dynamic*)&val~ - FIXED
 
