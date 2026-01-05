@@ -3012,7 +3012,8 @@ emit_func_prototype := proc(expr: Expr, output: Str, ctx: CodegenContext) return
                 }
 
                 // Use emit_func_signature for both throwing and non-throwing functions
-                result = emit_func_signature(decl.name, func_def, result, ctx)
+                mut func_name := til_name(decl.name)
+                result = emit_func_signature(func_name, func_def, result, ctx)
                 result = result.concat(";\n")
                 return result
             case:
@@ -3097,7 +3098,8 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
 
                 // Use emit_func_signature for both throwing and non-throwing functions
-                result = emit_func_signature(decl.name, func_def, result, ctx)
+                mut func_name := til_name(decl.name)
+                result = emit_func_signature(func_name, func_def, result, ctx)
                 result = result.concat(" {\n")
 
                 // Emit function body with catch pattern detection
