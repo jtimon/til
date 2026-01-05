@@ -6974,16 +6974,16 @@ get_struct_construction_type := func(expr: Expr, context: Context) returns Str {
             switch first.node_type {
             case NodeType.Identifier(name):
                 // Use lookup_struct to check if this is a known struct type
-                if eq(first.params.len(), 0) {
+                if first.params.len().eq(0) {
                     mut struct_found := false
                     _ := context.scope_stack.lookup_struct(name)
                     struct_found = true
                     catch (err: KeyNotFoundError) { }
                     if struct_found {
                         mut only_named_args := true
-                        if gt(expr.params.len(), 1) {
+                        if expr.params.len().gt(1) {
                             mut i := 1
-                            while lt(i, expr.params.len()) {
+                            while i.lt(expr.params.len()) {
                                 mut arg := Expr()
                                 expr.params.get(i, arg)
                                 catch (err: IndexOutOfBoundsError) { only_named_args = false }
