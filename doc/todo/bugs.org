@@ -439,11 +439,11 @@ All enums and functions match:
 | CollectedDeclaration | MATCH | |
 | ThrowingDefault | MATCH | |
 | CatchLabelInfoEntry | DIVERGE | TIL has extra ~catch_block: Expr~ field |
-| ParamTypeInfo | DIVERGE | Rust ~Option<ValueType>~ -> TIL uses ~has_type: Bool~ flag instead of Ptr |
+| ParamTypeInfo | MATCH | Changed to use ~Ptr~ for value_type, removed ~has_type~ |
 | SwitchCaseInfo | DIVERGE | Rust ~Option<&Expr>~ -> TIL uses ~has_case_body: Bool~ flag instead of Ptr |
 | ThrowingFCallInfo | DIVERGE | TIL has extra ~is_throwing: Bool~, uses ~has_return_type: Bool~ instead of Ptr |
 | VariadicFCallInfo | DIVERGE | TIL has extra ~is_variadic: Bool~ field |
-| CodegenContext | DIVERGE | Rust uses ~Option<String>~, TIL uses ~Str = ""~. FIX: Change Rust to ~String~ per rs2til.org |
+| CodegenContext | MATCH | Rust changed to ~String~ with ~""~ = None per rs2til.org |
 
 ****** TIL-only Structs (UNNECESSARY per rs2til.org)
 | Struct | Fields | Issue |

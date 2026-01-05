@@ -33,8 +33,7 @@ CatchLabelInfoEntry := struct {
 
 // Info about a function parameter's type and whether passed by reference
 ParamTypeInfo := struct {
-    mut value_type: ValueType = ValueType.TCustom("")  // Placeholder when has_type is false
-    mut has_type: Bool = false   // Whether value_type is set (replaces Option<ValueType>)
+    mut value_type: Ptr = Ptr()  // Option<ValueType> - pointer to ValueType or null
     mut by_ref: Bool = false
 }
 
@@ -9606,11 +9605,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 while lt(arg_i, lookup_result.func_def.args.len()) {
                     mut arg_decl := Declaration()
                     lookup_result.func_def.args.get(arg_i, arg_decl)
-                    mut info := ParamTypeInfo()
-                    info.value_type = arg_decl.value_type
-                    info.has_type = true
-                    info.by_ref = arg_decl.is_mut
-                    param_info.push(info)
+                    param_info.push(ParamTypeInfo(by_ref = arg_decl.is_mut))
                     arg_i = arg_i.add(1)
                 }
                 is_ext_func = lookup_result.func_def.is_ext()
