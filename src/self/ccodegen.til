@@ -1633,13 +1633,11 @@ is_enum_with_payloads := func(expr: Expr) returns Bool {
             case NodeType.EnumDef(enum_def):
                 return enum_has_payloads(enum_def)
             case:
-                return false
             }
         }
-        return false
     case:
-        return false
     }
+    return false
 }
 
 // Check if an expression is a top-level constant declaration (name := literal)
