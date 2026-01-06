@@ -338,10 +338,8 @@ test_list_multiple_pushes := proc() {
     }
 
     // Push several elements
-    mut i := 0
-    while lt(i, 10) {
+    for i in 0..10 {
         list.push(I64, i)
-        i = add(i, 1)
     }
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
