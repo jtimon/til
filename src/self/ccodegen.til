@@ -1827,12 +1827,10 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs, not structs
-        if decl.name.eq("I64") { return result }
-        if decl.name.eq("U8") { return result }
-        if decl.name.eq("Bool") { return result }
-        if decl.name.eq("Dynamic") { return result }
-        if decl.name.eq("Type") { return result }
+        // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
+        if decl.name.eq("I64").or(decl.name.eq("U8")).or(decl.name.eq("Bool")).or(decl.name.eq("Dynamic")).or(decl.name.eq("Type")) {
+            return result
+        }
         if expr.params.len().gt(0) {
             mut first := Expr()
             expr.params.get(0, first)
@@ -1841,10 +1839,10 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
                 result = result.concat("struct ").concat(til_name(decl.name)).concat(" {\n")
                 for member: Declaration in struct_def.members {
                     // Only emit mut fields as struct members
-                    if not(member.is_mut) {
-                        continue
+                    // Skip functions and non-mut fields (constants)
+                    if member.is_mut {
+                        result = result.concat("    ").concat(til_type_to_c(member.value_type)).concat(" ").concat(member.name).concat(";\n")
                     }
-                    result = result.concat("    ").concat(til_type_to_c(member.value_type)).concat(" ").concat(member.name).concat(";\n")
                 }
                 result = result.concat("};\n\n")
                 return result
