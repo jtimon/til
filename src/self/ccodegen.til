@@ -1379,31 +1379,28 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
 
     // Build name -> index map
     mut name_to_idx := Map.new(Str, I64)
-    mut idx := 0
-    while lt(idx, n) {
+    for idx in 0..n {
         mut expr := Expr()
         types.get(idx, expr)
         mut name := get_type_name(expr)
         if name.len().gt(0) {
             name_to_idx.set(name, idx)
         }
-        idx = add(idx, 1)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: AllocError) { throw err.msg }
     }
 
     // Build adjacency list (dependencies)
     mut deps := Vec.new(Vec)
-    idx = 0
-    while lt(idx, n) {
+    for idx in 0..n {
         deps.push(Vec.new(I64))
-        idx = add(idx, 1)
+        catch (err: AllocError) { throw err.msg }
     }
-    idx = 0
-    while lt(idx, n) {
+    for idx in 0..n {
         mut expr := Expr()
         types.get(idx, expr)
         mut type_deps := get_type_dependencies(expr)
-        mut dep_idx := 0
-        while lt(dep_idx, type_deps.len()) {
+        for dep_idx in 0..type_deps.len() {
             mut dep_name := ""
             type_deps.get(dep_idx, dep_name)
             if name_to_idx.contains_key(dep_name) {
@@ -1417,69 +1414,65 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
                     deps.set(idx, idx_deps)
                 }
             }
-            dep_idx = add(dep_idx, 1)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            catch (err: AllocError) { throw err.msg }
         }
-        idx = add(idx, 1)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
 
     // Kahn's algorithm for topological sort
     // If A depends on B, B must come first, so reverse the edges
     mut reverse_deps := Vec.new(Vec)
-    idx = 0
-    while lt(idx, n) {
+    for idx in 0..n {
         reverse_deps.push(Vec.new(I64))
-        idx = add(idx, 1)
+        catch (err: AllocError) { throw err.msg }
     }
-    idx = 0
-    while lt(idx, n) {
+    for idx in 0..n {
         mut dep_list := Vec.new(I64)
         deps.get(idx, dep_list)
-        mut dep_idx := 0
-        while lt(dep_idx, dep_list.len()) {
+        for dep_idx in 0..dep_list.len() {
             mut dep := 0
             dep_list.get(dep_idx, dep)
             mut rev_deps := Vec.new(I64)
             reverse_deps.get(dep, rev_deps)
             rev_deps.push(idx)
             reverse_deps.set(dep, rev_deps)
-            dep_idx = add(dep_idx, 1)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            catch (err: AllocError) { throw err.msg }
         }
-        idx = add(idx, 1)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
 
     // Calculate in-degree for reversed graph
     mut in_degree := Vec.new(I64)
-    idx = 0
-    while lt(idx, n) {
+    for idx in 0..n {
         in_degree.push(0)
-        idx = add(idx, 1)
+        catch (err: AllocError) { throw err.msg }
     }
-    idx = 0
-    while lt(idx, n) {
+    for idx in 0..n {
         mut dep_list := Vec.new(I64)
         reverse_deps.get(idx, dep_list)
-        mut dep_idx := 0
-        while lt(dep_idx, dep_list.len()) {
+        for dep_idx in 0..dep_list.len() {
             mut dep := 0
             dep_list.get(dep_idx, dep)
             mut degree := 0
             in_degree.get(dep, degree)
             in_degree.set(dep, add(degree, 1))
-            dep_idx = add(dep_idx, 1)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
-        idx = add(idx, 1)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
 
     // Start with nodes that have in-degree 0
     mut queue := Vec.new(I64)
-    idx = 0
-    while lt(idx, n) {
+    for idx in 0..n {
         mut degree := 0
         in_degree.get(idx, degree)
         if degree.eq(0) {
             queue.push(idx)
         }
-        idx = add(idx, 1)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: AllocError) { throw err.msg }
     }
 
     // Process queue
@@ -1491,8 +1484,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
         // For each node that current points to, decrement in-degree
         mut edges := Vec.new(I64)
         reverse_deps.get(current, edges)
-        mut edge_idx := 0
-        while lt(edge_idx, edges.len()) {
+        for edge_idx in 0..edges.len() {
             mut next := 0
             edges.get(edge_idx, next)
             mut degree := 0
@@ -1501,33 +1493,32 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
             if sub(degree, 1).eq(0) {
                 queue.push(next)
             }
-            edge_idx = add(edge_idx, 1)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            catch (err: AllocError) { throw err.msg }
         }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: AllocError) { throw err.msg }
     }
 
     // If we couldn't sort all (cycle), append remaining in original order
     if lt(result.len(), n) {
-        idx = 0
-        while lt(idx, n) {
+        for idx in 0..n {
             mut found := false
-            mut i := 0
-            while lt(i, result.len()) {
+            for i in 0..result.len() {
                 mut val := 0
                 result.get(i, val)
                 if val.eq(idx) {
                     found = true
                 }
-                i = add(i, 1)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
             }
             if not(found) {
                 result.push(idx)
             }
-            idx = add(idx, 1)
+            catch (err: AllocError) { throw err.msg }
         }
     }
 
-    catch (err: AllocError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     return result
 }
 
