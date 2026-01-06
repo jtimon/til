@@ -540,14 +540,12 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         if gt(expr.params.len(), 1) {
             mut nested_vec := hoist_throwing_args(expr.params, result, indent, ctx, context)
             // Convert Vec<HoistedArg> to Map<I64, Str>
-            mut nhi := 0
-            while lt(nhi, nested_vec.len()) {
+            for nhi in 0..nested_vec.len() {
                 mut entry := HoistedArg()
                 nested_vec.get(nhi, entry)
                 nested_hoisted.set(entry.index, entry.temp_var)
-                nhi = add(nhi, 1)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
             }
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: AllocError) { throw err.msg }
         }
 
@@ -569,8 +567,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
 
         // Declare error variables for each throw type
         mut temp_suffix := next_mangled(ctx)
-        mut err_idx := 0
-        while lt(err_idx, throwing_fd.throw_types.len()) {
+        for err_idx in 0..throwing_fd.throw_types.len() {
             mut throw_type := ValueType.TCustom("")
             throwing_fd.throw_types.get(err_idx, throw_type)
             switch throw_type {
@@ -578,7 +575,6 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                 result = result.concat(indent_str).concat(til_name(type_name)).concat(" _err").concat(err_idx.to_str()).concat("_").concat(temp_suffix).concat(";\n")
             case:
             }
-            err_idx = add(err_idx, 1)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
 
@@ -587,12 +583,10 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         mut has_variadic_arr := false
         mut variadic_info := detect_variadic_fcall(expr, ctx)
         mut variadic_args := Vec.new(Expr)
-        mut vi := add(1, variadic_info.regular_count)
-        while lt(vi, expr.params.len()) {
+        for vi in add(1, variadic_info.regular_count)..expr.params.len() {
             mut varg := Expr()
             expr.params.get(vi, varg)
             variadic_args.push(varg)
-            vi = add(vi, 1)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: AllocError) { throw err.msg }
         }
@@ -613,8 +607,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         // Emit error checking - propagate or goto based on context
         // Check if there are local catch labels for these error types
         mut has_local_catch := false
-        mut throw_check_idx := 0
-        while lt(throw_check_idx, throwing_fd.throw_types.len()) {
+        for throw_check_idx in 0..throwing_fd.throw_types.len() {
             mut throw_type := ValueType.TCustom("")
             throwing_fd.throw_types.get(throw_check_idx, throw_type)
             switch throw_type {
@@ -625,14 +618,12 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                 }
             case:
             }
-            throw_check_idx = add(throw_check_idx, 1)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
 
         if has_local_catch {
             // Use goto for local catches
-            err_idx = 0
-            while lt(err_idx, throwing_fd.throw_types.len()) {
+            for err_idx in 0..throwing_fd.throw_types.len() {
                 mut throw_type := ValueType.TCustom("")
                 throwing_fd.throw_types.get(err_idx, throw_type)
                 switch throw_type {
@@ -646,7 +637,6 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                     }
                 case:
                 }
-                err_idx = add(err_idx, 1)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 catch (err: KeyNotFoundError) { throw err.msg }
             }
@@ -654,14 +644,12 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
             // Propagate errors
             result = result.concat(indent_str).concat("if (_status_").concat(temp_suffix).concat(" != 0) {\n")
 
-            err_idx = 0
-            while lt(err_idx, throwing_fd.throw_types.len()) {
+            for err_idx in 0..throwing_fd.throw_types.len() {
                 mut throw_type := ValueType.TCustom("")
                 throwing_fd.throw_types.get(err_idx, throw_type)
                 switch throw_type {
                 case ValueType.TCustom(type_name):
-                    mut curr_idx := 0
-                    while lt(curr_idx, ctx.current_throw_types.len()) {
+                    for curr_idx in 0..ctx.current_throw_types.len() {
                         mut curr_throw := ValueType.TCustom("")
                         ctx.current_throw_types.get(curr_idx, curr_throw)
                         switch curr_throw {
@@ -674,12 +662,10 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                             }
                         case:
                         }
-                        curr_idx = add(curr_idx, 1)
                         catch (err: IndexOutOfBoundsError) { throw err.msg }
                     }
                 case:
                 }
-                err_idx = add(err_idx, 1)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
             }
 
@@ -710,12 +696,10 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
         if gt(expr.params.len(), 1) {
             mut nested_vec := hoist_throwing_args(expr.params, result, indent, ctx, context)
             // Convert Vec<HoistedArg> to Map<I64, Str>
-            mut nhi := 0
-            while lt(nhi, nested_vec.len()) {
+            for nhi in 0..nested_vec.len() {
                 mut entry := HoistedArg()
                 nested_vec.get(nhi, entry)
                 nested_hoisted.set(entry.index, entry.temp_var)
-                nhi = add(nhi, 1)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 catch (err: AllocError) { throw err.msg }
             }
@@ -743,12 +727,10 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
 
         // Construct variadic array
         mut variadic_args := Vec.new(Expr)
-        mut vi := add(1, variadic_info.regular_count)
-        while lt(vi, expr.params.len()) {
+        for vi in add(1, variadic_info.regular_count)..expr.params.len() {
             mut varg := Expr()
             expr.params.get(vi, varg)
             variadic_args.push(varg)
-            vi = add(vi, 1)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: AllocError) { throw err.msg }
         }
@@ -765,8 +747,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
 
         // Emit regular args (using nested hoisted temps)
         mut first := true
-        mut ri := 0
-        while lt(ri, variadic_info.regular_count) {
+        for ri in 0..variadic_info.regular_count {
             if not(first) {
                 result = result.concat(", ")
             }
@@ -785,7 +766,6 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 result = emit_expr(param, result, 0, ctx, context)
             }
-            ri = add(ri, 1)
         }
 
         // Emit variadic array pointer
@@ -824,8 +804,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
             catch (err: KeyNotFoundError) { /* REM None case in Rust */ }
             if got_func_name {
                 mut has_named_args := false
-                mut nai := 1
-                while lt(nai, expr.params.len()) {
+                for nai in 1..expr.params.len() {
                     mut narg := Expr()
                     expr.params.get(nai, narg)
                     switch narg.node_type {
@@ -833,7 +812,6 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                         has_named_args = true
                     case:
                     }
-                    nai = add(nai, 1)
                     catch (err: IndexOutOfBoundsError) { throw err.msg }
                 }
 
@@ -848,8 +826,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                         // This is a struct literal - check for throwing defaults
                         // Build set of named arg names that are provided
                         mut provided_names := Set.new(Str)
-                        mut pai := 1
-                        while lt(pai, expr.params.len()) {
+                        for pai in 1..expr.params.len() {
                             mut parg := Expr()
                             expr.params.get(pai, parg)
                             switch parg.node_type {
@@ -858,7 +835,6 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
                                 catch (err: AllocError) { throw err.msg }
                             case:
                             }
-                            pai = add(pai, 1)
                             catch (err: IndexOutOfBoundsError) { throw err.msg }
                         }
 
@@ -917,24 +893,20 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
     switch expr.node_type {
     case NodeType.FCall:
         if gt(expr.params.len(), 1) {
-            mut arg_idx := 1
-            while lt(arg_idx, expr.params.len()) {
+            for arg_idx in 1..expr.params.len() {
                 mut arg := Expr()
                 expr.params.get(arg_idx, arg)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 result = hoist_throwing_expr(arg, result, indent, ctx, context)
-                arg_idx = add(arg_idx, 1)
             }
         }
     case:
         // For other expression types with sub-expressions, recurse into them
-        mut param_idx := 0
-        while lt(param_idx, expr.params.len()) {
+        for param_idx in 0..expr.params.len() {
             mut param := Expr()
             expr.params.get(param_idx, param)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             result = hoist_throwing_expr(param, result, indent, ctx, context)
-            param_idx = add(param_idx, 1)
         }
     }
 
@@ -972,8 +944,7 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                 // Struct methods - use mangled names (StructName_methodName)
                 mut struct_name := decl.name
                 mut keys := struct_def.default_values.keys
-                mut i := 0
-                while lt(i, keys.len()) {
+                for i in 0..keys.len() {
                     mut member_name := ""
                     keys.get(i, member_name)
                     mut default_expr := Expr()
@@ -1000,11 +971,10 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                     case:
                         // Not a function, skip
                     }
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
                     catch (err: KeyNotFoundError) { /* skip */ }
                     catch (err: AllocError) { throw err.msg }
-                    i = add(i, 1)
                 }
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
             case:
                 // Not a function or struct, skip
             }
@@ -1133,8 +1103,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str) ret
         }
 
         // Error output parameters
-        mut i := 0
-        while lt(i, func_def.throw_types.len()) {
+        for i in 0..func_def.throw_types.len() {
             if gt(param_count, 0) {
                 result = result.concat(", ")
             }
@@ -1143,14 +1112,12 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str) ret
             mut err_type := value_type_to_c_name(throw_type)
             result = result.concat(err_type).concat("* _err").concat(add(i, 1).to_str())
             param_count = add(param_count, 1)
-            i = add(i, 1)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
 
     // Input parameters
-    mut j := 0
-    while lt(j, func_def.args.len()) {
+    for j in 0..func_def.args.len() {
         if gt(param_count, 0) {
             result = result.concat(", ")
         }
@@ -1164,7 +1131,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str) ret
             result = result.concat(TIL_PREFIX).concat("Array* ").concat(TIL_PREFIX).concat(arg.name)
             param_count = add(param_count, 1)
             // Variadic must be last, so break
-            j = func_def.args.len()
+            break
         case:
             // Regular arg - Bug #60: use param_needs_by_ref for pointer determination
             // Type is already const char*, don't add extra indirection
@@ -1201,10 +1168,9 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str) ret
             }
             result = result.concat(TIL_PREFIX).concat(arg.name)
             param_count = add(param_count, 1)
-            j = add(j, 1)
         }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     if eq(param_count, 0) {
         result = result.concat("void")
