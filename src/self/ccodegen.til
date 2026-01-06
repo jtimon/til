@@ -4046,7 +4046,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
     if ctx.hoisted_exprs.contains_key(expr_addr) {
         mut temp_var := ""
         ctx.hoisted_exprs.get(expr_addr, temp_var)
-        catch (err: KeyNotFoundError) { /* should not happen since we just checked contains_key */ }
+        catch (err: KeyNotFoundError) { }
         return output.concat(temp_var)
     }
 
@@ -4075,7 +4075,6 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
                         result = result.concat(".")
                         result = result.concat(field)
                     case:
-                        // Ignore non-identifier params
                     }
                 }
                 return result
@@ -4092,7 +4091,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
                 mut is_enum_variant := false
                 mut enum_def := context.scope_stack.lookup_enum(name)
                 is_enum_variant = enum_def.contains_key(field)
-                catch (err: KeyNotFoundError) { /* not an enum */ }
+                catch (err: KeyNotFoundError) { }
 
                 if is_enum_variant {
                     // Enum variant: Type.Variant -> til_Type_make_Variant()
@@ -4107,7 +4106,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
                 mut is_struct := false
                 _ := context.scope_stack.lookup_struct(name)
                 is_struct = true
-                catch (err: KeyNotFoundError) { /* not a struct */ }
+                catch (err: KeyNotFoundError) { }
                 if is_struct {
                     // Struct constant: Type.constant -> til_Type_constant
                     mut result := concat(output, til_name(name))
@@ -4116,7 +4115,6 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
                     return result
                 }
             case:
-                // Fall through to regular handling
             }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
@@ -4140,7 +4138,6 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
                     }
                     result = result.concat(field)
                 case:
-                    // Not a field access
                 }
                 i = i.add(1)
             }
@@ -4164,7 +4161,6 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
                     result = result.concat(".")
                     result = result.concat(field)  // Field names stay as-is (C struct fields)
                 case:
-                    // Not a field access
                 }
                 i = i.add(1)
             }
@@ -4186,7 +4182,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
     case NodeType.Continue:
         return emit_continue(expr, output, indent)
     case NodeType.Catch:
-        // Catch blocks handled at call site in emit_stmts
+        // Catch blocks handled at call site
         return output
     case NodeType.Throw:
         return emit_throw(expr, output, indent, ctx, context)
