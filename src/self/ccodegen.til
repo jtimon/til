@@ -4766,12 +4766,9 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
         }
         mut hoisted_vec := hoist_throwing_args(args, result, indent, ctx, context)
         // Convert Vec<HoistedArg> to Map<I64, Str>
-        mut hi := 0
-        while lt(hi, hoisted_vec.len()) {
-            mut entry := HoistedArg()
-            hoisted_vec.get(hi, entry)
+        for entry: HoistedArg in hoisted_vec {
             hoisted.set(entry.index, entry.temp_var)
-            hi = add(hi, 1)
+            catch (err: AllocError) { throw err.msg }
         }
     }
 
@@ -5059,43 +5056,31 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     if gt(fcall.params.len(), 1) {
         mut hoisted_vec := hoist_throwing_args(fcall.params, result, indent, ctx, context)
         // Convert Vec<HoistedArg> to Map<I64, Str>
-        mut hvi := 0
-        while lt(hvi, hoisted_vec.len()) {
-            mut entry := HoistedArg()
-            hoisted_vec.get(hvi, entry)
+        for entry: HoistedArg in hoisted_vec {
             hoisted.set(entry.index, entry.temp_var)
-            hvi = add(hvi, 1)
+            catch (err: AllocError) { throw "emit_throwing_call: AllocError in hoist_throwing_args" }
         }
     }
-    catch (err: AllocError) { throw "emit_throwing_call: AllocError in hoist_throwing_args" }
 
     // Hoist non-lvalue args (string literals, function calls) when param type is Dynamic
     if gt(fcall.params.len(), 1) {
         mut dynamic_hoisted := hoist_for_dynamic_params(fcall.params, param_types, hoisted, result, indent, ctx, context)
         // Merge dynamic_hoisted into hoisted
-        mut dh_idx := 0
-        while lt(dh_idx, dynamic_hoisted.len()) {
-            mut dh := HoistedArg()
-            dynamic_hoisted.get(dh_idx, dh)
+        for dh: HoistedArg in dynamic_hoisted {
             hoisted.set(dh.index, dh.temp_var)
-            dh_idx = add(dh_idx, 1)
+            catch (err: AllocError) { throw "emit_throwing_call: AllocError in hoist_for_dynamic_params" }
         }
     }
-    catch (err: AllocError) { throw "emit_throwing_call: AllocError in hoist_for_dynamic_params" }
 
     // Hoist struct-returning FCall args when param is by-ref (can't use compound literal for structs)
     if gt(fcall.params.len(), 1) {
         ref_hoisted := hoist_for_ref_params(fcall.params, param_by_ref, hoisted, result, indent, ctx, context)
         // Merge ref_hoisted into hoisted
-        mut rh_idx := 0
-        while lt(rh_idx, ref_hoisted.len()) {
-            mut rh := HoistedArg()
-            ref_hoisted.get(rh_idx, rh)
+        for rh: HoistedArg in ref_hoisted {
             hoisted.set(rh.index, rh.temp_var)
-            rh_idx = add(rh_idx, 1)
+            catch (err: AllocError) { throw err.msg }
         }
     }
-    catch (err: AllocError) { throw err.msg }
 
     // Declare local variables for return value and errors
     // Look up the actual return type from scope_stack
@@ -5591,43 +5576,31 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if gt(fcall.params.len(), 1) {
         mut hoisted_vec := hoist_throwing_args(fcall.params, result, indent, ctx, context)
         // Convert Vec<HoistedArg> to Map<I64, Str>
-        mut hvi := 0
-        while lt(hvi, hoisted_vec.len()) {
-            mut entry := HoistedArg()
-            hoisted_vec.get(hvi, entry)
+        for entry: HoistedArg in hoisted_vec {
             hoisted.set(entry.index, entry.temp_var)
-            hvi = add(hvi, 1)
+            catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in hoist_throwing_args" }
         }
     }
-    catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in hoist_throwing_args" }
 
     // Hoist non-lvalue args (string literals, function calls) when param type is Dynamic
     if gt(fcall.params.len(), 1) {
         mut dynamic_hoisted := hoist_for_dynamic_params(fcall.params, param_types, hoisted, result, indent, ctx, context)
         // Merge dynamic_hoisted into hoisted
-        mut dh_idx := 0
-        while lt(dh_idx, dynamic_hoisted.len()) {
-            mut dh := HoistedArg()
-            dynamic_hoisted.get(dh_idx, dh)
+        for dh: HoistedArg in dynamic_hoisted {
             hoisted.set(dh.index, dh.temp_var)
-            dh_idx = add(dh_idx, 1)
+            catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in hoist_for_dynamic_params" }
         }
     }
-    catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in hoist_for_dynamic_params" }
 
     // Hoist struct-returning FCall args when param is by-ref
     if gt(fcall.params.len(), 1) {
         ref_hoisted := hoist_for_ref_params(fcall.params, param_by_ref, hoisted, result, indent, ctx, context)
         // Merge ref_hoisted into hoisted
-        mut rh_idx := 0
-        while lt(rh_idx, ref_hoisted.len()) {
-            mut rh := HoistedArg()
-            ref_hoisted.get(rh_idx, rh)
+        for rh: HoistedArg in ref_hoisted {
             hoisted.set(rh.index, rh.temp_var)
-            rh_idx = add(rh_idx, 1)
+            catch (err: AllocError) { throw err.msg }
         }
     }
-    catch (err: AllocError) { throw err.msg }
 
     // Look up the actual return type from scope_stack
     mut ret_type := "int"
@@ -6066,42 +6039,30 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if gt(fcall.params.len(), 1) {
         mut hoisted_vec := hoist_throwing_args(fcall.params, result, indent, ctx, context)
         // Convert Vec<HoistedArg> to Map<I64, Str>
-        mut hvi := 0
-        while lt(hvi, hoisted_vec.len()) {
-            mut entry := HoistedArg()
-            hoisted_vec.get(hvi, entry)
+        for entry: HoistedArg in hoisted_vec {
             hoisted.set(entry.index, entry.temp_var)
-            hvi = add(hvi, 1)
+            catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in hoist_throwing_args" }
         }
     }
-    catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in hoist_throwing_args" }
 
     // Hoist non-lvalue args (string literals, function calls) when param type is Dynamic
     if gt(fcall.params.len(), 1) {
         mut dynamic_hoisted := hoist_for_dynamic_params(fcall.params, param_types, hoisted, result, indent, ctx, context)
-        mut dh_idx := 0
-        while lt(dh_idx, dynamic_hoisted.len()) {
-            mut dh := HoistedArg()
-            dynamic_hoisted.get(dh_idx, dh)
+        for dh: HoistedArg in dynamic_hoisted {
             hoisted.set(dh.index, dh.temp_var)
-            dh_idx = add(dh_idx, 1)
+            catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in hoist_for_dynamic_params" }
         }
     }
-    catch (err: AllocError) { throw "emit_throwing_call_with_goto: AllocError in hoist_for_dynamic_params" }
 
     // Hoist struct-returning FCall args when param is by-ref
     if gt(fcall.params.len(), 1) {
         ref_hoisted := hoist_for_ref_params(fcall.params, param_by_ref, hoisted, result, indent, ctx, context)
         // Merge ref_hoisted into hoisted
-        mut rh_idx := 0
-        while lt(rh_idx, ref_hoisted.len()) {
-            mut rh := HoistedArg()
-            ref_hoisted.get(rh_idx, rh)
+        for rh: HoistedArg in ref_hoisted {
             hoisted.set(rh.index, rh.temp_var)
-            rh_idx = add(rh_idx, 1)
+            catch (err: AllocError) { throw err.msg }
         }
     }
-    catch (err: AllocError) { throw err.msg }
 
     // Look up the actual return type from scope_stack
     mut ret_type := "int"
@@ -6642,15 +6603,11 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     ai = add(ai, 1)
                 }
                 mut hoisted_vec := hoist_throwing_args(args, result, indent, ctx, context)
-                mut hi := 0
-                while lt(hi, hoisted_vec.len()) {
-                    mut h := HoistedArg()
-                    hoisted_vec.get(hi, h)
+                for h: HoistedArg in hoisted_vec {
                     hoisted.set(h.index, h.temp_var)
-                    hi = add(hi, 1)
+                    catch (err: AllocError) { throw err.msg }
                 }
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                catch (err: AllocError) { throw err.msg }
             }
         case:
         }
@@ -6716,12 +6673,9 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 ai = add(ai, 1)
             }
             mut hoisted_vec := hoist_throwing_args(args, result, indent, ctx, context)
-            mut hi := 0
-            while lt(hi, hoisted_vec.len()) {
-                mut h := HoistedArg()
-                hoisted_vec.get(hi, h)
+            for h: HoistedArg in hoisted_vec {
                 hoisted.set(h.index, h.temp_var)
-                hi = add(hi, 1)
+                catch (err: AllocError) { throw err.msg }
             }
         }
     case:
@@ -7653,13 +7607,8 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 mut hoisted_vec := hoist_throwing_args(return_expr.params, result, indent, ctx, context)
                 // Convert Vec<HoistedArg> to Map<I64, Str>
                 mut hoisted := Map.new(I64, Str)
-                mut hvi := 0
-                while lt(hvi, hoisted_vec.len()) {
-                    mut entry := HoistedArg()
-                    hoisted_vec.get(hvi, entry)
+                for entry: HoistedArg in hoisted_vec {
                     hoisted.set(entry.index, entry.temp_var)
-                    hvi = add(hvi, 1)
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
                     catch (err: AllocError) { throw "emit_return: AllocError in hoist_throwing_args" }
                 }
 
@@ -8406,17 +8355,12 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                             mut struct_def := context.scope_stack.lookup_struct(struct_name)
                             // Find the field in the struct
                             mut found_field := false
-                            mut fi := 0
-                            while lt(fi, struct_def.members.len()) {
-                                mut member := Declaration()
-                                struct_def.members.get(fi, member)
+                            for member: Declaration in struct_def.members {
                                 if member.name.eq(field_or_variant) {
                                     c_type = til_type_to_c(member.value_type)
                                     found_field = true
                                 }
-                                fi = add(fi, 1)
                             }
-                            catch (err: IndexOutOfBoundsError) { throw err.msg }
                         case:
                         }
                         catch (err: KeyNotFoundError) { }
