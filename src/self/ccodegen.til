@@ -4300,7 +4300,6 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
     // Bug #39 fix: Give each catch block its own unique label using the global counter
     // Store catch info with statement index so we can match calls to their NEXT catch
     mut all_catch_info := Vec.new(CatchLabelInfoEntry)
-    // Note: TIL uses scan_idx/scan_stmt to avoid shadowing main loop's i/stmt
     mut scan_idx := 0
     while scan_idx.lt(stmts.len()) {
         mut scan_stmt := Expr()
@@ -4375,7 +4374,6 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                     // Look up this specific catch's label from all_catch_info by statement index
                     mut found_entry := false
                     mut catch_entry := CatchLabelInfoEntry()
-                    // Note: TIL uses find_idx to avoid shadowing; Rust uses iterator find()
                     mut find_idx := 0
                     while find_idx.lt(all_catch_info.len()) {
                         mut entry := CatchLabelInfoEntry()

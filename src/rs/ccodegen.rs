@@ -3460,13 +3460,13 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
     // Bug #39 fix: Give each catch block its own unique label using the global counter
     // Store catch info with statement index so we can match calls to their NEXT catch
     let mut all_catch_info: Vec<CatchLabelInfoEntry> = Vec::new();
-    for (idx, stmt) in stmts.iter().enumerate() {
-        if let NodeType::Catch = stmt.node_type {
-            if stmt.params.len() >= 3 {
-                if let NodeType::Identifier(err_type_name) = &stmt.params[1].node_type {
+    for (scan_idx, scan_stmt) in stmts.iter().enumerate() {
+        if let NodeType::Catch = scan_stmt.node_type {
+            if scan_stmt.params.len() >= 3 {
+                if let NodeType::Identifier(err_type_name) = &scan_stmt.params[1].node_type {
                     let catch_suffix = next_mangled(ctx); // Unique suffix for EACH catch
                     all_catch_info.push(CatchLabelInfoEntry {
-                        stmt_index: idx,
+                        stmt_index: scan_idx,
                         type_name: err_type_name.clone(),
                         label: format!("_catch_{}_{}", err_type_name, catch_suffix),
                         temp_var: format!("_thrown_{}_{}", err_type_name, catch_suffix),
