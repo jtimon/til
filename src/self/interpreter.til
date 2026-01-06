@@ -2354,18 +2354,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         case NodeType.Identifier(id_):
                             // Build full path for field access
                             mut full_id := id_
-                            if current_arg.params.len().gt(0) {
-                                mut pi2 := 0
-                                while pi2.lt(current_arg.params.len()) {
-                                    mut param := Expr()
-                                    current_arg.params.get(pi2, param)
-                                    switch param.node_type {
-                                    case NodeType.Identifier(field_name):
-                                        full_id = format(full_id, ".", field_name)
-                                    case:
-                                        throw e.lang_error(context.path, "eval", "Field access must use identifiers")
-                                    }
-                                    pi2 = pi2.add(1)
+                            for param: Expr in current_arg.params {
+                                switch param.node_type {
+                                case NodeType.Identifier(field_name):
+                                    full_id = format(full_id, ".", field_name)
+                                case:
+                                    throw e.lang_error(context.path, "eval", "Field access must use identifiers")
                                 }
                             }
                             mut mut_entry := MutArgEntry()
