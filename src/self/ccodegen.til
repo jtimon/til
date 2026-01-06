@@ -9198,7 +9198,27 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 // Helper to emit a Str compound literal: ((til_Str){(til_I64)"...", len})
 // This is valid in both constant initializers and expressions (unlike til_Str_from_literal)
 emit_str_literal := proc(s: Str, output: Str) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
-    return format(output, "((", TIL_PREFIX, "Str){(", TIL_PREFIX, "I64)\"", s, "\", ", s.len().to_str(), "})")
+    mut result := output
+    result = format(result, "((", TIL_PREFIX, "Str){(", TIL_PREFIX, "I64)\"")
+    // Escape special characters for C string literals
+    for i in 0..s.len() {
+        c := get_char(s, i)
+        if c.eq("\n") {
+            result = result.concat("\\n")
+        } else if c.eq("\r") {
+            result = result.concat("\\r")
+        } else if c.eq("\t") {
+            result = result.concat("\\t")
+        } else if c.eq("\\") {
+            result = result.concat("\\\\")
+        } else if c.eq("\"") {
+            result = result.concat("\\\"")
+        } else {
+            result = result.concat(c)
+        }
+    }
+    result = format(result, "\", ", s.len().to_str(), "})")
+    return result
 }
 
 emit_literal := proc(lit: Literal, output: Str, context: Context) returns Str throws Str {
@@ -9216,8 +9236,7 @@ emit_literal := proc(lit: Literal, output: Str, context: Context) returns Str th
             result = output
             result = result.concat("\"")
             // Escape special characters for C string literals
-            mut i := 0
-            while i.lt(s.len()) {
+            for i in 0..s.len() {
                 c := get_char(s, i)
                 if c.eq("\n") {
                     result = result.concat("\\n")
@@ -9232,7 +9251,6 @@ emit_literal := proc(lit: Literal, output: Str, context: Context) returns Str th
                 } else {
                     result = result.concat(c)
                 }
-                i.inc()
             }
             result = result.concat("\"")
         }
