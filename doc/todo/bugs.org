@@ -614,7 +614,7 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_switch | Y | Y | MATCH | Removed SwitchCaseInfo, parser enforces default-last |
 | emit_fcall | Y | Y | DIVERGE | Fixed replacen hack, needs full verification |
 | emit_declaration | Y | Y | MATCH | Restructured: removed duplicate underscore check, added prototype generation, fixed order (2026-01-06) |
-| emit_funcdef | Y | Y | DIVERGE | Common patterns |
+| emit_funcdef | Y | Y | MATCH | Used indent_str like Rust, _func_def naming, same comments (2026-01-06) |
 | emit_assignment | Y | Y | MATCH | Added throwing FCall check before hoist, indent_str at top (2026-01-06) |
 | emit_return | Y | Y | MATCH | Restructured to match Rust flow: is_throwing var, early return for throwing FCall (2026-01-06) |
 | emit_throw | Y | Y | MATCH | Consolidated indent_str to top, fixed variable names to match Rust (2026-01-06) |

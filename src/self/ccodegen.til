@@ -7431,19 +7431,20 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     return result
 }
 
-emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
-    // Inline function body (shouldn't be called for top-level funcs)
+emit_funcdef := proc(_func_def: SFuncDef, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+    // For now, just inline the function body (we're inside main anyway)
+    // TODO: proper function generation with prototypes
     mut result := output
+    mut indent_str := ""
     for _ in 0..indent {
-        result = result.concat("    ")
+        indent_str = indent_str.concat("    ")
     }
+    result = result.concat(indent_str)
     result = result.concat("{\n")
     for stmt: Expr in expr.params {
         result = emit_expr(stmt, result, add(indent, 1), ctx, context)
     }
-    for _ in 0..indent {
-        result = result.concat("    ")
-    }
+    result = result.concat(indent_str)
     result = result.concat("}\n")
     return result
 }
