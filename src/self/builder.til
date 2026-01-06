@@ -99,11 +99,7 @@ get_import_path := func(expr: Expr) returns Str {
 collect_imports_single := proc(ast: Expr, mut imported: Set, mut dep_asts: Vec, mut context: Context) throws Str {
     switch ast.node_type {
     case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
+        for child: Expr in ast.params {
             mut import_path := get_import_path(child)
             if gt(import_path.len(), 0) {
                 mut file_path := import_path_to_file_path(import_path)
@@ -124,9 +120,7 @@ collect_imports_single := proc(ast: Expr, mut imported: Set, mut dep_asts: Vec, 
                     dep_asts.push(dep_ast)
                 }
             }
-            i = add(i, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body
     }
@@ -137,16 +131,11 @@ collect_imports_single := proc(ast: Expr, mut imported: Set, mut dep_asts: Vec, 
 merge_dep_params := proc(dep: Expr, mut all_params: Vec) throws Str {
     switch dep.node_type {
     case NodeType.Body:
-        mut j := 0
-        while lt(j, dep.params.len()) {
-            mut child := Expr()
-            dep.params.get(j, child)
+        for child: Expr in dep.params {
             if not(is_import_call(child)) {
                 all_params.push(child)
             }
-            j = add(j, 1)
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body
     }
@@ -193,11 +182,7 @@ build := proc(path: Str) returns Str throws Str {
     context.mode_def = main_mode
 
     // Process mode-specific imports (like the interpreter does at interpreter.rs:2515-2541)
-    mut mode_import_idx := 0
-    while lt(mode_import_idx, context.mode_def.imports.len()) {
-        mut import_str := ""
-        context.mode_def.imports.get(mode_import_idx, import_str)
-
+    for import_str: Str in context.mode_def.imports {
         mut import_func_name_expr := Expr.new_explicit(NodeType.Identifier("import"), Vec.new(Expr), 0, 0)
         mut import_path_expr := Expr.new_explicit(NodeType.LLiteral(Literal.Str(import_str)), Vec.new(Expr), 0, 0)
         mut import_params := Vec.new(Expr)
@@ -214,7 +199,6 @@ build := proc(path: Str) returns Str throws Str {
             }
             throw format("Compiler errors: ", typer_errs.len().to_str(), " type errors found")
         }
-        mode_import_idx = add(mode_import_idx, 1)
     }
 
     // Mark main file as "done" to prevent re-processing via circular imports
@@ -265,10 +249,7 @@ build := proc(path: Str) returns Str throws Str {
     }
 
     // Collect mode imports
-    mut mode_collect_idx := 0
-    while lt(mode_collect_idx, context.mode_def.imports.len()) {
-        mut import_str := ""
-        context.mode_def.imports.get(mode_collect_idx, import_str)
+    for import_str: Str in context.mode_def.imports {
         mut file_path := import_path_to_file_path(import_str)
         if not(imported.contains(file_path)) {
             _ := imported.insert(file_path)
@@ -281,7 +262,6 @@ build := proc(path: Str) returns Str throws Str {
             context.path = saved_path
             dep_asts.push(mode_ast)
         }
-        mode_collect_idx = add(mode_collect_idx, 1)
     }
 
     // Collect main file's imports
@@ -294,12 +274,8 @@ build := proc(path: Str) returns Str throws Str {
     mut all_params := Vec.new(Expr)
 
     // Add dependencies first (in order they were collected)
-    mut i := 0
-    while lt(i, dep_asts.len()) {
-        mut dep := Expr()
-        dep_asts.get(i, dep)
+    for dep: Expr in dep_asts {
         merge_dep_params(dep, all_params)
-        i = add(i, 1)
     }
 
     // Add main file contents (skip imports)
