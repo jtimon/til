@@ -1,0 +1,33 @@
+// Bug #86: For-in loop fails with enum that has enum payload
+// When the first variant of an enum has another enum as payload,
+// the for-in loop initialization fails with:
+// "Enum constructor X expects payload of type Y, but got enum"
+mode test
+
+// Enum with enum payload as first variant - this is the problematic pattern
+InnerEnum := enum {
+    FTFunc,
+    FTProc,
+}
+
+OuterEnum := enum {
+    TFunction: InnerEnum,  // First variant has enum payload - triggers bug
+    TCustom: Str,
+}
+
+test_forin_enum_with_enum_payload := proc() {
+    mut outer := Vec.new(OuterEnum)
+    o1 := OuterEnum.TCustom("test")
+    outer.push(o1)
+
+    mut count := 0
+    for item: OuterEnum in outer {
+        count = count.add(1)
+    }
+    assert_eq(loc(), 1, count)
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+}
+test_forin_enum_with_enum_payload()
+
+println("Bug #86 test passed")

@@ -1088,10 +1088,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
     returns_len := func_def.return_types.len()
     mut unconditional_exit_in_sequence := false
 
-    mut body_idx := 0
-    while body_idx.lt(body.len()) {
-        mut p := Expr()
-        body.get(body_idx, p)
+    for p: Expr in body {
 
         // Check if we're processing code after an unconditional return or throw
         if unconditional_exit_in_sequence {
@@ -1203,14 +1200,10 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                     // Remove first, before descending into body
                     mut found_match := false
-                    mut ci := 0
-                    while ci.lt(thrown_types.len()) {
-                        mut te := ThrownType()
-                        thrown_types.get(ci, te)
+                    for te: ThrownType in thrown_types {
                         if te.type_str.eq(caught_type) {
                             found_match = true
                         }
-                        ci.inc()
                     }
 
                     if found_match {
@@ -1260,6 +1253,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
             case NodeType.FCall:
                 mut called_func_def := get_func_def_for_fcall(context, p)
+                // Bug #86: Can't use for-in with ValueType (enum with enum payload)
                 mut ct_idx := 0
                 while ct_idx.lt(called_func_def.throw_types.len()) {
                     mut called_throw := ValueType.TCustom("")
@@ -1332,7 +1326,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                         switch arg.node_type {
                         case NodeType.FCall:
                             mut nested_func_def := get_func_def_for_fcall(context, arg)
-                            // Track the function's declared throw types
+                            // Bug #86: Can't use for-in with ValueType (enum with enum payload)
                             mut ct_idx := 0
                             while ct_idx.lt(nested_func_def.throw_types.len()) {
                                 mut called_throw := ValueType.TCustom("")
@@ -1362,7 +1356,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 switch value_expr.node_type {
                                 case NodeType.FCall:
                                     mut nested_func_def := get_func_def_for_fcall(context, value_expr)
-                                    // Track the function's declared throw types
+                                    // Bug #86: Can't use for-in with ValueType (enum with enum payload)
                                     mut ct_idx := 0
                                     while ct_idx.lt(nested_func_def.throw_types.len()) {
                                         mut called_throw := ValueType.TCustom("")
@@ -1719,7 +1713,6 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                 // Other node types - skip
             }
         }
-        body_idx.inc()
     }
 
     catch (err: IndexOutOfBoundsError) {
@@ -1979,15 +1972,11 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
                             mut struct_def := context.scope_stack.lookup_struct(type_name)
                             // Find field in struct members
                             mut field_found := false
-                            mut fi := 0
-                            while fi.lt(struct_def.members.len()) {
-                                mut field_decl := Declaration()
-                                struct_def.members.get(fi, field_decl)
+                            for field_decl: Declaration in struct_def.members {
                                 if field_decl.name.eq(field_name) {
                                     current_type = field_decl.value_type
                                     field_found = true
                                 }
-                                fi.inc()
                             }
                             if not(field_found) {
                                 errors.push(e.error(context.path, "type", format("Field '", field_name, "' not found in struct '", type_name, "'")))

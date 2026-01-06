@@ -8,6 +8,48 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #86: For-in loop fails with enum that has enum payload
+:PROPERTIES:
+:DISCOVERED: 2026-01-06
+:IMPACT: Cannot use for-in loops with certain enum types
+:STATUS: Active (workaround: use while loop with get())
+:END:
+
+*** Description
+When an enum's first variant has another enum as its payload type, using that
+enum type in a for-in loop fails at init time with the error:
+"Enum constructor X expects payload of type Y, but got enum"
+
+*** Example
+#+BEGIN_SRC til
+InnerEnum := enum { FTFunc, FTProc }
+OuterEnum := enum {
+    TFunction: InnerEnum,  // First variant has enum payload
+    TCustom: Str,
+}
+
+mut v := Vec.new(OuterEnum)
+for item: OuterEnum in v {  // ERROR at init time
+    // ...
+}
+#+END_SRC
+
+*** Workaround
+Use a while loop with get() instead of for-in:
+#+BEGIN_SRC til
+mut i := 0
+while i.lt(v.len()) {
+    mut item := OuterEnum.TCustom("")
+    v.get(i, item)
+    // ...
+    i = i.add(1)
+}
+#+END_SRC
+
+*** Tests
+- src/test/bug86.til - demonstrates init error with enum-in-enum payload
+- src/test/loops.til - commented out test_forin_payload_enum (segfaults til run)
+
 ** Bug #83: No spread/splat operator for variadic argument forwarding
 :PROPERTIES:
 :DISCOVERED: 2026-01-03

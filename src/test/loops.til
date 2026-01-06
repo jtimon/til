@@ -141,5 +141,39 @@ test_forin_simple_enum := proc() {
 }
 test_forin_simple_enum()
 
-// Note: Payload enum test removed - Vec.get doesn't correctly preserve enum payloads
-// (separate pre-existing bug with memcpy-based enum payload storage, Bug #38)
+// Bug #86: Test for-in with enum that has payloads
+// This test causes a segfault when compiled with the self-hosted compiler.
+// Works with rstil interpret but crashes with til run.
+// PayloadColor := enum {
+//     Unknown,
+//     Green: Bool,
+//     Number: I64,
+// }
+//
+// test_forin_payload_enum := proc() {
+//     mut colors := Vec.new(PayloadColor)
+//     colors.push(PayloadColor.Unknown)
+//     g := PayloadColor.Green(true)
+//     colors.push(g)
+//     n := PayloadColor.Number(42)
+//     colors.push(n)
+//
+//     mut count := 0
+//     for color: PayloadColor in colors {
+//         count = count.add(1)
+//         switch color {
+//         case PayloadColor.Unknown:
+//             assert_eq(loc(), 1, count)
+//         case PayloadColor.Green(is_olive):
+//             assert_eq(loc(), 2, count)
+//             assert(loc(), is_olive)
+//         case PayloadColor.Number(code):
+//             assert_eq(loc(), 3, count)
+//             assert_eq(loc(), 42, code)
+//         }
+//     }
+//     assert_eq(loc(), 3, count)
+//
+//     catch (err: AllocError) { panic(loc(), err.msg) }
+// }
+// test_forin_payload_enum()
