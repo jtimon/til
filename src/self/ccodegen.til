@@ -2122,7 +2122,6 @@ emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, output: St
         original_name = get_substr(enum_name, TIL_PREFIX.len(), enum_name.len())
     }
 
-    // Bug #38 fix: use ordered variants Vec
     for i in 0..enum_def.variants.len() {
         mut ev := EnumVariant()
         enum_def.variants.get(i, ev)
