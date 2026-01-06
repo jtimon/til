@@ -1038,7 +1038,7 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_fun
 
                     // Generate prototype using emit_func_signature (handles throwing functions properly)
                     mut proto := ""
-                    proto = emit_func_signature(til_name(mangled_name), func_def, proto, ctx)
+                    proto = emit_func_signature(til_name(mangled_name), func_def, proto)
                     proto = proto.concat(";\n")
                     ctx.hoisted_prototypes.push(proto)
 
@@ -1120,7 +1120,7 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_fun
 //   int func_name(RetType* _ret, Error1* _err1, Error2* _err2, args...)
 // For non-throwing:
 //   RetType func_name(args...)
-emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx: CodegenContext) returns Str throws Str {
+emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str) returns Str throws Str {
     mut result := output
     mut is_throwing := func_def.throw_types.len().gt(0)
 
@@ -2169,7 +2169,7 @@ emit_struct_func_prototypes := proc(expr: Expr, output: Str, ctx: CodegenContext
                     switch func_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         mut mangled_name := struct_name.concat("_").concat(member.name)
-                        result = emit_func_signature(mangled_name, func_def, result, ctx)
+                        result = emit_func_signature(mangled_name, func_def, result)
                         result = result.concat(";\n")
                     case:
                         // Not a function
@@ -2251,7 +2251,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     ctx.current_function_name = mangled_name
     ctx.mangling_counter = 0
 
-    result = emit_func_signature(mangled_name, func_def, result, ctx)
+    result = emit_func_signature(mangled_name, func_def, result)
     result = result.concat(" {\n")
 
     // Emit function body with catch pattern detection
@@ -2716,7 +2716,7 @@ emit_func_prototype := proc(expr: Expr, output: Str, ctx: CodegenContext) return
 
                 // Use emit_func_signature for both throwing and non-throwing functions
                 mut func_name := til_name(decl.name)
-                result = emit_func_signature(func_name, func_def, result, ctx)
+                result = emit_func_signature(func_name, func_def, result)
                 result = result.concat(";\n")
                 return result
             case:
@@ -2804,7 +2804,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
 
                 // Use emit_func_signature for both throwing and non-throwing functions
                 mut func_name := til_name(decl.name)
-                result = emit_func_signature(func_name, func_def, result, ctx)
+                result = emit_func_signature(func_name, func_def, result)
                 result = result.concat(" {\n")
 
                 // Emit function body with catch pattern detection
@@ -7141,7 +7141,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 }
 
                 // Emit signature with mangled name
-                func_output = emit_func_signature(mangled_name, func_def, func_output, ctx)
+                func_output = emit_func_signature(mangled_name, func_def, func_output)
                 func_output = func_output.concat(" {\n")
 
                 // Emit body
