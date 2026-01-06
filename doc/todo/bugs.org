@@ -587,7 +587,7 @@ NOTE: All emit functions follow common divergence patterns:
 
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
-| emit | Y (pub) | Y | DIVERGE | "" vs None verified per rs2til.org, needs full comparison |
+| emit | Y (pub) | Y | DIVERGE | Large function ~200 lines, uses eq() instead of method chaining in places |
 | emit_struct_declaration | Y | Y | MATCH | Fixed: now uses if member.is_mut { } like Rust |
 | emit_struct_constants | Y | Y | MATCH | Fixed: for-in loop, catch for til_type_to_c failures |
 | emit_struct_func_prototypes | Y | Y | MATCH | Fixed: for-in loop, removed is_ext check not in Rust |
@@ -601,18 +601,18 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_size_of_function | Y | Y | MATCH | Fixed: for-in loop, removed Bug #38 comment |
 | emit_func_signature | Y | Y | MATCH | Fixed: removed unused ctx parameter to match Rust |
 | emit_func_prototype | Y | Y | MATCH | Fixed: removed unused ctx parameter |
-| emit_func_declaration | Y | Y | DIVERGE | Common patterns |
-| emit_constant_declaration | Y | Y | DIVERGE | Common patterns (has_str check now inlined like Rust) |
-| emit_global_declaration | Y | Y | DIVERGE | Common patterns |
-| emit_expr | Y | Y | DIVERGE | Common patterns |
+| emit_func_declaration | Y | Y | DIVERGE | ~100 lines, uses gteq() not .gteq(), loop var names differ (e.g. ~i~ vs ~ai~) |
+| emit_constant_declaration | Y | Y | DIVERGE | Structural: TIL inlines literal handling, Rust uses c_type + emit_literal() |
+| emit_global_declaration | Y | Y | DIVERGE | Similar to emit_constant_declaration - inlined literal handling |
+| emit_expr | Y | Y | DIVERGE | ~100 lines, switch/case structure OK but many minor style diffs |
 | emit_body | Y | Y | MATCH | Same logic: save/restore catch_labels, call emit_stmts (2026-01-06) |
-| emit_stmts | Y | Y | DIVERGE | Common patterns |
+| emit_stmts | Y | Y | DIVERGE | ~200 lines, loop var ~scan_idx~ vs Rust ~idx~, many gteq() vs .gteq() |
 | emit_if | Y | Y | MATCH | Uses acceptable TIL idioms: switch/case, get()+catch, method syntax (2026-01-06) |
 | emit_while | Y | Y | MATCH | Fixed: range loops for indent building |
 | emit_break | Y | Y | MATCH | Fixed: range loop for indent building |
 | emit_continue | Y | Y | MATCH | Fixed: range loop for indent building |
 | emit_switch | Y | Y | MATCH | Removed SwitchCaseInfo, parser enforces default-last |
-| emit_fcall | Y | Y | DIVERGE | Fixed replacen hack, needs full verification |
+| emit_fcall | Y | Y | DIVERGE | ~500 lines, Option→has_*:Bool pattern, many minor style diffs |
 | emit_declaration | Y | Y | MATCH | Restructured: removed duplicate underscore check, added prototype generation, fixed order (2026-01-06) |
 | emit_funcdef | Y | Y | MATCH | Used indent_str like Rust, _func_def naming, same comments (2026-01-06) |
 | emit_assignment | Y | Y | MATCH | Added throwing FCall check before hoist, indent_str at top (2026-01-06) |
@@ -629,31 +629,56 @@ NOTE: Same common divergence patterns as Emit Functions (see above).
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
 | check_throwing_fcall | N | N | MATCH | Function removed entirely from both - logic inlined at 3 call sites |
-| hoist_throwing_expr | Y | Y | DIVERGE | Common patterns |
-| hoist_throwing_args | Y | Y | DIVERGE | Common patterns |
-| hoist_for_ref_params | Y | Y | DIVERGE | Common patterns |
-| hoist_for_dynamic_params | Y | Y | DIVERGE | Common patterns |
-| hoist_variadic_args | Y | Y | DIVERGE | Common patterns |
+| hoist_throwing_expr | Y | Y | DIVERGE | ~150 lines, Option→has_*:Bool pattern for variadic_arr_var |
+| hoist_throwing_args | Y | Y | DIVERGE | ~250 lines, slicing &params[1..] vs separate start index |
+| hoist_for_ref_params | Y | Y | DIVERGE | ~120 lines, Option params→has_*:Bool pattern |
+| hoist_for_dynamic_params | Y | Y | DIVERGE | ~120 lines, Option params→has_*:Bool pattern |
+| hoist_variadic_args | Y | Y | DIVERGE | ~150 lines, HashMap iteration differs (keys+get vs iter) |
 | detect_variadic_fcall | Y | Y | MATCH | Fixed: uses get_til_func_name_string, same comment/vars as Rust |
-| emit_variadic_call | Y | Y | DIVERGE | Common patterns |
-| emit_throwing_call | Y | Y | DIVERGE | Common patterns |
-| emit_throwing_call_propagate | Y | Y | DIVERGE | Common patterns |
-| emit_throwing_call_with_goto | Y | Y | DIVERGE | Common patterns |
-| emit_fcall_with_hoisted | Y | Y | DIVERGE | Common patterns |
-| emit_fcall_name_and_args_for_throwing | Y | Y | DIVERGE | Common patterns |
-| emit_arg_or_hoisted | Y | Y | DIVERGE | Common patterns |
-| emit_arg_with_param_type | Y | Y | DIVERGE | Common patterns |
+| emit_variadic_call | Y | Y | DIVERGE | ~200 lines, Option→has_*:Bool for variadic_arr_var param |
+| emit_throwing_call | Y | Y | DIVERGE | ~300 lines, Option→has_*:Bool pattern throughout |
+| emit_throwing_call_propagate | Y | Y | DIVERGE | ~250 lines, Option→has_*:Bool pattern |
+| emit_throwing_call_with_goto | Y | Y | DIVERGE | ~250 lines, Option→has_*:Bool pattern |
+| emit_fcall_with_hoisted | Y | Y | DIVERGE | ~150 lines, Option→has_*:Bool pattern |
+| emit_fcall_name_and_args_for_throwing | Y | Y | DIVERGE | ~100 lines, Option→has_*:Bool for variadic_arr_var |
+| emit_arg_or_hoisted | Y | Y | DIVERGE | Structural: calls emit_arg_with_param_type with has_param_type:Bool |
+| emit_arg_with_param_type | Y | Y | DIVERGE | Structural: Option<&ValueType>→ValueType+has_param_type:Bool |
 | emit_arg_with_mut | - | - | DELETED | Removed 2026-01-05 - Rust uses emit_arg_with_param_type |
 
 ***** Collection Functions - Present
-NOTE: Same common divergence patterns.
+
+***** DIVERGE Pattern Summary (2026-01-06)
+The remaining 23 DIVERGE items share these common patterns:
+
+1. *Option<T> parameters* → TIL uses ~T~ + ~has_*: Bool~ flag
+   - rs2til.org says use ~Ptr~ with NULL=None, but TIL uses Bool flags
+   - Affects: emit_arg_with_param_type, hoist_for_ref_params, hoist_for_dynamic_params, etc.
+   - Fix: Change TIL to use ~Ptr~ pattern per rs2til.org
+
+2. *Option<T> return from map.get()* → TIL uses try/catch with Bool flag
+   - Pattern: ~mut found := false; map.get(k, v); found = true; catch {}~
+   - Acceptable per rs2til.org (throws KeyNotFoundError)
+
+3. *Loop variable names* differ (TIL ~ai~, ~scan_idx~ vs Rust ~idx~, ~i~)
+   - Simple fix: rename to match Rust
+
+4. *Method style* - TIL uses ~gteq(x, y)~ vs Rust-like ~x.gteq(y)~
+   - rs2til.org says prefer method chaining
+   - Simple fix: change to method style
+
+5. *HashMap iteration* - TIL uses ~keys.get()~ loop vs Rust ~.iter()~
+   - Acceptable TIL idiom (no direct iterator support)
+
+6. *Structural differences* - Some functions have fundamentally different code organization
+   - emit_constant_declaration, emit_global_declaration: inline literal handling vs emit_literal()
+   - These need careful refactoring
 
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
-| collect_func_info | Y | Y | DIVERGE | Common patterns |
-| collect_nested_func_info | Y | Y | DIVERGE | Common patterns |
-| collect_declarations_in_body | Y | Y | DIVERGE | Common patterns |
-| collect_declarations_recursive | Y | Y | DIVERGE | Common patterns |
+| collect_func_info | Y | Y | DIVERGE | ~50 lines, loop var ~ai~ vs Rust ~idx~, HashMap iter differs |
+| collect_nested_func_info | Y | Y | DIVERGE | ~100 lines, Option parent_func_name→has_*:Bool pattern |
+| collect_declarations_in_body | Y | Y | MATCH | Same comments, same vars (decls, collected, stmt), switch/case OK |
+| collect_declarations_recursive | Y | Y | DIVERGE | ~80 lines, loop vars differ, switch/case OK |
 
 ** Bug #64: Custom main args in mode cli don't work properly
 :PROPERTIES:
