@@ -6806,8 +6806,6 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str thr
 
 emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
-    name := decl.name
-    is_mut := decl.is_mut
 
     // Skip inline ext_func/ext_proc declarations - they're just declaring external functions exist
     if expr.params.len().gt(0) {
@@ -6824,34 +6822,6 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         }
     }
 
-    // Bug #35: For underscore declarations, just emit the expression (discard result)
-    // This avoids C redeclaration errors and matches the semantics of discarding
-    if name.eq("_") {
-        if expr.params.len().gt(0) {
-            for _ in 0..indent {
-                result = result.concat("    ")
-            }
-            mut rhs := Expr()
-            expr.params.get(0, rhs)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            // FCall at statement level (indent > 0) adds ";\n" itself
-            // Other expressions need semicolon added explicitly
-            switch rhs.node_type {
-                case NodeType.FCall:
-                    result = emit_expr(rhs, result, indent, ctx, context)
-                case:
-                    result = emit_expr(rhs, result, 0, ctx, context)
-                    result = result.concat(";\n")
-            }
-        }
-        return result
-    }
-
-    // Add indentation
-    for _ in 0..indent {
-        result = result.concat("    ")
-    }
-
     // Check if this is a function definition - skip or hoist depending on context
     if expr.params.len().gt(0) {
         mut first := Expr()
@@ -6862,12 +6832,21 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             // Check if we're inside a function (nested function declaration)
             if ctx.current_function_name.len().gt(0) {
                 // Nested function - hoist it to top level with mangled name
-                mut mangled_name := ctx.current_function_name.concat("_").concat(name)
+                mut mangled_name := ctx.current_function_name.concat("_").concat(decl.name)
+
+                // Register the name mapping so function calls can find it
+                ctx.nested_func_names.set(decl.name, mangled_name)
 
                 // Register function definition so get_value_type can resolve return types
-                context.scope_stack.declare_func(name, func_def)
+                context.scope_stack.declare_func(decl.name, func_def)
 
-                // Generate the function definition with mangled name
+                // Generate the hoisted function prototype
+                mut proto_output := ""
+                proto_output = emit_func_signature(til_name(mangled_name), func_def, proto_output)
+                proto_output = proto_output.concat(";\n")
+                ctx.hoisted_prototypes.push(proto_output)
+
+                // Generate the hoisted function definition
                 mut func_output := ""
 
                 // Save and set context for nested function
@@ -6970,6 +6949,11 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         }
     }
 
+    mut indent_str := ""
+    for _ in 0..indent {
+        indent_str = indent_str.concat("    ")
+    }
+
     // Hoist any throwing function calls in the RHS expression before emitting the declaration
     // This ensures throwing calls are properly handled with error checking
     if expr.params.len().gt(0) {
@@ -6979,28 +6963,29 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         result = hoist_throwing_expr(first, result, indent, ctx, context)
     }
 
-    // For underscore declarations, just emit the expression (discard result)
+    // Bug #35: For underscore declarations, just emit the expression (discard result)
     // This avoids C redeclaration errors and matches the semantics of discarding
-    if name.eq("_") {
+    if decl.name.eq("_") {
         if expr.params.len().gt(0) {
+            result = result.concat(indent_str)
             mut first := Expr()
             expr.params.get(0, first)
-            result = emit_expr(first, result, indent, ctx, context)
-            // emit_expr at statement level (indent > 0) adds ";\n" for FCall
-            // For other expressions, we may need to add it
-            mut ends_with_semicolon := false
-            if gteq(result.len(), 2) {
-                mut last_two := result.get_substr(sub(result.len(), 2), result.len())
-                ends_with_semicolon = last_two.eq(";\n")
-            }
-            if not(ends_with_semicolon) {
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            // FCall at statement level (indent > 0) adds ";\n" itself
+            // Other expressions need semicolon added explicitly
+            switch first.node_type {
+            case NodeType.FCall:
+                result = emit_expr(first, result, indent, ctx, context)
+            case:
+                result = emit_expr(first, result, 0, ctx, context)
                 result = result.concat(";\n")
             }
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: AllocError) { throw "emit_declaration: AllocError in underscore check" }
         }
         return result
     }
+
+    name := decl.name
+    is_mut := decl.is_mut
 
     // Check if this is a struct construction (TypeName())
     mut struct_type := ""
