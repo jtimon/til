@@ -492,10 +492,7 @@ EvalArena := struct {
                                         prefix := format(decl.name, ".")
                                         mut nested_defaults := Map.new(Str, Str)
                                         default_keys := defaults.keys
-                                        mut di := 0
-                                        while di.lt(default_keys.len()) {
-                                            mut dk := ""
-                                            default_keys.get(di, dk)
+                                        for dk: Str in default_keys {
                                             if dk.starts_with(prefix) {
                                                 rest := dk.get_substr(prefix.len(), dk.len())
                                                 mut dv := ""
@@ -505,7 +502,6 @@ EvalArena := struct {
                                                 }
                                                 nested_defaults.set(rest, dv)
                                             }
-                                            di = add(di, 1)
                                         }
                                         nested_result := EvalArena.insert_struct_core(ctx, combined_name, type_name, field_arena_offset, nested_defaults, e)
                                         catch (err: Str) {
@@ -670,24 +666,13 @@ EvalArena := struct {
 
         // Generate and apply mappings
         result := EvalArena.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)
-        mut mi := 0
-        while mi.lt(result.arena_mappings.len()) {
-            mut m := EvalArenaMapping()
-            result.arena_mappings.get(mi, m)
+        for m: EvalArenaMapping in result.arena_mappings {
             ctx.scope_stack.insert_var(m.name, m.offset)
-            mi = add(mi, 1)
         }
-        mut si := 0
-        while si.lt(result.symbols.len()) {
-            mut s := SymbolEntry()
-            result.symbols.get(si, s)
+        for s: SymbolEntry in result.symbols {
             ctx.scope_stack.declare_symbol(s.name, s.info)
-            si = add(si, 1)
         }
 
-        catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "insert_struct", "IndexOutOfBoundsError")
-        }
         catch (err: AllocError) {
             throw e.lang_error(ctx.path, "insert_struct", "AllocError")
         }
@@ -720,19 +705,11 @@ EvalArena := struct {
         ctx.scope_stack.frames.pop(popped_frame)
         frame = popped_frame
 
-        mut mi := 0
-        while mi.lt(result.arena_mappings.len()) {
-            mut m := EvalArenaMapping()
-            result.arena_mappings.get(mi, m)
+        for m: EvalArenaMapping in result.arena_mappings {
             frame.arena_index.set(m.name, m.offset)
-            mi = add(mi, 1)
         }
-        mut si := 0
-        while si.lt(result.symbols.len()) {
-            mut s := SymbolEntry()
-            result.symbols.get(si, s)
+        for s: SymbolEntry in result.symbols {
             frame.symbols.set(s.name, s.info)
-            si = add(si, 1)
         }
 
         catch (err: IndexOutOfBoundsError) {
@@ -767,11 +744,7 @@ EvalArena := struct {
                 }
 
                 mut current_offset := 0
-                mut mi := 0
-                while mi.lt(str_def.members.len()) {
-                    mut decl := Declaration()
-                    str_def.members.get(mi, decl)
-
+                for decl: Declaration in str_def.members {
                     if decl.is_mut {
                         type_size := ctx.get_type_size(value_type_to_str(decl.value_type))
                         absolute_offset := add(base_offset, current_offset)
@@ -787,7 +760,6 @@ EvalArena := struct {
                         ctx.scope_stack.insert_var(format(id, ".", decl.name), absolute_offset)
                         current_offset = add(current_offset, type_size)
                     }
-                    mi = add(mi, 1)
                 }
                 throw KeyNotFoundError(msg="already handled")
             }
@@ -801,11 +773,7 @@ EvalArena := struct {
             struct_offset := g_arena.len()
             mut current_offset := 0
 
-            mut mi := 0
-            while mi.lt(str_def.members.len()) {
-                mut decl := Declaration()
-                str_def.members.get(mi, decl)
-
+            for decl: Declaration in str_def.members {
                 if decl.is_mut {
                     type_size := ctx.get_type_size(value_type_to_str(decl.value_type))
                     // Ensure space
@@ -826,7 +794,6 @@ EvalArena := struct {
                     ctx.scope_stack.insert_var(format(id, ".", decl.name), field_offset)
                     current_offset = add(current_offset, type_size)
                 }
-                mi = add(mi, 1)
             }
 
             ctx.scope_stack.insert_var(id, struct_offset)
@@ -836,10 +803,6 @@ EvalArena := struct {
         mut result := StringInsertInfo()
         result.string_offset = string_offset
         result.str_len = str_len
-
-        catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "insert_string_core", "IndexOutOfBoundsError")
-        }
 
         return result
     }
