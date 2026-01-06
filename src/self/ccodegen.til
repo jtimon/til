@@ -897,7 +897,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
     return result
 }
 
-// Collect function info (throw types and return types) from AST into context
+// Collect function info (throw types, return types, names) from AST into context
 // Handles both top-level functions and struct methods
 collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
     switch expr.node_type {
@@ -907,16 +907,15 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
             expr.params.get(0, first)
             switch first.node_type {
             case NodeType.FuncDef(func_def):
-                // Top-level function - check for variadic args
-                for ai in 0..func_def.args.len() {
+                // Top-level function - check for variadic args (TMulti)
+                for idx in 0..func_def.args.len() {
                     mut arg := Declaration()
-                    func_def.args.get(ai, arg)
+                    func_def.args.get(idx, arg)
                     switch arg.value_type {
-                    case ValueType.TMulti(elem_type_name):
-                        // Track: (element_type, count of regular args before variadic)
+                    case ValueType.TMulti(elem_type):
                         mut info := VariadicParamInfo()
-                        info.elem_type = elem_type_name
-                        info.regular_count = ai  // number of args before variadic
+                        info.elem_type = elem_type
+                        info.regular_count = idx
                         ctx.func_variadic_args.set(decl.name, info)
                         break  // Only one variadic arg per function
                     case:
@@ -925,7 +924,7 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
             case NodeType.StructDef(struct_def):
                 // Struct methods - use mangled names (StructName_methodName)
-                mut struct_name := decl.name
+                struct_name := decl.name
                 mut keys := struct_def.default_values.keys
                 for i in 0..keys.len() {
                     mut member_name := ""
@@ -934,17 +933,16 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                     struct_def.default_values.get(member_name, default_expr)
                     switch default_expr.node_type {
                     case NodeType.FuncDef(func_def):
-                        mut mangled_name := concat(struct_name, "_")
-                        mangled_name = mangled_name.concat(member_name)
+                        mangled_name := format(struct_name, "_", member_name)
                         // Check for variadic args (TMulti) in struct methods
-                        for ai in 0..func_def.args.len() {
+                        for idx in 0..func_def.args.len() {
                             mut arg := Declaration()
-                            func_def.args.get(ai, arg)
+                            func_def.args.get(idx, arg)
                             switch arg.value_type {
-                            case ValueType.TMulti(elem_type_name):
+                            case ValueType.TMulti(elem_type):
                                 mut info := VariadicParamInfo()
-                                info.elem_type = elem_type_name
-                                info.regular_count = ai
+                                info.elem_type = elem_type
+                                info.regular_count = idx
                                 ctx.func_variadic_args.set(mangled_name, info)
                                 break
                             case:
@@ -952,20 +950,18 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                         }
                         catch (err: IndexOutOfBoundsError) { throw err.msg }
                     case:
-                        // Not a function, skip
                     }
                     catch (err: IndexOutOfBoundsError) { throw err.msg }
                     catch (err: KeyNotFoundError) { /* skip */ }
                     catch (err: AllocError) { throw err.msg }
+                    catch (err: I64_OverflowError) { throw err.msg }
                 }
             case:
-                // Not a function or struct, skip
             }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: AllocError) { throw err.msg }
         }
     case:
-        // Not a declaration, skip
     }
 }
 

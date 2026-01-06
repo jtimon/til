@@ -675,7 +675,7 @@ The remaining 23 DIVERGE items share these common patterns:
 
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
-| collect_func_info | Y | Y | DIVERGE | ~50 lines, loop var ~ai~ vs Rust ~idx~, HashMap iter differs |
+| collect_func_info | Y | Y | MATCH | Fixed loop vars to idx, comments match, HashMap iter via keys acceptable |
 | collect_nested_func_info | Y | Y | DIVERGE | ~100 lines, Option parent_func_name→has_*:Bool pattern |
 | collect_declarations_in_body | Y | Y | MATCH | Same comments, same vars (decls, collected, stmt), switch/case OK |
 | collect_declarations_recursive | Y | Y | DIVERGE | ~80 lines, loop vars differ, switch/case OK |
