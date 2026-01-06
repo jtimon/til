@@ -4251,43 +4251,43 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
             }
         }
 
-        // Check for type-qualified access (Type.field)
+        // Check for type-qualified access (Type.field or Type.Variant)
         if expr.params.len().gt(0) {
-            mut first_char := name.get_substr(0, 1)
-            // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.til)
-            if first_char.is_uppercase() {
-                mut param := Expr()
-                expr.params.get(0, param)
-                switch param.node_type {
-                case NodeType.Identifier(field):
-                    // Check if this is an enum variant by looking up in context
-                    mut is_enum_variant := false
-                    mut enum_def := context.scope_stack.lookup_enum(name)
-                    is_enum_variant = enum_def.contains_key(field)
-                    catch (err: KeyNotFoundError) { /* not an enum */ }
+            mut param := Expr()
+            expr.params.get(0, param)
+            switch param.node_type {
+            case NodeType.Identifier(field):
+                // Check if this is an enum variant by looking up in context
+                mut is_enum_variant := false
+                mut enum_def := context.scope_stack.lookup_enum(name)
+                is_enum_variant = enum_def.contains_key(field)
+                catch (err: KeyNotFoundError) { /* not an enum */ }
 
-                    if is_enum_variant {
-                        // Enum variant: Type.Variant -> til_Type_make_Variant()
-                        mut result := concat(output, TIL_PREFIX)
-                        result = result.concat(name)
-                        result = result.concat("_make_")
-                        result = result.concat(field)
-                        result = result.concat("()")
-                        return result
-                    } else {
-                        // Struct constant: Type.constant -> til_Type_constant
-                        mut result := concat(output, TIL_PREFIX)
-                        result = result.concat(name)
-                        result = result.concat("_")
-                        result = result.concat(field)
-                        return result
-                    }
-                case:
-                    // Fall through to regular handling
+                if is_enum_variant {
+                    // Enum variant: Type.Variant -> til_Type_make_Variant()
+                    mut result := concat(output, TIL_PREFIX)
+                    result = result.concat(name)
+                    result = result.concat("_make_")
+                    result = result.concat(field)
+                    result = result.concat("()")
+                    return result
                 }
+                // Check if this is a struct constant access
+                mut is_struct := false
+                _ := context.scope_stack.lookup_struct(name)
+                is_struct = true
+                catch (err: KeyNotFoundError) { /* not a struct */ }
+                if is_struct {
+                    // Struct constant: Type.constant -> til_Type_constant
+                    mut result := concat(output, til_name(name))
+                    result = result.concat("_")
+                    result = result.concat(field)
+                    return result
+                }
+            case:
+                // Fall through to regular handling
             }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: AllocError) { throw err.msg }
         }
         // Regular identifier or field access (b.val -> til_b.val)
         // For ref params (which are pointers in C), use -> for field access
