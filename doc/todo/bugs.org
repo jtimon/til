@@ -603,7 +603,7 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_func_prototype | Y | Y | MATCH | Fixed: removed unused ctx parameter |
 | emit_func_declaration | Y | Y | DIVERGE | ~100 lines, uses gteq() not .gteq(), loop var names differ (e.g. ~i~ vs ~ai~) |
 | emit_constant_declaration | Y | Y | MATCH | Fixed: uses c_type + emit_literal() like Rust, var_name order matches (2026-01-06) |
-| emit_global_declaration | Y | Y | DIVERGE | Similar to emit_constant_declaration - inlined literal handling |
+| emit_global_declaration | Y | Y | MATCH | Fixed: var_name order, c_type fallback with "int", output structure (2026-01-06) |
 | emit_expr | Y | Y | DIVERGE | ~100 lines, switch/case structure OK but many minor style diffs |
 | emit_body | Y | Y | MATCH | Same logic: save/restore catch_labels, call emit_stmts (2026-01-06) |
 | emit_stmts | Y | Y | DIVERGE | ~200 lines, loop var ~scan_idx~ vs Rust ~idx~, many gteq() vs .gteq() |

@@ -1624,35 +1624,44 @@ emit_global_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext
     case NodeType.Declaration(decl):
         if expr.params.len().gt(0) {
             // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
-            mut var_name := til_name(decl.name)
+            mut var_name := ""
             if decl.name.eq("_") {
                 var_name = next_mangled(ctx)
+            } else {
+                var_name = til_name(decl.name)
             }
 
             mut first := Expr()
             expr.params.get(0, first)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            // Determine the type from the initializer expression
-            // Check for enum construction first (Color.Green(true) -> til_Color)
             // Determine the type from the initializer expression using get_value_type
-            mut c_type := ""
-            mut inferred_type := get_value_type(context, first)
-            c_type = til_type_to_c(inferred_type)
+            mut c_type := "int"
+            mut vt := get_value_type(context, first)
+            c_type = til_type_to_c(vt)
             catch (err: Str) {
+                // Either get_value_type or til_type_to_c failed - try decl.value_type
                 c_type = til_type_to_c(decl.value_type)
+                catch (err: Str) {
+                    c_type = "int"
+                }
             }
-            if c_type.len().eq(0) {
-                c_type = til_type_to_c(decl.value_type)
-            }
+
             // Emit static declaration (no initializer - will be set in main)
-            result = result.concat("static ").concat(c_type).concat(" ").concat(var_name).concat(";\n")
+            result = result.concat("static ")
+            result = result.concat(c_type)
+            result = result.concat(" ")
+            result = result.concat(var_name)
+            result = result.concat(";\n")
+
             // Track that this variable has been declared globally
             _ := ctx.declared_vars.insert(var_name)
-            catch (err: AllocError) { throw err.msg }
         }
     case:
-        // Not a declaration
+        result = result
     }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
     return result
 }
 
