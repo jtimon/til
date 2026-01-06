@@ -1446,12 +1446,11 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
         idx = add(idx, 1)
     }
 
-    // Build adjacency list (dependencies) - use Map since we need to modify elements
-    // deps[idx] = list of indices that idx depends on
-    mut deps := Map.new(I64, Vec)
+    // Build adjacency list (dependencies)
+    mut deps := Vec.new(Vec)
     idx = 0
     while lt(idx, n) {
-        deps.set(idx, Vec.new(I64))
+        deps.push(Vec.new(I64))
         idx = add(idx, 1)
     }
     idx = 0
@@ -1468,10 +1467,8 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
                 name_to_idx.get(dep_name, dep_type_idx)
                 catch (err: KeyNotFoundError) { throw err.msg }
                 if not(dep_type_idx.eq(idx)) {
-                    // Get, modify, set back
                     mut idx_deps := Vec.new(I64)
                     deps.get(idx, idx_deps)
-                    catch (err: KeyNotFoundError) { throw err.msg }
                     idx_deps.push(dep_type_idx)
                     deps.set(idx, idx_deps)
                 }
@@ -1483,25 +1480,22 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
 
     // Kahn's algorithm for topological sort
     // If A depends on B, B must come first, so reverse the edges
-    mut reverse_deps := Map.new(I64, Vec)
+    mut reverse_deps := Vec.new(Vec)
     idx = 0
     while lt(idx, n) {
-        reverse_deps.set(idx, Vec.new(I64))
+        reverse_deps.push(Vec.new(I64))
         idx = add(idx, 1)
     }
     idx = 0
     while lt(idx, n) {
         mut dep_list := Vec.new(I64)
         deps.get(idx, dep_list)
-        catch (err: KeyNotFoundError) { throw err.msg }
         mut dep_idx := 0
         while lt(dep_idx, dep_list.len()) {
             mut dep := 0
             dep_list.get(dep_idx, dep)
-            // Get, modify, set back
             mut rev_deps := Vec.new(I64)
             reverse_deps.get(dep, rev_deps)
-            catch (err: KeyNotFoundError) { throw err.msg }
             rev_deps.push(idx)
             reverse_deps.set(dep, rev_deps)
             dep_idx = add(dep_idx, 1)
@@ -1520,7 +1514,6 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
     while lt(idx, n) {
         mut dep_list := Vec.new(I64)
         reverse_deps.get(idx, dep_list)
-        catch (err: KeyNotFoundError) { throw err.msg }
         mut dep_idx := 0
         while lt(dep_idx, dep_list.len()) {
             mut dep := 0
@@ -1554,7 +1547,6 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
         // For each node that current points to, decrement in-degree
         mut edges := Vec.new(I64)
         reverse_deps.get(current, edges)
-        catch (err: KeyNotFoundError) { throw err.msg }
         mut edge_idx := 0
         while lt(edge_idx, edges.len()) {
             mut next := 0

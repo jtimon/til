@@ -533,7 +533,7 @@ All unnecessary result structs have been removed:
 ***** Topological Sort - Present
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
-| topological_sort_types | Y | Y | DIVERGE | Uses Map<I64,Vec> but should use Vec<Vec> like Rust - needs fix |
+| topological_sort_types | Y | Y | MATCH | Now uses Vec<Vec> like Rust |
 | topological_sort_structs | - | - | DELETED | Removed 2026-01-05 - old function, Rust uses topological_sort_types |
 
 ***** Emit Functions - All Present
