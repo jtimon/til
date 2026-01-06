@@ -356,10 +356,8 @@ HoistedArg := struct {
 hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str {
     mut hoisted := Vec.new(HoistedArg)
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
     }
 
     for idx in 0..args.len() {
@@ -523,10 +521,8 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
 hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
     }
 
     // Check if this expression itself is a throwing call
@@ -1043,21 +1039,13 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_fun
                     ctx.hoisted_prototypes.push(proto)
 
                     // Recursively check for nested functions within this nested function
-                    mut bi := 0
-                    while lt(bi, func_def.body.len()) {
-                        mut body_expr := Expr()
-                        func_def.body.get(bi, body_expr)
+                    for body_expr: Expr in func_def.body {
                         collect_nested_func_info(body_expr, ctx, mangled_name)
-                        bi = add(bi, 1)
                     }
                 } else {
                     // Top-level function - scan its body for nested functions
-                    mut bi := 0
-                    while lt(bi, func_def.body.len()) {
-                        mut body_expr := Expr()
-                        func_def.body.get(bi, body_expr)
+                    for body_expr: Expr in func_def.body {
                         collect_nested_func_info(body_expr, ctx, decl.name)
-                        bi = add(bi, 1)
                     }
                 }
             case:
@@ -1065,12 +1053,8 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_fun
             }
         }
     case NodeType.Body:
-        mut i := 0
-        while lt(i, expr.params.len()) {
-            mut child := Expr()
-            expr.params.get(i, child)
+        for child: Expr in expr.params {
             collect_nested_func_info(child, ctx, parent_func_name)
-            i = add(i, 1)
         }
     case NodeType.If:
         // Check then and else branches (params[0] = condition, params[1] = then, params[2] = else)
@@ -1093,21 +1077,15 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_fun
         }
     case NodeType.Switch:
         // Check all case bodies (params[0] = value, rest are cases)
-        mut i := 1
-        while lt(i, expr.params.len()) {
+        for i in 1..expr.params.len() {
             mut case_expr := Expr()
             expr.params.get(i, case_expr)
             collect_nested_func_info(case_expr, ctx, parent_func_name)
-            i = add(i, 1)
         }
     case:
         // Recursively check all params for other node types
-        mut i := 0
-        while lt(i, expr.params.len()) {
-            mut child := Expr()
-            expr.params.get(i, child)
+        for child: Expr in expr.params {
             collect_nested_func_info(child, ctx, parent_func_name)
-            i = add(i, 1)
         }
     }
 
@@ -3360,10 +3338,8 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
 
     mut result := output
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = ind.add(1)
     }
 
     // Hoist declarations from both branches to before the if statement
@@ -3667,13 +3643,8 @@ collect_declarations_in_body := proc(body: Expr, mut context: Context) returns V
 
     switch body.node_type {
     case NodeType.Body:
-        mut i := 0
-        while lt(i, body.params.len()) {
-            mut stmt := Expr()
-            body.params.get(i, stmt)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
+        for stmt: Expr in body.params {
             collect_declarations_recursive(stmt, decls, collected, context)
-            i = i.add(1)
         }
     case:
         collect_declarations_recursive(body, decls, collected, context)
@@ -3710,13 +3681,8 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         collected_decl.value_type = value_type
         decls.push(collected_decl)
     case NodeType.Body:
-        mut i := 0
-        while lt(i, expr.params.len()) {
-            mut stmt := Expr()
-            expr.params.get(i, stmt)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
+        for stmt: Expr in expr.params {
             collect_declarations_recursive(stmt, decls, collected, context)
-            i = add(i, 1)
         }
     case NodeType.If:
         // Recurse into if branches
@@ -3779,17 +3745,13 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
     // Indentation strings
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
     }
 
     mut body_indent := ""
-    ind = 0
-    while lt(ind, add(indent, 1)) {
+    for _ in 0..indent.add(1) {
         body_indent = body_indent.concat("    ")
-        ind = add(ind, 1)
     }
 
     // Get the switch expression
@@ -4371,10 +4333,8 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
 
     // Generate indentation string
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
     }
 
     // Pre-scan for function-level catches (at the end of the block)
@@ -4545,10 +4505,8 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                             switch err_var_expr.node_type {
                             case NodeType.Identifier(err_var_name):
                                 mut inner_indent := ""
-                                mut inner_ind := 0
-                                while lt(inner_ind, add(indent, 1)) {
+                                for _ in 0..indent.add(1) {
                                     inner_indent = inner_indent.concat("    ")
-                                    inner_ind = add(inner_ind, 1)
                                 }
                                 result = result.concat(inner_indent)
                                 result = result.concat(til_name(err_type_name))
@@ -4826,10 +4784,8 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
 
     // Generate indentation string
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
     }
 
     // Get function name
@@ -5105,10 +5061,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // Generate indentation string
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
     }
 
     // Get function name
@@ -5497,10 +5451,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         if not(decl_name.eq("_")) {
             // Declaration: assign to newly declared variable (declared before if block)
             mut inner_indent := ""
-            ind = 0
-            while lt(ind, add(indent, 1)) {
+            for _ in 0..indent.add(1) {
                 inner_indent = inner_indent.concat("    ")
-                ind = add(ind, 1)
             }
             result = result.concat(inner_indent)
             result = result.concat(decl_name)
@@ -5512,10 +5464,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         if assign_name.len().gt(0) {
             // Assignment: assign to existing variable
             mut inner_indent := ""
-            ind = 0
-            while lt(ind, add(indent, 1)) {
+            for _ in 0..indent.add(1) {
                 inner_indent = inner_indent.concat("    ")
-                ind = add(ind, 1)
             }
             result = result.concat(inner_indent)
             // Check if assignment target is a field access on a mut param (self.field)
@@ -5551,11 +5501,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     result = result.concat("}")
 
     // Generate else-if branches for each catch block
-    i = 0
-    while lt(i, catch_blocks.len()) {
-        mut catch_block := Expr()
-        catch_blocks.get(i, catch_block)
-
+    for catch_block: Expr in catch_blocks {
         // catch block params: [0]=var_name, [1]=type_name, [2]=body
         if gteq(catch_block.params.len(), 3) {
             // Get error type name from catch block
@@ -5603,10 +5549,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                         err_var_name = var_name
 
                         mut inner_indent := ""
-                        mut ind2 := 0
-                        while lt(ind2, add(indent, 1)) {
+                        for _ in 0..indent.add(1) {
                             inner_indent = inner_indent.concat("    ")
-                            ind2 = add(ind2, 1)
                         }
                         result = result.concat(inner_indent)
                         result = result.concat(til_name(err_type_name))
@@ -5634,8 +5578,6 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                 }
             }
         }
-
-        i = add(i, 1)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
@@ -5651,10 +5593,8 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Generate indentation string
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
     }
 
     // Get function name
@@ -6128,10 +6068,8 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Generate indentation string
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
     }
 
     // Get function name
@@ -6636,10 +6574,8 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
         // Generate indentation string
         mut indent_str := ""
-        mut ind := 0
-        while lt(ind, indent) {
+        for _ in 0..indent {
             indent_str = indent_str.concat("    ")
-            ind = add(ind, 1)
         }
 
         // Check if this type is locally caught
@@ -6755,10 +6691,8 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
     // Generate indentation string
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
     }
 
     // Check if this type is locally caught (has a catch block at function level)
@@ -7033,10 +6967,8 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     // This avoids C redeclaration errors and matches the semantics of discarding
     if name.eq("_") {
         if expr.params.len().gt(0) {
-            mut ind := 0
-            while lt(ind, indent) {
+            for _ in 0..indent {
                 result = result.concat("    ")
-                ind = add(ind, 1)
             }
             mut rhs := Expr()
             expr.params.get(0, rhs)
@@ -7055,10 +6987,8 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     }
 
     // Add indentation
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         result = result.concat("    ")
-        ind = add(ind, 1)
     }
 
     // Check if this is a function definition - skip or hoist depending on context
@@ -7658,25 +7588,15 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
 emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // Inline function body (shouldn't be called for top-level funcs)
     mut result := output
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         result = result.concat("    ")
-        ind = add(ind, 1)
     }
     result = result.concat("{\n")
-    mut i := 0
-    mut params_len := expr.params.len()
-    while lt(i, params_len) {
-        mut stmt := Expr()
-        expr.params.get(i, stmt)
+    for stmt: Expr in expr.params {
         result = emit_expr(stmt, result, add(indent, 1), ctx, context)
-        i = add(i, 1)
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    ind = 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         result = result.concat("    ")
-        ind = add(ind, 1)
     }
     result = result.concat("}\n")
     return result
@@ -7693,10 +7613,8 @@ emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx
         result = hoist_throwing_expr(rhs_expr, result, indent, ctx, context)
     }
 
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         result = result.concat("    ")
-        ind = add(ind, 1)
     }
     // Check if assignment target is a field access on a mut param (self.field)
     // If so, emit with -> instead of .
@@ -7747,11 +7665,9 @@ emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx
 
 emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
-    mut ind := 0
     mut indent_str := ""
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
     }
     result = result.concat(indent_str)
 
@@ -8129,10 +8045,8 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
 hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str {
     mut hoisted := Vec.new(HoistedArg)
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
     }
 
     mut idx := 0
@@ -8476,10 +8390,8 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: Map, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str, AllocError {
     mut hoisted := Vec.new(HoistedArg)
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
     }
 
     mut idx := 0
@@ -8661,10 +8573,8 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
 // Returns the array variable name
 hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted: Map, regular_count: I64, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str, AllocError {
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = add(ind, 1)
     }
 
     mut arr_var := next_mangled(ctx)
@@ -8883,10 +8793,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     mut result := output
 
     // Add indentation
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         result = result.concat("    ")
-        ind = add(ind, 1)
     }
 
     // Statement level vs expression level:
@@ -9406,10 +9314,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
         // Emit Array.delete if variadic array was constructed
         if has_variadic_arr {
-            mut ind := 0
-            while lt(ind, indent) {
+            for _ in 0..indent {
                 result = result.concat("    ")
-                ind = add(ind, 1)
             }
             result = result.concat(TIL_PREFIX)
             result = result.concat("Array_delete(&")
