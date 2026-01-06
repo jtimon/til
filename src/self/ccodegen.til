@@ -973,8 +973,7 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_fun
             case NodeType.FuncDef(func_def):
                 if parent_func_name.len().gt(0) {
                     // This is a nested function - record it for hoisting
-                    mut mangled_name := concat(parent_func_name, "_")
-                    mangled_name = mangled_name.concat(decl.name)
+                    mangled_name := parent_func_name.concat("_").concat(decl.name)
                     ctx.nested_func_names.set(decl.name, mangled_name)
 
                     // Generate prototype using emit_func_signature (handles throwing functions properly)
