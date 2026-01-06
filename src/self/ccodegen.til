@@ -2006,12 +2006,14 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
         result = result.concat("} ").concat(enum_name).concat("_Payload;\n\n")
     }
 
-    // 3. Emit wrapper struct: typedef struct { Color_Tag tag; Color_Payload payload; } Color;
-    result = result.concat("typedef struct {\n    ").concat(enum_name).concat("_Tag tag;\n")
+    // 3. Emit wrapper struct: struct Color { Color_Tag tag; Color_Payload payload; };
+    // Note: typedef is already forward-declared, so we just define the struct body
+    result = result.concat("struct ").concat(enum_name).concat(" {\n")
+    result = result.concat("    ").concat(enum_name).concat("_Tag tag;\n")
     if has_any_payload {
         result = result.concat("    ").concat(enum_name).concat("_Payload payload;\n")
     }
-    result = result.concat("} ").concat(enum_name).concat(";\n\n")
+    result = result.concat("};\n\n")
 
     // 4. Emit constructor functions for ALL variants (including no-payload ones)
     // This ensures consistent calling convention: Color_make_Red(42), Color_make_Unknown()

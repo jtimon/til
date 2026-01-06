@@ -552,7 +552,7 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_struct_func_body | Y | Y | MATCH | Added 2026-01-05 - extracted from emit_struct_func_bodies |
 | emit_struct_func_bodies | Y | Y | MATCH | Now uses emit_struct_func_body helper (2026-01-05) |
 | emit_enum_declaration | Y | Y | MATCH | Fixed: added til_name(), removed TIL-only comments |
-| emit_enum_with_payloads | Y | Y | DIVERGE | Common patterns |
+| emit_enum_with_payloads | Y | Y | MATCH | Fixed: struct EnumName {} instead of typedef struct {} |
 | emit_enum_to_str_function | Y | Y | DIVERGE | Common patterns |
 | emit_enum_to_str_for_declaration | Y | Y | DIVERGE | Common patterns |
 | emit_enum_size_of_constant | Y | Y | DIVERGE | Common patterns |
