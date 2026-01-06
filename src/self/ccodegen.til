@@ -697,7 +697,7 @@ hoist_throwing_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: Codeg
             catch (err: KeyNotFoundError) {
                 throw expr.lang_error(context.path, "ccodegen", concat("Function not found: ", func_name))
             }
-        if eq(fd.return_types.len(), 0) {
+        if fd.return_types.len().eq(0) {
             throw expr.lang_error(context.path, "ccodegen", "Function has no return type")
         }
         mut ret_type := ValueType.TCustom("")
@@ -1052,7 +1052,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str) ret
         result = result.concat("int ")
     } else {
         // Non-throwing function returns its actual type
-        if eq(func_def.return_types.len(), 0) {
+        if func_def.return_types.len().eq(0) {
             result = result.concat("void ")
         } else {
             mut ret_type := ValueType.TCustom("")
@@ -1147,7 +1147,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str) ret
         catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
 
-    if eq(param_count, 0) {
+    if param_count.eq(0) {
         result = result.concat("void")
     }
 
@@ -1159,7 +1159,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str) ret
 /// This returns the name WITHOUT til_ prefix.
 /// For C output, use til_name() on the result.
 get_fcall_func_name := func(expr: Expr) returns Str throws Str {
-    if eq(expr.params.len(), 0) {
+    if expr.params.len().eq(0) {
         return ""
     }
 
@@ -1641,7 +1641,7 @@ emit_global_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext
             catch (err: Str) {
                 c_type = til_type_to_c(decl.value_type)
             }
-            if eq(c_type.len(), 0) {
+            if c_type.len().eq(0) {
                 c_type = til_type_to_c(decl.value_type)
             }
             // Emit static declaration (no initializer - will be set in main)
@@ -2162,7 +2162,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
 
     // For throwing void functions, add implicit return 0 at end
     if func_def.throw_types.len().gt(0) {
-        if eq(func_def.return_types.len(), 0) {
+        if func_def.return_types.len().eq(0) {
             result = result.concat("    return 0;\n")
         }
     }
@@ -2700,7 +2700,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
 
                 // For throwing void functions, add implicit return 0
                 if func_def.throw_types.len().gt(0) {
-                    if eq(func_def.return_types.len(), 0) {
+                    if func_def.return_types.len().eq(0) {
                         result = result.concat("    return 0;\n")
                     }
                 }
@@ -3528,7 +3528,7 @@ get_case_variant_info := func(expr: Expr) returns VariantInfo {
 parse_pattern_variant_name := func(variant_name: Str) returns VariantInfo {
     mut result := VariantInfo()
     mut dot_pos := variant_name.rfind(".")
-    if gteq(dot_pos, 0) {
+    if dot_pos.gteq(0) {
         result.type_name = variant_name.get_substr(0, dot_pos)
         result.variant_name = variant_name.get_substr(dot_pos.add(1), variant_name.len())
         catch (err: IndexOutOfBoundsError) {
@@ -3647,7 +3647,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     // 1. C switch only works with integer types, not Str
     // 2. Avoids GCC-specific case range extension
     // 3. More portable and easier to handle all TIL switch patterns
-    if eq(expr.params.len(), 0) {
+    if expr.params.len().eq(0) {
         throw "ccodegen: Switch requires expression"
     }
 
@@ -4683,7 +4683,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
 
     // Get function name
     mut func_name := get_fcall_func_name(fcall)
-    if eq(func_name.len(), 0) {
+    if func_name.len().eq(0) {
         throw "emit_variadic_call: could not get function name"
     }
 
@@ -4957,7 +4957,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // Get function name
     mut func_name := get_fcall_func_name(fcall)
-    if eq(func_name.len(), 0) {
+    if func_name.len().eq(0) {
         throw "emit_throwing_call: could not get function name"
     }
 
@@ -5292,7 +5292,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                     if is_dynamic_param {
                         switch arg.node_type {
                         case NodeType.Identifier(name):
-                            if eq(arg.params.len(), 0) {
+                            if arg.params.len().eq(0) {
                                 // Simple variable - emit &var
                                 result = result.concat("&")
                                 result = result.concat(til_name(name))
@@ -5411,7 +5411,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                     j = j.add(1)
                 }
 
-                if gteq(err_idx, 0) {
+                if err_idx.gteq(0) {
                     result = result.concat(" else if (_status_")
                     result = result.concat(temp_suffix)
                     result = result.concat(" == ")
@@ -5477,7 +5477,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Get function name
     mut func_name := get_fcall_func_name(fcall)
-    if eq(func_name.len(), 0) {
+    if func_name.len().eq(0) {
         throw "emit_throwing_call_propagate: could not get function name"
     }
 
@@ -5806,7 +5806,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
                     if is_dynamic_param {
                         switch arg.node_type {
                         case NodeType.Identifier(name):
-                            if eq(arg.params.len(), 0) {
+                            if arg.params.len().eq(0) {
                                 // Simple variable - emit &var
                                 result = result.concat("&")
                                 result = result.concat(til_name(name))
@@ -5940,7 +5940,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Get function name
     mut func_name := get_fcall_func_name(fcall)
-    if eq(func_name.len(), 0) {
+    if func_name.len().eq(0) {
         throw "emit_throwing_call_with_goto: could not get function name"
     }
 
@@ -6267,7 +6267,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
                     if is_dynamic_param {
                         switch arg.node_type {
                         case NodeType.Identifier(name):
-                            if eq(arg.params.len(), 0) {
+                            if arg.params.len().eq(0) {
                                 // Simple variable - emit &var
                                 result = result.concat("&")
                                 result = result.concat(til_name(name))
@@ -6888,7 +6888,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
 
                 // For throwing void functions, add implicit return 0
                 if func_def.throw_types.len().gt(0) {
-                    if eq(func_def.return_types.len(), 0) {
+                    if func_def.return_types.len().eq(0) {
                         func_output = func_output.concat("    return 0;\n")
                     }
                 }
@@ -7835,7 +7835,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
                 switch field_expr.node_type {
                 case NodeType.Identifier(field_name):
                     // Use -> for first field access if base is pointer (mut param or variadic param), . for rest
-                    if eq(field_idx, 0).and(receiver_is_pointer) {
+                    if field_idx.eq(0).and(receiver_is_pointer) {
                         output = output.concat("->")
                     } else {
                         output = output.concat(".")
@@ -8274,7 +8274,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
         switch arg.node_type {
         case NodeType.Identifier(name):
             // Simple identifier with no params is an lvalue, doesn't need hoisting
-            if eq(arg.params.len(), 0) {
+            if arg.params.len().eq(0) {
                 needs_hoisting = false
             }
         case NodeType.LLiteral(lit):
@@ -8645,7 +8645,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     // This happens for chained method calls like delimiter.len().eq(0)
     // Parser produces: FCall { params: [Identifier("eq"), FCall { ... }, LLiteral(0)] }
     // Only check this for simple func names (no nested identifiers)
-    if first.params.len().eq(0).and(gteq(params_len, 2)) {
+    if first.params.len().eq(0).and(params_len.gteq(2)) {
         mut second_param := Expr()
         expr.params.get(1, second_param)
         switch second_param.node_type {
@@ -8826,7 +8826,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         mut is_dynamic_param := false
         switch arg.node_type {
         case NodeType.Identifier(name):
-            if eq(arg.params.len(), 0) {
+            if arg.params.len().eq(0) {
                 mut sym := context.scope_stack.lookup_symbol(name)
                 switch sym.value_type {
                 case ValueType.TCustom(t):
@@ -9128,7 +9128,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                             // Check if arg is a simple identifier
                             switch arg.node_type {
                             case NodeType.Identifier(arg_name):
-                                if eq(arg.params.len(), 0) {
+                                if arg.params.len().eq(0) {
                                     should_add_ampersand = true
                                 }
                             case:
