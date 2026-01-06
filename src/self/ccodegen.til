@@ -4239,21 +4239,17 @@ emit_body := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
     return result
 }
 
-// Pre-scan function body to collect function-level catch blocks
-// Collect ALL catch blocks - we'll register them all for local throw handling
-// The emit_throwing_call handles immediate catch chains for function calls,
-// but we need labels for throw statements that jump to these catches
-// Returns a Vec<Expr> of catch blocks
 prescan_func_level_catches := proc(stmts: Vec) returns Vec throws AllocError {
     mut catches := Vec.new(Expr)
 
-    // Collect ALL catch blocks
+    // Collect ALL catch blocks - we'll register them all for local throw handling
+    // The emit_throwing_call handles immediate catch chains for function calls,
+    // but we need labels for throw statements that jump to these catches
     for stmt: Expr in stmts {
         switch stmt.node_type {
         case NodeType.Catch:
             catches.push(stmt)
         case:
-            // Continue scanning
         }
     }
 
@@ -7543,53 +7539,50 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     for _ in 0..indent {
         indent_str = indent_str.concat("    ")
     }
-    result = result.concat(indent_str)
+    is_throwing := ctx.current_throw_types.len().gt(0)
 
-    // Check if we're in a throwing function
-    if ctx.current_throw_types.len().gt(0) {
-        // Throwing function: *_ret = value; return 0;
+    if is_throwing {
+        // Throwing function: store value through _ret pointer and return 0 (success)
         if expr.params.len().gt(0) {
             mut return_expr := Expr()
             expr.params.get(0, return_expr)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
 
             // Check if return expression is a call to a throwing function
-            mut handled_throw := false
             switch return_expr.node_type {
             case NodeType.FCall:
-                mut got_lookup := false
-                mut lookup_fd := SFuncDef()
-                lookup_fd = get_fcall_func_def(context, return_expr)
-                got_lookup = true
-                catch (err: KeyNotFoundError) { /* REM None case in Rust */ }
-                if got_lookup {
-                    if lookup_fd.throw_types.len().gt(0) {
+                mut got_func_def := false
+                mut func_def := SFuncDef()
+                func_def = get_fcall_func_def(context, return_expr)
+                got_func_def = true
+                catch (err: KeyNotFoundError) {
+                    // Not a known function - fall through to regular handling
+                }
+                if got_func_def {
+                    throw_types := func_def.throw_types
+                    if throw_types.len().gt(0) {
                         // Return expression is a throwing function call - emit with error propagation
                         // The result will be stored via the assign_name "*_ret"
-                        result = emit_throwing_call_propagate(return_expr, lookup_fd.throw_types, "", "*_ret", result, indent, ctx, context)
+                        result = emit_throwing_call_propagate(return_expr, throw_types, "", "*_ret", result, indent, ctx, context)
                         result = result.concat(indent_str)
                         result = result.concat("return 0;\n")
-                        handled_throw = true
+                        return result
                     }
                 }
             case:
-                // Not an FCall, handle normally
             }
 
-            if not(handled_throw) {
-                // Hoist any throwing function calls nested in the return expression
-                result = hoist_throwing_expr(return_expr, result, indent, ctx, context)
+            // Hoist any throwing function calls nested in the return expression
+            result = hoist_throwing_expr(return_expr, result, indent, ctx, context)
 
-                // Regular return value - just emit it
-                result = result.concat("*_ret = ")
-                result = emit_expr(return_expr, result, 0, ctx, context)
-                result = result.concat(";\n")
-                result = result.concat(indent_str)
-                result = result.concat("return 0;\n")
-            }
-        } else {
-            result = result.concat("return 0;\n")
+            // Regular return value - just emit it
+            result = result.concat(indent_str)
+            result = result.concat("*_ret = ")
+            result = emit_expr(return_expr, result, 0, ctx, context)
+            result = result.concat(";\n")
         }
+        result = result.concat(indent_str)
+        result = result.concat("return 0;\n")
     } else {
         // Non-throwing function: normal return
         // Check if return expression is a variadic function call
@@ -7698,6 +7691,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         }
 
         // Regular non-variadic return
+        result = result.concat(indent_str)
         result = result.concat("return")
         if expr.params.len().gt(0) {
             result = result.concat(" ")
