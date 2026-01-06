@@ -566,9 +566,9 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_body | Y | Y | DIVERGE | Common patterns |
 | emit_stmts | Y | Y | DIVERGE | Common patterns |
 | emit_if | Y | Y | DIVERGE | Common patterns |
-| emit_while | Y | Y | DIVERGE | Common patterns |
-| emit_break | Y | Y | MATCH | mut result + while loop = acceptable TIL patterns |
-| emit_continue | Y | Y | MATCH | mut result + while loop = acceptable TIL patterns |
+| emit_while | Y | Y | MATCH | Fixed: range loops for indent building |
+| emit_break | Y | Y | MATCH | Fixed: range loop for indent building |
+| emit_continue | Y | Y | MATCH | Fixed: range loop for indent building |
 | emit_switch | Y | Y | MATCH | Removed SwitchCaseInfo, parser enforces default-last |
 | emit_fcall | Y | Y | DIVERGE | Fixed replacen hack, needs full verification |
 | emit_declaration | Y | Y | DIVERGE | Common patterns |

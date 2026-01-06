@@ -3472,10 +3472,8 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
     mut result := output
     mut indent_str := ""
-    mut ind := 0
-    while lt(ind, indent) {
+    for _ in 0..indent {
         indent_str = indent_str.concat("    ")
-        ind = ind.add(1)
     }
 
     // Hoist declarations from loop body to before the while statement
@@ -3531,10 +3529,8 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
         // Emit condition check with break
         mut inner_indent_str := ""
-        mut inner_ind := 0
-        while lt(inner_ind, indent.add(1)) {
+        for _ in 0..indent.add(1) {
             inner_indent_str = inner_indent_str.concat("    ")
-            inner_ind = inner_ind.add(1)
         }
         result = result.concat(inner_indent_str)
         result = result.concat("if (!(")
@@ -3566,10 +3562,8 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
 emit_break := proc(expr: Expr, output: Str, indent: I64) returns Str {
     mut result := output
-    mut i := 0
-    while lt(i, indent) {
+    for _ in 0..indent {
         result = result.concat("    ")
-        i = add(i, 1)
     }
     result = result.concat("break;\n")
     return result
@@ -3577,10 +3571,8 @@ emit_break := proc(expr: Expr, output: Str, indent: I64) returns Str {
 
 emit_continue := proc(expr: Expr, output: Str, indent: I64) returns Str {
     mut result := output
-    mut i := 0
-    while lt(i, indent) {
+    for _ in 0..indent {
         result = result.concat("    ")
-        i = add(i, 1)
     }
     result = result.concat("continue;\n")
     return result
