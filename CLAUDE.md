@@ -10,6 +10,8 @@ Read `doc/bot.org` for full guidelines. Key points below are frequently repeated
 4) If exit code 0, commit
 5) If non-zero, read output and fix
 
+**ALL tests must pass in EVERY commit.** Don't use `git stash` to check if something was "already broken" - if it's broken now, fix it now.
+
 ## CRITICAL: Port to TIL Immediately
 - **NEVER** test Rust changes incrementally without also porting to TIL
 - `make benchmark` uses the self-hosted til interpreter (`til_interpreted`) for some tests
@@ -17,8 +19,23 @@ Read `doc/bot.org` for full guidelines. Key points below are frequently repeated
 - **Workflow**: Make changes to both .rs and .til files together, THEN test
 - Testing just the Rust version with `rstil interpret` is NOT sufficient validation
 
+## CRITICAL: Never Filter Make Output
+**NEVER pipe make commands through tail, head, grep, wc, or any filter.**
+
+```bash
+# WRONG - hides errors, wastes time re-running
+make benchmark | tail -20
+make benchmark 2>&1 | grep -i error
+time make benchmark | tail -40
+
+# CORRECT - see ALL output immediately
+make benchmark
+time timeout 300 make benchmark
+```
+
+Why: When something fails, you need to see the FULL output. Filtering hides critical error messages and forces re-running the entire command.
+
 ## Various things
-- **ALWAYS** When running make commands (make, make benchmark, make rstil_til, etc.), run as normal: no wc, no head, no tail, no grep, no any other bullshit
 - **NEVER** Ignore warnings from either rustc, rstil, til or gcc, always ask the user what to do about them
 - **NEVER** Use weird unicode symbols anywhere, stay ASCII
 - **NEVER** Use cat, use read, write or echo instead
