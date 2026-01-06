@@ -2057,7 +2057,7 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
             expr.params.get(0, first)
             switch first.node_type {
             case NodeType.EnumDef(enum_def):
-                mut enum_name := decl.name
+                mut enum_name := til_name(decl.name)
 
                 if enum_has_payloads(enum_def) {
                     // Phase 2: Enums with payloads - tagged union
@@ -2068,8 +2068,6 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
                 // typedef enum { EnumName_Variant1 = 0, ... } EnumName;
                 result = result.concat("typedef enum {\n")
 
-                // Get variant names (order matches insertion order from parser)
-                // Bug #38 fix: use ordered variants Vec
                 for i in 0..enum_def.variants.len() {
                     mut ev := EnumVariant()
                     enum_def.variants.get(i, ev)
