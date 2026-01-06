@@ -634,7 +634,7 @@ NOTE: Same common divergence patterns as Emit Functions (see above).
 | hoist_for_ref_params | Y | Y | DIVERGE | Common patterns |
 | hoist_for_dynamic_params | Y | Y | DIVERGE | Common patterns |
 | hoist_variadic_args | Y | Y | DIVERGE | Common patterns |
-| detect_variadic_fcall | Y | Y | DIVERGE | Common patterns |
+| detect_variadic_fcall | Y | Y | MATCH | Fixed: uses get_til_func_name_string, same comment/vars as Rust |
 | emit_variadic_call | Y | Y | DIVERGE | Common patterns |
 | emit_throwing_call | Y | Y | DIVERGE | Common patterns |
 | emit_throwing_call_propagate | Y | Y | DIVERGE | Common patterns |

@@ -309,39 +309,22 @@ VariadicFCallInfo := struct {
 }
 
 // Detect if an expression is a variadic function call
-// Returns (elem_type, regular_count) if it's a variadic call
-// Throws KeyNotFoundError if not a variadic call
-detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext) returns VariadicFCallInfo throws Str, KeyNotFoundError {
-    if eq(expr.params.len(), 0) {
+// Returns VariadicFCallInfo if it's a variadic call
+detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext) returns VariadicFCallInfo throws KeyNotFoundError {
+    if expr.params.len().eq(0) {
         throw KeyNotFoundError(msg="not variadic")
     }
 
-    // Get function name with dots (for lookup in variadic map)
+    // Get original TIL function name (with dots) for variadic map lookup
     mut first := Expr()
     expr.params.get(0, first)
-    mut func_name := get_func_name_string(first)
-    // For simple identifiers (after precomp), use the name directly
-    // For nested identifiers (Type.method), convert underscores back to dots
-    mut orig_func_name := ""
-    if eq(first.params.len(), 0) {
-        switch first.node_type {
-        case NodeType.Identifier(name):
-            orig_func_name = name
-        case:
-            orig_func_name = func_name.replace("_", ".")
-        }
-    } else {
-        orig_func_name = func_name.replace("_", ".")
-    }
+    catch (err: IndexOutOfBoundsError) { throw KeyNotFoundError(msg="index out of bounds") }
+    mut orig_func_name := get_til_func_name_string(first)
 
-    // Look up in func_variadic_args - throws KeyNotFoundError if not variadic
-    mut variadic_info := VariadicParamInfo()
-    ctx.func_variadic_args.get(orig_func_name, variadic_info)
+    mut info := VariadicParamInfo()
+    ctx.func_variadic_args.get(orig_func_name, info)
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
-
-    return VariadicFCallInfo(elem_type=variadic_info.elem_type, regular_count=variadic_info.regular_count)
+    return VariadicFCallInfo(elem_type=info.elem_type, regular_count=info.regular_count)
 }
 
 // Result type for hoisted arguments
