@@ -9213,7 +9213,28 @@ emit_literal := proc(lit: Literal, output: Str, context: Context) returns Str th
         if has_str {
             result = emit_str_literal(s, output)
         } else {
-            result = format(output, "\"", s, "\"")
+            result = output
+            result = result.concat("\"")
+            // Escape special characters for C string literals
+            mut i := 0
+            while i.lt(s.len()) {
+                c := get_char(s, i)
+                if c.eq("\n") {
+                    result = result.concat("\\n")
+                } else if c.eq("\r") {
+                    result = result.concat("\\r")
+                } else if c.eq("\t") {
+                    result = result.concat("\\t")
+                } else if c.eq("\\") {
+                    result = result.concat("\\\\")
+                } else if c.eq("\"") {
+                    result = result.concat("\\\"")
+                } else {
+                    result = result.concat(c)
+                }
+                i.inc()
+            }
+            result = result.concat("\"")
         }
     case Literal.Number(n):
         result = concat(output, n)
