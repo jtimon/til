@@ -605,9 +605,9 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_constant_declaration | Y | Y | DIVERGE | Common patterns (has_str check now inlined like Rust) |
 | emit_global_declaration | Y | Y | DIVERGE | Common patterns |
 | emit_expr | Y | Y | DIVERGE | Common patterns |
-| emit_body | Y | Y | DIVERGE | Common patterns |
+| emit_body | Y | Y | MATCH | Same logic: save/restore catch_labels, call emit_stmts (2026-01-06) |
 | emit_stmts | Y | Y | DIVERGE | Common patterns |
-| emit_if | Y | Y | DIVERGE | Common patterns |
+| emit_if | Y | Y | MATCH | Uses acceptable TIL idioms: switch/case, get()+catch, method syntax (2026-01-06) |
 | emit_while | Y | Y | MATCH | Fixed: range loops for indent building |
 | emit_break | Y | Y | MATCH | Fixed: range loop for indent building |
 | emit_continue | Y | Y | MATCH | Fixed: range loop for indent building |
