@@ -2170,29 +2170,19 @@ emit_struct_func_prototypes := proc(expr: Expr, output: Str, ctx: CodegenContext
             switch first.node_type {
             case NodeType.StructDef(struct_def):
                 mut struct_name := til_name(decl.name)
-                mut i := 0
-                while lt(i, struct_def.members.len()) {
-                    mut member := Declaration()
-                    struct_def.members.get(i, member)
-                    // Check if default_value is a function
+                for member: Declaration in struct_def.members {
+                    // Check if default_value is a function definition
                     mut func_expr := Expr()
                     struct_def.default_values.get(member.name, func_expr)
                     switch func_expr.node_type {
                     case NodeType.FuncDef(func_def):
-                        // Skip external functions
-                        if func_def.is_ext() {
-                            // do nothing
-                        } else {
-                            // Use emit_func_signature with mangled name
-                            mut mangled_name := struct_name.concat("_").concat(member.name)
-                            result = emit_func_signature(mangled_name, func_def, result, ctx)
-                            result = result.concat(";\n")
-                        }
+                        mut mangled_name := struct_name.concat("_").concat(member.name)
+                        result = emit_func_signature(mangled_name, func_def, result, ctx)
+                        result = result.concat(";\n")
                     case:
                         // Not a function
                     }
                     catch (err: KeyNotFoundError) { /* member has no default value, skip */ }
-                    i = add(i, 1)
                 }
                 return result
             case:
