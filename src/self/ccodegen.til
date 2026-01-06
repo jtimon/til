@@ -6409,10 +6409,14 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 // For local catches: temp_var = value; goto label;
 emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // Throw: params[0] = the value to throw (typically a struct constructor like DivideByZero())
-    if eq(expr.params.len(), 0) {
+    if expr.params.is_empty() {
         throw "ccodegen: throw requires a value"
     }
 
+    mut indent_str := ""
+    for _ in 0..indent {
+        indent_str = indent_str.concat("    ")
+    }
     mut thrown_expr := Expr()
     expr.params.get(0, thrown_expr)
 
@@ -6447,12 +6451,6 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             catch (err: IndexOutOfBoundsError) { throw "emit_throw: index error getting return type" }
         } else {
             throw "ccodegen: throwing function has no return type"
-        }
-
-        // Generate indentation string
-        mut indent_str := ""
-        for _ in 0..indent {
-            indent_str = indent_str.concat("    ")
         }
 
         // Check if this type is locally caught
@@ -6566,21 +6564,15 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         throw "ccodegen: throw expression must be a constructor, function call, identifier, or literal"
     }
 
-    // Generate indentation string
-    mut indent_str := ""
-    for _ in 0..indent {
-        indent_str = indent_str.concat("    ")
-    }
-
     // Check if this type is locally caught (has a catch block at function level)
     mut has_local_catch := false
-    mut local_label := ""
-    mut local_temp_var := ""
+    mut label := ""
+    mut temp_var := ""
     mut info := CatchLabelInfo()
     ctx.local_catch_labels.get(thrown_type_name, info)
     has_local_catch = true
-    local_label = info.label
-    local_temp_var = info.temp_var
+    label = info.label
+    temp_var = info.temp_var
     catch (err: KeyNotFoundError) { }
 
     if has_local_catch {
@@ -6610,7 +6602,7 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
         // Store the error value in temp variable
         result = result.concat(indent_str)
-        result = result.concat(local_temp_var)
+        result = result.concat(temp_var)
         result = result.concat(" = ")
 
         // Emit the thrown expression
@@ -6625,7 +6617,7 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         // Jump to the catch block
         result = result.concat(indent_str)
         result = result.concat("goto ")
-        result = result.concat(local_label)
+        result = result.concat(label)
         result = result.concat(";\n")
 
         return result
@@ -6639,12 +6631,11 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         mut vt := ValueType.TFunction(FunctionType.FTFunc)
         ctx.current_throw_types.get(i, vt)
         switch vt {
-        case ValueType.TCustom(type_name):
-            if type_name.eq(thrown_type_name) {
+        case ValueType.TCustom(name):
+            if name.eq(thrown_type_name) {
                 error_index = i
             }
         case:
-            // Not a custom type
         }
         i = add(i, 1)
     }

@@ -617,7 +617,7 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_funcdef | Y | Y | DIVERGE | Common patterns |
 | emit_assignment | Y | Y | DIVERGE | Common patterns |
 | emit_return | Y | Y | MATCH | Restructured to match Rust flow: is_throwing var, early return for throwing FCall (2026-01-06) |
-| emit_throw | Y | Y | DIVERGE | Common patterns |
+| emit_throw | Y | Y | MATCH | Consolidated indent_str to top, fixed variable names to match Rust (2026-01-06) |
 | emit_literal | Y | Y | MATCH | Added character escaping loop to match Rust (2026-01-06) |
 | emit_str_literal | Y | Y | MATCH | Added character escaping loop with for-in to match Rust (2026-01-06) |
 | emit_identifier_without_nested | - | - | DELETED | Removed 2026-01-05 - was not in Rust |
