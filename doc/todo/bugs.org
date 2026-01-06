@@ -496,10 +496,10 @@ All unnecessary result structs have been removed:
 | emit_struct_literal_assign | Y | Y | MATCH | Uses push_str like Rust |
 | emit_struct_literal_start | Y | Y | MATCH | Uses push_str like Rust |
 | til_func_name | Y | Y | MATCH | |
-| get_func_name_string | Y | Y | DIVERGE | Throws KeyNotFoundError (correct), but Rust uses vec+join, TIL uses string concat |
-| get_til_func_name_string | Y | Y | DIVERGE | Throws KeyNotFoundError (correct), but Rust uses vec+join, TIL uses string concat |
+| get_func_name_string | Y | Y | MATCH | vec+join vs string concat produces same result, acceptable |
+| get_til_func_name_string | Y | Y | MATCH | vec+join vs string concat produces same result, acceptable |
 | get_type_arg_name | Y | Y | MATCH | Option->throws is correct rs2til.org translation |
-| get_fcall_func_def | Y | Y | DIVERGE | Now throws KeyNotFoundError (struct removed), but may have other differences |
+| get_fcall_func_def | Y | Y | MATCH | Option->throws, TIL wrapper call is equivalent |
 | param_needs_by_ref | Y | Y | MATCH | |
 | til_type_to_c | Y | Y | MATCH | Removed extra default case |
 | value_type_to_c_name | Y | Y | MATCH | Error uses value_type_to_str (acceptable - no {:?} in TIL) |
@@ -526,14 +526,14 @@ All unnecessary result structs have been removed:
 | get_type_dependencies | Y | Y | MATCH | Simplified empty return: return Vec.new(Str) |
 | get_fcall_func_name | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |
 | get_struct_construction_type | Y | Y | MATCH | Method chaining fixed (2026-01-05), actual code change |
-| get_enum_construction_type | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
+| get_enum_construction_type | Y | Y | MATCH | Option<String>->"" sentinel per rs2til.org |
 | get_case_variant_info | Y | Y | MATCH | mut result pattern is acceptable TIL idiom per rs2til.org |
 | parse_pattern_variant_name | Y | Y | MATCH | Extra catches needed for TIL's throwing get_substr |
 
 ***** Topological Sort - Present
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
-| topological_sort_types | Y | Y | DIVERGE | Rust uses Vec<Vec>, TIL uses Map<I64, Vec>, different loop styles |
+| topological_sort_types | Y | Y | DIVERGE | Uses Map<I64,Vec> but should use Vec<Vec> like Rust - needs fix |
 | topological_sort_structs | - | - | DELETED | Removed 2026-01-05 - old function, Rust uses topological_sort_types |
 
 ***** Emit Functions - All Present
@@ -545,7 +545,7 @@ NOTE: All emit functions follow common divergence patterns:
 
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
-| emit | Y (pub) | Y | DIVERGE | collect_nested_func_info uses "" vs None - needs review |
+| emit | Y (pub) | Y | DIVERGE | "" vs None verified per rs2til.org, needs full comparison |
 | emit_struct_declaration | Y | Y | DIVERGE | Uses continue vs if block - needs review |
 | emit_struct_constants | Y | Y | DIVERGE | Common patterns |
 | emit_struct_func_prototypes | Y | Y | DIVERGE | Common patterns |
