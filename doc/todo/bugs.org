@@ -631,7 +631,7 @@ NOTE: Same common divergence patterns as Emit Functions (see above).
 | check_throwing_fcall | N | N | MATCH | Function removed entirely from both - logic inlined at 3 call sites |
 | hoist_throwing_expr | Y | Y | DIVERGE | ~150 lines, Option→has_*:Bool pattern for variadic_arr_var |
 | hoist_throwing_args | Y | Y | DIVERGE | ~250 lines, slicing &params[1..] vs separate start index |
-| hoist_for_ref_params | Y | Y | DIVERGE | ~120 lines, Option params→has_*:Bool pattern |
+| hoist_for_ref_params | Y | Y | MATCH | Fixed: chained concat for func_name, logic matches Rust (2026-01-06) |
 | hoist_for_dynamic_params | Y | Y | DIVERGE | ~120 lines, Option params→has_*:Bool pattern |
 | hoist_variadic_args | Y | Y | DIVERGE | ~150 lines, HashMap iteration differs (keys+get vs iter) |
 | detect_variadic_fcall | Y | Y | MATCH | Fixed: uses get_til_func_name_string, same comment/vars as Rust |

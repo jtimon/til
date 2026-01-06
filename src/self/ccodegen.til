@@ -453,7 +453,7 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
                 switch first_param.node_type {
                 case NodeType.Identifier(method_name):
                     // Look up Type.method function
-                    mut func_name := concat(var_name, ".").concat(method_name)
+                    func_name := var_name.concat(".").concat(method_name)
                     mut fd := context.scope_stack.lookup_func(func_name)
                     if fd.return_types.len().gt(0) {
                         mut ret_type := ValueType.TCustom("")
