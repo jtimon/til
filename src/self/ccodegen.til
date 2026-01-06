@@ -2252,7 +2252,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             collect_func_info(child, ctx)
         }
     case:
-        // Not a body, skip collect pass
     }
 
     // Pass 0a: collect nested function info for hoisting (populates hoisted_prototypes and nested_func_names)
@@ -2262,7 +2261,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             collect_nested_func_info(child, ctx, "")
         }
     case:
-        // Not a body, skip nested func collect pass
     }
 
     // Pass 0b: emit forward declarations for all structs and enums-with-payloads
@@ -2294,28 +2292,23 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         }
         output = output.concat("\n")
     case:
-        // Not a body, skip forward declarations
     }
 
     // Pass 1a: emit simple enums (no payloads) - safe to emit early, structs may use them as fields
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            if is_enum_declaration(child) {
-                if not(is_enum_with_payloads(child)) {
-                    output = emit_enum_declaration(child, output)
-                }
+            if is_enum_declaration(child).and(not(is_enum_with_payloads(child))) {
+                output = emit_enum_declaration(child, output)
             }
         }
     case:
-        // Not a body, skip enum pass
     }
 
     // Pass 1b: emit all structs and enums-with-payloads in topologically sorted order
     // Both are "complex types" that can depend on each other
     switch ast.node_type {
     case NodeType.Body:
-        // Collect all struct declarations and enums-with-payloads
         mut type_decls := Vec.new(Expr)
         for child: Expr in ast.params {
             if is_struct_declaration(child) {
@@ -2326,22 +2319,19 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
                 }
             }
         }
-
-        // Sort by dependencies and emit in order
         mut sorted_indices := topological_sort_types(type_decls)
         for idx: I64 in sorted_indices {
-            mut type_expr := Expr()
-            type_decls.get(idx, type_expr)
-            if is_struct_declaration(type_expr) {
-                output = emit_struct_declaration(type_expr, output)
+            mut child := Expr()
+            type_decls.get(idx, child)
+            if is_struct_declaration(child) {
+                output = emit_struct_declaration(child, output)
             } else {
-                output = emit_enum_declaration(type_expr, output)
+                output = emit_enum_declaration(child, output)
             }
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        catch (err: AllocError) { throw "AllocError in type pass" }
+        catch (err: AllocError) { throw err.msg }
     case:
-        // Not a body, skip type pass
     }
 
     // Pass 2: emit function prototypes (forward declarations)
@@ -2354,7 +2344,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             }
         }
     case:
-        // Not a body, skip prototype pass
     }
     // 2b: struct functions (with mangled names)
     switch ast.node_type {
@@ -2365,7 +2354,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             }
         }
     case:
-        // Not a body, skip struct func prototype pass
     }
     // 2c: hoisted nested function prototypes (collected in Pass 0a)
     if ctx.hoisted_prototypes.len().gt(0) {
@@ -2391,7 +2379,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             }
         }
     case:
-        // Not a body, skip constants pass
     }
 
     // Pass 4a: emit size_of constants for enums
@@ -2403,7 +2390,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             }
         }
     case:
-        // Not a body, skip enum size_of pass
     }
 
     // Pass 4a2: emit enum_to_str functions for all enums
@@ -2416,7 +2402,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             }
         }
     case:
-        // Not a body, skip enum_to_str pass
     }
 
     // Pass 4b: emit top-level constants (non-mut declarations with literal values)
@@ -2428,7 +2413,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             }
         }
     case:
-        // Not a body, skip top-level constants pass
     }
 
     // Pass 4c: emit global declarations (non-constant, non-func/struct/enum declarations)
@@ -2441,7 +2425,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             }
         }
     case:
-        // Not a body, skip global declarations pass
     }
 
     // Pass 4d: emit til_size_of function (runtime type size lookup)
@@ -2519,16 +2502,8 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
                 if decl.name.eq("false") { skip_true_false = true }
             case:
             }
-            if not(skip_true_false) {
-                if not(is_func_declaration(child)) {
-                    if not(is_struct_declaration(child)) {
-                        if not(is_enum_declaration(child)) {
-                            if not(is_constant_declaration(child)) {
-                                main_stmts.push(child)
-                            }
-                        }
-                    }
-                }
+            if not(skip_true_false).and(not(is_func_declaration(child))).and(not(is_struct_declaration(child))).and(not(is_enum_declaration(child))).and(not(is_constant_declaration(child))) {
+                main_stmts.push(child)
             }
         }
         output = emit_stmts(main_stmts, output, 1, ctx, context)
@@ -2540,14 +2515,17 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Check if main has variadic args by looking up the function
         // Variadic params have ValueType.TMulti as their type
         mut main_has_variadic := false
-        mut main_func := context.scope_stack.lookup_func("main")
-        for arg: Declaration in main_func.args {
+        mut fd := context.scope_stack.lookup_func("main")
+        mut has_multi := false
+        for arg: Declaration in fd.args {
             switch arg.value_type {
             case ValueType.TMulti(_):
-                main_has_variadic = true
+                has_multi = true
+                break
             case:
             }
         }
+        main_has_variadic = has_multi
         catch (err: KeyNotFoundError) { }
 
         if main_has_variadic {

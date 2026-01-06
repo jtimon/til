@@ -605,7 +605,7 @@ NOTE: All emit functions follow common divergence patterns:
 
 | Function | Rust | TIL | Status | Notes |
 |----------|------|-----|--------|-------|
-| emit | Y (pub) | Y | DIVERGE | Large function ~200 lines, uses eq() instead of method chaining in places |
+| emit | Y (pub) | Y | MATCH | Fixed: variable names (fd, main_has_variadic, has_multi, child), combined conditions with .and() |
 | emit_struct_declaration | Y | Y | MATCH | Fixed: now uses if member.is_mut { } like Rust |
 | emit_struct_constants | Y | Y | MATCH | Fixed: for-in loop, catch for til_type_to_c failures |
 | emit_struct_func_prototypes | Y | Y | MATCH | Fixed: for-in loop, removed is_ext check not in Rust |
