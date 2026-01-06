@@ -567,10 +567,10 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_stmts | Y | Y | DIVERGE | Common patterns |
 | emit_if | Y | Y | DIVERGE | Common patterns |
 | emit_while | Y | Y | DIVERGE | Common patterns |
-| emit_break | Y | Y | DIVERGE | Common patterns |
-| emit_continue | Y | Y | DIVERGE | Common patterns |
+| emit_break | Y | Y | MATCH | mut result + while loop = acceptable TIL patterns |
+| emit_continue | Y | Y | MATCH | mut result + while loop = acceptable TIL patterns |
 | emit_switch | Y | Y | MATCH | Removed SwitchCaseInfo, parser enforces default-last |
-| emit_fcall | Y | Y | DIVERGE | get_til_func_name_string replaced with replacen() hack |
+| emit_fcall | Y | Y | DIVERGE | Fixed replacen hack, needs full verification |
 | emit_declaration | Y | Y | DIVERGE | Common patterns |
 | emit_funcdef | Y | Y | DIVERGE | Common patterns |
 | emit_assignment | Y | Y | DIVERGE | Common patterns |

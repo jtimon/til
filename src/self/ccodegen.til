@@ -8912,19 +8912,9 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     mut func_name := get_func_name_string(first)
     catch (err: KeyNotFoundError) { throw first.lang_error(context.path, "ccodegen", "FCall first param not Identifier") }
 
-    // For builtins, we need the original name without underscore conversion
-    mut orig_func_name := ""
-    switch first.node_type {
-    case NodeType.Identifier(name):
-        if first.params.len().eq(0) {
-            orig_func_name = name
-        } else {
-            orig_func_name = func_name.replacen("_", ".", 1)  // Only first underscore
-        }
-    case:
-        orig_func_name = func_name.replacen("_", ".", 1)  // Only first underscore
-    }
-    catch (err: AllocError) { throw err.msg }
+    // For builtins, we need the original name with dots
+    mut orig_func_name := get_til_func_name_string(first)
+    catch (err: KeyNotFoundError) { orig_func_name = func_name }
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
     mut mangled_name := ""
