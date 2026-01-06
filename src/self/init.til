@@ -521,29 +521,12 @@ ScopeStack := struct {
     get_symbols_with_prefix := func(self: ScopeStack, prefix: Str) returns Vec throws Str {
         // Collect all keys from all scopes that start with the given prefix
         mut keys := Vec.new(Str)
-        mut prefix_len := prefix.len()
         for frame: ScopeFrame in self.frames {
             for key: Str in frame.symbols.keys {
-                // Check if key starts with prefix
-                if key.len().gteq(prefix_len) {
-                    mut matches := true
-                    mut k := 0
-                    while k.lt(prefix_len) {
-                        mut key_char := get_char(key, k)
-                        mut prefix_char := get_char(prefix, k)
-                        if not(key_char.eq(prefix_char)) {
-                            matches = false
-                        }
-                        k.inc()
-                    }
-                    if matches {
-                        keys.push(key.clone())
-                    }
+                if key.starts_with(prefix) {
+                    keys.push(key.clone())
                 }
             }
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw err.msg
         }
         catch (err: AllocError) {
             throw err.msg
@@ -777,16 +760,12 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         case NodeType.Identifier(after_dot_name):
             // Inline get_member_or_err logic
             mut member_decl := Declaration()
-            mut member_idx := 0
             mut found_member := false
-            while member_idx.lt(struct_def.members.len()) {
-                mut temp_member := Declaration()
-                struct_def.members.get(member_idx, temp_member)
+            for temp_member: Declaration in struct_def.members {
                 if Str.eq(temp_member.name, after_dot_name) {
                     member_decl = temp_member
                     found_member = true
                 }
-                member_idx.inc()
             }
             if not(found_member) {
                 throw e.error(context.path, "init", format("Struct '", f_name, "' has no member '", after_dot_name, "'"))
@@ -1337,10 +1316,7 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     context.mode_def = parsed_mode
 
     # Process mode imports recursively
-    mut import_idx := 0
-    while import_idx.lt(context.mode_def.imports.len()) {
-        mut import_str := ""  # Default init, will be overwritten by get()
-        context.mode_def.imports.get(import_idx, import_str)
+    for import_str: Str in context.mode_def.imports {
         import_func_name_expr := Expr(node_type=NodeType.Identifier("import"), line=0, col=0)
         import_path_expr := Expr(node_type=NodeType.LLiteral(Literal.Str(import_str)), line=0, col=0)
         mut import_fcall_expr := Expr(node_type=NodeType.FCall, line=0, col=0)
@@ -1353,8 +1329,6 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
             context.path = original_path.clone()
             throw err
         }
-
-        import_idx.inc()
     }
 
     # Parse to AST
@@ -1806,13 +1780,7 @@ Context := struct {
         }
 
         mut current_offset := 0
-        mut member_idx := 0
-        while member_idx.lt(struct_def.members.len()) {
-            mut decl := Declaration()
-            struct_def.members.get(member_idx, decl)
-            catch (idx_err: IndexOutOfBoundsError) {
-                member_idx.inc()
-            }
+        for decl: Declaration in struct_def.members {
             mut field_name := decl.name
 
             if decl.is_mut {
@@ -1854,12 +1822,11 @@ Context := struct {
                 current_offset = current_offset.add(field_size)
             }
             # Immutable struct fields are handled generically through struct_defs
-            member_idx.inc()
-        }
-        catch (err: AllocError) {
-            throw err.msg
         }
         catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
             throw err.msg
         }
         catch (err: I64_OverflowError) {
@@ -1938,11 +1905,7 @@ Context := struct {
             mut max_size := 8  // Start with tag size
 
             // Bug #38 fix: iterate over variants Vec
-            mut i := 0
-            while i.lt(enum_def.variants.len()) {
-                mut v := EnumVariant()
-                enum_def.variants.get(i, v)
-
+            for v: EnumVariant in enum_def.variants {
                 // Check if payload exists (not NULL)
                 if not(NULL.eq(v.payload_type.data)) {
                     mut payload_type := ValueType.TCustom("")
@@ -1958,10 +1921,6 @@ Context := struct {
                         // Unsupported payload type
                     }
                 }
-                i.inc()
-            }
-            catch (err: IndexOutOfBoundsError) {
-                throw format("get_type_size: index error in enum '", type_name, "'")
             }
 
             return max_size
@@ -2085,18 +2044,11 @@ Context := struct {
                 // Find the field declaration
                 mut field_found := false
                 mut field_decl := Declaration()
-                mut fi := 0
-                while fi.lt(struct_def.members.len()) {
-                    mut decl := Declaration()
-                    struct_def.members.get(fi, decl)
+                for decl: Declaration in struct_def.members {
                     if decl.name.eq(field_name) {
                         field_decl = decl
                         field_found = true
                     }
-                    fi.inc()
-                }
-                catch (err: IndexOutOfBoundsError) {
-                    throw format("get_field_offset: index error finding field '", field_name, "'")
                 }
 
                 if not(field_found) {
@@ -2116,6 +2068,9 @@ Context := struct {
                 }
             }
             idx.inc()
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
         }
         catch (err: AllocError) {
             throw err.msg
@@ -2172,18 +2127,11 @@ Context := struct {
             // Find the field declaration
             mut field_found := false
             mut field_decl := Declaration()
-            mut fi := 0
-            while fi.lt(struct_def.members.len()) {
-                mut decl := Declaration()
-                struct_def.members.get(fi, decl)
+            for decl: Declaration in struct_def.members {
                 if decl.name.eq(field_name) {
                     field_decl = decl
                     field_found = true
                 }
-                fi.inc()
-            }
-            catch (err: IndexOutOfBoundsError) {
-                throw format("get_field_type: index error finding field '", field_name, "'")
             }
 
             if not(field_found) {
@@ -2192,6 +2140,9 @@ Context := struct {
 
             current_type = value_type_clone(field_decl.value_type)
             idx.inc()
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
         }
         catch (err: AllocError) {
             throw err.msg
