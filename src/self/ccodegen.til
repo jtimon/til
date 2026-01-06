@@ -2792,7 +2792,9 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
 
                 // Save and set current function name for nested function mangling
                 mut prev_function_name := ctx.current_function_name
+                mut prev_mangling_counter := ctx.mangling_counter
                 ctx.current_function_name = decl.name
+                ctx.mangling_counter = 0  // Reset counter per-function for determinism
 
                 // Set current function context for return/throw generation
                 ctx.current_throw_types = func_def.throw_types
@@ -2866,8 +2868,9 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 _ := context.scope_stack.pop()
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-                // Restore previous function name
+                // Restore previous function name and mangling counter
                 ctx.current_function_name = prev_function_name
+                ctx.mangling_counter = prev_mangling_counter
 
                 // Clear current function context
                 ctx.current_throw_types = Vec.new(ValueType)
@@ -7136,10 +7139,12 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 mut saved_variadic_params := ctx.current_variadic_params
                 mut saved_declared_vars := ctx.declared_vars
                 mut saved_function_name := ctx.current_function_name
+                mut saved_mangling_counter := ctx.mangling_counter
 
                 ctx.current_throw_types = func_def.throw_types
                 ctx.current_return_types = func_def.return_types
                 ctx.current_function_name = mangled_name
+                ctx.mangling_counter = 0  // Reset counter per-function for determinism
                 ctx.current_ref_params = Vec.new(Str)
                 ctx.current_variadic_params = Map.new(Str, Str)
                 // Clear declared_vars and hoisted_struct_defaults for new function scope
@@ -7210,6 +7215,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 ctx.current_variadic_params = saved_variadic_params
                 ctx.declared_vars = saved_declared_vars
                 ctx.current_function_name = saved_function_name
+                ctx.mangling_counter = saved_mangling_counter
 
                 catch (err: AllocError) { throw err.msg }
 
