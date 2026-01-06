@@ -779,6 +779,40 @@ for key: Str in map.keys() { ... }
 for key: Str in map.keys { ... }
 #+end_src
 
+** HashMap iteration (key-value pairs)
+
+Rust iterates directly over ~(key, value)~ pairs. TIL must iterate over keys and do a separate ~get()~ for each value:
+
+Rust:
+#+begin_src rust
+for (member_name, default_expr) in &struct_def.default_values {
+    if let NodeType::FuncDef(func_def) = &default_expr.node_type {
+        let mangled_name = format!("{}_{}", struct_name, member_name);
+        // ...
+    }
+}
+#+end_src
+
+TIL:
+#+begin_src til
+for member_name: Str in struct_def.default_values.keys {
+    mut default_expr := Expr()
+    struct_def.default_values.get(member_name, default_expr)
+    switch default_expr.node_type {
+    case NodeType.FuncDef(func_def):
+        mangled_name := format(struct_name, "_", member_name)
+        // ...
+    case:
+    }
+    catch (err: KeyNotFoundError) { /* skip */ }
+}
+#+end_src
+
+Key differences:
+- Rust: ~for (key, value) in &map~ - direct iteration over pairs
+- TIL: ~for key: KeyType in map.keys~ + ~map.get(key, value)~ - iterate keys, get values separately
+- TIL requires a catch block for ~KeyNotFoundError~ from ~get()~
+
 ** Catch blocks placement
 
 Catch blocks CANNOT be placed in unreachable code (after the final return/throw of a function).
@@ -1126,3 +1160,4 @@ The translation is mechanical:
 17. ~HashMap.insert()~ -> ~Map.set()~ (Rust overwrites, TIL's ~insert~ throws on duplicate; use ~set~ to match Rust behavior)
 18. ~vec.extend(std::iter::repeat(v).take(n))~ -> ~vec.extend_with(v, n)~
 19. Prefer method chaining: ~x.gt(0)~ over ~gt(x, 0)~, ~a.and(b)~ over ~and(a, b)~
+20. HashMap iteration: ~for (k, v) in &map~ -> ~for k: T in map.keys { map.get(k, v) }~

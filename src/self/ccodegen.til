@@ -925,10 +925,7 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
             case NodeType.StructDef(struct_def):
                 // Struct methods - use mangled names (StructName_methodName)
                 struct_name := decl.name
-                mut keys := struct_def.default_values.keys
-                for i in 0..keys.len() {
-                    mut member_name := ""
-                    keys.get(i, member_name)
+                for member_name: Str in struct_def.default_values.keys {
                     mut default_expr := Expr()
                     struct_def.default_values.get(member_name, default_expr)
                     switch default_expr.node_type {
@@ -951,7 +948,6 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                         catch (err: IndexOutOfBoundsError) { throw err.msg }
                     case:
                     }
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
                     catch (err: KeyNotFoundError) { /* skip */ }
                     catch (err: AllocError) { throw err.msg }
                     catch (err: I64_OverflowError) { throw err.msg }
@@ -3574,8 +3570,8 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         // If type is INFER_TYPE, try to infer from the expression
         mut value_type := decl.value_type
         switch decl.value_type {
-        case ValueType.TCustom(type_name):
-            if type_name.eq(INFER_TYPE).and(expr.params.len().gt(0)) {
+        case ValueType.TCustom(name):
+            if name.eq(INFER_TYPE).and(expr.params.len().gt(0)) {
                 mut first := Expr()
                 expr.params.get(0, first)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -3600,13 +3596,13 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         }
     case NodeType.If:
         // Recurse into if branches
-        if gteq(expr.params.len(), 2) {
+        if expr.params.len().gteq(2) {
             mut then_branch := Expr()
             expr.params.get(1, then_branch)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             collect_declarations_recursive(then_branch, decls, collected, context)
         }
-        if gteq(expr.params.len(), 3) {
+        if expr.params.len().gteq(3) {
             mut else_branch := Expr()
             expr.params.get(2, else_branch)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -3615,16 +3611,16 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
     case NodeType.Switch:
         // Recurse into switch case bodies
         mut i := 1
-        while lt(add(i, 1), expr.params.len()) {
+        while i.add(1).lt(expr.params.len()) {
             mut case_body := Expr()
-            expr.params.get(add(i, 1), case_body)
+            expr.params.get(i.add(1), case_body)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             collect_declarations_recursive(case_body, decls, collected, context)
-            i = add(i, 2)
+            i = i.add(2)
         }
     case NodeType.While:
         // Recurse into while body
-        if gteq(expr.params.len(), 2) {
+        if expr.params.len().gteq(2) {
             mut while_body := Expr()
             expr.params.get(1, while_body)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -3633,7 +3629,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
     case NodeType.Catch:
         // Recurse into catch body (params[2] is catch body)
         // params[0] = err_var, params[1] = err_type, params[2] = body
-        if gteq(expr.params.len(), 3) {
+        if expr.params.len().gteq(3) {
             mut catch_body := Expr()
             expr.params.get(2, catch_body)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
