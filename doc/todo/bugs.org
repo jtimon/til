@@ -523,7 +523,7 @@ All unnecessary result structs have been removed:
 | get_enum_name | Y | Y | MATCH | "" sentinel for Option per rs2til.org, fixed unused var (2026-01-05) |
 | get_enum_dependencies | Y | Y | MATCH | Uses for-in loop, method chaining (2026-01-05) |
 | get_type_name | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
-| get_type_dependencies | Y | Y | DIVERGE | Similar structure but empty return logic differs |
+| get_type_dependencies | Y | Y | MATCH | Simplified empty return: return Vec.new(Str) |
 | get_fcall_func_name | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |
 | get_struct_construction_type | Y | Y | MATCH | Method chaining fixed (2026-01-05), actual code change |
 | get_enum_construction_type | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |

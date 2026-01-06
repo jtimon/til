@@ -1419,8 +1419,7 @@ get_type_dependencies := func(expr: Expr) returns Vec throws Str {
     if is_enum_declaration(expr).and(is_enum_with_payloads(expr)) {
         return get_enum_dependencies(expr)
     }
-    mut empty := Vec.new(Str)
-    return empty
+    return Vec.new(Str)
 }
 
 // Get name for a type (struct or enum-with-payloads)
