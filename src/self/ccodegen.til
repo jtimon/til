@@ -2382,6 +2382,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     output = output.concat("#include <ext.c>\n\n")
 
     // Pass 4: emit struct constants (non-mut, non-function fields with mangled names)
+    // Also emits size_of constants for each struct
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
@@ -2446,40 +2447,28 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // Pass 4d: emit til_size_of function (runtime type size lookup)
     output = emit_size_of_function(output, ctx)
 
+    output = output.concat("\n")
+
     // Pass 5: emit function definitions
     // 5a: top-level functions
     switch ast.node_type {
     case NodeType.Body:
-        mut func_count := 0
         for child: Expr in ast.params {
             if is_func_declaration(child) {
-                switch child.node_type {
-                case NodeType.Declaration(decl):
-                case:
-                }
                 output = emit_func_declaration(child, output, ctx, context)
-                func_count = func_count.add(1)
             }
         }
     case:
-        // Not a body, skip function pass
     }
     // 5b: struct functions (with mangled names)
     switch ast.node_type {
     case NodeType.Body:
-        mut struct_count := 0
         for child: Expr in ast.params {
             if is_struct_declaration(child) {
-                switch child.node_type {
-                case NodeType.Declaration(decl):
-                case:
-                }
                 output = emit_struct_func_bodies(child, output, ctx, context)
-                struct_count = struct_count.add(1)
             }
         }
     case:
-        // Not a body, skip struct func body pass
     }
 
     // 5c: hoisted nested function definitions
@@ -2517,6 +2506,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
 
     // Pass 6: emit non-struct, non-function, non-enum, non-constant statements
     // Collect them into a Vec and use emit_stmts for proper variadic/throwing call handling
+    // Note: global declarations are still included but will emit only assignments since they're already declared
     switch ast.node_type {
     case NodeType.Body:
         mut main_stmts := Vec.new(Expr)
@@ -2543,8 +2533,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         }
         output = emit_stmts(main_stmts, output, 1, ctx, context)
     case:
-        // Not a body, emit directly
-        output = emit_expr(ast, output, 1, ctx, context)
     }
 
     // Call til_main() for modes that require a main proc (like cli)

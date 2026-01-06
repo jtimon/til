@@ -2112,7 +2112,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             }
         }
     }
-    // 4b: struct functions (with mangled names)
+    // 5b: struct functions (with mangled names)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
