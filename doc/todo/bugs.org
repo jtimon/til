@@ -528,7 +528,7 @@ All unnecessary result structs have been removed:
 | get_struct_construction_type | Y | Y | MATCH | Method chaining fixed (2026-01-05), actual code change |
 | get_enum_construction_type | Y | Y | DIVERGE | Rust returns Option, TIL returns "" sentinel |
 | get_case_variant_info | Y | Y | MATCH | mut result pattern is acceptable TIL idiom per rs2til.org |
-| parse_pattern_variant_name | Y | Y | DIVERGE | TIL has extra catch blocks for error handling |
+| parse_pattern_variant_name | Y | Y | MATCH | Extra catches needed for TIL's throwing get_substr |
 
 ***** Topological Sort - Present
 | Function | Rust | TIL | Status | Notes |
