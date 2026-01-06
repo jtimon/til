@@ -2139,10 +2139,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     ctx.current_ref_params = Vec.new(Str)
     // Track variadic params - they're passed as til_Array* so need dereference
     ctx.current_variadic_params = Map.new(Str, Str)
-    mut arg_idx := 0
-    while lt(arg_idx, func_def.args.len()) {
-        mut arg := Declaration()
-        func_def.args.get(arg_idx, arg)
+    for arg: Declaration in func_def.args {
         // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
         if not(arg.is_copy) {
             ctx.current_ref_params.push(arg.name)
@@ -2153,25 +2150,21 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
             ctx.current_variadic_params.set(arg.name, til_name(elem_type_name))
         case:
         }
-        arg_idx = add(arg_idx, 1)
+        catch (err: AllocError) { throw err.msg }
     }
 
     // Push a new scope frame for this function (like interpreter does)
     context.scope_stack.push(ScopeType.Function)
     // Register function parameters in the frame
-    mut param_idx := 0
-    while lt(param_idx, func_def.args.len()) {
-        mut param := Declaration()
-        func_def.args.get(param_idx, param)
-        mut value_type := param.value_type
-        switch param.value_type {
+    for arg: Declaration in func_def.args {
+        mut value_type := arg.value_type
+        switch arg.value_type {
         case ValueType.TMulti(elem_type):
             value_type = ValueType.TCustom("Array")
         case:
         }
-        mut sym := SymbolInfo(value_type=value_type, is_mut=param.is_mut, is_copy=param.is_copy, is_own=param.is_own)
-        context.scope_stack.declare_symbol(param.name, sym)
-        param_idx = add(param_idx, 1)
+        mut sym := SymbolInfo(value_type=value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
+        context.scope_stack.declare_symbol(arg.name, sym)
     }
 
     // Clear declared_vars and hoisted_struct_defaults for new function scope
@@ -2214,7 +2207,6 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     ctx.current_ref_params = Vec.new(Str)
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
 
     return result
 }
@@ -2230,10 +2222,7 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
             switch first.node_type {
             case NodeType.StructDef(struct_def):
                 struct_name := til_name(decl.name)
-                mut i := 0
-                while lt(i, struct_def.members.len()) {
-                    mut member := Declaration()
-                    struct_def.members.get(i, member)
+                for member: Declaration in struct_def.members {
                     // Check if default_value is a function definition
                     mut func_expr := Expr()
                     struct_def.default_values.get(member.name, func_expr)
@@ -2243,7 +2232,6 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                     case:
                     }
                     catch (err: KeyNotFoundError) { /* skip member with no default */ }
-                    i = add(i, 1)
                 }
                 return result
             case:
@@ -2698,10 +2686,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 ctx.declared_vars = Set.new(Str)
                 ctx.hoisted_struct_defaults = Map.new(Str, Str)
                 // Check for variadic parameter and track mut params
-                mut arg_idx := 0
-                while lt(arg_idx, func_def.args.len()) {
-                    mut arg := Declaration()
-                    func_def.args.get(arg_idx, arg)
+                for arg: Declaration in func_def.args {
                     // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
                     if not(arg.is_copy) {
                         ctx.current_ref_params.push(arg.name)
@@ -2713,29 +2698,22 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                     case:
                         // Not variadic, continue
                     }
-                    arg_idx = add(arg_idx, 1)
+                    catch (err: AllocError) { throw err.msg }
                 }
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                catch (err: AllocError) { throw err.msg }
 
                 // Push a new scope frame for this function (like interpreter does)
                 context.scope_stack.push(ScopeType.Function)
                 // Register function parameters in the frame
-                mut param_idx := 0
-                while lt(param_idx, func_def.args.len()) {
-                    mut param := Declaration()
-                    func_def.args.get(param_idx, param)
-                    mut value_type := param.value_type
-                    switch param.value_type {
+                for arg: Declaration in func_def.args {
+                    mut value_type := arg.value_type
+                    switch arg.value_type {
                     case ValueType.TMulti(elem_type):
                         value_type = ValueType.TCustom("Array")
                     case:
                     }
-                    mut sym := SymbolInfo(value_type=value_type, is_mut=param.is_mut, is_copy=param.is_copy, is_own=param.is_own)
-                    context.scope_stack.declare_symbol(param.name, sym)
-                    param_idx = add(param_idx, 1)
+                    mut sym := SymbolInfo(value_type=value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
+                    context.scope_stack.declare_symbol(arg.name, sym)
                 }
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
 
                 // Use emit_func_signature for both throwing and non-throwing functions
                 mut func_name := til_name(decl.name)
