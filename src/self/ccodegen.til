@@ -7079,9 +7079,6 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         }
     }
 
-    // Skip NULL - it's a C macro for 0
-    if name.eq("NULL") { return output }
-
     // Bug #35: For underscore declarations, just emit the expression (discard result)
     // This avoids C redeclaration errors and matches the semantics of discarding
     if name.eq("_") {
