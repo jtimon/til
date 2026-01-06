@@ -222,12 +222,6 @@ get_type_arg_name := func(expr: Expr, context: Context) returns Str throws KeyNo
     }
     throw KeyNotFoundError(msg="not a type identifier")
 }
-
-// Add a variable to declared_vars
-add_var_declared := proc(mut ctx: CodegenContext, name: Str) throws AllocError {
-    _ := ctx.declared_vars.insert(name)
-}
-
 // Check if an expression is a function call that uses out-params (i.e., the function throws)
 // Such calls cannot be used inline in struct initializers - they need separate statements
 is_throwing_fcall := proc(expr: Expr, context: Context) returns Bool {
