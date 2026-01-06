@@ -1663,58 +1663,61 @@ emit_constant_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenConte
     case NodeType.Declaration(decl):
         if expr.params.len().gt(0) {
             // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
-            mut var_name := til_name(decl.name)
+            mut var_name := ""
             if decl.name.eq("_") {
                 var_name = next_mangled(ctx)
+            } else {
+                var_name = til_name(decl.name)
             }
 
             mut first := Expr()
             expr.params.get(0, first)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            switch first.node_type {
             // Handle literal constants (numbers, strings)
+            switch first.node_type {
             case NodeType.LLiteral(lit):
+                mut has_str := false
+                _ := context.scope_stack.lookup_struct("Str")
+                has_str = true
+                catch (err: KeyNotFoundError) { }
+                mut c_type := ""
                 switch lit {
                 case Literal.Number(n):
-                    // Non-mut declarations are constants
-                    if not(decl.is_mut) {
-                        result = result.concat("const ")
-                    }
-                    result = result.concat(til_name("I64 ")).concat(var_name).concat(" = ").concat(n).concat(";\n")
+                    c_type = format(TIL_PREFIX, "I64")
                 case Literal.Str(s):
-                    // Check if Str struct is defined (inline, like Rust)
-                    mut has_str := false
-                    _ := context.scope_stack.lookup_struct("Str")
-                    has_str = true
-                    catch (err: KeyNotFoundError) { }
                     if has_str {
-                        if not(decl.is_mut) {
-                            result = result.concat("const ")
-                        }
-                        result = format(result, TIL_PREFIX, "Str ")
-                        result = result.concat(var_name).concat(" = ")
-                        result = emit_str_literal(s, result)
-                        result = result.concat(";\n")
+                        c_type = format(TIL_PREFIX, "Str")
                     } else {
-                        result = result.concat("const char* ").concat(var_name).concat(" = \"").concat(s).concat("\";\n")
+                        c_type = "const char*"
                     }
-                case:
-                    // Skip list literals for now
-                    result = result
+                case Literal.List(l):
+                    return result // Skip list literals for now
                 }
+                // Non-mut declarations are constants
+                if not(decl.is_mut) {
+                    result = result.concat("const ")
+                }
+                result = result.concat(c_type)
+                result = result.concat(" ")
+                result = result.concat(var_name)
+                result = result.concat(" = ")
+                result = emit_literal(lit, result, context)
+                result = result.concat(";\n")
             // Handle Bool constants (true/false identifiers)
             case NodeType.Identifier(name):
                 if name.eq("true").or(name.eq("false")) {
                     if not(decl.is_mut) {
                         result = result.concat("const ")
                     }
-                    result = format(result, TIL_PREFIX, "Bool ", var_name, " = ")
+                    result = result.concat(format(TIL_PREFIX, "Bool "))
+                    result = result.concat(var_name)
+                    result = result.concat(" = ")
                     // Use struct literal instead of macro (valid constant initializer)
                     if name.eq("true") {
-                        result = format(result, "((", TIL_PREFIX, "Bool){1});\n")
+                        result = result.concat(format("((", TIL_PREFIX, "Bool){1})"))
                     } else {
-                        result = format(result, "((", TIL_PREFIX, "Bool){0});\n")
+                        result = result.concat(format("((", TIL_PREFIX, "Bool){0})"))
                     }
+                    result = result.concat(";\n")
                 }
             case:
                 result = result
