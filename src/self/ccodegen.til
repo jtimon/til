@@ -2649,40 +2649,28 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             switch first.node_type {
             case NodeType.FuncDef(func_def):
-                // Skip external functions
+                // Skip external functions (ext_proc/ext_func) - they're just declarations
                 if func_def.is_ext() {
                     return output
                 }
 
-                // Save and set current function name for nested function mangling
-                mut prev_function_name := ctx.current_function_name
-                mut prev_mangling_counter := ctx.mangling_counter
-                ctx.current_function_name = decl.name
-                ctx.mangling_counter = 0  // Reset counter per-function for determinism
-
                 // Set current function context for return/throw generation
                 ctx.current_throw_types = func_def.throw_types
                 ctx.current_return_types = func_def.return_types
-                // Track mut params for pointer dereference (-> vs .)
+                // Track ref params for pointer dereference (-> vs .)
                 ctx.current_ref_params = Vec.new(Str)
                 // Track variadic params - they're passed as til_Array* so need dereference
                 ctx.current_variadic_params = Map.new(Str, Str)
-
-                // Clear declared_vars and hoisted_struct_defaults for new function scope
-                ctx.declared_vars = Set.new(Str)
-                ctx.hoisted_struct_defaults = Map.new(Str, Str)
-                // Check for variadic parameter and track mut params
                 for arg: Declaration in func_def.args {
                     // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
                     if not(arg.is_copy) {
                         ctx.current_ref_params.push(arg.name)
                     }
                     switch arg.value_type {
-                    case ValueType.TMulti(elem_type_name):
+                    case ValueType.TMulti(elem_type):
                         // elem_type is the type name string like "Bool"
-                        ctx.current_variadic_params.set(arg.name, til_name(elem_type_name))
+                        ctx.current_variadic_params.set(arg.name, til_name(elem_type))
                     case:
-                        // Not variadic, continue
                     }
                     catch (err: AllocError) { throw err.msg }
                 }
@@ -2690,10 +2678,11 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 // Push a new scope frame for this function (like interpreter does)
                 context.scope_stack.push(ScopeType.Function)
                 // Register function parameters in the frame
+                // For variadic params (TMulti), register as Array type
                 for arg: Declaration in func_def.args {
                     mut value_type := arg.value_type
                     switch arg.value_type {
-                    case ValueType.TMulti(elem_type):
+                    case ValueType.TMulti(_):
                         value_type = ValueType.TCustom("Array")
                     case:
                     }
@@ -2701,19 +2690,27 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                     context.scope_stack.declare_symbol(arg.name, sym)
                 }
 
-                // Use emit_func_signature for both throwing and non-throwing functions
+                // Clear declared_vars and hoisted_struct_defaults for new function scope
+                ctx.declared_vars = Set.new(Str)
+                ctx.hoisted_struct_defaults = Map.new(Str, Str)
+
                 mut func_name := til_name(decl.name)
+
+                // Save and set current function name for nested function mangling
+                mut prev_function_name := ctx.current_function_name
+                mut prev_mangling_counter := ctx.mangling_counter
+                ctx.current_function_name = decl.name
+                ctx.mangling_counter = 0  // Reset counter per-function for determinism
+
                 result = emit_func_signature(func_name, func_def, result)
                 result = result.concat(" {\n")
 
                 // Emit function body with catch pattern detection
                 result = emit_stmts(func_def.body, result, 1, ctx, context)
 
-                // For throwing void functions, add implicit return 0
-                if func_def.throw_types.len().gt(0) {
-                    if func_def.return_types.len().eq(0) {
-                        result = result.concat("    return 0;\n")
-                    }
+                // For throwing void functions, add implicit return 0 at end
+                if func_def.throw_types.len().gt(0).and(func_def.return_types.len().eq(0)) {
+                    result = result.concat("    return 0;\n")
                 }
 
                 result = result.concat("}\n\n")
@@ -2722,7 +2719,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 _ := context.scope_stack.pop()
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-                // Restore previous function name and mangling counter
+                // Restore previous function name and counter
                 ctx.current_function_name = prev_function_name
                 ctx.mangling_counter = prev_mangling_counter
 
@@ -2732,13 +2729,11 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
 
                 return result
             case:
-                throw "emit_func_declaration: not a function"
             }
         }
-        throw "emit_func_declaration: empty params"
     case:
-        throw "emit_func_declaration: not a declaration"
     }
+    throw "emit_func_declaration: not a function declaration"
 }
 
 /// Emit an argument, using hoisted temp var if available

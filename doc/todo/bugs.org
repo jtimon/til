@@ -166,14 +166,32 @@ CRITICAL: The goal is to fix Bug #80 ONCE, correctly. Not to move fast.
 - Multiple careful passes are better than one fast pass followed by a full reset
 - Only mark MATCH when 100% certain: either actual code change made, or line-by-line verification done
 
+**** What "MATCH" Actually Means
+
+MATCH is NOT:
+- "Logic is semantically equivalent"
+- "Tests pass"
+- "Structured slightly differently but works"
+- "Close enough"
+
+MATCH IS:
+- Every line verified against Rust
+- Variable names identical to Rust
+- Comments copied verbatim from Rust
+- Control flow structure identical (only rs2til.org patterns allowed to differ)
+- If you haven't read BOTH versions line-by-line, it's DIVERGE
+
 **** Rules for Status Column
 1. *MATCH* - Only when:
-   - Actual code fix was made and tested (method chaining, for-in loops, unused vars, etc.)
-   - Line-by-line comparison confirms semantic equivalence
-   - rs2til.org explicitly documents the pattern as acceptable
+   - Line-by-line comparison of ENTIRE function done
+   - ALL differences follow rs2til.org RULES exactly
+   - Same variable names as Rust
+   - Same comments as Rust (copy verbatim)
+   - Same control flow structure
+   - CRITICAL: Fixing ONE issue does NOT make it MATCH - must verify ALL lines
 2. *DIVERGE* - When in doubt:
-   - Assumed patterns are "acceptable" without verification
-   - Similar but not verified identical
+   - Assumed patterns are "acceptable" without verification against rs2til.org
+   - Similar but not verified identical line-by-line
    - rs2til.org doesn't explicitly cover the case
 3. *DELETED* - Function removed from TIL to match Rust
 
@@ -601,7 +619,7 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_size_of_function | Y | Y | MATCH | Fixed: for-in loop, removed Bug #38 comment |
 | emit_func_signature | Y | Y | MATCH | Fixed: removed unused ctx parameter to match Rust |
 | emit_func_prototype | Y | Y | MATCH | Fixed: removed unused ctx parameter |
-| emit_func_declaration | Y | Y | DIVERGE | ~100 lines, uses gteq() not .gteq(), loop var names differ (e.g. ~i~ vs ~ai~) |
+| emit_func_declaration | Y | Y | MATCH | Fixed: reordered operations to match Rust exactly, fixed all comments (2026-01-06) |
 | emit_constant_declaration | Y | Y | MATCH | Fixed: uses c_type + emit_literal() like Rust, var_name order matches (2026-01-06) |
 | emit_global_declaration | Y | Y | MATCH | Fixed: var_name order, c_type fallback with "int", output structure (2026-01-06) |
 | emit_expr | Y | Y | DIVERGE | ~100 lines, switch/case structure OK but many minor style diffs |
@@ -632,7 +650,7 @@ NOTE: Same common divergence patterns as Emit Functions (see above).
 | hoist_throwing_expr | Y | Y | DIVERGE | ~150 lines, Option→has_*:Bool pattern for variadic_arr_var |
 | hoist_throwing_args | Y | Y | DIVERGE | ~250 lines, slicing &params[1..] vs separate start index |
 | hoist_for_ref_params | Y | Y | MATCH | Fixed: chained concat for func_name, logic matches Rust (2026-01-06) |
-| hoist_for_dynamic_params | Y | Y | DIVERGE | ~120 lines, Option params→has_*:Bool pattern |
+| hoist_for_dynamic_params | Y | Y | DIVERGE | ~120 lines, not verified line-by-line |
 | hoist_variadic_args | Y | Y | DIVERGE | ~150 lines, HashMap iteration differs (keys+get vs iter) |
 | detect_variadic_fcall | Y | Y | MATCH | Fixed: uses get_til_func_name_string, same comment/vars as Rust |
 | emit_variadic_call | Y | Y | DIVERGE | ~200 lines, Option→has_*:Bool for variadic_arr_var param |
