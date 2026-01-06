@@ -556,7 +556,7 @@ NOTE: All emit functions follow common divergence patterns:
 | emit_enum_to_str_function | Y | Y | MATCH | Fixed: removed TIL-only Bug #38 comment |
 | emit_enum_to_str_for_declaration | Y | Y | MATCH | Already matches with rs2til.org patterns |
 | emit_enum_size_of_constant | Y | Y | MATCH | Already matches with rs2til.org patterns |
-| emit_size_of_function | Y | Y | DIVERGE | Common patterns (FIXED Issue 6 only) |
+| emit_size_of_function | Y | Y | MATCH | Fixed: for-in loop, removed Bug #38 comment |
 | emit_func_signature | Y | Y | DIVERGE | Common patterns |
 | emit_func_prototype | Y | Y | DIVERGE | Common patterns |
 | emit_func_declaration | Y | Y | DIVERGE | Common patterns |

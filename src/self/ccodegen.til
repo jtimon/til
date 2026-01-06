@@ -1934,22 +1934,16 @@ emit_enum_size_of_constant := proc(expr: Expr, output: Str, mut ctx: CodegenCont
 }
 
 // Emit til_size_of function for runtime type size lookup
-emit_size_of_function := proc(output: Str, ctx: CodegenContext) returns Str throws Str {
+emit_size_of_function := proc(output: Str, ctx: CodegenContext) returns Str {
     mut result := output
     result = result.concat("\nstatic inline ").concat(TIL_PREFIX).concat("I64 ").concat(TIL_PREFIX).concat("size_of(const ").concat(TIL_PREFIX).concat("Str* type_name) {\n")
 
     // All known types from structs and enums
-    mut i := 0
-    while lt(i, ctx.known_types.len()) {
-        mut type_name := ""
-        ctx.known_types.get(i, type_name)
+    for type_name: Str in ctx.known_types {
         result = result.concat("    if (strcmp((char*)type_name->c_string, \"").concat(type_name).concat("\") == 0) return ").concat(TIL_PREFIX).concat("size_of_").concat(type_name).concat(";\n")
-        i = add(i, 1)
     }
 
     result = result.concat("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name->c_string);\n").concat("    exit(1);\n}\n")
-
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     return result
 }
@@ -1965,7 +1959,6 @@ enum_has_payloads := func(enum_def: SEnumDef) returns Bool {
 }
 
 // Emit an enum with payloads as a tagged union
-// Bug #38 fix: use variants Vec
 emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str) returns Str throws Str {
     mut result := output
 
