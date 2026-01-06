@@ -4359,25 +4359,17 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
     catch (err: I64_OverflowError) { throw err.msg }
 
     // Declare temp variables for all catches at the start
-    mut decl_idx := 0
-    while lt(decl_idx, all_catch_info.len()) {
-        mut catch_entry := CatchLabelInfoEntry()
-        all_catch_info.get(decl_idx, catch_entry)
+    for catch_entry: CatchLabelInfoEntry in all_catch_info {
         result = result.concat(indent_str)
         result = result.concat(til_name(catch_entry.type_name))
         result = result.concat(" ")
         result = result.concat(catch_entry.temp_var)
         result = result.concat(";\n")
-        decl_idx = add(decl_idx, 1)
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // For backward compatibility, populate local_catch_labels with first catch of each type
     mut registered_types := Set.new(Str)
-    mut reg_idx := 0
-    while lt(reg_idx, all_catch_info.len()) {
-        mut catch_entry := CatchLabelInfoEntry()
-        all_catch_info.get(reg_idx, catch_entry)
+    for catch_entry: CatchLabelInfoEntry in all_catch_info {
         if not(registered_types.contains(catch_entry.type_name)) {
             _ := registered_types.insert(catch_entry.type_name)
             mut info := CatchLabelInfo()
@@ -4385,10 +4377,8 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
             info.temp_var = catch_entry.temp_var
             ctx.local_catch_labels.set(catch_entry.type_name, info)
         }
-        reg_idx = add(reg_idx, 1)
+        catch (err: AllocError) { throw err.msg }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
 
     // Track which catch labels have been emitted to avoid duplicates
     mut emitted_catch_labels := Set.new(Str)
@@ -4700,14 +4690,9 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
     }
 
     // Clean up local_catch_labels for this block
-    mut clean_i := 0
-    while lt(clean_i, all_catch_info.len()) {
-        mut catch_entry := CatchLabelInfoEntry()
-        all_catch_info.get(clean_i, catch_entry)
+    for catch_entry: CatchLabelInfoEntry in all_catch_info {
         ctx.local_catch_labels.remove(catch_entry.type_name)
-        clean_i = add(clean_i, 1)
     }
-    catch (err: IndexOutOfBoundsError) { /* ignore */ }
 
     return result
 }
