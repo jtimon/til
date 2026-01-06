@@ -2441,7 +2441,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     case NodeType.Body:
         for child: Expr in ast.params {
             if is_func_declaration(child) {
-                output = emit_func_prototype(child, output, ctx)
+                output = emit_func_prototype(child, output)
             }
         }
     case:
@@ -2699,7 +2699,7 @@ is_func_declaration := func(expr: Expr) returns Bool {
 }
 
 // Emit a function prototype (forward declaration)
-emit_func_prototype := proc(expr: Expr, output: Str, ctx: CodegenContext) returns Str throws Str {
+emit_func_prototype := proc(expr: Expr, output: Str) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
