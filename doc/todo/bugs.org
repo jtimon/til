@@ -547,7 +547,7 @@ NOTE: All emit functions follow common divergence patterns:
 |----------|------|-----|--------|-------|
 | emit | Y (pub) | Y | DIVERGE | "" vs None verified per rs2til.org, needs full comparison |
 | emit_struct_declaration | Y | Y | MATCH | Fixed: now uses if member.is_mut { } like Rust |
-| emit_struct_constants | Y | Y | DIVERGE | Common patterns |
+| emit_struct_constants | Y | Y | MATCH | Fixed: for-in loop, catch for til_type_to_c failures |
 | emit_struct_func_prototypes | Y | Y | DIVERGE | Common patterns |
 | emit_struct_func_body | Y | Y | MATCH | Added 2026-01-05 - extracted from emit_struct_func_bodies |
 | emit_struct_func_bodies | Y | Y | MATCH | Now uses emit_struct_func_body helper (2026-01-05) |

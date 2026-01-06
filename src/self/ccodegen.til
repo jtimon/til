@@ -1869,29 +1869,18 @@ emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
             switch first.node_type {
             case NodeType.StructDef(struct_def):
                 mut struct_name := til_name(decl.name)
-                mut i := 0
-                while lt(i, struct_def.members.len()) {
-                    mut member := Declaration()
-                    struct_def.members.get(i, member)
+                for member: Declaration in struct_def.members {
                     // Only emit non-mut, non-function fields as constants
                     if not(member.is_mut) {
-                        // Check if default_value is NOT a function (constants only)
-                        mut is_func := false
+                        mut c_type := til_type_to_c(member.value_type)
+                        // Get the default value
                         mut default_val := Expr()
                         struct_def.default_values.get(member.name, default_val)
-                        switch default_val.node_type {
-                        case NodeType.FuncDef(fd):
-                            is_func = true
-                        case:
-                            is_func = false
-                        }
-                        if not(is_func) {
-                            result = result.concat("const ").concat(til_type_to_c(member.value_type)).concat(" ").concat(struct_name).concat("_").concat(member.name).concat(" = ")
-                            result = emit_expr(default_val, result, 0, ctx, context).concat(";\n")
-                        }
+                        result = result.concat("const ").concat(c_type).concat(" ").concat(struct_name).concat("_").concat(member.name).concat(" = ")
+                        result = emit_expr(default_val, result, 0, ctx, context).concat(";\n")
+                        catch (err: Str) { /* til_type_to_c failed, skip */ }
                         catch (err: KeyNotFoundError) { /* member has no default value, skip */ }
                     }
-                    i = add(i, 1)
                 }
                 // Emit size_of constant for this struct
                 result = result.concat("const ").concat(TIL_PREFIX).concat("I64 ").concat(TIL_PREFIX).concat("size_of_").concat(decl.name).concat(" = sizeof(").concat(struct_name).concat(");\n")
