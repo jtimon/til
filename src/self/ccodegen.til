@@ -4298,20 +4298,21 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
     // Bug #39 fix: Give each catch block its own unique label using the global counter
     // Store catch info with statement index so we can match calls to their NEXT catch
     mut all_catch_info := Vec.new(CatchLabelInfoEntry)
+    // Note: TIL uses scan_idx/scan_stmt to avoid shadowing main loop's i/stmt
     mut scan_idx := 0
-    while lt(scan_idx, stmts.len()) {
+    while scan_idx.lt(stmts.len()) {
         mut scan_stmt := Expr()
         stmts.get(scan_idx, scan_stmt)
         switch scan_stmt.node_type {
         case NodeType.Catch:
-            if gteq(scan_stmt.params.len(), 3) {
+            if scan_stmt.params.len().gteq(3) {
                 mut err_type_expr := Expr()
                 scan_stmt.params.get(1, err_type_expr)
                 switch err_type_expr.node_type {
                 case NodeType.Identifier(err_type_name):
-                    mut catch_suffix := next_mangled(ctx)  // Unique suffix for EACH catch
-                    mut label := format("_catch_", err_type_name, "_", catch_suffix)
-                    mut temp_var := format("_thrown_", err_type_name, "_", catch_suffix)
+                    catch_suffix := next_mangled(ctx)  // Unique suffix for EACH catch
+                    label := format("_catch_", err_type_name, "_", catch_suffix)
+                    temp_var := format("_thrown_", err_type_name, "_", catch_suffix)
                     mut entry := CatchLabelInfoEntry()
                     entry.stmt_index = scan_idx
                     entry.type_name = err_type_name
@@ -4323,7 +4324,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
             }
         case:
         }
-        scan_idx = add(scan_idx, 1)
+        scan_idx = scan_idx.add(1)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
@@ -4355,7 +4356,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
     mut emitted_catch_labels := Set.new(Str)
 
     // Process all statements
-    while lt(i, stmts.len()) {
+    while i.lt(stmts.len()) {
         mut stmt := Expr()
         stmts.get(i, stmt)
 
@@ -4364,7 +4365,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
         switch stmt.node_type {
         case NodeType.Catch:
             // Get the error type this catch handles
-            if gteq(stmt.params.len(), 3) {
+            if stmt.params.len().gteq(3) {
                 mut err_type_expr := Expr()
                 stmt.params.get(1, err_type_expr)
                 switch err_type_expr.node_type {
@@ -4372,16 +4373,17 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                     // Look up this specific catch's label from all_catch_info by statement index
                     mut found_entry := false
                     mut catch_entry := CatchLabelInfoEntry()
+                    // Note: TIL uses find_idx to avoid shadowing; Rust uses iterator find()
                     mut find_idx := 0
-                    while lt(find_idx, all_catch_info.len()) {
+                    while find_idx.lt(all_catch_info.len()) {
                         mut entry := CatchLabelInfoEntry()
                         all_catch_info.get(find_idx, entry)
-                        if eq(entry.stmt_index, i) {
+                        if entry.stmt_index.eq(i) {
                             catch_entry = entry
                             found_entry = true
                             break
                         }
-                        find_idx = add(find_idx, 1)
+                        find_idx = find_idx.add(1)
                     }
                     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
