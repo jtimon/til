@@ -4218,7 +4218,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
     // Hoist declarations from catch blocks to function level
     // (TIL has function-level scoping, not block-level scoping)
     for catch_block: Expr in func_level_catches {
-        if gteq(catch_block.params.len(), 3) {
+        if catch_block.params.len().gteq(3) {
             // Temporarily add the catch error variable to scope for type inference
             // catch (err: ErrType) { body } -> err_var=params[0], err_type=params[1], body=params[2]
             mut err_var_expr := Expr()
@@ -5347,7 +5347,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     // Generate else-if branches for each catch block
     for catch_block: Expr in catch_blocks {
         // catch block params: [0]=var_name, [1]=type_name, [2]=body
-        if gteq(catch_block.params.len(), 3) {
+        if catch_block.params.len().gteq(3) {
             // Get error type name from catch block
             mut err_type_name := ""
             mut err_type_expr := Expr()
