@@ -13,10 +13,7 @@ rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def
     mut new_members := Vec.new(Declaration)
     mut new_default_values := Map.new(Str, Expr)
 
-    mut i := 0
-    while i.lt(struct_def.members.len()) {
-        mut member_decl := Declaration()
-        struct_def.members.get(i, member_decl)
+    for member_decl: Declaration in struct_def.members {
         full_name := format(struct_name, ".", member_decl.name)
 
         // Check if this member has a FuncDef default value (i.e., it's a method)
@@ -44,8 +41,6 @@ rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def
             // No default value - keep the member
             new_members.push(member_decl.clone())
         }
-
-        i.inc()
     }
 
     mut new_struct_def := SStructDef()
@@ -83,12 +78,8 @@ collect_called_functions := proc(e: Expr, mut called: Set) throws Str {
         }
     case NodeType.FuncDef(func_def):
         // Recurse into function body
-        mut i := 0
-        while i.lt(func_def.body.len()) {
-            mut stmt := Expr()
-            func_def.body.get(i, stmt)
+        for stmt: Expr in func_def.body {
             collect_called_functions(stmt, called)
-            i.inc()
         }
     case NodeType.Catch:
         // Catch has params[0]=name, params[1]=type, params[2]=body
@@ -98,14 +89,11 @@ collect_called_functions := proc(e: Expr, mut called: Set) throws Str {
         }
     case:
         // Recurse into all params
-        mut i := 0
-        while i.lt(e.params.len()) {
-            collect_called_functions(e.get(i), called)
-            i.inc()
+        for param: Expr in e.params {
+            collect_called_functions(param, called)
         }
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
 }
 
@@ -119,17 +107,15 @@ get_combined_name_from_identifier := proc(e: Expr) returns Str throws Str {
             // Has nested params like a.b.c
             mut parts := Vec.new(Str)
             parts.push(name.clone())
-            mut i := 0
-            while i.lt(e.params.len()) {
-                nested := get_combined_name_from_identifier(e.get(i))
+            for param: Expr in e.params {
+                nested := get_combined_name_from_identifier(param)
                 if nested.len().gt(0) {
                     parts.push(nested)
                 }
-                i.inc()
             }
             // Join with "."
             mut result := ""
-            i = 0
+            mut i := 0
             while i.lt(parts.len()) {
                 mut part := ""
                 parts.get(i, part)
@@ -171,21 +157,14 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
                 // Function declaration
                 context.scope_stack.declare_func(decl.name.clone(), func_def.clone())
                 // Recurse into function body for local declarations
-                mut i := 0
-                while i.lt(func_def.body.len()) {
-                    mut stmt := Expr()
-                    func_def.body.get(i, stmt)
+                for stmt: Expr in func_def.body {
                     register_declarations_recursive(context, stmt)
-                    i.inc()
                 }
             case NodeType.StructDef(struct_def):
                 // Struct declaration
                 context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone())
                 // Struct methods
-                mut i := 0
-                while i.lt(struct_def.default_values.keys.len()) {
-                    mut member_name := ""
-                    struct_def.default_values.keys.get(i, member_name)
+                for member_name: Str in struct_def.default_values.keys {
                     mut default_expr := Expr()
                     struct_def.default_values.get(member_name, default_expr)
                     switch default_expr.node_type {
@@ -193,36 +172,25 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
                         full_name := format(decl.name, ".", member_name)
                         context.scope_stack.declare_func(full_name, func_def.clone())
                         // Recurse into method body for local declarations
-                        mut j := 0
-                        while j.lt(func_def.body.len()) {
-                            mut stmt := Expr()
-                            func_def.body.get(j, stmt)
+                        for stmt: Expr in func_def.body {
                             register_declarations_recursive(context, stmt)
-                            j.inc()
                         }
                     case:
                     }
-                    i.inc()
                 }
             case:
             }
         }
     case NodeType.FuncDef(func_def):
         // Anonymous function - recurse into body
-        mut i := 0
-        while i.lt(func_def.body.len()) {
-            mut stmt := Expr()
-            func_def.body.get(i, stmt)
+        for stmt: Expr in func_def.body {
             register_declarations_recursive(context, stmt)
-            i.inc()
         }
     case:
     }
     // Recurse into all params
-    mut i := 0
-    while i.lt(e.params.len()) {
-        register_declarations_recursive(context, e.get(i))
-        i.inc()
+    for param: Expr in e.params {
+        register_declarations_recursive(context, param)
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -251,12 +219,8 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
     mut needs_variadic_support := false
 
     // Add all roots
-    mut ri := 0
-    while ri.lt(roots.len()) {
-        mut root := ""
-        roots.get(ri, root)
+    for root: Str in roots {
         mark_reachable(root.clone(), reachable, worklist)
-        ri.inc()
     }
 
     while worklist.len().gt(0) {
@@ -273,9 +237,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
 
         if found_func {
             // Check if this function has variadic parameters (TMulti)
-            for ai in 0..func_def.args.len() {
-                mut arg := Declaration()
-                func_def.args.get(ai, arg)
+            for arg: Declaration in func_def.args {
                 switch arg.value_type {
                 case ValueType.TMulti(_):
                     needs_variadic_support = true
@@ -288,15 +250,11 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                 continue
             }
             mut called := Set.new(Str)
-            for bi in 0..func_def.body.len() {
-                mut stmt := Expr()
-                func_def.body.get(bi, stmt)
+            for stmt: Expr in func_def.body {
                 collect_called_functions(stmt, called)
             }
             // Add newly discovered functions
-            for ci in 0..called.len() {
-                mut called_func := ""
-                called.get(ci, called_func)
+            for called_func: Str in called {
                 mark_reachable(called_func, reachable, worklist)
             }
         } else {
@@ -312,21 +270,11 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
             if found_struct {
                 // Struct constructor - collect calls from default values
                 mut called := Set.new(Str)
-                mut di := 0
-                while di.lt(struct_def.default_values.keys.len()) {
-                    mut key := ""
-                    struct_def.default_values.keys.get(di, key)
-                    mut default_expr := Expr()
-                    struct_def.default_values.get(key, default_expr)
+                for default_expr: Expr in struct_def.default_values.values {
                     collect_called_functions(default_expr, called)
-                    di.inc()
                 }
-                mut ci := 0
-                while ci.lt(called.len()) {
-                    mut called_func := ""
-                    called.get(ci, called_func)
+                for called_func: Str in called {
                     mark_reachable(called_func, reachable, worklist)
-                    ci.inc()
                 }
             } else {
                 // Check if this is an enum constructor (e.g., Color.Name)
@@ -402,9 +350,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                         builtin_types.push("Set")
 
                         mut found_method := false
-                        for bi in 0..builtin_types.len() {
-                            mut builtin := ""
-                            builtin_types.get(bi, builtin)
+                        for builtin: Str in builtin_types {
                             full_method := format(builtin, ".", method_name)
                             mut dummy_fd := SFuncDef()
                             dummy_fd = context.scope_stack.lookup_func(full_method)
@@ -418,9 +364,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                         // Also check user-defined structs for the method
                         if not(found_method) {
                             struct_names := context.scope_stack.get_all_struct_names()
-                            for si in 0..struct_names.len() {
-                                mut struct_name := ""
-                                struct_names.get(si, struct_name)
+                            for struct_name: Str in struct_names {
                                 full_method := format(struct_name, ".", method_name)
                                 mut dummy_fd := SFuncDef()
                                 dummy_fd = context.scope_stack.lookup_func(full_method)
@@ -445,7 +389,6 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
 
     return ComputeReachableResult(reachable=reachable, needs_variadic_support=needs_variadic_support)
@@ -476,9 +419,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             // CLI mode: root is main plus global variable initializers
             _ := roots.insert("main")
             // Global variable initializers are also executed in main(), so their calls are roots
-            mut k := 0
-            while k.lt(e.params.len()) {
-                stmt := e.get(k)
+            for stmt: Expr in e.params {
                 switch stmt.node_type {
                 case NodeType.Declaration(decl):
                     if stmt.params.len().gt(0) {
@@ -493,57 +434,45 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     }
                 case:
                 }
-                k.inc()
+            }
+        } else if context.mode_def.allows_base_calls.or(context.mode_def.allows_base_anything) {
+            // script/safe_script/test: all top-level non-declaration statements are roots
+            // Walk them to find called functions
+            for stmt: Expr in e.params {
+                switch stmt.node_type {
+                case NodeType.Declaration(decl):
+                    // Skip declarations - only their initializers matter if not functions
+                    if stmt.params.len().gt(0) {
+                        inner := stmt.get(0)
+                        switch inner.node_type {
+                        case NodeType.FuncDef(_):
+                            // Skip function declarations - they're not roots themselves
+                        case:
+                            // Non-function declaration initializer - collect calls from it
+                            collect_called_functions(inner, roots)
+                        }
+                    }
+                case:
+                    // Non-declaration statement (function call, assignment, etc.)
+                    collect_called_functions(stmt, roots)
+                }
             }
         } else {
-            mut abc := context.mode_def.allows_base_calls
-            mut aba := context.mode_def.allows_base_anything
-            if abc.or(aba) {
-                // script/safe_script/test: all top-level non-declaration statements are roots
-                // Walk them to find called functions
-                mut i := 0
-                mut len := e.params.len()
-                while i.lt(len) {
-                    stmt := e.get(i)
-                    switch stmt.node_type {
-                    case NodeType.Declaration(decl):
-                        // Skip declarations - only their initializers matter if not functions
-                        if stmt.params.len().gt(0) {
-                            inner := stmt.get(0)
-                            switch inner.node_type {
-                            case NodeType.FuncDef(_):
-                                // Skip function declarations - they're not roots themselves
-                            case:
-                                // Non-function declaration initializer - collect calls from it
-                                collect_called_functions(inner, roots)
-                            }
+            // lib/pure mode - globals are still initialized in main(), so include those calls
+            for stmt: Expr in e.params {
+                switch stmt.node_type {
+                case NodeType.Declaration(decl):
+                    if stmt.params.len().gt(0) {
+                        inner := stmt.get(0)
+                        switch inner.node_type {
+                        case NodeType.FuncDef(_):
+                            // Skip function declarations
+                        case:
+                            // Non-function declaration initializer - collect calls from it
+                            collect_called_functions(inner, roots)
                         }
-                    case:
-                        // Non-declaration statement (function call, assignment, etc.)
-                        collect_called_functions(stmt, roots)
                     }
-                    i.inc()
-                }
-            } else {
-                // lib/pure mode - globals are still initialized in main(), so include those calls
-                mut j := 0
-                while j.lt(e.params.len()) {
-                    stmt := e.get(j)
-                    switch stmt.node_type {
-                    case NodeType.Declaration(decl):
-                        if stmt.params.len().gt(0) {
-                            inner := stmt.get(0)
-                            switch inner.node_type {
-                            case NodeType.FuncDef(_):
-                                // Skip function declarations
-                            case:
-                                // Non-function declaration initializer - collect calls from it
-                                collect_called_functions(inner, roots)
-                            }
-                        }
-                    case:
-                    }
-                    j.inc()
+                case:
                 }
             }
         }
@@ -557,21 +486,17 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // If any variadic function was found, add Array methods and recompute closure
         // to include their dependencies (like U8.from_i64)
         if needs_variadic_support {
-            mut extended_roots := Set.new(Str)
-            // Copy original roots
-            mut ri := 0
-            while ri.lt(roots.len()) {
-                mut root := ""
-                roots.get(ri, root)
-                _ := extended_roots.insert(root.clone())
-                ri.inc()
-            }
+            mut extended_roots := roots.clone()
             // Add Array methods
-            _ := extended_roots.insert("Array.new")
-            _ := extended_roots.insert("Array.set")
-            _ := extended_roots.insert("Array.get")
-            _ := extended_roots.insert("Array.delete")
-            _ := extended_roots.insert("Array.len")
+            mut array_methods := Vec.new(Str)
+            array_methods.push("Array.new")
+            array_methods.push("Array.set")
+            array_methods.push("Array.get")
+            array_methods.push("Array.delete")
+            array_methods.push("Array.len")
+            for method: Str in array_methods {
+                _ := extended_roots.insert(method.clone())
+            }
             // Recompute
             mut new_cr_result := compute_reachable(context, extended_roots, e)
             reachable = new_cr_result.reachable
@@ -581,9 +506,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // Step 3: Build new AST - only include reachable function declarations
         // For structs, rebuild them without unreachable methods
         mut new_params := Vec.new(Expr)
-        mut i := 0
-        while i.lt(e.params.len()) {
-            stmt := e.get(i)
+        for stmt: Expr in e.params {
             switch stmt.node_type {
             case NodeType.Declaration(decl):
                 if stmt.params.len().gt(0) {
@@ -610,12 +533,10 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 // Non-declaration - always keep
                 new_params.push(stmt.clone())
             }
-            i.inc()
         }
 
         mut result_node_type := node_type_clone(e.node_type)
 
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
         catch (err: AllocError) { throw err.msg }
 
         return Expr(node_type=result_node_type, params=new_params, line=e.line, col=e.col)
