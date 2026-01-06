@@ -8195,162 +8195,229 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
     return hoisted
 }
 
-// Hoist non-lvalue args (string literals, function calls) when the param type is Dynamic
-// Returns additional hoisted args to merge with throwing hoists
-hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: Map, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str, AllocError {
+/// Hoist non-lvalue args (string literals, function calls) when the param type is Dynamic
+/// Returns additional hoisted (arg_idx, temp_var_name) pairs to merge with throwing hoists
+hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: Map, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str {
     mut hoisted := Vec.new(HoistedArg)
     mut indent_str := ""
     for _ in 0..indent {
         indent_str = indent_str.concat("    ")
     }
 
-    mut idx := 0
-    while idx.lt(args.len()) {
+    for idx in 0..args.len() {
         mut arg := Expr()
         args.get(idx, arg)
 
         // Skip if already hoisted by throwing args hoister or by a previous function call
         arg_addr := to_ptr(arg)
         if already_hoisted.contains_key(idx).or(ctx.hoisted_exprs.contains_key(arg_addr)) {
-            idx = idx.add(1)
             continue
         }
 
         // Check if param type is Dynamic
         mut is_dynamic := false
-        if idx.lt(param_types.len()) {
-            mut pt := ValueType.TCustom("")
-            param_types.get(idx, pt)
-            switch pt {
-            case ValueType.TCustom(type_name):
-                if type_name.eq("Dynamic") {
-                    is_dynamic = true
-                }
-            case:
+        mut p := ValueType.TCustom("")
+        param_types.get(idx, p)
+        switch p {
+        case ValueType.TCustom(name):
+            if name.eq("Dynamic") {
+                is_dynamic = true
             }
+        case:
+        }
+        catch (err: IndexOutOfBoundsError) {
+            // REM: param_types.get can fail if idx >= param_types.len(), means not Dynamic
         }
 
         if not(is_dynamic) {
-            idx = idx.add(1)
             continue
         }
 
-        // Check if arg needs hoisting (not a simple identifier)
-        mut needs_hoisting := true
+        // Check if arg is NOT a simple identifier (i.e., needs hoisting)
+        mut needs_hoisting := false
         switch arg.node_type {
-        case NodeType.Identifier(name):
+        case NodeType.Identifier(_):
             // Simple identifier with no params is an lvalue, doesn't need hoisting
-            if arg.params.len().eq(0) {
-                needs_hoisting = false
-            }
+            // But identifier with params (type-qualified call like I64.to_str) does need hoisting
+            needs_hoisting = not(arg.params.is_empty())
         case NodeType.LLiteral(lit):
-            // Literals need hoisting
-            needs_hoisting = true
+            switch lit {
+            case Literal.Str(_):
+                needs_hoisting = true  // String literals need hoisting
+            case:
+                needs_hoisting = true
+            }
         case NodeType.FCall:
-            // Function calls need hoisting
-            needs_hoisting = true
+            needs_hoisting = true    // Function calls need hoisting
         case:
-            // Default to hoisting for safety
-            needs_hoisting = true
+            needs_hoisting = true  // Default to hoisting for safety
         }
 
         if not(needs_hoisting) {
-            idx = idx.add(1)
             continue
         }
 
-        // Determine C type based on what the arg is
-        mut c_type := "int64_t"
+        // Determine the C type of the arg based on what it is
+        mut c_type := ""
         switch arg.node_type {
         case NodeType.LLiteral(lit):
             switch lit {
-            case Literal.Str(s):
-                c_type = concat(TIL_PREFIX, "Str")
-            case Literal.Number(n):
+            case Literal.Str(_):
+                c_type = TIL_PREFIX.concat("Str")
+            case Literal.Number(_):
                 c_type = "int64_t"
-            case Literal.List(l):
+            case Literal.List(_):
                 c_type = "int64_t"  // TODO: proper list type
+            case:
+                c_type = "int64_t"
             }
         case NodeType.Identifier(var_name):
-            // Could be: enum constructor (Type.Variant), field access (var.field), or method call
-            if arg.params.len().gt(0) {
+            if not(arg.params.is_empty()) {
+                // Could be: enum constructor (Type.Variant), field access (var.field), or method call
                 mut first_param := Expr()
                 arg.params.get(0, first_param)
+                catch (err: IndexOutOfBoundsError) {
+                    throw arg.lang_error(context.path, "ccodegen", "Expected param")
+                }
                 switch first_param.node_type {
                 case NodeType.Identifier(field_or_variant):
                     // Check if this is an enum constructor
-                    mut is_enum := false
+                    mut is_enum_constructor := false
                     mut enum_def := context.scope_stack.lookup_enum(var_name)
-                    is_enum = true
-                    catch (err: KeyNotFoundError) { }
-                    if is_enum {
-                        // Bug #38 fix: use helper method
-                        if enum_def.contains_key(field_or_variant) {
-                            c_type = til_name(var_name)
-                        }
+                    is_enum_constructor = enum_def.contains_key(field_or_variant)
+                    catch (err: KeyNotFoundError) {
+                        // REM: Not an enum, check for field access below
+                    }
+                    if is_enum_constructor {
+                        // Enum constructor returns the enum type
+                        c_type = til_name(var_name)
                     } else {
-                        // Field access - look up variable's type, then field's type
                         mut sym := context.scope_stack.lookup_symbol(var_name)
+                        catch (err: KeyNotFoundError) {
+                            throw arg.lang_error(context.path, "ccodegen", format("Symbol not found: ", var_name))
+                        }
+                        // Field access - look up variable's type, then field's type
                         switch sym.value_type {
                         case ValueType.TCustom(struct_name):
                             mut struct_def := context.scope_stack.lookup_struct(struct_name)
-                            // Find the field in the struct
-                            mut found_field := false
-                            for member: Declaration in struct_def.members {
-                                if member.name.eq(field_or_variant) {
-                                    c_type = til_type_to_c(member.value_type)
-                                    found_field = true
+                            catch (err: KeyNotFoundError) {
+                                throw arg.lang_error(context.path, "ccodegen", format("Struct not found: ", struct_name))
+                            }
+                            mut found_member := false
+                            mut member := Declaration()
+                            for m: Declaration in struct_def.members {
+                                if m.name.eq(field_or_variant) {
+                                    member = m
+                                    found_member = true
+                                    break
                                 }
                             }
+                            if not(found_member) {
+                                throw arg.lang_error(context.path, "ccodegen", format("Field not found: ", field_or_variant))
+                            }
+                            c_type = til_type_to_c(member.value_type)
                         case:
+                            throw arg.lang_error(context.path, "ccodegen", format("Expected struct type for field access on ", var_name))
                         }
-                        catch (err: KeyNotFoundError) { }
                     }
                 case:
+                    throw arg.lang_error(context.path, "ccodegen", "Expected identifier for field/variant")
                 }
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
+            } else {
+                // Struct constructor like Ptr() - identifier with no params
+                mut is_struct := false
+                struct_def := context.scope_stack.lookup_struct(var_name)
+                is_struct = true
+                catch (err: KeyNotFoundError) {
+                    // REM: Not a struct
+                }
+                if is_struct {
+                    c_type = til_name(var_name)
+                } else {
+                    throw arg.lang_error(context.path, "ccodegen", format("Unknown type: ", var_name))
+                }
             }
         case NodeType.FCall:
             // For function calls, try to determine return type
-            mut got_fd := false
-            mut fd := SFuncDef()
-            fd = get_fcall_func_def(context, arg)
-            got_fd = true
-            catch (err: KeyNotFoundError) { /* REM None case in Rust */ }
-            if got_fd {
-                if fd.throw_types.len().gt(0) {
+            mut has_fd := false
+            mut fd := get_fcall_func_def(context, arg)
+            has_fd = true
+            catch (err: KeyNotFoundError) {
+                // REM: get_fcall_func_def returned None
+            }
+            if has_fd {
+                if not(fd.throw_types.is_empty()) {
                     // Throwing call
-                    if fd.return_types.len().gt(0) {
-                        mut first_ret := ValueType.TCustom("")
-                        fd.return_types.get(0, first_ret)
-                        c_type = til_type_to_c(first_ret)
-                        catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    } else {
+                    if fd.return_types.is_empty() {
                         throw arg.lang_error(context.path, "ccodegen", "Throwing call has no return type")
                     }
+                    mut first_ret := ValueType.TCustom("")
+                    fd.return_types.get(0, first_ret)
+                    c_type = til_type_to_c(first_ret)
                 } else {
-                    // Non-throwing function call - use return type
-                    if fd.return_types.len().gt(0) {
-                        mut ret_type := ValueType.TCustom("")
-                        fd.return_types.get(0, ret_type)
-                        c_type = til_type_to_c(ret_type)
-                        catch (err: IndexOutOfBoundsError) { throw err.msg }
+                    // Non-throwing call
+                    mut ret_type := ValueType.TCustom("")
+                    fd.return_types.get(0, ret_type)
+                    catch (err: IndexOutOfBoundsError) {
+                        throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
                     }
+                    c_type = til_type_to_c(ret_type)
                 }
             } else {
-                // Check if this is a struct constructor like Ptr()
+                mut has_func_name := false
                 mut func_name := get_fcall_func_name(arg)
-                if func_name.len().gt(0) {
-                    mut struct_def := context.scope_stack.lookup_struct(func_name)
-                    c_type = til_name(func_name)
-                    catch (err: KeyNotFoundError) { }
+                has_func_name = true
+                catch (err: Str) {
+                    // REM: get_fcall_func_name returned None
+                }
+                if has_func_name {
+                    // get_fcall_func_def returned None - check for constructors
+                    if func_name.contains("_") {
+                        // Check if this is an enum constructor (Type_Variant)
+                        parts := func_name.split("_")
+                        if parts.len().eq(2) {
+                            mut type_name := ""
+                            parts.get(0, type_name)
+                            mut variant_name := ""
+                            parts.get(1, variant_name)
+                            mut is_enum_variant := false
+                            mut enum_def := context.scope_stack.lookup_enum(type_name)
+                            is_enum_variant = enum_def.contains_key(variant_name)
+                            catch (err: KeyNotFoundError) {
+                                // REM: Not an enum
+                            }
+                            if is_enum_variant {
+                                // Enum constructor returns the enum type
+                                c_type = til_name(type_name)
+                            } else {
+                                throw arg.lang_error(context.path, "ccodegen", format("Unknown enum variant: ", func_name))
+                            }
+                        } else {
+                            throw arg.lang_error(context.path, "ccodegen", format("Unknown function: ", func_name))
+                        }
+                    } else {
+                        mut is_struct := false
+                        struct_def := context.scope_stack.lookup_struct(func_name)
+                        is_struct = true
+                        catch (err: KeyNotFoundError) {
+                            // REM: Not a struct
+                        }
+                        if is_struct {
+                            // Struct constructor like Ptr() - returns the struct type
+                            c_type = til_name(func_name)
+                        } else {
+                            throw arg.lang_error(context.path, "ccodegen", format("Unknown function: ", func_name))
+                        }
+                    }
+                } else {
+                    throw arg.lang_error(context.path, "ccodegen", "Cannot determine function name")
                 }
             }
         case:
-            c_type = "int64_t"  // Default to int64_t for unknown types
+            throw arg.lang_error(context.path, "ccodegen", "Cannot determine type for dynamic param")
         }
 
-        mut temp_var := next_mangled(ctx)
+        temp_var := next_mangled(ctx)
 
         // Emit: til_Str _tmpXX = <expression>;
         output = output.concat(indent_str)
@@ -8361,15 +8428,11 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
         output = emit_expr(arg, output, 0, ctx, context)
         output = output.concat(";\n")
 
-        mut hoisted_arg := HoistedArg()
-        hoisted_arg.index = idx
-        hoisted_arg.temp_var = temp_var
-        hoisted.push(hoisted_arg)
-
-        idx = idx.add(1)
-
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        hoisted.push(HoistedArg(index=idx, temp_var=temp_var))
     }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
 
     return hoisted
 }
