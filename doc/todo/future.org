@@ -252,3 +252,100 @@ Once core mechanism works, expand capabilities:
 
 *** References
 - doc/metaprogramming.org: Full macro/generics design vision
+
+** Issue #91: First-Class Functions
+:PROPERTIES:
+:DISCOVERED: 2026-01-07
+:IMPACT: Language feature, polymorphism, higher-order programming
+:STATUS: Open
+:RELATED: Bug #90 (semicolon syntax), src/test/function_pointers.til (early draft)
+:END:
+
+*** Background
+
+Functions should be first-class values that can be passed as arguments,
+enabling polymorphism and higher-order programming patterns. Currently,
+~FuncDef~ exists but functions cannot be passed around as values.
+
+*** Core Semantics (Initial Implementation)
+
+1. *Pass functions as arguments*: Functions can be passed to other functions
+   and called inside them.
+
+2. *Function type syntax*: Parameter names are optional in type signatures.
+   #+BEGIN_SRC til
+   // Both are valid:
+   BinaryOp := func(a: I64, b: I64) returns I64 {};
+   BinaryOp := func(I64, I64) returns I64 {};
+   #+END_SRC
+
+3. *Throws are part of the signature*:
+   #+BEGIN_SRC til
+   Parser := func(Str) returns Ast throws ParseError, IOError {};
+   #+END_SRC
+
+4. *Separate func/proc types*: ~func~ and ~proc~ are distinct types.
+   A ~proc~ type cannot be passed where a ~func~ is expected (and vice versa).
+
+5. *No closures initially*: Functions can only reference their own parameters
+   and globals. Capturing enclosing scope variables is post-self-hosting.
+
+*** Example
+#+BEGIN_SRC til
+// Define a function type (needs {} until Bug #90 Step 2 is done)
+BinaryOp := func(I64, I64) returns I64 {};
+
+// Function that takes a function as argument
+apply := func(op: BinaryOp, a: I64, b: I64) returns I64 {
+    return op(a, b)
+}
+
+// Define functions matching the type
+add := func(a: I64, b: I64) returns I64 { return a.add(b) }
+mul := func(a: I64, b: I64) returns I64 { return a.mul(b) }
+
+// Pass functions as arguments
+apply(add, 3, 5)  // returns 8
+apply(mul, 3, 5)  // returns 15
+#+END_SRC
+
+*** What This Avoids (for now)
+
+- *Returning functions*: Not needed initially (structs/enums can't be returned either yet)
+- *Storing in collections*: Vec/Map of functions - deferred
+- *Closures*: Capturing enclosing scope variables - post-self-hosting
+
+*** Implementation Considerations
+
+*C codegen*: Function types become C function pointer types.
+#+BEGIN_SRC c
+typedef til_I64 (*BinaryOp)(til_I64, til_I64);
+#+END_SRC
+
+*Interpreter*: Need to resolve function parameters to actual function
+definitions and call them. Currently looks up by name - would need to handle
+"this parameter holds a function reference".
+
+*Type checking*: Verify passed function's signature matches expected type
+(args, return types, throw types).
+
+*** Timing
+
+Consider implementing post-self-hosting:
+- FuncDef size/representation is simpler when TIL can use its own structs
+- Avoids rstil/til divergence
+- Related: til's ccodegen needs fixes ported from Rust first
+
+*** Key Files
+- src/rs/parser.rs / src/self/parser.til (function type parsing)
+- src/rs/typer.rs / src/self/typer.til (signature matching)
+- src/rs/ccodegen.rs / src/self/ccodegen.til (function pointer emission)
+- src/rs/interpreter.rs / src/self/interpreter.til (function reference resolution)
+- src/test/function_pointers.til (existing draft, commented out)
+
+*** Future Extensions (post-self-hosting)
+
+- Return functions from functions
+- Store functions in collections (Vec, Map)
+- Multiple return values (~x, y := some_func()~)
+- Closures (capturing enclosing scope variables)
