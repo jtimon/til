@@ -268,9 +268,16 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
             }
 
             if found_struct {
-                // Struct constructor - collect calls from default values
+                // Struct constructor - collect calls from field initializers only
+                // (skip FuncDef values which are methods - their bodies should only be walked if the method itself is reachable)
                 mut called := Set.new(Str)
                 for default_expr: Expr in struct_def.default_values.values {
+                    switch default_expr.node_type {
+                    case NodeType.FuncDef(_):
+                        // Skip methods - they're handled separately via their qualified names
+                        continue
+                    case:
+                    }
                     collect_called_functions(default_expr, called)
                 }
                 for called_func: Str in called {

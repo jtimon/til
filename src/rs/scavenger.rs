@@ -223,9 +223,14 @@ fn compute_reachable(
                 mark_reachable(called_func, &mut reachable, &mut worklist);
             }
         } else if let Some(struct_def) = context.scope_stack.lookup_struct(&func_name) {
-            // Struct constructor - collect calls from default values
+            // Struct constructor - collect calls from field initializers only
+            // (skip FuncDef values which are methods - their bodies should only be walked if the method itself is reachable)
             let mut called: HashSet<String> = HashSet::new();
             for default_expr in struct_def.default_values.values() {
+                if let NodeType::FuncDef(_) = &default_expr.node_type {
+                    // Skip methods - they're handled separately via their qualified names
+                    continue;
+                }
                 collect_called_functions(default_expr, &mut called);
             }
             for called_func in called {

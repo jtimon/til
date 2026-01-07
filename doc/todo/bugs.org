@@ -752,6 +752,52 @@ main := proc(args: ..Str) {
 
 * Fixed Bugs
 
+** Bug #87: Scavenger not pruning struct methods
+:PROPERTIES:
+:DISCOVERED: 2026-01-07
+:FIXED: 2026-01-07
+:IMPACT: Generated C code 10x larger than necessary
+:STATUS: Fixed
+:END:
+
+*** Description
+The scavenger phase was not properly pruning unused struct methods. An empty
+script (just =mode script=) generated 1,167 lines of C code instead of ~100.
+
+*** Root Cause
+In =compute_reachable=, when processing struct constructors (e.g., =Bool()=),
+the code walked into ALL =default_values= including method bodies (FuncDef).
+This incorrectly marked all methods as reachable even when not called.
+
+#+begin_src rust
+// BUG: This walked into method bodies too
+for default_expr in struct_def.default_values.values() {
+    collect_called_functions(default_expr, &mut called);
+}
+#+end_src
+
+*** Fix
+Skip FuncDef values when processing struct constructors - methods should only
+be walked if explicitly called via their qualified name (e.g., =I64.eq=).
+
+#+begin_src rust
+for default_expr in struct_def.default_values.values() {
+    if let NodeType::FuncDef(_) = &default_expr.node_type {
+        continue;  // Skip methods
+    }
+    collect_called_functions(default_expr, &mut called);
+}
+#+end_src
+
+*** Files Changed
+- =src/rs/scavenger.rs= (lines 239-244)
+- =src/self/scavenger.til= (lines 274-280)
+
+*** Results
+- =empty.c=: 1,167 lines -> 99 lines (92% reduction)
+- =til compiled= benchmark: 39s -> 27s (~30% faster)
+- All 107 tests pass
+
 ** Bug #84: run_cmd output capture broken in compiled mode
 :PROPERTIES:
 :DISCOVERED: 2026-01-05
