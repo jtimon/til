@@ -16,7 +16,7 @@ pub enum TokenType {
     Equal, EqualEqual,
     Greater, GreaterEqual,
     Lesser, LesserEqual,
-    Semicolon, DoubleSemicolon,
+    // Semicolons are skipped by lexer (treated as whitespace)
 
     // Literals.
     Identifier, String, Number,
@@ -135,15 +135,6 @@ impl Lexer {
         return Ok(());
     }
 
-    pub fn go_back(&mut self, count: usize) -> Result<(), String> {
-        if count > self.current {
-            let t = self.peek();
-            return Err(t.lang_error(&self.path, &format!("Attempt to go back by {} from {} would underflow", count, self.current)));
-        }
-        self.current -= count;
-        Ok(())
-    }
-
     pub fn peek_ahead(&self, offset: usize) -> Result<Token, String> {
         let i = self.current + offset;
         if i >= self.tokens.len() {
@@ -209,8 +200,6 @@ fn token_type_to_str(tt: &TokenType) -> &'static str {
         TokenType::Dot => ".",
         TokenType::DoubleDot => "..",
         TokenType::Colon => ":",
-        TokenType::Semicolon => ";",
-        TokenType::DoubleSemicolon => ";;",
         TokenType::Equal => "=",
         TokenType::EqualEqual => "==",
         TokenType::Not => "!",
@@ -377,8 +366,15 @@ fn scan_tokens(source: String) -> Vec<Token> {
                 ">" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::GreaterEqual } else { TokenType::Greater },
                 "!" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::NotEqual } else { TokenType::Not },
 
-                // semicolon is optional between statements, but allowed. DoubleSemicolon means empty statement
-                ";" => if &source[pos+1..pos+2] == ";" { pos += 1; TokenType::DoubleSemicolon } else { TokenType::Semicolon },
+                // Semicolons are completely optional - skip any number of them
+                ";" => {
+                    pos += 1; // Skip the first semicolon
+                    while pos < eof_pos && &source[pos..pos+1] == ";" {
+                        pos += 1;
+                    }
+                    should_process_token = false;
+                    TokenType::Invalid
+                },
 
                 // comments:
                 "#" => {
@@ -572,9 +568,6 @@ fn print_if_lex_error(path: &String, tokens: &Vec<Token>, index: usize, t: &Toke
         },
         TokenType::Class => {
             print_lex_error(path, t, errors_found, "Keyword 'class' is not supported\nSuggestion: use 'struct' instead");
-        },
-        TokenType::DoubleSemicolon => {
-            print_lex_error(path, t, errors_found, "No need for ';;' (aka empty statements)\nSuggestion: try 'if true {}' instead, whatever you want that for");
         },
         TokenType::Plus => {
             print_lex_error(path, t, errors_found, "Operator '+' is not supported yet\nSuggestion: use core func 'add' instead");

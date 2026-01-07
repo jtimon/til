@@ -2,8 +2,8 @@ mode lib
 
 // Printing functions
 
-single_print := ext_proc(s: Str);
-print_flush  := ext_proc();
+single_print := ext_proc(s: Str) {}
+print_flush  := ext_proc() {}
 
 print := proc(args: ..Str) {
     for val: Str in args {

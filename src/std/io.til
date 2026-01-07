@@ -3,10 +3,10 @@ mode lib
 // I/O operations - file reading, writing, and console input
 
 /** Read a line from stdin, using the given prompt. */
-input_read_line := ext_proc(prompt: Str) returns Str;
+input_read_line := ext_proc(prompt: Str) returns Str {}
 
 /** Read entire file contents as a string. */
-readfile := ext_proc(path: Str) returns Str;
+readfile := ext_proc(path: Str) returns Str {}
 
 /** Write contents to file, creating or overwriting. Returns empty string on success. */
-writefile := ext_proc(path: Str, contents: Str) returns Str;
+writefile := ext_proc(path: Str, contents: Str) returns Str {}

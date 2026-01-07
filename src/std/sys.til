@@ -24,7 +24,7 @@ WaitError := struct {
  *
  * Returns exit code, output is written to mut output_str arg.
  */
-run_cmd := ext_proc(mut output_str: Str, args: ..Str) returns I64;
+run_cmd := ext_proc(mut output_str: Str, args: ..Str) returns I64 {}
 
 /**
  * Like run_cmd but prints the command before executing it.
@@ -58,7 +58,7 @@ run_print_cmd := proc(mut output_str: Str, args: ..Str) returns I64 {
  * Returns: A platform-specific process identifier (PID on Unix, process handle on Windows)
  * Throws:  SpawnError if the process cannot be created (e.g., command not found, permission denied)
  */
-spawn_cmd := ext_proc(cmd: Str) returns I64 throws SpawnError;
+spawn_cmd := ext_proc(cmd: Str) returns I64 throws SpawnError {}
 
 /**
  * Checks the status of a running process without blocking.
@@ -69,7 +69,7 @@ spawn_cmd := ext_proc(cmd: Str) returns I64 throws SpawnError;
  *
  * This is a non-blocking poll. It can be called repeatedly to monitor progress.
  */
-check_cmd_status := ext_proc(pid: I64) returns I64;
+check_cmd_status := ext_proc(pid: I64) returns I64 {}
 
 /**
  * Waits for a spawned process to finish and returns its exit code.
@@ -105,7 +105,7 @@ wait_cmd := proc(pid: I64) returns I64 throws SleepError {
  *                      capped by the operating system.
  * Throws: SleepError if the sleep is interrupted by a signal or an OS error occurs.
  */
-sleep := ext_proc(milliseconds: I64) throws SleepError;
+sleep := ext_proc(milliseconds: I64) throws SleepError {}
 
 /**
  * Returns the number of hardware threads available on the current system.
@@ -115,20 +115,20 @@ sleep := ext_proc(milliseconds: I64) throws SleepError;
  *
  * Returns: Number of threads (always >= 1)
  */
-get_thread_count := ext_proc() returns I64;
+get_thread_count := ext_proc() returns I64 {}
 
 /**
  * Returns the modification time of a file as Unix timestamp (seconds since epoch).
  * Returns -1 if the file does not exist or cannot be accessed.
  */
-file_mtime := ext_proc(path: Str) returns I64;
+file_mtime := ext_proc(path: Str) returns I64 {}
 
 /**
  * Lists files in a directory (raw version returning newline-separated string).
  * Returns filenames only (not full paths), excluding "." and "..".
  * Returns empty string if directory doesn't exist.
  */
-list_dir_raw := ext_proc(path: Str) returns Str;
+list_dir_raw := ext_proc(path: Str) returns Str {}
 
 /**
  * Lists files in a directory.

@@ -34,7 +34,7 @@ U8 := struct {
 
     to_i64 := func(self: U8) returns I64 {
         // return cast("I64", self) // TODO implement cast, start easy with U8 to I64
-        u8_to_i64 := ext_func(u8: U8) returns I64;
+        u8_to_i64 := ext_func(u8: U8) returns I64 {}
         return u8_to_i64(self)
     }
 
@@ -52,7 +52,7 @@ U8 := struct {
         if gt(self, MAX_U8) {
             throw U8_OverflowError(msg=format(loc(), "U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
         }
-        i64_to_u8 := ext_func(i64: I64) returns U8;
+        i64_to_u8 := ext_func(i64: I64) returns U8 {}
         return i64_to_u8(self)
     }
 

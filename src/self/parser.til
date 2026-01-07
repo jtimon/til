@@ -871,9 +871,6 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
         case TokenType.LeftBrace:
             end_found = true
             lexer.advance(1)
-        case TokenType.Semicolon:
-            end_found = true
-            lexer.advance(1)
         case TokenType.Comma:
             if expect_comma {
                 _ := lexer.expect(TokenType.Comma)
@@ -927,9 +924,6 @@ func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
         case TokenType.LeftBrace:
             end_found = true
             lexer.advance(1)
-        case TokenType.Semicolon:
-            end_found = true
-            lexer.advance(1)
         case TokenType.Comma:
             if expect_comma {
                 expect_comma = false
@@ -962,7 +956,7 @@ func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
     }
 }
 
-parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType, do_parse_body: Bool) returns Expr throws Str {
+parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType) returns Expr throws Str {
     lexer.advance(1)
     t := lexer.peek()
     if lexer.is_eof(1) {
@@ -979,12 +973,21 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
     return_types := func_proc_returns(lexer)
     throw_types := func_proc_throws(lexer)
 
-    mut body := Vec.new(Expr)
-    if do_parse_body {
-        body_expr := parse_body(lexer, TokenType.RightBrace)
-        body = body_expr.params
-    } else {
-        lexer.go_back(1)  // Discount the closing brace we won't need
+    body_expr := parse_body(lexer, TokenType.RightBrace)
+    body := body_expr.params
+
+    // ext_func/ext_proc cannot have a body
+    mut is_ext := false
+    switch function_type {
+    case FunctionType.FTFuncExt:
+        is_ext = true
+    case FunctionType.FTProcExt:
+        is_ext = true
+    case:
+        is_ext = false
+    }
+    if is_ext.and(body.len().gt(0)) {
+        throw t.error(lexer.path, "ext_func/ext_proc cannot have a body")
     }
 
     mut func_def := SFuncDef()
@@ -1438,15 +1441,15 @@ parse_primary := func(mut lexer: Lexer) returns Expr throws Str {
     tt := t.token_type
     switch tt {
     case TokenType.Func:
-        result = parse_func_proc_definition(lexer, FunctionType.FTFunc, true)
+        result = parse_func_proc_definition(lexer, FunctionType.FTFunc)
     case TokenType.FuncExt:
-        result = parse_func_proc_definition(lexer, FunctionType.FTFuncExt, false)
+        result = parse_func_proc_definition(lexer, FunctionType.FTFuncExt)
     case TokenType.Macro:
-        result = parse_func_proc_definition(lexer, FunctionType.FTMacro, true)
+        result = parse_func_proc_definition(lexer, FunctionType.FTMacro)
     case TokenType.Proc:
-        result = parse_func_proc_definition(lexer, FunctionType.FTProc, true)
+        result = parse_func_proc_definition(lexer, FunctionType.FTProc)
     case TokenType.ProcExt:
-        result = parse_func_proc_definition(lexer, FunctionType.FTProcExt, false)
+        result = parse_func_proc_definition(lexer, FunctionType.FTProcExt)
     case TokenType.Enum:
         result = enum_definition(lexer)
     case TokenType.Struct:
@@ -2104,14 +2107,6 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
                 stmt := parse_statement(lexer)
                 body_params.push(stmt)
                 next_t = lexer.peek()
-                ntt5 := next_t.token_type
-                switch ntt5 {
-                case TokenType.Semicolon:
-                    lexer.advance(1)
-                    next_t = lexer.peek()
-                case:
-                    // No semicolon, continue
-                }
             }
         }
     }
@@ -2258,19 +2253,8 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
             end_found = true
             continue_loop = false
         } else {
-            mut is_semicolon := false
-            switch token_type {
-            case TokenType.Semicolon:
-                is_semicolon = true
-            case:
-                is_semicolon = false
-            }
-            if is_semicolon { // REM: TokenType::DoubleSemicolon results in a lexical error, no need to parse it
-                _ := lexer.expect(TokenType.Semicolon) // REM: This is suboptimal but more clear in grep
-            } else {
-                stmt := parse_statement(lexer)
-                params.push(stmt)
-            }
+            stmt := parse_statement(lexer)
+            params.push(stmt)
         }
     }
 

@@ -274,33 +274,6 @@ test_lexer_previous := proc() {
 }
 test_lexer_previous()
 
-test_lexer_go_back := proc() {
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
-
-    // Advance by 2
-    lexer.advance(2)
-
-    // Go back by 1
-    lexer.go_back(1)
-
-    // Should be at "script"
-    current := lexer.peek()
-    assert_eq_str(loc(), "script", current.token_str)
-
-    // Catch unexpected errors at end
-    catch (err: Str) {
-        println("ERROR:", loc(), "Unexpected Str error")
-        println(err)
-        exit(1)
-    }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-}
-test_lexer_go_back()
-
 test_lexer_len := proc() {
     mut lexer := Lexer.new(readfile("src/examples/empty.til"))
 

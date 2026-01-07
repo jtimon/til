@@ -11,13 +11,18 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 ** Bug #90: Parser requires semicolon for bodyless func/proc definitions
 :PROPERTIES:
 :DISCOVERED: 2026-01-07
+:FIXED: 2026-01-07
 :IMPACT: Syntax ergonomics
-:STATUS: Active
+:STATUS: Fixed
 :END:
 
 *** Description
 The parser cannot determine where a function/proc definition ends when there
-is no body. Currently requires a semicolon as a terminator.
+is no body. Previously required a semicolon as a terminator.
+
+*** Solution
+Semicolons are now completely optional - skipped by the lexer as whitespace.
+~ext_func~ and ~ext_proc~ require an empty body ~{}~ instead of a semicolon.
 
 *** Examples
 #+BEGIN_SRC til
@@ -26,49 +31,51 @@ add := func(a: I64, b: I64) returns I64 {
     return a.add(b)
 }
 
-// No body (ext) - currently needs semicolon
+// No body (ext) - uses empty body {}
 // From src/core/print.til:
-single_print := ext_proc(s: Str);
-print_flush  := ext_proc();
-#+END_SRC
+single_print := ext_proc(s: Str) {}
+print_flush  := ext_proc() {}
 
-*** Analysis
-
-The parser functions ~func_proc_returns()~ and ~func_proc_throws()~ stop when
-they see ~TokenType::LeftBrace~ (body) or ~TokenType::Semicolon~ (terminator):
-
-#+BEGIN_SRC rust
-// After parsing "returns I64", parser doesn't know if:
-// - A "throws" clause follows
-// - A "{" body follows
-// - The definition is complete
-TokenType::LeftBrace | TokenType::Semicolon => {
-    end_found = true;
-    lexer.advance(1)?;  // consumes the terminator
+// Inside struct definitions - also uses {}
+// From src/std/meta.til:
+Introspection := struct {
+    has_const := ext_func(type_name: Str, const_name: Str) returns Bool {}
 }
+
+// Semicolons are now completely optional everywhere:
+;;;;;;;;;;;;;;;;;;;;  // Just whitespace, ignored
 #+END_SRC
 
-*** Fix Plan
+*** Changes Made
 
-*Step 1 (simple)*: Require empty body ~{}~ for bodyless definitions
-- ~single_print := ext_proc(s: Str) {}~
-- Deprecate semicolon terminator
-- Consistent syntax - all func/proc definitions end with ~{}~
-- This is a small parser change
+*Lexer changes:*
+- Removed ~Semicolon~ and ~DoubleSemicolon~ token types
+- Lexer now skips any sequence of semicolons (treated as whitespace)
 
-*Step 2 (post-self-hosting)*: Context-aware lookahead
-- Parser checks if next token can't be part of signature (not ~throws~, ~{~, or type identifier)
-- ~single_print := ext_proc(s: Str)~ just works
-- More elegant but requires smarter lookahead logic
+*Parser changes:*
+- Removed ~TokenType::Semicolon~ from ~func_proc_returns()~ and ~func_proc_throws()~
+- Removed ~do_parse_body~ parameter from ~parse_func_proc_definition()~
+- Always parse body, error if non-empty for ext_func/ext_proc
+- Removed dead code for semicolon handling in ~parse_switch_statement()~ and ~parse_body()~
+- Removed ~go_back()~ method (no longer needed)
 
-*** Note
-This is currently the only place in TIL where semicolons are required rather
-than optional. Newlines are intentionally not considered as terminators since
-they should be optional like semicolons.
+*Test changes:*
+- Added semicolon regression test in src/test/flow.til
+- Removed ~test_lexer_go_back~ test (method removed)
 
-*** Location
-- ~func_proc_returns()~ in src/rs/parser.rs:575 / src/self/parser.til
-- ~func_proc_throws()~ in src/rs/parser.rs:622 / src/self/parser.til
+*** Future Enhancement (Step 3)
+Context-aware lookahead could allow:
+#+BEGIN_SRC til
+single_print := ext_proc(s: Str)  // Just works without {}
+#+END_SRC
+Parser would infer end of definition from context. Post-self-hosting enhancement.
+
+*** Files Changed
+- src/rs/lexer.rs, src/self/lexer.til
+- src/rs/parser.rs, src/self/parser.til
+- src/std/meta.til (changed ; to {} for struct ext_funcs)
+- src/test/flow.til (added regression test)
+- src/test/test_lexer.til (removed go_back test)
 
 ** Bug #89: Constant folding only works at global scope
 :PROPERTIES:

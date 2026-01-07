@@ -21,6 +21,9 @@ doesn't break with nesting like C // REM nested comments don't work properly in 
 
 */ // TODO should it be unterminated comment when we remove this? or give errors in "doesn't break"
 
+// Semicolons are optional (skipped by lexer as whitespace)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 // 'if' statements:
 
 test_if_statement := proc() {

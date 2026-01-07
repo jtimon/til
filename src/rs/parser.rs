@@ -584,7 +584,7 @@ fn func_proc_returns(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
     let mut expect_comma = false;
     while !(lexer.is_eof(0) || end_found) {
         match t.token_type {
-            TokenType::Throws | TokenType::LeftBrace | TokenType::Semicolon => {
+            TokenType::Throws | TokenType::LeftBrace => {
                 end_found = true;
                 lexer.advance(1)?;
             },
@@ -630,7 +630,7 @@ fn func_proc_throws(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
     let mut expect_comma = false;
     while !(lexer.is_eof(0) || end_found) {
         match t.token_type {
-            TokenType::LeftBrace | TokenType::Semicolon => {
+            TokenType::LeftBrace => {
                 end_found = true;
                 lexer.advance(1)?;
             },
@@ -664,7 +664,7 @@ fn func_proc_throws(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
     }
 }
 
-fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType, do_parse_body: bool) -> Result<Expr, String> {
+fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType) -> Result<Expr, String> {
 
     lexer.advance(1)?;
     let t = lexer.peek();
@@ -678,15 +678,15 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType, do
     let return_types = func_proc_returns(lexer)?;
     let throw_types = func_proc_throws(lexer)?;
 
-    let body = match do_parse_body {
-        false => {
-            lexer.go_back(1)?; // Discount the closing brace we won't need
-            Vec::new()
+    let body = match parse_body(lexer, TokenType::RightBrace) {
+        Ok(body) => {
+            // ext_func/ext_proc cannot have a body
+            if (function_type == FunctionType::FTFuncExt || function_type == FunctionType::FTProcExt) && !body.params.is_empty() {
+                return Err(t.error(&lexer.path, "ext_func/ext_proc cannot have a body"));
+            }
+            body.params
         },
-        true => match parse_body(lexer, TokenType::RightBrace) {
-            Ok(body) => body.params,
-            Err(err_str) => return Err(err_str),
-        },
+        Err(err_str) => return Err(err_str),
     };
 
     let func_def = SFuncDef{
@@ -1041,11 +1041,11 @@ fn parse_primary(lexer: &mut Lexer) -> Result<Expr, String> {
         return parse_literal(lexer, &t)
     }
     match &t.token_type {
-        TokenType::Func => return parse_func_proc_definition(lexer, FunctionType::FTFunc, true),
-        TokenType::FuncExt => return parse_func_proc_definition(lexer, FunctionType::FTFuncExt, false),
-        TokenType::Macro => return parse_func_proc_definition(lexer, FunctionType::FTMacro, true),
-        TokenType::Proc => return parse_func_proc_definition(lexer, FunctionType::FTProc, true),
-        TokenType::ProcExt => return parse_func_proc_definition(lexer, FunctionType::FTProcExt, false),
+        TokenType::Func => return parse_func_proc_definition(lexer, FunctionType::FTFunc),
+        TokenType::FuncExt => return parse_func_proc_definition(lexer, FunctionType::FTFuncExt),
+        TokenType::Macro => return parse_func_proc_definition(lexer, FunctionType::FTMacro),
+        TokenType::Proc => return parse_func_proc_definition(lexer, FunctionType::FTProc),
+        TokenType::ProcExt => return parse_func_proc_definition(lexer, FunctionType::FTProcExt),
         TokenType::Enum => return enum_definition(lexer),
         TokenType::Struct => return parse_struct_definition(lexer),
         TokenType::LeftParen => return parse_args(lexer),
@@ -1552,10 +1552,6 @@ fn parse_switch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
                 };
                 body_params.push(stmt);
                 next_t = lexer.peek();
-                if next_t.token_type == TokenType::Semicolon {
-                    lexer.advance(1)?;
-                    next_t = lexer.peek();
-                }
             }
         }
         params.push(Expr::new_parse(NodeType::Body, t.clone(), body_params));
@@ -1653,15 +1649,11 @@ fn parse_body(lexer: &mut Lexer, end_token: TokenType) -> Result<Expr, String> {
             lexer.advance(1)?;
             end_found = true;
         } else {
-            if token_type == &TokenType::Semicolon { // REM: TokenType::DoubleSemicolon results in a lexical error, no need to parse it
-                lexer.expect(TokenType::Semicolon)?; // REM: This is suboptimal but more clear in grep
-            } else {
-                let stmt = match parse_statement(lexer) {
-                    Ok(statement) => statement,
-                    Err(error_string) => return Err(error_string),
-                };
-                params.push(stmt);
-            }
+            let stmt = match parse_statement(lexer) {
+                Ok(statement) => statement,
+                Err(error_string) => return Err(error_string),
+            };
+            params.push(stmt);
         }
     }
     if end_found {
