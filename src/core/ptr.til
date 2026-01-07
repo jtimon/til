@@ -57,4 +57,8 @@ Ptr := struct {
     set_zero := proc(mut self: Ptr, size: I64) {
         memset(self.data, U8.from_i64(0), size)
     }
+
+    is_null := func(self: Ptr) returns Bool {
+        return NULL.eq(self.data)
+    }
 }
