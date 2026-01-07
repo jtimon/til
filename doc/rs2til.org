@@ -644,18 +644,6 @@ switch x {
 }
 #+end_src
 
-** NULL pointer comparison
-
-Rust: ~ptr.is_some()~ or ~ptr != NULL~
-
-TIL: Use ~not(NULL.eq(ptr.data))~ - TIL doesn't have ~.ne()~ method:
-
-#+begin_src til
-if not(NULL.eq(func_ptr.data)) {
-    // pointer is valid
-}
-#+end_src
-
 ** Option<String> -> Avoid in Rust, use String with "" as None
 
 For ~Option<String>~ struct fields, avoid using ~Option~ in Rust. Use ~String~ directly
@@ -687,20 +675,18 @@ if ctx.current_function_name.len().gt(0) {
 }
 #+end_src
 
-** Option<T> struct fields -> Ptr (for non-String types)
+** Option<T> -> Ptr (for non-String types)
 
-Rust uses ~Option<T>~ for optional struct fields. TIL uses ~Ptr~ where ~NULL~ represents ~None~:
+Rust uses ~Option<T>~ for optional values. TIL uses ~Ptr~ where ~NULL~ represents ~None~.
+This applies to struct fields AND function parameters.
+
+*** Struct fields
 
 Rust:
 #+begin_src rust
 struct EnumVal {
     pub payload: Option<Vec<u8>>,
     pub payload_type: Option<ValueType>,
-}
-
-// Usage
-if let Some(payload_type) = &enum_val.payload_type {
-    // use payload_type
 }
 #+end_src
 
@@ -710,14 +696,81 @@ EnumVal := struct {
     mut payload: Ptr = Ptr()  // Ptr to Vec<U8>, NULL = None
     mut payload_type: Ptr = Ptr()  // Ptr to ValueType, NULL = None
 }
+#+end_src
 
-// Usage - check for NULL to see if present
-if not(NULL.eq(enum_val.payload_type.data)) {
-    // pointer is valid, use it
+*** Function parameters
+
+Rust:
+#+begin_src rust
+fn process_type(param_type: Option<&ValueType>) {
+    if let Some(vt) = param_type {
+        // use vt
+    }
 }
 #+end_src
 
-Comment pattern: ~# Ptr to T, NULL = None~ or ~// Ptr for Option pattern, NULL = None~
+TIL:
+#+begin_src til
+process_type := proc(param_type: Ptr) {  // Ptr to ValueType, NULL = None
+    if not(param_type.is_null()) {
+        // Read the value via memcpy
+        mut vt := ValueType.TCustom("")
+        memcpy(to_ptr(vt), param_type.data, size_of(ValueType))
+        // use vt
+    }
+}
+#+end_src
+
+*** Checking for Some vs None
+
+#+begin_src til
+// Check if Some (not NULL):
+if not(ptr.is_null()) {
+    // ptr has a value
+}
+
+// Check if None (NULL):
+if ptr.is_null() {
+    // ptr is None
+}
+#+end_src
+
+*** Reading the value from Ptr
+
+Use ~memcpy~ to copy from the pointer into a local variable:
+
+#+begin_src til
+// 1. Create a default-initialized local variable
+mut local_val := ValueType.TCustom("")
+
+// 2. Copy from pointer to local variable
+memcpy(to_ptr(local_val), ptr.data, size_of(ValueType))
+
+// 3. Now use local_val (e.g., switch on it)
+switch local_val {
+case ValueType.TCustom(name):
+    // use name
+case:
+}
+#+end_src
+
+*** Setting a Ptr to Some
+
+Use ~to_ptr~ to get the address of a value:
+
+#+begin_src til
+mut value := ValueType.TCustom("Dynamic")
+mut ptr := Ptr()
+ptr.data = to_ptr(value)  // Now ptr points to value (Some)
+#+end_src
+
+IMPORTANT: The pointed-to value must remain in scope while the Ptr is used.
+
+*** Comment pattern
+
+Use comments to document what the Ptr points to:
+- ~// Ptr to T, NULL = None~
+- ~// Ptr for Option pattern, NULL = None~
 
 ** Vec/Map.get() out-parameter pattern
 
@@ -1149,7 +1202,7 @@ The translation is mechanical:
 6. String slicing -> ~get_substr~
 7. UFCS works similarly: ~a.method(b)~ in both languages
 8. Default case: ~_~ -> empty ~case:~
-9. NULL check: ~!= NULL~ -> ~not(NULL.eq(x))~
+9. NULL check: ~!= NULL~ -> ~not(ptr.is_null())~ or ~not(NULL.eq(ptr.data))~
 10. ~vec.get(i)~ -> out-parameter: ~vec.get(i, out_val)~
 11. Catch blocks come before final return/throw
 12. Not-equal: ~!=~ or ~.ne()~ -> ~not(eq())~ or ~not(x.eq(y))~ (TIL has no ~ne~ function)
@@ -1161,3 +1214,4 @@ The translation is mechanical:
 18. ~vec.extend(std::iter::repeat(v).take(n))~ -> ~vec.extend_with(v, n)~
 19. Prefer method chaining: ~x.gt(0)~ over ~gt(x, 0)~, ~a.and(b)~ over ~and(a, b)~
 20. HashMap iteration: ~for (k, v) in &map~ -> ~for k: T in map.keys { map.get(k, v) }~
+21. ~Option<T>~ struct fields/params -> ~Ptr~ (NULL = None); read with ~memcpy(to_ptr(local), ptr.data, size_of(T))~
