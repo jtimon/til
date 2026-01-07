@@ -8,6 +8,68 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #90: Parser requires semicolon for bodyless func/proc definitions
+:PROPERTIES:
+:DISCOVERED: 2026-01-07
+:IMPACT: Syntax ergonomics
+:STATUS: Active
+:END:
+
+*** Description
+The parser cannot determine where a function/proc definition ends when there
+is no body. Currently requires a semicolon as a terminator.
+
+*** Examples
+#+BEGIN_SRC til
+// Has body - no semicolon needed
+add := func(a: I64, b: I64) returns I64 {
+    return a.add(b)
+}
+
+// No body (ext) - currently needs semicolon
+// From src/core/print.til:
+single_print := ext_proc(s: Str);
+print_flush  := ext_proc();
+#+END_SRC
+
+*** Analysis
+
+The parser functions ~func_proc_returns()~ and ~func_proc_throws()~ stop when
+they see ~TokenType::LeftBrace~ (body) or ~TokenType::Semicolon~ (terminator):
+
+#+BEGIN_SRC rust
+// After parsing "returns I64", parser doesn't know if:
+// - A "throws" clause follows
+// - A "{" body follows
+// - The definition is complete
+TokenType::LeftBrace | TokenType::Semicolon => {
+    end_found = true;
+    lexer.advance(1)?;  // consumes the terminator
+}
+#+END_SRC
+
+*** Fix Plan
+
+*Step 1 (simple)*: Require empty body ~{}~ for bodyless definitions
+- ~single_print := ext_proc(s: Str) {}~
+- Deprecate semicolon terminator
+- Consistent syntax - all func/proc definitions end with ~{}~
+- This is a small parser change
+
+*Step 2 (post-self-hosting)*: Context-aware lookahead
+- Parser checks if next token can't be part of signature (not ~throws~, ~{~, or type identifier)
+- ~single_print := ext_proc(s: Str)~ just works
+- More elegant but requires smarter lookahead logic
+
+*** Note
+This is currently the only place in TIL where semicolons are required rather
+than optional. Newlines are intentionally not considered as terminators since
+they should be optional like semicolons.
+
+*** Location
+- ~func_proc_returns()~ in src/rs/parser.rs:575 / src/self/parser.til
+- ~func_proc_throws()~ in src/rs/parser.rs:622 / src/self/parser.til
+
 ** Bug #89: Constant folding only works at global scope
 :PROPERTIES:
 :DISCOVERED: 2026-01-07
