@@ -5,6 +5,106 @@ import("self.init")
 // Scavenger phase: Removes unused function declarations from the AST.
 // This phase runs after precomp (UFCS already resolved), before interpreter/builder.
 
+// ---------- Type collection helpers
+
+/// Extract type name from a ValueType, if it's a custom or multi type
+extract_type_name := proc(vt: ValueType) returns Str throws Str {
+    switch vt {
+    case ValueType.TCustom(name):
+        return name.clone()
+    case ValueType.TMulti(name):
+        return name.clone()
+    case:
+        return ""
+    }
+    catch (err: AllocError) { throw err.msg }
+}
+
+/// Collect all type names used in an expression (declarations, constructors, etc.)
+/// Uses context to look up whether names refer to structs/enums.
+collect_used_types_from_expr := proc(context: Context, e: Expr, mut used_types: Set) throws Str {
+    switch e.node_type {
+    case NodeType.Declaration(decl):
+        type_name := extract_type_name(decl.value_type)
+        if type_name.len().gt(0) {
+            _ := used_types.insert(type_name)
+        }
+    case NodeType.FCall:
+        // Constructor calls - check if the function name is a known struct
+        if e.params.len().gt(0) {
+            name := get_combined_name_from_identifier(e.get(0))
+            if name.len().gt(0).and(name.find(".").lt(0)) {
+                // Check if this is a struct constructor
+                mut found_struct := false
+                dummy := context.scope_stack.lookup_struct(name)
+                found_struct = true
+                catch (err: KeyNotFoundError) { }
+                if found_struct {
+                    _ := used_types.insert(name)
+                }
+            }
+        }
+    case NodeType.Identifier(name):
+        // Type references - check if this is a known struct or enum
+        if name.len().gt(0).and(e.params.len().eq(0)) {
+            mut found_struct := false
+            dummy_struct := context.scope_stack.lookup_struct(name)
+            found_struct = true
+            catch (err: KeyNotFoundError) { }
+
+            mut found_enum := false
+            dummy_enum := context.scope_stack.lookup_enum(name)
+            found_enum = true
+            catch (err: KeyNotFoundError) { }
+
+            if found_struct.or(found_enum) {
+                _ := used_types.insert(name.clone())
+            }
+        }
+    case:
+    }
+    // Recurse into all params
+    for param: Expr in e.params {
+        collect_used_types_from_expr(context, param, used_types)
+    }
+    catch (err: AllocError) { throw err.msg }
+}
+
+/// Collect all type names from a function definition (args, return types, throw types, body)
+collect_used_types_from_func := proc(context: Context, func_def: SFuncDef, mut used_types: Set) throws Str {
+    // Collect from arguments
+    for arg: Declaration in func_def.args {
+        type_name := extract_type_name(arg.value_type)
+        if type_name.len().gt(0) {
+            _ := used_types.insert(type_name)
+        }
+    }
+    // Collect from return types
+    for i in 0..func_def.return_types.len() {
+        mut ret_type := ValueType.TCustom("")
+        func_def.return_types.get(i, ret_type)
+        type_name := extract_type_name(ret_type)
+        if type_name.len().gt(0) {
+            _ := used_types.insert(type_name)
+        }
+    }
+    // Collect from throw types
+    for i in 0..func_def.throw_types.len() {
+        mut throw_type := ValueType.TCustom("")
+        func_def.throw_types.get(i, throw_type)
+        type_name := extract_type_name(throw_type)
+        if type_name.len().gt(0) {
+            _ := used_types.insert(type_name)
+        }
+    }
+    // Collect from body
+    for stmt: Expr in func_def.body {
+        collect_used_types_from_expr(context, stmt, used_types)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+}
+
 // ---------- Helper functions
 
 /// Rebuild a struct without unreachable methods
@@ -204,17 +304,32 @@ register_declarations := proc(mut context: Context, e: Expr) throws Str {
     register_declarations_recursive(context, e)
 }
 
+/// Types required by ext.c - these must be kept since ext.c is always included
+get_ext_c_types := proc() returns Vec throws Str {
+    mut types := Vec.new(Str)
+    types.push("Bool")
+    types.push("Str")
+    types.push("I64")
+    types.push("U8")
+    types.push("AllocError")
+    types.push("Array")
+    catch (err: AllocError) { throw err.msg }
+    return types
+}
+
 /// Result type for compute_reachable (mimics Rust's tuple return)
 ComputeReachableResult := struct {
     mut reachable: Set = Set.new(Str)
+    mut used_types: Set = Set.new(Str)
     mut needs_variadic_support: Bool = false
 }
 
 /// Compute the transitive closure of reachable functions starting from roots.
 /// Uses context.scope_stack.lookup_func() to find function bodies.
-/// Returns (reachable_set, needs_variadic_support).
+/// Returns (reachable_set, used_types_set, needs_variadic_support).
 compute_reachable := proc(context: Context, roots: Set, e: Expr) returns ComputeReachableResult throws Str {
     mut reachable := Set.new(Str)
+    mut used_types := Set.new(Str)
     mut worklist := Vec.new(Str)
     mut needs_variadic_support := false
 
@@ -236,6 +351,9 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
         }
 
         if found_func {
+            // Collect types used by this function
+            collect_used_types_from_func(context, func_def, used_types)
+
             // Check if this function has variadic parameters (TMulti)
             for arg: Declaration in func_def.args {
                 switch arg.value_type {
@@ -247,6 +365,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
             }
 
             if func_def.is_ext() {
+                // External function - no body to walk
                 continue
             }
             mut called := Set.new(Str)
@@ -398,7 +517,81 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
 
-    return ComputeReachableResult(reachable=reachable, needs_variadic_support=needs_variadic_support)
+    // Always add ext.c required types since ext.c is always included in generated C
+    ext_c_types := get_ext_c_types()
+    for ext_type: Str in ext_c_types {
+        _ := used_types.insert(ext_type.clone())
+    }
+
+    // Add struct types when their methods are reachable (e.g., Foo.bar reachable -> Foo is used)
+    for func_name: Str in reachable {
+        dot_pos := func_name.find(".")
+        if dot_pos.gt(0) {
+            struct_name := func_name.get_substr(0, dot_pos)
+            // Only add if this is actually a struct (not an enum)
+            mut found_struct := false
+            dummy := context.scope_stack.lookup_struct(struct_name)
+            found_struct = true
+            catch (err: KeyNotFoundError) { }
+            if found_struct {
+                _ := used_types.insert(struct_name)
+            }
+        }
+    }
+
+    // Now compute transitive closure of used types (struct field types, enum payload types)
+    mut type_worklist := Vec.new(Str)
+    for type_name: Str in used_types {
+        type_worklist.push(type_name.clone())
+    }
+    while type_worklist.len().gt(0) {
+        mut type_name := ""
+        type_worklist.pop(type_name)
+
+        // Check struct field types
+        mut found_struct := false
+        struct_def := context.scope_stack.lookup_struct(type_name)
+        found_struct = true
+        catch (err: KeyNotFoundError) { }
+        if found_struct {
+            for member: Declaration in struct_def.members {
+                field_type := extract_type_name(member.value_type)
+                if field_type.len().gt(0) {
+                    if not(used_types.contains(field_type)) {
+                        _ := used_types.insert(field_type.clone())
+                        type_worklist.push(field_type)
+                    }
+                }
+            }
+        }
+
+        // Check enum payload types
+        mut found_enum := false
+        enum_def := context.scope_stack.lookup_enum(type_name)
+        found_enum = true
+        catch (err: KeyNotFoundError) { }
+        if found_enum {
+            for variant: EnumVariant in enum_def.variants {
+                if not(variant.payload_type.is_null()) {
+                    // Read the ValueType from the Ptr
+                    mut vt := ValueType.TCustom("")
+                    memcpy(to_ptr(vt), variant.payload_type.data, size_of(ValueType))
+                    payload_type_name := extract_type_name(vt)
+                    if payload_type_name.len().gt(0) {
+                        if not(used_types.contains(payload_type_name)) {
+                            _ := used_types.insert(payload_type_name.clone())
+                            type_worklist.push(payload_type_name)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
+    return ComputeReachableResult(reachable=reachable, used_types=used_types, needs_variadic_support=needs_variadic_support)
 }
 
 // ---------- Main entry point
@@ -488,6 +681,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // First pass: compute reachable and detect if variadic support is needed
         mut cr_result := compute_reachable(context, roots, e)
         mut reachable := cr_result.reachable
+        mut used_types := cr_result.used_types
         mut needs_variadic_support := cr_result.needs_variadic_support
 
         // If any variadic function was found, add Array methods and recompute closure
@@ -507,6 +701,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             // Recompute
             mut new_cr_result := compute_reachable(context, extended_roots, e)
             reachable = new_cr_result.reachable
+            used_types = new_cr_result.used_types
             // Ignore needs_variadic_support on second pass
         }
 
@@ -525,9 +720,11 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                             new_params.push(stmt.clone())
                         }
                     case NodeType.StructDef(struct_def):
-                        // Struct - rebuild without unreachable methods
-                        new_struct := rebuild_struct_without_unreachable_methods(decl, struct_def, reachable)
-                        new_params.push(new_struct)
+                        // Struct - only keep if type is used, rebuild without unreachable methods
+                        if used_types.contains(decl.name) {
+                            new_struct := rebuild_struct_without_unreachable_methods(decl, struct_def, reachable)
+                            new_params.push(new_struct)
+                        }
                     case:
                         // Non-function, non-struct declaration - always keep
                         new_params.push(stmt.clone())

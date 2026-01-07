@@ -798,6 +798,26 @@ for default_expr in struct_def.default_values.values() {
 - =til compiled= benchmark: 39s -> 27s (~30% faster)
 - All 107 tests pass
 
+*** Additional Fix: Prune Unused Struct Definitions
+
+After fixing method pruning, we also added pruning of unused struct/enum definitions.
+The scavenger now tracks which types are actually used (in function signatures, declarations,
+constructors) and removes struct definitions that aren't referenced.
+
+**** Implementation
+- Added =used_types: HashSet<String>= to =ComputeReachableResult=
+- Added =EXT_C_TYPES= constant for types required by ext.c (Bool, Str, I64, U8, AllocError, Array)
+- Added =extract_type_name()=, =collect_used_types_from_expr()=, =collect_used_types_from_func()=
+- Transitive closure: when a type is used, its field types are also marked as used
+- Struct filtering in AST rebuild checks =used_types.contains(&decl.name)=
+
+**** Results
+- =empty.c=: 99 lines -> 61 lines (additional 38% reduction)
+- All 107 tests pass
+
+**** Also Added
+- =Ptr.is_null()= method to src/core/ptr.til (matches rs2til.org documentation)
+
 ** Bug #84: run_cmd output capture broken in compiled mode
 :PROPERTIES:
 :DISCOVERED: 2026-01-05

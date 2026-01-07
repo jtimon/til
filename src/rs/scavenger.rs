@@ -2,13 +2,92 @@
 // This phase runs after precomp (UFCS already resolved), before interpreter/builder.
 
 use crate::rs::init::Context;
-use crate::rs::parser::{Declaration, Expr, NodeType, SStructDef};
+use crate::rs::parser::{Declaration, Expr, NodeType, SStructDef, ValueType};
 use std::collections::{HashMap, HashSet};
 
 /// Result type for compute_reachable
 pub struct ComputeReachableResult {
     pub reachable: HashSet<String>,
+    pub used_types: HashSet<String>,
     pub needs_variadic_support: bool,
+}
+
+/// Types required by ext.c - these must be kept if ANY external function is reachable
+const EXT_C_TYPES: &[&str] = &["Bool", "Str", "I64", "U8", "AllocError", "Array"];
+
+// ---------- Type collection helpers
+
+/// Extract type name from a ValueType, if it's a custom or multi type
+fn extract_type_name(vt: &ValueType) -> Option<String> {
+    match vt {
+        ValueType::TCustom(name) => Some(name.clone()),
+        ValueType::TMulti(name) => Some(name.clone()),
+        _ => None,
+    }
+}
+
+/// Collect all type names used in an expression (declarations, constructors, etc.)
+/// Uses context to look up whether names refer to structs/enums.
+fn collect_used_types_from_expr(context: &Context, e: &Expr, used_types: &mut HashSet<String>) {
+    match &e.node_type {
+        NodeType::Declaration(decl) => {
+            if let Some(type_name) = extract_type_name(&decl.value_type) {
+                used_types.insert(type_name);
+            }
+        }
+        NodeType::FCall => {
+            // Constructor calls - check if the function name is a known struct
+            if !e.params.is_empty() {
+                let name = get_combined_name_from_identifier(&e.params[0]);
+                if !name.is_empty() && !name.contains('.') {
+                    // Check if this is a struct constructor
+                    if context.scope_stack.lookup_struct(&name).is_some() {
+                        used_types.insert(name);
+                    }
+                }
+            }
+        }
+        NodeType::Identifier(name) => {
+            // Type references - check if this is a known struct or enum
+            if !name.is_empty() && e.params.is_empty() {
+                if context.scope_stack.lookup_struct(name).is_some()
+                    || context.scope_stack.lookup_enum(name).is_some() {
+                    used_types.insert(name.clone());
+                }
+            }
+        }
+        _ => {}
+    }
+    // Recurse into all params
+    for param in &e.params {
+        collect_used_types_from_expr(context, param, used_types);
+    }
+}
+
+/// Collect all type names from a function definition (args, return types, throw types, body)
+fn collect_used_types_from_func(context: &Context, func_def: &crate::rs::parser::SFuncDef, used_types: &mut HashSet<String>) {
+    // Collect from arguments
+    for arg in &func_def.args {
+        if let Some(type_name) = extract_type_name(&arg.value_type) {
+            used_types.insert(type_name);
+        }
+    }
+    // Collect from return types
+    for ret_type in &func_def.return_types {
+        if let Some(type_name) = extract_type_name(ret_type) {
+            used_types.insert(type_name);
+        }
+    }
+    // Collect from throw types
+    for throw_type in &func_def.throw_types {
+        if let Some(type_name) = extract_type_name(throw_type) {
+            used_types.insert(type_name);
+        }
+    }
+    // Collect from body
+    for stmt in &func_def.body {
+        collect_used_types_from_expr(context, stmt, used_types);
+    }
 }
 
 // ---------- Helper functions
@@ -191,6 +270,7 @@ fn compute_reachable(
     e: &Expr,
 ) -> Result<ComputeReachableResult, String> {
     let mut reachable: HashSet<String> = HashSet::new();
+    let mut used_types: HashSet<String> = HashSet::new();
     let mut worklist: Vec<String> = Vec::new();
     let mut needs_variadic_support = false;
 
@@ -202,6 +282,9 @@ fn compute_reachable(
     while let Some(func_name) = worklist.pop() {
         // Find what this function calls using scope_stack
         if let Some(func_def) = context.scope_stack.lookup_func(&func_name) {
+            // Collect types used by this function
+            collect_used_types_from_func(context, &func_def, &mut used_types);
+
             // Check if this function has variadic parameters (TMulti)
             for arg in &func_def.args {
                 if let crate::rs::parser::ValueType::TMulti(_) = &arg.value_type {
@@ -297,7 +380,52 @@ fn compute_reachable(
         }
     }
 
-    Ok(ComputeReachableResult { reachable, needs_variadic_support })
+    // Always add ext.c required types since ext.c is always included in generated C
+    for ext_type in EXT_C_TYPES {
+        used_types.insert(ext_type.to_string());
+    }
+
+    // Add struct types when their methods are reachable (e.g., Foo.bar reachable -> Foo is used)
+    for func_name in &reachable {
+        if let Some(dot_pos) = func_name.find('.') {
+            let struct_name = &func_name[..dot_pos];
+            // Only add if this is actually a struct (not an enum)
+            if context.scope_stack.lookup_struct(struct_name).is_some() {
+                used_types.insert(struct_name.to_string());
+            }
+        }
+    }
+
+    // Now compute transitive closure of used types (struct field types, enum payload types)
+    let mut type_worklist: Vec<String> = used_types.iter().cloned().collect();
+    while let Some(type_name) = type_worklist.pop() {
+        // Check struct field types
+        if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
+            for member in &struct_def.members {
+                if let Some(field_type) = extract_type_name(&member.value_type) {
+                    if !used_types.contains(&field_type) {
+                        used_types.insert(field_type.clone());
+                        type_worklist.push(field_type);
+                    }
+                }
+            }
+        }
+        // Check enum payload types
+        if let Some(enum_def) = context.scope_stack.lookup_enum(&type_name) {
+            for variant in &enum_def.variants {
+                if let Some(payload_type) = &variant.payload_type {
+                    if let Some(payload_type_name) = extract_type_name(payload_type) {
+                        if !used_types.contains(&payload_type_name) {
+                            used_types.insert(payload_type_name.clone());
+                            type_worklist.push(payload_type_name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(ComputeReachableResult { reachable, used_types, needs_variadic_support })
 }
 
 // ---------- Main entry point
@@ -372,6 +500,7 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         // First pass: compute reachable and detect if variadic support is needed
         let cr_result = compute_reachable(context, &roots, e)?;
         let mut reachable = cr_result.reachable;
+        let mut used_types = cr_result.used_types;
         let needs_variadic_support = cr_result.needs_variadic_support;
 
         // If any variadic function was found, add Array methods and recompute closure
@@ -391,6 +520,7 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
             let new_cr_result = compute_reachable(context, &extended_roots, e)?;
             reachable = new_cr_result.reachable;
+            used_types = new_cr_result.used_types;
             // Ignore needs_variadic_support on second pass
         }
 
@@ -407,9 +537,11 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                                 new_params.push(stmt.clone());
                             }
                         } else if let NodeType::StructDef(struct_def) = &stmt.params[0].node_type {
-                            // Struct - rebuild without unreachable methods
-                            let new_struct = rebuild_struct_without_unreachable_methods(decl, struct_def, &reachable);
-                            new_params.push(new_struct);
+                            // Struct - only keep if type is used, rebuild without unreachable methods
+                            if used_types.contains(&decl.name) {
+                                let new_struct = rebuild_struct_without_unreachable_methods(decl, struct_def, &reachable);
+                                new_params.push(new_struct);
+                            }
                         } else {
                             // Non-function, non-struct declaration - always keep
                             new_params.push(stmt.clone());

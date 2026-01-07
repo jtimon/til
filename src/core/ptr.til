@@ -9,6 +9,10 @@ Ptr := struct {
     // TODO FIX should type error because size is already declared
     size_of := func() returns I64 { return size_of(I64) }
 
+    is_null := func(self: Ptr) returns Bool {
+        return NULL.eq(self.data)
+    }
+
     new_by_size := proc(size: I64) returns Ptr throws AllocError {
         if size.lteq(0) {
             throw AllocError(msg=format(loc(), "Ptr.new_by_size: invalid size ", size.to_str()))

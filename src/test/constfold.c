@@ -12,10 +12,8 @@ typedef struct til_IndexOutOfBoundsError til_IndexOutOfBoundsError;
 typedef struct til_AllocError til_AllocError;
 typedef struct til_Array til_Array;
 typedef struct til_I64_OverflowError til_I64_OverflowError;
-typedef struct til_Vec til_Vec;
 typedef struct til_Str til_Str;
 typedef struct til_U8_OverflowError til_U8_OverflowError;
-typedef struct til_Introspection til_Introspection;
 typedef struct til_CfVec2 til_CfVec2;
 typedef struct til_CfRect til_CfRect;
 
@@ -29,9 +27,6 @@ struct til_CfRect {
     til_CfVec2 bottom_right;
 };
 
-struct til_Introspection {
-};
-
 struct til_Str {
     til_I64 c_string;
     til_I64 cap;
@@ -39,14 +34,6 @@ struct til_Str {
 
 struct til_U8_OverflowError {
     til_Str msg;
-};
-
-struct til_Vec {
-    til_Str type_name;
-    til_I64 type_size;
-    til_I64 ptr;
-    til_I64 _len;
-    til_I64 cap;
 };
 
 struct til_I64_OverflowError {
@@ -101,8 +88,6 @@ til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle);
 til_Bool til_U8_eq(const til_U8* til_self, const til_U8* til_other);
 til_I64 til_U8_to_i64(const til_U8* til_self);
 int til_U8_from_i64(til_U8* _ret, til_U8_OverflowError* _err1, const til_I64* til_self);
-til_Bool til_Introspection_has_const(const til_Str* til_type_name, const til_Str* til_const_name);
-til_Bool til_Introspection_has_field(const til_Str* til_type_name, const til_Str* til_field_name);
 til_CfVec2 til_CfVec2_magic(void);
 til_CfVec2 til_CfVec2_at(const til_I64* til_x, const til_I64* til_y);
 til_CfRect til_CfRect_sample(void);
@@ -115,15 +100,11 @@ const til_I64 til_size_of_Array = sizeof(til_Array);
 const til_I64 til_size_of_Bool = sizeof(til_Bool);
 const til_I64 til_size_of_I64_OverflowError = sizeof(til_I64_OverflowError);
 const til_I64 til_size_of_I64 = sizeof(til_I64);
-const til_I64 til_Vec_INIT_CAP = 0;
-const til_I64 til_Vec_MAX_CAP = 1073741824;
-const til_I64 til_size_of_Vec = sizeof(til_Vec);
 const til_I64 til_size_of_Str = sizeof(til_Str);
 const til_I64 til_size_of_U8_OverflowError = sizeof(til_U8_OverflowError);
 const til_I64 til_size_of_U8 = sizeof(til_U8);
 const til_I64 til_size_of_Dynamic = sizeof(til_Dynamic);
 const til_I64 til_size_of_Type = sizeof(til_Type);
-const til_I64 til_size_of_Introspection = sizeof(til_Introspection);
 const til_I64 til_size_of_CfVec2 = sizeof(til_CfVec2);
 const til_I64 til_size_of_CfRect = sizeof(til_CfRect);
 const til_I64 til_NULL = 0;
@@ -141,13 +122,11 @@ static inline til_I64 til_size_of(const til_Str* type_name) {
     if (strcmp((char*)type_name->c_string, "Bool") == 0) return til_size_of_Bool;
     if (strcmp((char*)type_name->c_string, "I64_OverflowError") == 0) return til_size_of_I64_OverflowError;
     if (strcmp((char*)type_name->c_string, "I64") == 0) return til_size_of_I64;
-    if (strcmp((char*)type_name->c_string, "Vec") == 0) return til_size_of_Vec;
     if (strcmp((char*)type_name->c_string, "Str") == 0) return til_size_of_Str;
     if (strcmp((char*)type_name->c_string, "U8_OverflowError") == 0) return til_size_of_U8_OverflowError;
     if (strcmp((char*)type_name->c_string, "U8") == 0) return til_size_of_U8;
     if (strcmp((char*)type_name->c_string, "Dynamic") == 0) return til_size_of_Dynamic;
     if (strcmp((char*)type_name->c_string, "Type") == 0) return til_size_of_Type;
-    if (strcmp((char*)type_name->c_string, "Introspection") == 0) return til_size_of_Introspection;
     if (strcmp((char*)type_name->c_string, "CfVec2") == 0) return til_size_of_CfVec2;
     if (strcmp((char*)type_name->c_string, "CfRect") == 0) return til_size_of_CfRect;
     fprintf(stderr, "size_of: unknown type %s\n", (char*)type_name->c_string);
