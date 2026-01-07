@@ -8,6 +8,53 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #89: Constant folding only works at global scope
+:PROPERTIES:
+:DISCOVERED: 2026-01-07
+:IMPACT: Performance, macro implementation
+:STATUS: Active
+:END:
+
+*** Description
+Pure function calls with all compile-time known arguments are only constant
+folded at global scope. Inside function bodies, they are not folded even when
+all arguments are literals.
+
+*** Example
+#+BEGIN_SRC til
+double := func(x: I64) returns I64 { return x.mul(2) }
+
+// Global scope - folded to literal 10
+global_result := double(5)
+
+test := proc() {
+    // Inside function - NOT folded, calls double() at runtime
+    inner_result := double(10)
+}
+#+END_SRC
+
+Generated C shows:
+- ~til_global_result = 10~ (folded)
+- ~til_inner_result = til_double(...)~ (not folded)
+
+*** Location
+~precomp_expr()~ in src/rs/precomp.rs / src/self/precomp.til has:
+#+BEGIN_SRC til
+at_global_scope := context.scope_stack.frames.len().eq(1)
+if at_global_scope.and(is_comptime_evaluable(context, const_folded)) {
+    const_folded = eval_comptime(context, const_folded)
+}
+#+END_SRC
+
+The ~at_global_scope~ check should be removed.
+
+*** Impact on Issue #88 (Macros)
+This bug blocks proper macro implementation. Macros should be evaluated at
+compile time regardless of where they are called.
+
+*** Tests
+- tmp/test_constfold_scope.til - demonstrates the issue
+
 ** Bug #86: For-in loop fails with enum that has enum payload
 :PROPERTIES:
 :DISCOVERED: 2026-01-06

@@ -174,3 +174,81 @@ File stat would need new builtins:
 - How to handle parallel builds?
 - Should it support general make-like syntax or be TIL-native?
 - Bootstrap problem: how to build til before make.til can run?
+
+** Issue #88: Macro Support (Compile-Time Evaluation)
+:PROPERTIES:
+:DISCOVERED: 2026-01-07
+:IMPACT: Language feature, metaprogramming, compile-time computation
+:STATUS: Open
+:RELATED: doc/metaprogramming.org (full vision)
+:END:
+
+*** Background
+
+The ~macro~ keyword is parsed and creates ~FTMacro~ function type, but macros
+are currently executed identically to funcs at runtime. This issue tracks
+implementing true compile-time macro evaluation.
+
+*** Core Semantics
+
+1. *Forced compile-time evaluation*: Macros are always evaluated during precomp,
+   never deferred to runtime (unlike funcs which fall back to runtime if args
+   aren't comptime-known)
+
+2. *All arguments must be compile-time known*: If any argument cannot be resolved
+   at compile-time, emit an error. No runtime fallback.
+
+3. *Can call procs*: Macros have proc permissions (side effects allowed during
+   compile-time evaluation). The existing typer check that prevents funcs from
+   calling procs already doesn't apply to macros.
+
+4. *Return types*: Initially limited to what's currently supported (primitives,
+   struct instances). Types can be passed as arguments but not returned yet.
+
+*** Current Constant Folding (for reference)
+
+The existing constant folding for funcs in ~precomp_expr()~ (precomp.til:299-308):
+- Only folds at global scope
+- Silently skips if not comptime-evaluable (defers to runtime)
+- Rejects proc calls via ~is_comptime_evaluable()~ check
+
+Macros need different behavior:
+| Aspect              | Funcs                       | Macros           |
+|---------------------|-----------------------------|------------------|
+| Args not comptime   | Silent skip, run at runtime | ERROR            |
+| Evaluation          | Optional optimization       | Mandatory        |
+
+*** Implementation Steps
+
+1. *Add ~is_macro()~ helper to SFuncDef*
+   - File: src/rs/parser.rs, src/self/parser.til
+   - Pattern: like ~is_proc()~ but checks ~FunctionType::FTMacro~
+
+2. *Add macro handling in ~precomp_expr()~ FCall case*
+   - File: src/rs/precomp.rs, src/self/precomp.til
+   - Location: After ~precomp_fcall()~ call, before existing constant folding
+   - Logic: Detect macro call, error if args not comptime, force evaluation
+
+3. *Port to TIL*
+   - Mirror all changes in src/self/*.til
+
+4. *Add tests*
+   - Basic macro returning I64/Str
+   - Macro calling proc (allowed)
+   - Macro with non-const arg (should error)
+   - Macro inside function body (should work)
+
+*** Key Files
+- src/rs/parser.rs / src/self/parser.til (add is_macro helper)
+- src/rs/precomp.rs / src/self/precomp.til (main changes)
+
+*** Future Extensions
+
+Once core mechanism works, expand capabilities:
+- Return Types (StructDef) for generic type generation
+- Return/pass FuncDefs for function generation
+- Quote/unquote syntax (~quote { $var }~) for AST building
+- Full metaprogramming per doc/metaprogramming.org
+
+*** References
+- doc/metaprogramming.org: Full macro/generics design vision
