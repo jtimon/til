@@ -5106,7 +5106,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     // Then: error pointers
     mut err_idx := 0
     while err_idx.lt(throw_types.len()) {
-        if needs_ret or err_idx.gt(0) {
+        if needs_ret.or(err_idx.gt(0)) {
             output.push_str(", ")
         }
         output.push_str("&_err")
@@ -5453,7 +5453,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     // Then: error pointers
     mut err_idx := 0
     while err_idx.lt(throw_types.len()) {
-        if needs_ret or err_idx.gt(0) {
+        if needs_ret.or(err_idx.gt(0)) {
             output.push_str(", ")
         }
         output.push_str("&_err")
@@ -5750,7 +5750,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     // Then: error pointers
     mut err_idx := 0
     while err_idx.lt(throw_types.len()) {
-        if needs_ret or err_idx.gt(0) {
+        if needs_ret.or(err_idx.gt(0)) {
             output.push_str(", ")
         }
         output.push_str("&_err")
