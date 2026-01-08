@@ -2941,7 +2941,7 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, 
                 output.push_str(";\n")
             // Handle Bool constants (true/false identifiers)
             case NodeType.Identifier(name):
-                if name.eq("true") or name.eq("false") {
+                if name.eq("true").or(name.eq("false")) {
                     if not(decl.is_mut) {
                         output.push_str("const ")
                     }
@@ -2982,7 +2982,7 @@ is_global_declaration := func(expr: Expr) returns Bool {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         // Skip true/false declarations - they're handled specially
-        if decl.name.eq("true") or decl.name.eq("false") {
+        if decl.name.eq("true").or(decl.name.eq("false")) {
             return false
         }
         if not(expr.params.is_empty()) {
@@ -3005,7 +3005,7 @@ is_global_declaration := func(expr: Expr) returns Bool {
             // Skip true/false RHS - they're handled by is_constant_declaration
             // (only non-mut booleans are constants)
             case NodeType.Identifier(name):
-                if (name.eq("true") or name.eq("false")) and not(decl.is_mut) {
+                if name.eq("true").or(name.eq("false")).and(not(decl.is_mut)) {
                     return false
                 }
                 return true
@@ -3221,7 +3221,7 @@ emit_struct_declaration := proc(expr: Expr, output: Str) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
-        if decl.name.eq("I64") or decl.name.eq("U8") or decl.name.eq("Bool") or decl.name.eq("Dynamic") or decl.name.eq("Type") {
+        if decl.name.eq("I64").or(decl.name.eq("U8")).or(decl.name.eq("Bool")).or(decl.name.eq("Dynamic")).or(decl.name.eq("Type")) {
             return
         }
         if not(expr.params.is_empty()) {
@@ -3783,7 +3783,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     emit_stmts(func_def.body, output, 1, ctx, context)
 
     // For throwing void functions, add implicit return 0 at end
-    if not(func_def.throw_types.is_empty()) and func_def.return_types.is_empty() {
+    if not(func_def.throw_types.is_empty()).and(func_def.return_types.is_empty()) {
         output.push_str("    return 0;\n")
     }
 
@@ -4116,7 +4116,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, cont
                 emit_stmts(func_def.body, output, 1, ctx, context)
 
                 // For throwing void functions, add implicit return 0 at end
-                if not(func_def.throw_types.is_empty()) and func_def.return_types.is_empty() {
+                if not(func_def.throw_types.is_empty()).and(func_def.return_types.is_empty()) {
                     output.push_str("    return 0;\n")
                 }
 
@@ -4172,7 +4172,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, ctx: CodegenContext, con
         // Bug #32 fix: Handle field access on expression results
         // When name is "_", params[0] is an expression to emit first,
         // then params[1..] are the field chain
-        if name.eq("_") and not(expr.params.is_empty()) {
+        if name.eq("_").and(not(expr.params.is_empty())) {
             // Emit the base expression (params[0])
             first_param := expr.params.get(0)
             emit_expr(first_param, output, indent, ctx, context)
@@ -4226,7 +4226,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, ctx: CodegenContext, con
         // Regular identifier or field access (b.val -> til_b.val)
         // For ref params (which are pointers in C), use -> for field access
         is_ref_param := ctx.current_ref_params.contains(name)
-        if is_ref_param and not(expr.params.is_empty()) {
+        if is_ref_param.and(not(expr.params.is_empty())) {
             // Ref param with field access: til_self->field1.field2.field3
             // First field uses -> (self is a pointer), rest use . (struct values)
             output.push_str(til_name(name))
@@ -4561,7 +4561,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, co
             if not(maybe_fcall.params.is_empty()) {
                 func_name_param := maybe_fcall.params.get(0)
                 func_name := get_til_func_name_string(func_name_param)
-                if func_name.eq("eval_file") or func_name.eq("eval_to_str") or func_name.eq("eval_to_ast_str") or func_name.eq("eval_to_expr") {
+                if func_name.eq("eval_file").or(func_name.eq("eval_to_str")).or(func_name.eq("eval_to_ast_str")).or(func_name.eq("eval_to_expr")) {
                     throw maybe_fcall.error(context.path, "ccodegen", Str.concat(func_name, "() is only available in interpret mode, not in build/run"))
                 }
                 catch (err: KeyNotFoundError) { }
@@ -4587,25 +4587,25 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, co
                     }
                 }
 
-                if not(catch_blocks.is_empty()) and func_level_catches.is_empty() {
+                if not(catch_blocks.is_empty()).and(func_level_catches.is_empty()) {
                     // Immediate catches AND no function-level catches - handle inline
                     emit_throwing_call(maybe_fcall, throw_types, catch_blocks, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)
                     i = j  // Skip past catch blocks
                     continue
-                } else if not(ctx.current_throw_types.is_empty()) and ctx.local_catch_labels.is_empty() and func_level_catches.is_empty() {
+                } else if not(ctx.current_throw_types.is_empty()).and(ctx.local_catch_labels.is_empty()).and(func_level_catches.is_empty()) {
                     // Bug #68 fix: Also check func_level_catches.is_empty()
                     // No catch blocks, we're inside a throwing function, and no catches in this block
                     // Emit error propagation pattern
                     emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)
                     i.inc()
                     continue
-                } else if not(func_level_catches.is_empty()) or not(ctx.local_catch_labels.is_empty()) {
+                } else if not(func_level_catches.is_empty()).or(not(ctx.local_catch_labels.is_empty())) {
                     // Has function-level catches or outer catches registered
                     // Bug #39 fix: Update local_catch_labels to point to NEXT catch for each type
                     // Build map with only catches AFTER current position
                     mut next_catches := Map.new(Str, CatchLabelInfo)
                     for catch_entry: CatchLabelInfoEntry in all_catch_info {
-                        if catch_entry.stmt_index.gt(i) and not(next_catches.contains_key(catch_entry.type_name)) {
+                        if catch_entry.stmt_index.gt(i).and(not(next_catches.contains_key(catch_entry.type_name))) {
                             // First catch of this type after current position
                             mut cli := CatchLabelInfo()
                             cli.label = catch_entry.label.clone()
@@ -4758,7 +4758,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
 
     // Determine return type if we need to declare a variable
     mut ret_type := "int"
-    if not(decl_name.eq("")) or not(assign_name.eq("")) {
+    if not(decl_name.eq("")).or(not(assign_name.eq(""))) {
         fd2 := get_fcall_func_def(context, fcall)
         if not(fd2.return_types.is_empty()) {
             first_ret := fd2.return_types.get(0)
@@ -4955,7 +4955,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     // Only if function actually returns something AND we're capturing it
     fd := get_fcall_func_def(context, fcall)
     func_has_return := not(fd.return_types.is_empty())
-    needs_ret := func_has_return and (not(decl_name.eq("")) or not(assign_name.eq("")))
+    needs_ret := func_has_return.and(not(decl_name.eq("")).or(not(assign_name.eq(""))))
     catch (err: KeyNotFoundError) {
         func_has_return = false
         needs_ret = false
@@ -5038,7 +5038,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // For declarations: declare the variable BEFORE the if block so it's visible after
     // Skip for underscore _ which is just a discard
-    if not(decl_name.eq("")) and not(decl_name.eq("_")) {
+    if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         output.push_str(indent_str)
         output.push_str(ret_type)
         output.push_str(" ")
@@ -5119,7 +5119,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         // Variadic call: emit regular args first, then variadic array pointer
         mut arg_i := 0
         while arg_i.lt(variadic_info.regular_count) {
-            if needs_ret or not(throw_types.is_empty()) or arg_i.gt(0) {
+            if needs_ret.or(not(throw_types.is_empty())).or(arg_i.gt(0)) {
                 output.push_str(", ")
             }
             arg := fcall.params.get(arg_i.add(1))  // +1 to skip func name
@@ -5130,7 +5130,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             catch (err: IndexOutOfBoundsError) { }
         }
         // Emit variadic array pointer
-        if needs_ret or not(throw_types.is_empty()) or variadic_info.regular_count.gt(0) {
+        if needs_ret.or(not(throw_types.is_empty())).or(variadic_info.regular_count.gt(0)) {
             output.push_str(", ")
         }
         output.push_str("&")
@@ -5145,7 +5145,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                 arg_i.inc()
                 continue  // Skip function name
             }
-            if needs_ret or not(throw_types.is_empty()) or args_started {
+            if needs_ret.or(not(throw_types.is_empty())).or(args_started) {
                 output.push_str(", ")
             }
             by_ref := param_by_ref.get(arg_i.sub(1))
@@ -5167,7 +5167,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // Success case: assign return value to target variable
     // Skip for underscore _ which is just a discard
-    if not(decl_name.eq("")) and not(decl_name.eq("_")) {
+    if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         inner_indent := indent_string(indent.add(1))
         output.push_str(inner_indent)
         output.push_str(til_name(decl_name))
@@ -5307,7 +5307,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     // Determine if we need a return value temp variable
     fd := get_fcall_func_def(context, fcall)
     func_has_return := not(fd.return_types.is_empty())
-    needs_ret := func_has_return and (not(decl_name.eq("")) or not(assign_name.eq("")))
+    needs_ret := func_has_return.and(not(decl_name.eq("")).or(not(assign_name.eq(""))))
     catch (err: KeyNotFoundError) {
         func_has_return = false
         needs_ret = false
@@ -5386,7 +5386,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // For declarations: declare the variable BEFORE the if block so it's visible after
-    if not(decl_name.eq("")) and not(decl_name.eq("_")) {
+    if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         output.push_str(indent_str)
         output.push_str(ret_type)
         output.push_str(" ")
@@ -5465,7 +5465,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if has_variadic {
         mut arg_i := 0
         while arg_i.lt(variadic_info.regular_count) {
-            if needs_ret or not(throw_types.is_empty()) or arg_i.gt(0) {
+            if needs_ret.or(not(throw_types.is_empty())).or(arg_i.gt(0)) {
                 output.push_str(", ")
             }
             arg := fcall.params.get(arg_i.add(1))
@@ -5475,7 +5475,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             arg_i.inc()
             catch (err: IndexOutOfBoundsError) { }
         }
-        if needs_ret or not(throw_types.is_empty()) or variadic_info.regular_count.gt(0) {
+        if needs_ret.or(not(throw_types.is_empty())).or(variadic_info.regular_count.gt(0)) {
             output.push_str(", ")
         }
         output.push_str("&")
@@ -5489,7 +5489,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
                 arg_i.inc()
                 continue
             }
-            if needs_ret or not(throw_types.is_empty()) or args_started {
+            if needs_ret.or(not(throw_types.is_empty())).or(args_started) {
                 output.push_str(", ")
             }
             by_ref := param_by_ref.get(arg_i.sub(1))
@@ -5544,7 +5544,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Success case: assign return value to target variable if needed
-    if not(decl_name.eq("")) and not(decl_name.eq("_")) {
+    if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         output.push_str(indent_str)
         output.push_str(til_name(decl_name))
         output.push_str(" = _ret_")
@@ -5604,7 +5604,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     // Determine if we need a return value temp variable
     fd := get_fcall_func_def(context, fcall)
     func_has_return := not(fd.return_types.is_empty())
-    needs_ret := func_has_return and (not(decl_name.eq("")) or not(assign_name.eq("")))
+    needs_ret := func_has_return.and(not(decl_name.eq("")).or(not(assign_name.eq(""))))
     catch (err: KeyNotFoundError) {
         func_has_return = false
         needs_ret = false
@@ -5683,7 +5683,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // For declarations: declare the variable BEFORE the if block so it's visible after
-    if not(decl_name.eq("")) and not(decl_name.eq("_")) {
+    if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         output.push_str(indent_str)
         output.push_str(ret_type)
         output.push_str(" ")
@@ -5773,7 +5773,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         if arg_i.sub(1).gte(regular_arg_count) {
             break
         }
-        if needs_ret or not(throw_types.is_empty()) or args_started {
+        if needs_ret.or(not(throw_types.is_empty())).or(args_started) {
             output.push_str(", ")
         }
         by_ref := param_by_ref.get(arg_i.sub(1))
@@ -5786,7 +5786,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Add variadic array if present
     if has_variadic {
-        if needs_ret or not(throw_types.is_empty()) or args_started {
+        if needs_ret.or(not(throw_types.is_empty())).or(args_started) {
             output.push_str(", ")
         }
         output.push_str("&")
@@ -5855,7 +5855,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Success case: assign return value to target variable if needed
-    if not(decl_name.eq("")) and not(decl_name.eq("_")) {
+    if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         output.push_str(indent_str)
         output.push_str(til_name(decl_name))
         output.push_str(" = _ret_")
@@ -5893,7 +5893,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 }
 
-emit_declaration := proc(decl: SDeclaration, expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenContext, context: mut Context) throws Str {
+emit_declaration := proc(decl: SDeclaration, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     // Skip inline ext_func/ext_proc declarations - they're just declaring external functions exist
     if not(expr.params.is_empty()) {
         first_param := expr.params.get(0)
@@ -5977,7 +5977,7 @@ emit_declaration := proc(decl: SDeclaration, expr: Expr, output: mut Str, indent
                 emit_func_signature(til_name(mangled_name), func_def, func_output)
                 func_output.push_str(" {\n")
                 emit_stmts(func_def.body, func_output, 1, ctx, context)
-                if not(func_def.throw_types.is_empty()) and func_def.return_types.is_empty() {
+                if not(func_def.throw_types.is_empty()).and(func_def.return_types.is_empty()) {
                     func_output.push_str("    return 0;\n")
                 }
                 func_output.push_str("}\n\n")
@@ -6123,7 +6123,7 @@ emit_declaration := proc(decl: SDeclaration, expr: Expr, output: mut Str, indent
             }
             output.push_str(til_name(name))
             emit_struct_literal_assign(output, struct_type, already_declared, "{}")
-        } else if struct_def.default_values.is_empty() and named_values.is_empty() {
+        } else if struct_def.default_values.is_empty().and(named_values.is_empty()) {
             // No defaults and no named args - zero initialize
             output.push_str(indent_str)
             if not(already_declared) {
@@ -6587,7 +6587,7 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str {
     }
 }
 
-emit_funcdef := proc(_func_def: SFuncDef, expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenContext, context: mut Context) throws Str {
+emit_funcdef := proc(_func_def: SFuncDef, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     // For now, just inline the function body (we're inside main anyway)
     // TODO: proper function generation with prototypes
     indent_str := indent_string(indent)
@@ -6600,7 +6600,7 @@ emit_funcdef := proc(_func_def: SFuncDef, expr: Expr, output: mut Str, indent: I
     output.push_str("}\n")
 }
 
-emit_assignment := proc(name: Str, expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenContext, context: mut Context) throws Str {
+emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     indent_str := indent_string(indent)
 
     if not(expr.params.is_empty()) {
@@ -6667,7 +6667,7 @@ emit_assignment := proc(name: Str, expr: Expr, output: mut Str, indent: I64, ctx
     }
 }
 
-emit_return := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenContext, context: mut Context) throws Str {
+emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     indent_str := indent_string(indent)
     is_throwing := not(ctx.current_throw_types.is_empty())
 
@@ -6840,7 +6840,7 @@ emit_return := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenCo
     }
 }
 
-emit_throw := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenContext, context: mut Context) throws Str {
+emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     // Throw: params[0] = the value to throw (typically a struct constructor like DivideByZero())
     if expr.params.is_empty() {
         throw "ccodegen: throw requires a value"
@@ -7117,7 +7117,7 @@ emit_throw := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenCon
 }
 
 // Emit an FCall expression using pre-hoisted temp vars for arguments
-emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: mut Str, ctx: mut CodegenContext, context: mut Context) throws Str {
+emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
     if expr.params.is_empty() {
         throw "emit_fcall_with_hoisted: FCall with no params"
     }
@@ -7149,14 +7149,14 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: mut Str, ctx: 
     catch (err: KeyNotFoundError) {
         // REM: not a struct, continue to function call
     }
-    if expr.params.len().eq(1) or has_named_args {
+    if expr.params.len().eq(1).or(has_named_args) {
         output.push_str("(")
         output.push_str(TIL_PREFIX)
         output.push_str(func_name)
         output.push_str(")")
 
         // Use the struct definition to get default values
-        if struct_def.members.is_empty() or struct_def.default_values.is_empty() {
+        if struct_def.members.is_empty().or(struct_def.default_values.is_empty()) {
             output.push_str("{}")
         } else {
             // Build map of named arg values
@@ -7259,7 +7259,7 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: mut Str, ctx: 
                     key.push_str(member.name)
                     temp_name := ctx.hoisted_struct_defaults.get(key)
                     catch (err3: KeyNotFoundError) {
-                        if throwing_default_names.contains(member.name.clone()) or is_throwing_fcall(default_expr.clone(), context) {
+                        if throwing_default_names.contains(member.name.clone()).or(is_throwing_fcall(default_expr.clone(), context)) {
                             output.push_str("/* ERROR: unhoisted throwing default */")
                         } else {
                             emit_expr(default_expr, output, 0, ctx, context)
@@ -7336,7 +7336,7 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: mut Str, ctx: 
     }
 }
 
-emit_if := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenContext, context: mut Context) throws Str {
+emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     // If: params[0] = condition, params[1] = then-body, params[2] = else-body (optional)
     if expr.params.len().lt(2) {
         throw "ccodegen: If requires condition and body"
@@ -7460,7 +7460,7 @@ emit_if := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenContex
     }
 }
 
-emit_while := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenContext, context: mut Context) throws Str {
+emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     // While: params[0] = condition, params[1] = body
     if expr.params.len().lt(2) {
         throw "ccodegen: While requires condition and body"
@@ -7564,13 +7564,13 @@ emit_while := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenCon
     }
 }
 
-emit_break := proc(_expr: Expr, output: mut Str, indent: I64) {
+emit_break := proc(_expr: Expr, mut output: Str, indent: I64) {
     indent_str := indent_string(indent)
     output.push_str(indent_str)
     output.push_str("break;\n")
 }
 
-emit_continue := proc(_expr: Expr, output: mut Str, indent: I64) {
+emit_continue := proc(_expr: Expr, mut output: Str, indent: I64) {
     indent_str := indent_string(indent)
     output.push_str(indent_str)
     output.push_str("continue;\n")
@@ -7707,7 +7707,7 @@ parse_pattern_variant_name := proc(variant_name: Str) returns VariantInfo {
 
 /// Collect all variable declarations in a body (recursively) for hoisting
 /// Returns Vec of CollectedDeclaration structs
-collect_declarations_in_body := proc(body: Expr, context: mut Context) returns Vec {
+collect_declarations_in_body := proc(body: Expr, mut context: Context) returns Vec {
     mut decls := Vec.new(CollectedDeclaration)
     // Track collected declarations for lookups during type inference
     mut collected := Map.new(Str, ValueType)
@@ -7728,7 +7728,7 @@ collect_declarations_in_body := proc(body: Expr, context: mut Context) returns V
     }
 }
 
-collect_declarations_recursive := proc(expr: Expr, decls: mut Vec, collected: mut Map, context: mut Context) {
+collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected: Map, mut context: Context) {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         // Add this declaration
@@ -7736,7 +7736,7 @@ collect_declarations_recursive := proc(expr: Expr, decls: mut Vec, collected: mu
         mut value_type := decl.value_type.clone()
         switch decl.value_type {
         case ValueType.TCustom(name):
-            if name.eq(INFER_TYPE) and not(expr.params.is_empty()) {
+            if name.eq(INFER_TYPE).and(not(expr.params.is_empty())) {
                 first_param := expr.params.get(0)
                 inferred := get_value_type(context, first_param)
                 value_type = inferred
@@ -7814,7 +7814,7 @@ collect_declarations_recursive := proc(expr: Expr, decls: mut Vec, collected: mu
     }
 }
 
-emit_switch := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenContext, context: mut Context) throws Str {
+emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     // Switch: params[0] = switch expression
     // params[1..] = alternating (case_pattern, body) pairs
     // We emit if/else chains instead of C switch because:
@@ -7866,7 +7866,7 @@ emit_switch := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenCo
         case NodeType.Pattern(_):
             is_enum_switch = true
         case NodeType.Identifier(name):
-            if not(case_pattern.params.is_empty()) or name.contains(".") {
+            if not(case_pattern.params.is_empty()).or(name.contains(".")) {
                 is_enum_switch = true
             }
         case NodeType.FCall:
@@ -8084,7 +8084,7 @@ emit_switch := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenCo
             // FCall pattern: Type.Variant(payload) - enum variant with payload argument
             // For example: ValueType.TType(TTypeDef.TEnumDef)
             info := get_case_variant_info(case_pattern)
-            if not(info.variant_name.is_empty()) and enum_has_payloads_flag {
+            if not(info.variant_name.is_empty()).and(enum_has_payloads_flag) {
                 // Compare tag first
                 output.push_str(switch_var)
                 output.push_str(".tag == til_")
@@ -8212,7 +8212,7 @@ emit_switch := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenCo
     }
 }
 
-emit_fcall := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenContext, context: mut Context) throws Str {
+emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     // First param is the function name (or Type.method for type-qualified calls)
     if expr.params.is_empty() {
         throw "ccodegen: FCall with no params"
@@ -8275,7 +8275,7 @@ emit_fcall := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenCon
             na_idx.inc()
         }
 
-        if struct_def.members.is_empty() or struct_def.default_values.is_empty() {
+        if struct_def.members.is_empty().or(struct_def.default_values.is_empty()) {
             output.push_str("{}")
         } else {
             output.push_str("{")
@@ -8332,7 +8332,7 @@ emit_fcall := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenCon
 
     // Hoist throwing function calls from arguments (only at statement level)
     mut hoisted := Map.new(I64, Str)
-    if is_stmt_level and expr.params.len().gt(1) {
+    if is_stmt_level.and(expr.params.len().gt(1)) {
         mut args := Vec.new(Expr)
         mut hi := 1
         while hi.lt(expr.params.len()) {
@@ -8348,7 +8348,7 @@ emit_fcall := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenCon
 
     // Hoist non-lvalue args when param type is Dynamic (only at statement level)
     // Need to look up param types first
-    if is_stmt_level and expr.params.len().gt(1) {
+    if is_stmt_level.and(expr.params.len().gt(1)) {
         fd := get_fcall_func_def(context, expr)
         mut param_types := Vec.new(ValueType)
         mut param_by_ref := Vec.new(Bool)
@@ -8575,7 +8575,7 @@ emit_fcall := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenCon
     output.push_str(indent_str)
 
     // Check for type-qualified call on FCall result: func_name(fcall_result, args...)
-    if first_param.params.is_empty() and expr.params.len().gte(2) {
+    if first_param.params.is_empty().and(expr.params.len().gte(2)) {
         second_param := expr.params.get(1)
         switch second_param.node_type {
         case NodeType.FCall:
@@ -8627,9 +8627,9 @@ emit_fcall := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenCon
         // REM: not a struct
     }
 
-    if struct_def_opt_exists and expr.params.len().eq(1) {
+    if struct_def_opt_exists.and(expr.params.len().eq(1)) {
         // Use the struct definition to get default values
-        if struct_def_opt.members.is_empty() or struct_def_opt.default_values.is_empty() {
+        if struct_def_opt.members.is_empty().or(struct_def_opt.default_values.is_empty()) {
             output.push_str("(")
             output.push_str(TIL_PREFIX)
             output.push_str(func_name)
@@ -8907,7 +8907,7 @@ emit_fcall := proc(expr: Expr, output: mut Str, indent: I64, ctx: mut CodegenCon
 
 // Helper to emit a Str compound literal: ((til_Str){(til_I64)"...", len})
 // This is valid in both constant initializers and expressions (unlike til_Str_from_literal)
-emit_str_literal := proc(s: Str, output: mut Str) {
+emit_str_literal := proc(s: Str, mut output: Str) {
     output.push_str("((")
     output.push_str(TIL_PREFIX)
     output.push_str("Str){(")
@@ -8937,7 +8937,7 @@ emit_str_literal := proc(s: Str, output: mut Str) {
     output.push_str("})")
 }
 
-emit_literal := proc(lit: Literal, output: mut Str, context: Context) throws Str {
+emit_literal := proc(lit: Literal, mut output: Str, context: Context) throws Str {
     switch lit {
     case Literal.Str(s):
         has_str := context.scope_stack.lookup_struct("Str")

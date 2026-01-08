@@ -55,7 +55,7 @@ parse_file := proc(path: Str) returns ParseFileResult throws Str {
 
 // Recursively collect all imports from an AST
 // Each file is precompiled with its own path before being added to all_asts
-collect_imports := proc(ast: Expr, imported: mut Set, all_asts: mut Vec, context: mut Context) throws Str {
+collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut context: Context) throws Str {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
@@ -65,7 +65,7 @@ collect_imports := proc(ast: Expr, imported: mut Set, all_asts: mut Vec, context
                     first_param := child.params.get(0)
                     switch first_param.node_type {
                     case NodeType.Identifier(name):
-                        if name.eq("import") and child.params.len().gt(1) {
+                        if name.eq("import").and(child.params.len().gt(1)) {
                             second_param := child.params.get(1)
                             switch second_param.node_type {
                             case NodeType.LLiteral(lit):
