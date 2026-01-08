@@ -46,10 +46,10 @@ CodegenContext := struct {
     // Map of hoisted struct default expressions ("struct_name:member_name" -> temp var name)
     // Used to track which struct literal defaults were hoisted as temp vars
     mut hoisted_struct_defaults: Map = Map.new(Str, Str)
-}
 
-CodegenContext.new := func() returns CodegenContext throws AllocError {
-    return CodegenContext()
+    new := func() returns CodegenContext throws AllocError {
+        return CodegenContext()
+    }
 }
 
 // Generate unique mangled name using context counter (deterministic)
