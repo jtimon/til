@@ -193,13 +193,15 @@ validate_lang_for_target := func(lang: Lang, target: Target) throws Str {
     for l: Lang in supported {
         supported_strs.push(lang_to_str(l))
     }
+
+    catch (err: AllocError) {
+        throw err.msg
+    }
+
     throw format(
         "Lang '", lang_to_str(lang), "' is not supported for target '", target_to_str(target),
         "'. Supported langs for this target: ", supported_strs.join(", ")
     )
-    catch (err: AllocError) {
-        throw err.msg
-    }
 }
 
 // ---------- Toolchain commands

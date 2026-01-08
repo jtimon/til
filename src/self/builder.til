@@ -151,11 +151,12 @@ merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr throws Str {
     result.params = all_params
     result.line = main_ast.line
     result.col = main_ast.col
-    return result
 
     catch (err: AllocError) {
         throw err.msg
     }
+
+    return result
 }
 
 is_import_call := func(expr: Expr) returns Bool {

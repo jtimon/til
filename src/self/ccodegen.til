@@ -208,11 +208,12 @@ get_type_arg_name := func(expr: Expr, context: Context) returns Str throws KeyNo
 // Returns None for struct/enum constructors
 get_fcall_func_def := func(context: Context, fcall_expr: Expr) returns SFuncDef throws KeyNotFoundError {
     mut expr_clone := fcall_expr.clone()
-    return get_func_def_for_fcall_with_expr(context, expr_clone)
 
     catch (err: AllocError) {
         throw KeyNotFoundError(msg=err.msg)
     }
+
+    return get_func_def_for_fcall_with_expr(context, expr_clone)
 }
 
 /// Bug #60: Determine if a parameter should be passed by reference (pointer)
@@ -2888,8 +2889,10 @@ is_throwing_fcall := func(expr: Expr, context: Context) returns Bool {
     switch expr.node_type {
     case NodeType.FCall:
         fd := get_fcall_func_def(context, expr)
+        catch (err: KeyNotFoundError) {
+            return false
+        }
         return not(fd.throw_types.is_empty())
-        catch (err: KeyNotFoundError) { }
     case:
     }
     return false
@@ -3254,11 +3257,12 @@ emit_struct_declaration := proc(expr: Expr, output: Str) throws Str {
         }
     case:
     }
-    throw "emit_struct_declaration: not a struct declaration"
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
+
+    throw "emit_struct_declaration: not a struct declaration"
 }
 
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
@@ -3609,7 +3613,6 @@ emit_enum_declaration := proc(expr: Expr, output: Str) throws Str {
         }
     case:
     }
-    throw "emit_enum_declaration: not an enum declaration"
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -3617,6 +3620,8 @@ emit_enum_declaration := proc(expr: Expr, output: Str) throws Str {
     catch (err: AllocError) {
         throw err.msg
     }
+
+    throw "emit_enum_declaration: not an enum declaration"
 }
 
 // Emit a _to_str function for an enum type
@@ -3682,14 +3687,13 @@ emit_enum_to_str_for_declaration := proc(expr: Expr, output: Str, context: Conte
         enum_def := context.scope_stack.lookup_enum(enum_name)
         c_enum_name := til_name(enum_name)
         emit_enum_to_str_function(c_enum_name, enum_def, output)
+        catch (err: KeyNotFoundError) {
+            throw "emit_enum_to_str_for_declaration: enum not found"
+        }
         return
     case:
     }
     throw "emit_enum_to_str_for_declaration: not an enum declaration"
-
-    catch (err: KeyNotFoundError) {
-        throw "emit_enum_to_str_for_declaration: enum not found"
-    }
 }
 
 // Emit struct function prototypes for all functions in a struct
@@ -4019,11 +4023,12 @@ emit_func_prototype := proc(expr: Expr, output: Str) throws Str {
         }
     case:
     }
-    throw "emit_func_prototype: not a function declaration"
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
+
+    throw "emit_func_prototype: not a function declaration"
 }
 
 // Check if an expression is a function declaration (name := proc/func)
@@ -4141,7 +4146,6 @@ emit_func_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, cont
         }
     case:
     }
-    throw "emit_func_declaration: not a function declaration"
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -4149,16 +4153,23 @@ emit_func_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, cont
     catch (err: AllocError) {
         throw err.msg
     }
+
+    throw "emit_func_declaration: not a function declaration"
 }
 
 emit_expr := proc(expr: Expr, output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
     // Check if this expression has been hoisted (for nested variadic/throwing calls)
     expr_addr := expr.addr()
-    temp_var := ctx.hoisted_exprs.get(expr_addr)
-    output.push_str(temp_var)
-    return
+    mut found_hoisted := false
+    mut temp_var := ""
+    temp_var = ctx.hoisted_exprs.get(expr_addr)
+    found_hoisted = true
     catch (err: KeyNotFoundError) {
         // Not hoisted, continue with normal emit
+    }
+    if found_hoisted {
+        output.push_str(temp_var)
+        return
     }
 
     switch expr.node_type {
