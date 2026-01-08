@@ -1,6 +1,8 @@
 // C code generator for TIL
 // Translates TIL AST to C source code
 
+mode liba
+
 import("self.parser")
 import("self.init")
 import("self.typer")
