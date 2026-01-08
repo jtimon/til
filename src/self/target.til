@@ -6,9 +6,9 @@ mode liba
 // ---------- Lang enum - codegen backend languages
 
 Lang := enum {
-    C
-    HolyC
-    TIL  // TIL-to-TIL (for debugging: shows desugared, dead-code-eliminated output)
+    C,
+    HolyC,
+    TIL,  // TIL-to-TIL (for debugging: shows desugared, dead-code-eliminated output)
     // Future: Mojo, WASM, etc.
 }
 
@@ -50,14 +50,14 @@ lang_file_extension := func(lang: Lang) returns Str {
 // ---------- Target enum - supported platforms
 
 Target := enum {
-    LinuxX64
-    LinuxArm64
-    LinuxRiscv64
-    WindowsX64
-    MacosX64
-    MacosArm64
-    Wasm32
-    TempleosX86
+    LinuxX64,
+    LinuxArm64,
+    LinuxRiscv64,
+    WindowsX64,
+    MacosX64,
+    MacosArm64,
+    Wasm32,
+    TempleosX86,
 }
 
 target_from_str := func(s: Str) returns Target throws Str {
