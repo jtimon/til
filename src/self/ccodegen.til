@@ -3841,7 +3841,7 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, ctx: CodegenContext, co
 }
 
 // Convert TIL type to C type. Returns Err if the type can't be represented in C (e.g., functions, infer)
-til_type_to_c := func(til_type: ValueType) returns Str throws Str throws KeyNotFoundError {
+til_type_to_c := func(til_type: ValueType) returns Str throws Str, KeyNotFoundError {
     switch til_type {
     case ValueType.TCustom(name):
         if name.eq(INFER_TYPE) {
