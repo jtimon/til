@@ -1,0 +1,431 @@
+// Builder module - orchestrates compilation to target languages
+// Mirrors src/rs/builder.rs
+
+mode lib
+
+import("self.lexer")
+import("self.parser")
+import("self.mode")
+import("self.ccodegen")
+import("self.init")
+import("self.typer")
+import("self.precomp")
+import("self.scavenger")
+import("self.target")
+import("std.fs")
+import("std.sys")
+
+// Parse a single file and return its AST (and mode for main file)
+// Returns ParseFileResult struct since TIL doesn't have tuples
+ParseFileResult := struct {
+    mut ast: Expr = Expr()
+    mut mode_def: ModeDef = ModeDef()
+}
+
+parse_file := proc(path: Str) returns ParseFileResult throws Str {
+    source := fs_read_file(path)
+    catch (err: FsError) {
+        if err.kind.eq("NotFound") {
+            throw "File '" + path + "' not found."
+        } else {
+            throw "Problem opening the file '" + path + "': " + err.kind
+        }
+    }
+
+    mut lexer := lexer_from_source(path, source)
+    catch (err: Str) {
+        throw path + ":" + err
+    }
+
+    mode_def := parse_mode(path, lexer)
+    catch (err: Str) {
+        throw path + ":" + err
+    }
+
+    ast := parse_tokens(lexer)
+    catch (err: Str) {
+        throw path + ":" + err
+    }
+
+    mut result := ParseFileResult()
+    result.ast = ast
+    result.mode_def = mode_def
+    return result
+}
+
+// Recursively collect all imports from an AST
+// Each file is precompiled with its own path before being added to all_asts
+collect_imports := proc(ast: Expr, imported: mut Set, all_asts: mut Vec, context: mut Context) throws Str {
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            switch child.node_type {
+            case NodeType.FCall:
+                if not(child.params.is_empty()) {
+                    first_param := child.params.get(0)
+                    switch first_param.node_type {
+                    case NodeType.Identifier(name):
+                        if name.eq("import") and child.params.len().gt(1) {
+                            second_param := child.params.get(1)
+                            switch second_param.node_type {
+                            case NodeType.LLiteral(lit):
+                                switch lit {
+                                case Literal.Str(import_path):
+                                    file_path := import_path_to_file_path(import_path)
+                                    if not(imported.contains(file_path)) {
+                                        imported.add(file_path.clone())
+                                        dep_result := parse_file(file_path)
+                                        // Store AST in imported_asts so precomp can find it for circular imports
+                                        context.imported_asts.set(file_path.clone(), dep_result.ast.clone())
+                                        // Recursively collect imports from this dependency
+                                        collect_imports(dep_result.ast, imported, all_asts, context)
+                                        // Precomp with the correct path for this file
+                                        saved_path := context.path.clone()
+                                        context.path = file_path.clone()
+                                        dep_ast := precomp_expr(context, dep_result.ast)
+                                        // Update with precompiled version
+                                        context.imported_asts.set(file_path.clone(), dep_ast.clone())
+                                        context.path = saved_path
+                                        all_asts.push(dep_ast)
+                                    }
+                                case:
+                                    // REM: not a string literal
+                                }
+                            case:
+                                // REM: not a literal
+                            }
+                        }
+                    case:
+                        // REM: not an identifier
+                    }
+                }
+            case:
+                // REM: not an FCall
+            }
+        }
+    case:
+        // REM: not a Body
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+    catch (err: DuplicateKeyError) {
+        // REM: ignore duplicate key errors
+    }
+}
+
+// Merge multiple ASTs into one, filtering out import statements
+merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr throws Str {
+    mut all_params := Vec.new(Expr)
+
+    // Add dependencies first (in order they were collected)
+    for dep: Expr in dep_asts {
+        switch dep.node_type {
+        case NodeType.Body:
+            for child: Expr in dep.params {
+                // Skip import statements
+                if not(is_import_call(child)) {
+                    all_params.push(child.clone())
+                }
+            }
+        case:
+            // REM: not a Body
+        }
+    }
+
+    // Add main file contents (skip imports)
+    switch main_ast.node_type {
+    case NodeType.Body:
+        for child: Expr in main_ast.params {
+            if not(is_import_call(child)) {
+                all_params.push(child.clone())
+            }
+        }
+    case:
+        // REM: not a Body
+    }
+
+    mut result := Expr()
+    result.node_type = NodeType.Body
+    result.params = all_params
+    result.line = main_ast.line
+    result.col = main_ast.col
+    return result
+
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+is_import_call := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.FCall:
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.Identifier(name):
+                return name.eq("import")
+            case:
+                return false
+            }
+            catch (err: IndexOutOfBoundsError) {
+                return false
+            }
+        }
+        return false
+    case:
+        return false
+    }
+}
+
+// Build a TIL source file with target, lang, and translate_only options
+// Returns the output path (executable or source file)
+build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) returns Str throws Str {
+    // Validate lang is supported for target
+    validate_lang_for_target(lang, target)
+
+    // Currently only C is fully supported
+    switch lang {
+    case Lang.C:
+        // Supported
+    case Lang.TIL:
+        throw "Lang 'til' is not supported yet. TIL-to-TIL translation is a placeholder for future debugging features."
+    case:
+        throw "Lang '" + lang_to_str(lang) + "' is not supported yet. Only 'c' is currently implemented."
+    }
+
+    // Parse main file
+    main_result := parse_file(path)
+
+    // Create context with "lib" mode first (like interpreter does at interpreter.rs:2713)
+    // This ensures core.til is typechecked with lib mode, not the main file's mode
+    mut context := Context.new(path, "lib")
+
+    // Auto-import core.til first (like the interpreter does at interpreter.rs:2714-2717)
+    // This runs init + typer on core.til and all its imports with lib mode
+    core_path := "src/core/core.til"
+    if not(path.eq(core_path)) {
+        core_result := parse_file(core_path)
+        init_errors := init_context(context, core_result.ast)
+        if not(init_errors.is_empty()) {
+            for err: Str in init_errors {
+                println(err)
+            }
+            throw "Compiler errors: " + init_errors.len().to_str() + " init errors in core.til"
+        }
+        typer_errors := check_types(context, core_result.ast)
+        if not(typer_errors.is_empty()) {
+            for err: Str in typer_errors {
+                println(err)
+            }
+            throw "Compiler errors: " + typer_errors.len().to_str() + " type errors in core.til"
+        }
+        context.imports_init_done.add(core_path)
+        context.imports_typer_done.add(core_path)
+    }
+
+    // Now set the mode to the main file's mode (like interpreter does at interpreter.rs:2610-2611)
+    context.mode_def = main_result.mode_def.clone()
+
+    // Process mode-specific imports (like the interpreter does at interpreter.rs:2515-2541)
+    for import_str: Str in context.mode_def.imports.clone() {
+        mut import_func_name_expr := Expr()
+        import_func_name_expr.node_type = NodeType.Identifier("import")
+        import_func_name_expr.line = 0
+        import_func_name_expr.col = 0
+
+        mut import_path_expr := Expr()
+        import_path_expr.node_type = NodeType.LLiteral(Literal.Str(import_str.clone()))
+        import_path_expr.line = 0
+        import_path_expr.col = 0
+
+        mut import_fcall_expr := Expr()
+        import_fcall_expr.node_type = NodeType.FCall
+        import_fcall_expr.params = Vec.new(Expr)
+        import_fcall_expr.params.push(import_func_name_expr)
+        import_fcall_expr.params.push(import_path_expr)
+        import_fcall_expr.line = 0
+        import_fcall_expr.col = 0
+
+        // Mode imports need init and typer phases (no eval for builder)
+        init_import_declarations(context, import_fcall_expr, import_str)
+        catch (err: Str) {
+            throw path + ":" + err
+        }
+        typer_errors := typer_import_declarations(context, import_str)
+        if not(typer_errors.is_empty()) {
+            for err: Str in typer_errors {
+                println(err)
+            }
+            throw "Compiler errors: " + typer_errors.len().to_str() + " type errors found"
+        }
+    }
+
+    // Mark main file as "done" to prevent re-processing via circular imports
+    // (like interpreter does at interpreter.rs:2598-2601)
+    context.imports_init_done.add(path.clone())
+    context.imports_typer_done.add(path.clone())
+
+    // Run init + typer on the main file (this handles its imports internally)
+    mut errors := Vec.new(Str)
+    init_errors := init_context(context, main_result.ast)
+    for err: Str in init_errors {
+        errors.push(err.clone())
+    }
+    if not(errors.is_empty()) {
+        for err: Str in errors {
+            println(err)
+        }
+        throw "Compiler errors: " + errors.len().to_str() + " init errors found"
+    }
+
+    mode_errors := basic_mode_checks(context, main_result.ast)
+    for err: Str in mode_errors {
+        errors.push(err.clone())
+    }
+    typer_errors := check_types(context, main_result.ast)
+    for err: Str in typer_errors {
+        errors.push(err.clone())
+    }
+    if not(errors.is_empty()) {
+        for err: Str in errors {
+            println(err)
+        }
+        throw "Compiler errors: " + errors.len().to_str() + " type errors found"
+    }
+
+    // === Post-typer: Collect and merge ASTs for codegen ===
+    // Now that type checking passed, collect all imported files for code generation
+    // Each file is precompiled with its own path before merging
+    mut imported := Set.new(Str)
+    imported.add(path.clone())
+    // Store main file AST so circular imports can find it during precomp
+    context.imported_asts.set(path.clone(), main_result.ast.clone())
+    mut dep_asts := Vec.new(Expr)
+
+    // Collect core.til and its imports
+    if not(path.eq(core_path)) {
+        core_result := parse_file(core_path)
+        imported.add(core_path)
+        collect_imports(core_result.ast, imported, dep_asts, context)
+        // Precomp core.til with its own path
+        saved_path := context.path.clone()
+        context.path = core_path
+        core_ast := precomp_expr(context, core_result.ast)
+        context.path = saved_path
+        dep_asts.push(core_ast)
+    }
+
+    // Collect mode imports
+    for import_str: Str in context.mode_def.imports.clone() {
+        file_path := import_path_to_file_path(import_str)
+        if not(imported.contains(file_path)) {
+            imported.add(file_path.clone())
+            mode_result := parse_file(file_path)
+            collect_imports(mode_result.ast, imported, dep_asts, context)
+            // Precomp mode file with its own path
+            saved_path := context.path.clone()
+            context.path = file_path.clone()
+            mode_ast := precomp_expr(context, mode_result.ast)
+            context.path = saved_path
+            dep_asts.push(mode_ast)
+        }
+    }
+
+    // Collect main file's imports
+    collect_imports(main_result.ast, imported, dep_asts, context)
+
+    // Precomp main file with its own path (context.path should already be correct)
+    main_ast := precomp_expr(context, main_result.ast)
+
+    // Merge all precompiled ASTs for codegen
+    merged_ast := merge_asts(main_ast, dep_asts)
+
+    // Scavenger phase: Remove unused function declarations
+    merged_ast2 := scavenger_expr(context, merged_ast)
+
+    // Generate C code
+    c_code := emit(merged_ast2, context)
+
+    // Write output file to ./gen/c/ directory instead of alongside source
+    c_filename := path.replace(".til", ".c")
+    mut source_output_path := c_filename.clone()
+    if c_filename.starts_with("src/") {
+        source_output_path = c_filename.replace("src/", "gen/c/")
+    } else {
+        source_output_path = "gen/c/" + c_filename
+    }
+    // Create output directory if it doesn't exist
+    parent_dir := fs_parent_dir(source_output_path)
+    if not(parent_dir.is_empty()) {
+        fs_mkdir_p(parent_dir)
+        catch (err: FsError) {
+            // REM: ignore mkdir errors
+        }
+    }
+    fs_write_file(source_output_path, c_code)
+    catch (err: FsError) {
+        throw "Failed to write '" + source_output_path + "': " + err.kind
+    }
+
+    // If translate_only, return the source file path
+    if translate_only {
+        return source_output_path
+    }
+
+    // Get toolchain command for target
+    compiler := toolchain_command(target, lang)
+
+    // Compile - output to bin/ directory in project root, preserving relative path
+    // e.g., src/til.til -> bin/til, src/examples/hello_script.til -> bin/examples/hello_script
+    exe_extension := executable_extension(target)
+    bin_filename := path.replace(".til", exe_extension)
+    mut exe_path_str := bin_filename.clone()
+    if bin_filename.starts_with("src/") {
+        exe_path_str = bin_filename.replace("src/", "bin/")
+    } else {
+        exe_path_str = "bin/" + bin_filename
+    }
+    // Create bin directory if it doesn't exist
+    bin_parent_dir := fs_parent_dir(exe_path_str)
+    if not(bin_parent_dir.is_empty()) {
+        fs_mkdir_p(bin_parent_dir)
+        catch (err: FsError) {
+            // REM: ignore mkdir errors
+        }
+    }
+
+    // Build command with extra args for target
+    mut cmd_args := Vec.new(Str)
+    cmd_args.push("-I")
+    cmd_args.push("src")
+    extra_args := toolchain_extra_args(target, lang)
+    for extra_arg: Str in extra_args {
+        cmd_args.push(extra_arg.clone())
+    }
+    cmd_args.push(source_output_path.clone())
+    cmd_args.push("-o")
+    cmd_args.push(exe_path_str.clone())
+
+    exit_code := run_cmd_vec(compiler, cmd_args)
+    catch (err: AllocError) {
+        throw "Failed to run " + compiler + ": " + err.msg
+    }
+
+    if exit_code.eq(0) {
+        return exe_path_str
+    } else {
+        throw compiler + " failed with exit code " + exit_code.to_str()
+    }
+
+    catch (err: AllocError) {
+        throw err.msg
+    }
+    catch (err: DuplicateKeyError) {
+        // REM: ignore duplicate key errors
+    }
+}
