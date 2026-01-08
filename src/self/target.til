@@ -1,0 +1,305 @@
+// Target and Lang definitions for cross-compilation support
+// Mirrors src/self/target.til
+
+mode liba
+
+// ---------- Lang enum - codegen backend languages
+
+Lang := enum {
+    C
+    HolyC
+    TIL  // TIL-to-TIL (for debugging: shows desugared, dead-code-eliminated output)
+    // Future: Mojo, WASM, etc.
+}
+
+lang_from_str := func(s: Str) returns Lang throws Str {
+    switch s.to_lower() {
+    case "c":
+        return Lang.C
+    case "holyc":
+        return Lang.HolyC
+    case "til":
+        return Lang.TIL
+    case:
+        throw format("Unknown lang '", s, "'. Supported langs: c, holyc, til")
+    }
+}
+
+lang_to_str := func(lang: Lang) returns Str {
+    switch lang {
+    case Lang.C:
+        return "c"
+    case Lang.HolyC:
+        return "holyc"
+    case Lang.TIL:
+        return "til"
+    }
+}
+
+lang_file_extension := func(lang: Lang) returns Str {
+    switch lang {
+    case Lang.C:
+        return "c"
+    case Lang.HolyC:
+        return "hc"
+    case Lang.TIL:
+        return "til"
+    }
+}
+
+// ---------- Target enum - supported platforms
+
+Target := enum {
+    LinuxX64
+    LinuxArm64
+    LinuxRiscv64
+    WindowsX64
+    MacosX64
+    MacosArm64
+    Wasm32
+    TempleosX86
+}
+
+target_from_str := func(s: Str) returns Target throws Str {
+    switch s.to_lower() {
+    case "linux-x64":
+        return Target.LinuxX64
+    case "linux-x86_64":
+        return Target.LinuxX64
+    case "linux-amd64":
+        return Target.LinuxX64
+    case "linux-arm64":
+        return Target.LinuxArm64
+    case "linux-aarch64":
+        return Target.LinuxArm64
+    case "linux-riscv64":
+        return Target.LinuxRiscv64
+    case "linux-riscv":
+        return Target.LinuxRiscv64
+    case "riscv64":
+        return Target.LinuxRiscv64
+    case "windows-x64":
+        return Target.WindowsX64
+    case "windows-x86_64":
+        return Target.WindowsX64
+    case "win64":
+        return Target.WindowsX64
+    case "macos-x64":
+        return Target.MacosX64
+    case "macos-x86_64":
+        return Target.MacosX64
+    case "darwin-x64":
+        return Target.MacosX64
+    case "macos-arm64":
+        return Target.MacosArm64
+    case "macos-aarch64":
+        return Target.MacosArm64
+    case "darwin-arm64":
+        return Target.MacosArm64
+    case "wasm32":
+        return Target.Wasm32
+    case "wasm":
+        return Target.Wasm32
+    case "webassembly":
+        return Target.Wasm32
+    case "templeos-x86":
+        return Target.TempleosX86
+    case "templeos":
+        return Target.TempleosX86
+    case:
+        throw format(
+            "Unknown target '", s, "'. Supported targets: linux-x64, linux-arm64, linux-riscv64, windows-x64, macos-x64, macos-arm64, wasm32, templeos-x86"
+        )
+    }
+}
+
+target_to_str := func(target: Target) returns Str {
+    switch target {
+    case Target.LinuxX64:
+        return "linux-x64"
+    case Target.LinuxArm64:
+        return "linux-arm64"
+    case Target.LinuxRiscv64:
+        return "linux-riscv64"
+    case Target.WindowsX64:
+        return "windows-x64"
+    case Target.MacosX64:
+        return "macos-x64"
+    case Target.MacosArm64:
+        return "macos-arm64"
+    case Target.Wasm32:
+        return "wasm32"
+    case Target.TempleosX86:
+        return "templeos-x86"
+    }
+}
+
+// ---------- Target/Lang compatibility
+
+default_lang_for_target := func(target: Target) returns Lang {
+    switch target {
+    case Target.TempleosX86:
+        return Lang.HolyC
+    case Target.LinuxX64:
+        return Lang.C
+    case Target.LinuxArm64:
+        return Lang.C
+    case Target.LinuxRiscv64:
+        return Lang.C
+    case Target.WindowsX64:
+        return Lang.C
+    case Target.MacosX64:
+        return Lang.C
+    case Target.MacosArm64:
+        return Lang.C
+    case Target.Wasm32:
+        return Lang.C
+    }
+}
+
+supported_langs_for_target := func(target: Target) returns Vec throws AllocError {
+    mut result := Vec.new(Lang)
+    switch target {
+    case Target.TempleosX86:
+        result.push(Lang.HolyC)
+        result.push(Lang.TIL)
+    case:
+        result.push(Lang.C)
+        result.push(Lang.TIL)  // TIL is always supported (for debugging)
+    }
+    return result
+}
+
+is_lang_supported_for_target := func(lang: Lang, target: Target) returns Bool {
+    supported := supported_langs_for_target(target)
+    lang_str := lang_to_str(lang)
+    for l: Lang in supported {
+        if lang_to_str(l).eq(lang_str) {
+            return true
+        }
+    }
+    catch (err: AllocError) {
+        // REM: supported_langs_for_target threw, should not happen
+    }
+    return false
+}
+
+validate_lang_for_target := func(lang: Lang, target: Target) throws Str {
+    if is_lang_supported_for_target(lang, target) {
+        return
+    }
+    supported := supported_langs_for_target(target)
+    mut supported_strs := Vec.new(Str)
+    for l: Lang in supported {
+        supported_strs.push(lang_to_str(l))
+    }
+    throw format(
+        "Lang '", lang_to_str(lang), "' is not supported for target '", target_to_str(target),
+        "'. Supported langs for this target: ", supported_strs.join(", ")
+    )
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+// ---------- Toolchain commands
+
+toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
+    switch target {
+    case Target.LinuxX64:
+        switch lang {
+        case Lang.C:
+            return "gcc"
+        case:
+        }
+    case Target.LinuxArm64:
+        switch lang {
+        case Lang.C:
+            return "aarch64-linux-gnu-gcc"
+        case:
+        }
+    case Target.LinuxRiscv64:
+        switch lang {
+        case Lang.C:
+            return "riscv64-linux-gnu-gcc"
+        case:
+        }
+    case Target.WindowsX64:
+        switch lang {
+        case Lang.C:
+            return "x86_64-w64-mingw32-gcc"
+        case:
+        }
+    case Target.MacosX64:
+        switch lang {
+        case Lang.C:
+            return "clang"
+        case:
+        }
+    case Target.MacosArm64:
+        switch lang {
+        case Lang.C:
+            return "clang"
+        case:
+        }
+    case Target.Wasm32:
+        switch lang {
+        case Lang.C:
+            return "clang"
+        case:
+        }
+    case Target.TempleosX86:
+        switch lang {
+        case Lang.HolyC:
+            return "holyc"
+        case:
+        }
+    }
+    // Invalid combinations
+    throw format(
+        "No toolchain available for target '", target_to_str(target), "' with lang '", lang_to_str(lang), "'"
+    )
+}
+
+toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec throws AllocError {
+    mut result := Vec.new(Str)
+    switch target {
+    case Target.MacosArm64:
+        result.push("-target")
+        result.push("arm64-apple-macos11")
+        result.push("-Wshadow")
+    case Target.MacosX64:
+        result.push("-target")
+        result.push("x86_64-apple-macos10.12")
+        result.push("-Wshadow")
+    case Target.Wasm32:
+        result.push("--target=wasm32")
+        result.push("-nostdlib")
+        result.push("-Wl,--no-entry")
+        result.push("-Wl,--export-all")
+        result.push("-Wshadow")
+    case Target.TempleosX86:
+        panic(loc(), "HolyC doesn't support -Wshadow")
+    case:
+        result.push("-Wshadow")  // gcc and mingw support -Wshadow
+    }
+    return result
+}
+
+executable_extension := func(target: Target) returns Str {
+    switch target {
+    case Target.WindowsX64:
+        return ".exe"
+    case Target.Wasm32:
+        return ".wasm"
+    case:
+        return ""
+    }
+}
+
+// ---------- Detect current platform
+
+detect_current_target := func() returns Target {
+    // Default fallback (TIL has no cfg macros)
+    return Target.LinuxX64
+}
