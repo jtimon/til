@@ -13,7 +13,7 @@ Lang := enum {
 }
 
 lang_from_str := func(s: Str) returns Lang throws Str {
-    switch s.to_lower() {
+    switch s.to_lowercase() {
     case "c":
         return Lang.C
     case "holyc":
@@ -61,7 +61,7 @@ Target := enum {
 }
 
 target_from_str := func(s: Str) returns Target throws Str {
-    switch s.to_lower() {
+    switch s.to_lowercase() {
     case "linux-x64":
         return Target.LinuxX64
     case "linux-x86_64":

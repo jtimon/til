@@ -89,6 +89,36 @@ Str := struct {
         return true
     }
 
+    /** Convert string to lowercase (a-z).
+     *  Only converts ASCII uppercase letters (A-Z to a-z).
+     */
+    to_lowercase := func(self: Str) returns Str {
+        mut result := self.clone()
+        for i in 0..result.cap {
+            mut byte : U8 = 0
+            memcpy(to_ptr(byte), add(result.c_string, i), 1)
+            mut byte_val : I64 = 0
+            byte_val = U8.to_i64(byte)
+            // A = 65, Z = 90. Add 32 to convert to lowercase.
+            if byte_val.gteq(65) {
+                if byte_val.lteq(90) {
+                    byte_val = byte_val.add(32)
+                    byte = U8.from_i64(byte_val)
+                    memcpy(add(result.c_string, i), to_ptr(byte), 1)
+                }
+            }
+        }
+
+        catch (err: AllocError) {
+            panic(loc(), err.msg)
+        }
+        catch (err: U8_OverflowError) {
+            panic(loc(), err.msg)
+        }
+
+        return result
+    }
+
     contains := func(self: Str, needle: Str) returns Bool {
         # Returns true if needle is found in self
         if needle.len().gt(self.len()) {
