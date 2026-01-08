@@ -4333,7 +4333,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, co
     // Hoist declarations from catch blocks to function level
     // (TIL has function-level scoping, not block-level scoping)
     for catch_block: Expr in func_level_catches {
-        if catch_block.params.len().gte(3) {
+        if catch_block.params.len().gteq(3) {
             // Temporarily add the catch error variable to scope for type inference
             // catch (err: ErrType) { body } -> err_var=params[0], err_type=params[1], body=params[2]
             err_var_param := catch_block.params.get(0)
@@ -4388,7 +4388,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, co
     for scan_stmt: Expr in stmts {
         switch scan_stmt.node_type {
         case NodeType.Catch:
-            if scan_stmt.params.len().gte(3) {
+            if scan_stmt.params.len().gteq(3) {
                 err_type_param := scan_stmt.params.get(1)
                 switch err_type_param.node_type {
                 case NodeType.Identifier(err_type_name):
@@ -4443,7 +4443,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, co
         switch stmt.node_type {
         case NodeType.Catch:
             // Get the error type this catch handles
-            if stmt.params.len().gte(3) {
+            if stmt.params.len().gteq(3) {
                 err_type_param := stmt.params.get(1)
                 switch err_type_param.node_type {
                 case NodeType.Identifier(err_type_name):
@@ -5182,7 +5182,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         output.push_str(inner_indent)
         // Check if assignment target is a field access on a mut param (self.field)
         dot_pos := assign_name.find(".")
-        if dot_pos.gte(0) {
+        if dot_pos.gteq(0) {
             base := assign_name.get_substr(0, dot_pos)
             rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())
             if ctx.current_ref_params.contains(base) {
@@ -5210,7 +5210,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // Generate else-if branches for each catch block
     for catch_block: Expr in catch_blocks {
-        if catch_block.params.len().gte(3) {
+        if catch_block.params.len().gteq(3) {
             // Get error type name from catch block
             err_type_param := catch_block.params.get(1)
             switch err_type_param.node_type {
@@ -5555,7 +5555,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     } else if not(assign_name.eq("")) {
         output.push_str(indent_str)
         dot_pos := assign_name.find(".")
-        if dot_pos.gte(0) {
+        if dot_pos.gteq(0) {
             base := assign_name.get_substr(0, dot_pos)
             rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())
             if ctx.current_ref_params.contains(base) {
@@ -5772,7 +5772,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             arg_i.inc()
             continue
         }
-        if arg_i.sub(1).gte(regular_arg_count) {
+        if arg_i.sub(1).gteq(regular_arg_count) {
             break
         }
         if needs_ret.or(not(throw_types.is_empty())).or(args_started) {
@@ -5866,7 +5866,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     } else if not(assign_name.eq("")) {
         output.push_str(indent_str)
         dot_pos := assign_name.find(".")
-        if dot_pos.gte(0) {
+        if dot_pos.gteq(0) {
             base := assign_name.get_substr(0, dot_pos)
             rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())
             if ctx.current_ref_params.contains(base) {
@@ -6635,7 +6635,7 @@ emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut
     // Check if assignment target is a field access on a mut param (self.field)
     // If so, emit with -> instead of .
     dot_pos := name.find(".")
-    if dot_pos.gte(0) {
+    if dot_pos.gteq(0) {
         base := name.get_substr(0, dot_pos)
         rest := name.get_substr(dot_pos.add(1), name.len())
         if ctx.current_ref_params.contains(base) {
@@ -6911,7 +6911,7 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             i.inc()
         }
 
-        if error_index.gte(0) {
+        if error_index.gteq(0) {
             output.push_str(indent_str)
             output.push_str("*_err")
             output.push_str(I64.to_str(error_index.add(1)))
@@ -7062,7 +7062,7 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         i.inc()
     }
 
-    if error_index.gte(0) {
+    if error_index.gteq(0) {
         // Hoist throwing function calls from arguments of the thrown expression
         // E.g., throw Error.new(format(...)) needs to hoist format() first
         mut hoisted := Map.new(I64, Str)
@@ -7692,7 +7692,7 @@ get_case_variant_info := proc(expr: Expr) returns VariantInfo {
 // Extract type name and variant name from a Pattern's variant_name (e.g., "Color.Green")
 parse_pattern_variant_name := proc(variant_name: Str) returns VariantInfo {
     dot_pos := variant_name.rfind(".")
-    if dot_pos.gte(0) {
+    if dot_pos.gteq(0) {
         type_name := variant_name.get_substr(0, dot_pos)
         var_name := variant_name.get_substr(dot_pos.add(1), variant_name.len())
         mut result := VariantInfo()
@@ -7775,11 +7775,11 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         }
     case NodeType.If:
         // Recurse into if branches
-        if expr.params.len().gte(2) {
+        if expr.params.len().gteq(2) {
             second_param := expr.params.get(1)
             collect_declarations_recursive(second_param, decls, collected, context)
         }
-        if expr.params.len().gte(3) {
+        if expr.params.len().gteq(3) {
             third_param := expr.params.get(2)
             collect_declarations_recursive(third_param, decls, collected, context)
         }
@@ -7793,14 +7793,14 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         }
     case NodeType.While:
         // Recurse into while body
-        if expr.params.len().gte(2) {
+        if expr.params.len().gteq(2) {
             second_param := expr.params.get(1)
             collect_declarations_recursive(second_param, decls, collected, context)
         }
     case NodeType.Catch:
         // Recurse into catch body (params[2] is catch body)
         // params[0] = err_var, params[1] = err_type, params[2] = body
-        if expr.params.len().gte(3) {
+        if expr.params.len().gteq(3) {
             third_param := expr.params.get(2)
             collect_declarations_recursive(third_param, decls, collected, context)
         }
@@ -8577,7 +8577,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     output.push_str(indent_str)
 
     // Check for type-qualified call on FCall result: func_name(fcall_result, args...)
-    if first_param.params.is_empty().and(expr.params.len().gte(2)) {
+    if first_param.params.is_empty().and(expr.params.len().gteq(2)) {
         second_param := expr.params.get(1)
         switch second_param.node_type {
         case NodeType.FCall:
@@ -8750,7 +8750,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     mut is_enum_constructor := false
     if func_name.contains("_") {
         parts := func_name.split("_")
-        if parts.len().gte(2) {
+        if parts.len().gteq(2) {
             type_name_part := parts.get(0)
             variant_name_part := parts.get(1)
             enum_def := context.scope_stack.lookup_enum(type_name_part)
