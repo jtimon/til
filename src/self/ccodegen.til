@@ -2892,3 +2892,2043 @@ is_throwing_fcall := func(expr: Expr, context: Context) returns Bool {
     }
     return false
 }
+
+// Emit a top-level constant declaration at file scope
+emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, context: Context) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
+            mut var_name := ""
+            if decl.name.eq("_") {
+                var_name = next_mangled(ctx)
+            } else {
+                var_name = til_name(decl.name)
+            }
+
+            // Handle literal constants (numbers, strings)
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.LLiteral(lit):
+                has_str := context.scope_stack.lookup_struct("Str")
+                mut has_str_bool := true
+                catch (err: KeyNotFoundError) {
+                    has_str_bool = false
+                }
+                mut c_type := ""
+                switch lit {
+                case Literal.Number(n):
+                    c_type = Str.concat(TIL_PREFIX, "I64")
+                case Literal.Str(s):
+                    if has_str_bool {
+                        c_type = Str.concat(TIL_PREFIX, "Str")
+                    } else {
+                        c_type = "const char*"
+                    }
+                case Literal.List(l):
+                    return // Skip list literals for now
+                case:
+                }
+                // Non-mut declarations are constants
+                if not(decl.is_mut) {
+                    output.push_str("const ")
+                }
+                output.push_str(c_type)
+                output.push_str(" ")
+                output.push_str(var_name)
+                output.push_str(" = ")
+                emit_literal(lit, output, context)
+                output.push_str(";\n")
+            // Handle Bool constants (true/false identifiers)
+            case NodeType.Identifier(name):
+                if name.eq("true") or name.eq("false") {
+                    if not(decl.is_mut) {
+                        output.push_str("const ")
+                    }
+                    output.push_str(TIL_PREFIX)
+                    output.push_str("Bool ")
+                    output.push_str(var_name)
+                    output.push_str(" = ")
+                    // Use struct literal instead of macro (valid constant initializer)
+                    if name.eq("true") {
+                        output.push_str("((")
+                        output.push_str(TIL_PREFIX)
+                        output.push_str("Bool){1})")
+                    } else {
+                        output.push_str("((")
+                        output.push_str(TIL_PREFIX)
+                        output.push_str("Bool){0})")
+                    }
+                    output.push_str(";\n")
+                }
+            case:
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+// Check if an expression is a non-constant top-level declaration that needs to be a global
+// These are declarations that are NOT: functions, structs, enums, or literal constants
+// but are still non-mut and could be referenced from function bodies
+is_global_declaration := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        // Skip true/false declarations - they're handled specially
+        if decl.name.eq("true") or decl.name.eq("false") {
+            return false
+        }
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            // Skip these - they have their own handling
+            case NodeType.StructDef(sd):
+                return false
+            case NodeType.EnumDef(ed):
+                return false
+            case NodeType.FuncDef(fd):
+                return false
+            // Skip literal constants - they're handled by is_constant_declaration
+            // (only non-mut literals are constants)
+            case NodeType.LLiteral(lit):
+                if not(decl.is_mut) {
+                    return false
+                }
+                return true
+            // Skip true/false RHS - they're handled by is_constant_declaration
+            // (only non-mut booleans are constants)
+            case NodeType.Identifier(name):
+                if (name.eq("true") or name.eq("false")) and not(decl.is_mut) {
+                    return false
+                }
+                return true
+            // Everything else (function calls like EvalArena.new(), etc.) is a global
+            case:
+                return true
+            }
+            catch (err: IndexOutOfBoundsError) { }
+        }
+    case:
+    }
+    return false
+}
+
+// Emit a global declaration as a static variable at file scope (type only, no initializer)
+// The initializer will be emitted in main()
+emit_global_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, context: Context) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
+            mut var_name := ""
+            if decl.name.eq("_") {
+                var_name = next_mangled(ctx)
+            } else {
+                var_name = til_name(decl.name)
+            }
+
+            // Determine the type from the initializer expression using get_value_type
+            first_param := expr.params.get(0)
+            vt := get_value_type(context, first_param)
+            mut c_type := til_type_to_c(vt)
+            catch (err: Str) {
+                c_type = til_type_to_c(decl.value_type)
+                catch (err2: Str) {
+                    c_type = "int"
+                }
+            }
+            catch (err: KeyNotFoundError) {
+                c_type = til_type_to_c(decl.value_type)
+                catch (err2: Str) {
+                    c_type = "int"
+                }
+                catch (err2: KeyNotFoundError) {
+                    c_type = "int"
+                }
+            }
+
+            // Emit static declaration (no initializer - will be set in main)
+            output.push_str("static ")
+            output.push_str(c_type)
+            output.push_str(" ")
+            output.push_str(var_name)
+            output.push_str(";\n")
+
+            // Track that this variable has been declared globally
+            ctx.declared_vars.insert(var_name)
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+// Collect function info (throw types, return types, names) from AST into context
+// Handles both top-level functions and struct methods
+collect_func_info := proc(expr: Expr, ctx: CodegenContext) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.FuncDef(func_def):
+                // Top-level function - check for variadic args (TMulti)
+                mut idx := 0
+                for arg: Declaration in func_def.args {
+                    switch arg.value_type {
+                    case ValueType.TMulti(elem_type):
+                        info := VariadicParamInfo()
+                        info.elem_type = elem_type.clone()
+                        info.regular_count = idx
+                        ctx.func_variadic_args.insert(decl.name.clone(), info)
+                        break // Only one variadic arg per function
+                    case:
+                    }
+                    idx.inc()
+                }
+            case NodeType.StructDef(struct_def):
+                // Struct methods - use mangled names (StructName_methodName)
+                struct_name := decl.name
+                for entry: MapEntry in struct_def.default_values.entries() {
+                    member_name := entry.key
+                    default_expr := entry.value
+                    switch default_expr.node_type {
+                    case NodeType.FuncDef(func_def):
+                        mangled_name := Str.concat(struct_name, "_", member_name)
+                        // Check for variadic args (TMulti) in struct methods
+                        mut idx := 0
+                        for arg: Declaration in func_def.args {
+                            switch arg.value_type {
+                            case ValueType.TMulti(elem_type):
+                                info := VariadicParamInfo()
+                                info.elem_type = elem_type.clone()
+                                info.regular_count = idx
+                                ctx.func_variadic_args.insert(mangled_name.clone(), info)
+                                break
+                            case:
+                            }
+                            idx.inc()
+                        }
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+// Collect nested function info (for hoisting): scan function bodies for nested FuncDef declarations
+// This populates ctx.nested_func_names and ctx.hoisted_prototypes before we emit function bodies
+collect_nested_func_info := proc(expr: Expr, ctx: CodegenContext, parent_func_name: Str) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.FuncDef(func_def):
+                if not(parent_func_name.eq("")) {
+                    // This is a nested function - record it for hoisting
+                    mangled_name := Str.concat(parent_func_name, "_", decl.name)
+                    ctx.nested_func_names.insert(decl.name.clone(), mangled_name.clone())
+
+                    // Generate prototype using emit_func_signature (handles throwing functions properly)
+                    mut proto := ""
+                    emit_func_signature(til_name(mangled_name), func_def, proto)
+                    proto.push_str(";\n")
+                    ctx.hoisted_prototypes.push(proto)
+
+                    // Recursively check for nested functions within this nested function
+                    new_parent := mangled_name.clone()
+                    for body_expr: Expr in func_def.body {
+                        collect_nested_func_info(body_expr, ctx, new_parent)
+                    }
+                } else {
+                    // Top-level function - scan its body for nested functions
+                    for body_expr: Expr in func_def.body {
+                        collect_nested_func_info(body_expr, ctx, decl.name)
+                    }
+                }
+            case:
+            }
+        }
+    case NodeType.Body:
+        for child: Expr in expr.params {
+            collect_nested_func_info(child, ctx, parent_func_name)
+        }
+    case NodeType.If:
+        // Check then and else branches (params[0] = condition, params[1] = then, params[2] = else)
+        if expr.params.len().gt(1) {
+            then_branch := expr.params.get(1)
+            collect_nested_func_info(then_branch, ctx, parent_func_name)
+        }
+        if expr.params.len().gt(2) {
+            else_branch := expr.params.get(2)
+            collect_nested_func_info(else_branch, ctx, parent_func_name)
+        }
+    case NodeType.While:
+        // Check loop body (params[0] = condition, params[1] = body)
+        if expr.params.len().gt(1) {
+            body := expr.params.get(1)
+            collect_nested_func_info(body, ctx, parent_func_name)
+        }
+    case NodeType.Switch:
+        // Check all case bodies (params[0] = value, rest are cases)
+        mut i := 1
+        while i.lt(expr.params.len()) {
+            case_expr := expr.params.get(i)
+            collect_nested_func_info(case_expr, ctx, parent_func_name)
+            i.inc()
+        }
+    case:
+        // Recursively check all params for other node types
+        for child: Expr in expr.params {
+            collect_nested_func_info(child, ctx, parent_func_name)
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+// Emit a struct declaration as a C struct (only mut fields become struct fields)
+// Forward declarations are emitted separately, so we use "struct Name { ... };" here
+emit_struct_declaration := proc(expr: Expr, output: Str) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
+        if decl.name.eq("I64") or decl.name.eq("U8") or decl.name.eq("Bool") or decl.name.eq("Dynamic") or decl.name.eq("Type") {
+            return
+        }
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.StructDef(struct_def):
+                output.push_str("struct ")
+                output.push_str(til_name(decl.name))
+                output.push_str(" {\n")
+                for member: Declaration in struct_def.members {
+                    // Only emit mut fields as struct members
+                    // Skip functions and non-mut fields (constants)
+                    if member.is_mut {
+                        c_type := til_type_to_c(member.value_type)
+                        output.push_str("    ")
+                        output.push_str(c_type)
+                        output.push_str(" ")
+                        output.push_str(member.name)
+                        output.push_str(";\n")
+                        catch (err: Str) { }
+                        catch (err: KeyNotFoundError) { }
+                    }
+                }
+                output.push_str("};\n\n")
+                return
+            case:
+            }
+        }
+    case:
+    }
+    throw "emit_struct_declaration: not a struct declaration"
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+}
+
+// Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
+// Also emits size_of constant: til_size_of_StructName = sizeof(til_StructName)
+emit_struct_constants := proc(expr: Expr, output: Str, ctx: CodegenContext, context: Context) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.StructDef(struct_def):
+                struct_name := til_name(decl.name)
+                for member: Declaration in struct_def.members {
+                    // Only emit non-mut, non-function fields as constants
+                    if not(member.is_mut) {
+                        c_type := til_type_to_c(member.value_type)
+                        // Get the default value
+                        default_val := struct_def.default_values.get(member.name)
+                        output.push_str("const ")
+                        output.push_str(c_type)
+                        output.push_str(" ")
+                        output.push_str(struct_name)
+                        output.push_str("_")
+                        output.push_str(member.name)
+                        output.push_str(" = ")
+                        emit_expr(default_val, output, 0, ctx, context)
+                        output.push_str(";\n")
+                        catch (err: Str) { }
+                        catch (err: KeyNotFoundError) { }
+                    }
+                }
+                // Emit size_of constant for this struct
+                output.push_str("const ")
+                output.push_str(TIL_PREFIX)
+                output.push_str("I64 ")
+                output.push_str(TIL_PREFIX)
+                output.push_str("size_of_")
+                output.push_str(decl.name)
+                output.push_str(" = sizeof(")
+                output.push_str(struct_name)
+                output.push_str(");\n")
+                // Track this type for til_size_of function generation
+                ctx.known_types.push(decl.name.clone())
+                return
+            case:
+            }
+        }
+    case:
+    }
+    // Not a struct, nothing to emit
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+// Emit size_of constant for an enum: til_size_of_EnumName = sizeof(til_EnumName)
+emit_enum_size_of_constant := proc(expr: Expr, output: Str, ctx: CodegenContext) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.EnumDef(enum_def):
+                enum_name := til_name(decl.name)
+                output.push_str("const ")
+                output.push_str(TIL_PREFIX)
+                output.push_str("I64 ")
+                output.push_str(TIL_PREFIX)
+                output.push_str("size_of_")
+                output.push_str(decl.name)
+                output.push_str(" = sizeof(")
+                output.push_str(enum_name)
+                output.push_str(");\n")
+                // Track this type for til_size_of function generation
+                ctx.known_types.push(decl.name.clone())
+            case:
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+// Emit til_size_of function for runtime type size lookup
+emit_size_of_function := proc(output: Str, ctx: CodegenContext) {
+    output.push_str("\n")
+    output.push_str("static inline ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64 ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("size_of(const ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str* type_name) {\n")
+
+    // All known types from structs and enums
+    for type_name: Str in ctx.known_types {
+        output.push_str("    if (strcmp((char*)type_name->c_string, \"")
+        output.push_str(type_name)
+        output.push_str("\") == 0) return ")
+        output.push_str(TIL_PREFIX)
+        output.push_str("size_of_")
+        output.push_str(type_name)
+        output.push_str(";\n")
+    }
+
+    output.push_str("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name->c_string);\n")
+    output.push_str("    exit(1);\n")
+    output.push_str("}\n")
+}
+
+// Check if an enum has any payloads
+enum_has_payloads := func(enum_def: SEnumDef) returns Bool {
+    for entry: MapEntry in enum_def.entries() {
+        variant_name := entry.key
+        payload_type := entry.value
+        // Check if payload_type is not None
+        switch payload_type {
+        case ValueType.TCustom(name):
+            return true
+        case:
+        }
+    }
+    return false
+}
+
+// Check if an expression is an enum declaration with payloads
+is_enum_with_payloads := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.EnumDef(enum_def):
+                return enum_has_payloads(enum_def)
+            case:
+            }
+            catch (err: IndexOutOfBoundsError) { }
+        }
+    case:
+    }
+    return false
+}
+
+// Emit an enum with payloads as a tagged union
+emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str) throws Str {
+    // Sort variants by name for deterministic output
+    mut variants := Vec.new(MapEntry)
+    for entry: MapEntry in enum_def.entries() {
+        variants.push(entry)
+    }
+    variants.sort_by_key_str(proc(e: MapEntry) returns Str { return e.key })
+
+    // 1. Emit tag enum: typedef enum { Color_Unknown = 0, ... } Color_Tag;
+    output.push_str("typedef enum {\n")
+    mut index := 0
+    for entry: MapEntry in variants {
+        variant_name := entry.key
+        output.push_str("    ")
+        output.push_str(enum_name)
+        output.push_str("_")
+        output.push_str(variant_name)
+        output.push_str(" = ")
+        output.push_str(I64.to_str(index))
+        output.push_str(",\n")
+        index.inc()
+    }
+    output.push_str("} ")
+    output.push_str(enum_name)
+    output.push_str("_Tag;\n\n")
+
+    // 2. Emit payload union (only for variants that have payloads)
+    // typedef union { unsigned char Green; long long Number; } Color_Payload;
+    mut has_any_payload := false
+    for entry: MapEntry in variants {
+        payload_type := entry.value
+        switch payload_type {
+        case ValueType.TCustom(name):
+            has_any_payload = true
+            break
+        case:
+        }
+    }
+    if has_any_payload {
+        output.push_str("typedef union {\n")
+        for entry: MapEntry in variants {
+            variant_name := entry.key
+            payload_type := entry.value
+            switch payload_type {
+            case ValueType.TCustom(name):
+                c_type := til_type_to_c(payload_type)
+                output.push_str("    ")
+                output.push_str(c_type)
+                output.push_str(" ")
+                output.push_str(variant_name)
+                output.push_str(";\n")
+                catch (err: Str) { }
+                catch (err: KeyNotFoundError) { }
+            case:
+            }
+        }
+        output.push_str("} ")
+        output.push_str(enum_name)
+        output.push_str("_Payload;\n\n")
+    }
+
+    // 3. Emit wrapper struct: struct Color { Color_Tag tag; Color_Payload payload; };
+    // Note: typedef is already forward-declared, so we just define the struct body
+    output.push_str("struct ")
+    output.push_str(enum_name)
+    output.push_str(" {\n")
+    output.push_str("    ")
+    output.push_str(enum_name)
+    output.push_str("_Tag tag;\n")
+    if has_any_payload {
+        output.push_str("    ")
+        output.push_str(enum_name)
+        output.push_str("_Payload payload;\n")
+    }
+    output.push_str("};\n\n")
+
+    // 4. Emit constructor functions for ALL variants (including no-payload ones)
+    // This ensures consistent calling convention: Color_make_Red(42), Color_make_Unknown()
+    for entry: MapEntry in variants {
+        variant_name := entry.key
+        payload_type := entry.value
+        output.push_str("static inline ")
+        output.push_str(enum_name)
+        output.push_str(" ")
+        output.push_str(enum_name)
+        output.push_str("_make_")
+        output.push_str(variant_name)
+        output.push_str("(")
+
+        // Parameter for payload (if any)
+        mut has_payload := false
+        switch payload_type {
+        case ValueType.TCustom(name):
+            c_type := til_type_to_c(payload_type)
+            output.push_str(c_type)
+            output.push_str(" value")
+            has_payload = true
+            catch (err: Str) { }
+            catch (err: KeyNotFoundError) { }
+        case:
+            output.push_str("void")
+        }
+        output.push_str(") {\n")
+
+        // Constructor body
+        output.push_str("    ")
+        output.push_str(enum_name)
+        output.push_str(" result = { .tag = ")
+        output.push_str(enum_name)
+        output.push_str("_")
+        output.push_str(variant_name)
+        output.push_str(" };\n")
+
+        // Set payload if present
+        if has_payload {
+            output.push_str("    result.payload.")
+            output.push_str(variant_name)
+            output.push_str(" = value;\n")
+        }
+
+        output.push_str("    return result;\n")
+        output.push_str("}\n\n")
+    }
+
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+// Emit an enum declaration as a C typedef enum (for simple enums without payloads)
+// or as a tagged union struct (for enums with payloads)
+emit_enum_declaration := proc(expr: Expr, output: Str) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.EnumDef(enum_def):
+                enum_name := til_name(decl.name)
+
+                if enum_has_payloads(enum_def) {
+                    // Phase 2: Enums with payloads - tagged union
+                    emit_enum_with_payloads(enum_name, enum_def, output)
+                    return
+                }
+
+                // Phase 1: Simple enum without payloads
+                // typedef enum { EnumName_Variant1 = 0, ... } EnumName;
+                output.push_str("typedef enum {\n")
+
+                // Sort variants by name for deterministic output
+                mut variants := Vec.new(Str)
+                for key: Str in enum_def.keys() {
+                    variants.push(key)
+                }
+                variants.sort()
+
+                mut index := 0
+                for variant_name: Str in variants {
+                    output.push_str("    ")
+                    output.push_str(enum_name)
+                    output.push_str("_")
+                    output.push_str(variant_name)
+                    output.push_str(" = ")
+                    output.push_str(I64.to_str(index))
+                    output.push_str(",\n")
+                    index.inc()
+                }
+
+                output.push_str("} ")
+                output.push_str(enum_name)
+                output.push_str(";\n\n")
+
+                // Generate constructor functions for consistency with payload enums
+                // static inline EnumName EnumName_make_Variant(void) { return EnumName_Variant; }
+                for variant_name: Str in variants {
+                    output.push_str("static inline ")
+                    output.push_str(enum_name)
+                    output.push_str(" ")
+                    output.push_str(enum_name)
+                    output.push_str("_make_")
+                    output.push_str(variant_name)
+                    output.push_str("(void) { return ")
+                    output.push_str(enum_name)
+                    output.push_str("_")
+                    output.push_str(variant_name)
+                    output.push_str("; }\n")
+                }
+                output.push_str("\n")
+
+                return
+            case:
+            }
+        }
+    case:
+    }
+    throw "emit_enum_declaration: not an enum declaration"
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+// Emit a _to_str function for an enum type
+// Takes a pointer because enum_to_str(e: Dynamic) passes by reference
+// For simple enums: til_Str til_EnumName_to_str(til_EnumName* e)
+// For enums with payloads: til_Str til_EnumName_to_str(til_EnumName* e)
+emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, output: Str) {
+    has_payloads := enum_has_payloads(enum_def)
+    mut variants := Vec.new(Str)
+    for key: Str in enum_def.keys() {
+        variants.push(key)
+    }
+    variants.sort()
+
+    // Function signature - takes pointer since Dynamic params are passed by reference
+    output.push_str("static inline til_Str ")
+    output.push_str(enum_name)
+    output.push_str("_to_str(")
+    output.push_str(enum_name)
+    output.push_str("* e) {\n    switch(")
+    if has_payloads {
+        output.push_str("e->tag")
+    } else {
+        output.push_str("*e")
+    }
+    output.push_str(") {\n")
+
+    // Cases - need the original (non-prefixed) enum name for the string
+    mut original_name := enum_name
+    if enum_name.starts_with(TIL_PREFIX) {
+        original_name = enum_name.get_substr(TIL_PREFIX.len(), enum_name.len())
+    }
+
+    for variant: Str in variants {
+        full_name := Str.concat(original_name, ".", variant)
+        output.push_str("        case ")
+        output.push_str(enum_name)
+        output.push_str("_")
+        output.push_str(variant)
+        output.push_str(": return (til_Str){(til_I64)\"")
+        output.push_str(full_name)
+        output.push_str("\", ")
+        output.push_str(I64.to_str(full_name.len()))
+        output.push_str("};\n")
+    }
+
+    // Default case (shouldn't happen but good for safety)
+    unknown_name := Str.concat(original_name, ".?")
+    output.push_str("    }\n    return (til_Str){(til_I64)\"")
+    output.push_str(unknown_name)
+    output.push_str("\", ")
+    output.push_str(I64.to_str(unknown_name.len()))
+    output.push_str("};\n}\n\n")
+
+    catch (err: AllocError) { }
+}
+
+// Emit _to_str function for an enum declaration node
+emit_enum_to_str_for_declaration := proc(expr: Expr, output: Str, context: Context) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        enum_name := decl.name
+        enum_def := context.scope_stack.lookup_enum(enum_name)
+        c_enum_name := til_name(enum_name)
+        emit_enum_to_str_function(c_enum_name, enum_def, output)
+        return
+    case:
+    }
+    throw "emit_enum_to_str_for_declaration: not an enum declaration"
+
+    catch (err: KeyNotFoundError) {
+        throw "emit_enum_to_str_for_declaration: enum not found"
+    }
+}
+
+// Emit struct function prototypes for all functions in a struct
+emit_struct_func_prototypes := proc(expr: Expr, output: Str) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.StructDef(struct_def):
+                struct_name := til_name(decl.name)
+                for member: Declaration in struct_def.members {
+                    // Check if default_value is a function definition
+                    func_expr := struct_def.default_values.get(member.name)
+                    switch func_expr.node_type {
+                    case NodeType.FuncDef(func_def):
+                        mangled_name := Str.concat(struct_name, "_", member.name)
+                        emit_func_signature(mangled_name, func_def, output)
+                        output.push_str(";\n")
+                    case:
+                    }
+                    catch (err: KeyNotFoundError) { }
+                }
+            case:
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+}
+
+// Emit a struct function body with mangled name: StructName_funcname
+emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: SFuncDef, output: Str, ctx: CodegenContext, context: Context) throws Str {
+    // Skip external functions
+    if func_def.is_ext() {
+        return
+    }
+
+    // Set current function context
+    ctx.current_throw_types = func_def.throw_types.clone()
+    ctx.current_return_types = func_def.return_types.clone()
+    // Track mut params for pointer dereference (-> vs .)
+    ctx.current_ref_params.clear()
+    // Track variadic params - they're passed as til_Array* so need dereference
+    ctx.current_variadic_params.clear()
+    for arg: Declaration in func_def.args {
+        // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
+        if not(arg.is_copy) {
+            ctx.current_ref_params.insert(arg.name.clone())
+        }
+        switch arg.value_type {
+        case ValueType.TMulti(elem_type):
+            // elem_type is the type name string like "Bool"
+            ctx.current_variadic_params.insert(arg.name.clone(), til_name(elem_type))
+        case:
+        }
+    }
+
+    // Push a new scope frame for this function (like interpreter does)
+    mut function_frame := ScopeFrame()
+    function_frame.scope_type = ScopeType.Function
+    // Register function parameters in the frame
+    for arg: Declaration in func_def.args {
+        mut info := SymbolInfo()
+        info.value_type = arg.value_type.clone()
+        info.is_mut = arg.is_mut
+        info.is_copy = arg.is_copy
+        info.is_own = arg.is_own
+        info.is_comptime_const = false
+        function_frame.symbols.insert(arg.name.clone(), info)
+    }
+    context.scope_stack.frames.push(function_frame)
+
+    // Clear declared_vars and hoisted_struct_defaults for new function scope
+    ctx.declared_vars.clear()
+    ctx.hoisted_struct_defaults.clear()
+
+    mangled_name := Str.concat(struct_name, "_", member.name)
+
+    // Save and set current function name for deterministic temp naming (Bug #42 fix)
+    prev_function_name := ctx.current_function_name.clone()
+    prev_mangling_counter := ctx.mangling_counter
+    ctx.current_function_name = mangled_name.clone()
+    ctx.mangling_counter = 0
+
+    emit_func_signature(mangled_name, func_def, output)
+    output.push_str(" {\n")
+
+    // Emit function body with catch pattern detection
+    emit_stmts(func_def.body, output, 1, ctx, context)
+
+    // For throwing void functions, add implicit return 0 at end
+    if not(func_def.throw_types.is_empty()) and func_def.return_types.is_empty() {
+        output.push_str("    return 0;\n")
+    }
+
+    output.push_str("}\n\n")
+
+    // Restore previous function name and counter
+    ctx.current_function_name = prev_function_name
+    ctx.mangling_counter = prev_mangling_counter
+
+    // Pop the function scope frame
+    context.scope_stack.frames.pop()
+
+    // Clear current function context
+    ctx.current_throw_types.clear()
+    ctx.current_return_types.clear()
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+// Emit struct function bodies for all functions in a struct
+emit_struct_func_bodies := proc(expr: Expr, output: Str, ctx: CodegenContext, context: Context) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.StructDef(struct_def):
+                struct_name := til_name(decl.name)
+                for member: Declaration in struct_def.members {
+                    // Check if default_value is a function definition
+                    func_expr := struct_def.default_values.get(member.name)
+                    switch func_expr.node_type {
+                    case NodeType.FuncDef(func_def):
+                        emit_struct_func_body(struct_name, member, func_def, output, ctx, context)
+                    case:
+                    }
+                    catch (err: KeyNotFoundError) { }
+                }
+            case:
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+}
+
+// Convert TIL type to C type. Returns Err if the type can't be represented in C (e.g., functions, infer)
+til_type_to_c := func(til_type: ValueType) returns Str throws Str throws KeyNotFoundError {
+    switch til_type {
+    case ValueType.TCustom(name):
+        if name.eq(INFER_TYPE) {
+            throw "Cannot convert inferred type to C"
+        } else {
+            // All types get TIL_PREFIX
+            return Str.concat(TIL_PREFIX, name)
+        }
+    case ValueType.TFunction(ft):
+        throw "Cannot convert function type to C"
+    case ValueType.TType(tt):
+        throw "Cannot convert Type to C"
+    case ValueType.TMulti(mt):
+        throw "Cannot convert multi-type to C"
+    case:
+        throw KeyNotFoundError()
+    }
+}
+
+// Helper to get C type name for a ValueType (for error struct definitions)
+value_type_to_c_name := func(vt: ValueType) returns Str throws Str {
+    switch vt {
+    case ValueType.TCustom(name):
+        // All types get TIL_PREFIX
+        return Str.concat(TIL_PREFIX, name)
+    case:
+        throw "Cannot convert to C type name"
+    }
+}
+
+// Emit function signature (used by both prototype and definition)
+// For throwing functions:
+//   int func_name(RetType* _ret, Error1* _err1, Error2* _err2, args...)
+// For non-throwing:
+//   RetType func_name(args...)
+emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str) throws Str {
+    is_throwing := not(func_def.throw_types.is_empty())
+
+    if is_throwing {
+        // Throwing function returns int status code
+        output.push_str("int ")
+    } else {
+        // Non-throwing function returns its actual type
+        if func_def.return_types.is_empty() {
+            output.push_str("void ")
+        } else {
+            ret_type_vt := func_def.return_types.get(0)
+            ret_type := til_type_to_c(ret_type_vt)
+            output.push_str(ret_type)
+            output.push_str(" ")
+        }
+    }
+
+    output.push_str(func_name)
+    output.push_str("(")
+
+    mut param_count := 0
+
+    if is_throwing {
+        // Output params first: return value pointer, then error pointers
+        if not(func_def.return_types.is_empty()) {
+            ret_type_vt := func_def.return_types.get(0)
+            ret_type := til_type_to_c(ret_type_vt)
+            output.push_str(ret_type)
+            output.push_str("* _ret")
+            param_count.inc()
+        }
+
+        mut i := 0
+        for throw_type: ValueType in func_def.throw_types {
+            if param_count.gt(0) {
+                output.push_str(", ")
+            }
+            err_type := value_type_to_c_name(throw_type)
+            output.push_str(err_type)
+            output.push_str("* _err")
+            output.push_str(I64.to_str(i.add(1)))
+            param_count.inc()
+            i.inc()
+        }
+    }
+
+    // Input parameters
+    for arg: Declaration in func_def.args {
+        if param_count.gt(0) {
+            output.push_str(", ")
+        }
+        // Check for variadic arg (TMulti)
+        switch arg.value_type {
+        case ValueType.TMulti(elem_type):
+            // Variadic args are passed as til_Array*
+            output.push_str(TIL_PREFIX)
+            output.push_str("Array* ")
+            output.push_str(TIL_PREFIX)
+            output.push_str(arg.name)
+            param_count.inc()
+            break // Variadic must be last
+        case ValueType.TCustom(type_name):
+            arg_type := til_type_to_c(arg.value_type)
+
+            // Bug #60: Type is already const char*, don't add extra indirection
+            is_type_param := type_name.eq("Type")
+            if arg.is_mut {
+                // mut: pass by pointer so mutations are visible to caller
+                output.push_str(arg_type)
+                output.push_str("* ")
+            } else if arg.is_own {
+                // own: pass by pointer, caller transfers ownership
+                // Type is already a pointer, so pass by value
+                if is_type_param {
+                    output.push_str(arg_type)
+                    output.push_str(" ")
+                } else {
+                    output.push_str(arg_type)
+                    output.push_str("* ")
+                }
+            } else if arg.is_copy {
+                // copy: pass by value, caller's copy is made
+                output.push_str(arg_type)
+                output.push_str(" ")
+            } else {
+                // const (default): pass by const pointer, read-only
+                // Type is already a pointer, so pass by value
+                if is_type_param {
+                    output.push_str(arg_type)
+                    output.push_str(" ")
+                } else {
+                    output.push_str("const ")
+                    output.push_str(arg_type)
+                    output.push_str("* ")
+                }
+            }
+            output.push_str(TIL_PREFIX)
+            output.push_str(arg.name)
+            param_count.inc()
+            catch (err: Str) { }
+            catch (err: KeyNotFoundError) { }
+        case:
+        }
+    }
+
+    if param_count.eq(0) {
+        output.push_str("void")
+    }
+
+    output.push_str(")")
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: KeyNotFoundError) {
+        throw "emit_func_signature: KeyNotFoundError"
+    }
+}
+
+// Emit a function prototype (forward declaration)
+emit_func_prototype := proc(expr: Expr, output: Str) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.FuncDef(func_def):
+                // Skip external functions (ext_proc/ext_func) - they're just declarations
+                if func_def.is_ext() {
+                    return
+                }
+
+                func_name := til_name(decl.name)
+                emit_func_signature(func_name, func_def, output)
+                output.push_str(";\n")
+                return
+            case:
+            }
+        }
+    case:
+    }
+    throw "emit_func_prototype: not a function declaration"
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+}
+
+// Check if an expression is a function declaration (name := proc/func)
+is_func_declaration := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.FuncDef(fd):
+                return true
+            case:
+            }
+            catch (err: IndexOutOfBoundsError) { }
+        }
+    case:
+    }
+    return false
+}
+
+// Emit a function declaration as a C function
+emit_func_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, context: Context) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.FuncDef(func_def):
+                // Skip external functions (ext_proc/ext_func) - they're just declarations
+                if func_def.is_ext() {
+                    return
+                }
+
+                // Set current function context for return/throw generation
+                ctx.current_throw_types = func_def.throw_types.clone()
+                ctx.current_return_types = func_def.return_types.clone()
+                // Track ref params for pointer dereference (-> vs .)
+                ctx.current_ref_params.clear()
+                // Track variadic params - they're passed as til_Array* so need dereference
+                ctx.current_variadic_params.clear()
+                for arg: Declaration in func_def.args {
+                    // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
+                    if not(arg.is_copy) {
+                        ctx.current_ref_params.insert(arg.name.clone())
+                    }
+                    switch arg.value_type {
+                    case ValueType.TMulti(elem_type):
+                        // elem_type is the type name string like "Bool"
+                        ctx.current_variadic_params.insert(arg.name.clone(), til_name(elem_type))
+                    case:
+                    }
+                }
+
+                // Push a new scope frame for this function (like interpreter does)
+                mut function_frame := ScopeFrame()
+                function_frame.scope_type = ScopeType.Function
+                // Register function parameters in the frame
+                // For variadic params (TMulti), register as Array type
+                for arg: Declaration in func_def.args {
+                    mut value_type := arg.value_type.clone()
+                    switch arg.value_type {
+                    case ValueType.TMulti(elem):
+                        value_type = ValueType.TCustom("Array")
+                    case:
+                    }
+                    mut info := SymbolInfo()
+                    info.value_type = value_type
+                    info.is_mut = arg.is_mut
+                    info.is_copy = arg.is_copy
+                    info.is_own = arg.is_own
+                    info.is_comptime_const = false
+                    function_frame.symbols.insert(arg.name.clone(), info)
+                }
+                context.scope_stack.frames.push(function_frame)
+
+                // Clear declared_vars and hoisted_struct_defaults for new function scope
+                ctx.declared_vars.clear()
+                ctx.hoisted_struct_defaults.clear()
+
+                func_name := til_name(decl.name)
+
+                // Save and set current function name for nested function mangling
+                prev_function_name := ctx.current_function_name.clone()
+                prev_mangling_counter := ctx.mangling_counter
+                ctx.current_function_name = decl.name.clone()
+                ctx.mangling_counter = 0  // Reset counter per-function for determinism
+
+                emit_func_signature(func_name, func_def, output)
+                output.push_str(" {\n")
+
+                // Emit function body with catch pattern detection
+                emit_stmts(func_def.body, output, 1, ctx, context)
+
+                // For throwing void functions, add implicit return 0 at end
+                if not(func_def.throw_types.is_empty()) and func_def.return_types.is_empty() {
+                    output.push_str("    return 0;\n")
+                }
+
+                output.push_str("}\n\n")
+
+                // Pop the function scope frame
+                context.scope_stack.frames.pop()
+
+                // Restore previous function name and counter
+                ctx.current_function_name = prev_function_name
+                ctx.mangling_counter = prev_mangling_counter
+
+                // Clear current function context
+                ctx.current_throw_types.clear()
+                ctx.current_return_types.clear()
+
+                return
+            case:
+            }
+        }
+    case:
+    }
+    throw "emit_func_declaration: not a function declaration"
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+emit_expr := proc(expr: Expr, output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
+    // Check if this expression has been hoisted (for nested variadic/throwing calls)
+    expr_addr := expr.addr()
+    temp_var := ctx.hoisted_exprs.get(expr_addr)
+    output.push_str(temp_var)
+    return
+    catch (err: KeyNotFoundError) {
+        // Not hoisted, continue with normal emit
+    }
+
+    switch expr.node_type {
+    case NodeType.Body:
+        emit_body(expr, output, indent, ctx, context)
+    case NodeType.FCall:
+        emit_fcall(expr, output, indent, ctx, context)
+    case NodeType.LLiteral(lit):
+        emit_literal(lit, output, context)
+    case NodeType.Declaration(decl):
+        emit_declaration(decl, expr, output, indent, ctx, context)
+    case NodeType.Identifier(name):
+        // Bug #32 fix: Handle field access on expression results
+        // When name is "_", params[0] is an expression to emit first,
+        // then params[1..] are the field chain
+        if name.eq("_") and not(expr.params.is_empty()) {
+            // Emit the base expression (params[0])
+            first_param := expr.params.get(0)
+            emit_expr(first_param, output, indent, ctx, context)
+            // Then emit the field chain
+            mut i := 1
+            while i.lt(expr.params.len()) {
+                param := expr.params.get(i)
+                switch param.node_type {
+                case NodeType.Identifier(field):
+                    output.push_str(".")
+                    output.push_str(field)
+                case:
+                }
+                i.inc()
+            }
+            return
+        }
+
+        // Check for type-qualified access (Type.field or Type.Variant)
+        if not(expr.params.is_empty()) {
+            first_param := expr.params.get(0)
+            switch first_param.node_type {
+            case NodeType.Identifier(field):
+                // Check if this is an enum variant by looking up in context
+                enum_def := context.scope_stack.lookup_enum(name)
+                if enum_def.contains_key(field) {
+                    // Enum variant: Type.Variant -> til_Type_make_Variant()
+                    output.push_str(TIL_PREFIX)
+                    output.push_str(name)
+                    output.push_str("_make_")
+                    output.push_str(field)
+                    output.push_str("()")
+                    return
+                }
+                catch (err: KeyNotFoundError) {
+                    // Not an enum, check for struct
+                }
+                // Check if this is a struct constant access
+                struct_def := context.scope_stack.lookup_struct(name)
+                // Struct constant: Type.constant -> til_Type_constant
+                output.push_str(til_name(name))
+                output.push_str("_")
+                output.push_str(field)
+                return
+                catch (err: KeyNotFoundError) {
+                    // Not a struct constant, continue
+                }
+            case:
+            }
+        }
+        // Regular identifier or field access (b.val -> til_b.val)
+        // For ref params (which are pointers in C), use -> for field access
+        is_ref_param := ctx.current_ref_params.contains(name)
+        if is_ref_param and not(expr.params.is_empty()) {
+            // Ref param with field access: til_self->field1.field2.field3
+            // First field uses -> (self is a pointer), rest use . (struct values)
+            output.push_str(til_name(name))
+            mut i := 0
+            for param: Expr in expr.params {
+                switch param.node_type {
+                case NodeType.Identifier(field):
+                    if i.eq(0) {
+                        output.push_str("->")
+                    } else {
+                        output.push_str(".")
+                    }
+                    output.push_str(field)
+                case:
+                }
+                i.inc()
+            }
+        } else if is_ref_param {
+            // Ref param used as value: dereference with *
+            output.push_str("(*")
+            output.push_str(til_name(name))
+            output.push_str(")")
+        } else {
+            // Regular identifier or field access
+            output.push_str(til_name(name))
+            for param: Expr in expr.params {
+                switch param.node_type {
+                case NodeType.Identifier(field):
+                    output.push_str(".")
+                    output.push_str(field)  // Field names stay as-is (C struct fields)
+                case:
+                }
+            }
+        }
+    case NodeType.FuncDef(func_def):
+        emit_funcdef(func_def, expr, output, indent, ctx, context)
+    case NodeType.Assignment(name):
+        emit_assignment(name, expr, output, indent, ctx, context)
+    case NodeType.Return:
+        emit_return(expr, output, indent, ctx, context)
+    case NodeType.If:
+        emit_if(expr, output, indent, ctx, context)
+    case NodeType.While:
+        emit_while(expr, output, indent, ctx, context)
+    case NodeType.Break:
+        emit_break(expr, output, indent)
+    case NodeType.Continue:
+        emit_continue(expr, output, indent)
+    case NodeType.Catch:
+        // Catch blocks handled at call site
+    case NodeType.Throw:
+        emit_throw(expr, output, indent, ctx, context)
+    case NodeType.StructDef(sd):
+        throw "ccodegen: StructDef should be handled at top level, not in emit_expr"
+    case NodeType.EnumDef(ed):
+        throw "ccodegen: EnumDef should be handled at top level, not in emit_expr"
+    case NodeType.Switch:
+        emit_switch(expr, output, indent, ctx, context)
+    case NodeType.DefaultCase:
+        throw "ccodegen: DefaultCase should be handled inside emit_switch"
+    case NodeType.Range:
+        throw "ccodegen: Range not yet supported"
+    case NodeType.Pattern(p):
+        throw "ccodegen: Pattern should be handled inside emit_switch"
+    case NodeType.NamedArg(na):
+        throw expr.error(context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")
+    case NodeType.ForIn(fi):
+        throw expr.lang_error(context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+emit_body := proc(expr: Expr, output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
+    // Bug #44 fix: Save and restore local_catch_labels around nested blocks
+    // Without this, nested blocks clear the outer catches when processing their
+    // own throwing calls, causing missing status checks for outer throwing calls.
+    saved_catch_labels := ctx.local_catch_labels.clone()
+    emit_stmts(expr.params, output, indent, ctx, context)
+    ctx.local_catch_labels = saved_catch_labels
+
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+/// Emit a sequence of statements with catch pattern detection
+/// This is the core logic shared between emit_body and emit_func_declaration
+emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
+    mut i := 0
+    indent_str := indent_string(indent)
+
+    // Pre-scan for function-level catches (at the end of the block)
+    func_level_catches := prescan_func_level_catches(stmts)
+
+    // Hoist declarations from catch blocks to function level
+    // (TIL has function-level scoping, not block-level scoping)
+    for catch_block: Expr in func_level_catches {
+        if catch_block.params.len().gte(3) {
+            // Temporarily add the catch error variable to scope for type inference
+            // catch (err: ErrType) { body } -> err_var=params[0], err_type=params[1], body=params[2]
+            err_var_param := catch_block.params.get(0)
+            err_type_param := catch_block.params.get(1)
+            switch err_var_param.node_type {
+            case NodeType.Identifier(err_var_name):
+                switch err_type_param.node_type {
+                case NodeType.Identifier(err_type_name):
+                    mut info := SymbolInfo()
+                    info.value_type = ValueType.TCustom(err_type_name.clone())
+                    info.is_mut = false
+                    info.is_copy = false
+                    info.is_own = false
+                    info.is_comptime_const = false
+                    context.scope_stack.declare_symbol(err_var_name.clone(), info)
+                case:
+                }
+            case:
+            }
+
+            catch_body := catch_block.params.get(2)
+            decls := collect_declarations_in_body(catch_body, context)
+            for decl: CollectedDeclaration in decls {
+                c_var_name := til_name(decl.name)
+                if not(ctx.declared_vars.contains(c_var_name)) {
+                    c_type := til_type_to_c(decl.value_type)
+                    output.push_str(indent_str)
+                    output.push_str(c_type)
+                    output.push_str(" ")
+                    output.push_str(c_var_name)
+                    output.push_str(";\n")
+                    ctx.declared_vars.insert(c_var_name)
+                    // Also register in scope_stack so get_value_type can find it
+                    mut sym_info := SymbolInfo()
+                    sym_info.value_type = decl.value_type.clone()
+                    sym_info.is_mut = false
+                    sym_info.is_copy = false
+                    sym_info.is_own = false
+                    sym_info.is_comptime_const = false
+                    context.scope_stack.declare_symbol(decl.name.clone(), sym_info)
+                    catch (err: Str) { }
+                    catch (err: KeyNotFoundError) { }
+                }
+            }
+        }
+    }
+
+    // Bug #39 fix: Give each catch block its own unique label using the global counter
+    // Store catch info with statement index so we can match calls to their NEXT catch
+    mut all_catch_info := Vec.new(CatchLabelInfoEntry)
+    mut scan_idx := 0
+    for scan_stmt: Expr in stmts {
+        switch scan_stmt.node_type {
+        case NodeType.Catch:
+            if scan_stmt.params.len().gte(3) {
+                err_type_param := scan_stmt.params.get(1)
+                switch err_type_param.node_type {
+                case NodeType.Identifier(err_type_name):
+                    catch_suffix := next_mangled(ctx)
+                    mut entry := CatchLabelInfoEntry()
+                    entry.stmt_index = scan_idx
+                    entry.type_name = err_type_name.clone()
+                    entry.label = Str.concat("_catch_", err_type_name, "_", catch_suffix)
+                    entry.temp_var = Str.concat("_thrown_", err_type_name, "_", catch_suffix)
+                    all_catch_info.push(entry)
+                case:
+                }
+            }
+        case:
+        }
+        scan_idx.inc()
+    }
+
+    // Declare temp variables for all catches at the start
+    for catch_entry: CatchLabelInfoEntry in all_catch_info {
+        output.push_str(indent_str)
+        output.push_str(til_name(catch_entry.type_name))
+        output.push_str(" ")
+        output.push_str(catch_entry.temp_var)
+        output.push_str(";\n")
+    }
+
+    // For backward compatibility, also populate local_catch_labels with first catch of each type
+    // This is used by throw statements and nested blocks
+    mut registered_types := Set.new(Str)
+    for catch_entry: CatchLabelInfoEntry in all_catch_info {
+        if not(registered_types.contains(catch_entry.type_name)) {
+            registered_types.insert(catch_entry.type_name.clone())
+            mut cli := CatchLabelInfo()
+            cli.label = catch_entry.label.clone()
+            cli.temp_var = catch_entry.temp_var.clone()
+            ctx.local_catch_labels.insert(catch_entry.type_name.clone(), cli)
+        }
+    }
+
+    // Track which catch labels have been emitted to avoid duplicates
+    // (when multiple catches of same type exist, only emit the label once)
+    mut emitted_catch_labels := Set.new(Str)
+
+    // Process all statements
+    while i.lt(stmts.len()) {
+        stmt := stmts.get(i)
+        effective_indent := indent  // Use same indent for all statements (no if-block nesting)
+
+        // Bug #39 fix: Handle catch blocks inline with if(0) { label: ... }
+        // This keeps catches where they appear in source, and execution falls through after
+        switch stmt.node_type {
+        case NodeType.Catch:
+            // Get the error type this catch handles
+            if stmt.params.len().gte(3) {
+                err_type_param := stmt.params.get(1)
+                switch err_type_param.node_type {
+                case NodeType.Identifier(err_type_name):
+                    // Look up this specific catch's label from all_catch_info by statement index
+                    mut catch_entry_found := false
+                    mut catch_entry_label := ""
+                    mut catch_entry_temp_var := ""
+                    for e: CatchLabelInfoEntry in all_catch_info {
+                        if e.stmt_index.eq(i) {
+                            catch_entry_found = true
+                            catch_entry_label = e.label.clone()
+                            catch_entry_temp_var = e.temp_var.clone()
+                            break
+                        }
+                    }
+                    if catch_entry_found {
+                        // Only emit if we haven't already emitted this label
+                        if not(emitted_catch_labels.contains(catch_entry_label)) {
+                            emitted_catch_labels.insert(catch_entry_label.clone())
+
+                            output.push_str(indent_str)
+                            output.push_str("if (0) { ")
+                            output.push_str(catch_entry_label)
+                            output.push_str(":\n")
+
+                            // Bind error variable
+                            err_var_param := stmt.params.get(0)
+                            switch err_var_param.node_type {
+                            case NodeType.Identifier(err_var_name):
+                                inner_indent := indent_string(indent.add(1))
+                                output.push_str(inner_indent)
+                                output.push_str(til_name(err_type_name))
+                                output.push_str(" ")
+                                output.push_str(til_name(err_var_name))
+                                output.push_str(" = ")
+                                output.push_str(catch_entry_temp_var)
+                                output.push_str(";\n")
+
+                                // Add error variable to scope for type resolution in catch body
+                                mut sym_info := SymbolInfo()
+                                sym_info.value_type = ValueType.TCustom(err_type_name.clone())
+                                sym_info.is_mut = false
+                                sym_info.is_copy = false
+                                sym_info.is_own = false
+                                sym_info.is_comptime_const = false
+                                context.scope_stack.declare_symbol(err_var_name.clone(), sym_info)
+                            case:
+                            }
+
+                            // Emit catch body
+                            // IMPORTANT: Temporarily clear local_catch_labels so throwing calls inside
+                            // the catch body don't try to jump to catches - catches shouldn't catch
+                            // errors from their own body, only from code before them
+                            saved_catch_labels := ctx.local_catch_labels.clone()
+                            ctx.local_catch_labels.clear()
+                            catch_body_expr := stmt.params.get(2)
+                            emit_expr(catch_body_expr, output, indent.add(1), ctx, context)
+                            ctx.local_catch_labels = saved_catch_labels
+
+                            // Close the if(0) block - execution falls through to code after
+                            output.push_str(indent_str)
+                            output.push_str("}\n")
+
+                            // Bug #46 fix: Remove this catch from local_catch_labels
+                            // Catches should only handle throws from BEFORE them, not after.
+                            ctx.local_catch_labels.remove(err_type_name)
+                        }
+                    }
+                case:
+                }
+            }
+            i.inc()
+            continue
+        case:
+        }
+
+        // Check if this statement is followed by catch blocks
+        // And if it's a call to a throwing function (FCall, Declaration with FCall, or Assignment with FCall)
+        mut maybe_fcall_found := false
+        mut maybe_fcall := stmt
+        mut maybe_decl_name := ""
+        mut maybe_assign_name := ""
+
+        switch stmt.node_type {
+        case NodeType.FCall:
+            maybe_fcall_found = true
+            maybe_fcall = stmt
+        case NodeType.Declaration(decl):
+            // Check if declaration has an FCall as initializer
+            if not(stmt.params.is_empty()) {
+                first_param := stmt.params.get(0)
+                switch first_param.node_type {
+                case NodeType.FCall:
+                    maybe_fcall_found = true
+                    maybe_fcall = first_param
+                    maybe_decl_name = decl.name.clone()
+                case:
+                }
+            }
+        case NodeType.Assignment(name):
+            // Check if assignment has an FCall as RHS
+            if not(stmt.params.is_empty()) {
+                first_param := stmt.params.get(0)
+                switch first_param.node_type {
+                case NodeType.FCall:
+                    maybe_fcall_found = true
+                    maybe_fcall = first_param
+                    maybe_assign_name = name.clone()
+                case:
+                }
+            }
+        case:
+        }
+
+        if maybe_fcall_found {
+            // eval functions from std.meta are only available in interpret mode
+            if not(maybe_fcall.params.is_empty()) {
+                func_name_param := maybe_fcall.params.get(0)
+                func_name := get_til_func_name_string(func_name_param)
+                if func_name.eq("eval_file") or func_name.eq("eval_to_str") or func_name.eq("eval_to_ast_str") or func_name.eq("eval_to_expr") {
+                    throw maybe_fcall.error(context.path, "ccodegen", Str.concat(func_name, "() is only available in interpret mode, not in build/run"))
+                }
+                catch (err: KeyNotFoundError) { }
+            }
+
+            // Get function name from the FCall
+            // Check if this function is a throwing function
+            fd := get_fcall_func_def(context, maybe_fcall)
+            if not(fd.throw_types.is_empty()) {
+                throw_types := fd.throw_types
+
+                // Collect subsequent catch blocks
+                mut catch_blocks := Vec.new(Expr)
+                mut j := i.add(1)
+                while j.lt(stmts.len()) {
+                    next_stmt := stmts.get(j)
+                    switch next_stmt.node_type {
+                    case NodeType.Catch:
+                        catch_blocks.push(next_stmt)
+                        j.inc()
+                    case:
+                        break
+                    }
+                }
+
+                if not(catch_blocks.is_empty()) and func_level_catches.is_empty() {
+                    // Immediate catches AND no function-level catches - handle inline
+                    emit_throwing_call(maybe_fcall, throw_types, catch_blocks, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)
+                    i = j  // Skip past catch blocks
+                    continue
+                } else if not(ctx.current_throw_types.is_empty()) and ctx.local_catch_labels.is_empty() and func_level_catches.is_empty() {
+                    // Bug #68 fix: Also check func_level_catches.is_empty()
+                    // No catch blocks, we're inside a throwing function, and no catches in this block
+                    // Emit error propagation pattern
+                    emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)
+                    i.inc()
+                    continue
+                } else if not(func_level_catches.is_empty()) or not(ctx.local_catch_labels.is_empty()) {
+                    // Has function-level catches or outer catches registered
+                    // Bug #39 fix: Update local_catch_labels to point to NEXT catch for each type
+                    // Build map with only catches AFTER current position
+                    mut next_catches := Map.new(Str, CatchLabelInfo)
+                    for catch_entry: CatchLabelInfoEntry in all_catch_info {
+                        if catch_entry.stmt_index.gt(i) and not(next_catches.contains_key(catch_entry.type_name)) {
+                            // First catch of this type after current position
+                            mut cli := CatchLabelInfo()
+                            cli.label = catch_entry.label.clone()
+                            cli.temp_var = catch_entry.temp_var.clone()
+                            next_catches.insert(catch_entry.type_name.clone(), cli)
+                        }
+                    }
+                    // Replace local_catch_labels with only the next catches
+                    ctx.local_catch_labels.clear()
+                    for entry: MapEntry in next_catches.entries() {
+                        type_name := entry.key
+                        catch_info := entry.value
+                        mut cli := CatchLabelInfo()
+                        cli.label = catch_info.label.clone()
+                        cli.temp_var = catch_info.temp_var.clone()
+                        ctx.local_catch_labels.insert(type_name.clone(), cli)
+                    }
+                    emit_throwing_call_with_goto(maybe_fcall, throw_types, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)
+                    i.inc()
+                    continue
+                } else {
+                    // No catches - typer should have caught this if we're in non-throwing context
+                    // Just use propagate (will silently succeed on error if we're not throwing)
+                    emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)
+                    i.inc()
+                    continue
+                }
+            }
+            catch (err: KeyNotFoundError) {
+                // Not a function call, continue
+            }
+        }
+
+        // Check for non-throwing variadic calls in declarations/assignments
+        // These need special handling because variadic array must be constructed first
+        if maybe_fcall_found {
+            variadic_fcall_info := detect_variadic_fcall(maybe_fcall, ctx)
+            // Check that this is NOT a throwing function (those are handled above)
+            fd := get_fcall_func_def(context, maybe_fcall)
+            is_throwing := not(fd.throw_types.is_empty())
+            catch (err: KeyNotFoundError) {
+                is_throwing = false
+            }
+            if not(is_throwing) {
+                emit_variadic_call(maybe_fcall, variadic_fcall_info.elem_type, variadic_fcall_info.regular_count, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)
+                i.inc()
+                continue
+            }
+            catch (err: KeyNotFoundError) {
+                // Not a variadic call, continue
+            }
+        }
+
+        // Regular statement handling
+        emit_expr(stmt, output, effective_indent, ctx, context)
+        i.inc()
+    }
+
+    // Clean up local_catch_labels for this block
+    for catch_entry: CatchLabelInfoEntry in all_catch_info {
+        ctx.local_catch_labels.remove(catch_entry.type_name)
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
+
+/// Get the function name from an FCall expression (returns underscore format like Type_method)
+/// This returns the name WITHOUT til_ prefix.
+/// For C output, use til_name() on the result.
+get_fcall_func_name := func(expr: Expr) returns Str throws KeyNotFoundError {
+    // get_func_name_string already handles both nested identifiers (Type.method)
+    // and precomp'd strings ("Type.method"), returning "Type_method" format
+    first_param := expr.params.get(0)
+    return get_func_name_string(first_param)
+
+    catch (err: IndexOutOfBoundsError) {
+        throw KeyNotFoundError()
+    }
+}
+
+/// Pre-scan function body to collect all catch blocks
+/// Returns all catch blocks found in the statements
+prescan_func_level_catches := func(stmts: Vec) returns Vec {
+    mut catches := Vec.new(Expr)
+
+    // Collect ALL catch blocks - we'll register them all for local throw handling
+    // The emit_throwing_call handles immediate catch chains for function calls,
+    // but we need labels for throw statements that jump to these catches
+    for stmt: Expr in stmts {
+        switch stmt.node_type {
+        case NodeType.Catch:
+            catches.push(stmt)
+        case:
+        }
+    }
+
+    return catches
+
+    catch (err: AllocError) { }
+}
+
+/// Emit a non-throwing variadic function call at statement level
+/// Handles constructing the variadic array and cleaning it up after the call
+emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_name: Str, assign_name: Str, output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
+    indent_str := indent_string(indent)
+
+    // Get function name
+    func_name := get_fcall_func_name(fcall)
+    catch (err: KeyNotFoundError) {
+        throw "emit_variadic_call: could not get function name"
+    }
+
+    // Calculate param info for by-ref param handling
+    fd := get_fcall_func_def(context, fcall)
+    mut param_by_ref := Vec.new(Bool)
+    mut param_types := Vec.new(ValueType)
+    mut arg_idx := 0
+    for arg: Expr in fcall.params {
+        if arg_idx.eq(0) {
+            arg_idx.inc()
+            continue  // Skip function name
+        }
+        param_arg := fd.args.get(arg_idx.sub(1))
+        param_by_ref.push(param_needs_by_ref(param_arg))
+        param_types.push(param_arg.value_type.clone())
+        arg_idx.inc()
+        catch (err: IndexOutOfBoundsError) {
+            param_by_ref.push(false)
+            param_types.push(ValueType.TCustom(INFER_TYPE))
+        }
+    }
+    catch (err: KeyNotFoundError) { }
+
+    // Hoist any throwing function calls in arguments BEFORE constructing variadic array
+    mut hoisted := Map.new(I64, Str)
+    if fcall.params.len().gt(1) {
+        hoisted_vec := hoist_throwing_args(fcall.params, 1, output, indent, ctx, context)
+        for h: HoistedArg in hoisted_vec {
+            hoisted.insert(h.index, h.temp_var)
+        }
+    }
+
+    // Construct variadic array
+    variadic_arr_var := hoist_variadic_args(elem_type, fcall.params, hoisted, regular_count, output, indent, ctx, context)
+
+    // Determine return type if we need to declare a variable
+    mut ret_type := "int"
+    if not(decl_name.eq("")) or not(assign_name.eq("")) {
+        fd2 := get_fcall_func_def(context, fcall)
+        if not(fd2.return_types.is_empty()) {
+            first_ret := fd2.return_types.get(0)
+            ret_type = til_type_to_c(first_ret)
+            catch (err: Str) {
+                ret_type = "int"
+            }
+            catch (err: KeyNotFoundError) {
+                ret_type = "int"
+            }
+            catch (err: IndexOutOfBoundsError) {
+                ret_type = "int"
+            }
+        }
+        catch (err: KeyNotFoundError) { }
+    }
+
+    func_name_c := func_name.replace(".", "_")
+
+    // For declarations: declare the variable (skip for "_" - Bug #35)
+    if not(decl_name.eq("")) {
+        if decl_name.eq("_") {
+            // Bug #35: For underscore, just call the function (discard result)
+            output.push_str(indent_str)
+            output.push_str(TIL_PREFIX)
+            output.push_str(func_name_c)
+            output.push_str("(")
+
+            mut i := 0
+            while i.lt(regular_count) {
+                if i.gt(0) {
+                    output.push_str(", ")
+                }
+                arg := fcall.params.get(i.add(1))  // +1 to skip func name
+                by_ref := param_by_ref.get(i)
+                param_type := param_types.get(i)
+                emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)
+                i.inc()
+                catch (err: IndexOutOfBoundsError) { }
+            }
+
+            if regular_count.gt(0) {
+                output.push_str(", ")
+            }
+            output.push_str("&")
+            output.push_str(variadic_arr_var)
+            output.push_str(");\n")
+        } else {
+            output.push_str(indent_str)
+            output.push_str(ret_type)
+            output.push_str(" ")
+            output.push_str(til_name(decl_name))
+            output.push_str(" = ")
+
+            // Emit function call
+            output.push_str(TIL_PREFIX)
+            output.push_str(func_name_c)
+            output.push_str("(")
+
+            // Emit regular args first
+            mut i := 0
+            while i.lt(regular_count) {
+                if i.gt(0) {
+                    output.push_str(", ")
+                }
+                arg := fcall.params.get(i.add(1))
+                by_ref := param_by_ref.get(i)
+                param_type := param_types.get(i)
+                emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)
+                i.inc()
+                catch (err: IndexOutOfBoundsError) { }
+            }
+
+            // Emit variadic array pointer
+            if regular_count.gt(0) {
+                output.push_str(", ")
+            }
+            output.push_str("&")
+            output.push_str(variadic_arr_var)
+            output.push_str(");\n")
+
+            // Add variable to scope
+            fd3 := get_fcall_func_def(context, fcall)
+            if not(fd3.return_types.is_empty()) {
+                first_type := fd3.return_types.get(0)
+                mut sym_info := SymbolInfo()
+                sym_info.value_type = first_type.clone()
+                sym_info.is_mut = true
+                sym_info.is_copy = false
+                sym_info.is_own = false
+                sym_info.is_comptime_const = false
+                context.scope_stack.declare_symbol(decl_name.clone(), sym_info)
+            }
+            ctx.declared_vars.insert(til_name(decl_name))
+            catch (err: KeyNotFoundError) { }
+            catch (err: IndexOutOfBoundsError) { }
+        }
+    } else if not(assign_name.eq("")) {
+        // Assignment
+        output.push_str(indent_str)
+        output.push_str(til_name(assign_name))
+        output.push_str(" = ")
+
+        // Emit function call
+        output.push_str(TIL_PREFIX)
+        output.push_str(func_name_c)
+        output.push_str("(")
+
+        // Emit regular args first
+        mut i := 0
+        while i.lt(regular_count) {
+            if i.gt(0) {
+                output.push_str(", ")
+            }
+            arg := fcall.params.get(i.add(1))
+            by_ref := param_by_ref.get(i)
+            param_type := param_types.get(i)
+            emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)
+            i.inc()
+            catch (err: IndexOutOfBoundsError) { }
+        }
+
+        // Emit variadic array pointer
+        if regular_count.gt(0) {
+            output.push_str(", ")
+        }
+        output.push_str("&")
+        output.push_str(variadic_arr_var)
+        output.push_str(");\n")
+    } else {
+        // Standalone variadic call (no return value used)
+        output.push_str(indent_str)
+        output.push_str(TIL_PREFIX)
+        output.push_str(func_name_c)
+        output.push_str("(")
+
+        // Emit regular args first
+        mut i := 0
+        while i.lt(regular_count) {
+            if i.gt(0) {
+                output.push_str(", ")
+            }
+            arg := fcall.params.get(i.add(1))
+            by_ref := param_by_ref.get(i)
+            param_type := param_types.get(i)
+            emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)
+            i.inc()
+            catch (err: IndexOutOfBoundsError) { }
+        }
+
+        // Emit variadic array pointer
+        if regular_count.gt(0) {
+            output.push_str(", ")
+        }
+        output.push_str("&")
+        output.push_str(variadic_arr_var)
+        output.push_str(");\n")
+    }
+
+    // Clean up variadic array
+    output.push_str(indent_str)
+    output.push_str(TIL_PREFIX)
+    output.push_str("Array_delete(&")
+    output.push_str(variadic_arr_var)
+    output.push_str(");\n")
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+}
