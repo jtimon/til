@@ -6,6 +6,7 @@ import("core.comptime")
 import("core.exit")
 import("core.i64")
 import("core.print")
+import("core.range")
 import("core.str")
 import("core.u8")
 

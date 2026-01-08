@@ -499,9 +499,81 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     };
 
     // Get collection expression (params[1])
-    let collection_expr = match e.params.get(1) {
+    let raw_collection_expr = match e.params.get(1) {
         Some(expr) => precomp_expr(context, expr)?,
         None => return Err(e.lang_error(&context.path, "precomp", "ForIn: missing collection expression")),
+    };
+
+    // Bug #40 fix: Use per-function counter and include function name for deterministic output
+    // Get forin_id and increment BEFORE processing body so nested loops get different IDs
+    let forin_id = context.precomp_forin_counter;
+    context.precomp_forin_counter += 1;
+    let func_name = context.current_precomp_func.clone();
+
+    // Bug #92: If collection is a Range expression, wrap it in I64Range struct literal
+    // and hoist to a variable so it's not recreated on each iteration
+    let (collection_expr, range_decl_expr) = if raw_collection_expr.node_type == NodeType::Range {
+        // Range has params[0]=start, params[1]=end
+        let start_expr = raw_collection_expr.params.get(0)
+            .ok_or_else(|| e.lang_error(&context.path, "precomp", "Range: missing start expression"))?
+            .clone();
+        let end_expr = raw_collection_expr.params.get(1)
+            .ok_or_else(|| e.lang_error(&context.path, "precomp", "Range: missing end expression"))?
+            .clone();
+
+        // Generate unique variable name for the range
+        let range_var_name = if !func_name.is_empty() {
+            format!("_range_{}_{}", func_name, forin_id)
+        } else {
+            format!("_range_{}", forin_id)
+        };
+
+        // Build: I64Range(start=start_expr, end=end_expr)
+        let start_named = Expr::new_explicit(
+            NodeType::NamedArg("start".to_string()),
+            vec![start_expr],
+            e.line, e.col,
+        );
+        let end_named = Expr::new_explicit(
+            NodeType::NamedArg("end".to_string()),
+            vec![end_expr],
+            e.line, e.col,
+        );
+        let range_struct = Expr::new_explicit(
+            NodeType::FCall,
+            vec![
+                Expr::new_explicit(NodeType::Identifier("I64Range".to_string()), vec![], e.line, e.col),
+                start_named,
+                end_named,
+            ],
+            e.line, e.col,
+        );
+
+        // Build: _range_N := I64Range(start=..., end=...)
+        let range_decl = Declaration {
+            name: range_var_name.clone(),
+            value_type: ValueType::TCustom("I64Range".to_string()),
+            is_mut: false,
+            is_copy: false,
+            is_own: false,
+            default_value: None,
+        };
+        let range_decl_expr = Expr::new_explicit(
+            NodeType::Declaration(range_decl),
+            vec![range_struct],
+            e.line, e.col,
+        );
+
+        // Use the variable as collection_expr
+        let range_var = Expr::new_explicit(
+            NodeType::Identifier(range_var_name),
+            vec![],
+            e.line, e.col,
+        );
+
+        (range_var, Some(range_decl_expr))
+    } else {
+        (raw_collection_expr, None)
     };
 
     // Declare loop variable in scope BEFORE processing body (body references it)
@@ -520,10 +592,6 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     };
 
     // Build: mut _for_i_funcname_N := 0 (unique name to avoid conflicts with nested loops)
-    // Bug #40 fix: Use per-function counter and include function name for deterministic output
-    let forin_id = context.precomp_forin_counter;
-    context.precomp_forin_counter += 1;
-    let func_name = &context.current_precomp_func;
     let index_var_name = if !func_name.is_empty() {
         format!("_for_i_{}_{}", func_name, forin_id)
     } else {
@@ -716,8 +784,14 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     // Build while: while _for_i.lt(collection.len()) { ... }
     let while_expr = Expr::new_explicit(NodeType::While, vec![cond_expr, while_body], e.line, e.col);
 
-    // Build outer body: index_decl, while
-    Ok(Expr::new_explicit(NodeType::Body, vec![index_decl_expr, while_expr], e.line, e.col))
+    // Build outer body: [range_decl], index_decl, while
+    let mut outer_body_params = Vec::new();
+    if let Some(decl) = range_decl_expr {
+        outer_body_params.push(decl);
+    }
+    outer_body_params.push(index_decl_expr);
+    outer_body_params.push(while_expr);
+    Ok(Expr::new_explicit(NodeType::Body, outer_body_params, e.line, e.col))
 }
 
 /// Transform Switch - handle pattern binding variables by adding them to scope

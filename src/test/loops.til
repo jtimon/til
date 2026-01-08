@@ -188,3 +188,21 @@ test_i64range := proc() {
     assert_eq(loc(), 10, sum)  // 0+1+2+3+4 = 10
 }
 test_i64range()
+
+// Bug #92: Test range syntax desugared to I64Range
+test_range_syntax := proc() {
+    // Forward range
+    mut sum := 0
+    for i in 0..5 {
+        sum = sum.add(i)
+    }
+    assert_eq(loc(), 10, sum)  // 0+1+2+3+4 = 10
+
+    // Reverse range
+    mut rev_sum := 0
+    for j in 5..0 {
+        rev_sum = rev_sum.add(j)
+    }
+    assert_eq(loc(), 15, rev_sum)  // 5+4+3+2+1 = 15
+}
+test_range_syntax()

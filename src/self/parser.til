@@ -1680,35 +1680,6 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     return Expr.new_parse(NodeType.While, initial_token, params)
 }
 
-// Bug #57 fix: Transform continue statements to include the step expression before continue.
-// This ensures the loop variable is incremented/decremented even when continue is used.
-// Transforms: continue -> { step_expr; continue }
-transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr throws AllocError, IndexOutOfBoundsError {
-    switch expr.node_type {
-    case NodeType.Continue:
-        // Replace continue with { step_expr; continue }
-        mut body_params := Vec.new(Expr)
-        body_params.push(step_expr.clone())
-        body_params.push(expr.clone())
-        return Expr.new_explicit(NodeType.Body, body_params, expr.line, expr.col)
-    case NodeType.While:
-        // Don't recurse into nested loops - their continues are for their own loop
-        return expr.clone()
-    case NodeType.ForIn(_):
-        // Don't recurse into nested loops
-        return expr.clone()
-    case:
-        // Recurse into other nodes
-        mut new_params := Vec.new(Expr)
-        for i in 0..expr.params.len() {
-            mut p := Expr()
-            expr.params.get(i, p)
-            new_params.push(transform_continue_with_step(p, step_expr))
-        }
-        return Expr(node_type=expr.node_type, params=new_params, line=expr.line, col=expr.col)
-    }
-}
-
 parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_token := lexer.peek()
     lexer.advance(1) // consume 'for'
@@ -1759,6 +1730,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     }
 
     // Range-based for: for VAR in RANGE { ... }
+    // Bug #92: Unified iteration - create ForIn node, let precomp handle desugaring
     _ := lexer.expect(TokenType.In)
 
     // Parse the range expression (e.g., 1..10)
@@ -1774,161 +1746,24 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     if not(is_range) {
         throw ident_token.error(lexer.path, "Expected range expression (start..end) after 'in'. For collection iteration, use 'for VAR: TYPE in COLLECTION'")
     }
-    start_expr := range_expr.get(0).clone()
-    end_expr := range_expr.get(1).clone()
 
     _ := lexer.expect(TokenType.LeftBrace)
-    body_expr := parse_body(lexer, TokenType.RightBrace)
+    range_body_expr := parse_body(lexer, TokenType.RightBrace)
 
-    // Check if both bounds are numeric literals for compile-time direction detection
-    // is_forward: 0 = unknown (runtime), 1 = forward, 2 = reverse
-    mut is_forward := 0
-    switch start_expr.node_type {
-    case NodeType.LLiteral(start_lit):
-        switch start_lit {
-        case Literal.Number(start_str):
-            switch end_expr.node_type {
-            case NodeType.LLiteral(end_lit):
-                switch end_lit {
-                case Literal.Number(end_str):
-                    start_val := start_str.to_i64()
-                    end_val := end_str.to_i64()
-                    if lt(start_val, end_val) {
-                        is_forward = 1
-                    } else {
-                        is_forward = 2
-                    }
-                case:
-                }
-            case:
-            }
-        case:
-        }
-    case:
-    }
+    // ForIn node with I64 type (ranges produce I64 values)
+    // params[0] = Identifier(var_name), params[1] = Range expression, params[2] = body
+    range_var_ident := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token.clone(), Vec.new(Expr))
 
-    // let loop_var := <start_expr>
-    mut decl := Declaration()
-    decl.name = loop_var_name.clone()
-    decl.value_type = str_to_value_type(INFER_TYPE)
-    decl.is_mut = true
-    mut decl_params := Vec.new(Expr)
-    decl_params.push(start_expr.clone())
-    decl_expr := Expr.new_parse(NodeType.Declaration(decl), initial_token.clone(), decl_params)
-
-    // Helper: create forward while loop
-    make_fwd_while := func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr throws Str {
-        mut lt_params := Vec.new(Expr)
-        lt_ident := Expr.new_parse(NodeType.Identifier("lt"), tok.clone(), Vec.new(Expr))
-        lt_params.push(lt_ident)
-        cond_var := Expr.new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), lt_params)
-        mut cond_params := Vec.new(Expr)
-        cond_params.push(cond_var)
-        cond_params.push(end.clone())
-        cond := Expr.new_explicit(NodeType.FCall, cond_params, tok.line, tok.col)
-
-        mut inc_method_params := Vec.new(Expr)
-        inc_method := Expr.new_parse(NodeType.Identifier("inc"), tok.clone(), Vec.new(Expr))
-        inc_method_params.push(inc_method)
-        inc_var := Expr.new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), inc_method_params)
-        mut inc_params := Vec.new(Expr)
-        inc_params.push(inc_var)
-        inc := Expr.new_explicit(NodeType.FCall, inc_params, tok.line, tok.col)
-
-        // Bug #57 fix: Transform continue statements to include increment before continue
-        transformed_body := transform_continue_with_step(body, inc)
-        mut body_params := transformed_body.params_clone()
-        body_params.push(inc.clone())
-        while_body := Expr.new_explicit(NodeType.Body, body_params, body.line, body.col)
-
-        mut while_params := Vec.new(Expr)
-        while_params.push(cond)
-        while_params.push(while_body)
-
-        catch (err: AllocError) { throw err.msg }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
-    }
-
-    // Helper: create reverse while loop
-    make_rev_while := func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr throws Str {
-        mut gt_params := Vec.new(Expr)
-        gt_ident := Expr.new_parse(NodeType.Identifier("gt"), tok.clone(), Vec.new(Expr))
-        gt_params.push(gt_ident)
-        cond_var := Expr.new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), gt_params)
-        mut cond_params := Vec.new(Expr)
-        cond_params.push(cond_var)
-        cond_params.push(end.clone())
-        cond := Expr.new_explicit(NodeType.FCall, cond_params, tok.line, tok.col)
-
-        mut dec_method_params := Vec.new(Expr)
-        dec_method := Expr.new_parse(NodeType.Identifier("dec"), tok.clone(), Vec.new(Expr))
-        dec_method_params.push(dec_method)
-        dec_var := Expr.new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), dec_method_params)
-        mut dec_params := Vec.new(Expr)
-        dec_params.push(dec_var)
-        dec := Expr.new_explicit(NodeType.FCall, dec_params, tok.line, tok.col)
-
-        // Bug #57 fix: Transform continue statements to include decrement before continue
-        transformed_body := transform_continue_with_step(body, dec)
-        mut body_params := transformed_body.params_clone()
-        body_params.push(dec.clone())
-        while_body := Expr.new_explicit(NodeType.Body, body_params, body.line, body.col)
-
-        mut while_params := Vec.new(Expr)
-        while_params.push(cond)
-        while_params.push(while_body)
-
-        catch (err: AllocError) { throw err.msg }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
-    }
-
-    mut loop_expr := Expr()
-    if is_forward.eq(1) {
-        // Compile-time: forward loop only
-        loop_expr = make_fwd_while(body_expr, loop_var_name, end_expr, initial_token)
-    } else {
-        if is_forward.eq(2) {
-            // Compile-time: reverse loop only
-            loop_expr = make_rev_while(body_expr, loop_var_name, end_expr, initial_token)
-        } else {
-            // Runtime: if start < end { forward } else { reverse }
-            fwd_while := make_fwd_while(body_expr, loop_var_name, end_expr, initial_token)
-            rev_while := make_rev_while(body_expr, loop_var_name, end_expr, initial_token)
-
-            mut dir_cond_params := Vec.new(Expr)
-            dir_lt_ident := Expr.new_parse(NodeType.Identifier("lt"), initial_token.clone(), Vec.new(Expr))
-            dir_cond_params.push(dir_lt_ident)
-            dir_cond_params.push(start_expr.clone())
-            dir_cond_params.push(end_expr.clone())
-            dir_cond_expr := Expr.new_explicit(NodeType.FCall, dir_cond_params, initial_token.line, initial_token.col)
-
-            mut fwd_body_params := Vec.new(Expr)
-            fwd_body_params.push(fwd_while)
-            fwd_body := Expr.new_explicit(NodeType.Body, fwd_body_params, initial_token.line, initial_token.col)
-
-            mut rev_body_params := Vec.new(Expr)
-            rev_body_params.push(rev_while)
-            rev_body := Expr.new_explicit(NodeType.Body, rev_body_params, initial_token.line, initial_token.col)
-
-            mut if_params := Vec.new(Expr)
-            if_params.push(dir_cond_expr)
-            if_params.push(fwd_body)
-            if_params.push(rev_body)
-            loop_expr = Expr.new_explicit(NodeType.If, if_params, initial_token.line, initial_token.col)
-        }
-    }
-
-    mut final_params := Vec.new(Expr)
-    final_params.push(decl_expr)
-    final_params.push(loop_expr)
+    mut range_forin_params := Vec.new(Expr)
+    range_forin_params.push(range_var_ident)
+    range_forin_params.push(range_expr)
+    range_forin_params.push(range_body_expr)
 
     catch (err: AllocError) {
         throw concat("parse_for_statement: ", err.msg)
     }
 
-    return Expr.new_explicit(NodeType.Body, final_params, initial_token.line, initial_token.col)
+    return Expr.new_explicit(NodeType.ForIn("I64"), range_forin_params, initial_token.line, initial_token.col)
 }
 
 // Helper function to extract full identifier name from an expression

@@ -1212,37 +1212,6 @@ fn while_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     Ok(Expr::new_parse(NodeType::While, lexer.get_token(initial_current)?.clone(), params))
 }
 
-// Bug #57 fix: Transform continue statements to include the step expression before continue.
-// This ensures the loop variable is incremented/decremented even when continue is used.
-// Transforms: continue -> { step_expr; continue }
-fn transform_continue_with_step(expr: &Expr, step_expr: &Expr) -> Expr {
-    match &expr.node_type {
-        NodeType::Continue => {
-            // Replace continue with { step_expr; continue }
-            Expr::new_explicit(
-                NodeType::Body,
-                vec![step_expr.clone(), expr.clone()],
-                expr.line,
-                expr.col,
-            )
-        }
-        // Don't recurse into nested loops - their continues are for their own loop
-        NodeType::While | NodeType::ForIn(_) => expr.clone(),
-        // Recurse into other nodes
-        _ => {
-            let new_params: Vec<Expr> = expr.params.iter()
-                .map(|p| transform_continue_with_step(p, step_expr))
-                .collect();
-            Expr {
-                node_type: expr.node_type.clone(),
-                params: new_params,
-                line: expr.line,
-                col: expr.col,
-            }
-        }
-    }
-}
-
 fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     let initial_token = lexer.peek();
     lexer.advance(1)?; // consume 'for'
@@ -1285,6 +1254,7 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     }
 
     // Range-based for: for VAR in RANGE { ... }
+    // Bug #92: Unified iteration - create ForIn node, let precomp handle desugaring
     lexer.expect(TokenType::In)?;
 
     // Parse the range expression (e.g., 1..10)
@@ -1292,129 +1262,20 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     if range_expr.node_type != NodeType::Range {
         return Err(ident_token.error(&lexer.path, "Expected range expression (start..end) after 'in'. For collection iteration, use 'for VAR: TYPE in COLLECTION'"));
     }
-    let start_expr = range_expr.get(0)?.clone();
-    let end_expr = range_expr.get(1)?.clone();
 
     lexer.expect(TokenType::LeftBrace)?;
-    let body_expr = parse_body(lexer, TokenType::RightBrace)?;
+    let forin_body_expr = parse_body(lexer, TokenType::RightBrace)?;
 
-    // Desugar range-based for to while loop with direction detection
-    // Supports both forward (0..10) and reverse (10..0) ranges
+    // ForIn node with I64 type (ranges produce I64 values)
+    // params[0] = Identifier(var_name), params[1] = Range expression, params[2] = body
+    let var_ident = Expr::new_parse(NodeType::Identifier(loop_var_name), initial_token.clone(), vec![]);
 
-    // Check if both bounds are numeric literals for compile-time direction detection
-    let start_literal = match &start_expr.node_type {
-        NodeType::LLiteral(Literal::Number(s)) => s.parse::<i64>().ok(),
-        _ => None,
-    };
-    let end_literal = match &end_expr.node_type {
-        NodeType::LLiteral(Literal::Number(s)) => s.parse::<i64>().ok(),
-        _ => None,
-    };
-
-    // Determine direction: Some(true) = forward, Some(false) = reverse, None = runtime check
-    let is_forward = match (start_literal, end_literal) {
-        (Some(start), Some(end)) => Some(start < end),
-        _ => None,
-    };
-
-    // let loop_var := <start_expr>
-    let decl = Declaration {
-        name: loop_var_name.clone(),
-        value_type: str_to_value_type(INFER_TYPE),
-        is_mut: true,
-        is_copy: false,
-        is_own: false,
-        default_value: None,
-    };
-    let decl_expr = Expr::new_parse(NodeType::Declaration(decl), initial_token.clone(), vec![start_expr.clone()]);
-
-    // Helper to create forward while loop
-    let make_fwd_while = |body: &Expr| {
-        let cond = Expr::new_explicit(
-            NodeType::FCall,
-            vec![
-                Expr::new_parse(
-                    NodeType::Identifier(loop_var_name.clone()),
-                    initial_token.clone(),
-                    vec![Expr::new_parse(NodeType::Identifier("lt".to_string()), initial_token.clone(), vec![])],
-                ),
-                end_expr.clone(),
-            ],
-            initial_token.line, initial_token.col,
-        );
-        let inc = Expr::new_explicit(
-            NodeType::FCall,
-            vec![Expr::new_parse(NodeType::Identifier(loop_var_name.clone()), initial_token.clone(), vec![
-                Expr::new_parse(NodeType::Identifier("inc".to_string()), initial_token.clone(), vec![]),
-            ])],
-            initial_token.line, initial_token.col,
-        );
-        // Bug #57 fix: Transform continue statements to include increment before continue
-        let transformed_body = transform_continue_with_step(body, &inc);
-        let mut body_params = transformed_body.params.clone();
-        body_params.push(inc.clone());
-        let while_body = Expr::new_explicit(NodeType::Body, body_params, body.line, body.col);
-        Expr::new_explicit(NodeType::While, vec![cond, while_body], initial_token.line, initial_token.col)
-    };
-
-    // Helper to create reverse while loop
-    let make_rev_while = |body: &Expr| {
-        let cond = Expr::new_explicit(
-            NodeType::FCall,
-            vec![
-                Expr::new_parse(
-                    NodeType::Identifier(loop_var_name.clone()),
-                    initial_token.clone(),
-                    vec![Expr::new_parse(NodeType::Identifier("gt".to_string()), initial_token.clone(), vec![])],
-                ),
-                end_expr.clone(),
-            ],
-            initial_token.line, initial_token.col,
-        );
-        let dec = Expr::new_explicit(
-            NodeType::FCall,
-            vec![Expr::new_parse(NodeType::Identifier(loop_var_name.clone()), initial_token.clone(), vec![
-                Expr::new_parse(NodeType::Identifier("dec".to_string()), initial_token.clone(), vec![]),
-            ])],
-            initial_token.line, initial_token.col,
-        );
-        // Bug #57 fix: Transform continue statements to include decrement before continue
-        let transformed_body = transform_continue_with_step(body, &dec);
-        let mut body_params = transformed_body.params.clone();
-        body_params.push(dec.clone());
-        let while_body = Expr::new_explicit(NodeType::Body, body_params, body.line, body.col);
-        Expr::new_explicit(NodeType::While, vec![cond, while_body], initial_token.line, initial_token.col)
-    };
-
-    let loop_expr = match is_forward {
-        Some(true) => {
-            // Compile-time: forward loop only
-            make_fwd_while(&body_expr)
-        }
-        Some(false) => {
-            // Compile-time: reverse loop only
-            make_rev_while(&body_expr)
-        }
-        None => {
-            // Runtime: if start < end { forward } else { reverse }
-            let fwd_while = make_fwd_while(&body_expr);
-            let rev_while = make_rev_while(&body_expr);
-            let direction_cond = Expr::new_explicit(
-                NodeType::FCall,
-                vec![
-                    Expr::new_parse(NodeType::Identifier("lt".to_string()), initial_token.clone(), vec![]),
-                    start_expr.clone(),
-                    end_expr.clone(),
-                ],
-                initial_token.line, initial_token.col,
-            );
-            let fwd_body = Expr::new_explicit(NodeType::Body, vec![fwd_while], initial_token.line, initial_token.col);
-            let rev_body = Expr::new_explicit(NodeType::Body, vec![rev_while], initial_token.line, initial_token.col);
-            Expr::new_explicit(NodeType::If, vec![direction_cond, fwd_body, rev_body], initial_token.line, initial_token.col)
-        }
-    };
-
-    Ok(Expr::new_explicit(NodeType::Body, vec![decl_expr, loop_expr], initial_token.line, initial_token.col))
+    Ok(Expr::new_explicit(
+        NodeType::ForIn("I64".to_string()),
+        vec![var_ident, range_expr, forin_body_expr],
+        initial_token.line,
+        initial_token.col,
+    ))
 }
 
 // Helper function to extract full identifier name from an expression

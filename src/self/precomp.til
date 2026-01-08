@@ -744,7 +744,65 @@ precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     if e.params.len().lt(2) {
         throw e.lang_error(context.path, "precomp", "ForIn: missing collection expression")
     }
-    collection_expr := precomp_expr(context, e.get(1))
+    raw_collection_expr := precomp_expr(context, e.get(1))
+
+    // Bug #40 fix: Use per-function counter and include function name for deterministic output
+    // Get forin_id and increment BEFORE processing body so nested loops get different IDs
+    forin_id := context.precomp_forin_counter
+    context.precomp_forin_counter.inc()
+    func_name := context.current_precomp_func.clone()
+
+    // Bug #92: If collection is a Range expression, wrap it in I64Range struct literal
+    // and hoist to a variable so it's not recreated on each iteration
+    mut collection_expr := Expr()
+    mut range_decl_expr := Expr()
+    mut has_range_decl := false
+    mut is_range_expr := false
+    switch raw_collection_expr.node_type {
+    case NodeType.Range:
+        is_range_expr = true
+    case:
+    }
+    if is_range_expr {
+        // Range has params[0]=start, params[1]=end
+        start_expr := raw_collection_expr.get(0).clone()
+        end_expr := raw_collection_expr.get(1).clone()
+
+        // Generate unique variable name for the range
+        mut range_var_name := ""
+        if func_name.len().gt(0) {
+            range_var_name = format("_range_", func_name, "_", I64.to_str(forin_id))
+        } else {
+            range_var_name = format("_range_", I64.to_str(forin_id))
+        }
+
+        // Build: I64Range(start=start_expr, end=end_expr)
+        mut start_named_params := Vec.new(Expr)
+        start_named_params.push(start_expr)
+        start_named := Expr.new_explicit(NodeType.NamedArg("start"), start_named_params, e.line, e.col)
+
+        mut end_named_params := Vec.new(Expr)
+        end_named_params.push(end_expr)
+        end_named := Expr.new_explicit(NodeType.NamedArg("end"), end_named_params, e.line, e.col)
+
+        mut fcall_params := Vec.new(Expr)
+        fcall_params.push(Expr.new_explicit(NodeType.Identifier("I64Range"), Vec.new(Expr), e.line, e.col))
+        fcall_params.push(start_named)
+        fcall_params.push(end_named)
+        range_struct := Expr.new_explicit(NodeType.FCall, fcall_params, e.line, e.col)
+
+        // Build: _range_N := I64Range(start=..., end=...)
+        range_decl := Declaration(name=range_var_name, value_type=ValueType.TCustom("I64Range"), is_mut=false, is_copy=false, is_own=false, default_value=NULL)
+        mut range_decl_params := Vec.new(Expr)
+        range_decl_params.push(range_struct)
+        range_decl_expr = Expr.new_explicit(NodeType.Declaration(range_decl), range_decl_params, e.line, e.col)
+        has_range_decl = true
+
+        // Use the variable as collection_expr
+        collection_expr = Expr.new_explicit(NodeType.Identifier(range_var_name), Vec.new(Expr), e.line, e.col)
+    } else {
+        collection_expr = raw_collection_expr
+    }
 
     // Get body (params[2])
     if e.params.len().lt(3) {
@@ -753,12 +811,9 @@ precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     body_expr := precomp_expr(context, e.get(2))
 
     // Build: mut _for_i_funcname_N := 0 (unique name to avoid conflicts with nested loops)
-    // Bug #40 fix: Use per-function counter and include function name for deterministic output
-    forin_id := context.precomp_forin_counter
-    context.precomp_forin_counter.inc()
     mut index_var_name := ""
-    if context.current_precomp_func.len().gt(0) {
-        index_var_name = format("_for_i_", context.current_precomp_func, "_", I64.to_str(forin_id))
+    if func_name.len().gt(0) {
+        index_var_name = format("_for_i_", func_name, "_", I64.to_str(forin_id))
     } else {
         index_var_name = format("_for_i_", I64.to_str(forin_id))
     }
@@ -927,8 +982,11 @@ precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     while_params.push(while_body)
     while_expr := Expr.new_explicit(NodeType.While, while_params, e.line, e.col)
 
-    // Build outer body: index_decl, while
+    // Build outer body: [range_decl], index_decl, while
     mut outer_body_params := Vec.new(Expr)
+    if has_range_decl {
+        outer_body_params.push(range_decl_expr)
+    }
     outer_body_params.push(index_decl_expr)
     outer_body_params.push(while_expr)
 

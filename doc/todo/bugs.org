@@ -64,150 +64,76 @@ $ echo $?
 *** Expected Behavior
 Exit code should be non-zero when any tests fail.
 
-** Bug #92: Range loops should allow explicit iterator type annotation
+** Bug #92: Unify range and collection iteration
 :PROPERTIES:
 :DISCOVERED: 2026-01-08
-:IMPACT: Type safety, code clarity
-:STATUS: Open - attempted approach failed
+:IMPACT: DRY, type safety, code clarity
+:STATUS: In Progress - Step 1 (I64Range) working in Rust, TIL port pending
 :END:
 
 *** Description
-Range loops (e.g., ~for i in 0..100~) infer the iterator type automatically.
-However, there's no way to explicitly specify the iterator type when desired
-for clarity or type safety.
+Range loops (~for i in 0..100~) and collection loops (~for x: T in vec~) used
+separate desugaring paths. This violates DRY and prevents type annotations
+on range loops.
 
-*** Failed Attempt (2026-01-08): Unified iteration via I64Range struct
+*** Solution: Unified Iteration via I64Range Struct
 
-**** Approach
-Tried to unify range and collection iteration by creating an I64Range struct
-with len()/get() methods, allowing range loops to use the same desugaring
-path as collection loops (for-in over Vec, Array, etc.):
+**** Key Insight: NodeType::Range vs I64Range Struct
+- ~NodeType::Range~ - AST node for ~0..10~ syntax (needed for switch/case patterns too)
+- ~I64Range~ - TIL struct with len()/get() methods for iteration
 
-- Created ~src/core/range.til~ with I64Range struct
-- Parser changes: removed range-to-while desugaring, created ForIn nodes
-- Precomp changes: wrapped Range expressions with I64Range(start=X, end=Y)
-- Range loops would then use standard len()/get() desugaring
+**** Implementation
+1. Parser: Remove ~130 lines of range-to-while desugaring, create ForIn("I64") node
+2. Precomp: When ForIn collection is a Range node, wrap in I64Range struct
+3. Precomp: Hoist I64Range to variable (like Vec), use same len()/get() desugaring
 
-**** Why It Failed
-The I64Range.get() method throws IndexOutOfBoundsError. The for-in desugaring
-generates a catch block for this error that panics. This catch block contains
-a variable ~til_err~.
-
-When C code is generated, all local variables are hoisted to function scope.
-If a function has multiple for-in loops over ranges, each generates its own
-catch block with ~til_err~, causing redeclaration errors in C.
-
-Additionally, the existing parser-based range desugaring was simpler and
-didn't require any error handling (it used direct increment/decrement without
-bounds checking on each iteration).
-
-**** Key Diff Insight (from bootstrap/til.c)
-OLD (parser desugaring):
+**** Generated Code (after fix)
 #+BEGIN_SRC c
-til_I64 til_i = 0;
-while (til_lt(&til_i, &end).data) {
-    // body
-    til_I64_inc(&til_i);
-}
-#+END_SRC
-
-NEW (I64Range approach):
-#+BEGIN_SRC c
+til_I64Range _range_func_0 = {.start = 0, .end = 5};
 til_I64 _for_i_func_0 = 0;
-til_I64 til_i;
-while (til_lt(&_for_i_func_0, &(til_I64){til_I64Range_len(...)}).data) {
-    til_IndexOutOfBoundsError _thrown_...;
-    til_I64Range_get(...);  // throws
-    if (0) { _catch_...:
-        til_IndexOutOfBoundsError til_err = ...;  // PROBLEM: hoisted
-        til_panic(...);
-    }
+while (til_lt(&_for_i_func_0, &til_I64Range_len(&_range_func_0)).data) {
+    til_I64Range_get(&_range_func_0, &_for_i_func_0, &til_i);
     // body
+    _for_i_func_0 = til_add(&_for_i_func_0, &(til_I64){1});
 }
 #+END_SRC
 
-The ~til_err~ variable gets hoisted, and multiple catch blocks in the same
-function cause redeclaration errors.
+*** Incremental Plan
 
-**** Code: I64Range struct (src/core/range.til)
+**** Step 1: I64Range [CURRENT]
+- ~for i in 0..100~ works with I64Range
+- Simple, hardcoded for I64
+- No type annotation needed (defaults to I64)
+
+Files modified:
+- ~src/core/range.til~ - I64Range struct with len()/get()
+- ~src/core/core.til~ - Added import
+- ~src/rs/parser.rs~ - Removed range desugaring, creates ForIn node
+- ~src/rs/precomp.rs~ - Wraps Range in I64Range, hoists to variable
+- ~src/self/parser.til~ - Port pending
+- ~src/self/precomp.til~ - Port pending
+
+**** Step 2: Generic Range with Dynamic [FUTURE]
+Like Vec, use Dynamic for type flexibility:
 #+BEGIN_SRC til
-mode lib
+Range := struct {
+    mut type_name: Str = ""
+    mut type_size: I64 = 0
+    mut start: Dynamic = 0
+    mut end: Dynamic = 0
 
-// I64Range struct for unified iteration over numeric ranges
-// Used by for-in loops: `for i in 0..10` becomes iteration over I64Range(start=0, end=10)
-// Named I64Range (not Range) to prepare for future template support: Range<I64>, Range<U8>, etc.
-
-I64Range := struct {
-    mut start: I64 = 0
-    mut end: I64 = 0
-
-    // Required by collection interface
-    size := func(self: I64Range) returns I64 {
-        return 16  // Two I64 fields (8 bytes each)
-    }
-
-    len := func(self: I64Range) returns I64 {
-        if self.end.gteq(self.start) {
-            return self.end.sub(self.start)
-        }
-        return self.start.sub(self.end)
-    }
-
-    get := proc(self: I64Range, index: I64, mut out: Dynamic) throws IndexOutOfBoundsError {
-        if index.gteq(self.len()) {
-            throw IndexOutOfBoundsError(msg="I64Range.get: index out of bounds")
-        }
-        if self.end.gteq(self.start) {
-            out = self.start.add(index)  // Forward: 0..10 -> 0,1,2...
-        } else {
-            out = self.start.sub(index)  // Reverse: 10..0 -> 10,9,8...
-        }
-    }
+    new := proc(T: Type, start_val: Dynamic, end_val: Dynamic) returns Range { ... }
+    len := func(self: Range) returns I64 { ... }
+    get := proc(self: Range, index: I64, mut out: Dynamic) throws IndexOutOfBoundsError { ... }
 }
 #+END_SRC
 
-**** Code: Precomp change to wrap Range in I64Range (src/rs/precomp.rs)
-#+BEGIN_SRC rust
-// In precomp_forin(), after getting raw_collection_expr:
-
-// Bug #92: If collection is a Range expression, wrap it in I64Range(start=..., end=...)
-// This allows range loops to use the same len()/get() desugaring as collections
-let collection_expr = if let NodeType::Range = &raw_collection_expr.node_type {
-    let start_expr = raw_collection_expr.get(0)?.clone();
-    let end_expr = raw_collection_expr.get(1)?.clone();
-    // Build: I64Range(start=<start>, end=<end>)
-    Expr::new_explicit(
-        NodeType::FCall,
-        vec![
-            Expr::new_explicit(NodeType::Identifier("I64Range".to_string()), vec![], e.line, e.col),
-            Expr::new_explicit(NodeType::NamedArg("start".to_string()), vec![start_expr], e.line, e.col),
-            Expr::new_explicit(NodeType::NamedArg("end".to_string()), vec![end_expr], e.line, e.col),
-        ],
-        e.line,
-        e.col,
-    )
-} else {
-    raw_collection_expr
-};
+Then parser accepts type annotation:
+#+BEGIN_SRC til
+for i: U8 in 0..100 {}    // Range.new(U8, 0, 100)
+for c: Str in "a".."z" {} // Range.new(Str, "a", "z")
+for i in 0..10 {}         // Range.new(I64, 0, 10) - default
 #+END_SRC
-
-**** Alternative Approaches to Consider
-1. **Non-throwing Range.get()**: Return a sentinel/default instead of throwing.
-   But this breaks the collection interface contract.
-
-2. **Special-case ranges**: Keep ranges separate from collections. They're
-   fundamentally different (arithmetic progression vs stored elements).
-
-3. **Fix C hoisting**: Track catch block error variables specially to avoid
-   redeclaration. Complex.
-
-4. **Keep current parser desugaring**: The simplest approach. Range loops
-   work correctly as-is. Focus on adding type annotation support without
-   changing the desugaring mechanism.
-
-*** What's Still Needed
-- Type annotation syntax: ~for i: I64 in 0..10~ (parser change only)
-- No need to unify with collection iteration for this feature
 
 ** Bug #90: Parser requires semicolon for bodyless func/proc definitions
 :PROPERTIES:
