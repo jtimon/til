@@ -7694,7 +7694,7 @@ parse_pattern_variant_name := proc(variant_name: Str) returns VariantInfo {
     dot_pos := variant_name.rfind(".")
     if dot_pos.gte(0) {
         type_name := variant_name.get_substr(0, dot_pos)
-        var_name := variant_name.get_substr(dot_pos.plus(1), variant_name.len())
+        var_name := variant_name.get_substr(dot_pos.add(1), variant_name.len())
         mut result := VariantInfo()
         result.type_name = type_name
         result.variant_name = var_name
@@ -7786,10 +7786,10 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
     case NodeType.Switch:
         // Recurse into switch case bodies
         mut i := 1
-        while i.plus(1).lt(expr.params.len()) {
-            body_param := expr.params.get(i.plus(1))
+        while i.add(1).lt(expr.params.len()) {
+            body_param := expr.params.get(i.add(1))
             collect_declarations_recursive(body_param, decls, collected, context)
-            i = i.plus(2)
+            i = i.add(2)
         }
     case NodeType.While:
         // Recurse into while body
@@ -7828,7 +7828,7 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
     }
 
     indent_str := indent_string(indent)
-    body_indent := indent_string(indent.plus(1))
+    body_indent := indent_string(indent.add(1))
 
     // Get the switch expression
     switch_expr := expr.params.get(0)
@@ -7881,7 +7881,7 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
         case:
             // REM: not an enum case
         }
-        i = i.plus(2)
+        i = i.add(2)
     }
     if is_enum_switch {
         if has_switch_type {
@@ -7911,8 +7911,8 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
     // This ensures variables declared in switch cases are visible after the switch
     // (TIL has function-level scoping, not block-level scoping)
     mut j := 1
-    while j.plus(1).lt(expr.params.len()) {
-        body := expr.params.get(j.plus(1))
+    while j.add(1).lt(expr.params.len()) {
+        body := expr.params.get(j.add(1))
         decls := collect_declarations_in_body(body, context)
         for decl: CollectedDeclaration in decls {
             c_var_name := til_name(decl.name)
@@ -7937,7 +7937,7 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                 }
             }
         }
-        j = j.plus(2)
+        j = j.add(2)
     }
 
     // Emit if/else if chain for cases
@@ -7945,9 +7945,9 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
     mut k := 1
     mut first_case := true
     mut has_cases := false
-    while k.plus(1).lt(expr.params.len()) {
+    while k.add(1).lt(expr.params.len()) {
         case_pattern := expr.params.get(k)
-        case_body := expr.params.get(k.plus(1))
+        case_body := expr.params.get(k.add(1))
         has_cases = true
 
         // Check if this is the default case (guaranteed last by parser)
@@ -7959,9 +7959,9 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                 output.push_str("} else {\n")
             }
             saved_declared_vars := ctx.declared_vars.clone()
-            emit_body(case_body, output, indent.plus(1), ctx, context)
+            emit_body(case_body, output, indent.add(1), ctx, context)
             ctx.declared_vars = saved_declared_vars
-            k = k.plus(2)
+            k = k.add(2)
             continue
         case:
             // REM: not default case, continue below
@@ -8183,21 +8183,21 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                 symbol_info.is_own = false
                 symbol_info.is_comptime_const = false
                 context.scope_stack.declare_symbol(pattern_info.binding_var.clone(), symbol_info)
-                emit_body(case_body, output, indent.plus(1), ctx, context)
+                emit_body(case_body, output, indent.add(1), ctx, context)
                 _ := context.scope_stack.pop()
                 catch (err: Str) {
                     // REM: pop failed
                 }
             } else {
-                emit_body(case_body, output, indent.plus(1), ctx, context)
+                emit_body(case_body, output, indent.add(1), ctx, context)
             }
         case:
-            emit_body(case_body, output, indent.plus(1), ctx, context)
+            emit_body(case_body, output, indent.add(1), ctx, context)
         }
 
         // Restore declared_vars after case body
         ctx.declared_vars = saved_declared_vars
-        k = k.plus(2)
+        k = k.add(2)
     }
 
     // Close the if/else chain
@@ -8735,7 +8735,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             elem_type := variadic_info.elem_type.clone()
             regular_count := variadic_info.regular_count
             mut variadic_args := Vec.new(Expr)
-            mut vi := 1.plus(regular_count)
+            mut vi := regular_count.add(1)
             while vi.lt(expr.params.len()) {
                 varg := expr.params.get(vi)
                 variadic_args.push(varg.clone())
@@ -8811,7 +8811,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             if arg_i.gt(0) {
                 output.push_str(", ")
             }
-            arg := expr.params.get(arg_i.plus(1))
+            arg := expr.params.get(arg_i.add(1))
             mut param_type := ValueType.TVoid
             mut has_param_type := false
             mut by_ref := true
