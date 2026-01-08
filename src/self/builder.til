@@ -26,25 +26,25 @@ parse_file := proc(path: Str) returns ParseFileResult throws Str {
     source := fs_read_file(path)
     catch (err: FsError) {
         if err.kind.eq("NotFound") {
-            throw "File '" + path + "' not found."
+            throw concat("File '", path).concat("' not found.")
         } else {
-            throw "Problem opening the file '" + path + "': " + err.kind
+            throw concat("Problem opening the file '", path).concat("': ").concat(err.kind)
         }
     }
 
     mut lexer := lexer_from_source(path, source)
     catch (err: Str) {
-        throw path + ":" + err
+        throw path.concat(":").concat(err)
     }
 
     mode_def := parse_mode(path, lexer)
     catch (err: Str) {
-        throw path + ":" + err
+        throw path.concat(":").concat(err)
     }
 
     ast := parse_tokens(lexer)
     catch (err: Str) {
-        throw path + ":" + err
+        throw path.concat(":").concat(err)
     }
 
     mut result := ParseFileResult()
@@ -195,7 +195,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     case Lang.TIL:
         throw "Lang 'til' is not supported yet. TIL-to-TIL translation is a placeholder for future debugging features."
     case:
-        throw "Lang '" + lang_to_str(lang) + "' is not supported yet. Only 'c' is currently implemented."
+        throw concat("Lang '", lang_to_str(lang)).concat("' is not supported yet. Only 'c' is currently implemented.")
     }
 
     // Parse main file
@@ -215,14 +215,14 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
             for err: Str in init_errors {
                 println(err)
             }
-            throw "Compiler errors: " + init_errors.len().to_str() + " init errors in core.til"
+            throw concat("Compiler errors: ", init_errors.len().to_str()).concat(" init errors in core.til")
         }
         typer_errors := check_types(context, core_result.ast)
         if not(typer_errors.is_empty()) {
             for err: Str in typer_errors {
                 println(err)
             }
-            throw "Compiler errors: " + typer_errors.len().to_str() + " type errors in core.til"
+            throw concat("Compiler errors: ", typer_errors.len().to_str()).concat(" type errors in core.til")
         }
         context.imports_init_done.add(core_path)
         context.imports_typer_done.add(core_path)
@@ -254,14 +254,14 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         // Mode imports need init and typer phases (no eval for builder)
         init_import_declarations(context, import_fcall_expr, import_str)
         catch (err: Str) {
-            throw path + ":" + err
+            throw path.concat(":").concat(err)
         }
         typer_errors := typer_import_declarations(context, import_str)
         if not(typer_errors.is_empty()) {
             for err: Str in typer_errors {
                 println(err)
             }
-            throw "Compiler errors: " + typer_errors.len().to_str() + " type errors found"
+            throw concat("Compiler errors: ", typer_errors.len().to_str()).concat(" type errors found")
         }
     }
 
@@ -280,7 +280,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         for err: Str in errors {
             println(err)
         }
-        throw "Compiler errors: " + errors.len().to_str() + " init errors found"
+        throw concat("Compiler errors: ", errors.len().to_str()).concat(" init errors found")
     }
 
     mode_errors := basic_mode_checks(context, main_result.ast)
@@ -295,7 +295,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         for err: Str in errors {
             println(err)
         }
-        throw "Compiler errors: " + errors.len().to_str() + " type errors found"
+        throw concat("Compiler errors: ", errors.len().to_str()).concat(" type errors found")
     }
 
     // === Post-typer: Collect and merge ASTs for codegen ===
@@ -357,7 +357,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     if c_filename.starts_with("src/") {
         source_output_path = c_filename.replace("src/", "gen/c/")
     } else {
-        source_output_path = "gen/c/" + c_filename
+        source_output_path = concat("gen/c/", c_filename)
     }
     // Create output directory if it doesn't exist
     parent_dir := fs_parent_dir(source_output_path)
@@ -369,7 +369,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     }
     fs_write_file(source_output_path, c_code)
     catch (err: FsError) {
-        throw "Failed to write '" + source_output_path + "': " + err.kind
+        throw concat("Failed to write '", source_output_path).concat("': ").concat(err.kind)
     }
 
     // If translate_only, return the source file path
@@ -388,7 +388,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     if bin_filename.starts_with("src/") {
         exe_path_str = bin_filename.replace("src/", "bin/")
     } else {
-        exe_path_str = "bin/" + bin_filename
+        exe_path_str = concat("bin/", bin_filename)
     }
     // Create bin directory if it doesn't exist
     bin_parent_dir := fs_parent_dir(exe_path_str)
@@ -413,13 +413,13 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
 
     exit_code := run_cmd_vec(compiler, cmd_args)
     catch (err: AllocError) {
-        throw "Failed to run " + compiler + ": " + err.msg
+        throw concat("Failed to run ", compiler).concat(": ").concat(err.msg)
     }
 
     if exit_code.eq(0) {
         return exe_path_str
     } else {
-        throw compiler + " failed with exit code " + exit_code.to_str()
+        throw compiler.concat(" failed with exit code ").concat(exit_code.to_str())
     }
 
     catch (err: AllocError) {
