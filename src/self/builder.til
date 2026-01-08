@@ -12,7 +12,6 @@ import("self.typer")
 import("self.precomp")
 import("self.scavenger")
 import("self.target")
-import("std.fs")
 import("std.sys")
 
 // Parse a single file and return its AST (and mode for main file)
