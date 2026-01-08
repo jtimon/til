@@ -121,6 +121,191 @@ The ~at_global_scope~ check should be removed.
 This bug blocks proper macro implementation. Macros should be evaluated at
 compile time regardless of where they are called.
 
+*** Why the Fix is Safe
+
+The ~at_global_scope~ check was added for Bug #41 to prevent double output from
+functions with side effects. However, this is overly conservative because:
+
+1. *~is_proc()~ correctly identifies side effects*: The type system guarantees
+   that ~func~ cannot call ~proc~ (enforced by typer). Only ~proc~ can call
+   ~ext_proc~, which is where actual side effects (I/O, memory allocation) live.
+
+2. *Trust the type system*: If ~is_proc()~ returns false, the function is pure.
+   The ~is_comptime_evaluable()~ check already calls ~is_proc()~ and rejects
+   procs from folding.
+
+3. *liba/pura exception is a debugging hack*: These modes allow ~func~ to call
+   ~println~ as a convenience for debugging pure/lib code. If such funcs get
+   evaluated twice (once at compile-time, once at runtime), that's an acceptable
+   consequence of using the debugging modes.
+
+4. *User responsibility*: If someone declares an ~ext_func~ that actually has
+   side effects (instead of ~ext_proc~), that's the user's or mode designer's
+   fault. The type system is correct; misuse is not our problem.
+
+*** Future Enhancement
+Add warnings when ~proc~ is used but ~func~ would suffice. Using ~proc~
+unnecessarily causes a cascade effect - anything calling it must also be ~proc~
+or in a special mode. This means users miss constant folding optimizations for
+entire call chains.
+
+*** Implementation Attempt (2026-01-07)
+
+Tried removing ~at_global_scope~ checks from three locations. Result: build fails.
+
+**** Three Locations with at_global_scope Check
+
+1. *FCall folding* in ~precomp_expr()~ (precomp.rs line 229-235, precomp.til line 301-307):
+
+   BEFORE (Rust):
+   #+BEGIN_SRC rust
+   // Try compile-time constant folding for pure functions with literal args.
+   // Only fold at global scope - inside function definitions, values from other
+   // modules may not be available yet (import ordering). Interpreter doesn't
+   // evaluate function bodies during import either.
+   let at_global_scope = context.scope_stack.frames.len() == 1;
+   if at_global_scope && is_comptime_evaluable(context, &const_folded) {
+       const_folded = eval_comptime(context, &const_folded)?;
+   }
+   #+END_SRC
+
+   AFTER (Rust):
+   #+BEGIN_SRC rust
+   // Try compile-time constant folding for pure functions with literal args.
+   // is_comptime_evaluable checks is_proc() which correctly identifies side effects
+   // via the type system (func cannot call proc, only proc can call ext_proc).
+   if is_comptime_evaluable(context, &const_folded) {
+       const_folded = eval_comptime(context, &const_folded)?;
+   }
+   #+END_SRC
+
+2. *Primitive storage* (I64/U8/Str) in ~precomp_declaration()~ (precomp.rs line 958-973, precomp.til line 1174-1191):
+
+   BEFORE (Rust):
+   #+BEGIN_SRC rust
+   // Store I64/U8/Str declarations in arena when their initializer is comptime-evaluable.
+   // ...
+   // Only do this at global scope - inside function bodies, evaluating could cause side effects
+   // to run at compile time AND runtime (e.g., print_debug func in mode liba).
+   let at_global_scope = context.scope_stack.frames.len() == 1;
+   if at_global_scope {
+       if let ValueType::TCustom(ref custom_type_name) = &value_type {
+           match custom_type_name.as_str() {
+               "I64" | "U8" | "Str" => {
+                   if is_comptime_evaluable(context, &new_params[0]) {
+                       let inner_e = &new_params[0];
+                       let result = eval_expr(context, inner_e)?;
+                       if !result.is_throw {
+                           EvalArena::insert_primitive(context, &decl.name, &value_type, &result.value, e)?;
+                       }
+                   }
+               },
+               _ => {},
+           }
+       }
+   }
+   #+END_SRC
+
+   AFTER (Rust):
+   #+BEGIN_SRC rust
+   // Store I64/U8/Str declarations in arena when their initializer is comptime-evaluable.
+   // ...
+   // is_comptime_evaluable checks is_proc() which correctly identifies side effects.
+   if let ValueType::TCustom(ref custom_type_name) = &value_type {
+       match custom_type_name.as_str() {
+           "I64" | "U8" | "Str" => {
+               if is_comptime_evaluable(context, &new_params[0]) {
+                   let inner_e = &new_params[0];
+                   let result = eval_expr(context, inner_e)?;
+                   if !result.is_throw {
+                       EvalArena::insert_primitive(context, &decl.name, &value_type, &result.value, e)?;
+                   }
+               }
+           },
+           _ => {},
+       }
+   }
+   #+END_SRC
+
+3. *Struct instance storage* in ~precomp_declaration()~ (precomp.rs line 975-991, precomp.til line 1193-1206):
+
+   BEFORE (Rust):
+   #+BEGIN_SRC rust
+   // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
+   // run eval_declaration to store the instance in EvalArena so ccodegen can find it.
+   // Only do this at global scope (same reason as above - avoid side effects inside func bodies).
+   if at_global_scope && !decl.is_mut && !decl.is_copy && !decl.is_own && is_comptime_evaluable(context, &new_params[0]) {
+   #+END_SRC
+
+   AFTER (Rust):
+   #+BEGIN_SRC rust
+   // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
+   // run eval_declaration to store the instance in EvalArena so ccodegen can find it.
+   if !decl.is_mut && !decl.is_copy && !decl.is_own && is_comptime_evaluable(context, &new_params[0]) {
+   #+END_SRC
+
+**** Error When Removing All Three Checks
+
+#+BEGIN_SRC
+./bin/rstil build make.til
+ERROR: src/core/array.til:41:45: rstil insert_string_into_frame ERROR:
+  Str template not found - ensure str.til is imported
+#+END_SRC
+
+**** Root Cause Analysis
+
+The issue is NOT about side effects (the "Why Fix is Safe" analysis is correct for that).
+The issue is about *infrastructure availability during precompilation*:
+
+1. *Precomp vs Eval timing*: ~precomp_expr~ runs before ~eval~. During precomp of
+   function bodies, we're still in the syntactic transformation phase.
+
+2. *Templates created during eval*: The ~EvalArena.default_instances["Str"]~ template
+   is created when global Str declarations are evaluated, not during precomp.
+
+3. *Order problem*: When precompiling ~src/core/array.til~'s function bodies (which
+   contain format() calls that create Str), the Str template doesn't exist yet
+   because we haven't finished evaluating global scope.
+
+4. *Why global scope works*: At global scope, declarations are both precompiled AND
+   evaluated in sequence. The Str template gets created by earlier declarations
+   before later ones need it.
+
+5. *Why function bodies fail*: Function bodies are precompiled during the module
+   import phase, but not evaluated. The template infrastructure isn't available.
+
+**** What Needs to Change
+
+Simply removing ~at_global_scope~ doesn't work. The fix requires understanding
+the precomp/eval interaction:
+
+- *FCall folding (Location 1)*: Might work alone if ~eval_comptime~ doesn't try
+  to store values that need templates. Needs investigation.
+
+- *Primitive/Struct storage (Locations 2 & 3)*: Cannot work without templates.
+  Options:
+  1. Make template lookup fail gracefully (skip storage, don't error)
+  2. Defer non-global storage to evaluation phase
+  3. Initialize templates earlier (during precomp init?)
+  4. Only fold to literals, don't store in arena for non-global
+
+**** Files to Investigate Further
+
+- ~src/rs/eval_arena.rs~: ~insert_string_into_frame()~, ~default_instances~ map
+- ~src/rs/precomp.rs~: ~eval_comptime()~, understand what it stores vs returns
+- ~src/rs/interpreter.rs~: When/how templates get initialized
+- The interaction between ~precomp_expr~ -> ~eval_comptime~ -> ~EvalArena~
+
+**** TIL Equivalents
+
+The same changes were ported to ~src/self/precomp.til~:
+- Location 1: lines 301-307 (FCall folding)
+- Location 2: lines 1174-1191 (primitive storage)
+- Location 3: lines 1193-1206 (struct instance storage)
+
+The TIL syntax differs slightly (e.g., ~at_global_scope.and(...)~ instead of
+~at_global_scope && ...~) but the logic is identical.
+
 *** Tests
 - tmp/test_constfold_scope.til - demonstrates the issue
 
