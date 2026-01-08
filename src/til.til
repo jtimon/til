@@ -241,11 +241,30 @@ main := proc(args: ..Str) {
         mut first_arg := ""
         args.get(0, first_arg)
         catch (err: IndexOutOfBoundsError) { }
-        if first_arg.eq("repl") {
+        switch first_arg {
+        case "repl":
             interpret_file_or_exit(REPL_PATH, Vec.new(Str))
-        } else if first_arg.eq("ast") or first_arg.eq("interpret") or first_arg.eq("build") or first_arg.eq("translate") or first_arg.eq("run") or first_arg.eq("help") or first_arg.eq("-help") or first_arg.eq("--help") or first_arg.eq("--version") or first_arg.eq("-v") {
+        case "ast":
             usage()
-        } else {
+        case "interpret":
+            usage()
+        case "build":
+            usage()
+        case "translate":
+            usage()
+        case "run":
+            usage()
+        case "help":
+            usage()
+        case "-help":
+            usage()
+        case "--help":
+            usage()
+        case "--version":
+            usage()
+        case "-v":
+            usage()
+        case:
             interpret_file_or_exit(first_arg, Vec.new(Str))
         }
         return
