@@ -6146,7 +6146,7 @@ emit_declaration := proc(decl: SDeclaration, expr: Expr, mut output: Str, indent
                 if not(member.is_mut) {
                     continue
                 }
-                if named_values.contains(member.name) {
+                if named_values.contains_key(member.name) {
                     continue // Named arg overrides default
                 }
                 default_expr := struct_def.default_values.get(member.name)
@@ -6217,7 +6217,7 @@ emit_declaration := proc(decl: SDeclaration, expr: Expr, mut output: Str, indent
                 output.push_str(member.name)
                 output.push_str(" = ")
                 // Use named arg value if provided, otherwise use default
-                if named_values.contains(member.name) {
+                if named_values.contains_key(member.name) {
                     value_expr := named_values.get(member.name)
                     emit_expr(value_expr, output, 0, ctx, context)
                 } else {
@@ -8294,7 +8294,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(member.name)
                 output.push_str(" = ")
                 // Use named arg value if provided, otherwise use default
-                if named_values.contains(member.name) {
+                if named_values.contains_key(member.name) {
                     value_expr := named_values.get(member.name)
                     emit_expr(value_expr, output, 0, ctx, context)
                 } else {
