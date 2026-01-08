@@ -530,7 +530,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
 /// Returns Some(temp_var_name) if the expression itself was hoisted, None otherwise.
 /// The hoisted_exprs map in ctx is updated with any sub-expressions that were hoisted.
 hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str, KeyNotFoundError {
-    indent_str := "    ".repeat(indent)
+    indent_str := repeat("    ", indent)
 
     // Check if this expression itself is a throwing call
     switch expr.node_type {
@@ -982,7 +982,7 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
 /// Returns a vector of HoistedArg for arguments that were hoisted
 hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str {
     mut hoisted := Vec.new(HoistedArg)
-    indent_str := "    ".repeat(indent)
+    indent_str := repeat("    ", indent)
 
     mut idx := 0
     for arg: Expr in args {
@@ -1366,7 +1366,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 /// Returns additional hoisted (arg_idx, temp_var_name) pairs to merge with throwing hoists
 hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: Map, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str {
     mut hoisted := Vec.new(HoistedArg)
-    indent_str := "    ".repeat(indent)
+    indent_str := repeat("    ", indent)
 
     mut idx := 0
     for arg: Expr in args {
@@ -1581,7 +1581,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
 /// These are rvalues that can't have & taken directly
 hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str {
     mut hoisted := Vec.new(HoistedArg)
-    indent_str := "    ".repeat(indent)
+    indent_str := repeat("    ", indent)
 
     mut idx := 0
     for arg: Expr in args {
@@ -1738,7 +1738,7 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
 /// Returns the array variable name, or None if no variadic args
 /// Also returns the element type for use in Array.delete
 hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted: Map, regular_count: I64, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
-    indent_str := "    ".repeat(indent)
+    indent_str := repeat("    ", indent)
     arr_var := next_mangled(ctx)
     err_suffix := next_mangled(ctx)
     variadic_count := variadic_args.len()
