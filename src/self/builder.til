@@ -12,6 +12,7 @@ import("self.typer")
 import("self.precomp")
 import("self.scavenger")
 import("self.target")
+import("std.io")
 import("std.sys")
 
 // Parse a single file and return its AST (and mode for main file)
@@ -22,13 +23,10 @@ ParseFileResult := struct {
 }
 
 parse_file := proc(path: Str) returns ParseFileResult throws Str {
-    source := fs_read_file(path)
-    catch (err: FsError) {
-        if err.kind.eq("NotFound") {
-            throw concat("File '", path).concat("' not found.")
-        } else {
-            throw concat("Problem opening the file '", path).concat("': ").concat(err.kind)
-        }
+    source := readfile(path)
+    // readfile returns empty string on error (file not found, etc.)
+    if source.is_empty() {
+        throw concat("File '", path).concat("' not found or empty.")
     }
 
     mut lexer := lexer_from_source(path, source)
@@ -366,9 +364,9 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
             // REM: ignore mkdir errors
         }
     }
-    fs_write_file(source_output_path, c_code)
-    catch (err: FsError) {
-        throw concat("Failed to write '", source_output_path).concat("': ").concat(err.kind)
+    write_err := writefile(source_output_path, c_code)
+    if not(write_err.is_empty()) {
+        throw concat("Failed to write '", source_output_path).concat("': ").concat(write_err)
     }
 
     // If translate_only, return the source file path
