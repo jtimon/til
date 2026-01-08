@@ -1,0 +1,33 @@
+mode lib
+
+// I64Range struct for unified iteration over numeric ranges
+// Used by for-in loops: `for i in 0..10` becomes iteration over I64Range(start=0, end=10)
+// Named I64Range (not Range) to prepare for future template support: Range<I64>, Range<U8>, etc.
+
+I64Range := struct {
+    mut start: I64 = 0
+    mut end: I64 = 0
+
+    // Required by collection interface
+    size := func(self: I64Range) returns I64 {
+        return 16  // Two I64 fields (8 bytes each)
+    }
+
+    len := func(self: I64Range) returns I64 {
+        if self.end.gteq(self.start) {
+            return self.end.sub(self.start)
+        }
+        return self.start.sub(self.end)
+    }
+
+    get := proc(self: I64Range, index: I64, mut out: Dynamic) throws IndexOutOfBoundsError {
+        if index.gteq(self.len()) {
+            throw IndexOutOfBoundsError(msg="I64Range.get: index out of bounds")
+        }
+        if self.end.gteq(self.start) {
+            out = self.start.add(index)  // Forward: 0..10 -> 0,1,2...
+        } else {
+            out = self.start.sub(index)  // Reverse: 10..0 -> 10,9,8...
+        }
+    }
+}

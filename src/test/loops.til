@@ -2,6 +2,7 @@ mode test
 
 import("core.vec")
 import("core.array")
+import("core.range")
 
 test_while_loop := proc() {
     mut it := 0
@@ -177,3 +178,13 @@ test_forin_simple_enum()
 //     catch (err: AllocError) { panic(loc(), err.msg) }
 // }
 // test_forin_payload_enum()
+
+// I64Range test - use as collection with for-in
+test_i64range := proc() {
+    mut sum := 0
+    for i: I64 in I64Range(start=0, end=5) {
+        sum = sum.add(i)
+    }
+    assert_eq(loc(), 10, sum)  // 0+1+2+3+4 = 10
+}
+test_i64range()
