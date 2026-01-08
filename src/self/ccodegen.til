@@ -3976,9 +3976,8 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 // Push a new scope and declare the binding variable
                 context.scope_stack.push(ScopeType.Block)
                 sym_info := SymbolInfo(
-                    symbol_type = SymbolType.Variable,
                     value_type = payload_type,
-                    is_mutable = false,
+                    is_mut = false,
                 )
                 context.scope_stack.declare_symbol(pattern_info.binding_var, sym_info)
                 result = emit_body(case_body, result, indent.add(1), ctx, context)

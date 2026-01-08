@@ -478,7 +478,29 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
     let func_def = match get_func_def_for_fcall_with_expr(&context, &mut e) {
         Ok(func_def_) => match func_def_ {
             Some(func_def_) => func_def_,
-            None => return errors, // REM: This is to allow struct instantiation
+            None => {
+                // Struct or enum instantiation - validate field names for structs (Bug #85)
+                // Clone member names to avoid borrow conflict with check_types_with_context
+                let struct_member_names: Option<Vec<String>> = context.scope_stack
+                    .lookup_struct(&f_name)
+                    .map(|s| s.members.iter().map(|m| m.name.clone()).collect());
+
+                for i in 1..e.params.len() {
+                    if let Ok(struct_arg) = e.get(i) {
+                        if let NodeType::NamedArg(field_name) = &struct_arg.node_type {
+                            if let Some(ref member_names) = struct_member_names {
+                                if !member_names.contains(field_name) {
+                                    errors.push(struct_arg.error(&context.path, "type",
+                                        &format!("Field '{}' does not exist in struct '{}'", field_name, f_name)));
+                                }
+                            }
+                        }
+                        // Also type-check the argument value
+                        errors.extend(check_types_with_context(context, struct_arg, ExprContext::ValueUsed));
+                    }
+                }
+                return errors;
+            }
         },
         Err(err) => {
             errors.push(err);

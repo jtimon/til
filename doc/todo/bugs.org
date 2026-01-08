@@ -8,6 +8,41 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #92: Range loops should allow explicit iterator type annotation
+:PROPERTIES:
+:DISCOVERED: 2026-01-08
+:IMPACT: Type safety, code clarity
+:STATUS: Open
+:END:
+
+*** Description
+Range loops (e.g., ~for i in 0..100~) infer the iterator type automatically.
+However, there's no way to explicitly specify the iterator type when desired
+for clarity or type safety.
+
+*** Example
+#+BEGIN_SRC til
+// Current syntax - type is inferred
+for i in 0..100 {
+    // i is inferred as I64
+}
+
+// Desired syntax - explicit type annotation (NOT currently supported)
+for i: U8 in 0..100 {
+    // i is explicitly U8
+}
+#+END_SRC
+
+*** Implementation Notes
+For range loops, adding optional type annotation should be straightforward:
+- Parser already handles ~for VAR: TYPE in COLLECTION~ for collection iteration
+- Range loops could accept the same syntax
+- Implementation: just add a type check when explicit type is provided
+
+True for-in loops (collection iteration) require explicit types because
+type inference is harder. Range loops already infer I64, so adding optional
+explicit types is just an additional type check.
+
 ** Bug #90: Parser requires semicolon for bodyless func/proc definitions
 :PROPERTIES:
 :DISCOVERED: 2026-01-07
@@ -1145,8 +1180,9 @@ Arguments weren't quoted, so =bash -c echo hello= was executed instead of =bash 
 ** Bug #85: Typer accepts struct literal with non-existent field name
 :PROPERTIES:
 :DISCOVERED: 2026-01-05
+:FIXED: 2026-01-08
 :IMPACT: Silent code generation with wrong semantics
-:STATUS: Open
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -1165,24 +1201,28 @@ throw KeyNotFoundError(key="not variadic")
 
 The struct only has a ~msg~ field, but ~key=~ is accepted without error.
 
-*** Expected behavior
-The typer should report an error like:
-#+begin_example
-type ERROR: Field 'key' does not exist in struct 'KeyNotFoundError'
-#+end_example
+*** Solution
+Added field name validation in ~check_fcall()~ (typer.rs/typer.til).
 
-*** Impact
-- Silent bugs where struct fields are misnamed
-- Generated C code may have undefined behavior
-- Discovered during Bug #80 work when ~KeyNotFoundError(key="...")~ was accidentally used
+When a function call returns ~None~ from ~get_func_def_for_fcall_with_expr~
+(indicating struct/enum instantiation), we now:
+1. Look up the struct definition
+2. Collect all valid field names
+3. For each ~NamedArg~ in the call, verify the field name exists
+4. Report type error if field doesn't exist
 
-*** Reproduction
-=src/test/bug85.til= - currently fails at eval phase with:
-#+begin_example
-src/test/bug85.til:12:21: eval ERROR: Field 'nonexistent' not found in struct 'TestStruct'
-#+end_example
+The fix also type-checks argument values, which was previously skipped for
+struct instantiation.
 
-The error should be caught at type phase, not eval phase.
+*** Files Modified
+- ~src/rs/typer.rs~: Added validation in ~check_fcall()~
+- ~src/self/typer.til~: Ported same changes
+
+*** Bonus Fix
+The fix caught a pre-existing bug in ~src/self/ccodegen.til~ where
+~SymbolInfo~ was being constructed with non-existent fields:
+- ~symbol_type~ (doesn't exist - removed)
+- ~is_mutable~ (should be ~is_mut~ - corrected)
 
 ** Bug #78: TIL scavenger/ccodegen divergence from Rust
 :PROPERTIES:

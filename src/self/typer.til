@@ -628,7 +628,40 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
         return errors
     }
     catch (err: KeyNotFoundError) {
-        // None case - allow struct instantiation
+        // None case - struct or enum instantiation
+        // Validate field names for structs (Bug #85)
+        mut is_struct := false
+        mut struct_def := SStructDef()
+        struct_def = context.scope_stack.lookup_struct(f_name)
+        is_struct = true
+        catch (err2: KeyNotFoundError) {
+            // Not a struct - enum constructor, no validation needed
+        }
+
+        if is_struct {
+            // Struct found - validate each NamedArg
+            // Collect member names first to avoid scope issues
+            mut member_names := Vec.new(Str)
+            for decl: Declaration in struct_def.members {
+                member_names.push(decl.name.clone())
+            }
+
+            for i in 1..e_clone.params.len() {
+                mut struct_arg := Expr()
+                struct_arg = e_clone.get(i)
+                switch struct_arg.node_type {
+                case NodeType.NamedArg(field_name):
+                    if not(member_names.contains(field_name)) {
+                        mut err_msg := format("Field '", field_name, "' does not exist in struct '", f_name, "'")
+                        mut field_err := struct_arg.error(context.path, "type", err_msg)
+                        errors.push(field_err)
+                    }
+                case:
+                }
+                // Also type-check the argument value
+                errors.extend(check_types_with_context(context, struct_arg, ExprContext.ValueUsed))
+            }
+        }
         return errors
     }
 
