@@ -3270,7 +3270,7 @@ emit_struct_declaration := proc(expr: Expr, mut output: Str) throws Str {
 
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
 // Also emits size_of constant: til_size_of_StructName = sizeof(til_StructName)
-emit_struct_constants := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, context: Context) throws Str {
+emit_struct_constants := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3813,7 +3813,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
 }
 
 // Emit struct function bodies for all functions in a struct
-emit_struct_func_bodies := proc(expr: Expr, output: Str, ctx: CodegenContext, context: Context) throws Str {
+emit_struct_func_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3880,7 +3880,7 @@ value_type_to_c_name := func(vt: ValueType) returns Str throws Str {
 //   int func_name(RetType* _ret, Error1* _err1, Error2* _err2, args...)
 // For non-throwing:
 //   RetType func_name(args...)
-emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str) throws Str {
+emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str) throws Str {
     is_throwing := not(func_def.throw_types.is_empty())
 
     if is_throwing {
@@ -4156,7 +4156,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, cont
     throw "emit_func_declaration: not a function declaration"
 }
 
-emit_expr := proc(expr: Expr, output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
+emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     // Check if this expression has been hoisted (for nested variadic/throwing calls)
     expr_addr := to_ptr(expr)
     mut temp_var := ""
