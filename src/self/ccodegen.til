@@ -4711,11 +4711,10 @@ get_fcall_func_name := func(expr: Expr) returns Str throws KeyNotFoundError {
     // get_func_name_string already handles both nested identifiers (Type.method)
     // and precomp'd strings ("Type.method"), returning "Type_method" format
     first_param := expr.params.get(0)
-    return get_func_name_string(first_param)
-
     catch (err: IndexOutOfBoundsError) {
         throw KeyNotFoundError()
     }
+    return get_func_name_string(first_param)
 }
 
 /// Pre-scan function body to collect all catch blocks
@@ -4733,10 +4732,9 @@ prescan_func_level_catches := func(stmts: Vec) returns Vec {
         case:
         }
     }
+    catch (err: AllocError) { }
 
     return catches
-
-    catch (err: AllocError) { }
 }
 
 /// Emit a non-throwing variadic function call at statement level
