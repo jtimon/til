@@ -54,31 +54,41 @@ CodegenContext := struct {
 
 // Generate unique mangled name using context counter (deterministic)
 // Includes function name prefix for uniqueness across functions
-next_mangled := func(mut ctx: CodegenContext) returns Str throws AllocError {
+next_mangled := func(mut ctx: CodegenContext) returns Str throws Str {
     n := ctx.mangling_counter
     ctx.mangling_counter = ctx.mangling_counter.add(1)
     func_name := ctx.current_function_name
+    mut result := ""
     if not(func_name.is_empty()) {
-        return format("_tmp_", func_name, "_", n.to_str())
+        result = format("_tmp_", func_name, "_", n.to_str())
     } else {
-        return format("_tmp_", n.to_str())
+        result = format("_tmp_", n.to_str())
     }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
+    return result
 }
 
 // Returns the C name for a TIL identifier - adds TIL_PREFIX
 // Exceptions: C keywords (true, false), pointer deref (*name), and generated names (_ prefix)
-til_name := func(name: Str) returns Str throws AllocError {
+til_name := func(name: Str) returns Str throws Str {
+    mut result := name
     switch name {
     case "true":
-        return name
     case "false":
-        return name
     case:
         if name.starts_with("*").or(name.starts_with("_")) {
-            return name
+        } else {
+            result = format(TIL_PREFIX, name)
         }
-        return format(TIL_PREFIX, name)
     }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
+    return result
 }
 
 // Emit a struct literal, using compound literal syntax if already_declared
@@ -111,8 +121,13 @@ emit_struct_literal_start := proc(mut output: Str, type_name: Str, already_decla
 
 // Returns the C name for a TIL function - adds TIL_PREFIX and converts dots to underscores
 // Used for function names like Array.len -> til_Array_len
-til_func_name := func(name: Str) returns Str throws AllocError {
-    return format(TIL_PREFIX, name.replace(".", "_"))
+til_func_name := func(name: Str) returns Str throws Str {
+    result := format(TIL_PREFIX, name.replace(".", "_"))
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
+    return result
 }
 
 // Get function name from FCall's first param, handling both AST patterns:
