@@ -3824,7 +3824,8 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, ctx: CodegenContext, co
                 struct_name := til_name(decl.name)
                 for member: Declaration in struct_def.members {
                     // Check if default_value is a function definition
-                    func_expr := struct_def.default_values.get(member.name)
+                    mut func_expr := Expr()
+                    struct_def.default_values.get(member.name, func_expr)
                     switch func_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         emit_struct_func_body(struct_name, member, func_def, output, ctx, context)
