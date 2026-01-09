@@ -7616,7 +7616,9 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
-    catch (err: AllocError) { throw err.msg }
+    }
+    catch (err: AllocError) {
+        throw err.msg
     }
 }
 
