@@ -1776,6 +1776,9 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
             // Already hoisted, use that temp
             mut temp := ""
             already_hoisted.get(hoisted_idx, temp)
+            catch (err: KeyNotFoundError) {
+                panic(loc(), "already_hoisted.get failed after contains_key: ", err.msg)
+            }
             arg_temps.push(temp)
         } else {
             // Need to hoist into a temp
@@ -1977,6 +1980,9 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
     // Check if this is a call to a nested (hoisted) function - use mangled name
     if ctx.nested_func_names.contains_key(orig_func_name) {
         ctx.nested_func_names.get(orig_func_name, func_name)
+        catch (err: KeyNotFoundError) {
+            panic(loc(), "nested_func_names.get failed after contains_key: ", err.msg)
+        }
     }
 
     // Emit function name (func_name already has underscores for type-qualified calls)
@@ -2313,6 +2319,9 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                     catch (err: Str) {
                         c_type = "int"
                     }
+                    catch (err: KeyNotFoundError) {
+                        c_type = "int"
+                    }
                     temp_var := next_mangled(ctx)
                     output.push_str("({ ")
                     output.push_str(c_type)
@@ -2402,6 +2411,9 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                 mut ret_type := ValueType.TCustom("")
                 fd.return_types.get(0, ret_type)
                 c_type := til_type_to_c(ret_type)
+                catch (err: KeyNotFoundError) {
+                    throw arg.lang_error(context.path, "ccodegen", err.msg)
+                }
                 // Check if return type is a simple typedef (I64) vs struct
                 // I64 is the only simple typedef - all others are structs
                 mut is_simple_type := false
