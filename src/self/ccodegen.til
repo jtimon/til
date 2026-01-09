@@ -6034,7 +6034,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             // Handle nested function declarations - hoist to top level with mangled name
             if not(ctx.current_function_name.is_empty()) {
                 parent_name := ctx.current_function_name.clone()
-                mangled_name := parent_name.clone()
+                mut mangled_name := parent_name.clone()
                 mangled_name.push_str("_")
                 mangled_name.push_str(decl.name)
 
@@ -8483,7 +8483,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     mut default_expr := Expr()
                 struct_def.default_values.get(member.name, default_expr)
                     // Check if this was a throwing default - use temp var instead
-                    key := func_name.clone()
+                    mut key := func_name.clone()
                     key.push_str(":")
                     key.push_str(member.name)
                     if ctx.hoisted_struct_defaults.contains_key(key) {
@@ -8779,7 +8779,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             fcall_ret_type := get_value_type(context, second_param)
             switch fcall_ret_type {
             case ValueType.TCustom(type_name):
-                candidate := type_name.clone()
+                mut candidate := type_name.clone()
                 candidate.push_str(".")
                 candidate.push_str(orig_func_name)
                 _ := context.scope_stack.lookup_func(candidate)
@@ -8871,12 +8871,12 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                         }
                     }
 
-                    temp_name := "_default_"
+                    mut temp_name := "_default_"
                     temp_name.push_str(td.member_name)
                     temp_name.push_str("_")
                     temp_name.push_str(next_mangled(ctx))
                     emit_throwing_call_propagate(td.default_expr, throw_types, temp_name, "", output, indent, ctx, context)
-                    key := func_name.clone()
+                    mut key := func_name.clone()
                     key.push_str(":")
                     key.push_str(td.member_name)
                     ctx.hoisted_struct_defaults.set(key, temp_name)
@@ -8902,7 +8902,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(" = ")
                 mut default_expr := Expr()
                 struct_def_opt.default_values.get(member.name, default_expr)
-                key := func_name.clone()
+                mut key := func_name.clone()
                 key.push_str(":")
                 key.push_str(member.name)
                 if ctx.hoisted_struct_defaults.contains_key(key) {
