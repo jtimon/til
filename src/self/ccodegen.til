@@ -3284,7 +3284,8 @@ emit_struct_constants := proc(expr: Expr, output: Str, ctx: CodegenContext, cont
                     if not(member.is_mut) {
                         c_type := til_type_to_c(member.value_type)
                         // Get the default value
-                        default_val := struct_def.default_values.get(member.name)
+                        mut default_val := Expr()
+                        struct_def.default_values.get(member.name, default_val)
                         output.push_str("const ")
                         output.push_str(c_type)
                         output.push_str(" ")
