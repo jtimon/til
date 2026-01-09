@@ -4398,7 +4398,7 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                     _ := ctx.declared_vars.insert(c_var_name)
                     // Also register in scope_stack so get_value_type can find it
                     mut sym_info := SymbolInfo()
-                    sym_info.value_type = decl.value_type.clone()
+                    sym_info.value_type = decl.value_type
                     sym_info.is_mut = false
                     sym_info.is_copy = false
                     sym_info.is_own = false
