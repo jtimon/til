@@ -5002,7 +5002,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
-    mangled_name := ctx.nested_func_names.get(func_name)
+    mut mangled_name := ""
+    ctx.nested_func_names.get(func_name, mangled_name)
     func_name = mangled_name
     catch (err: KeyNotFoundError) { }
 
@@ -5029,7 +5030,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             continue  // Skip function name
         }
         fd2 := get_fcall_func_def(context, fcall)
-        param_arg := fd2.args.get(arg_idx.sub(1))
+        mut param_arg := Declaration()
+        fd2.args.get(arg_idx.sub(1), param_arg)
         param_types.push(param_arg.value_type.clone())
         param_by_ref.push(param_needs_by_ref(param_arg))
         arg_idx.inc()
@@ -5081,7 +5083,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     if needs_ret {
         fd3 := get_fcall_func_def(context, fcall)
         if not(fd3.return_types.is_empty()) {
-            first_ret := fd3.return_types.get(0)
+            mut first_ret := ValueType.TCustom(INFER_TYPE)
+            fd3.return_types.get(0, first_ret)
             ret_type = til_type_to_c(first_ret)
             catch (err: Str) {
                 ret_type = "int"
@@ -5110,11 +5113,12 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         output.push_str(" ")
         output.push_str(til_name(decl_name))
         output.push_str(";\n")
-        ctx.declared_vars.insert(til_name(decl_name))
+        _ := ctx.declared_vars.insert(til_name(decl_name))
         // Add to scope_stack for type resolution
         fd4 := get_fcall_func_def(context, fcall)
         if not(fd4.return_types.is_empty()) {
-            first_type := fd4.return_types.get(0)
+            mut first_type := ValueType.TCustom(INFER_TYPE)
+            fd4.return_types.get(0, first_type)
             mut sym_info := SymbolInfo()
             sym_info.value_type = first_type.clone()
             sym_info.is_mut = true
