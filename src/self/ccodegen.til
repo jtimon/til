@@ -4156,17 +4156,13 @@ emit_func_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, cont
 
 emit_expr := proc(expr: Expr, output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
     // Check if this expression has been hoisted (for nested variadic/throwing calls)
-    expr_addr := expr.addr()
-    mut found_hoisted := false
+    expr_addr := to_ptr(expr)
     mut temp_var := ""
-    temp_var = ctx.hoisted_exprs.get(expr_addr)
-    found_hoisted = true
+    ctx.hoisted_exprs.get(expr_addr, temp_var)
+    output.push_str(temp_var)
+    return
     catch (err: KeyNotFoundError) {
         // Not hoisted, continue with normal emit
-    }
-    if found_hoisted {
-        output.push_str(temp_var)
-        return
     }
 
     switch expr.node_type {
