@@ -3817,7 +3817,8 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, ctx: CodegenContext, co
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.StructDef(struct_def):
                 struct_name := til_name(decl.name)
