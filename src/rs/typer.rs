@@ -77,8 +77,8 @@ fn check_enum_def(context: &Context, e: &Expr, enum_def: &SEnumDef) -> Vec<Strin
         return errors
     }
 
-    for (enum_val_name, enum_opt) in enum_def.iter() {
-        match &enum_opt {
+    for v in &enum_def.variants {
+        match &v.payload_type {
             None => {},
             Some(value_type) => {
                 match value_type {
@@ -87,7 +87,7 @@ fn check_enum_def(context: &Context, e: &Expr, enum_def: &SEnumDef) -> Vec<Strin
                         if context.scope_stack.lookup_symbol(custom_type_name).is_none() {
                             errors.push(e.error(&context.path, "type", &format!(
                                 "Enum variant '{}' uses undefined type '{}'.\nHint: Make sure '{}' is defined before this enum.",
-                                enum_val_name, custom_type_name, custom_type_name
+                                v.name, custom_type_name, custom_type_name
                             )));
                         } else {
                             // Validate it's actually a type (enum or struct), not a value
@@ -100,7 +100,7 @@ fn check_enum_def(context: &Context, e: &Expr, enum_def: &SEnumDef) -> Vec<Strin
                                 _ => {
                                     errors.push(e.error(&context.path, "type", &format!(
                                         "Enum variant '{}' payload type '{}' is not a valid type (expected enum or struct, found {}).",
-                                        enum_val_name, custom_type_name, value_type_to_str(&symbol_info.value_type)
+                                        v.name, custom_type_name, value_type_to_str(&symbol_info.value_type)
                                     )));
                                 }
                             }
@@ -1816,9 +1816,9 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             }
 
             if !default_found {
-                for variant in enum_def.keys() {
-                    if !matched_variants.contains(variant) {
-                        errors.push(e.error(&context.path, "type", &format!("Switch is missing case for variant '{}'", variant)));
+                for v in &enum_def.variants {
+                    if !matched_variants.contains(&v.name) {
+                        errors.push(e.error(&context.path, "type", &format!("Switch is missing case for variant '{}'", v.name)));
                     }
                 }
             }

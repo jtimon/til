@@ -46,14 +46,6 @@ impl SEnumDef {
         }
         false
     }
-
-    pub fn keys(&self) -> impl Iterator<Item = &String> {
-        self.variants.iter().map(|v| &v.name)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (&String, &Option<ValueType>)> {
-        self.variants.iter().map(|v| (&v.name, &v.payload_type))
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

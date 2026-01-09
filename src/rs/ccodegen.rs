@@ -268,8 +268,8 @@ fn get_enum_dependencies(expr: &Expr) -> Vec<String> {
     if let NodeType::Declaration(_) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
-                for (_variant_name, payload_type) in enum_def.iter() {
-                    if let Some(pt) = payload_type {
+                for v in &enum_def.variants {
+                    if let Some(pt) = &v.payload_type {
                         if let ValueType::TCustom(type_name) = pt {
                             // Skip primitives (but NOT Str or Bool - they're structs)
                             if type_name != "I64" && type_name != "U8"
@@ -2631,8 +2631,8 @@ fn emit_size_of_function(output: &mut String, ctx: &CodegenContext) {
 
 // Check if an enum has any payloads
 fn enum_has_payloads(enum_def: &SEnumDef) -> bool {
-    for (_variant_name, payload_type) in enum_def.iter() {
-        if payload_type.is_some() {
+    for v in &enum_def.variants {
+        if v.payload_type.is_some() {
             return true;
         }
     }
@@ -2654,12 +2654,13 @@ fn is_enum_with_payloads(expr: &Expr) -> bool {
 // Emit an enum with payloads as a tagged union
 fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut String) -> Result<(), String> {
     // Sort variants by name for deterministic output
-    let mut variants: Vec<_> = enum_def.iter().collect();
-    variants.sort_by_key(|(name, _)| *name);
+    let mut variants: Vec<_> = enum_def.variants.iter().collect();
+    variants.sort_by_key(|v| &v.name);
 
     // 1. Emit tag enum: typedef enum { Color_Unknown = 0, ... } Color_Tag;
     output.push_str("typedef enum {\n");
-    for (index, (variant_name, _)) in variants.iter().enumerate() {
+    for (index, v) in variants.iter().enumerate() {
+        let variant_name = &v.name;
         output.push_str("    ");
         output.push_str(enum_name);
         output.push_str("_");
@@ -2675,21 +2676,21 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
     // 2. Emit payload union (only for variants that have payloads)
     // typedef union { unsigned char Green; long long Number; } Color_Payload;
     let mut has_any_payload = false;
-    for (_, payload) in &variants {
-        if payload.is_some() {
+    for v in &variants {
+        if v.payload_type.is_some() {
             has_any_payload = true;
             break;
         }
     }
     if has_any_payload {
         output.push_str("typedef union {\n");
-        for (variant_name, payload_type) in &variants {
-            if let Some(pt) = payload_type {
+        for v in &variants {
+            if let Some(pt) = &v.payload_type {
                 if let Ok(c_type) = til_type_to_c(pt) {
                     output.push_str("    ");
                     output.push_str(&c_type);
                     output.push_str(" ");
-                    output.push_str(variant_name);
+                    output.push_str(&v.name);
                     output.push_str(";\n");
                 }
             }
@@ -2716,7 +2717,9 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
 
     // 4. Emit constructor functions for ALL variants (including no-payload ones)
     // This ensures consistent calling convention: Color_make_Red(42), Color_make_Unknown()
-    for (variant_name, payload_type) in &variants {
+    for v in &variants {
+        let variant_name = &v.name;
+        let payload_type = &v.payload_type;
         output.push_str("static inline ");
         output.push_str(enum_name);
         output.push_str(" ");
@@ -2777,7 +2780,7 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
                 output.push_str("typedef enum {\n");
 
                 // Sort variants by name for deterministic output
-                let mut variants: Vec<_> = enum_def.keys().collect();
+                let mut variants: Vec<_> = enum_def.variants.iter().map(|v| &v.name).collect();
                 variants.sort();
 
                 for (index, variant_name) in variants.iter().enumerate() {
@@ -2824,7 +2827,7 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
 // For enums with payloads: til_Str til_EnumName_to_str(til_EnumName* e)
 fn emit_enum_to_str_function(enum_name: &str, enum_def: &SEnumDef, output: &mut String) {
     let has_payloads = enum_has_payloads(enum_def);
-    let mut variants: Vec<_> = enum_def.keys().collect();
+    let mut variants: Vec<_> = enum_def.variants.iter().map(|v| &v.name).collect();
     variants.sort();
 
     // Function signature - takes pointer since Dynamic params are passed by reference

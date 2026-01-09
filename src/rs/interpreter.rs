@@ -655,11 +655,11 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 // Find variant name by matching the variant position
                                                 let mut found_variant = None;
                                                 let mut found = false;
-                                                for (name, _) in enum_def.iter() {
+                                                for v in &enum_def.variants {
                                                     if !found {
-                                                        let pos = Context::get_variant_pos(enum_def, name, &context.path, &case)?;
+                                                        let pos = Context::get_variant_pos(enum_def, &v.name, &context.path, &case)?;
                                                         if pos == variant_pos {
-                                                            found_variant = Some(name.clone());
+                                                            found_variant = Some(v.name.clone());
                                                             found = true;
                                                         }
                                                     }

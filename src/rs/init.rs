@@ -1368,8 +1368,8 @@ impl Context {
             // Calculate maximum variant size (8 bytes for tag + largest payload)
             let mut max_size = 8; // Start with tag size
 
-            for (_variant_name, payload_type_opt) in enum_def.iter() {
-                if let Some(payload_type) = payload_type_opt {
+            for v in &enum_def.variants {
+                if let Some(payload_type) = &v.payload_type {
                     let payload_size = match payload_type {
                         ValueType::TCustom(t) => self.get_type_size(&t)?,
                         _ => {

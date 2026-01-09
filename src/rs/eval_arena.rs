@@ -355,7 +355,7 @@ impl EvalArena {
                             return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid enum default value '{}' for field '{}'", default_value, decl.name)));
                         }
                         let variant = parts[1];
-                        let index = match enum_def.keys().position(|v| v == variant) {
+                        let index = match enum_def.variants.iter().position(|v| v.name == variant) {
                             Some(i) => i as i64,
                             None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Unknown enum variant '{}' for field '{}'", variant, decl.name))),
                         };

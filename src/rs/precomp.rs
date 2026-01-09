@@ -578,7 +578,9 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     // Bug #33: for-in loops don't work with enum collections
     let type_call = if let Some(enum_def) = context.scope_stack.lookup_enum(var_type_name) {
         // Get the first variant from the enum (arbitrary choice - value will be overwritten by get())
-        if let Some((first_variant, payload_type)) = enum_def.iter().next() {
+        if let Some(first_v) = enum_def.variants.first() {
+            let first_variant = &first_v.name;
+            let payload_type = &first_v.payload_type;
             // Build the enum constructor:
             // - For variants WITHOUT payload: EnumType.Variant (just identifier chain)
             // - For variants WITH payload: EnumType.Variant(default_payload) (FCall)

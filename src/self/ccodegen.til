@@ -318,7 +318,7 @@ get_enum_dependencies := func(expr: Expr) returns Vec throws AllocError, Str {
             expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.EnumDef(enum_def):
-                for variant: EnumVariant in enum_def {
+                for variant: EnumVariant in enum_def.variants {
                     if not(variant.payload_type.is_null()) {
                         mut pt := ValueType.TCustom("")
                         memcpy(to_ptr(pt), variant.payload_type.data, size_of(ValueType))
@@ -1437,7 +1437,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                     // Check if this is an enum constructor
                     enum_def := context.scope_stack.lookup_enum(name)
                     mut is_enum_variant := false
-                    for v: EnumVariant in enum_def {
+                    for v: EnumVariant in enum_def.variants {
                         if v.name.eq(field_or_variant) {
                             is_enum_variant = true
                             break
@@ -1504,7 +1504,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                         parts.get(1, variant_name)
                         enum_def := context.scope_stack.lookup_enum(type_name)
                         mut is_enum_variant := false
-                        for v: EnumVariant in enum_def {
+                        for v: EnumVariant in enum_def.variants {
                             if v.name.eq(variant_name) {
                                 is_enum_variant = true
                                 break
@@ -3385,14 +3385,9 @@ emit_size_of_function := proc(mut output: Str, ctx: CodegenContext) {
 
 // Check if an enum has any payloads
 enum_has_payloads := func(enum_def: SEnumDef) returns Bool {
-    for entry: MapEntry in enum_def.entries() {
-        variant_name := entry.key
-        payload_type := entry.value
-        // Check if payload_type is not None
-        switch payload_type {
-        case ValueType.TCustom(name):
+    for v: EnumVariant in enum_def.variants {
+        if not(v.payload_type.is_null()) {
             return true
-        case:
         }
     }
     return false
@@ -3417,23 +3412,22 @@ is_enum_with_payloads := func(expr: Expr) returns Bool {
 }
 
 // Emit an enum with payloads as a tagged union
-emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str) throws Str {
+emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, mut output: Str) throws Str {
     // Sort variants by name for deterministic output
-    mut variants := Vec.new(MapEntry)
-    for entry: MapEntry in enum_def.entries() {
-        variants.push(entry)
+    mut variants := Vec.new(EnumVariant)
+    for v: EnumVariant in enum_def.variants {
+        variants.push(v.clone())
     }
-    variants.sort_by_key_str(proc(e: MapEntry) returns Str { return e.key })
+    variants.sort_by_key_str(proc(v: EnumVariant) returns Str { return v.name })
 
     // 1. Emit tag enum: typedef enum { Color_Unknown = 0, ... } Color_Tag;
     output.push_str("typedef enum {\n")
     mut index := 0
-    for entry: MapEntry in variants {
-        variant_name := entry.key
+    for v: EnumVariant in variants {
         output.push_str("    ")
         output.push_str(enum_name)
         output.push_str("_")
-        output.push_str(variant_name)
+        output.push_str(v.name)
         output.push_str(" = ")
         output.push_str(I64.to_str(index))
         output.push_str(",\n")
@@ -3446,31 +3440,27 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
     // 2. Emit payload union (only for variants that have payloads)
     // typedef union { unsigned char Green; long long Number; } Color_Payload;
     mut has_any_payload := false
-    for entry: MapEntry in variants {
-        payload_type := entry.value
-        switch payload_type {
-        case ValueType.TCustom(name):
+    for v: EnumVariant in variants {
+        if not(v.payload_type.is_null()) {
             has_any_payload = true
             break
-        case:
         }
     }
     if has_any_payload {
         output.push_str("typedef union {\n")
-        for entry: MapEntry in variants {
-            variant_name := entry.key
-            payload_type := entry.value
-            switch payload_type {
-            case ValueType.TCustom(name):
-                c_type := til_type_to_c(payload_type)
+        for v: EnumVariant in variants {
+            if not(v.payload_type.is_null()) {
+                // Read payload_type from Ptr
+                mut payload_vt := ValueType.TCustom("")
+                memcpy(to_ptr(payload_vt), v.payload_type.data, size_of(ValueType))
+                c_type := til_type_to_c(payload_vt)
                 output.push_str("    ")
                 output.push_str(c_type)
                 output.push_str(" ")
-                output.push_str(variant_name)
+                output.push_str(v.name)
                 output.push_str(";\n")
                 catch (err: Str) { }
                 catch (err: KeyNotFoundError) { }
-            case:
             }
         }
         output.push_str("} ")
@@ -3495,28 +3485,27 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
 
     // 4. Emit constructor functions for ALL variants (including no-payload ones)
     // This ensures consistent calling convention: Color_make_Red(42), Color_make_Unknown()
-    for entry: MapEntry in variants {
-        variant_name := entry.key
-        payload_type := entry.value
+    for v: EnumVariant in variants {
         output.push_str("static inline ")
         output.push_str(enum_name)
         output.push_str(" ")
         output.push_str(enum_name)
         output.push_str("_make_")
-        output.push_str(variant_name)
+        output.push_str(v.name)
         output.push_str("(")
 
         // Parameter for payload (if any)
         mut has_payload := false
-        switch payload_type {
-        case ValueType.TCustom(name):
-            c_type := til_type_to_c(payload_type)
+        if not(v.payload_type.is_null()) {
+            mut payload_vt := ValueType.TCustom("")
+            memcpy(to_ptr(payload_vt), v.payload_type.data, size_of(ValueType))
+            c_type := til_type_to_c(payload_vt)
             output.push_str(c_type)
             output.push_str(" value")
             has_payload = true
             catch (err: Str) { }
             catch (err: KeyNotFoundError) { }
-        case:
+        } else {
             output.push_str("void")
         }
         output.push_str(") {\n")
@@ -3527,13 +3516,13 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
         output.push_str(" result = { .tag = ")
         output.push_str(enum_name)
         output.push_str("_")
-        output.push_str(variant_name)
+        output.push_str(v.name)
         output.push_str(" };\n")
 
         // Set payload if present
         if has_payload {
             output.push_str("    result.payload.")
-            output.push_str(variant_name)
+            output.push_str(v.name)
             output.push_str(" = value;\n")
         }
 
@@ -3569,8 +3558,8 @@ emit_enum_declaration := proc(expr: Expr, output: Str) throws Str {
 
                 // Sort variants by name for deterministic output
                 mut variants := Vec.new(Str)
-                for key: Str in enum_def.keys() {
-                    variants.push(key)
+                for v: EnumVariant in enum_def.variants {
+                    variants.push(v.name)
                 }
                 variants.sort()
 
@@ -3631,8 +3620,8 @@ emit_enum_declaration := proc(expr: Expr, output: Str) throws Str {
 emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, output: Str) {
     has_payloads := enum_has_payloads(enum_def)
     mut variants := Vec.new(Str)
-    for key: Str in enum_def.keys() {
-        variants.push(key)
+    for v: EnumVariant in enum_def.variants {
+        variants.push(v.name)
     }
     variants.sort()
 
@@ -8733,7 +8722,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             type_name_part := parts.get(0)
             variant_name_part := parts.get(1)
             enum_def := context.scope_stack.lookup_enum(type_name_part)
-            if enum_def.contains(variant_name_part) {
+            if enum_def.contains_key(variant_name_part) {
                 is_enum_constructor = true
             }
             catch (err: KeyNotFoundError) {

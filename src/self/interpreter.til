@@ -638,8 +638,23 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                                         throw case_expr.error(context.path, "eval", format("Enum definition for '", type_name, "' not found"))
                                     }
 
-                                    // Find variant name by matching position
-                                    variant_name := Context.variant_pos_to_str(inner_enum_def, variant_pos, context.path, case_expr)
+                                    // Find variant name by matching the variant position
+                                    mut found_variant := ""
+                                    mut found := false
+                                    for v: EnumVariant in inner_enum_def.variants {
+                                        if not(found) {
+                                            pos := Context.get_variant_pos(inner_enum_def, v.name, context.path, case_expr)
+                                            if pos.eq(variant_pos) {
+                                                found_variant = v.name.clone()
+                                                found = true
+                                            }
+                                        }
+                                    }
+
+                                    if not(found) {
+                                        throw case_expr.error(context.path, "eval", format("Variant position ", I64.to_str(variant_pos), " not found in enum ", type_name))
+                                    }
+                                    variant_name := found_variant
 
                                     // Check if this variant has its own payload
                                     mut inner_payload_ptr := inner_enum_def.get(variant_name)
