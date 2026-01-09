@@ -148,6 +148,12 @@ list_dir_raw := ext_proc(path: Str) returns Str {}
 fs_parent_dir := ext_func(path: Str) returns Str {}
 
 /**
+ * Creates a directory and all parent directories (like mkdir -p).
+ * Returns 0 on success, -1 on failure.
+ */
+fs_mkdir_p := ext_proc(path: Str) returns I64 {}
+
+/**
  * Lists files in a directory.
  * Returns filenames only (not full paths), excluding "." and "..".
  * Returns empty vector (of Str) if directory doesn't exist.

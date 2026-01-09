@@ -419,10 +419,34 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
     return (til_Str){(til_I64)result, last_slash};
 }
 
+// fs_mkdir_p: Create directory and all parent directories (Windows)
+static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
+    const char* p = (const char*)path->c_string;
+    size_t len = path->cap;
+    if (len == 0) return 0;
+
+    char* tmp = (char*)malloc(len + 1);
+    memcpy(tmp, p, len);
+    tmp[len] = '\0';
+
+    for (size_t i = 1; i < len; i++) {
+        if (tmp[i] == '/' || tmp[i] == '\\') {
+            tmp[i] = '\0';
+            _mkdir(tmp);
+            tmp[i] = '/';
+        }
+    }
+    int result = _mkdir(tmp);
+    free(tmp);
+    return (result == 0 || errno == EEXIST) ? 0 : -1;
+}
+
 #else  // Unix
 
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
+#include <errno.h>
 
 // spawn_cmd: Spawn a command in the background, returns PID
 static inline int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd) {
@@ -529,6 +553,28 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
     memcpy(result, p, last_slash);
     result[last_slash] = '\0';
     return (til_Str){(til_I64)result, last_slash};
+}
+
+// fs_mkdir_p: Create directory and all parent directories (Unix)
+static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
+    const char* p = (const char*)path->c_string;
+    size_t len = path->cap;
+    if (len == 0) return 0;
+
+    char* tmp = (char*)malloc(len + 1);
+    memcpy(tmp, p, len);
+    tmp[len] = '\0';
+
+    for (size_t i = 1; i < len; i++) {
+        if (tmp[i] == '/') {
+            tmp[i] = '\0';
+            mkdir(tmp, 0755);
+            tmp[i] = '/';
+        }
+    }
+    int result = mkdir(tmp, 0755);
+    free(tmp);
+    return (result == 0 || errno == EEXIST) ? 0 : -1;
 }
 
 #endif  // _WIN32

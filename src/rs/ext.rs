@@ -777,6 +777,18 @@ pub fn func_fs_parent_dir(context: &mut Context, e: &Expr) -> Result<EvalResult,
     }
 }
 
+// fs_mkdir_p: Create directory and all parent directories
+pub fn proc_fs_mkdir_p(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "fs_mkdir_p", 1, true)?;
+
+    let path = eval_or_throw!(context, e.get(1)?);
+
+    match std::fs::create_dir_all(&path) {
+        Ok(_) => Ok(EvalResult::new("0")),
+        Err(_) => Ok(EvalResult::new("-1")),
+    }
+}
+
 // ---------- Introspection functions
 
 pub fn func_has_const(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {

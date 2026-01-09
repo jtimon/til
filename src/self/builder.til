@@ -363,7 +363,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     // Create output directory if it doesn't exist
     parent_dir := fs_parent_dir(source_output_path)
     if not(parent_dir.is_empty()) {
-        fs_mkdir_p(parent_dir)
+        _ := fs_mkdir_p(parent_dir)
     }
     write_err := writefile(source_output_path, c_code)
     if not(write_err.is_empty()) {
@@ -391,7 +391,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     // Create bin directory if it doesn't exist
     bin_parent_dir := fs_parent_dir(exe_path_str)
     if not(bin_parent_dir.is_empty()) {
-        fs_mkdir_p(bin_parent_dir)
+        _ := fs_mkdir_p(bin_parent_dir)
     }
 
     // Build command with extra args for target

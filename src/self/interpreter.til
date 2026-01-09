@@ -3376,6 +3376,8 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_list_dir_raw(context, e)
     } else if name.eq("fs_parent_dir") {
         return func_fs_parent_dir(context, e)
+    } else if name.eq("fs_mkdir_p") {
+        return proc_fs_mkdir_p(context, e)
     } else if name.eq("eval_file") {
         return proc_eval_file(context, e)
     } else if name.eq("has_const") {
