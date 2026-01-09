@@ -54,7 +54,7 @@ CodegenContext := struct {
 
 // Generate unique mangled name using context counter (deterministic)
 // Includes function name prefix for uniqueness across functions
-next_mangled := func(mut ctx: CodegenContext) returns Str throws Str {
+next_mangled := func(mut ctx: CodegenContext) returns Str {
     n := ctx.mangling_counter
     ctx.mangling_counter = ctx.mangling_counter.add(1)
     func_name := ctx.current_function_name
@@ -70,7 +70,7 @@ next_mangled := func(mut ctx: CodegenContext) returns Str throws Str {
 
 // Returns the C name for a TIL identifier - adds TIL_PREFIX
 // Exceptions: C keywords (true, false), pointer deref (*name), and generated names (_ prefix)
-til_name := func(name: Str) returns Str throws Str {
+til_name := func(name: Str) returns Str {
     mut result := name
     switch name {
     case "true":
