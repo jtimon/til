@@ -6277,7 +6277,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             // Has default values or named args - emit designated initializer
             // First check if any default value is a throwing function call
             mut throwing_defaults := Vec.new(ThrowingDefault)
-            for member: SMember in struct_def.members {
+            for member: Declaration in struct_def.members {
                 if not(member.is_mut) {
                     continue
                 }
@@ -6340,7 +6340,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             emit_struct_literal_start(output, struct_type, already_declared)
             output.push_str("{")
             mut first := true
-            for member: SMember in struct_def.members {
+            for member: Declaration in struct_def.members {
                 // Only include mut fields (actual struct data members)
                 // Skip functions, constants, and non-mut fields
                 if not(member.is_mut) {
@@ -8454,7 +8454,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         } else {
             output.push_str("{")
             mut first := true
-            for member: SMember in struct_def.members {
+            for member: Declaration in struct_def.members {
                 if not(member.is_mut) {
                     continue
                 }
@@ -8828,7 +8828,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         } else {
             // Check if any default value is a throwing function call
             mut throwing_defaults := Vec.new(ThrowingDefault)
-            for member: SMember in struct_def_opt.members {
+            for member: Declaration in struct_def_opt.members {
                 if not(member.is_mut) {
                     continue
                 }
@@ -8880,7 +8880,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             output.push_str(func_name)
             output.push_str("){")
             mut first := true
-            for member: SMember in struct_def_opt.members {
+            for member: Declaration in struct_def_opt.members {
                 if not(member.is_mut) {
                     continue
                 }
