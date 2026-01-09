@@ -7485,7 +7485,12 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, mut output: Str, mut c
         mut arg := Expr()
         expr.params.get(arg_idx2, arg)
         // Check if arg is a type identifier - emit as string literal
-        type_name := get_type_arg_name(arg, context)
+        mut type_name := ""
+        type_name = get_type_arg_name(arg, context)
+        catch (err: KeyNotFoundError) {
+            // REM: Rust's None case - not a type arg, handle in else branches
+            type_name = ""
+        }
         if not(type_name.eq("")) {
             output.push_str("\"")
             output.push_str(type_name)
@@ -7587,6 +7592,9 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
     mut condition := Expr()
     expr.params.get(0, condition)
     _ := hoist_throwing_expr(condition, output, indent, ctx, context)
+    catch (err: KeyNotFoundError) {
+        // REM: Rust's Ok(None) case - not propagated by ?, just ignored
+    }
     output.push_str(indent_str)
     output.push_str("if (")
     emit_expr(condition, output, 0, ctx, context)
@@ -7684,6 +7692,9 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     mut condition := Expr()
     expr.params.get(0, condition)
     _ := hoist_throwing_expr(condition, hoist_output, indent.add(1), ctx, context)
+    catch (err: KeyNotFoundError) {
+        // REM: Rust's Ok(None) case - not propagated by ?, just ignored
+    }
 
     if hoist_output.is_empty() {
         // No throwing calls in condition - use simple while
@@ -8022,6 +8033,9 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
 
     // Hoist any throwing function calls in the switch expression
     _ := hoist_throwing_expr(switch_expr, output, indent, ctx, context)
+    catch (err: KeyNotFoundError) {
+        // REM: Rust's Ok(None) case - not propagated by ?, just ignored
+    }
 
     // Determine the type of the switch expression for proper comparison
     // Type inference may fail - that's okay, we'll use default
@@ -9101,7 +9115,12 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             mut arg := Expr()
             expr.params.get(expr_i, arg)
             // Check if arg is a type identifier - emit as string literal
-            type_arg_name := get_type_arg_name(arg, context)
+            mut type_arg_name := ""
+            type_arg_name = get_type_arg_name(arg, context)
+            catch (err: KeyNotFoundError) {
+                // REM: Rust's None case - not a type arg, handle in else branches
+                type_arg_name = ""
+            }
             if not(type_arg_name.is_empty()) {
                 output.push_str("\"")
                 output.push_str(type_arg_name)
