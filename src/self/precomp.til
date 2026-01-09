@@ -938,9 +938,6 @@ precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     catch (err: AllocError) {
         throw format("precomp_forin: ", err.msg)
     }
-    catch (err: I64_OverflowError) {
-        throw format("precomp_forin: ", err.msg)
-    }
 
     return Expr.new_explicit(NodeType.Body, outer_body_params, e.line, e.col)
 }
@@ -1543,9 +1540,6 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
         throw format("precomp_fcall: ", err.msg)
     }
     catch (err: AllocError) {
-        throw format("precomp_fcall: ", err.msg)
-    }
-    catch (err: I64_OverflowError) {
         throw format("precomp_fcall: ", err.msg)
     }
 

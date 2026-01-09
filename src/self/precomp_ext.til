@@ -41,15 +41,5 @@ try_replace_comptime_intrinsic := func(context: Context, e: Expr, mut out_replac
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw format("try_replace_comptime_intrinsic: ", err.msg)
-    }
-    catch (err: AllocError) {
-        throw format("try_replace_comptime_intrinsic: ", err.msg)
-    }
-    catch (err: I64_OverflowError) {
-        throw format("try_replace_comptime_intrinsic: ", err.msg)
-    }
-
     return e
 }
