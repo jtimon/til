@@ -6445,7 +6445,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                         if h.index.lt(args.len()) {
                             mut arg := Expr()
                             args.get(h.index, arg)
-                            expr_key := arg.id
+                            expr_key := to_ptr(arg)
                             mut hoisted_val := "&"
                             hoisted_val.push_str(h.temp_var)
                             ctx.hoisted_exprs.set(expr_key, hoisted_val)
@@ -6460,7 +6460,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                         if h.index.lt(args.len()) {
                             mut arg := Expr()
                             args.get(h.index, arg)
-                            expr_key := arg.id
+                            expr_key := to_ptr(arg)
                             mut hoisted_val := "&"
                             hoisted_val.push_str(h.temp_var)
                             ctx.hoisted_exprs.set(expr_key, hoisted_val)
@@ -6547,7 +6547,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                         if h.index.lt(args.len()) {
                             mut arg := Expr()
                             args.get(h.index, arg)
-                            expr_key := arg.id
+                            expr_key := to_ptr(arg)
                             mut hoisted_val := "&"
                             hoisted_val.push_str(h.temp_var)
                             ctx.hoisted_exprs.set(expr_key, hoisted_val)
@@ -6562,7 +6562,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                         if h.index.lt(args.len()) {
                             mut arg := Expr()
                             args.get(h.index, arg)
-                            expr_key := arg.id
+                            expr_key := to_ptr(arg)
                             mut hoisted_val := "&"
                             hoisted_val.push_str(h.temp_var)
                             ctx.hoisted_exprs.set(expr_key, hoisted_val)
@@ -8633,7 +8633,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(til_name(enum_type_name))
                 output.push_str("_to_str(")
                 // Check if the argument was already hoisted
-                expr_key := arg.id
+                expr_key := to_ptr(arg)
                 if ctx.hoisted_exprs.contains_key(expr_key) {
                     emit_expr(arg, output, 0, ctx, context)
                 } else {
@@ -8749,7 +8749,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             }
         } else {
             // Check if arg was hoisted with & prefix already
-            expr_key := arg.id
+            expr_key := to_ptr(arg)
             if ctx.hoisted_exprs.contains_key(expr_key) {
                 mut temp_var := ""
                 ctx.hoisted_exprs.get(expr_key, temp_var)
