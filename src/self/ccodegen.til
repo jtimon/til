@@ -4720,7 +4720,7 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
 /// Get the function name from an FCall expression (returns underscore format like Type_method)
 /// This returns the name WITHOUT til_ prefix.
 /// For C output, use til_name() on the result.
-get_fcall_func_name := func(expr: Expr) returns Str throws KeyNotFoundError {
+get_fcall_func_name := func(expr: Expr) returns Str throws KeyNotFoundError, Str {
     // get_func_name_string already handles both nested identifiers (Type.method)
     // and precomp'd strings ("Type.method"), returning "Type_method" format
     mut first_param := Expr()
