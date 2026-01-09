@@ -4335,7 +4335,7 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     }
 }
 
-emit_body := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, context: Context) throws Str {
+emit_body := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     // Bug #44 fix: Save and restore local_catch_labels around nested blocks
     // Without this, nested blocks clear the outer catches when processing their
     // own throwing calls, causing missing status checks for outer throwing calls.
@@ -4350,7 +4350,7 @@ emit_body := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
 
 /// Emit a sequence of statements with catch pattern detection
 /// This is the core logic shared between emit_body and emit_func_declaration
-emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext, context: Context) throws Str {
+emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     mut i := 0
     indent_str := indent_string(indent)
 
