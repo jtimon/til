@@ -3891,7 +3891,8 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str)
         if func_def.return_types.is_empty() {
             output.push_str("void ")
         } else {
-            ret_type_vt := func_def.return_types.get(0)
+            mut ret_type_vt := ValueType.TCustom("")
+            func_def.return_types.get(0, ret_type_vt)
             ret_type := til_type_to_c(ret_type_vt)
             output.push_str(ret_type)
             output.push_str(" ")
@@ -3906,7 +3907,8 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str)
     if is_throwing {
         // Output params first: return value pointer, then error pointers
         if not(func_def.return_types.is_empty()) {
-            ret_type_vt := func_def.return_types.get(0)
+            mut ret_type_vt := ValueType.TCustom("")
+            func_def.return_types.get(0, ret_type_vt)
             ret_type := til_type_to_c(ret_type_vt)
             output.push_str(ret_type)
             output.push_str("* _ret")
@@ -4005,7 +4007,8 @@ emit_func_prototype := proc(expr: Expr, output: Str) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(func_def):
                 // Skip external functions (ext_proc/ext_func) - they're just declarations
@@ -4035,7 +4038,8 @@ is_func_declaration := func(expr: Expr) returns Bool {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(fd):
                 return true
@@ -4053,7 +4057,8 @@ emit_func_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, cont
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(func_def):
                 // Skip external functions (ext_proc/ext_func) - they're just declarations
@@ -4182,12 +4187,14 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         // then params[1..] are the field chain
         if name.eq("_").and(not(expr.params.is_empty())) {
             // Emit the base expression (params[0])
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             emit_expr(first_param, output, indent, ctx, context)
             // Then emit the field chain
             mut i := 1
             while i.lt(expr.params.len()) {
-                param := expr.params.get(i)
+                mut param := Expr()
+                expr.params.get(i, param)
                 switch param.node_type {
                 case NodeType.Identifier(field):
                     output.push_str(".")
@@ -4201,7 +4208,8 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
 
         // Check for type-qualified access (Type.field or Type.Variant)
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.Identifier(field):
                 // Check if this is an enum variant by looking up in context
