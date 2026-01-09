@@ -47,6 +47,9 @@ parse_file := proc(path: Str) returns ParseFileResult throws Str {
     mut result := ParseFileResult()
     result.ast = ast
     result.mode_def = mode_def
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
     return result
 }
 

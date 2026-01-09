@@ -972,6 +972,7 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
 
     throw KeyNotFoundError(msg="expression not hoisted")
 }
@@ -1565,6 +1566,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
 
     return hoisted
 }
@@ -1719,6 +1721,7 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
 
     return hoisted
 }
@@ -1907,6 +1910,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
 
     return arr_var
 }
