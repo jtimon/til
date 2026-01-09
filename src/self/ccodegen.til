@@ -8330,7 +8330,7 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                 switch switch_type {
                 case ValueType.TCustom(enum_name):
                     enum_def := context.scope_stack.lookup_enum(enum_name)
-                    payload_type_opt = enum_def.get(info.variant_name)
+                    enum_def.get(info.variant_name, payload_type_opt)
                     has_payload_type = true
                     catch (err: KeyNotFoundError) {
                         // REM: variant not found
@@ -8400,7 +8400,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
     if ctx.nested_func_names.contains_key(orig_func_name) {
-        func_name = ctx.nested_func_names.get(orig_func_name)
+        ctx.nested_func_names.get(orig_func_name, func_name)
     }
 
     // Named args are already reordered by precomp, so no reordering needed here
@@ -8439,7 +8439,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             switch arg.node_type {
             case NodeType.NamedArg(field_name):
                 if not(arg.params.is_empty()) {
-                    value_expr := arg.params.get(0)
+                    mut value_expr := Expr()
+                    arg.params.get(0, value_expr)
                     named_values.set(field_name.clone(), value_expr.clone())
                 }
             case:
