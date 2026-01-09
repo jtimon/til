@@ -735,3 +735,16 @@ func_list_dir_raw := proc(mut context: Context, e: Expr) returns EvalResult thro
 
     return EvalResult.new(raw)
 }
+
+func_fs_parent_dir := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "fs_parent_dir", 1, false)
+
+    path_result := eval_expr(context, e.get(1))
+    if path_result.is_throw { return path_result }
+    path := path_result.value
+
+    // Call host-provided fs_parent_dir (when running on rstil)
+    parent := fs_parent_dir(path)
+
+    return EvalResult.new(parent)
+}

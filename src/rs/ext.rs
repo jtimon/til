@@ -765,6 +765,18 @@ pub fn func_list_dir_raw(context: &mut Context, e: &Expr) -> Result<EvalResult, 
     }
 }
 
+// fs_parent_dir: Get parent directory of a path
+pub fn func_fs_parent_dir(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "fs_parent_dir", 1, false)?;
+
+    let path = eval_or_throw!(context, e.get(1)?);
+
+    match std::path::Path::new(&path).parent() {
+        Some(parent) => Ok(EvalResult::new(parent.to_string_lossy().as_ref())),
+        None => Ok(EvalResult::new("")),
+    }
+}
+
 // ---------- Introspection functions
 
 pub fn func_has_const(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {

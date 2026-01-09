@@ -393,6 +393,32 @@ static inline til_Str til_list_dir_raw(const til_Str* path) {
     return (til_Str){(til_I64)result, pos};
 }
 
+// fs_parent_dir: Get parent directory of a path (Windows version)
+static inline til_Str til_fs_parent_dir(const til_Str* path) {
+    const char* p = (const char*)path->c_string;
+    size_t len = path->cap;
+
+    // Find last slash or backslash
+    size_t last_slash = 0;
+    int found = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (p[i] == '/' || p[i] == '\\') {
+            last_slash = i;
+            found = 1;
+        }
+    }
+
+    if (!found || last_slash == 0) {
+        return (til_Str){0, 0};  // No parent or root
+    }
+
+    // Allocate and copy parent path
+    char* result = (char*)malloc(last_slash + 1);
+    memcpy(result, p, last_slash);
+    result[last_slash] = '\0';
+    return (til_Str){(til_I64)result, last_slash};
+}
+
 #else  // Unix
 
 #include <unistd.h>
@@ -477,6 +503,32 @@ static inline til_Str til_list_dir_raw(const til_Str* path) {
     char* result = (char*)malloc(pos + 1);
     memcpy(result, buf, pos + 1);
     return (til_Str){(til_I64)result, pos};
+}
+
+// fs_parent_dir: Get parent directory of a path
+static inline til_Str til_fs_parent_dir(const til_Str* path) {
+    const char* p = (const char*)path->c_string;
+    size_t len = path->cap;
+
+    // Find last slash
+    size_t last_slash = 0;
+    int found = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (p[i] == '/') {
+            last_slash = i;
+            found = 1;
+        }
+    }
+
+    if (!found || last_slash == 0) {
+        return (til_Str){0, 0};  // No parent or root
+    }
+
+    // Allocate and copy parent path
+    char* result = (char*)malloc(last_slash + 1);
+    memcpy(result, p, last_slash);
+    result[last_slash] = '\0';
+    return (til_Str){(til_I64)result, last_slash};
 }
 
 #endif  // _WIN32

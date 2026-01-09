@@ -2844,6 +2844,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "get_thread_count" => ext::proc_get_thread_count(context, &e),
         "file_mtime" => ext::func_file_mtime(context, &e),
         "list_dir_raw" => ext::func_list_dir_raw(context, &e),
+        "fs_parent_dir" => ext::func_fs_parent_dir(context, &e),
         "eval_file" => proc_eval_file(context, &e),
         "has_const" => ext::func_has_const(context, &e),
         "has_field" => ext::func_has_field(context, &e),
