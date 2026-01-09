@@ -27,6 +27,21 @@ WaitError := struct {
 run_cmd := ext_proc(mut output_str: Str, args: ..Str) returns I64 {}
 
 /**
+ * Like run_cmd but takes a Vec of args instead of variadic args.
+ * TODO Bug #95: This is a workaround until Vec expansion to variadic args is supported.
+ * Once spread operator is implemented, this can be replaced with: run_cmd(output_str, cmd, ...args)
+ * WARNING: This builds a shell command string, so args with spaces may not work correctly.
+ */
+run_cmd_vec := proc(cmd: Str, args: Vec) returns I64 {
+    mut full_cmd := cmd
+    for arg: Str in args {
+        full_cmd = full_cmd.concat(" ").concat(arg)
+    }
+    mut output := ""
+    return output.run_cmd("bash", "-c", full_cmd)
+}
+
+/**
  * Like run_cmd but prints the command before executing it.
  */
 run_print_cmd := proc(mut output_str: Str, args: ..Str) returns I64 {
