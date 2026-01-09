@@ -112,6 +112,18 @@ test_strings := proc() {
     assert_eq_str(loc(), "    ", indent.repeat(1))
     assert_eq_str(loc(), "        ", indent.repeat(2))
 
+    // join tests
+    mut parts := Vec.new(Str)
+    assert_eq_str(loc(), "", join(parts, ", "))  // empty vec
+    parts.push("hello")
+    assert_eq_str(loc(), "hello", join(parts, ", "))  // single element
+    parts.push("world")
+    assert_eq_str(loc(), "hello, world", join(parts, ", "))  // two elements
+    parts.push("test")
+    assert_eq_str(loc(), "hello, world, test", join(parts, ", "))  // three elements
+    assert_eq_str(loc(), "hello world test", join(parts, " "))  // different separator
+    assert_eq_str(loc(), "helloworldtest", join(parts, ""))  // empty separator
+
     catch(err: I64_OverflowError) {
         panic(loc(), "Unexpected I64_OverflowError")
     }
