@@ -3625,7 +3625,7 @@ emit_enum_declaration := proc(expr: Expr, mut output: Str) throws Str {
 // Takes a pointer because enum_to_str(e: Dynamic) passes by reference
 // For simple enums: til_Str til_EnumName_to_str(til_EnumName* e)
 // For enums with payloads: til_Str til_EnumName_to_str(til_EnumName* e)
-emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, mut output: Str) {
+emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, mut output: Str) throws Str {
     has_payloads := enum_has_payloads(enum_def)
     mut variants := Vec.new(Str)
     for v: EnumVariant in enum_def.variants {
@@ -3673,7 +3673,8 @@ emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, mut output
     output.push_str(I64.to_str(unknown_name.len()))
     output.push_str("};\n}\n\n")
 
-    catch (err: AllocError) { }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 }
 
 // Emit _to_str function for an enum declaration node
