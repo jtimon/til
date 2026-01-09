@@ -1087,6 +1087,9 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
     catch (err: AllocError) {
         throw err.msg
     }
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
 
     return errors
 }
@@ -2204,6 +2207,9 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
     }
 
     catch (err: AllocError) {
+        throw err.msg
+    }
+    catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
 
