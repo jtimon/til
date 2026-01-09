@@ -101,6 +101,17 @@ test_strings := proc() {
     multi := "foo foo foo"
     assert_eq_str(loc(), "bar bar foo", multi.replacen("foo", "bar", 2))  // n=2
 
+    // repeat tests
+    ab := "ab"
+    indent := "    "
+    assert_eq_str(loc(), "", ab.repeat(0))
+    assert_eq_str(loc(), "", ab.repeat(sub(0, 1)))  // negative
+    assert_eq_str(loc(), "ab", ab.repeat(1))
+    assert_eq_str(loc(), "abab", ab.repeat(2))
+    assert_eq_str(loc(), "ababab", ab.repeat(3))
+    assert_eq_str(loc(), "    ", indent.repeat(1))
+    assert_eq_str(loc(), "        ", indent.repeat(2))
+
     catch(err: I64_OverflowError) {
         panic(loc(), "Unexpected I64_OverflowError")
     }

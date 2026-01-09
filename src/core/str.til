@@ -426,6 +426,34 @@ Str := struct {
 
         return parts
     }
+
+    /** Repeat the string n times. */
+    repeat := func(self: Str, n: I64) returns Str throws AllocError {
+        if n.lteq(0) {
+            return ""
+        }
+        if n.eq(1) {
+            return self.clone()
+        }
+
+        mut result := Str()
+        result.cap = self.cap.mul(n)
+        result.c_string = malloc(result.cap.add(1))
+        if NULL.eq(result.c_string) {
+            throw AllocError(msg=format(loc(), "Str.repeat: malloc failed for ", I64.to_str(result.cap.add(1)), " bytes"))
+        }
+
+        mut offset := 0
+        for i in 0..n {
+            memcpy(add(result.c_string, offset), self.c_string, self.cap)
+            offset = offset.add(self.cap)
+        }
+
+        // Null-terminate the string
+        memset(add(result.c_string, result.cap), ZERO_U8, 1)
+
+        return result
+    }
 }
 
 /** Get a substring from start (inclusive) to end (exclusive). */
