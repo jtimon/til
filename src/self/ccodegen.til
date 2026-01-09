@@ -6314,14 +6314,14 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     }
                 }
 
-                temp_name := "_default_"
+                mut temp_name := "_default_"
                 temp_name.push_str(td.member_name)
                 temp_name.push_str("_")
                 temp_name.push_str(next_mangled(ctx))
                 // Emit the function call with out-param using emit_throwing_call_propagate
                 emit_throwing_call_propagate(td.default_expr, throw_types, temp_name, "", output, indent, ctx, context)
                 // Record that this struct default was hoisted using "struct_name:member_name" key
-                key := struct_type.clone()
+                mut key := struct_type.clone()
                 key.push_str(":")
                 key.push_str(td.member_name)
                 ctx.hoisted_struct_defaults.set(key, temp_name)
@@ -6362,7 +6362,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     mut default_expr := Expr()
                 struct_def.default_values.get(member.name, default_expr)
                     // Check if this was a throwing default - use temp var instead
-                    key := struct_type.clone()
+                    mut key := struct_type.clone()
                     key.push_str(":")
                     key.push_str(member.name)
                     if ctx.hoisted_struct_defaults.contains_key(key) {
@@ -6407,7 +6407,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             }
             output.push_str(til_name(enum_type))
             output.push_str(" ")
-            ctx.declared_vars.add(til_name(name))
+            _ := ctx.declared_vars.add(til_name(name))
         }
         output.push_str(til_name(name))
         output.push_str(" = ")
@@ -6506,7 +6506,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             }
             output.push_str(c_type)
             output.push_str(" ")
-            ctx.declared_vars.add(til_name(name))
+            _ := ctx.declared_vars.add(til_name(name))
         }
         output.push_str(til_name(name))
         if not(expr.params.is_empty()) {
@@ -6609,7 +6609,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             output.push_str("const ")
             output.push_str(c_type)
             output.push_str(" ")
-            ctx.declared_vars.add(til_name(name))
+            _ := ctx.declared_vars.add(til_name(name))
         }
         output.push_str(til_name(name))
         if not(expr.params.is_empty()) {
