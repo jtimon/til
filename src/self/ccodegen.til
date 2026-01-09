@@ -5284,7 +5284,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     for catch_block: Expr in catch_blocks {
         if catch_block.params.len().gteq(3) {
             // Get error type name from catch block
-            err_type_param := catch_block.params.get(1)
+            mut err_type_param := Expr()
+            catch_block.params.get(1, err_type_param)
             switch err_type_param.node_type {
             case NodeType.Identifier(err_type_name):
                 // Find index of this error type
