@@ -1025,6 +1025,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 mut first_ret := ValueType.TCustom("")
                 throwing_fd.return_types.get(0, first_ret)
                 c_type = til_type_to_c(first_ret)
+                catch (err: KeyNotFoundError) {
+                    throw arg.lang_error(context.path, "ccodegen", err.msg)
+                }
             } else {
                 throw arg.lang_error(context.path, "ccodegen", "Cannot hoist throwing call with no return type")
             }
@@ -1185,6 +1188,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
             }
             c_type := til_type_to_c(ret_type)
+            catch (err: KeyNotFoundError) {
+                throw arg.lang_error(context.path, "ccodegen", err.msg)
+            }
 
             // Declare temp variable
             output.push_str(indent_str)
@@ -1233,6 +1239,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             // Emit function name
             fcall_func_name := get_fcall_func_name(arg)
+            catch (err: KeyNotFoundError) {
+                throw arg.lang_error(context.path, "ccodegen", err.msg)
+            }
             output.push_str(til_func_name(fcall_func_name))
             output.push_str("(")
 
@@ -1481,6 +1490,9 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
             fd := get_fcall_func_def(context, arg)
             catch (err: KeyNotFoundError) {
                 func_name := get_fcall_func_name(arg)
+                catch (err: KeyNotFoundError) {
+                    throw arg.lang_error(context.path, "ccodegen", err.msg)
+                }
                 // get_fcall_func_def returned None - check for constructors
                 if func_name.contains("_") {
                     // Check if this is an enum constructor (Type_Variant)
@@ -1525,6 +1537,9 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                 mut first_ret := ValueType.TCustom("")
                 fd.return_types.get(0, first_ret)
                 c_type = til_type_to_c(first_ret)
+                catch (err: KeyNotFoundError) {
+                    throw arg.lang_error(context.path, "ccodegen", err.msg)
+                }
             } else {
                 // Non-throwing call
                 mut ret_type := ValueType.TCustom("")
@@ -1533,6 +1548,9 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                     throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
                 }
                 c_type = til_type_to_c(ret_type)
+                catch (err: KeyNotFoundError) {
+                    throw arg.lang_error(context.path, "ccodegen", err.msg)
+                }
             }
         case:
             throw arg.lang_error(context.path, "ccodegen", "Cannot determine type for dynamic param")
@@ -1661,6 +1679,9 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
                 mut ret_type := ValueType.TCustom("")
                 fd.return_types.get(0, ret_type)
                 c_type = til_type_to_c(ret_type)
+                catch (err: KeyNotFoundError) {
+                    throw arg.lang_error(context.path, "ccodegen", err.msg)
+                }
             } else {
                 throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
             }
@@ -1681,6 +1702,9 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
                         mut ret_type := ValueType.TCustom("")
                         fd.return_types.get(0, ret_type)
                         c_type = til_type_to_c(ret_type)
+                        catch (err: KeyNotFoundError) {
+                            throw arg.lang_error(context.path, "ccodegen", err.msg)
+                        }
                     } else {
                         throw arg.lang_error(context.path, "ccodegen", format("Function ", func_name, " has no return type"))
                     }
