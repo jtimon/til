@@ -615,7 +615,7 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
             output.push_str(" = ")
 
             // Emit the function name and args (using nested hoisted temps)
-            variadic_ptr := ""
+            mut variadic_ptr := ""
             if has_variadic {
                 variadic_ptr = variadic_arr_var
             }
@@ -1086,7 +1086,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             output.push_str(" = ")
 
             // Emit the function name and args (using nested hoisted temps)
-            variadic_ptr := ""
+            mut variadic_ptr := ""
             if has_variadic {
                 variadic_ptr = variadic_arr_var
             }
@@ -1972,7 +1972,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
     mut func_name := get_func_name_string(first_param)
 
     // For lookups, we need the original name with dots
-    orig_func_name := get_til_func_name_string(first_param)
+    mut orig_func_name := get_til_func_name_string(first_param)
     catch (err: Str) {
         orig_func_name = func_name.clone()
     }
@@ -2315,7 +2315,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                 if name.eq("_").and(not(arg.params.is_empty())) {
                     // Get the type of the full expression for the temp var
                     vt := get_value_type(context, arg)
-                    c_type := til_type_to_c(vt)
+                    mut c_type := til_type_to_c(vt)
                     catch (err: Str) {
                         c_type = "int"
                     }
