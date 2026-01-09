@@ -91,9 +91,7 @@ string_from_context := proc(context: Context, id: Str, e: Expr) returns Str thro
         result = format(result, byte_to_str(byte))
     }
     catch (err: AllocError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: U8_OverflowError) { throw err.msg }
-    catch (err: I64_OverflowError) { throw err.msg }
     return result
 }
 

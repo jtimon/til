@@ -328,15 +328,6 @@ EvalArena := struct {
                 }
             }
         }
-        catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "context", format("copy_fields: ", err.msg))
-        }
-        catch (err: I64_OverflowError) {
-            throw err.msg
-        }
-        catch (err: AllocError) {
-            throw err.msg
-        }
     }
 
     // Core logic for insert_struct - does all the work but returns mappings instead of inserting them
@@ -540,9 +531,6 @@ EvalArena := struct {
         catch (err: AllocError) {
             throw e.lang_error(ctx.path, "context", "insert_struct_core: AllocError")
         }
-        catch (err: I64_OverflowError) {
-            throw err.msg
-        }
         catch (err: U8_OverflowError) {
             throw e.lang_error(ctx.path, "context", err.msg)
         }
@@ -633,14 +621,8 @@ EvalArena := struct {
                 }
             }
         }
-        catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "generate_struct_mappings", format("IndexOutOfBoundsError: ", err.msg))
-        }
         catch (err: AllocError) {
             throw e.lang_error(ctx.path, "generate_struct_mappings", "AllocError")
-        }
-        catch (err: I64_OverflowError) {
-            throw err.msg
         }
 
         return result
@@ -830,15 +812,6 @@ EvalArena := struct {
         g_arena.set(c_string_offset, to_ptr(info.string_offset), 8)
         g_arena.set(cap_offset, to_ptr(info.str_len), 8)
 
-        catch (err: AllocError) {
-            throw err.msg
-        }
-        catch (err: I64_OverflowError) {
-            throw err.msg
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "insert_string", "IndexOutOfBoundsError")
-        }
     }
 
     insert_string_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, id: Str, value_str: Str, e: Expr) throws Str {
@@ -1396,9 +1369,6 @@ EvalArena := struct {
         catch (err: AllocError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "AllocError")
         }
-        catch (err: I64_OverflowError) {
-            throw err.msg
-        }
         catch (err: U8_OverflowError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", err.msg)
         }
@@ -1435,12 +1405,6 @@ EvalArena := struct {
 
         result := Expr.new_explicit(NodeType.FCall, params, 0, 0)
 
-        catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "arena", "to_struct_literal: IndexOutOfBoundsError")
-        }
-        catch (err: I64_OverflowError) {
-            throw e.lang_error(ctx.path, "arena", "to_struct_literal: I64_OverflowError")
-        }
         catch (err: AllocError) {
             throw e.lang_error(ctx.path, "arena", "to_struct_literal: AllocError")
         }

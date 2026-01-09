@@ -2005,6 +2005,9 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
         errors.push(err)
     }
 
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
     catch (err: AllocError) {
         throw err.msg
     }

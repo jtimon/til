@@ -65,10 +65,6 @@ next_mangled := func(mut ctx: CodegenContext) returns Str throws Str {
         result = format("_tmp_", n.to_str())
     }
 
-    catch (err: I64_OverflowError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
-
     return result
 }
 
@@ -85,10 +81,6 @@ til_name := func(name: Str) returns Str throws Str {
             result = format(TIL_PREFIX, name)
         }
     }
-
-    catch (err: I64_OverflowError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
 
     return result
 }
@@ -122,8 +114,6 @@ emit_struct_literal_start := proc(mut output: Str, type_name: Str, already_decla
 til_func_name := func(name: Str) returns Str throws Str {
     result := format(TIL_PREFIX, name.replace(".", "_"))
 
-    catch (err: I64_OverflowError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
 
     return result
@@ -972,7 +962,6 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
-    catch (err: I64_OverflowError) { throw err.msg }
 
     throw KeyNotFoundError(msg="expression not hoisted")
 }
@@ -1566,7 +1555,6 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
-    catch (err: I64_OverflowError) { throw err.msg }
 
     return hoisted
 }
@@ -1721,7 +1709,6 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
-    catch (err: I64_OverflowError) { throw err.msg }
 
     return hoisted
 }
@@ -1908,9 +1895,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         i.inc()
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
-    catch (err: I64_OverflowError) { throw err.msg }
 
     return arr_var
 }
@@ -2447,8 +2432,6 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
     emit_expr(arg, output, 0, ctx, context)
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
-    catch (err: I64_OverflowError) { throw err.msg }
 }
 
 // Emit C code from AST (multi-pass architecture)
