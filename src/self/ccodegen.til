@@ -7452,10 +7452,10 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, mut output: Str, mut c
     catch (err: KeyNotFoundError) {
         // REM: no func def found
     }
-    for arg: FuncArg in fd.args {
+    for arg: Declaration in fd.args {
         mut pi := ParamTypeInfo()
         pi.value_type = arg.value_type
-        pi.value_type_set = true
+        pi.has_value_type = true
         pi.by_ref = param_needs_by_ref(arg)
         param_info.push(pi)
     }
