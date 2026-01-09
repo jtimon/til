@@ -3103,9 +3103,12 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
             case NodeType.StructDef(struct_def):
                 // Struct methods - use mangled names (StructName_methodName)
                 struct_name := decl.name
-                for entry: MapEntry in struct_def.default_values.entries() {
-                    member_name := entry.key
-                    default_expr := entry.value
+                for member_name: Str in struct_def.default_values.keys {
+                    mut default_expr := Expr()
+                    struct_def.default_values.get(member_name, default_expr)
+                    catch (err: KeyNotFoundError) {
+                        // REM: should not happen since we're iterating keys
+                    }
                     switch default_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         mangled_name := struct_name.concat("_").concat(member_name)
@@ -3114,7 +3117,7 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                         for arg: Declaration in func_def.args {
                             switch arg.value_type {
                             case ValueType.TMulti(elem_type):
-                                info := VariadicParamInfo()
+                                mut info := VariadicParamInfo()
                                 info.elem_type = elem_type.clone()
                                 info.regular_count = idx
                                 ctx.func_variadic_args.set(mangled_name.clone(), info)
