@@ -4076,7 +4076,7 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 for arg: Declaration in func_def.args {
                     // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
                     if not(arg.is_copy) {
-                        ctx.current_ref_params.insert(arg.name.clone())
+                        _ := ctx.current_ref_params.insert(arg.name.clone())
                     }
                     switch arg.value_type {
                     case ValueType.TMulti(elem_type):
@@ -4379,7 +4379,7 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                     output.push_str(" ")
                     output.push_str(c_var_name)
                     output.push_str(";\n")
-                    ctx.declared_vars.insert(c_var_name)
+                    _ := ctx.declared_vars.insert(c_var_name)
                     // Also register in scope_stack so get_value_type can find it
                     mut sym_info := SymbolInfo()
                     sym_info.value_type = decl.value_type.clone()
