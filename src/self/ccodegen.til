@@ -4503,7 +4503,8 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                             output.push_str(":\n")
 
                             // Bind error variable
-                            err_var_param := stmt.params.get(0)
+                            mut err_var_param := Expr()
+                            stmt.params.get(0, err_var_param)
                             switch err_var_param.node_type {
                             case NodeType.Identifier(err_var_name):
                                 inner_indent := indent_string(indent.add(1))
@@ -4532,7 +4533,8 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                             // errors from their own body, only from code before them
                             saved_catch_labels := ctx.local_catch_labels.clone()
                             ctx.local_catch_labels.clear()
-                            catch_body_expr := stmt.params.get(2)
+                            mut catch_body_expr := Expr()
+                            stmt.params.get(2, catch_body_expr)
                             emit_expr(catch_body_expr, output, indent.add(1), ctx, context)
                             ctx.local_catch_labels = saved_catch_labels
 
