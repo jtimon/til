@@ -2895,7 +2895,7 @@ is_throwing_fcall := proc(expr: Expr, context: Context) returns Bool {
 }
 
 // Emit a top-level constant declaration at file scope
-emit_constant_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, context: Context) throws Str {
+emit_constant_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, context: Context) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
