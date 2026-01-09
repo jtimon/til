@@ -65,6 +65,7 @@ next_mangled := func(mut ctx: CodegenContext) returns Str throws Str {
         result = format("_tmp_", n.to_str())
     }
 
+    catch (err: I64_OverflowError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
 
@@ -85,6 +86,7 @@ til_name := func(name: Str) returns Str throws Str {
         }
     }
 
+    catch (err: I64_OverflowError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
 
@@ -124,6 +126,7 @@ emit_struct_literal_start := proc(mut output: Str, type_name: Str, already_decla
 til_func_name := func(name: Str) returns Str throws Str {
     result := format(TIL_PREFIX, name.replace(".", "_"))
 
+    catch (err: I64_OverflowError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
 
