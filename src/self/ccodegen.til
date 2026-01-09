@@ -4753,7 +4753,7 @@ prescan_func_level_catches := func(stmts: Vec) returns Vec {
 
 /// Emit a non-throwing variadic function call at statement level
 /// Handles constructing the variadic array and cleaning it up after the call
-emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_name: Str, assign_name: Str, output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
+emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl_name: Str, assign_name: Str, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     indent_str := indent_string(indent)
 
     // Get function name
