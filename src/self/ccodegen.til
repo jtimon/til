@@ -9142,20 +9142,28 @@ emit_str_literal := proc(s: Str, mut output: Str) {
     mut i := 0
     while i.lt(s.len()) {
         c := s.char_at(i)
-        if c.eq("\n") {
+        newline := U8.from_i64(10)
+        carriage_return := U8.from_i64(13)
+        tab := U8.from_i64(9)
+        backslash := U8.from_i64(92)
+        quote := U8.from_i64(34)
+        if c.eq(newline) {
             output.push_str("\\n")
-        } else if c.eq("\r") {
+        } else if c.eq(carriage_return) {
             output.push_str("\\r")
-        } else if c.eq("\t") {
+        } else if c.eq(tab) {
             output.push_str("\\t")
-        } else if c.eq("\\") {
+        } else if c.eq(backslash) {
             output.push_str("\\\\")
-        } else if c.eq("\"") {
+        } else if c.eq(quote) {
             output.push_str("\\\"")
         } else {
             output.push_str(c.to_str())
         }
         i.inc()
+        catch (err: U8_OverflowError) {
+            panic(loc(), "U8_OverflowError: ASCII values are valid U8, should never happen: ", err.msg)
+        }
     }
     output.push_str("\", ")
     output.push_str(s.len().to_str())
@@ -9174,20 +9182,28 @@ emit_literal := proc(lit: Literal, mut output: Str, context: Context) throws Str
             mut j := 0
             while j.lt(s.len()) {
                 c := s.char_at(j)
-                if c.eq("\n") {
+                newline := U8.from_i64(10)
+                carriage_return := U8.from_i64(13)
+                tab := U8.from_i64(9)
+                backslash := U8.from_i64(92)
+                quote := U8.from_i64(34)
+                if c.eq(newline) {
                     output.push_str("\\n")
-                } else if c.eq("\r") {
+                } else if c.eq(carriage_return) {
                     output.push_str("\\r")
-                } else if c.eq("\t") {
+                } else if c.eq(tab) {
                     output.push_str("\\t")
-                } else if c.eq("\\") {
+                } else if c.eq(backslash) {
                     output.push_str("\\\\")
-                } else if c.eq("\"") {
+                } else if c.eq(quote) {
                     output.push_str("\\\"")
                 } else {
                     output.push_str(c.to_str())
                 }
                 j.inc()
+                catch (err: U8_OverflowError) {
+                    panic(loc(), "U8_OverflowError: ASCII values are valid U8, should never happen: ", err.msg)
+                }
             }
             output.push_str("\"")
         }
