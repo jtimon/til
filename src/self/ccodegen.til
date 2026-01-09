@@ -3743,7 +3743,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     for arg: Declaration in func_def.args {
         // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
         if not(arg.is_copy) {
-            ctx.current_ref_params.insert(arg.name.clone())
+            _ := ctx.current_ref_params.insert(arg.name.clone())
         }
         switch arg.value_type {
         case ValueType.TMulti(elem_type):
