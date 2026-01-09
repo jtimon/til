@@ -5313,7 +5313,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                     output.push_str(") {\n")
 
                     // Bind error variable and add to scope for type resolution
-                    err_var_param := catch_block.params.get(0)
+                    mut err_var_param := Expr()
+                    catch_block.params.get(0, err_var_param)
                     switch err_var_param.node_type {
                     case NodeType.Identifier(err_var_name):
                         inner_indent := indent_string(indent.add(1))
@@ -5339,7 +5340,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                     }
 
                     // Emit catch body
-                    catch_body := catch_block.params.get(2)
+                    mut catch_body := Expr()
+                    catch_block.params.get(2, catch_body)
                     emit_expr(catch_body, output, indent.add(1), ctx, context)
 
                     output.push_str(indent_str)
