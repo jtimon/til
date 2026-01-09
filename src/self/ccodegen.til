@@ -8858,8 +8858,10 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     if func_name.contains("_") {
         parts := func_name.split("_")
         if parts.len().gteq(2) {
-            type_name_part := parts.get(0)
-            variant_name_part := parts.get(1)
+            mut type_name_part := ""
+            parts.get(0, type_name_part)
+            mut variant_name_part := ""
+            parts.get(1, variant_name_part)
             enum_def := context.scope_stack.lookup_enum(type_name_part)
             if enum_def.contains_key(variant_name_part) {
                 is_enum_constructor = true
@@ -8873,8 +8875,10 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     output.push_str(TIL_PREFIX)
     if is_enum_constructor {
         parts := func_name.split("_")
-        type_name_part := parts.get(0)
-        variant_name_part := parts.get(1)
+        mut type_name_part := ""
+        parts.get(0, type_name_part)
+        mut variant_name_part := ""
+        parts.get(1, variant_name_part)
         output.push_str(type_name_part)
         output.push_str("_make_")
         output.push_str(variant_name_part)
