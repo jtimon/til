@@ -2908,7 +2908,8 @@ emit_constant_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenConte
             }
 
             // Handle literal constants (numbers, strings)
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.LLiteral(lit):
                 has_str := context.scope_stack.lookup_struct("Str")
@@ -2984,7 +2985,8 @@ is_global_declaration := func(expr: Expr) returns Bool {
             return false
         }
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             // Skip these - they have their own handling
             case NodeType.StructDef(sd):
@@ -3033,7 +3035,8 @@ emit_global_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
             }
 
             // Determine the type from the initializer expression using get_value_type
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             vt := get_value_type(context, first_param)
             mut c_type := til_type_to_c(vt)
             catch (err: Str) {
@@ -3079,7 +3082,8 @@ collect_func_info := proc(expr: Expr, ctx: CodegenContext) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(func_def):
                 // Top-level function - check for variadic args (TMulti)
@@ -3142,7 +3146,8 @@ collect_nested_func_info := proc(expr: Expr, ctx: CodegenContext, parent_func_na
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.FuncDef(func_def):
                 if not(parent_func_name.eq("")) {
@@ -3177,11 +3182,13 @@ collect_nested_func_info := proc(expr: Expr, ctx: CodegenContext, parent_func_na
     case NodeType.If:
         // Check then and else branches (params[0] = condition, params[1] = then, params[2] = else)
         if expr.params.len().gt(1) {
-            then_branch := expr.params.get(1)
+            mut then_branch := Expr()
+            expr.params.get(1, then_branch)
             collect_nested_func_info(then_branch, ctx, parent_func_name)
         }
         if expr.params.len().gt(2) {
-            else_branch := expr.params.get(2)
+            mut else_branch := Expr()
+            expr.params.get(2, else_branch)
             collect_nested_func_info(else_branch, ctx, parent_func_name)
         }
     case NodeType.While:

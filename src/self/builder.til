@@ -62,18 +62,20 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
             switch child.node_type {
             case NodeType.FCall:
                 if not(child.params.is_empty()) {
-                    first_param := child.params.get(0)
+                    mut first_param := Expr()
+                    child.params.get(0, first_param)
                     switch first_param.node_type {
                     case NodeType.Identifier(name):
                         if name.eq("import").and(child.params.len().gt(1)) {
-                            second_param := child.params.get(1)
+                            mut second_param := Expr()
+                            child.params.get(1, second_param)
                             switch second_param.node_type {
                             case NodeType.LLiteral(lit):
                                 switch lit {
                                 case Literal.Str(import_path):
                                     file_path := import_path_to_file_path(import_path)
                                     if not(imported.contains(file_path)) {
-                                        imported.insert(file_path.clone())
+                                        _ := imported.insert(file_path.clone())
                                         dep_result := parse_file(file_path)
                                         // Store AST in imported_asts so precomp can find it for circular imports
                                         context.imported_asts.set(file_path.clone(), dep_result.ast.clone())
@@ -163,7 +165,8 @@ is_import_call := func(expr: Expr) returns Bool {
     switch expr.node_type {
     case NodeType.FCall:
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.Identifier(name):
                 return name.eq("import")
