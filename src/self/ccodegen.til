@@ -4003,7 +4003,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str)
 }
 
 // Emit a function prototype (forward declaration)
-emit_func_prototype := proc(expr: Expr, output: Str) throws Str {
+emit_func_prototype := proc(expr: Expr, mut output: Str) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -4053,7 +4053,7 @@ is_func_declaration := func(expr: Expr) returns Bool {
 }
 
 // Emit a function declaration as a C function
-emit_func_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, context: Context) throws Str {
+emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -4319,7 +4319,7 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     }
 }
 
-emit_body := proc(expr: Expr, output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
+emit_body := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, context: Context) throws Str {
     // Bug #44 fix: Save and restore local_catch_labels around nested blocks
     // Without this, nested blocks clear the outer catches when processing their
     // own throwing calls, causing missing status checks for outer throwing calls.
@@ -4334,7 +4334,7 @@ emit_body := proc(expr: Expr, output: Str, indent: I64, ctx: CodegenContext, con
 
 /// Emit a sequence of statements with catch pattern detection
 /// This is the core logic shared between emit_body and emit_func_declaration
-emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
+emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext, context: Context) throws Str {
     mut i := 0
     indent_str := indent_string(indent)
 
