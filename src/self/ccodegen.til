@@ -4772,7 +4772,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             arg_idx.inc()
             continue  // Skip function name
         }
-        mut param_arg := SFuncArg()
+        mut param_arg := Declaration()
         fd.args.get(arg_idx.sub(1), param_arg)
         param_by_ref.push(param_needs_by_ref(param_arg))
         param_types.push(param_arg.value_type)
