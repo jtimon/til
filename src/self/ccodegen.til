@@ -2920,10 +2920,10 @@ emit_constant_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenConte
                 mut c_type := ""
                 switch lit {
                 case Literal.Number(n):
-                    c_type = Str.concat(TIL_PREFIX, "I64")
+                    c_type = TIL_PREFIX.concat("I64")
                 case Literal.Str(s):
                     if has_str_bool {
-                        c_type = Str.concat(TIL_PREFIX, "Str")
+                        c_type = TIL_PREFIX.concat("Str")
                     } else {
                         c_type = "const char*"
                     }
@@ -3108,7 +3108,7 @@ collect_func_info := proc(expr: Expr, ctx: CodegenContext) throws Str {
                     default_expr := entry.value
                     switch default_expr.node_type {
                     case NodeType.FuncDef(func_def):
-                        mangled_name := Str.concat(struct_name, "_", member_name)
+                        mangled_name := struct_name.concat("_").concat(member_name)
                         // Check for variadic args (TMulti) in struct methods
                         mut idx := 0
                         for arg: Declaration in func_def.args {
@@ -3152,7 +3152,7 @@ collect_nested_func_info := proc(expr: Expr, ctx: CodegenContext, parent_func_na
             case NodeType.FuncDef(func_def):
                 if not(parent_func_name.eq("")) {
                     // This is a nested function - record it for hoisting
-                    mangled_name := Str.concat(parent_func_name, "_", decl.name)
+                    mangled_name := parent_func_name.concat("_").concat(decl.name)
                     ctx.nested_func_names.set(decl.name.clone(), mangled_name.clone())
 
                     // Generate prototype using emit_func_signature (handles throwing functions properly)
@@ -3656,7 +3656,7 @@ emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, output: St
     }
 
     for variant: Str in variants {
-        full_name := Str.concat(original_name, ".", variant)
+        full_name := original_name.concat(".").concat(variant)
         output.push_str("        case ")
         output.push_str(enum_name)
         output.push_str("_")
@@ -3669,7 +3669,7 @@ emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, output: St
     }
 
     // Default case (shouldn't happen but good for safety)
-    unknown_name := Str.concat(original_name, ".?")
+    unknown_name := original_name.concat(".?")
     output.push_str("    }\n    return (til_Str){(til_I64)\"")
     output.push_str(unknown_name)
     output.push_str("\", ")
@@ -3710,7 +3710,7 @@ emit_struct_func_prototypes := proc(expr: Expr, output: Str) throws Str {
                     func_expr := struct_def.default_values.get(member.name)
                     switch func_expr.node_type {
                     case NodeType.FuncDef(func_def):
-                        mangled_name := Str.concat(struct_name, "_", member.name)
+                        mangled_name := struct_name.concat("_").concat(member.name)
                         emit_func_signature(mangled_name, func_def, output)
                         output.push_str(";\n")
                     case:
@@ -3773,7 +3773,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     ctx.declared_vars.clear()
     ctx.hoisted_struct_defaults.clear()
 
-    mangled_name := Str.concat(struct_name, "_", member.name)
+    mangled_name := struct_name.concat("_").concat(member.name)
 
     // Save and set current function name for deterministic temp naming (Bug #42 fix)
     prev_function_name := ctx.current_function_name.clone()
@@ -3850,7 +3850,7 @@ til_type_to_c := func(til_type: ValueType) returns Str throws Str, KeyNotFoundEr
             throw "Cannot convert inferred type to C"
         } else {
             // All types get TIL_PREFIX
-            return Str.concat(TIL_PREFIX, name)
+            return TIL_PREFIX.concat(name)
         }
     case ValueType.TFunction(ft):
         throw "Cannot convert function type to C"
@@ -3868,7 +3868,7 @@ value_type_to_c_name := func(vt: ValueType) returns Str throws Str {
     switch vt {
     case ValueType.TCustom(name):
         // All types get TIL_PREFIX
-        return Str.concat(TIL_PREFIX, name)
+        return TIL_PREFIX.concat(name)
     case:
         throw "Cannot convert to C type name"
     }
@@ -4402,8 +4402,8 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, co
                     mut entry := CatchLabelInfoEntry()
                     entry.stmt_index = scan_idx
                     entry.type_name = err_type_name.clone()
-                    entry.label = Str.concat("_catch_", err_type_name, "_", catch_suffix)
-                    entry.temp_var = Str.concat("_thrown_", err_type_name, "_", catch_suffix)
+                    entry.label = concat("_catch_", err_type_name).concat("_").concat(catch_suffix)
+                    entry.temp_var = concat("_thrown_", err_type_name).concat("_").concat(catch_suffix)
                     all_catch_info.push(entry)
                 case:
                 }
@@ -4570,7 +4570,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, co
                 func_name_param := maybe_fcall.params.get(0)
                 func_name := get_til_func_name_string(func_name_param)
                 if func_name.eq("eval_file").or(func_name.eq("eval_to_str")).or(func_name.eq("eval_to_ast_str")).or(func_name.eq("eval_to_expr")) {
-                    throw maybe_fcall.error(context.path, "ccodegen", Str.concat(func_name, "() is only available in interpret mode, not in build/run"))
+                    throw maybe_fcall.error(context.path, "ccodegen", func_name.concat("() is only available in interpret mode, not in build/run"))
                 }
             }
 
