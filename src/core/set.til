@@ -155,9 +155,13 @@ Set := struct {
     }
 
     /** Free set memory and reset */
+    clear := proc(mut self: Set) {
+        self.delete()
+    }
+
+    /** Free set memory and reset */
     delete := proc(mut self: Set) {
-        mut elems_arr := self.elements
-        elems_arr.delete()
+        self.elements.delete()
         self._size = 0
     }
 
