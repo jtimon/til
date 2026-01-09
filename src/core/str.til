@@ -565,7 +565,7 @@ concat := func(a: Str, b: Str) returns Str {
 }
 
 /** Format a prefix with variadic string arguments, concatenating them all. */
-format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
+format := func(prefix: Str, args: ..Str) returns Str {
     mut result := Str()
     result.cap = prefix.cap
 
@@ -574,13 +574,13 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
         args.get(i, arg)
         result.cap = add(result.cap, arg.cap)
         if lt(result.cap, arg.cap) {
-            throw I64_OverflowError(msg=format(loc(), "format: integer overflow while summing cap for arg ", i.to_str()))
+            panic(loc(), "format: integer overflow while summing cap")
         }
     }
 
     result.c_string = malloc(result.cap.add(1))  // +1 for null terminator
     if NULL.eq(result.c_string) {
-        throw AllocError(msg=format(loc(), "format: malloc failed for cap = ", I64.to_str(result.cap.add(1))))
+        panic(loc(), "format: malloc failed")
     }
 
     mut offset := 0
@@ -595,6 +595,13 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
     // Null-terminate the string
     zero : U8 = 0
     memset(add(result.c_string, result.cap), zero, 1)
+
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), err.msg)
+    }
+    catch (err: AllocError) {
+        panic(loc(), err.msg)
+    }
 
     return result
 }

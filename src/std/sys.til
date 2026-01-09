@@ -41,10 +41,6 @@ run_print_cmd := proc(mut output_str: Str, args: ..Str) returns I64 {
     println(cmd)
     exit_code := output_str.run_cmd("bash", "-c", cmd)
 
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: I64_OverflowError) { panic(loc(), err.msg) }
-
     return exit_code
 }
 
