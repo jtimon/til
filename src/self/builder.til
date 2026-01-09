@@ -73,7 +73,7 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
                                 case Literal.Str(import_path):
                                     file_path := import_path_to_file_path(import_path)
                                     if not(imported.contains(file_path)) {
-                                        imported.add(file_path.clone())
+                                        imported.insert(file_path.clone())
                                         dep_result := parse_file(file_path)
                                         // Store AST in imported_asts so precomp can find it for circular imports
                                         context.imported_asts.set(file_path.clone(), dep_result.ast.clone())
@@ -222,8 +222,8 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
             }
             throw concat("Compiler errors: ", typer_errors.len().to_str()).concat(" type errors in core.til")
         }
-        context.imports_init_done.add(core_path)
-        context.imports_typer_done.add(core_path)
+        context.imports_init_done.insert(core_path)
+        context.imports_typer_done.insert(core_path)
     }
 
     // Now set the mode to the main file's mode (like interpreter does at interpreter.rs:2610-2611)
@@ -265,8 +265,8 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
 
     // Mark main file as "done" to prevent re-processing via circular imports
     // (like interpreter does at interpreter.rs:2598-2601)
-    context.imports_init_done.add(path.clone())
-    context.imports_typer_done.add(path.clone())
+    context.imports_init_done.insert(path.clone())
+    context.imports_typer_done.insert(path.clone())
 
     // Run init + typer on the main file (this handles its imports internally)
     mut errors := Vec.new(Str)
@@ -300,7 +300,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     // Now that type checking passed, collect all imported files for code generation
     // Each file is precompiled with its own path before merging
     mut imported := Set.new(Str)
-    imported.add(path.clone())
+    imported.insert(path.clone())
     // Store main file AST so circular imports can find it during precomp
     context.imported_asts.set(path.clone(), main_result.ast.clone())
     mut dep_asts := Vec.new(Expr)
@@ -308,7 +308,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     // Collect core.til and its imports
     if not(path.eq(core_path)) {
         core_result := parse_file(core_path)
-        imported.add(core_path)
+        imported.insert(core_path)
         collect_imports(core_result.ast, imported, dep_asts, context)
         // Precomp core.til with its own path
         saved_path := context.path.clone()
@@ -322,7 +322,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     for import_str: Str in context.mode_def.imports.clone() {
         file_path := import_path_to_file_path(import_str)
         if not(imported.contains(file_path)) {
-            imported.add(file_path.clone())
+            imported.insert(file_path.clone())
             mode_result := parse_file(file_path)
             collect_imports(mode_result.ast, imported, dep_asts, context)
             // Precomp mode file with its own path
