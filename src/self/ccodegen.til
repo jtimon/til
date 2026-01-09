@@ -5538,7 +5538,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Check for variadic function call
     variadic_info := detect_variadic_fcall(fcall, ctx)
-    variadic_arr_var := hoist_variadic_args(variadic_info.elem_type, fcall.params, hoisted, variadic_info.regular_count, output, indent, ctx, context)
+    mut variadic_arr_var := hoist_variadic_args(variadic_info.elem_type, fcall.params, hoisted, variadic_info.regular_count, output, indent, ctx, context)
     mut has_variadic := true
     catch (err: KeyNotFoundError) {
         has_variadic = false
@@ -5719,8 +5719,8 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Determine if we need a return value temp variable
     fd := get_fcall_func_def(context, fcall)
-    func_has_return := not(fd.return_types.is_empty())
-    needs_ret := func_has_return.and(not(decl_name.eq("")).or(not(assign_name.eq(""))))
+    mut func_has_return := not(fd.return_types.is_empty())
+    mut needs_ret := func_has_return.and(not(decl_name.eq("")).or(not(assign_name.eq(""))))
     catch (err: KeyNotFoundError) {
         func_has_return = false
         needs_ret = false
@@ -5851,7 +5851,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Check for variadic function call
     variadic_info := detect_variadic_fcall(fcall, ctx)
-    variadic_arr_var := hoist_variadic_args(variadic_info.elem_type, fcall.params, hoisted, variadic_info.regular_count, output, indent, ctx, context)
+    mut variadic_arr_var := hoist_variadic_args(variadic_info.elem_type, fcall.params, hoisted, variadic_info.regular_count, output, indent, ctx, context)
     mut has_variadic := true
     catch (err: KeyNotFoundError) {
         has_variadic = false
