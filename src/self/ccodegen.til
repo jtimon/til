@@ -3865,7 +3865,7 @@ emit_struct_func_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
 }
 
 // Convert TIL type to C type. Returns Err if the type can't be represented in C (e.g., functions, infer)
-til_type_to_c := func(til_type: ValueType) returns Str throws Str, KeyNotFoundError {
+til_type_to_c := func(til_type: ValueType) returns Str throws Str {
     switch til_type {
     case ValueType.TCustom(name):
         if name.eq(INFER_TYPE) {
@@ -3880,8 +3880,6 @@ til_type_to_c := func(til_type: ValueType) returns Str throws Str, KeyNotFoundEr
         throw "Cannot convert Type to C"
     case ValueType.TMulti(mt):
         throw "Cannot convert multi-type to C"
-    case:
-        throw KeyNotFoundError()
     }
 }
 
@@ -6145,6 +6143,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         mut first_param := Expr()
         expr.params.get(0, first_param)
         _ := hoist_throwing_expr(first_param, output, indent, ctx, context)
+        catch (err: KeyNotFoundError) {
+            // REM: Rust's Ok(None) case - not propagated by ?, just ignored
+        }
     }
 
     // Bug #35: For underscore declarations, just emit the expression (discard result)
@@ -6855,6 +6856,9 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
 
             // Hoist any throwing function calls nested in the return expression
             _ := hoist_throwing_expr(return_expr, output, indent, ctx, context)
+            catch (err: KeyNotFoundError) {
+                // REM: Rust's Ok(None) case - not propagated by ?, just ignored
+            }
 
             // Regular return value - just emit it
             output.push_str(indent_str)
@@ -6976,6 +6980,9 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
             mut first_param := Expr()
             expr.params.get(0, first_param)
             _ := hoist_throwing_expr(first_param, output, indent, ctx, context)
+            catch (err: KeyNotFoundError) {
+                // REM: Rust's Ok(None) case - not propagated by ?, just ignored
+            }
         }
 
         // Regular non-variadic return
@@ -7010,7 +7017,12 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     // Check if the thrown expression itself is a throwing function call (e.g., throw format(...))
     // If so, we need to hoist it first to ensure proper error handling
-    hoisted_temp := hoist_throwing_expr(thrown_expr, output, indent, ctx, context)
+    mut hoisted_temp := ""
+    hoisted_temp = hoist_throwing_expr(thrown_expr, output, indent, ctx, context)
+    catch (err: KeyNotFoundError) {
+        // REM: Rust's None case - expression not hoisted, fall through to handle non-throwing case
+        hoisted_temp = ""
+    }
     if not(hoisted_temp.eq("")) {
         // The thrown expression was hoisted to a temp variable
         // Now we just need to throw the temp variable value
@@ -7033,9 +7045,12 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         }
 
         // Check if this type is locally caught
-        if ctx.local_catch_labels.contains_key(thrown_type_name.clone()) {
-            mut catch_info := CatchLabelInfo()
-            ctx.local_catch_labels.get(thrown_type_name.clone(), catch_info)
+        mut catch_info := CatchLabelInfo()
+        ctx.local_catch_labels.get(thrown_type_name.clone(), catch_info)
+        catch (err: KeyNotFoundError) {
+            // REM: Rust's None case - type not locally caught, continue to next check
+        }
+        if not(catch_info.label.eq("")) {
             label := catch_info.label.clone()
             temp_var := catch_info.temp_var.clone()
             output.push_str(indent_str)
@@ -7152,9 +7167,12 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     }
 
     // Check if this type is locally caught (has a catch block at function level)
-    if ctx.local_catch_labels.contains_key(thrown_type_name.clone()) {
-        mut catch_info := CatchLabelInfo()
-        ctx.local_catch_labels.get(thrown_type_name.clone(), catch_info)
+    mut catch_info := CatchLabelInfo()
+    ctx.local_catch_labels.get(thrown_type_name.clone(), catch_info)
+    catch (err: KeyNotFoundError) {
+        // REM: Rust's None case - type not locally caught, continue to next check
+    }
+    if not(catch_info.label.eq("")) {
         label := catch_info.label.clone()
         temp_var := catch_info.temp_var.clone()
         // Hoist any throwing function calls in the thrown expression
