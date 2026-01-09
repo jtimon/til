@@ -4419,7 +4419,8 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
         switch scan_stmt.node_type {
         case NodeType.Catch:
             if scan_stmt.params.len().gteq(3) {
-                err_type_param := scan_stmt.params.get(1)
+                mut err_type_param := Expr()
+                scan_stmt.params.get(1, err_type_param)
                 switch err_type_param.node_type {
                 case NodeType.Identifier(err_type_name):
                     catch_suffix := next_mangled(ctx)
@@ -4465,7 +4466,8 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     // Process all statements
     while i.lt(stmts.len()) {
-        stmt := stmts.get(i)
+        mut stmt := Expr()
+        stmts.get(i, stmt)
         effective_indent := indent  // Use same indent for all statements (no if-block nesting)
 
         // Bug #39 fix: Handle catch blocks inline with if(0) { label: ... }
@@ -4608,7 +4610,8 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                 mut catch_blocks := Vec.new(Expr)
                 mut j := i.add(1)
                 while j.lt(stmts.len()) {
-                    next_stmt := stmts.get(j)
+                    mut next_stmt := Expr()
+                    stmts.get(j, next_stmt)
                     switch next_stmt.node_type {
                     case NodeType.Catch:
                         catch_blocks.push(next_stmt)
@@ -4714,7 +4717,8 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
 get_fcall_func_name := func(expr: Expr) returns Str throws KeyNotFoundError {
     // get_func_name_string already handles both nested identifiers (Type.method)
     // and precomp'd strings ("Type.method"), returning "Type_method" format
-    first_param := expr.params.get(0)
+    mut first_param := Expr()
+    expr.params.get(0, first_param)
     catch (err: IndexOutOfBoundsError) {
         throw KeyNotFoundError()
     }
@@ -4762,7 +4766,8 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             arg_idx.inc()
             continue  // Skip function name
         }
-        param_arg := fd.args.get(arg_idx.sub(1))
+        mut param_arg := SFuncArg()
+        fd.args.get(arg_idx.sub(1), param_arg)
         param_by_ref.push(param_needs_by_ref(param_arg))
         param_types.push(param_arg.value_type.clone())
         arg_idx.inc()
@@ -4790,7 +4795,8 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
     if not(decl_name.eq("")).or(not(assign_name.eq(""))) {
         fd2 := get_fcall_func_def(context, fcall)
         if not(fd2.return_types.is_empty()) {
-            first_ret := fd2.return_types.get(0)
+            mut first_ret := ValueType.TInfer
+            fd2.return_types.get(0, first_ret)
             ret_type = til_type_to_c(first_ret)
             catch (err: Str) {
                 ret_type = "int"
@@ -4821,9 +4827,12 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 if i.gt(0) {
                     output.push_str(", ")
                 }
-                arg := fcall.params.get(i.add(1))  // +1 to skip func name
-                by_ref := param_by_ref.get(i)
-                param_type := param_types.get(i)
+                mut arg := Expr()
+                fcall.params.get(i.add(1), arg)  // +1 to skip func name
+                mut by_ref := false
+                param_by_ref.get(i, by_ref)
+                mut param_type := ValueType.TInfer
+                param_types.get(i, param_type)
                 emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)
                 i.inc()
                 catch (err: IndexOutOfBoundsError) { }
