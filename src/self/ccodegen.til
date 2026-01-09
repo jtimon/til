@@ -4787,7 +4787,15 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
     // Hoist any throwing function calls in arguments BEFORE constructing variadic array
     mut hoisted := Map.new(I64, Str)
     if fcall.params.len().gt(1) {
-        hoisted_vec := hoist_throwing_args(fcall.params, output, indent, ctx, context)
+        mut args := Vec.new(Expr)
+        mut i := 1
+        while i.lt(fcall.params.len()) {
+            mut arg := Expr()
+            fcall.params.get(i, arg)
+            args.push(arg)
+            i.inc()
+        }
+        hoisted_vec := hoist_throwing_args(args, output, indent, ctx, context)
         for h: HoistedArg in hoisted_vec {
             hoisted.set(h.index, h.temp_var)
         }
@@ -5025,7 +5033,15 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     // Hoist any throwing function calls in arguments BEFORE emitting this call
     mut hoisted := Map.new(I64, Str)
     if fcall.params.len().gt(1) {
-        hoisted_vec := hoist_throwing_args(fcall.params, output, indent, ctx, context)
+        mut args := Vec.new(Expr)
+        mut i := 1
+        while i.lt(fcall.params.len()) {
+            mut arg := Expr()
+            fcall.params.get(i, arg)
+            args.push(arg)
+            i.inc()
+        }
+        hoisted_vec := hoist_throwing_args(args, output, indent, ctx, context)
         for h: HoistedArg in hoisted_vec {
             hoisted.set(h.index, h.temp_var)
         }
@@ -5376,7 +5392,15 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     // Hoist any throwing function calls in arguments BEFORE emitting this call
     mut hoisted := Map.new(I64, Str)
     if fcall.params.len().gt(1) {
-        hoisted_vec := hoist_throwing_args(fcall.params, output, indent, ctx, context)
+        mut args := Vec.new(Expr)
+        mut i := 1
+        while i.lt(fcall.params.len()) {
+            mut arg := Expr()
+            fcall.params.get(i, arg)
+            args.push(arg)
+            i.inc()
+        }
+        hoisted_vec := hoist_throwing_args(args, output, indent, ctx, context)
         for h: HoistedArg in hoisted_vec {
             hoisted.set(h.index, h.temp_var)
         }
@@ -5672,7 +5696,15 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     // Hoist any throwing function calls in arguments BEFORE emitting this call
     mut hoisted := Map.new(I64, Str)
     if fcall.params.len().gt(1) {
-        hoisted_vec := hoist_throwing_args(fcall.params, output, indent, ctx, context)
+        mut args := Vec.new(Expr)
+        mut i := 1
+        while i.lt(fcall.params.len()) {
+            mut arg := Expr()
+            fcall.params.get(i, arg)
+            args.push(arg)
+            i.inc()
+        }
+        hoisted_vec := hoist_throwing_args(args, output, indent, ctx, context)
         for h: HoistedArg in hoisted_vec {
             hoisted.set(h.index, h.temp_var)
         }
