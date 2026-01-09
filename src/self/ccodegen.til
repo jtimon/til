@@ -8338,11 +8338,21 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
             if has_switch_type {
                 switch switch_type {
                 case ValueType.TCustom(enum_name):
-                    enum_def := context.scope_stack.lookup_enum(enum_name)
-                    enum_def.get(info.variant_name, payload_type_opt)
-                    has_payload_type = true
+                    mut enum_def := context.scope_stack.lookup_enum(enum_name)
                     catch (err: KeyNotFoundError) {
-                        // REM: variant not found
+                        // REM: enum not found - equivalent to Rust's None case
+                    }
+                    mut payload_ptr := enum_def.get(info.variant_name)
+                    catch (err: KeyNotFoundError) {
+                        // REM: variant not found - equivalent to Rust's None case
+                    }
+                    catch (err: IndexOutOfBoundsError) {
+                        throw err.msg
+                    }
+                    // Now check if we got a payload type (Ptr not NULL)
+                    if not(payload_ptr.is_null()) {
+                        memcpy(to_ptr(payload_type_opt), payload_ptr.data, size_of(ValueType))
+                        has_payload_type = true
                     }
                 case:
                     // REM: not a custom type
