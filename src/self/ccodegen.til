@@ -7609,48 +7609,48 @@ CatchLabelInfo := struct {
 
 // Result type for hoisted arguments
 HoistedArg := struct {
-    index: I64 = 0
-    temp_var: Str = ""
+    mut index: I64 = 0
+    mut temp_var: Str = ""
 }
 
 // Result struct for variant info extraction
 VariantInfo := struct {
-    type_name: Str = ""
-    variant_name: Str = ""
+    mut type_name: Str = ""
+    mut variant_name: Str = ""
 }
 
 // Info about a catch block for code generation
 // Note: TIL version also has catch_block field, but Rust accesses stmts[i] directly
 CatchLabelInfoEntry := struct {
-    stmt_index: I64 = 0        // Index in stmts array
-    type_name: Str = ""        // Error type being caught (e.g., "Str", "IndexOutOfBoundsError")
-    label: Str = ""            // Goto label for this catch
-    temp_var: Str = ""         // Temp variable holding the thrown value
+    mut stmt_index: I64 = 0        // Index in stmts array
+    mut type_name: Str = ""        // Error type being caught (e.g., "Str", "IndexOutOfBoundsError")
+    mut label: Str = ""            // Goto label for this catch
+    mut temp_var: Str = ""         // Temp variable holding the thrown value
 }
 
 // Info about a function parameter's type and whether passed by reference
 ParamTypeInfo := struct {
-    value_type: ValueType = ValueType.TI64
-    has_value_type: Bool = false
-    by_ref: Bool = false
+    mut value_type: ValueType = ValueType.TI64
+    mut has_value_type: Bool = false
+    mut by_ref: Bool = false
 }
 
 // Info about a struct member with a throwing default value
 ThrowingDefault := struct {
-    member_name: Str = ""
-    default_expr: Expr = Expr()
+    mut member_name: Str = ""
+    mut default_expr: Expr = Expr()
 }
 
 // Info about a collected variable declaration for hoisting
 CollectedDeclaration := struct {
-    name: Str = ""
-    value_type: ValueType = ValueType.TI64
+    mut name: Str = ""
+    mut value_type: ValueType = ValueType.TI64
 }
 
 // Info about a variadic function call
 VariadicFCallInfo := struct {
-    elem_type: Str = ""
-    regular_count: I64 = 0
+    mut elem_type: Str = ""
+    mut regular_count: I64 = 0
 }
 
 // Extract enum type and variant names from a case pattern expression
