@@ -8923,7 +8923,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     mut has_variadic_arr := false
     if is_stmt_level {
         if ctx.func_variadic_args.contains_key(orig_func_name) {
-            variadic_info := ctx.func_variadic_args.get(orig_func_name)
+            mut variadic_info := VariadicFCallInfo()
+            ctx.func_variadic_args.get(orig_func_name, variadic_info)
             elem_type := variadic_info.elem_type.clone()
             regular_count := variadic_info.regular_count
             mut variadic_args := Vec.new(Expr)
@@ -8936,6 +8937,9 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             }
             variadic_arr_var = hoist_variadic_args(elem_type, variadic_args, hoisted, regular_count, output, indent, ctx, context)
             has_variadic_arr = true
+            catch (err: KeyNotFoundError) {
+                panic(loc(), "func_variadic_args.get failed after contains_key: ", err.msg)
+            }
         }
     }
 
