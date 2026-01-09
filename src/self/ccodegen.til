@@ -7395,7 +7395,7 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, mut output: Str, mut c
 
             output.push_str("{")
             mut first := true
-            for member: StructMember in struct_def.members {
+            for member: Declaration in struct_def.members {
                 if not(member.is_mut) {
                     continue
                 }
