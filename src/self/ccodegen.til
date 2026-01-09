@@ -4876,9 +4876,12 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 if i.gt(0) {
                     output.push_str(", ")
                 }
-                arg := fcall.params.get(i.add(1))
-                by_ref := param_by_ref.get(i)
-                param_type := param_types.get(i)
+                mut arg := Expr()
+                fcall.params.get(i.add(1), arg)
+                mut by_ref := false
+                param_by_ref.get(i, by_ref)
+                mut param_type := ValueType.TCustom(INFER_TYPE)
+                param_types.get(i, param_type)
                 emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)
                 i.inc()
                 catch (err: IndexOutOfBoundsError) { }
@@ -4925,9 +4928,12 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             if i.gt(0) {
                 output.push_str(", ")
             }
-            arg := fcall.params.get(i.add(1))
-            by_ref := param_by_ref.get(i)
-            param_type := param_types.get(i)
+            mut arg := Expr()
+            fcall.params.get(i.add(1), arg)
+            mut by_ref := false
+            param_by_ref.get(i, by_ref)
+            mut param_type := ValueType.TCustom(INFER_TYPE)
+            param_types.get(i, param_type)
             emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)
             i.inc()
             catch (err: IndexOutOfBoundsError) { }
@@ -4953,9 +4959,12 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             if i.gt(0) {
                 output.push_str(", ")
             }
-            arg := fcall.params.get(i.add(1))
-            by_ref := param_by_ref.get(i)
-            param_type := param_types.get(i)
+            mut arg := Expr()
+            fcall.params.get(i.add(1), arg)
+            mut by_ref := false
+            param_by_ref.get(i, by_ref)
+            mut param_type := ValueType.TCustom(INFER_TYPE)
+            param_types.get(i, param_type)
             emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)
             i.inc()
             catch (err: IndexOutOfBoundsError) { }
