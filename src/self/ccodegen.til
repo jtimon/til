@@ -9153,7 +9153,7 @@ emit_str_literal := proc(s: Str, mut output: Str) {
         } else if c.eq("\"") {
             output.push_str("\\\"")
         } else {
-            output.push_str(c)
+            output.push_str(c.to_str())
         }
         i.inc()
     }
@@ -9185,7 +9185,7 @@ emit_literal := proc(lit: Literal, mut output: Str, context: Context) throws Str
                 } else if c.eq("\"") {
                     output.push_str("\\\"")
                 } else {
-                    output.push_str(c)
+                    output.push_str(c.to_str())
                 }
                 j.inc()
             }
