@@ -4898,7 +4898,8 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             // Add variable to scope
             fd3 := get_fcall_func_def(context, fcall)
             if not(fd3.return_types.is_empty()) {
-                first_type := fd3.return_types.get(0)
+                mut first_type := ValueType.TCustom(INFER_TYPE)
+                fd3.return_types.get(0, first_type)
                 mut sym_info := SymbolInfo()
                 sym_info.value_type = first_type.clone()
                 sym_info.is_mut = true
@@ -4907,7 +4908,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 sym_info.is_comptime_const = false
                 context.scope_stack.declare_symbol(decl_name.clone(), sym_info)
             }
-            ctx.declared_vars.insert(til_name(decl_name))
+            _ := ctx.declared_vars.insert(til_name(decl_name))
             catch (err: KeyNotFoundError) { }
             catch (err: IndexOutOfBoundsError) { }
         }
