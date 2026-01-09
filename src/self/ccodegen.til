@@ -890,7 +890,7 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
                 expr.params.get(m, arg)
                 switch arg.node_type {
                 case NodeType.NamedArg(field_name):
-                    provided_names.insert(field_name)
+                    _ := provided_names.insert(field_name)
                 case:
                 }
                 m.inc()
@@ -2721,7 +2721,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             if is_global_declaration(child) {
                 switch child.node_type {
                 case NodeType.Declaration(decl):
-                    ctx.declared_vars.insert(til_name(decl.name))
+                    _ := ctx.declared_vars.insert(til_name(decl.name))
                 case:
                 }
             }
@@ -3060,7 +3060,7 @@ emit_global_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
             output.push_str(";\n")
 
             // Track that this variable has been declared globally
-            ctx.declared_vars.insert(var_name)
+            _ := ctx.declared_vars.insert(var_name)
         }
     case:
     }
