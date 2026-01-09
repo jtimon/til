@@ -7390,7 +7390,7 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, mut output: Str, mut c
             // Build set of throwing default member names for quick lookup
             mut throwing_default_names := Set.new(Str)
             for td: ThrowingDefault in throwing_defaults {
-                throwing_default_names.insert(td.member_name.clone())
+                _ := throwing_default_names.insert(td.member_name.clone())
             }
 
             output.push_str("{")
