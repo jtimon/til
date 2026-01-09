@@ -4242,11 +4242,13 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                 }
                 // Check if this is a struct constant access
                 struct_def := context.scope_stack.lookup_struct(name)
-                // Struct constant: Type.constant -> til_Type_constant
-                output.push_str(til_name(name))
-                output.push_str("_")
-                output.push_str(field)
-                return
+                if true { // TODO Bug #96 workaround
+                    // Struct constant: Type.constant -> til_Type_constant
+                    output.push_str(til_name(name))
+                    output.push_str("_")
+                    output.push_str(field)
+                    return
+                }
                 catch (err: KeyNotFoundError) {
                     // Not a struct constant, continue
                 }
