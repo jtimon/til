@@ -3078,7 +3078,7 @@ emit_global_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
 
 // Collect function info (throw types, return types, names) from AST into context
 // Handles both top-level functions and struct methods
-collect_func_info := proc(expr: Expr, ctx: CodegenContext) throws Str {
+collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3091,7 +3091,7 @@ collect_func_info := proc(expr: Expr, ctx: CodegenContext) throws Str {
                 for arg: Declaration in func_def.args {
                     switch arg.value_type {
                     case ValueType.TMulti(elem_type):
-                        info := VariadicParamInfo()
+                        mut info := VariadicParamInfo()
                         info.elem_type = elem_type.clone()
                         info.regular_count = idx
                         ctx.func_variadic_args.set(decl.name.clone(), info)
@@ -3142,7 +3142,7 @@ collect_func_info := proc(expr: Expr, ctx: CodegenContext) throws Str {
 
 // Collect nested function info (for hoisting): scan function bodies for nested FuncDef declarations
 // This populates ctx.nested_func_names and ctx.hoisted_prototypes before we emit function bodies
-collect_nested_func_info := proc(expr: Expr, ctx: CodegenContext, parent_func_name: Str) throws Str {
+collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_func_name: Str) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3224,7 +3224,7 @@ collect_nested_func_info := proc(expr: Expr, ctx: CodegenContext, parent_func_na
 
 // Emit a struct declaration as a C struct (only mut fields become struct fields)
 // Forward declarations are emitted separately, so we use "struct Name { ... };" here
-emit_struct_declaration := proc(expr: Expr, output: Str) throws Str {
+emit_struct_declaration := proc(expr: Expr, mut output: Str) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
@@ -3270,7 +3270,7 @@ emit_struct_declaration := proc(expr: Expr, output: Str) throws Str {
 
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
 // Also emits size_of constant: til_size_of_StructName = sizeof(til_StructName)
-emit_struct_constants := proc(expr: Expr, output: Str, ctx: CodegenContext, context: Context) throws Str {
+emit_struct_constants := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, context: Context) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3328,7 +3328,7 @@ emit_struct_constants := proc(expr: Expr, output: Str, ctx: CodegenContext, cont
 }
 
 // Emit size_of constant for an enum: til_size_of_EnumName = sizeof(til_EnumName)
-emit_enum_size_of_constant := proc(expr: Expr, output: Str, ctx: CodegenContext) throws Str {
+emit_enum_size_of_constant := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3544,7 +3544,7 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, mut output: 
 
 // Emit an enum declaration as a C typedef enum (for simple enums without payloads)
 // or as a tagged union struct (for enums with payloads)
-emit_enum_declaration := proc(expr: Expr, output: Str) throws Str {
+emit_enum_declaration := proc(expr: Expr, mut output: Str) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3625,7 +3625,7 @@ emit_enum_declaration := proc(expr: Expr, output: Str) throws Str {
 // Takes a pointer because enum_to_str(e: Dynamic) passes by reference
 // For simple enums: til_Str til_EnumName_to_str(til_EnumName* e)
 // For enums with payloads: til_Str til_EnumName_to_str(til_EnumName* e)
-emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, output: Str) {
+emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, mut output: Str) {
     has_payloads := enum_has_payloads(enum_def)
     mut variants := Vec.new(Str)
     for v: EnumVariant in enum_def.variants {
@@ -3677,7 +3677,7 @@ emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, output: St
 }
 
 // Emit _to_str function for an enum declaration node
-emit_enum_to_str_for_declaration := proc(expr: Expr, output: Str, context: Context) throws Str {
+emit_enum_to_str_for_declaration := proc(expr: Expr, mut output: Str, context: Context) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         enum_name := decl.name
@@ -3694,17 +3694,19 @@ emit_enum_to_str_for_declaration := proc(expr: Expr, output: Str, context: Conte
 }
 
 // Emit struct function prototypes for all functions in a struct
-emit_struct_func_prototypes := proc(expr: Expr, output: Str) throws Str {
+emit_struct_func_prototypes := proc(expr: Expr, mut output: Str) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.StructDef(struct_def):
                 struct_name := til_name(decl.name)
                 for member: Declaration in struct_def.members {
                     // Check if default_value is a function definition
-                    func_expr := struct_def.default_values.get(member.name)
+                    mut func_expr := Expr()
+                    struct_def.default_values.get(member.name, func_expr)
                     switch func_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         mangled_name := struct_name.concat("_").concat(member.name)
@@ -3725,7 +3727,7 @@ emit_struct_func_prototypes := proc(expr: Expr, output: Str) throws Str {
 }
 
 // Emit a struct function body with mangled name: StructName_funcname
-emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: SFuncDef, output: Str, ctx: CodegenContext, context: Context) throws Str {
+emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: SFuncDef, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
     // Skip external functions
     if func_def.is_ext() {
         return
@@ -7559,8 +7561,8 @@ emit_continue := proc(_expr: Expr, mut output: Str, indent: I64) {
 
 // Info about a variadic parameter
 VariadicParamInfo := struct {
-    elem_type: Str = ""
-    regular_count: I64 = 0
+    mut elem_type: Str = ""
+    mut regular_count: I64 = 0
 }
 
 // Info about a catch label for local throw/catch
