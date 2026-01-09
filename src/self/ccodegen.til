@@ -3194,14 +3194,16 @@ collect_nested_func_info := proc(expr: Expr, ctx: CodegenContext, parent_func_na
     case NodeType.While:
         // Check loop body (params[0] = condition, params[1] = body)
         if expr.params.len().gt(1) {
-            body := expr.params.get(1)
+            mut body := Expr()
+            expr.params.get(1, body)
             collect_nested_func_info(body, ctx, parent_func_name)
         }
     case NodeType.Switch:
         // Check all case bodies (params[0] = value, rest are cases)
         mut i := 1
         while i.lt(expr.params.len()) {
-            case_expr := expr.params.get(i)
+            mut case_expr := Expr()
+            expr.params.get(i, case_expr)
             collect_nested_func_info(case_expr, ctx, parent_func_name)
             i.inc()
         }
@@ -3230,7 +3232,8 @@ emit_struct_declaration := proc(expr: Expr, output: Str) throws Str {
             return
         }
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.StructDef(struct_def):
                 output.push_str("struct ")
@@ -3271,7 +3274,8 @@ emit_struct_constants := proc(expr: Expr, output: Str, ctx: CodegenContext, cont
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.StructDef(struct_def):
                 struct_name := til_name(decl.name)
@@ -3327,7 +3331,8 @@ emit_enum_size_of_constant := proc(expr: Expr, output: Str, ctx: CodegenContext)
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.EnumDef(enum_def):
                 enum_name := til_name(decl.name)
@@ -3398,7 +3403,8 @@ is_enum_with_payloads := func(expr: Expr) returns Bool {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.EnumDef(enum_def):
                 return enum_has_payloads(enum_def)
@@ -3541,7 +3547,8 @@ emit_enum_declaration := proc(expr: Expr, output: Str) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            first_param := expr.params.get(0)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.EnumDef(enum_def):
                 enum_name := til_name(decl.name)
