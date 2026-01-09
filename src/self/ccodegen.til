@@ -2895,7 +2895,7 @@ is_throwing_fcall := func(expr: Expr, context: Context) returns Bool {
 }
 
 // Emit a top-level constant declaration at file scope
-emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, context: Context) throws Str {
+emit_constant_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, context: Context) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3020,7 +3020,7 @@ is_global_declaration := func(expr: Expr) returns Bool {
 
 // Emit a global declaration as a static variable at file scope (type only, no initializer)
 // The initializer will be emitted in main()
-emit_global_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, context: Context) throws Str {
+emit_global_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, context: Context) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
