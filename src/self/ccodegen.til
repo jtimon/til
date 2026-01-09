@@ -4569,7 +4569,8 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
         case NodeType.Declaration(decl):
             // Check if declaration has an FCall as initializer
             if not(stmt.params.is_empty()) {
-                first_param := stmt.params.get(0)
+                mut first_param := Expr()
+                stmt.params.get(0, first_param)
                 switch first_param.node_type {
                 case NodeType.FCall:
                     maybe_fcall_found = true
@@ -4581,7 +4582,8 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
         case NodeType.Assignment(name):
             // Check if assignment has an FCall as RHS
             if not(stmt.params.is_empty()) {
-                first_param := stmt.params.get(0)
+                mut first_param := Expr()
+                stmt.params.get(0, first_param)
                 switch first_param.node_type {
                 case NodeType.FCall:
                     maybe_fcall_found = true
@@ -4596,7 +4598,8 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
         if maybe_fcall_found {
             // eval functions from std.meta are only available in interpret mode
             if not(maybe_fcall.params.is_empty()) {
-                func_name_param := maybe_fcall.params.get(0)
+                mut func_name_param := Expr()
+                maybe_fcall.params.get(0, func_name_param)
                 func_name := get_til_func_name_string(func_name_param)
                 if func_name.eq("eval_file").or(func_name.eq("eval_to_str")).or(func_name.eq("eval_to_ast_str")).or(func_name.eq("eval_to_expr")) {
                     throw maybe_fcall.error(context.path, "ccodegen", func_name.concat("() is only available in interpret mode, not in build/run"))
