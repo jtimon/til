@@ -6675,6 +6675,7 @@ get_struct_construction_type := func(expr: Expr, context: Context) returns Str {
     catch (err: IndexOutOfBoundsError) {
         return ""
     }
+    catch (err: AllocError) { throw err.msg }
 }
 
 // Check if an expression is an enum construction (Type.Variant or Type.Variant(value))
@@ -6737,6 +6738,7 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str {
     catch (err: IndexOutOfBoundsError) {
         return ""
     }
+    catch (err: AllocError) { throw err.msg }
 }
 
 emit_funcdef := proc(_func_def: SFuncDef, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
@@ -6748,6 +6750,7 @@ emit_funcdef := proc(_func_def: SFuncDef, expr: Expr, mut output: Str, indent: I
     for stmt: Expr in expr.params {
         emit_expr(stmt, output, indent.add(1), ctx, context)
     }
+    catch (err: AllocError) { throw err.msg }
     output.push_str(indent_str)
     output.push_str("}\n")
 }
@@ -7613,6 +7616,7 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
+    catch (err: AllocError) { throw err.msg }
     }
 }
 
@@ -7715,16 +7719,19 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
+    catch (err: AllocError) { throw err.msg }
 }
 
 emit_break := proc(_expr: Expr, mut output: Str, indent: I64) {
     indent_str := repeat("    ", indent)
+    catch (err: AllocError) { throw err.msg }
     output.push_str(indent_str)
     output.push_str("break;\n")
 }
 
 emit_continue := proc(_expr: Expr, mut output: Str, indent: I64) {
     indent_str := repeat("    ", indent)
+    catch (err: AllocError) { throw err.msg }
     output.push_str(indent_str)
     output.push_str("continue;\n")
 }
@@ -7841,6 +7848,7 @@ get_case_variant_info := proc(expr: Expr) returns VariantInfo {
     catch (err: IndexOutOfBoundsError) {
         return VariantInfo()
     }
+    catch (err: AllocError) { throw err.msg }
 }
 
 // Extract type name and variant name from a Pattern's variant_name (e.g., "Color.Green")
@@ -7858,6 +7866,7 @@ parse_pattern_variant_name := proc(variant_name: Str) returns VariantInfo {
         mut result := VariantInfo()
         result.variant_name = variant_name.clone()
         return result
+    catch (err: AllocError) { throw err.msg }
     }
 }
 
