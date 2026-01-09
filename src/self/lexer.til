@@ -666,9 +666,6 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
     catch (err: IndexOutOfBoundsError) {
         throw format(loc(), "scan_tokens: IndexOutOfBoundsError: ", err.msg)
     }
-    catch (err: I64_OverflowError) {
-        throw format(loc(), "scan_tokens: I64_OverflowError: ", err.msg)
-    }
     catch (err: AllocError) {
         throw format(loc(), "scan_tokens: AllocError: ", err.msg)
     }
@@ -719,13 +716,7 @@ build_var_suggestion := func(tokens: Vec, var_index: I64) returns Str throws Str
         }
     }
 
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
     catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: AllocError) {
         throw err.msg
     }
     return "Suggestion: use 'mut' instead"

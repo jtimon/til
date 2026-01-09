@@ -658,9 +658,6 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
     catch (err: AllocError) {
         throw err.msg
     }
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
 }
 
 get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
@@ -696,9 +693,6 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             }
         case:
             // Not TCustom or no method, fall through
-        }
-        catch (err: I64_OverflowError) {
-            throw err.msg
         }
         // If we couldn't determine type or no associated method exists, fall through
     }
@@ -1071,9 +1065,6 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
     catch (err: AllocError) {
         throw err.msg
     }
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
     throw e.error(context.path, "init", format("Undefined symbol '", f_name, "'"))
 }
 
@@ -1240,9 +1231,6 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
     catch (err: AllocError) {
         throw err.msg
     }
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
 }
 
 # Convert dot-based import path to OS-specific file path
@@ -1253,12 +1241,6 @@ import_path_to_file_path := func(import_path: Str) returns Str throws Str {
     mut file_path := full_path.replace(".", MAIN_SEPARATOR_STR)
     mut result := format(file_path, ".til")
     catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
-    catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
     return result
@@ -1367,12 +1349,6 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     context.path = original_path.clone()
 
     catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: I64_OverflowError) {
         throw err.msg
     }
 }
@@ -1637,12 +1613,6 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
     catch (err: AllocError) {
         throw err.msg
     }
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
     return errors
 }
 
@@ -1822,15 +1792,6 @@ Context := struct {
                 current_offset = current_offset.add(field_size)
             }
             # Immutable struct fields are handled generically through struct_defs
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
-        catch (err: AllocError) {
-            throw err.msg
-        }
-        catch (err: I64_OverflowError) {
-            throw err.msg
         }
     }
 
@@ -2185,12 +2146,6 @@ Context := struct {
             case:
                 # Not a custom type
             }
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
-        catch (err: I64_OverflowError) {
-            throw err.msg
         }
         catch (err: AllocError) {
             throw err.msg
