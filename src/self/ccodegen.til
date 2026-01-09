@@ -7082,7 +7082,7 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             output.push_str(";\n")
             return
         } else {
-            throw concat("ccodegen: thrown type '", thrown_type_name, "' not found in function's throw types")
+            throw concat("ccodegen: thrown type '", thrown_type_name).concat("' not found in function's throw types")
         }
     }
 
@@ -7265,7 +7265,7 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         output.push_str(I64.to_str(error_index.add(1)))
         output.push_str(";\n")
     } else {
-        throw concat("ccodegen: thrown type '", thrown_type_name, "' not found in function's throw types")
+        throw concat("ccodegen: thrown type '", thrown_type_name).concat("' not found in function's throw types")
     }
 
     catch (err: IndexOutOfBoundsError) {
