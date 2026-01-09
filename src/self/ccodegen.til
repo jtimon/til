@@ -4801,7 +4801,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
     if not(decl_name.eq("")).or(not(assign_name.eq(""))) {
         fd2 := get_fcall_func_def(context, fcall)
         if not(fd2.return_types.is_empty()) {
-            mut first_ret := ValueType.TInfer
+            mut first_ret := ValueType.TCustom(INFER_TYPE)
             fd2.return_types.get(0, first_ret)
             ret_type = til_type_to_c(first_ret)
             catch (err: Str) {
@@ -4837,7 +4837,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 fcall.params.get(i.add(1), arg)  // +1 to skip func name
                 mut by_ref := false
                 param_by_ref.get(i, by_ref)
-                mut param_type := ValueType.TInfer
+                mut param_type := ValueType.TCustom(INFER_TYPE)
                 param_types.get(i, param_type)
                 emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)
                 i.inc()
