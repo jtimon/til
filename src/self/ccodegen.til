@@ -5032,7 +5032,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         fd2 := get_fcall_func_def(context, fcall)
         mut param_arg := Declaration()
         fd2.args.get(arg_idx.sub(1), param_arg)
-        param_types.push(param_arg.value_type.clone())
+        param_types.push(param_arg.value_type)
         param_by_ref.push(param_needs_by_ref(param_arg))
         arg_idx.inc()
         catch (err: KeyNotFoundError) {
@@ -6146,7 +6146,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
 
     // Track variable type for method mangling
     // Prioritize struct/enum constructor types, then use get_value_type for other cases
-    mut var_type := decl.value_type.clone()
+    mut var_type := decl.value_type
     if has_struct_type {
         var_type = ValueType.TCustom(struct_type.clone())
     } else if has_enum_type {
@@ -6311,7 +6311,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     key := struct_type.clone()
                     key.push_str(":")
                     key.push_str(member.name)
-                    if ctx.hoisted_struct_defaults.contains(key) {
+                    if ctx.hoisted_struct_defaults.contains_key(key) {
                         temp_name := ctx.hoisted_struct_defaults.get(key)
                         output.push_str(temp_name)
                     } else if is_throwing_fcall(default_expr, context) {
@@ -7436,8 +7436,8 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
     then_decls := collect_declarations_in_body(then_body, context)
     for decl: CollectedDeclaration in then_decls {
         c_var_name := til_name(decl.name)
-        if not(ctx.declared_vars.contains_key(c_var_name.clone())) {
-            c_type := til_type_to_c(decl.value_type.clone())
+        if not(ctx.declared_vars.contains(c_var_name)) {
+            c_type := til_type_to_c(decl.value_type)
             catch (err: Str) {
                 continue
             }
@@ -7446,7 +7446,7 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
             output.push_str(" ")
             output.push_str(c_var_name.clone())
             output.push_str(";\n")
-            ctx.declared_vars.set(c_var_name.clone(), true)
+            _ := ctx.declared_vars.insert(c_var_name)
             // Also register in scope_stack so get_value_type can find it
             mut sym_info := SymbolInfo()
             sym_info.value_type = decl.value_type.clone()
@@ -7463,8 +7463,8 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
         else_decls := collect_declarations_in_body(else_body, context)
         for decl: CollectedDeclaration in else_decls {
             c_var_name := til_name(decl.name)
-            if not(ctx.declared_vars.contains_key(c_var_name.clone())) {
-                c_type := til_type_to_c(decl.value_type.clone())
+            if not(ctx.declared_vars.contains(c_var_name)) {
+                c_type := til_type_to_c(decl.value_type)
                 catch (err: Str) {
                     continue
                 }
@@ -7473,7 +7473,7 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
                 output.push_str(" ")
                 output.push_str(c_var_name.clone())
                 output.push_str(";\n")
-                ctx.declared_vars.set(c_var_name.clone(), true)
+                _ := ctx.declared_vars.insert(c_var_name)
                 // Also register in scope_stack so get_value_type can find it
                 mut sym_info := SymbolInfo()
                 sym_info.value_type = decl.value_type.clone()
@@ -7557,8 +7557,8 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     body_decls := collect_declarations_in_body(body, context)
     for decl: CollectedDeclaration in body_decls {
         c_var_name := til_name(decl.name)
-        if not(ctx.declared_vars.contains_key(c_var_name.clone())) {
-            c_type := til_type_to_c(decl.value_type.clone())
+        if not(ctx.declared_vars.contains(c_var_name)) {
+            c_type := til_type_to_c(decl.value_type)
             catch (err: Str) {
                 continue
             }
@@ -7567,7 +7567,7 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             output.push_str(" ")
             output.push_str(c_var_name.clone())
             output.push_str(";\n")
-            ctx.declared_vars.set(c_var_name.clone(), true)
+            _ := ctx.declared_vars.insert(c_var_name)
             // Also register in scope_stack so get_value_type can find it
             mut sym_info := SymbolInfo()
             sym_info.value_type = decl.value_type.clone()
@@ -7812,7 +7812,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
     case NodeType.Declaration(decl):
         // Add this declaration
         // If type is INFER_TYPE, try to infer from the expression
-        mut value_type := decl.value_type.clone()
+        mut value_type := decl.value_type
         switch decl.value_type {
         case ValueType.TCustom(name):
             if name.eq(INFER_TYPE).and(not(expr.params.is_empty())) {
@@ -7820,7 +7820,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
                 inferred := get_value_type(context, first_param)
                 value_type = inferred
                 catch (err: Str) {
-                    value_type = decl.value_type.clone()
+                    value_type = decl.value_type
                 }
             }
         case:
@@ -8305,7 +8305,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     orig_func_name := get_til_func_name_string(first_param)
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
-    if ctx.nested_func_names.contains(orig_func_name) {
+    if ctx.nested_func_names.contains_key(orig_func_name) {
         func_name = ctx.nested_func_names.get(orig_func_name)
     }
 
@@ -8377,7 +8377,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     key := func_name.clone()
                     key.push_str(":")
                     key.push_str(member.name)
-                    if ctx.hoisted_struct_defaults.contains(key) {
+                    if ctx.hoisted_struct_defaults.contains_key(key) {
                         temp_name := ctx.hoisted_struct_defaults.get(key)
                         output.push_str(temp_name)
                     } else if is_throwing_fcall(default_expr, context) {
@@ -8518,7 +8518,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             output.push_str("_to_str(")
             // Check if the argument was already hoisted
             expr_key := arg.id
-            if ctx.hoisted_exprs.contains(expr_key) {
+            if ctx.hoisted_exprs.contains_key(expr_key) {
                 emit_expr(arg, output, 0, ctx, context)
             } else {
                 output.push_str("&")
@@ -8631,7 +8631,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         } else {
             // Check if arg was hoisted with & prefix already
             expr_key := arg.id
-            if ctx.hoisted_exprs.contains(expr_key) {
+            if ctx.hoisted_exprs.contains_key(expr_key) {
                 temp_var := ctx.hoisted_exprs.get(expr_key)
                 if temp_var.starts_with("&") {
                     output.push_str(temp_var)
@@ -8778,7 +8778,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 key := func_name.clone()
                 key.push_str(":")
                 key.push_str(member.name)
-                if ctx.hoisted_struct_defaults.contains(key) {
+                if ctx.hoisted_struct_defaults.contains_key(key) {
                     temp_name := ctx.hoisted_struct_defaults.get(key)
                     output.push_str(temp_name)
                 } else if is_throwing_fcall(default_expr, context) {
@@ -8804,7 +8804,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     mut variadic_arr_var := ""
     mut has_variadic_arr := false
     if is_stmt_level {
-        if ctx.func_variadic_args.contains(orig_func_name) {
+        if ctx.func_variadic_args.contains_key(orig_func_name) {
             variadic_info := ctx.func_variadic_args.get(orig_func_name)
             elem_type := variadic_info.elem_type.clone()
             regular_count := variadic_info.regular_count
@@ -8851,7 +8851,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     output.push_str("(")
 
     // Check if this is a variadic function call
-    if ctx.func_variadic_args.contains(orig_func_name) {
+    if ctx.func_variadic_args.contains_key(orig_func_name) {
         variadic_info := ctx.func_variadic_args.get(orig_func_name)
         regular_count := variadic_info.regular_count
 
