@@ -3357,7 +3357,7 @@ emit_enum_size_of_constant := proc(expr: Expr, output: Str, ctx: CodegenContext)
 }
 
 // Emit til_size_of function for runtime type size lookup
-emit_size_of_function := proc(output: Str, ctx: CodegenContext) {
+emit_size_of_function := proc(mut output: Str, ctx: CodegenContext) {
     output.push_str("\n")
     output.push_str("static inline ")
     output.push_str(TIL_PREFIX)
