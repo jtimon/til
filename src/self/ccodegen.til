@@ -823,13 +823,15 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
                 first = false
                 mut param := Expr()
                 expr.params.get(add(1, i), param)
-                mut ptype := ValueType.TCustom("")
-                param_types.get(i, ptype)
+                mut ptype_val := ValueType.TCustom("")
+                param_types.get(i, ptype_val)
                 catch (err: IndexOutOfBoundsError) { }
+                mut ptype_ptr := Ptr()
+                ptype_ptr.data = to_ptr(ptype_val)
                 mut by_ref := false
                 param_by_ref.get(i, by_ref)
                 catch (err: IndexOutOfBoundsError) { }
-                emit_arg_with_param_type(param, i, nested_hoisted, ptype, by_ref, output, ctx, context)
+                emit_arg_with_param_type(param, i, nested_hoisted, ptype_ptr, by_ref, output, ctx, context)
                 i.inc()
             }
 
@@ -1255,13 +1257,15 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 first = false
                 mut param := Expr()
                 arg.params.get(add(1, i), param)
-                mut ptype := ValueType.TCustom("")
-                param_types.get(i, ptype)
+                mut ptype_val := ValueType.TCustom("")
+                param_types.get(i, ptype_val)
                 catch (err: IndexOutOfBoundsError) { }
+                mut ptype_ptr := Ptr()
+                ptype_ptr.data = to_ptr(ptype_val)
                 mut by_ref := false
                 param_by_ref.get(i, by_ref)
                 catch (err: IndexOutOfBoundsError) { }
-                emit_arg_with_param_type(param, i, nested_hoisted, ptype, by_ref, output, ctx, context)
+                emit_arg_with_param_type(param, i, nested_hoisted, ptype_ptr, by_ref, output, ctx, context)
                 i.inc()
             }
 
@@ -2022,15 +2026,15 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
             mut arg := Expr()
             expr.params.get(add(1, arg_idx), arg)
             // Bug #60: Use emit_arg_with_param_type for proper by-ref handling
-            mut param_type := ValueType.TCustom("")
+            mut param_type_ptr := Ptr()
             mut param_by_ref := false
             if arg_idx.lt(param_info.len()) {
                 mut info := ParamTypeInfo()
                 param_info.get(arg_idx, info)
-                param_type = info.value_type
+                param_type_ptr.data = to_ptr(info.value_type)
                 param_by_ref = info.by_ref
             }
-            emit_arg_with_param_type(arg, arg_idx, nested_hoisted, param_type, param_by_ref, output, ctx, context)
+            emit_arg_with_param_type(arg, arg_idx, nested_hoisted, param_type_ptr, param_by_ref, output, ctx, context)
             arg_idx.inc()
         }
 
@@ -2060,16 +2064,16 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
             expr.params.get(i, arg)
 
             // Get expected param type and mutability
-            mut param_type := ValueType.TCustom("")
+            mut param_type_ptr := Ptr()
             mut param_by_ref := false
             if arg_idx.lt(param_info.len()) {
                 mut info := ParamTypeInfo()
                 param_info.get(arg_idx, info)
-                param_type = info.value_type
+                param_type_ptr.data = to_ptr(info.value_type)
                 param_by_ref = info.by_ref
             }
 
-            emit_arg_with_param_type(arg, arg_idx, nested_hoisted, param_type, param_by_ref, output, ctx, context)
+            emit_arg_with_param_type(arg, arg_idx, nested_hoisted, param_type_ptr, param_by_ref, output, ctx, context)
             arg_idx.inc()
             i.inc()
         }
@@ -2084,20 +2088,22 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
 /// Emit an argument, using hoisted temp var if available
 /// Also handles Type arguments by emitting them as string literals
 emit_arg_or_hoisted := proc(arg: Expr, arg_idx: I64, hoisted: Map, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
-    emit_arg_with_param_type(arg, arg_idx, hoisted, ValueType.TCustom(""), false, output, ctx, context)
+    emit_arg_with_param_type(arg, arg_idx, hoisted, Ptr(), false, output, ctx, context)
 }
 
 /// Emit an argument with knowledge of expected parameter type and by-ref flag
 /// Handles: Type args as string literals, Dynamic args with &, by-ref args with &
-emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_type: ValueType, param_by_ref: Bool, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_type: Ptr, param_by_ref: Bool, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
     if hoisted.contains_key(arg_idx) {
         // Hoisted temp var is an lvalue - add & if param is Dynamic or by-ref
         mut temp_var := ""
         hoisted.get(arg_idx, temp_var)
         if param_by_ref {
             output.push_str("&")
-        } else {
-            switch param_type {
+        } else if not(param_type.is_null()) {
+            mut vt := ValueType.TCustom("")
+            memcpy(to_ptr(vt), param_type.data, size_of(ValueType))
+            switch vt {
             case ValueType.TCustom(param_type_name):
                 if param_type_name.eq("Dynamic") {
                     output.push_str("&")
@@ -2136,12 +2142,16 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
     // Check if parameter type is Dynamic (including mut Dynamic)
     // Must check BEFORE the general mut check since Dynamic needs casting
     mut is_dynamic := false
-    switch param_type {
-    case ValueType.TCustom(param_type_name):
-        if param_type_name.eq("Dynamic") {
-            is_dynamic = true
+    if not(param_type.is_null()) {
+        mut vt := ValueType.TCustom("")
+        memcpy(to_ptr(vt), param_type.data, size_of(ValueType))
+        switch vt {
+        case ValueType.TCustom(param_type_name):
+            if param_type_name.eq("Dynamic") {
+                is_dynamic = true
+            }
+        case:
         }
-    case:
     }
 
     if is_dynamic {
@@ -4845,9 +4855,11 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 fcall.params.get(i.add(1), arg)  // +1 to skip func name
                 mut by_ref := false
                 param_by_ref.get(i, by_ref)
-                mut param_type := ValueType.TCustom(INFER_TYPE)
-                param_types.get(i, param_type)
-                emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)
+                mut param_type_val := ValueType.TCustom(INFER_TYPE)
+                param_types.get(i, param_type_val)
+                mut param_type_ptr := Ptr()
+                param_type_ptr.data = to_ptr(param_type_val)
+                emit_arg_with_param_type(arg, i, hoisted, param_type_ptr, by_ref, output, ctx, context)
                 i.inc()
                 catch (err: IndexOutOfBoundsError) { }
             }
@@ -4880,9 +4892,11 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 fcall.params.get(i.add(1), arg)
                 mut by_ref := false
                 param_by_ref.get(i, by_ref)
-                mut param_type := ValueType.TCustom(INFER_TYPE)
-                param_types.get(i, param_type)
-                emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)
+                mut param_type_val := ValueType.TCustom(INFER_TYPE)
+                param_types.get(i, param_type_val)
+                mut param_type_ptr := Ptr()
+                param_type_ptr.data = to_ptr(param_type_val)
+                emit_arg_with_param_type(arg, i, hoisted, param_type_ptr, by_ref, output, ctx, context)
                 i.inc()
                 catch (err: IndexOutOfBoundsError) { }
             }
@@ -4933,9 +4947,11 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             fcall.params.get(i.add(1), arg)
             mut by_ref := false
             param_by_ref.get(i, by_ref)
-            mut param_type := ValueType.TCustom(INFER_TYPE)
-            param_types.get(i, param_type)
-            emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)
+            mut param_type_val := ValueType.TCustom(INFER_TYPE)
+            param_types.get(i, param_type_val)
+            mut param_type_ptr := Ptr()
+            param_type_ptr.data = to_ptr(param_type_val)
+            emit_arg_with_param_type(arg, i, hoisted, param_type_ptr, by_ref, output, ctx, context)
             i.inc()
             catch (err: IndexOutOfBoundsError) { }
         }
@@ -4964,9 +4980,11 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             fcall.params.get(i.add(1), arg)
             mut by_ref := false
             param_by_ref.get(i, by_ref)
-            mut param_type := ValueType.TCustom(INFER_TYPE)
-            param_types.get(i, param_type)
-            emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)
+            mut param_type_val := ValueType.TCustom(INFER_TYPE)
+            param_types.get(i, param_type_val)
+            mut param_type_ptr := Ptr()
+            param_type_ptr.data = to_ptr(param_type_val)
+            emit_arg_with_param_type(arg, i, hoisted, param_type_ptr, by_ref, output, ctx, context)
             i.inc()
             catch (err: IndexOutOfBoundsError) { }
         }
@@ -5196,9 +5214,11 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             fcall.params.get(arg_i.add(1), arg)  // +1 to skip func name
             mut by_ref := false
             param_by_ref.get(arg_i, by_ref)
-            mut param_type := ValueType.TCustom(INFER_TYPE)
-            param_types.get(arg_i, param_type)
-            emit_arg_with_param_type(arg, arg_i, hoisted, param_type, by_ref, output, ctx, context)
+            mut param_type_val := ValueType.TCustom(INFER_TYPE)
+            param_types.get(arg_i, param_type_val)
+            mut param_type_ptr := Ptr()
+            param_type_ptr.data = to_ptr(param_type_val)
+            emit_arg_with_param_type(arg, arg_i, hoisted, param_type_ptr, by_ref, output, ctx, context)
             arg_i.inc()
             catch (err: IndexOutOfBoundsError) { }
         }
@@ -5222,9 +5242,11 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             }
             mut by_ref := false
             param_by_ref.get(arg_i.sub(1), by_ref)
-            mut param_type := ValueType.TCustom(INFER_TYPE)
-            param_types.get(arg_i.sub(1), param_type)
-            emit_arg_with_param_type(arg, arg_i.sub(1), hoisted, param_type, by_ref, output, ctx, context)
+            mut param_type_val := ValueType.TCustom(INFER_TYPE)
+            param_types.get(arg_i.sub(1), param_type_val)
+            mut param_type_ptr := Ptr()
+            param_type_ptr.data = to_ptr(param_type_val)
+            emit_arg_with_param_type(arg, arg_i.sub(1), hoisted, param_type_ptr, by_ref, output, ctx, context)
             args_started = true
             arg_i.inc()
             catch (err: IndexOutOfBoundsError) { }
@@ -7407,7 +7429,9 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, mut output: Str, mut c
                 arg_idx2.inc()
                 continue
             }
-            emit_arg_with_param_type(arg, i, hoisted, pi.value_type, pi.by_ref, output, ctx, context)
+            mut param_type_ptr := Ptr()
+            param_type_ptr.data = to_ptr(pi.value_type)
+            emit_arg_with_param_type(arg, i, hoisted, param_type_ptr, pi.by_ref, output, ctx, context)
         } else {
             emit_arg_or_hoisted(arg, i, hoisted, output, ctx, context)
         }
@@ -8895,16 +8919,14 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(", ")
             }
             arg := expr.params.get(arg_i.add(1))
-            mut param_type := ValueType.TVoid
-            mut has_param_type := false
+            mut param_type_ptr := Ptr()
             mut by_ref := true
             if arg_i.lt(param_info.len()) {
                 pi := param_info.get(arg_i)
-                param_type = pi.value_type.clone()
-                has_param_type = pi.has_value_type
+                param_type_ptr.data = to_ptr(pi.value_type)
                 by_ref = pi.by_ref
             }
-            emit_arg_with_param_type(arg, arg_i, hoisted, param_type, has_param_type, by_ref, output, ctx, context)
+            emit_arg_with_param_type(arg, arg_i, hoisted, param_type_ptr, by_ref, output, ctx, context)
             arg_i.inc()
         }
 
@@ -8947,16 +8969,14 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(type_arg_name)
                 output.push_str("\"")
             } else if not(param_info.is_empty()) {
-                mut param_type := ValueType.TVoid
-                mut has_param_type := false
+                mut param_type_ptr := Ptr()
                 mut by_ref := false
                 if arg_i.lt(param_info.len()) {
                     pi := param_info.get(arg_i)
-                    param_type = pi.value_type.clone()
-                    has_param_type = pi.has_value_type
+                    param_type_ptr.data = to_ptr(pi.value_type)
                     by_ref = pi.by_ref
                 }
-                emit_arg_with_param_type(arg, arg_i, hoisted, param_type, has_param_type, by_ref, output, ctx, context)
+                emit_arg_with_param_type(arg, arg_i, hoisted, param_type_ptr, by_ref, output, ctx, context)
             } else {
                 emit_arg_or_hoisted(arg, arg_i, hoisted, output, ctx, context)
             }
