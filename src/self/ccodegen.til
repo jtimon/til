@@ -866,7 +866,6 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
         expr.params.get(0, first_param)
         catch (err: IndexOutOfBoundsError) { }
         func_name := get_func_name_string(first_param)
-        catch (err: Str) { }
         mut has_named_args := false
         mut k := 1
         while k.lt(expr.params.len()) {
@@ -916,7 +915,6 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
                             mut def_first_param := Expr()
                             default_expr.params.get(0, def_first_param)
                             lookup_name := get_til_func_name_string(def_first_param)
-                            catch (err: Str) { }
                             lookup_fd := context.scope_stack.lookup_func(lookup_name)
                             catch (err: KeyNotFoundError) { }
                             throw_types = lookup_fd.throw_types.clone()
@@ -3238,7 +3236,6 @@ emit_struct_declaration := proc(expr: Expr, mut output: Str) throws Str {
                         output.push_str(" ")
                         output.push_str(member.name)
                         output.push_str(";\n")
-                        catch (err: Str) { }
                     }
                 }
                 output.push_str("};\n\n")
@@ -3283,7 +3280,6 @@ emit_struct_constants := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                         output.push_str(" = ")
                         emit_expr(default_val, output, 0, ctx, context)
                         output.push_str(";\n")
-                        catch (err: Str) { }
                     }
                 }
                 // Emit size_of constant for this struct
@@ -3453,7 +3449,6 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, mut output: 
                 output.push_str(" ")
                 output.push_str(v.name)
                 output.push_str(";\n")
-                catch (err: Str) { }
             }
         }
         output.push_str("} ")
@@ -3496,7 +3491,6 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, mut output: 
             output.push_str(c_type)
             output.push_str(" value")
             has_payload = true
-            catch (err: Str) { }
         } else {
             output.push_str("void")
         }
@@ -3973,7 +3967,6 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str)
             output.push_str(TIL_PREFIX)
             output.push_str(arg.name)
             param_count.inc()
-            catch (err: Str) { }
         case:
         }
     }
@@ -4380,7 +4373,6 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                     sym_info.is_own = false
                     sym_info.is_comptime_const = false
                     context.scope_stack.declare_symbol(decl.name.clone(), sym_info)
-                    catch (err: Str) { }
                 }
             }
         }
