@@ -7773,8 +7773,8 @@ CatchLabelInfoEntry := struct {
 
 // Info about a function parameter's type and whether passed by reference
 ParamTypeInfo := struct {
-    mut value_type: ValueType = ValueType.TI64
-    mut has_value_type: Bool = false
+    mut value_type: ValueType = ValueType.TCustom("")
+    mut has_value_type: Bool = false  // tracks if value_type is set (Option pattern)
     mut by_ref: Bool = false
 }
 
@@ -7787,7 +7787,7 @@ ThrowingDefault := struct {
 // Info about a collected variable declaration for hoisting
 CollectedDeclaration := struct {
     mut name: Str = ""
-    mut value_type: ValueType = ValueType.TI64
+    mut value_type: ValueType = ValueType.TCustom("")
 }
 
 // Info about a variadic function call
