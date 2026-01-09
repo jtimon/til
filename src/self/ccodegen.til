@@ -6635,7 +6635,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
 
 // Check if an expression is a struct construction call (TypeName() or TypeName(x=1, y=2))
 // Returns the type name if it is, empty string otherwise
-get_struct_construction_type := func(expr: Expr, context: Context) returns Str {
+get_struct_construction_type := func(expr: Expr, context: Context) returns Str throws Str {
     switch expr.node_type {
     case NodeType.FCall:
         if not(expr.params.is_empty()) {
@@ -6685,7 +6685,7 @@ get_struct_construction_type := func(expr: Expr, context: Context) returns Str {
 // Returns the type name if it is, empty string otherwise
 // AST structure for Color.Red(42): FCall -> [Identifier("Color") -> [Identifier("Red")], Literal(42)]
 // AST structure for Color.Unknown: Identifier("Color") -> [Identifier("Unknown")]
-get_enum_construction_type := func(expr: Expr, context: Context) returns Str {
+get_enum_construction_type := func(expr: Expr, context: Context) returns Str throws Str {
     // Check FCall case: Type.Variant(value) or Type.Variant()
     switch expr.node_type {
     case NodeType.FCall:
