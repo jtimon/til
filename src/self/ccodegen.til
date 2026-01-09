@@ -7339,7 +7339,7 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, mut output: Str, mut c
 
             // Check if any default value is a throwing function call
             mut throwing_defaults := Vec.new(ThrowingDefault)
-            for member: StructMember in struct_def.members {
+            for member: Declaration in struct_def.members {
                 if not(member.is_mut) {
                     continue
                 }
