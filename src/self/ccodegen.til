@@ -8331,8 +8331,9 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     if has_named_args {
         struct_def := context.scope_stack.lookup_struct(func_name)
-        // Emit C compound literal: (til_TypeName){.field1 = val1, .field2 = val2, ...}
-        output.push_str("(")
+        if true { // TODO Bug #96 workaround
+            // Emit C compound literal: (til_TypeName){.field1 = val1, .field2 = val2, ...}
+            output.push_str("(")
         output.push_str(TIL_PREFIX)
         output.push_str(func_name)
         output.push_str(")")
@@ -8396,7 +8397,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             }
             output.push_str("}")
         }
-        return
+            return
+        }
         catch (err: KeyNotFoundError) {
             // REM: not a struct, continue below
         }
@@ -8517,18 +8519,20 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         case ValueType.TCustom(enum_type_name):
             // Verify it's an enum type
             _ := context.scope_stack.lookup_enum(enum_type_name)
-            output.push_str(til_name(enum_type_name))
-            output.push_str("_to_str(")
-            // Check if the argument was already hoisted
-            expr_key := arg.id
-            if ctx.hoisted_exprs.contains_key(expr_key) {
-                emit_expr(arg, output, 0, ctx, context)
-            } else {
-                output.push_str("&")
-                emit_expr(arg, output, 0, ctx, context)
+            if true { // TODO Bug #96 workaround
+                output.push_str(til_name(enum_type_name))
+                output.push_str("_to_str(")
+                // Check if the argument was already hoisted
+                expr_key := arg.id
+                if ctx.hoisted_exprs.contains_key(expr_key) {
+                    emit_expr(arg, output, 0, ctx, context)
+                } else {
+                    output.push_str("&")
+                    emit_expr(arg, output, 0, ctx, context)
+                }
+                output.push_str(")")
+                return
             }
-            output.push_str(")")
-            return
             catch (err: KeyNotFoundError) {
                 mut err_msg := "ccodegen: enum_to_str argument '"
                 err_msg.push_str(enum_type_name)
@@ -8665,25 +8669,27 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 candidate.push_str(".")
                 candidate.push_str(orig_func_name)
                 _ := context.scope_stack.lookup_func(candidate)
-                // Emit as Type_method(fcall_result, args...)
-                output.push_str(TIL_PREFIX)
-                output.push_str(type_name)
-                output.push_str("_")
-                output.push_str(orig_func_name)
-                output.push_str("(")
-                emit_expr(second_param, output, 0, ctx, context)
-                mut ri := 2
-                while ri.lt(expr.params.len()) {
-                    output.push_str(", ")
-                    remaining_arg := expr.params.get(ri)
-                    emit_expr(remaining_arg, output, 0, ctx, context)
-                    ri.inc()
+                if true { // TODO Bug #96 workaround
+                    // Emit as Type_method(fcall_result, args...)
+                    output.push_str(TIL_PREFIX)
+                    output.push_str(type_name)
+                    output.push_str("_")
+                    output.push_str(orig_func_name)
+                    output.push_str("(")
+                    emit_expr(second_param, output, 0, ctx, context)
+                    mut ri := 2
+                    while ri.lt(expr.params.len()) {
+                        output.push_str(", ")
+                        remaining_arg := expr.params.get(ri)
+                        emit_expr(remaining_arg, output, 0, ctx, context)
+                        ri.inc()
+                    }
+                    output.push_str(")")
+                    if is_stmt_level {
+                        output.push_str(";\n")
+                    }
+                    return
                 }
-                output.push_str(")")
-                if is_stmt_level {
-                    output.push_str(";\n")
-                }
-                return
                 catch (err: KeyNotFoundError) {
                     // REM: function not found, continue below
                 }
