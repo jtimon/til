@@ -205,7 +205,7 @@ get_type_arg_name := func(expr: Expr, context: Context) returns Str throws KeyNo
 // Uses get_func_def_for_fcall_with_expr from typer.rs which handles all cases correctly
 // (regular functions, struct methods, UFCS - though UFCS is already resolved by precomp)
 // Returns None for struct/enum constructors
-get_fcall_func_def := func(context: Context, fcall_expr: Expr) returns SFuncDef throws KeyNotFoundError {
+get_fcall_func_def := proc(context: Context, fcall_expr: Expr) returns SFuncDef throws KeyNotFoundError {
     mut expr_clone := fcall_expr.clone()
     result := get_func_def_for_fcall_with_expr(context, expr_clone)
 
@@ -2881,7 +2881,7 @@ is_constant_declaration := func(expr: Expr) returns Bool {
 
 // Check if an expression is a function call that uses out-params (i.e., the function throws)
 // Such calls cannot be used inline in struct initializers - they need separate statements
-is_throwing_fcall := func(expr: Expr, context: Context) returns Bool {
+is_throwing_fcall := proc(expr: Expr, context: Context) returns Bool {
     switch expr.node_type {
     case NodeType.FCall:
         fd := get_fcall_func_def(context, expr)
