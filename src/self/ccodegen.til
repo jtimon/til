@@ -4178,8 +4178,10 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     expr_addr := to_ptr(expr)
     mut temp_var := ""
     ctx.hoisted_exprs.get(expr_addr, temp_var)
-    output.push_str(temp_var)
-    return
+    if true { // TODO Bug #96 workaround
+        output.push_str(temp_var)
+        return
+    }
     catch (err: KeyNotFoundError) {
         // Not hoisted, continue with normal emit
     }
