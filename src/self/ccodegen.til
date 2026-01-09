@@ -6674,12 +6674,11 @@ get_struct_construction_type := func(expr: Expr, context: Context) returns Str {
         }
     case:
     }
-    return ""
-
     catch (err: IndexOutOfBoundsError) {
         return ""
     }
     catch (err: AllocError) { throw err.msg }
+    return ""
 }
 
 // Check if an expression is an enum construction (Type.Variant or Type.Variant(value))
@@ -6737,12 +6736,11 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str {
         }
     case:
     }
-    return ""
-
     catch (err: IndexOutOfBoundsError) {
         return ""
     }
     catch (err: AllocError) { throw err.msg }
+    return ""
 }
 
 emit_funcdef := proc(_func_def: SFuncDef, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
