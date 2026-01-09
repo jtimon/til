@@ -605,3 +605,51 @@ format := func(prefix: Str, args: ..Str) returns Str {
 
     return result
 }
+
+/** Join a Vec of Str with a separator. */
+join := func(parts: Vec, sep: Str) returns Str {
+    if parts.is_empty() {
+        return ""
+    }
+
+    // Calculate total length needed
+    mut total_len := 0
+    mut first := true
+    for part: Str in parts {
+        if not(first) {
+            total_len = total_len.add(sep.len())
+        }
+        total_len = total_len.add(part.len())
+        first = false
+    }
+
+    // Allocate result
+    mut result := Str()
+    result.cap = total_len
+    result.c_string = malloc(total_len.add(1))
+    catch (err: AllocError) {
+        panic(loc(), "join: malloc failed: ", err.msg)
+    }
+    if NULL.eq(result.c_string) {
+        panic(loc(), "join: malloc failed")
+    }
+
+    // Copy parts with separator
+    mut offset := 0
+    first = true
+    for part: Str in parts {
+        if not(first) {
+            memcpy(add(result.c_string, offset), sep.c_string, sep.len())
+            offset = offset.add(sep.len())
+        }
+        memcpy(add(result.c_string, offset), part.c_string, part.len())
+        offset = offset.add(part.len())
+        first = false
+    }
+
+    // Null-terminate
+    zero : U8 = 0
+    memset(add(result.c_string, result.cap), zero, 1)
+
+    return result
+}
