@@ -5423,9 +5423,9 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             continue
         }
         fd2 := get_fcall_func_def(context, fcall)
-        mut param_arg := SArg()
+        mut param_arg := Declaration()
         fd2.args.get(arg_idx.sub(1), param_arg)
-        param_types.push(param_arg.value_type.clone())
+        param_types.push(param_arg.value_type)
         param_by_ref.push(param_needs_by_ref(param_arg))
         arg_idx.inc()
         catch (err: KeyNotFoundError) {
@@ -5736,9 +5736,9 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             continue
         }
         fd2 := get_fcall_func_def(context, fcall)
-        mut param_arg := SArg()
+        mut param_arg := Declaration()
         fd2.args.get(arg_idx.sub(1), param_arg)
-        param_types.push(param_arg.value_type.clone())
+        param_types.push(param_arg.value_type)
         param_by_ref.push(param_needs_by_ref(param_arg))
         arg_idx.inc()
         catch (err: KeyNotFoundError) {
@@ -6068,7 +6068,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 ctx.mangling_counter = 0  // Reset counter per-function for determinism
 
                 // Bug #60: Track ref and variadic params - all non-copy args are by pointer
-                for arg: SArg in func_def.args {
+                for arg: Declaration in func_def.args {
                     if not(arg.is_copy) {
                         ctx.current_ref_params.add(arg.name.clone())
                     }
@@ -6083,8 +6083,8 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 // Push scope frame for function
                 mut function_frame := ScopeFrame()
                 function_frame.scope_type = ScopeType.Function
-                for arg: SArg in func_def.args {
-                    mut value_type := arg.value_type.clone()
+                for arg: Declaration in func_def.args {
+                    mut value_type := arg.value_type
                     switch arg.value_type {
                     case ValueType.TMulti(_):
                         value_type = ValueType.TCustom("Array")
@@ -6427,8 +6427,8 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     fd := get_fcall_func_def(context, rhs_fcall)
                     mut param_types := Vec.new(ValueType)
                     mut param_by_ref := Vec.new(Bool)
-                    for arg: SArg in fd.args {
-                        param_types.push(arg.value_type.clone())
+                    for arg: Declaration in fd.args {
+                        param_types.push(arg.value_type)
                         param_by_ref.push(param_needs_by_ref(arg))
                     }
                     mut args := Vec.new(Expr)
@@ -6529,8 +6529,8 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     fd := get_fcall_func_def(context, rhs_fcall)
                     mut param_types := Vec.new(ValueType)
                     mut param_by_ref := Vec.new(Bool)
-                    for arg: SArg in fd.args {
-                        param_types.push(arg.value_type.clone())
+                    for arg: Declaration in fd.args {
+                        param_types.push(arg.value_type)
                         param_by_ref.push(param_needs_by_ref(arg))
                     }
                     mut args := Vec.new(Expr)
@@ -7450,7 +7450,7 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, mut output: Str, mut c
     }
     for arg: FuncArg in fd.args {
         mut pi := ParamTypeInfo()
-        pi.value_type = arg.value_type.clone()
+        pi.value_type = arg.value_type
         pi.value_type_set = true
         pi.by_ref = param_needs_by_ref(arg)
         param_info.push(pi)
@@ -8540,8 +8540,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         fd := get_fcall_func_def(context, expr)
         mut param_types := Vec.new(ValueType)
         mut param_by_ref := Vec.new(Bool)
-        for arg: SArg in fd.args {
-            param_types.push(arg.value_type.clone())
+        for arg: Declaration in fd.args {
+            param_types.push(arg.value_type)
             param_by_ref.push(param_needs_by_ref(arg))
         }
         mut args := Vec.new(Expr)
@@ -8996,18 +8996,18 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         // Look up function param info for proper by-ref handling of regular args
         mut param_info := Vec.new(ParamTypeInfo)
         fd := get_fcall_func_def(context, expr)
-        for arg: SArg in fd.args {
+        for arg: Declaration in fd.args {
             mut pi := ParamTypeInfo()
-            pi.value_type = arg.value_type.clone()
+            pi.value_type = arg.value_type
             pi.has_value_type = true
             pi.by_ref = param_needs_by_ref(arg)
             param_info.push(pi)
         }
         catch (err: KeyNotFoundError) {
             fd2 := context.scope_stack.lookup_func(orig_func_name)
-            for arg: SArg in fd2.args {
+            for arg: Declaration in fd2.args {
                 mut pi := ParamTypeInfo()
-                pi.value_type = arg.value_type.clone()
+                pi.value_type = arg.value_type
                 pi.has_value_type = true
                 pi.by_ref = param_needs_by_ref(arg)
                 param_info.push(pi)
@@ -9049,9 +9049,9 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         // Regular non-variadic function call
         mut param_info := Vec.new(ParamTypeInfo)
         fd := get_fcall_func_def(context, expr)
-        for arg: SArg in fd.args {
+        for arg: Declaration in fd.args {
             mut pi := ParamTypeInfo()
-            pi.value_type = arg.value_type.clone()
+            pi.value_type = arg.value_type
             pi.has_value_type = true
             pi.by_ref = param_needs_by_ref(arg)
             param_info.push(pi)
