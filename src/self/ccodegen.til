@@ -7722,14 +7722,14 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     catch (err: AllocError) { throw err.msg }
 }
 
-emit_break := proc(_expr: Expr, mut output: Str, indent: I64) {
+emit_break := proc(_expr: Expr, mut output: Str, indent: I64) throws Str {
     indent_str := repeat("    ", indent)
     catch (err: AllocError) { throw err.msg }
     output.push_str(indent_str)
     output.push_str("break;\n")
 }
 
-emit_continue := proc(_expr: Expr, mut output: Str, indent: I64) {
+emit_continue := proc(_expr: Expr, mut output: Str, indent: I64) throws Str {
     indent_str := repeat("    ", indent)
     catch (err: AllocError) { throw err.msg }
     output.push_str(indent_str)
@@ -7796,7 +7796,7 @@ VariadicFCallInfo := struct {
 
 // Extract enum type and variant names from a case pattern expression
 // For FCall: Type.Variant -> VariantInfo { type_name: "Type", variant_name: "Variant" }
-get_case_variant_info := proc(expr: Expr) returns VariantInfo {
+get_case_variant_info := proc(expr: Expr) returns VariantInfo throws Str {
     switch expr.node_type {
     case NodeType.FCall:
         // FCall for Type.Variant (without payload extraction)
