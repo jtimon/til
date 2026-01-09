@@ -5502,7 +5502,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         output.push_str(" ")
         output.push_str(til_name(decl_name))
         output.push_str(";\n")
-        ctx.declared_vars.insert(til_name(decl_name))
+        _ := ctx.declared_vars.insert(til_name(decl_name))
         fd4 := get_fcall_func_def(context, fcall)
         if not(fd4.return_types.is_empty()) {
             mut first_type := ValueType.TCustom("")
@@ -5815,7 +5815,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         output.push_str(" ")
         output.push_str(til_name(decl_name))
         output.push_str(";\n")
-        ctx.declared_vars.insert(til_name(decl_name))
+        _ := ctx.declared_vars.insert(til_name(decl_name))
         fd4 := get_fcall_func_def(context, fcall)
         if not(fd4.return_types.is_empty()) {
             mut first_type := ValueType.TCustom("")
@@ -6070,7 +6070,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 // Bug #60: Track ref and variadic params - all non-copy args are by pointer
                 for arg: Declaration in func_def.args {
                     if not(arg.is_copy) {
-                        ctx.current_ref_params.add(arg.name.clone())
+                        _ := ctx.current_ref_params.add(arg.name.clone())
                     }
                     switch arg.value_type {
                     case ValueType.TMulti(elem_type):
@@ -6140,7 +6140,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
     if not(expr.params.is_empty()) {
         mut first_param := Expr()
         expr.params.get(0, first_param)
-        hoist_throwing_expr(first_param, output, indent, ctx, context)
+        _ := hoist_throwing_expr(first_param, output, indent, ctx, context)
     }
 
     // Bug #35: For underscore declarations, just emit the expression (discard result)
@@ -6256,7 +6256,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 }
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
-                ctx.declared_vars.add(til_name(name))
+                _ := ctx.declared_vars.add(til_name(name))
             }
             output.push_str(til_name(name))
             emit_struct_literal_assign(output, struct_type, already_declared, "{}")
@@ -6269,7 +6269,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 }
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
-                ctx.declared_vars.add(til_name(name))
+                _ := ctx.declared_vars.add(til_name(name))
             }
             output.push_str(til_name(name))
             emit_struct_literal_assign(output, struct_type, already_declared, "{0}")
@@ -6334,7 +6334,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 }
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
-                ctx.declared_vars.add(til_name(name))
+                _ := ctx.declared_vars.add(til_name(name))
             }
             output.push_str(til_name(name))
             emit_struct_literal_start(output, struct_type, already_declared)
@@ -6393,7 +6393,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 }
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
-                ctx.declared_vars.add(til_name(name))
+                _ := ctx.declared_vars.add(til_name(name))
             }
             output.push_str(til_name(name))
             emit_struct_literal_assign(output, struct_type, already_declared, "{0}")
@@ -7999,7 +7999,7 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
     expr.params.get(0, switch_expr)
 
     // Hoist any throwing function calls in the switch expression
-    hoist_throwing_expr(switch_expr, output, indent, ctx, context)
+    _ := hoist_throwing_expr(switch_expr, output, indent, ctx, context)
 
     // Determine the type of the switch expression for proper comparison
     // Type inference may fail - that's okay, we'll use default
@@ -8090,7 +8090,7 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                 output.push_str(" ")
                 output.push_str(c_var_name)
                 output.push_str(";\n")
-                ctx.declared_vars.add(c_var_name)
+                _ := ctx.declared_vars.add(c_var_name)
                 // Also register in scope_stack so get_value_type can find it
                 mut symbol_info := SymbolInfo()
                 symbol_info.value_type = decl.value_type
