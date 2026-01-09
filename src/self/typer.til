@@ -132,9 +132,6 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
     catch (err: AllocError) {
         throw err.msg
     }
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
     return errors
 }
 
@@ -308,9 +305,6 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
     catch (err: AllocError) {
         throw err.msg
     }
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
 
     return errors
 }
@@ -452,7 +446,7 @@ check_while_statement := proc(mut context: Context, e: Expr) returns Vec throws 
     return errors
 }
 
-check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws Str, I64_OverflowError {
+check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws Str {
     mut errors := Vec.new(Str)
 
     // e.params[0] = Identifier(var_name)
@@ -908,13 +902,7 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
         }
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
     catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: I64_OverflowError) {
         throw err.msg
     }
 
@@ -963,13 +951,7 @@ check_fcall_return_usage := proc(context: Context, e: Expr, expr_context: ExprCo
         )))
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
     catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: I64_OverflowError) {
         throw err.msg
     }
 
@@ -1102,13 +1084,7 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
         decl_throw_idx.inc()
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
     catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: I64_OverflowError) {
         throw err.msg
     }
 
@@ -1754,9 +1730,6 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
     catch (err: AllocError) {
         throw err.msg
     }
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
 
     return errors
 }
@@ -1827,9 +1800,6 @@ check_catch_statement := proc(mut context: Context, e: Expr) returns Vec throws 
         throw err.msg
     }
     catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: I64_OverflowError) {
         throw err.msg
     }
 
@@ -1917,13 +1887,7 @@ check_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retu
     // The RHS of a declaration is being used (assigned to the variable)
     errors.extend(check_types_with_context(context, inner_e, ExprContext.ValueUsed))
 
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
     catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: I64_OverflowError) {
         throw err.msg
     }
 
@@ -2041,13 +2005,7 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
         errors.push(err)
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
     catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: I64_OverflowError) {
         throw err.msg
     }
 
@@ -2242,13 +2200,7 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
     catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: I64_OverflowError) {
         throw err.msg
     }
 
@@ -2562,9 +2514,6 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
     catch (err: KeyNotFoundError) {
         throw err.msg
     }
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
 
     return errors
 }
@@ -2793,9 +2742,6 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
         throw err.msg
     }
     catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: I64_OverflowError) {
         throw err.msg
     }
 
@@ -3056,13 +3002,7 @@ basic_mode_checks := proc(context: Context, e: Expr) returns Vec throws Str {
         }
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
     catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: I64_OverflowError) {
         throw err.msg
     }
 
