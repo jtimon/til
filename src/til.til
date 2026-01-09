@@ -61,9 +61,8 @@ parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws St
     result.lang = final_lang
     result.translate_only = translate_only
 
-    catch (err: AllocError) {
-        throw err.msg
-    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
 
     return result
 }

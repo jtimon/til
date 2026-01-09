@@ -47,7 +47,7 @@ CodegenContext := struct {
     // Used to track which struct literal defaults were hoisted as temp vars
     mut hoisted_struct_defaults: Map = Map.new(Str, Str)
 
-    new := func() returns CodegenContext throws AllocError {
+    new := func() returns CodegenContext {
         return CodegenContext()
     }
 }
