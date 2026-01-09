@@ -8885,7 +8885,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     // Check if this is a variadic function call
     if ctx.func_variadic_args.contains_key(orig_func_name) {
-        variadic_info := ctx.func_variadic_args.get(orig_func_name)
+        mut variadic_info := VariadicFCallInfo()
+        ctx.func_variadic_args.get(orig_func_name, variadic_info)
         regular_count := variadic_info.regular_count
 
         // Look up function param info for proper by-ref handling of regular args
