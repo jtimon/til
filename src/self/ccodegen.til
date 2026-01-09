@@ -3766,7 +3766,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     // Register function parameters in the frame
     for arg: Declaration in func_def.args {
         mut info := SymbolInfo()
-        info.value_type = arg.value_type.clone()
+        info.value_type = arg.value_type
         info.is_mut = arg.is_mut
         info.is_copy = arg.is_copy
         info.is_own = arg.is_own
@@ -4772,7 +4772,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
         mut param_arg := SFuncArg()
         fd.args.get(arg_idx.sub(1), param_arg)
         param_by_ref.push(param_needs_by_ref(param_arg))
-        param_types.push(param_arg.value_type.clone())
+        param_types.push(param_arg.value_type)
         arg_idx.inc()
         catch (err: IndexOutOfBoundsError) {
             param_by_ref.push(false)
