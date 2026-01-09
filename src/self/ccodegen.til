@@ -5386,7 +5386,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
 /// Emit a throwing function call that propagates errors to the caller (no catch blocks)
 /// This is used when a throwing function calls another throwing function without catching
-emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: Str, assign_name: Str, output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
+emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: Str, assign_name: Str, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     indent_str := repeat("    ", indent)
 
     // Get function name
@@ -5699,7 +5699,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
 /// Emit a throwing function call that uses goto for error handling
 /// Used when there are outer catch blocks registered in ctx.local_catch_labels
-emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: Str, assign_name: Str, output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
+emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: Str, assign_name: Str, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     indent_str := repeat("    ", indent)
 
     // Get function name
