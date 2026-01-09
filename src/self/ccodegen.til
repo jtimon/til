@@ -5406,8 +5406,8 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Determine if we need a return value temp variable
     fd := get_fcall_func_def(context, fcall)
-    func_has_return := not(fd.return_types.is_empty())
-    needs_ret := func_has_return.and(not(decl_name.eq("")).or(not(assign_name.eq(""))))
+    mut func_has_return := not(fd.return_types.is_empty())
+    mut needs_ret := func_has_return.and(not(decl_name.eq("")).or(not(assign_name.eq(""))))
     catch (err: KeyNotFoundError) {
         func_has_return = false
         needs_ret = false
