@@ -4476,7 +4476,8 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
         case NodeType.Catch:
             // Get the error type this catch handles
             if stmt.params.len().gteq(3) {
-                err_type_param := stmt.params.get(1)
+                mut err_type_param := Expr()
+                stmt.params.get(1, err_type_param)
                 switch err_type_param.node_type {
                 case NodeType.Identifier(err_type_name):
                     // Look up this specific catch's label from all_catch_info by statement index
