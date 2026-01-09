@@ -1027,9 +1027,6 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 mut first_ret := ValueType.TCustom("")
                 throwing_fd.return_types.get(0, first_ret)
                 c_type = til_type_to_c(first_ret)
-                catch (err: KeyNotFoundError) {
-                    throw arg.lang_error(context.path, "ccodegen", err.msg)
-                }
             } else {
                 throw arg.lang_error(context.path, "ccodegen", "Cannot hoist throwing call with no return type")
             }
@@ -1190,9 +1187,6 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
             }
             c_type := til_type_to_c(ret_type)
-            catch (err: KeyNotFoundError) {
-                throw arg.lang_error(context.path, "ccodegen", err.msg)
-            }
 
             // Declare temp variable
             output.push_str(indent_str)
@@ -1541,9 +1535,6 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                 mut first_ret := ValueType.TCustom("")
                 fd.return_types.get(0, first_ret)
                 c_type = til_type_to_c(first_ret)
-                catch (err: KeyNotFoundError) {
-                    throw arg.lang_error(context.path, "ccodegen", err.msg)
-                }
             } else {
                 // Non-throwing call
                 mut ret_type := ValueType.TCustom("")
@@ -1552,9 +1543,6 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                     throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
                 }
                 c_type = til_type_to_c(ret_type)
-                catch (err: KeyNotFoundError) {
-                    throw arg.lang_error(context.path, "ccodegen", err.msg)
-                }
             }
         case:
             throw arg.lang_error(context.path, "ccodegen", "Cannot determine type for dynamic param")
@@ -1683,9 +1671,6 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
                 mut ret_type := ValueType.TCustom("")
                 fd.return_types.get(0, ret_type)
                 c_type = til_type_to_c(ret_type)
-                catch (err: KeyNotFoundError) {
-                    throw arg.lang_error(context.path, "ccodegen", err.msg)
-                }
             } else {
                 throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
             }
@@ -1706,9 +1691,6 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
                         mut ret_type := ValueType.TCustom("")
                         fd.return_types.get(0, ret_type)
                         c_type = til_type_to_c(ret_type)
-                        catch (err: KeyNotFoundError) {
-                            throw arg.lang_error(context.path, "ccodegen", err.msg)
-                        }
                     } else {
                         throw arg.lang_error(context.path, "ccodegen", format("Function ", func_name, " has no return type"))
                     }
@@ -2329,9 +2311,6 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                     catch (err: Str) {
                         c_type = "int"
                     }
-                    catch (err: KeyNotFoundError) {
-                        c_type = "int"
-                    }
                     temp_var := next_mangled(ctx)
                     output.push_str("({ ")
                     output.push_str(c_type)
@@ -2421,9 +2400,6 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                 mut ret_type := ValueType.TCustom("")
                 fd.return_types.get(0, ret_type)
                 c_type := til_type_to_c(ret_type)
-                catch (err: KeyNotFoundError) {
-                    throw arg.lang_error(context.path, "ccodegen", err.msg)
-                }
                 // Check if return type is a simple typedef (I64) vs struct
                 // I64 is the only simple typedef - all others are structs
                 mut is_simple_type := false
@@ -3263,7 +3239,6 @@ emit_struct_declaration := proc(expr: Expr, mut output: Str) throws Str {
                         output.push_str(member.name)
                         output.push_str(";\n")
                         catch (err: Str) { }
-                        catch (err: KeyNotFoundError) { }
                     }
                 }
                 output.push_str("};\n\n")
@@ -3309,7 +3284,6 @@ emit_struct_constants := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                         emit_expr(default_val, output, 0, ctx, context)
                         output.push_str(";\n")
                         catch (err: Str) { }
-                        catch (err: KeyNotFoundError) { }
                     }
                 }
                 // Emit size_of constant for this struct
@@ -3480,7 +3454,6 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, mut output: 
                 output.push_str(v.name)
                 output.push_str(";\n")
                 catch (err: Str) { }
-                catch (err: KeyNotFoundError) { }
             }
         }
         output.push_str("} ")
@@ -3524,7 +3497,6 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, mut output: 
             output.push_str(" value")
             has_payload = true
             catch (err: Str) { }
-            catch (err: KeyNotFoundError) { }
         } else {
             output.push_str("void")
         }
@@ -4002,7 +3974,6 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str)
             output.push_str(arg.name)
             param_count.inc()
             catch (err: Str) { }
-            catch (err: KeyNotFoundError) { }
         case:
         }
     }
@@ -4015,9 +3986,6 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str)
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
-    }
-    catch (err: KeyNotFoundError) {
-        throw "emit_func_signature: KeyNotFoundError"
     }
 }
 
@@ -4413,7 +4381,6 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                     sym_info.is_comptime_const = false
                     context.scope_stack.declare_symbol(decl.name.clone(), sym_info)
                     catch (err: Str) { }
-                    catch (err: KeyNotFoundError) { }
                 }
             }
         }
@@ -4823,9 +4790,6 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             catch (err: Str) {
                 ret_type = "int"
             }
-            catch (err: KeyNotFoundError) {
-                ret_type = "int"
-            }
             catch (err: IndexOutOfBoundsError) {
                 ret_type = "int"
             }
@@ -5103,9 +5067,6 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             fd3.return_types.get(0, first_ret)
             ret_type = til_type_to_c(first_ret)
             catch (err: Str) {
-                ret_type = "int"
-            }
-            catch (err: KeyNotFoundError) {
                 ret_type = "int"
             }
         }
@@ -5480,7 +5441,6 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             fd3.return_types.get(0, first_ret)
             ret_type = til_type_to_c(first_ret)
             catch (err: Str) { ret_type = "int" }
-            catch (err: KeyNotFoundError) { ret_type = "int" }
         }
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
@@ -5795,7 +5755,6 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             fd3.return_types.get(0, first_ret)
             ret_type = til_type_to_c(first_ret)
             catch (err: Str) { ret_type = "int" }
-            catch (err: KeyNotFoundError) { ret_type = "int" }
         }
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
