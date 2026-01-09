@@ -8918,11 +8918,13 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             if arg_i.gt(0) {
                 output.push_str(", ")
             }
-            arg := expr.params.get(arg_i.add(1))
+            mut arg := Expr()
+            expr.params.get(arg_i.add(1), arg)
             mut param_type_ptr := Ptr()
             mut by_ref := true
             if arg_i.lt(param_info.len()) {
-                pi := param_info.get(arg_i)
+                mut pi := ParamTypeInfo()
+                param_info.get(arg_i, pi)
                 param_type_ptr.data = to_ptr(pi.value_type)
                 by_ref = pi.by_ref
             }
@@ -8972,7 +8974,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 mut param_type_ptr := Ptr()
                 mut by_ref := false
                 if arg_i.lt(param_info.len()) {
-                    pi := param_info.get(arg_i)
+                    mut pi := ParamTypeInfo()
+                    param_info.get(arg_i, pi)
                     param_type_ptr.data = to_ptr(pi.value_type)
                     by_ref = pi.by_ref
                 }
