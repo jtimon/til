@@ -7852,7 +7852,7 @@ get_case_variant_info := proc(expr: Expr) returns VariantInfo {
 }
 
 // Extract type name and variant name from a Pattern's variant_name (e.g., "Color.Green")
-parse_pattern_variant_name := proc(variant_name: Str) returns VariantInfo {
+parse_pattern_variant_name := proc(variant_name: Str) returns VariantInfo throws Str {
     dot_pos := variant_name.rfind(".")
     if dot_pos.gteq(0) {
         type_name := variant_name.get_substr(0, dot_pos)
@@ -7866,13 +7866,15 @@ parse_pattern_variant_name := proc(variant_name: Str) returns VariantInfo {
         mut result := VariantInfo()
         result.variant_name = variant_name.clone()
         return result
-    catch (err: AllocError) { throw err.msg }
     }
+
+    catch (err: AllocError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 }
 
 /// Collect all variable declarations in a body (recursively) for hoisting
 /// Returns Vec of CollectedDeclaration structs
-collect_declarations_in_body := proc(body: Expr, mut context: Context) returns Vec {
+collect_declarations_in_body := proc(body: Expr, mut context: Context) returns Vec throws Str {
     mut decls := Vec.new(CollectedDeclaration)
     // Track collected declarations for lookups during type inference
     mut collected := Map.new(Str, ValueType)
@@ -7887,13 +7889,9 @@ collect_declarations_in_body := proc(body: Expr, mut context: Context) returns V
     }
 
     return decls
-
-    catch (err: AllocError) {
-        return decls
-    }
 }
 
-collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected: Map, mut context: Context) {
+collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected: Map, mut context: Context) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         // Add this declaration
