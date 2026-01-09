@@ -8005,7 +8005,7 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
 
     // Determine the type of the switch expression for proper comparison
     // Type inference may fail - that's okay, we'll use default
-    mut switch_type := ValueType.TVoid
+    mut switch_type := ValueType.TCustom("")
     mut has_switch_type := false
     switch_type = get_value_type(context, switch_expr)
     has_switch_type = true
@@ -8333,7 +8333,7 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
         case NodeType.Pattern(pattern_info):
             // Get the payload type from the enum definition
             info := parse_pattern_variant_name(pattern_info.variant_name)
-            mut payload_type_opt := ValueType.TVoid
+            mut payload_type_opt := ValueType.TCustom("")
             mut has_payload_type := false
             if has_switch_type {
                 switch switch_type {
