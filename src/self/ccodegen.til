@@ -3107,7 +3107,7 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                     mut default_expr := Expr()
                     struct_def.default_values.get(member_name, default_expr)
                     catch (err: KeyNotFoundError) {
-                        // REM: should not happen since we're iterating keys
+                        panic(loc(), "KeyNotFoundError iterating keys: ", err.msg)
                     }
                     switch default_expr.node_type {
                     case NodeType.FuncDef(func_def):
@@ -4642,9 +4642,12 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                     }
                     // Replace local_catch_labels with only the next catches
                     ctx.local_catch_labels.clear()
-                    for entry: MapEntry in next_catches.entries() {
-                        type_name := entry.key
-                        catch_info := entry.value
+                    for type_name: Str in next_catches.keys {
+                        mut catch_info := CatchLabelInfo()
+                        next_catches.get(type_name, catch_info)
+                        catch (err: KeyNotFoundError) {
+                            panic(loc(), "KeyNotFoundError iterating keys: ", err.msg)
+                        }
                         mut cli := CatchLabelInfo()
                         cli.label = catch_info.label.clone()
                         cli.temp_var = catch_info.temp_var.clone()
