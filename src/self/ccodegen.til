@@ -4452,7 +4452,7 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
     mut registered_types := Set.new(Str)
     for catch_entry: CatchLabelInfoEntry in all_catch_info {
         if not(registered_types.contains(catch_entry.type_name)) {
-            registered_types.insert(catch_entry.type_name.clone())
+            _ := registered_types.insert(catch_entry.type_name.clone())
             mut cli := CatchLabelInfo()
             cli.label = catch_entry.label.clone()
             cli.temp_var = catch_entry.temp_var.clone()
@@ -4495,7 +4495,7 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                     if catch_entry_found {
                         // Only emit if we haven't already emitted this label
                         if not(emitted_catch_labels.contains(catch_entry_label)) {
-                            emitted_catch_labels.insert(catch_entry_label.clone())
+                            _ := emitted_catch_labels.insert(catch_entry_label.clone())
 
                             output.push_str(indent_str)
                             output.push_str("if (0) { ")
