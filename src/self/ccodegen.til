@@ -4682,7 +4682,7 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
             variadic_fcall_info := detect_variadic_fcall(maybe_fcall, ctx)
             // Check that this is NOT a throwing function (those are handled above)
             fd := get_fcall_func_def(context, maybe_fcall)
-            is_throwing := not(fd.throw_types.is_empty())
+            mut is_throwing := not(fd.throw_types.is_empty())
             catch (err: KeyNotFoundError) {
                 is_throwing = false
             }
@@ -7603,8 +7603,8 @@ VariadicParamInfo := struct {
 
 // Info about a catch label for local throw/catch
 CatchLabelInfo := struct {
-    label: Str = ""
-    temp_var: Str = ""
+    mut label: Str = ""
+    mut temp_var: Str = ""
 }
 
 // Result type for hoisted arguments
