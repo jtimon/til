@@ -226,12 +226,12 @@ get_type_arg_name := func(expr: Expr, context: Context) returns Str throws KeyNo
 // Returns None for struct/enum constructors
 get_fcall_func_def := func(context: Context, fcall_expr: Expr) returns SFuncDef throws KeyNotFoundError {
     mut expr_clone := fcall_expr.clone()
+    result := get_func_def_for_fcall_with_expr(context, expr_clone)
 
-    catch (err: AllocError) {
-        throw KeyNotFoundError(msg=err.msg)
-    }
+    catch (err: AllocError) { throw KeyNotFoundError(msg=err.msg) }
+    catch (err: Str) { throw KeyNotFoundError(msg=err) }
 
-    return get_func_def_for_fcall_with_expr(context, expr_clone)
+    return result
 }
 
 /// Bug #60: Determine if a parameter should be passed by reference (pointer)
