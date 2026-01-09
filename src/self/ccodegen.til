@@ -95,7 +95,7 @@ til_name := func(name: Str) returns Str throws Str {
 
 // Emit a struct literal, using compound literal syntax if already_declared
 // e.g., " = {0}" vs " = (til_TypeName){0}"
-emit_struct_literal_assign := proc(mut output: Str, type_name: Str, already_declared: Bool, literal_content: Str) throws Str {
+emit_struct_literal_assign := proc(mut output: Str, type_name: Str, already_declared: Bool, literal_content: Str) {
     output.push_str(" = ")
     if already_declared {
         output.push_str("(")
@@ -108,7 +108,7 @@ emit_struct_literal_assign := proc(mut output: Str, type_name: Str, already_decl
 
 // Start a struct literal assignment - caller will emit content and closing brace
 // e.g., " = " vs " = (til_TypeName)"
-emit_struct_literal_start := proc(mut output: Str, type_name: Str, already_declared: Bool) throws Str {
+emit_struct_literal_start := proc(mut output: Str, type_name: Str, already_declared: Bool) {
     output.push_str(" = ")
     if already_declared {
         output.push_str("(")
