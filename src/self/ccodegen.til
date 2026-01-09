@@ -5146,7 +5146,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // Check if this is a variadic function call and construct array BEFORE the call
     variadic_info := detect_variadic_fcall(fcall, ctx)
-    variadic_arr_var := hoist_variadic_args(variadic_info.elem_type, fcall.params, hoisted, variadic_info.regular_count, output, indent, ctx, context)
+    mut variadic_arr_var := hoist_variadic_args(variadic_info.elem_type, fcall.params, hoisted, variadic_info.regular_count, output, indent, ctx, context)
     mut has_variadic := true
     catch (err: KeyNotFoundError) {
         has_variadic = false
