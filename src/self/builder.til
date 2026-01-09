@@ -113,9 +113,6 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
     catch (err: AllocError) {
         throw err.msg
     }
-    catch (err: DuplicateKeyError) {
-        // REM: ignore duplicate key errors
-    }
 }
 
 // Merge multiple ASTs into one, filtering out import statements

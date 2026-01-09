@@ -2448,6 +2448,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
 }
 
 // Emit C code from AST (multi-pass architecture)
@@ -2951,9 +2952,6 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
 }
 
 // Check if an expression is a non-constant top-level declaration that needs to be a global
@@ -3073,7 +3071,7 @@ collect_func_info := proc(expr: Expr, ctx: CodegenContext) throws Str {
                         info := VariadicParamInfo()
                         info.elem_type = elem_type.clone()
                         info.regular_count = idx
-                        ctx.func_variadic_args.insert(decl.name.clone(), info)
+                        ctx.func_variadic_args.set(decl.name.clone(), info)
                         break // Only one variadic arg per function
                     case:
                     }
@@ -3096,7 +3094,7 @@ collect_func_info := proc(expr: Expr, ctx: CodegenContext) throws Str {
                                 info := VariadicParamInfo()
                                 info.elem_type = elem_type.clone()
                                 info.regular_count = idx
-                                ctx.func_variadic_args.insert(mangled_name.clone(), info)
+                                ctx.func_variadic_args.set(mangled_name.clone(), info)
                                 break
                             case:
                             }
@@ -3131,7 +3129,7 @@ collect_nested_func_info := proc(expr: Expr, ctx: CodegenContext, parent_func_na
                 if not(parent_func_name.eq("")) {
                     // This is a nested function - record it for hoisting
                     mangled_name := Str.concat(parent_func_name, "_", decl.name)
-                    ctx.nested_func_names.insert(decl.name.clone(), mangled_name.clone())
+                    ctx.nested_func_names.set(decl.name.clone(), mangled_name.clone())
 
                     // Generate prototype using emit_func_signature (handles throwing functions properly)
                     mut proto := ""
@@ -3691,7 +3689,6 @@ emit_struct_func_prototypes := proc(expr: Expr, output: Str) throws Str {
                         output.push_str(";\n")
                     case:
                     }
-                    catch (err: KeyNotFoundError) { }
                 }
             case:
             }
@@ -3726,7 +3723,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
         switch arg.value_type {
         case ValueType.TMulti(elem_type):
             // elem_type is the type name string like "Bool"
-            ctx.current_variadic_params.insert(arg.name.clone(), til_name(elem_type))
+            ctx.current_variadic_params.set(arg.name.clone(), til_name(elem_type))
         case:
         }
     }
@@ -3742,7 +3739,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
         info.is_copy = arg.is_copy
         info.is_own = arg.is_own
         info.is_comptime_const = false
-        function_frame.symbols.insert(arg.name.clone(), info)
+        function_frame.symbols.set(arg.name.clone(), info)
     }
     context.scope_stack.frames.push(function_frame)
 
@@ -3807,7 +3804,6 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, ctx: CodegenContext, co
                         emit_struct_func_body(struct_name, member, func_def, output, ctx, context)
                     case:
                     }
-                    catch (err: KeyNotFoundError) { }
                 }
             case:
             }
@@ -4053,7 +4049,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, cont
                     switch arg.value_type {
                     case ValueType.TMulti(elem_type):
                         // elem_type is the type name string like "Bool"
-                        ctx.current_variadic_params.insert(arg.name.clone(), til_name(elem_type))
+                        ctx.current_variadic_params.set(arg.name.clone(), til_name(elem_type))
                     case:
                     }
                 }
@@ -4076,7 +4072,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, cont
                     info.is_copy = arg.is_copy
                     info.is_own = arg.is_own
                     info.is_comptime_const = false
-                    function_frame.symbols.insert(arg.name.clone(), info)
+                    function_frame.symbols.set(arg.name.clone(), info)
                 }
                 context.scope_stack.frames.push(function_frame)
 
@@ -4290,9 +4286,6 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, ctx: CodegenContext, con
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
 }
 
 emit_body := proc(expr: Expr, output: Str, indent: I64, ctx: CodegenContext, context: Context) throws Str {
@@ -4412,7 +4405,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, co
             mut cli := CatchLabelInfo()
             cli.label = catch_entry.label.clone()
             cli.temp_var = catch_entry.temp_var.clone()
-            ctx.local_catch_labels.insert(catch_entry.type_name.clone(), cli)
+            ctx.local_catch_labels.set(catch_entry.type_name.clone(), cli)
         }
     }
 
@@ -4553,7 +4546,6 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, co
                 if func_name.eq("eval_file").or(func_name.eq("eval_to_str")).or(func_name.eq("eval_to_ast_str")).or(func_name.eq("eval_to_expr")) {
                     throw maybe_fcall.error(context.path, "ccodegen", Str.concat(func_name, "() is only available in interpret mode, not in build/run"))
                 }
-                catch (err: KeyNotFoundError) { }
             }
 
             // Get function name from the FCall
@@ -4599,7 +4591,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, co
                             mut cli := CatchLabelInfo()
                             cli.label = catch_entry.label.clone()
                             cli.temp_var = catch_entry.temp_var.clone()
-                            next_catches.insert(catch_entry.type_name.clone(), cli)
+                            next_catches.set(catch_entry.type_name.clone(), cli)
                         }
                     }
                     // Replace local_catch_labels with only the next catches
@@ -4610,7 +4602,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, co
                         mut cli := CatchLabelInfo()
                         cli.label = catch_info.label.clone()
                         cli.temp_var = catch_info.temp_var.clone()
-                        ctx.local_catch_labels.insert(type_name.clone(), cli)
+                        ctx.local_catch_labels.set(type_name.clone(), cli)
                     }
                     emit_throwing_call_with_goto(maybe_fcall, throw_types, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)
                     i.inc()
@@ -4642,9 +4634,6 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, ctx: CodegenContext, co
                 emit_variadic_call(maybe_fcall, variadic_fcall_info.elem_type, variadic_fcall_info.regular_count, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)
                 i.inc()
                 continue
-            }
-            catch (err: KeyNotFoundError) {
-                // Not a variadic call, continue
             }
         }
 
@@ -4738,7 +4727,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
     if fcall.params.len().gt(1) {
         hoisted_vec := hoist_throwing_args(fcall.params, 1, output, indent, ctx, context)
         for h: HoistedArg in hoisted_vec {
-            hoisted.insert(h.index, h.temp_var)
+            hoisted.set(h.index, h.temp_var)
         }
     }
 
@@ -4913,13 +4902,6 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
     output.push_str("Array_delete(&")
     output.push_str(variadic_arr_var)
     output.push_str(");\n")
-
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: AllocError) {
-        throw err.msg
-    }
 }
 
 /// Emit a call to a throwing function with catch handling
@@ -4979,7 +4961,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     if fcall.params.len().gt(1) {
         hoisted_vec := hoist_throwing_args(fcall.params, 1, output, indent, ctx, context)
         for h: HoistedArg in hoisted_vec {
-            hoisted.insert(h.index, h.temp_var)
+            hoisted.set(h.index, h.temp_var)
         }
     }
 
@@ -4987,7 +4969,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     if fcall.params.len().gt(1) {
         dynamic_hoisted := hoist_for_dynamic_params(fcall.params, param_types, hoisted, output, indent, ctx, context)
         for h: HoistedArg in dynamic_hoisted {
-            hoisted.insert(h.index, h.temp_var)
+            hoisted.set(h.index, h.temp_var)
         }
     }
 
@@ -4995,7 +4977,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     if fcall.params.len().gt(1) {
         ref_hoisted := hoist_for_ref_params(fcall.params, param_by_ref, hoisted, output, indent, ctx, context)
         for h: HoistedArg in ref_hoisted {
-            hoisted.insert(h.index, h.temp_var)
+            hoisted.set(h.index, h.temp_var)
         }
     }
 
@@ -5124,7 +5106,6 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         }
         output.push_str("&")
         output.push_str(variadic_arr_var)
-        catch (err: KeyNotFoundError) { }
     } else {
         // Non-variadic: emit all args directly
         mut args_started := false
@@ -5331,7 +5312,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if fcall.params.len().gt(1) {
         hoisted_vec := hoist_throwing_args(fcall.params, 1, output, indent, ctx, context)
         for h: HoistedArg in hoisted_vec {
-            hoisted.insert(h.index, h.temp_var)
+            hoisted.set(h.index, h.temp_var)
         }
     }
 
@@ -5339,7 +5320,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if fcall.params.len().gt(1) {
         dynamic_hoisted := hoist_for_dynamic_params(fcall.params, param_types, hoisted, output, indent, ctx, context)
         for h: HoistedArg in dynamic_hoisted {
-            hoisted.insert(h.index, h.temp_var)
+            hoisted.set(h.index, h.temp_var)
         }
     }
 
@@ -5347,7 +5328,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if fcall.params.len().gt(1) {
         ref_hoisted := hoist_for_ref_params(fcall.params, param_by_ref, hoisted, output, indent, ctx, context)
         for h: HoistedArg in ref_hoisted {
-            hoisted.insert(h.index, h.temp_var)
+            hoisted.set(h.index, h.temp_var)
         }
     }
 
@@ -5469,7 +5450,6 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         }
         output.push_str("&")
         output.push_str(variadic_arr_var)
-        catch (err: KeyNotFoundError) { }
     } else {
         mut args_started := false
         mut arg_i := 0
@@ -5628,7 +5608,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if fcall.params.len().gt(1) {
         hoisted_vec := hoist_throwing_args(fcall.params, 1, output, indent, ctx, context)
         for h: HoistedArg in hoisted_vec {
-            hoisted.insert(h.index, h.temp_var)
+            hoisted.set(h.index, h.temp_var)
         }
     }
 
@@ -5636,7 +5616,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if fcall.params.len().gt(1) {
         dynamic_hoisted := hoist_for_dynamic_params(fcall.params, param_types, hoisted, output, indent, ctx, context)
         for h: HoistedArg in dynamic_hoisted {
-            hoisted.insert(h.index, h.temp_var)
+            hoisted.set(h.index, h.temp_var)
         }
     }
 
@@ -5644,7 +5624,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if fcall.params.len().gt(1) {
         ref_hoisted := hoist_for_ref_params(fcall.params, param_by_ref, hoisted, output, indent, ctx, context)
         for h: HoistedArg in ref_hoisted {
-            hoisted.insert(h.index, h.temp_var)
+            hoisted.set(h.index, h.temp_var)
         }
     }
 
@@ -5750,9 +5730,6 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     // Emit arguments
     mut args_started := false
     regular_arg_count := variadic_info.regular_count
-    catch (err: KeyNotFoundError) {
-        regular_arg_count = 9999999  // MAX
-    }
     mut arg_i := 0
     for arg: Expr in fcall.params {
         if arg_i.eq(0) {
@@ -6461,9 +6438,6 @@ emit_declaration := proc(decl: SDeclaration, expr: Expr, mut output: Str, indent
     catch (err: AllocError) {
         throw err.msg
     }
-    catch (err: DuplicateKeyError) {
-        // REM: ignore duplicate key errors from Map.set
-    }
 }
 
 // Check if an expression is a struct construction call (TypeName() or TypeName(x=1, y=2))
@@ -6615,6 +6589,7 @@ emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut
 
         // Hoist any throwing function calls nested in the RHS expression
         _ := hoist_throwing_expr(rhs_expr, output, indent, ctx, context)
+        catch (err: KeyNotFoundError) { }
     }
 
     // Regular assignment
@@ -7444,9 +7419,6 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
 }
 
 emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
@@ -7546,9 +7518,6 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     output.push_str("}\n")
 
     catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: AllocError) {
         throw err.msg
     }
 }
@@ -7740,9 +7709,6 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         collected.set(decl.name.clone(), value_type.clone())
         catch (err: AllocError) {
             // REM: ignore alloc error
-        }
-        catch (err: DuplicateKeyError) {
-            // REM: already exists, that's ok
         }
         // Also add to scope_stack so get_value_type can find it for subsequent declarations
         mut symbol_info := SymbolInfo()
@@ -8888,9 +8854,6 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     }
     catch (err: AllocError) {
         throw err.msg
-    }
-    catch (err: DuplicateKeyError) {
-        // REM: ignore duplicate key errors
     }
 }
 
