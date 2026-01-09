@@ -4100,7 +4100,7 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 // Register function parameters in the frame
                 // For variadic params (TMulti), register as Array type
                 for arg: Declaration in func_def.args {
-                    mut value_type := arg.value_type.clone()
+                    mut value_type := arg.value_type
                     switch arg.value_type {
                     case ValueType.TMulti(elem):
                         value_type = ValueType.TCustom("Array")
