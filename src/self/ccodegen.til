@@ -5192,9 +5192,12 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             if needs_ret.or(not(throw_types.is_empty())).or(arg_i.gt(0)) {
                 output.push_str(", ")
             }
-            arg := fcall.params.get(arg_i.add(1))  // +1 to skip func name
-            by_ref := param_by_ref.get(arg_i)
-            param_type := param_types.get(arg_i)
+            mut arg := Expr()
+            fcall.params.get(arg_i.add(1), arg)  // +1 to skip func name
+            mut by_ref := false
+            param_by_ref.get(arg_i, by_ref)
+            mut param_type := ValueType.TCustom(INFER_TYPE)
+            param_types.get(arg_i, param_type)
             emit_arg_with_param_type(arg, arg_i, hoisted, param_type, by_ref, output, ctx, context)
             arg_i.inc()
             catch (err: IndexOutOfBoundsError) { }
@@ -5217,8 +5220,10 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             if needs_ret.or(not(throw_types.is_empty())).or(args_started) {
                 output.push_str(", ")
             }
-            by_ref := param_by_ref.get(arg_i.sub(1))
-            param_type := param_types.get(arg_i.sub(1))
+            mut by_ref := false
+            param_by_ref.get(arg_i.sub(1), by_ref)
+            mut param_type := ValueType.TCustom(INFER_TYPE)
+            param_types.get(arg_i.sub(1), param_type)
             emit_arg_with_param_type(arg, arg_i.sub(1), hoisted, param_type, by_ref, output, ctx, context)
             args_started = true
             arg_i.inc()
