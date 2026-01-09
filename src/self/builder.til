@@ -361,9 +361,6 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     parent_dir := fs_parent_dir(source_output_path)
     if not(parent_dir.is_empty()) {
         fs_mkdir_p(parent_dir)
-        catch (err: FsError) {
-            // REM: ignore mkdir errors
-        }
     }
     write_err := writefile(source_output_path, c_code)
     if not(write_err.is_empty()) {
@@ -392,9 +389,6 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     bin_parent_dir := fs_parent_dir(exe_path_str)
     if not(bin_parent_dir.is_empty()) {
         fs_mkdir_p(bin_parent_dir)
-        catch (err: FsError) {
-            // REM: ignore mkdir errors
-        }
     }
 
     // Build command with extra args for target
@@ -418,12 +412,5 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         return exe_path_str
     } else {
         throw compiler.concat(" failed with exit code ").concat(exit_code.to_str())
-    }
-
-    catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: DuplicateKeyError) {
-        // REM: ignore duplicate key errors
     }
 }

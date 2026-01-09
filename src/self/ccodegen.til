@@ -104,8 +104,6 @@ emit_struct_literal_assign := proc(mut output: Str, type_name: Str, already_decl
     }
     output.push_str(literal_content)
     output.push_str(";\n")
-
-    catch (err: AllocError) { throw err.msg }
 }
 
 // Start a struct literal assignment - caller will emit content and closing brace
@@ -117,8 +115,6 @@ emit_struct_literal_start := proc(mut output: Str, type_name: Str, already_decla
         output.push_str(til_name(type_name))
         output.push_str(")")
     }
-
-    catch (err: AllocError) { throw err.msg }
 }
 
 // Returns the C name for a TIL function - adds TIL_PREFIX and converts dots to underscores
@@ -161,7 +157,6 @@ get_func_name_string := func(first_param: Expr) returns Str throws Str {
     }
 
     catch (err: AllocError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
 }
 
 // Get TIL function name from FCall's first param (for scope lookups)
@@ -192,7 +187,6 @@ get_til_func_name_string := func(first_param: Expr) returns Str throws Str {
     }
 
     catch (err: AllocError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
 }
 
 /// Check if an expression is a type identifier (a Type parameter at call site)

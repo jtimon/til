@@ -121,10 +121,6 @@ run_file_or_exit := proc(path: Str, target: Target, lang: Lang, extra_args: Vec)
 
     // Run the compiled binary with any extra arguments
     exit_code := run_cmd_vec(exe_path, extra_args)
-    catch (err: AllocError) {
-        println("Failed to run '", exe_path, "': ", err.msg)
-        exit(1)
-    }
     if not(exit_code.eq(0)) {
         exit(exit_code)
     }
