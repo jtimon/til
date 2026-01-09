@@ -3802,7 +3802,8 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     ctx.mangling_counter = prev_mangling_counter
 
     // Pop the function scope frame
-    context.scope_stack.frames.pop()
+    mut _popped_frame := ScopeFrame()
+    context.scope_stack.frames.pop(_popped_frame)
 
     // Clear current function context
     ctx.current_throw_types.clear()
@@ -4141,7 +4142,8 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 output.push_str("}\n\n")
 
                 // Pop the function scope frame
-                context.scope_stack.frames.pop()
+                mut _popped_frame := ScopeFrame()
+                context.scope_stack.frames.pop(_popped_frame)
 
                 // Restore previous function name and counter
                 ctx.current_function_name = prev_function_name
@@ -5990,7 +5992,8 @@ emit_declaration := proc(decl: SDeclaration, expr: Expr, mut output: Str, indent
                 func_output.push_str("}\n\n")
 
                 // Pop scope frame
-                _ := context.scope_stack.frames.pop()
+                mut _popped_frame := ScopeFrame()
+                context.scope_stack.frames.pop(_popped_frame)
 
                 // Restore context
                 ctx.current_throw_types = prev_throw_types
