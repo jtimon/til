@@ -136,8 +136,7 @@ til_func_name := func(name: Str) returns Str throws Str {
 // Returns the C-ready name with underscores (not dots)
 get_func_name_string := func(first_param: Expr) returns Str throws Str {
     switch first_param.node_type {
-    case NodeType.Identifier:
-        name := first_param.node_type.s1
+    case NodeType.Identifier(name):
         if first_param.params.is_empty() {
             return name.replace(".", "_")
         } else {
@@ -145,8 +144,8 @@ get_func_name_string := func(first_param: Expr) returns Str throws Str {
             parts.push(name)
             for p: Expr in first_param.params {
                 switch p.node_type {
-                case NodeType.Identifier:
-                    parts.push(p.node_type.s1)
+                case NodeType.Identifier(part_name):
+                    parts.push(part_name)
                 case:
                 }
             }
@@ -164,8 +163,7 @@ get_func_name_string := func(first_param: Expr) returns Str throws Str {
 // This avoids the fragile .replacen('_', ".", 1) hack which breaks on type names with underscores
 get_til_func_name_string := func(first_param: Expr) returns Str throws Str {
     switch first_param.node_type {
-    case NodeType.Identifier:
-        name := first_param.node_type.s1
+    case NodeType.Identifier(name):
         if first_param.params.is_empty() {
             // Already has dots (from precomp) or is a simple name
             return name
@@ -175,8 +173,8 @@ get_til_func_name_string := func(first_param: Expr) returns Str throws Str {
             parts.push(name)
             for p: Expr in first_param.params {
                 switch p.node_type {
-                case NodeType.Identifier:
-                    parts.push(p.node_type.s1)
+                case NodeType.Identifier(part_name):
+                    parts.push(part_name)
                 case:
                 }
             }
@@ -195,8 +193,7 @@ get_til_func_name_string := func(first_param: Expr) returns Str throws Str {
 /// Only matches STANDALONE identifiers - not field access like Vec.INIT_CAP
 get_type_arg_name := func(expr: Expr, context: Context) returns Str throws KeyNotFoundError {
     switch expr.node_type {
-    case NodeType.Identifier:
-        name := expr.node_type.s1
+    case NodeType.Identifier(name):
         // Only match standalone identifiers (no field access)
         if not(expr.params.is_empty()) {
             throw KeyNotFoundError(msg="field access, not type arg")
@@ -238,8 +235,8 @@ param_needs_by_ref := func(param: Declaration) returns Bool {
     }
     // Type is already a pointer type in C (const char*), no extra indirection needed
     switch param.value_type {
-    case ValueType.TCustom:
-        if param.value_type.s1.eq("Type") {
+    case ValueType.TCustom(type_name):
+        if type_name.eq("Type") {
             return false
         }
         return true
@@ -252,8 +249,7 @@ param_needs_by_ref := func(param: Declaration) returns Bool {
 /// Returns the type name if it's a custom type that needs to be defined first
 get_field_type_dependency := func(value_type: ValueType) returns Str throws KeyNotFoundError {
     switch value_type {
-    case ValueType.TCustom:
-        name := value_type.s1
+    case ValueType.TCustom(name):
         // I64 and U8 are primitives, not struct dependencies
         switch name {
         case "I64":
@@ -280,8 +276,7 @@ get_struct_dependencies := func(expr: Expr) returns Vec throws AllocError, Str {
             mut first_param := Expr()
             expr.params.get(0, first_param)
             switch first_param.node_type {
-            case NodeType.StructDef:
-                struct_def := first_param.node_type.struct_def
+            case NodeType.StructDef(struct_def):
                 for member: Declaration in struct_def.members {
                     if member.is_mut {
                         dep := get_field_type_dependency(member.value_type)
@@ -305,8 +300,7 @@ get_struct_dependencies := func(expr: Expr) returns Vec throws AllocError, Str {
 /// Get struct name from a struct declaration expression
 get_struct_name := func(expr: Expr) returns Str throws KeyNotFoundError, Str {
     switch expr.node_type {
-    case NodeType.Declaration:
-        decl := expr.node_type.decl
+    case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
             mut first_param := Expr()
             expr.params.get(0, first_param)
@@ -333,15 +327,13 @@ get_enum_dependencies := func(expr: Expr) returns Vec throws AllocError, Str {
             mut first_param := Expr()
             expr.params.get(0, first_param)
             switch first_param.node_type {
-            case NodeType.EnumDef:
-                enum_def := first_param.node_type.enum_def
+            case NodeType.EnumDef(enum_def):
                 for variant: EnumVariant in enum_def {
                     if not(variant.payload_type.is_null()) {
                         mut pt := ValueType.TCustom("")
                         memcpy(to_ptr(pt), variant.payload_type.data, size_of(ValueType))
                         switch pt {
-                        case ValueType.TCustom:
-                            type_name := pt.s1
+                        case ValueType.TCustom(type_name):
                             // Skip primitives (but NOT Str or Bool - they're structs)
                             if not(type_name.eq("I64")).and(not(type_name.eq("U8"))).and(not(type_name.eq("Dynamic"))).and(not(type_name.eq("Type"))) {
                                 deps.push(type_name.clone())
@@ -364,8 +356,7 @@ get_enum_dependencies := func(expr: Expr) returns Vec throws AllocError, Str {
 /// Get enum name from an enum-with-payloads declaration expression
 get_enum_name := func(expr: Expr) returns Str throws KeyNotFoundError, Str {
     switch expr.node_type {
-    case NodeType.Declaration:
-        decl := expr.node_type.decl
+    case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
             mut first_param := Expr()
             expr.params.get(0, first_param)
@@ -594,8 +585,7 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
             mut err_idx := 0
             for throw_type: ValueType in throwing_fd.throw_types {
                 switch throw_type {
-                case ValueType.TCustom:
-                    type_name := throw_type.s1
+                case ValueType.TCustom(type_name):
                     output.push_str(indent_str)
                     output.push_str(til_name(type_name))
                     output.push_str(" _err")
@@ -648,8 +638,7 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
             mut has_local_catch := false
             for throw_type: ValueType in throwing_fd.throw_types {
                 switch throw_type {
-                case ValueType.TCustom:
-                    type_name := throw_type.s1
+                case ValueType.TCustom(type_name):
                     if ctx.local_catch_labels.contains_key(type_name) {
                         has_local_catch = true
                         break
@@ -663,8 +652,7 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
                 err_idx = 0
                 for throw_type: ValueType in throwing_fd.throw_types {
                     switch throw_type {
-                    case ValueType.TCustom:
-                        type_name := throw_type.s1
+                    case ValueType.TCustom(type_name):
                         if ctx.local_catch_labels.contains_key(type_name) {
                             mut catch_info := CatchLabelInfo()
                             ctx.local_catch_labels.get(type_name, catch_info)
@@ -697,13 +685,11 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
                 err_idx = 0
                 for throw_type: ValueType in throwing_fd.throw_types {
                     switch throw_type {
-                    case ValueType.TCustom:
-                        type_name := throw_type.s1
+                    case ValueType.TCustom(type_name):
                         mut curr_idx := 0
                         for curr_throw: ValueType in ctx.current_throw_types {
                             switch curr_throw {
-                            case ValueType.TCustom:
-                                curr_type_name := curr_throw.s1
+                            case ValueType.TCustom(curr_type_name):
                                 if curr_type_name.eq(type_name) {
                                     output.push_str(indent_str)
                                     output.push_str("    if (_status_")
@@ -913,8 +899,7 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
                 mut arg := Expr()
                 expr.params.get(m, arg)
                 switch arg.node_type {
-                case NodeType.NamedArg:
-                    field_name := arg.node_type.s1
+                case NodeType.NamedArg(field_name):
                     provided_names.insert(field_name)
                 case:
                 }
@@ -1066,8 +1051,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             mut err_idx := 0
             for throw_type: ValueType in throwing_fd.throw_types {
                 switch throw_type {
-                case ValueType.TCustom:
-                    type_name := throw_type.s1
+                case ValueType.TCustom(type_name):
                     output.push_str(indent_str)
                     output.push_str(til_name(type_name))
                     output.push_str(" _err")
@@ -1128,14 +1112,12 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             err_idx = 0
             for throw_type: ValueType in throwing_fd.throw_types {
                 switch throw_type {
-                case ValueType.TCustom:
-                    type_name := throw_type.s1
+                case ValueType.TCustom(type_name):
                     // Find matching throw type in current function
                     mut curr_idx := 0
                     for curr_throw: ValueType in ctx.current_throw_types {
                         switch curr_throw {
-                        case ValueType.TCustom:
-                            curr_type_name := curr_throw.s1
+                        case ValueType.TCustom(curr_type_name):
                             if curr_type_name.eq(type_name) {
                                 output.push_str(indent_str)
                                 output.push_str("    if (_status_")
@@ -1396,8 +1378,8 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
             mut ptype := ValueType.TCustom("")
             param_types.get(idx, ptype)
             switch ptype {
-            case ValueType.TCustom:
-                if ptype.s1.eq("Dynamic") {
+            case ValueType.TCustom(ptype_name):
+                if ptype_name.eq("Dynamic") {
                     is_dynamic = true
                 }
             case:
@@ -1416,8 +1398,8 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
             // Simple identifier with no params is an lvalue, doesn't need hoisting
             // But identifier with params (type-qualified call like I64.to_str) does need hoisting
             needs_hoisting = not(arg.params.is_empty())
-        case NodeType.LLiteral:
-            switch arg.node_type.literal {
+        case NodeType.LLiteral(lit):
+            switch lit {
             case Literal.Str:
                 needs_hoisting = true  // String literals need hoisting
             case:
@@ -1436,8 +1418,8 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
         // Determine the C type of the arg based on what it is
         mut c_type := ""
         switch arg.node_type {
-        case NodeType.LLiteral:
-            switch arg.node_type.literal {
+        case NodeType.LLiteral(lit2):
+            switch lit2 {
             case Literal.Str:
                 c_type = format(TIL_PREFIX, "Str")
             case Literal.Number:
@@ -1446,15 +1428,13 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                 c_type = "int64_t"  // TODO: proper list type
             case:
             }
-        case NodeType.Identifier:
-            name := arg.node_type.s1
+        case NodeType.Identifier(name):
             if not(arg.params.is_empty()) {
                 // Could be: enum constructor (Type.Variant), field access (var.field), or method call
                 mut first_param := Expr()
                 arg.params.get(0, first_param)
                 switch first_param.node_type {
-                case NodeType.Identifier:
-                    field_or_variant := first_param.node_type.s1
+                case NodeType.Identifier(field_or_variant):
                     // Check if this is an enum constructor
                     enum_def := context.scope_stack.lookup_enum(name)
                     mut is_enum_variant := false
@@ -1475,8 +1455,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                         }
                         // Field access - look up variable's type, then field's type
                         switch sym.value_type {
-                        case ValueType.TCustom:
-                            struct_name := sym.value_type.s1
+                        case ValueType.TCustom(struct_name):
                             struct_def := context.scope_stack.lookup_struct(struct_name)
                             catch (err: KeyNotFoundError) {
                                 throw arg.lang_error(context.path, "ccodegen", format("Struct not found: ", struct_name))
@@ -1618,8 +1597,7 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
         // Check if arg needs hoisting (rvalues that can't have & taken)
         mut needs_hoisting := false
         switch arg.node_type {
-        case NodeType.Identifier:
-            name := arg.node_type.s1
+        case NodeType.Identifier(name):
             // Simple identifier is lvalue - doesn't need hoisting
             // But type-qualified calls like I64.to_str need hoisting
             if arg.params.is_empty() {
@@ -1646,8 +1624,8 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
                     needs_hoisting = not(has_variable).and(not(has_function))
                 }
             }
-        case NodeType.LLiteral:
-            switch arg.node_type.literal {
+        case NodeType.LLiteral(lit):
+            switch lit {
             case Literal.Str:
                 needs_hoisting = false  // Compound literal, can use &
             case Literal.Number:
@@ -1677,8 +1655,8 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
         // Determine the C type based on what the arg evaluates to
         mut c_type := ""
         switch arg.node_type {
-        case NodeType.LLiteral:
-            switch arg.node_type.literal {
+        case NodeType.LLiteral(lit):
+            switch lit {
             case Literal.Number:
                 c_type = format(TIL_PREFIX, "I64")
             case:
@@ -1696,15 +1674,13 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
             } else {
                 throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
             }
-        case NodeType.Identifier:
-            var_name := arg.node_type.s1
+        case NodeType.Identifier(var_name):
             if not(arg.params.is_empty()) {
                 // Type-qualified method call like I64.to_str(x) - look up return type
                 mut first_param := Expr()
                 arg.params.get(0, first_param)
                 switch first_param.node_type {
-                case NodeType.Identifier:
-                    method_name := first_param.node_type.s1
+                case NodeType.Identifier(method_name):
                     // Look up Type.method function
                     func_name := format(var_name, ".", method_name)
                     fd := context.scope_stack.lookup_func(func_name)
@@ -1850,8 +1826,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     mut curr_idx := 0
     for curr_throw: ValueType in ctx.current_throw_types {
         switch curr_throw {
-        case ValueType.TCustom:
-            curr_type_name := curr_throw.s1
+        case ValueType.TCustom(curr_type_name):
             if curr_type_name.eq("AllocError") {
                 output.push_str(indent_str)
                 output.push_str("    *_err")
@@ -1909,8 +1884,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         curr_idx = 0
         for curr_throw: ValueType in ctx.current_throw_types {
             switch curr_throw {
-            case ValueType.TCustom:
-                curr_type_name := curr_throw.s1
+            case ValueType.TCustom(curr_type_name):
                 if curr_type_name.eq("IndexOutOfBoundsError") {
                     output.push_str(indent_str)
                     output.push_str("    *_err")
@@ -2105,8 +2079,8 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
             output.push_str("&")
         } else {
             switch param_type {
-            case ValueType.TCustom:
-                if param_type.s1.eq("Dynamic") {
+            case ValueType.TCustom(param_type_name):
+                if param_type_name.eq("Dynamic") {
                     output.push_str("&")
                 }
             case:
@@ -2144,8 +2118,8 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
     // Must check BEFORE the general mut check since Dynamic needs casting
     mut is_dynamic := false
     switch param_type {
-    case ValueType.TCustom:
-        if param_type.s1.eq("Dynamic") {
+    case ValueType.TCustom(param_type_name):
+        if param_type_name.eq("Dynamic") {
             is_dynamic = true
         }
     case:
@@ -2154,8 +2128,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
     if is_dynamic {
         // Check if arg is a simple identifier (can take address directly)
         switch arg.node_type {
-        case NodeType.Identifier:
-            name := arg.node_type.s1
+        case NodeType.Identifier(name):
             if arg.params.is_empty() {
                 // Check if this identifier is already a pointer:
                 // - mut params are passed as pointers
@@ -2165,8 +2138,8 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                 mut is_dynamic_var := false
                 sym := context.scope_stack.lookup_symbol(name)
                 switch sym.value_type {
-                case ValueType.TCustom:
-                    if sym.value_type.s1.eq("Dynamic") {
+                case ValueType.TCustom(type_name):
+                    if type_name.eq("Dynamic") {
                         is_dynamic_var = true
                     }
                 case:
@@ -2192,8 +2165,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                     mut first_param := Expr()
                     arg.params.get(0, first_param)
                     switch first_param.node_type {
-                    case NodeType.Identifier:
-                        field_name := first_param.node_type.s1
+                    case NodeType.Identifier(field_name):
                         combined := format(name, ".", field_name)
                         if context.scope_stack.is_enum_constructor(combined) {
                             // Enum constructor passed as Dynamic - need temp variable
@@ -2225,8 +2197,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                 mut i := 0
                 for param: Expr in arg.params {
                     switch param.node_type {
-                    case NodeType.Identifier:
-                        field := param.node_type.s1
+                    case NodeType.Identifier(field):
                         if base_is_pointer.and(i.eq(0)) {
                             output.push_str("->")
                         } else {
@@ -2267,8 +2238,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
     // Check if param is mut (but not Dynamic) - emit &arg for pointer
     if param_by_ref {
         switch arg.node_type {
-        case NodeType.Identifier:
-            name := arg.node_type.s1
+        case NodeType.Identifier(name):
             if arg.params.is_empty() {
                 // Check if this identifier is already a mut param (already a pointer)
                 // or a variadic param (also a pointer) - don't add & again
@@ -2288,8 +2258,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                     mut first_param := Expr()
                     arg.params.get(0, first_param)
                     switch first_param.node_type {
-                    case NodeType.Identifier:
-                        field_name := first_param.node_type.s1
+                    case NodeType.Identifier(field_name):
                         // Check if 'name' is a struct type and 'field_name' is a constant
                         struct_def := context.scope_stack.lookup_struct(name)
                         catch (err: KeyNotFoundError) { }
@@ -2351,8 +2320,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                 mut i := 0
                 for param: Expr in arg.params {
                     switch param.node_type {
-                    case NodeType.Identifier:
-                        field := param.node_type.s1
+                    case NodeType.Identifier(field):
                         if base_is_pointer.and(i.eq(0)) {
                             output.push_str("->")
                         } else {
@@ -2372,8 +2340,8 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
         // - FCall results are rvalues, use compound literal: &(Type){fcall()}
         // - I64 literals use compound literal: &(til_I64){42}
         switch arg.node_type {
-        case NodeType.LLiteral:
-            switch arg.node_type.literal {
+        case NodeType.LLiteral(lit):
+            switch lit {
             case Literal.Str:
                 output.push_str("&")
                 emit_expr(arg, output, 0, ctx, context)
@@ -2397,8 +2365,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                 // Use get_value_type to infer the result type
                 vt := get_value_type(context, arg)
                 switch vt {
-                case ValueType.TCustom:
-                    type_name := vt.s1
+                case ValueType.TCustom(type_name):
                     // Custom type constructor - use statement expression
                     c_type := format(TIL_PREFIX, type_name)
                     temp_var := next_mangled(ctx)
@@ -2426,8 +2393,8 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                 // I64 is the only simple typedef - all others are structs
                 mut is_simple_type := false
                 switch ret_type {
-                case ValueType.TCustom:
-                    if ret_type.s1.eq("I64") {
+                case ValueType.TCustom(ret_type_name):
+                    if ret_type_name.eq("I64") {
                         is_simple_type = true
                     }
                 case:
@@ -2463,8 +2430,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
     // Check if arg is a variadic param (which is til_Array*) but expected param is NOT mut
     // In this case we need to dereference: (*til_args) to get til_Array by value
     switch arg.node_type {
-    case NodeType.Identifier:
-        name := arg.node_type.s1
+    case NodeType.Identifier(name):
         if arg.params.is_empty().and(ctx.current_variadic_params.contains_key(name)) {
             output.push_str("(*")
             output.push_str(til_name(name))
@@ -2522,8 +2488,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         for child: Expr in ast.params {
             if is_struct_declaration(child) {
                 switch child.node_type {
-                case NodeType.Declaration:
-                    decl := child.node_type.decl
+                case NodeType.Declaration(decl):
                     if decl.name.eq("I64").or(decl.name.eq("U8")).or(decl.name.eq("Bool")).or(decl.name.eq("Dynamic")).or(decl.name.eq("Type")) {
                         continue  // Skip - these are primitive typedefs
                     }
@@ -2539,8 +2504,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             // Also forward-declare enums with payloads (they're implemented as structs)
             if is_enum_declaration(child).and(is_enum_with_payloads(child)) {
                 switch child.node_type {
-                case NodeType.Declaration:
-                    decl := child.node_type.decl
+                case NodeType.Declaration(decl):
                     enum_name := til_name(decl.name)
                     output.push_str("typedef struct ")
                     output.push_str(enum_name)
@@ -2732,8 +2696,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         for child: Expr in ast.params {
             if is_global_declaration(child) {
                 switch child.node_type {
-                case NodeType.Declaration:
-                    decl := child.node_type.decl
+                case NodeType.Declaration(decl):
                     ctx.declared_vars.insert(til_name(decl.name))
                 case:
                 }
@@ -2752,8 +2715,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             // Skip true/false declarations - they're now #defines
             mut skip := false
             switch child.node_type {
-            case NodeType.Declaration:
-                decl := child.node_type.decl
+            case NodeType.Declaration(decl):
                 if decl.name.eq("true").or(decl.name.eq("false")) {
                     skip = true
                 }
@@ -2855,8 +2817,7 @@ is_enum_declaration := func(expr: Expr) returns Bool {
 // Constants are non-mut declarations with literal values (numbers, strings, bools)
 is_constant_declaration := func(expr: Expr) returns Bool {
     switch expr.node_type {
-    case NodeType.Declaration:
-        decl := expr.node_type.decl
+    case NodeType.Declaration(decl):
         // Must not be mutable
         if decl.is_mut {
             return false
@@ -2868,8 +2829,7 @@ is_constant_declaration := func(expr: Expr) returns Bool {
             case NodeType.LLiteral:
                 // Literal values are constants
                 return true
-            case NodeType.Identifier:
-                name := first_param.node_type.s1
+            case NodeType.Identifier(name):
                 // Bool identifiers (true/false) are constants
                 if name.eq("true").or(name.eq("false")) {
                     return true
