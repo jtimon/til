@@ -3708,6 +3708,9 @@ emit_struct_func_prototypes := proc(expr: Expr, mut output: Str) throws Str {
                     // Check if default_value is a function definition
                     mut func_expr := Expr()
                     struct_def.default_values.get(member.name, func_expr)
+                    catch (err: KeyNotFoundError) {
+                        // REM: member has no default value, skip
+                    }
                     switch func_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         mangled_name := struct_name.concat("_").concat(member.name)
@@ -3827,6 +3830,9 @@ emit_struct_func_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
                     // Check if default_value is a function definition
                     mut func_expr := Expr()
                     struct_def.default_values.get(member.name, func_expr)
+                    catch (err: KeyNotFoundError) {
+                        // REM: member has no default value, skip
+                    }
                     switch func_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         emit_struct_func_body(struct_name, member, func_def, output, ctx, context)
