@@ -147,24 +147,27 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     // This ensures core.til is typechecked with lib mode, not the main file's mode
     let mut context = Context::new(&path.to_string(), "lib")?;
 
+    // Reusable error vector to avoid shadowing
+    let mut errors: Vec<String> = Vec::new();
+
     // Auto-import core.til first (like the interpreter does at interpreter.rs:2714-2717)
     // This runs init + typer on core.til and all its imports with lib mode
     let core_path = "src/core/core.til";
     if path != core_path {
         let (core_ast, _) = parse_file(core_path)?;
-        let init_errors = crate::rs::init::init_context(&mut context, &core_ast);
-        if !init_errors.is_empty() {
-            for err in &init_errors {
+        errors = crate::rs::init::init_context(&mut context, &core_ast);
+        if !errors.is_empty() {
+            for err in &errors {
                 println!("{}", err);
             }
-            return Err(format!("Compiler errors: {} init errors in core.til", init_errors.len()));
+            return Err(format!("Compiler errors: {} init errors in core.til", errors.len()));
         }
-        let typer_errors = check_types(&mut context, &core_ast);
-        if !typer_errors.is_empty() {
-            for err in &typer_errors {
+        errors = check_types(&mut context, &core_ast);
+        if !errors.is_empty() {
+            for err in &errors {
                 println!("{}", err);
             }
-            return Err(format!("Compiler errors: {} type errors in core.til", typer_errors.len()));
+            return Err(format!("Compiler errors: {} type errors in core.til", errors.len()));
         }
         context.imports_init_done.insert(core_path.to_string());
         context.imports_typer_done.insert(core_path.to_string());
@@ -183,12 +186,12 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
         if let Err(error_string) = init_import_declarations(&mut context, &import_fcall_expr, &import_str) {
             return Err(format!("{}:{}", &path, error_string));
         }
-        let typer_errors = typer_import_declarations(&mut context, &import_str);
-        if !typer_errors.is_empty() {
-            for err in &typer_errors {
+        errors = typer_import_declarations(&mut context, &import_str);
+        if !errors.is_empty() {
+            for err in &errors {
                 println!("{}", err);
             }
-            return Err(format!("Compiler errors: {} type errors found", typer_errors.len()));
+            return Err(format!("Compiler errors: {} type errors found", errors.len()));
         }
     }
 
@@ -198,8 +201,9 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     context.imports_typer_done.insert(path.to_string());
 
     // Run init + typer on the main file (this handles its imports internally)
-    let mut errors: Vec<String> = Vec::new();
-    errors.extend(crate::rs::init::init_context(&mut context, &main_ast));
+    errors.clear();
+    let mut tmp_errors = crate::rs::init::init_context(&mut context, &main_ast);
+    errors.extend(tmp_errors);
     if !errors.is_empty() {
         for err in &errors {
             println!("{}", err);
@@ -207,8 +211,10 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
         return Err(format!("Compiler errors: {} init errors found", errors.len()));
     }
 
-    errors.extend(basic_mode_checks(&context, &main_ast));
-    errors.extend(check_types(&mut context, &main_ast));
+    tmp_errors = basic_mode_checks(&context, &main_ast);
+    errors.extend(tmp_errors);
+    tmp_errors = check_types(&mut context, &main_ast);
+    errors.extend(tmp_errors);
     if !errors.is_empty() {
         for err in &errors {
             println!("{}", err);

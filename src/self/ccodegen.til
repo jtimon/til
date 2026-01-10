@@ -7372,8 +7372,8 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, mut output: Str, mut c
                     td.default_expr.params.get(0, fp)
                     lookup_name := get_til_func_name_string(fp)
                     if not(lookup_name.eq("")) {
-                        fd := context.scope_stack.lookup_func(lookup_name)
-                        throw_types = fd.throw_types.clone()
+                        default_fd := context.scope_stack.lookup_func(lookup_name)
+                        throw_types = default_fd.throw_types.clone()
                         catch (err: KeyNotFoundError) {
                             // REM: no func found
                         }

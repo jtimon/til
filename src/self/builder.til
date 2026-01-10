@@ -206,24 +206,27 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     // This ensures core.til is typechecked with lib mode, not the main file's mode
     mut context := Context.new(path, "lib")
 
+    // Reusable error vector to avoid shadowing
+    mut errors := Vec.new(Str)
+
     // Auto-import core.til first (like the interpreter does at interpreter.rs:2714-2717)
     // This runs init + typer on core.til and all its imports with lib mode
     core_path := "src/core/core.til"
     if not(path.eq(core_path)) {
         core_result := parse_file(core_path)
-        init_errors := init_context(context, core_result.ast)
-        if not(init_errors.is_empty()) {
-            for err: Str in init_errors {
+        errors = init_context(context, core_result.ast)
+        if not(errors.is_empty()) {
+            for err: Str in errors {
                 println(err)
             }
-            throw concat("Compiler errors: ", init_errors.len().to_str()).concat(" init errors in core.til")
+            throw concat("Compiler errors: ", errors.len().to_str()).concat(" init errors in core.til")
         }
-        typer_errors := check_types(context, core_result.ast)
-        if not(typer_errors.is_empty()) {
-            for err: Str in typer_errors {
+        errors = check_types(context, core_result.ast)
+        if not(errors.is_empty()) {
+            for err: Str in errors {
                 println(err)
             }
-            throw concat("Compiler errors: ", typer_errors.len().to_str()).concat(" type errors in core.til")
+            throw concat("Compiler errors: ", errors.len().to_str()).concat(" type errors in core.til")
         }
         _ := context.imports_init_done.insert(core_path)
         _ := context.imports_typer_done.insert(core_path)
@@ -257,12 +260,12 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         catch (err: Str) {
             throw path.concat(":").concat(err)
         }
-        typer_errors := typer_import_declarations(context, import_str)
-        if not(typer_errors.is_empty()) {
-            for err: Str in typer_errors {
+        errors = typer_import_declarations(context, import_str)
+        if not(errors.is_empty()) {
+            for err: Str in errors {
                 println(err)
             }
-            throw concat("Compiler errors: ", typer_errors.len().to_str()).concat(" type errors found")
+            throw concat("Compiler errors: ", errors.len().to_str()).concat(" type errors found")
         }
     }
 
@@ -272,9 +275,9 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     _ := context.imports_typer_done.insert(path.clone())
 
     // Run init + typer on the main file (this handles its imports internally)
-    mut errors := Vec.new(Str)
-    init_errors := init_context(context, main_result.ast)
-    for err: Str in init_errors {
+    errors.clear()
+    mut tmp_errors := init_context(context, main_result.ast)
+    for err: Str in tmp_errors {
         errors.push(err.clone())
     }
     if not(errors.is_empty()) {
@@ -284,12 +287,12 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         throw concat("Compiler errors: ", errors.len().to_str()).concat(" init errors found")
     }
 
-    mode_errors := basic_mode_checks(context, main_result.ast)
-    for err: Str in mode_errors {
+    tmp_errors = basic_mode_checks(context, main_result.ast)
+    for err: Str in tmp_errors {
         errors.push(err.clone())
     }
-    typer_errors := check_types(context, main_result.ast)
-    for err: Str in typer_errors {
+    tmp_errors = check_types(context, main_result.ast)
+    for err: Str in tmp_errors {
         errors.push(err.clone())
     }
     if not(errors.is_empty()) {
