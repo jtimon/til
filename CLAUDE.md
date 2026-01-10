@@ -41,7 +41,9 @@ Why: When something fails, you need to see the FULL output. Filtering hides crit
 - **NEVER** Ignore warnings from either rustc, rstil, til or gcc, always ask the user what to do about them
 - **NEVER** Use weird unicode symbols anywhere, stay ASCII
 - **NEVER** Use cat, use read, write or echo instead
-- **NEVER** Use git checkout or git restore, always ask the user before reverting big chunks of work that could be valuable
+- **NEVER** Use git checkout or git restore, period
+- **NEVER** Revert any changes manually or in any other way unless explicitly told to
+- **NEVER** Do more than what the user asked - do precisely what was requested and nothing else
 
 ## CRITICAL: Stay Within Project Directory
 - **NEVER** create or read files outside the project directory
