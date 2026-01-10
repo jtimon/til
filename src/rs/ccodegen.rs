@@ -2175,8 +2175,8 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         let main_has_variadic = match context.scope_stack.lookup_func("main") {
             Some(fd) => {
                 let mut has_multi = false;
-                for arg in &fd.args {
-                    if matches!(&arg.value_type, ValueType::TMulti(_)) {
+                for fd_arg in &fd.args {
+                    if matches!(&fd_arg.value_type, ValueType::TMulti(_)) {
                         has_multi = true;
                         break;
                     }
@@ -2388,8 +2388,8 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                 match &expr.params[0].node_type {
                     NodeType::FuncDef(func_def) => {
                         // Top-level function - check for variadic args (TMulti)
-                        for (idx, arg) in func_def.args.iter().enumerate() {
-                            if let ValueType::TMulti(elem_type) = &arg.value_type {
+                        for (idx, func_def_arg) in func_def.args.iter().enumerate() {
+                            if let ValueType::TMulti(elem_type) = &func_def_arg.value_type {
                                 ctx.func_variadic_args.insert(
                                     decl.name.clone(),
                                     VariadicParamInfo {
@@ -2408,8 +2408,8 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                             if let NodeType::FuncDef(func_def) = &default_expr.node_type {
                                 let mangled_name = format!("{}_{}", struct_name, member_name);
                                 // Check for variadic args (TMulti) in struct methods
-                                for (idx, arg) in func_def.args.iter().enumerate() {
-                                    if let ValueType::TMulti(elem_type) = &arg.value_type {
+                                for (idx, func_def_arg) in func_def.args.iter().enumerate() {
+                                    if let ValueType::TMulti(elem_type) = &func_def_arg.value_type {
                                         ctx.func_variadic_args.insert(
                                             mangled_name.clone(),
                                             VariadicParamInfo {
@@ -2925,14 +2925,14 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     ctx.current_ref_params.clear();
     // Track variadic params - they're passed as til_Array* so need dereference
     ctx.current_variadic_params.clear();
-    for arg in &func_def.args {
+    for func_def_arg in &func_def.args {
         // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
-        if !arg.is_copy {
-            ctx.current_ref_params.insert(arg.name.clone());
+        if !func_def_arg.is_copy {
+            ctx.current_ref_params.insert(func_def_arg.name.clone());
         }
-        if let ValueType::TMulti(elem_type) = &arg.value_type {
+        if let ValueType::TMulti(elem_type) = &func_def_arg.value_type {
             // elem_type is the type name string like "Bool"
-            ctx.current_variadic_params.insert(arg.name.clone(), til_name(elem_type));
+            ctx.current_variadic_params.insert(func_def_arg.name.clone(), til_name(elem_type));
         }
     }
 
@@ -2946,12 +2946,12 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
         scope_type: ScopeType::Function,
     };
     // Register function parameters in the frame
-    for arg in &func_def.args {
-        function_frame.symbols.insert(arg.name.clone(), SymbolInfo {
-            value_type: arg.value_type.clone(),
-            is_mut: arg.is_mut,
-            is_copy: arg.is_copy,
-            is_own: arg.is_own,
+    for func_def_arg in &func_def.args {
+        function_frame.symbols.insert(func_def_arg.name.clone(), SymbolInfo {
+            value_type: func_def_arg.value_type.clone(),
+            is_mut: func_def_arg.is_mut,
+            is_copy: func_def_arg.is_copy,
+            is_own: func_def_arg.is_own,
             is_comptime_const: false,
         });
     }
@@ -3093,29 +3093,29 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
     }
 
     // Input parameters
-    for arg in func_def.args.iter() {
+    for func_def_arg in func_def.args.iter() {
         if param_count > 0 {
             output.push_str(", ");
         }
         // Check for variadic arg (TMulti)
-        if let ValueType::TMulti(_elem_type) = &arg.value_type {
+        if let ValueType::TMulti(_elem_type) = &func_def_arg.value_type {
             // Variadic args are passed as til_Array*
             output.push_str(TIL_PREFIX);
             output.push_str("Array* ");
             output.push_str(TIL_PREFIX);
-            output.push_str(&arg.name);
+            output.push_str(&func_def_arg.name);
             param_count += 1;
             break; // Variadic must be last
         } else {
-            let arg_type = til_type_to_c(&arg.value_type)?;
+            let arg_type = til_type_to_c(&func_def_arg.value_type)?;
 
             // Bug #60: Type is already const char*, don't add extra indirection
-            let is_type_param = matches!(&arg.value_type, ValueType::TCustom(name) if name == "Type");
-            if arg.is_mut {
+            let is_type_param = matches!(&func_def_arg.value_type, ValueType::TCustom(name) if name == "Type");
+            if func_def_arg.is_mut {
                 // mut: pass by pointer so mutations are visible to caller
                 output.push_str(&arg_type);
                 output.push_str("* ");
-            } else if arg.is_own {
+            } else if func_def_arg.is_own {
                 // own: pass by pointer, caller transfers ownership
                 // Type is already a pointer, so pass by value
                 if is_type_param {
@@ -3125,7 +3125,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
                     output.push_str(&arg_type);
                     output.push_str("* ");
                 }
-            } else if arg.is_copy {
+            } else if func_def_arg.is_copy {
                 // copy: pass by value, caller's copy is made
                 output.push_str(&arg_type);
                 output.push_str(" ");
@@ -3142,7 +3142,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
                 }
             }
             output.push_str(TIL_PREFIX);
-            output.push_str(&arg.name);
+            output.push_str(&func_def_arg.name);
             param_count += 1;
         }
     }
@@ -3204,14 +3204,14 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 ctx.current_ref_params.clear();
                 // Track variadic params - they're passed as til_Array* so need dereference
                 ctx.current_variadic_params.clear();
-                for arg in &func_def.args {
+                for func_def_arg in &func_def.args {
                     // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
-                    if !arg.is_copy {
-                        ctx.current_ref_params.insert(arg.name.clone());
+                    if !func_def_arg.is_copy {
+                        ctx.current_ref_params.insert(func_def_arg.name.clone());
                     }
-                    if let ValueType::TMulti(elem_type) = &arg.value_type {
+                    if let ValueType::TMulti(elem_type) = &func_def_arg.value_type {
                         // elem_type is the type name string like "Bool"
-                        ctx.current_variadic_params.insert(arg.name.clone(), til_name(elem_type));
+                        ctx.current_variadic_params.insert(func_def_arg.name.clone(), til_name(elem_type));
                     }
                 }
 
@@ -3226,17 +3226,17 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 };
                 // Register function parameters in the frame
                 // For variadic params (TMulti), register as Array type
-                for arg in &func_def.args {
-                    let value_type = if let ValueType::TMulti(_) = &arg.value_type {
+                for func_def_arg in &func_def.args {
+                    let value_type = if let ValueType::TMulti(_) = &func_def_arg.value_type {
                         ValueType::TCustom("Array".to_string())
                     } else {
-                        arg.value_type.clone()
+                        func_def_arg.value_type.clone()
                     };
-                    function_frame.symbols.insert(arg.name.clone(), SymbolInfo {
+                    function_frame.symbols.insert(func_def_arg.name.clone(), SymbolInfo {
                         value_type,
-                        is_mut: arg.is_mut,
-                        is_copy: arg.is_copy,
-                        is_own: arg.is_own,
+                        is_mut: func_def_arg.is_mut,
+                        is_copy: func_def_arg.is_copy,
+                        is_own: func_def_arg.is_own,
                         is_comptime_const: false,
                     });
                 }
@@ -4851,12 +4851,12 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 ctx.mangling_counter = 0;  // Reset counter per-function for determinism
 
                 // Bug #60: Track ref and variadic params - all non-copy args are by pointer
-                for arg in &func_def.args {
-                    if !arg.is_copy {
-                        ctx.current_ref_params.insert(arg.name.clone());
+                for func_def_arg in &func_def.args {
+                    if !func_def_arg.is_copy {
+                        ctx.current_ref_params.insert(func_def_arg.name.clone());
                     }
-                    if let ValueType::TMulti(elem_type) = &arg.value_type {
-                        ctx.current_variadic_params.insert(arg.name.clone(), til_name(elem_type));
+                    if let ValueType::TMulti(elem_type) = &func_def_arg.value_type {
+                        ctx.current_variadic_params.insert(func_def_arg.name.clone(), til_name(elem_type));
                     }
                 }
 
@@ -4869,17 +4869,17 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     structs: HashMap::new(),
                     scope_type: ScopeType::Function,
                 };
-                for arg in &func_def.args {
-                    let value_type = if let ValueType::TMulti(_) = &arg.value_type {
+                for func_def_arg in &func_def.args {
+                    let value_type = if let ValueType::TMulti(_) = &func_def_arg.value_type {
                         ValueType::TCustom("Array".to_string())
                     } else {
-                        arg.value_type.clone()
+                        func_def_arg.value_type.clone()
                     };
-                    function_frame.symbols.insert(arg.name.clone(), SymbolInfo {
+                    function_frame.symbols.insert(func_def_arg.name.clone(), SymbolInfo {
                         value_type,
-                        is_mut: arg.is_mut,
-                        is_copy: arg.is_copy,
-                        is_own: arg.is_own,
+                        is_mut: func_def_arg.is_mut,
+                        is_copy: func_def_arg.is_copy,
+                        is_own: func_def_arg.is_own,
                         is_comptime_const: false,
                     });
                 }
@@ -5149,10 +5149,10 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 if rhs_fcall.params.len() > 1 {
                     if let Some(fd) = get_fcall_func_def(context, rhs_fcall) {
                         let param_types: Vec<Option<ValueType>> = fd.args.iter()
-                            .map(|a| Some(a.value_type.clone()))
+                            .map(|fd_arg| Some(fd_arg.value_type.clone()))
                             .collect();
                         let param_by_ref: Vec<bool> = fd.args.iter()
-                            .map(|a| param_needs_by_ref(a))
+                            .map(|fd_arg| param_needs_by_ref(fd_arg))
                             .collect();
                         let args = &rhs_fcall.params[1..];
                         let empty_hoisted = std::collections::HashMap::new();
@@ -5207,10 +5207,10 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 if rhs_fcall.params.len() > 1 {
                     if let Some(fd) = get_fcall_func_def(context, rhs_fcall) {
                         let param_types: Vec<Option<ValueType>> = fd.args.iter()
-                            .map(|a| Some(a.value_type.clone()))
+                            .map(|fd_arg| Some(fd_arg.value_type.clone()))
                             .collect();
                         let param_by_ref: Vec<bool> = fd.args.iter()
-                            .map(|a| param_needs_by_ref(a))
+                            .map(|fd_arg| param_needs_by_ref(fd_arg))
                             .collect();
                         let args = &rhs_fcall.params[1..];
                         let empty_hoisted = std::collections::HashMap::new();
@@ -5864,7 +5864,7 @@ fn emit_fcall_with_hoisted(
     // Look up param types for by-ref handling
     let param_info: Vec<ParamTypeInfo> = {
         if let Some(fd) = get_fcall_func_def(context, expr) {
-            fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), by_ref: param_needs_by_ref(a) }).collect()
+            fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
         } else {
             Vec::new()
         }
@@ -7111,10 +7111,10 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 let regular_count = variadic_info.regular_count;
                 // Bug #60: Look up function param info for proper by-ref handling of regular args
                 let param_info: Vec<ParamTypeInfo> = if let Some(fd) = get_fcall_func_def(context, expr) {
-                    fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), by_ref: param_needs_by_ref(a) }).collect()
+                    fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
                 } else if let Some(fd) = context.scope_stack.lookup_func(&orig_func_name) {
                     // Fallback: lookup via scope_stack directly
-                    fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), by_ref: param_needs_by_ref(a) }).collect()
+                    fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
                 } else {
                     Vec::new()
                 };
@@ -7144,7 +7144,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 // Regular non-variadic function call
                 // Look up function to get parameter info (by_ref flags)
                 let param_info: Vec<ParamTypeInfo> = if let Some(fd) = get_fcall_func_def(context, expr) {
-                    fd.args.iter().map(|a| ParamTypeInfo { value_type: Some(a.value_type.clone()), by_ref: param_needs_by_ref(a) }).collect()
+                    fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
                 } else {
                     Vec::new()
                 };

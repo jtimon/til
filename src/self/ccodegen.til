@@ -2770,8 +2770,8 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         mut main_has_variadic := false
         fd := context.scope_stack.lookup_func("main")
         catch (err: KeyNotFoundError) { }
-        for arg: Declaration in fd.args {
-            switch arg.value_type {
+        for fd_arg: Declaration in fd.args {
+            switch fd_arg.value_type {
             case ValueType.TMulti:
                 main_has_variadic = true
                 break
@@ -3089,8 +3089,8 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
             case NodeType.FuncDef(func_def):
                 // Top-level function - check for variadic args (TMulti)
                 mut idx := 0
-                for arg: Declaration in func_def.args {
-                    switch arg.value_type {
+                for func_def_arg: Declaration in func_def.args {
+                    switch func_def_arg.value_type {
                     case ValueType.TMulti(elem_type):
                         mut info := VariadicParamInfo()
                         info.elem_type = elem_type.clone()
@@ -3115,8 +3115,8 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                         mangled_name := struct_name.concat("_").concat(member_name)
                         // Check for variadic args (TMulti) in struct methods
                         mut idx := 0
-                        for arg: Declaration in func_def.args {
-                            switch arg.value_type {
+                        for func_def_arg: Declaration in func_def.args {
+                            switch func_def_arg.value_type {
                             case ValueType.TMulti(elem_type):
                                 mut info := VariadicParamInfo()
                                 info.elem_type = elem_type.clone()
@@ -3756,15 +3756,15 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     ctx.current_ref_params.clear()
     // Track variadic params - they're passed as til_Array* so need dereference
     ctx.current_variadic_params.clear()
-    for arg: Declaration in func_def.args {
+    for func_def_arg: Declaration in func_def.args {
         // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
-        if not(arg.is_copy) {
-            _ := ctx.current_ref_params.insert(arg.name.clone())
+        if not(func_def_arg.is_copy) {
+            _ := ctx.current_ref_params.insert(func_def_arg.name.clone())
         }
-        switch arg.value_type {
+        switch func_def_arg.value_type {
         case ValueType.TMulti(elem_type):
             // elem_type is the type name string like "Bool"
-            ctx.current_variadic_params.set(arg.name.clone(), til_name(elem_type))
+            ctx.current_variadic_params.set(func_def_arg.name.clone(), til_name(elem_type))
         case:
         }
     }
@@ -3773,14 +3773,14 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     mut function_frame := ScopeFrame()
     function_frame.scope_type = ScopeType.Function
     // Register function parameters in the frame
-    for arg: Declaration in func_def.args {
+    for func_def_arg: Declaration in func_def.args {
         mut info := SymbolInfo()
-        info.value_type = arg.value_type
-        info.is_mut = arg.is_mut
-        info.is_copy = arg.is_copy
-        info.is_own = arg.is_own
+        info.value_type = func_def_arg.value_type
+        info.is_mut = func_def_arg.is_mut
+        info.is_copy = func_def_arg.is_copy
+        info.is_own = func_def_arg.is_own
         info.is_comptime_const = false
-        function_frame.symbols.set(arg.name.clone(), info)
+        function_frame.symbols.set(func_def_arg.name.clone(), info)
     }
     context.scope_stack.frames.push(function_frame)
 
@@ -3948,30 +3948,30 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str)
     }
 
     // Input parameters
-    for arg: Declaration in func_def.args {
+    for func_def_arg: Declaration in func_def.args {
         if param_count.gt(0) {
             output.push_str(", ")
         }
         // Check for variadic arg (TMulti)
-        switch arg.value_type {
+        switch func_def_arg.value_type {
         case ValueType.TMulti(elem_type):
             // Variadic args are passed as til_Array*
             output.push_str(TIL_PREFIX)
             output.push_str("Array* ")
             output.push_str(TIL_PREFIX)
-            output.push_str(arg.name)
+            output.push_str(func_def_arg.name)
             param_count.inc()
             break // Variadic must be last
         case ValueType.TCustom(type_name):
-            arg_type := til_type_to_c(arg.value_type)
+            arg_type := til_type_to_c(func_def_arg.value_type)
 
             // Bug #60: Type is already const char*, don't add extra indirection
             is_type_param := type_name.eq("Type")
-            if arg.is_mut {
+            if func_def_arg.is_mut {
                 // mut: pass by pointer so mutations are visible to caller
                 output.push_str(arg_type)
                 output.push_str("* ")
-            } else if arg.is_own {
+            } else if func_def_arg.is_own {
                 // own: pass by pointer, caller transfers ownership
                 // Type is already a pointer, so pass by value
                 if is_type_param {
@@ -3981,7 +3981,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str)
                     output.push_str(arg_type)
                     output.push_str("* ")
                 }
-            } else if arg.is_copy {
+            } else if func_def_arg.is_copy {
                 // copy: pass by value, caller's copy is made
                 output.push_str(arg_type)
                 output.push_str(" ")
@@ -3998,7 +3998,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str)
                 }
             }
             output.push_str(TIL_PREFIX)
-            output.push_str(arg.name)
+            output.push_str(func_def_arg.name)
             param_count.inc()
         case:
         }
@@ -4086,15 +4086,15 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 ctx.current_ref_params.clear()
                 // Track variadic params - they're passed as til_Array* so need dereference
                 ctx.current_variadic_params.clear()
-                for arg: Declaration in func_def.args {
+                for func_def_arg: Declaration in func_def.args {
                     // Bug #60: All non-copy args are passed by pointer (mut, own, and const/default)
-                    if not(arg.is_copy) {
-                        _ := ctx.current_ref_params.insert(arg.name.clone())
+                    if not(func_def_arg.is_copy) {
+                        _ := ctx.current_ref_params.insert(func_def_arg.name.clone())
                     }
-                    switch arg.value_type {
+                    switch func_def_arg.value_type {
                     case ValueType.TMulti(elem_type):
                         // elem_type is the type name string like "Bool"
-                        ctx.current_variadic_params.set(arg.name.clone(), til_name(elem_type))
+                        ctx.current_variadic_params.set(func_def_arg.name.clone(), til_name(elem_type))
                     case:
                     }
                 }
@@ -4104,20 +4104,20 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 function_frame.scope_type = ScopeType.Function
                 // Register function parameters in the frame
                 // For variadic params (TMulti), register as Array type
-                for arg: Declaration in func_def.args {
-                    mut value_type := arg.value_type
-                    switch arg.value_type {
+                for func_def_arg: Declaration in func_def.args {
+                    mut value_type := func_def_arg.value_type
+                    switch func_def_arg.value_type {
                     case ValueType.TMulti(elem):
                         value_type = ValueType.TCustom("Array")
                     case:
                     }
                     mut info := SymbolInfo()
                     info.value_type = value_type
-                    info.is_mut = arg.is_mut
-                    info.is_copy = arg.is_copy
-                    info.is_own = arg.is_own
+                    info.is_mut = func_def_arg.is_mut
+                    info.is_copy = func_def_arg.is_copy
+                    info.is_own = func_def_arg.is_own
                     info.is_comptime_const = false
-                    function_frame.symbols.set(arg.name.clone(), info)
+                    function_frame.symbols.set(func_def_arg.name.clone(), info)
                 }
                 context.scope_stack.frames.push(function_frame)
 
@@ -6058,13 +6058,13 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 ctx.mangling_counter = 0  // Reset counter per-function for determinism
 
                 // Bug #60: Track ref and variadic params - all non-copy args are by pointer
-                for arg: Declaration in func_def.args {
-                    if not(arg.is_copy) {
-                        _ := ctx.current_ref_params.insert(arg.name.clone())
+                for func_def_arg: Declaration in func_def.args {
+                    if not(func_def_arg.is_copy) {
+                        _ := ctx.current_ref_params.insert(func_def_arg.name.clone())
                     }
-                    switch arg.value_type {
+                    switch func_def_arg.value_type {
                     case ValueType.TMulti(elem_type):
-                        ctx.current_variadic_params.set(arg.name.clone(), til_name(elem_type))
+                        ctx.current_variadic_params.set(func_def_arg.name.clone(), til_name(elem_type))
                     case:
                         // REM: not variadic
                     }
@@ -6073,9 +6073,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 // Push scope frame for function
                 mut function_frame := ScopeFrame()
                 function_frame.scope_type = ScopeType.Function
-                for arg: Declaration in func_def.args {
-                    mut value_type := arg.value_type
-                    switch arg.value_type {
+                for func_def_arg: Declaration in func_def.args {
+                    mut value_type := func_def_arg.value_type
+                    switch func_def_arg.value_type {
                     case ValueType.TMulti(_):
                         value_type = ValueType.TCustom("Array")
                     case:
@@ -6083,11 +6083,11 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     }
                     mut symbol_info := SymbolInfo()
                     symbol_info.value_type = value_type
-                    symbol_info.is_mut = arg.is_mut
-                    symbol_info.is_copy = arg.is_copy
-                    symbol_info.is_own = arg.is_own
+                    symbol_info.is_mut = func_def_arg.is_mut
+                    symbol_info.is_copy = func_def_arg.is_copy
+                    symbol_info.is_own = func_def_arg.is_own
                     symbol_info.is_comptime_const = false
-                    function_frame.symbols.set(arg.name.clone(), symbol_info)
+                    function_frame.symbols.set(func_def_arg.name.clone(), symbol_info)
                 }
                 context.scope_stack.frames.push(function_frame)
 
@@ -6420,9 +6420,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     fd := get_fcall_func_def(context, rhs_fcall)
                     mut param_types := Vec.new(ValueType)
                     mut param_by_ref := Vec.new(Bool)
-                    for arg: Declaration in fd.args {
-                        param_types.push(arg.value_type)
-                        param_by_ref.push(param_needs_by_ref(arg))
+                    for fd_arg: Declaration in fd.args {
+                        param_types.push(fd_arg.value_type)
+                        param_by_ref.push(param_needs_by_ref(fd_arg))
                     }
                     mut args := Vec.new(Expr)
                     mut ai := 1
@@ -6522,9 +6522,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     fd := get_fcall_func_def(context, rhs_fcall)
                     mut param_types := Vec.new(ValueType)
                     mut param_by_ref := Vec.new(Bool)
-                    for arg: Declaration in fd.args {
-                        param_types.push(arg.value_type)
-                        param_by_ref.push(param_needs_by_ref(arg))
+                    for fd_arg: Declaration in fd.args {
+                        param_types.push(fd_arg.value_type)
+                        param_by_ref.push(param_needs_by_ref(fd_arg))
                     }
                     mut args := Vec.new(Expr)
                     mut ai := 1
@@ -7456,11 +7456,11 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, mut output: Str, mut c
     catch (err: KeyNotFoundError) {
         // REM: no func def found
     }
-    for arg: Declaration in fd.args {
+    for fd_arg: Declaration in fd.args {
         mut pi := ParamTypeInfo()
-        pi.value_type = arg.value_type
+        pi.value_type = fd_arg.value_type
         pi.has_value_type = true
-        pi.by_ref = param_needs_by_ref(arg)
+        pi.by_ref = param_needs_by_ref(fd_arg)
         param_info.push(pi)
     }
 
@@ -8572,9 +8572,9 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         fd := get_fcall_func_def(context, expr)
         mut param_types := Vec.new(ValueType)
         mut param_by_ref := Vec.new(Bool)
-        for arg: Declaration in fd.args {
-            param_types.push(arg.value_type)
-            param_by_ref.push(param_needs_by_ref(arg))
+        for fd_arg: Declaration in fd.args {
+            param_types.push(fd_arg.value_type)
+            param_by_ref.push(param_needs_by_ref(fd_arg))
         }
         mut args := Vec.new(Expr)
         mut ai := 1
@@ -9028,20 +9028,20 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         // Look up function param info for proper by-ref handling of regular args
         mut param_info := Vec.new(ParamTypeInfo)
         fd := get_fcall_func_def(context, expr)
-        for arg: Declaration in fd.args {
+        for fd_arg: Declaration in fd.args {
             mut pi := ParamTypeInfo()
-            pi.value_type = arg.value_type
+            pi.value_type = fd_arg.value_type
             pi.has_value_type = true
-            pi.by_ref = param_needs_by_ref(arg)
+            pi.by_ref = param_needs_by_ref(fd_arg)
             param_info.push(pi)
         }
         catch (err: KeyNotFoundError) {
             fd2 := context.scope_stack.lookup_func(orig_func_name)
-            for arg: Declaration in fd2.args {
+            for fd2_arg: Declaration in fd2.args {
                 mut pi := ParamTypeInfo()
-                pi.value_type = arg.value_type
+                pi.value_type = fd2_arg.value_type
                 pi.has_value_type = true
-                pi.by_ref = param_needs_by_ref(arg)
+                pi.by_ref = param_needs_by_ref(fd2_arg)
                 param_info.push(pi)
             }
             catch (err2: KeyNotFoundError) {
@@ -9081,11 +9081,11 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         // Regular non-variadic function call
         mut param_info := Vec.new(ParamTypeInfo)
         fd := get_fcall_func_def(context, expr)
-        for arg: Declaration in fd.args {
+        for fd_arg: Declaration in fd.args {
             mut pi := ParamTypeInfo()
-            pi.value_type = arg.value_type
+            pi.value_type = fd_arg.value_type
             pi.has_value_type = true
-            pi.by_ref = param_needs_by_ref(arg)
+            pi.by_ref = param_needs_by_ref(fd_arg)
             param_info.push(pi)
         }
         catch (err: KeyNotFoundError) {
