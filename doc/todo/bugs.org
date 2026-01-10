@@ -205,74 +205,6 @@ catch (err: KeyNotFoundError) {
 The compiler should recognize that catch blocks are reachable via the throw path,
 even when there's a return statement before them in the textual order.
 
-** Bug #95: Need spread operator to expand Vec/Array for variadic arguments
-:PROPERTIES:
-:DISCOVERED: 2026-01-09
-:IMPACT: Cannot pass collected arguments to variadic functions
-:STATUS: Open
-:END:
-
-*** Description
-When a function takes variadic arguments (~args: ..Str~), there's no way to pass
-a Vec or Array of values to it. This is needed when forwarding arguments or
-when arguments are collected dynamically.
-
-*** Example
-#+BEGIN_SRC til
-// We have a Vec of args
-extra_args := Vec.new(Str)
-extra_args.push("--verbose")
-extra_args.push("output.txt")
-
-// Want to call: run_cmd(output, exe_path, "--verbose", "output.txt")
-// But can't expand extra_args into variadic position
-#+END_SRC
-
-*** Syntax in Other Languages
-
-*JavaScript (spread operator):*
-#+BEGIN_SRC javascript
-const args = ["--verbose", "output.txt"];
-runCmd(exePath, ...args);  // spreads array into arguments
-#+END_SRC
-
-*Python (unpacking operator):*
-#+BEGIN_SRC python
-args = ["--verbose", "output.txt"]
-run_cmd(exe_path, *args)  # unpacks list into arguments
-#+END_SRC
-
-*Rust (no direct equivalent, uses slices):*
-#+BEGIN_SRC rust
-// Rust doesn't have variadic functions in the same way
-// Uses slices or iterators instead
-command.args(&extra_args);  // args takes impl IntoIterator
-#+END_SRC
-
-*Ruby (splat operator):*
-#+BEGIN_SRC ruby
-args = ["--verbose", "output.txt"]
-run_cmd(exe_path, *args)  # splats array into arguments
-#+END_SRC
-
-*Go (variadic expansion):*
-#+BEGIN_SRC go
-args := []string{"--verbose", "output.txt"}
-runCmd(exePath, args...)  // expands slice into variadic
-#+END_SRC
-
-*** Suggested TIL Syntax
-#+BEGIN_SRC til
-// Option 1: Prefix operator like Python/Ruby
-run_cmd(output, exe_path, ..extra_args)
-
-// Option 2: Suffix like Go
-run_cmd(output, exe_path, extra_args..)
-
-// Option 3: Explicit spread function
-run_cmd(output, exe_path, spread(extra_args))
-#+END_SRC
-
 ** Bug #94: gcc warnings cause bug47.til compilation failure
 :PROPERTIES:
 :DISCOVERED: 2026-01-08
@@ -822,11 +754,14 @@ while i.lt(v.len()) {
 :DISCOVERED: 2026-01-03
 :IMPACT: Cannot forward variadic args to another variadic function
 :STATUS: Active (workaround exists)
+:RELATED: Bug #95 (duplicate)
 :END:
 
 *** Description
-TIL lacks a spread/splat operator to expand an array into variadic arguments.
-This prevents forwarding variadic args from one function to another.
+TIL lacks a spread/splat operator to expand an array/Vec into variadic arguments.
+This prevents:
+1. Forwarding variadic args from one function to another
+2. Passing dynamically collected arguments to variadic functions
 
 *** TIL Example (currently broken)
 #+BEGIN_SRC til
@@ -879,14 +814,33 @@ func wrapper(args ...string) {
 }
 #+END_SRC
 
+**** Rust - no variadics, uses slices/iterators
+#+BEGIN_SRC rust
+// Rust doesn't have variadic functions in the same way
+// Uses slices or iterators instead
+command.args(&extra_args);  // args takes impl IntoIterator
+#+END_SRC
+
+*** Dynamic collection example
+#+BEGIN_SRC til
+// We have a Vec of args built dynamically
+extra_args := Vec.new(Str)
+extra_args.push("--verbose")
+extra_args.push("output.txt")
+
+// Want to call: run_cmd(output, exe_path, "--verbose", "output.txt")
+// But can't expand extra_args into variadic position
+#+END_SRC
+
 *** Syntax options for TIL
-| Option | Syntax                   | Notes                                    |
-|--------+--------------------------+------------------------------------------|
-| A      | ~run_cmd(args...)~         | Go-style, suffix                         |
-| B      | ~run_cmd(*args)~           | Python/Ruby/Kotlin-style, prefix         |
-| C      | ~run_cmd(...args)~         | JavaScript-style, prefix                 |
-| D      | ~run_cmd(..args)~          | TIL-style, matches ~..Str~ in declaration |
+| Option | Syntax                      | Notes                                    |
+|--------+-----------------------------+------------------------------------------|
+| A      | ~run_cmd(args...)~          | Go-style, suffix                         |
+| B      | ~run_cmd(*args)~            | Python/Ruby/Kotlin-style, prefix         |
+| C      | ~run_cmd(...args)~          | JavaScript-style, prefix                 |
+| D      | ~run_cmd(..args)~           | TIL-style, matches ~..Str~ in declaration |
 | E      | ~run_cmd(args.to_variadic())~ | Method on Array, no special syntax needed |
+| F      | ~run_cmd(spread(args))~     | Explicit spread function, like Lua       |
 
 *** Workaround
 For shell commands, build a command string with a for-in loop and use ~bash -c~:
@@ -1080,6 +1034,15 @@ main := proc(args: ..Str) {
 2. The C codegen should unpack argv into individual named parameters for custom signatures.
 
 * Fixed Bugs
+
+** Bug #95: Need spread operator to expand Vec/Array for variadic arguments
+:PROPERTIES:
+:DISCOVERED: 2026-01-09
+:IMPACT: Cannot pass collected arguments to variadic functions
+:STATUS: Duplicate of Bug #83
+:END:
+
+See Bug #83 for full details. All unique content merged there.
 
 ** Bug #87: Scavenger not pruning struct methods
 :PROPERTIES:
