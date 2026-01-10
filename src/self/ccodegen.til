@@ -595,8 +595,9 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
 
             // Declare error variables for each throw type
             temp_suffix := next_mangled(ctx)
-            mut err_idx := 0
-            for throw_type: ValueType in throwing_fd.throw_types {
+            for err_idx in 0..throwing_fd.throw_types.len() {
+                mut throw_type := ValueType.TCustom(INFER_TYPE)
+                throwing_fd.throw_types.get(err_idx, throw_type)
                 switch throw_type {
                 case ValueType.TCustom(type_name):
                     output.push_str(indent_str)
@@ -608,7 +609,6 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
                     output.push_str(";\n")
                 case:
                 }
-                err_idx.inc()
             }
 
             // Detect and construct variadic array if needed
@@ -649,7 +649,9 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
             // Emit error checking - propagate or goto based on context
             // Check if there are local catch labels for these error types
             mut has_local_catch := false
-            for throw_type: ValueType in throwing_fd.throw_types {
+            for i in 0..throwing_fd.throw_types.len() {
+                mut throw_type := ValueType.TCustom(INFER_TYPE)
+                throwing_fd.throw_types.get(i, throw_type)
                 switch throw_type {
                 case ValueType.TCustom(type_name):
                     if ctx.local_catch_labels.contains_key(type_name) {
@@ -662,8 +664,9 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
 
             if has_local_catch {
                 // Use goto for local catches
-                err_idx = 0
-                for throw_type: ValueType in throwing_fd.throw_types {
+                for err_idx in 0..throwing_fd.throw_types.len() {
+                    mut throw_type := ValueType.TCustom(INFER_TYPE)
+                    throwing_fd.throw_types.get(err_idx, throw_type)
                     switch throw_type {
                     case ValueType.TCustom(type_name):
                         if ctx.local_catch_labels.contains_key(type_name) {
@@ -686,7 +689,6 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
                         }
                     case:
                     }
-                    err_idx.inc()
                 }
             } else {
                 // Propagate errors
@@ -695,12 +697,14 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
                 output.push_str(temp_suffix)
                 output.push_str(" != 0) {\n")
 
-                err_idx = 0
-                for throw_type: ValueType in throwing_fd.throw_types {
+                for err_idx in 0..throwing_fd.throw_types.len() {
+                    mut throw_type := ValueType.TCustom(INFER_TYPE)
+                    throwing_fd.throw_types.get(err_idx, throw_type)
                     switch throw_type {
                     case ValueType.TCustom(type_name):
-                        mut curr_idx := 0
-                        for curr_throw: ValueType in ctx.current_throw_types {
+                        for curr_idx in 0..ctx.current_throw_types.len() {
+                            mut curr_throw := ValueType.TCustom(INFER_TYPE)
+                            ctx.current_throw_types.get(curr_idx, curr_throw)
                             switch curr_throw {
                             case ValueType.TCustom(curr_type_name):
                                 if curr_type_name.eq(type_name) {
@@ -722,11 +726,9 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
                                 }
                             case:
                             }
-                            curr_idx.inc()
                         }
                     case:
                     }
-                    err_idx.inc()
                 }
 
                 output.push_str(indent_str)
@@ -1061,8 +1063,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             // Declare error variables for each throw type
             temp_suffix := next_mangled(ctx)
-            mut err_idx := 0
-            for throw_type: ValueType in throwing_fd.throw_types {
+            for err_idx in 0..throwing_fd.throw_types.len() {
+                mut throw_type := ValueType.TCustom(INFER_TYPE)
+                throwing_fd.throw_types.get(err_idx, throw_type)
                 switch throw_type {
                 case ValueType.TCustom(type_name):
                     output.push_str(indent_str)
@@ -1074,7 +1077,6 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                     output.push_str(";\n")
                 case:
                 }
-                err_idx.inc()
             }
 
             // Detect and construct variadic array if needed
@@ -1122,13 +1124,15 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             // Propagate error based on status value
             // For now, propagate to corresponding error pointer in current function
-            err_idx = 0
-            for throw_type: ValueType in throwing_fd.throw_types {
+            for err_idx in 0..throwing_fd.throw_types.len() {
+                mut throw_type := ValueType.TCustom(INFER_TYPE)
+                throwing_fd.throw_types.get(err_idx, throw_type)
                 switch throw_type {
                 case ValueType.TCustom(type_name):
                     // Find matching throw type in current function
-                    mut curr_idx := 0
-                    for curr_throw: ValueType in ctx.current_throw_types {
+                    for curr_idx in 0..ctx.current_throw_types.len() {
+                        mut curr_throw := ValueType.TCustom(INFER_TYPE)
+                        ctx.current_throw_types.get(curr_idx, curr_throw)
                         switch curr_throw {
                         case ValueType.TCustom(curr_type_name):
                             if curr_type_name.eq(type_name) {
@@ -1150,11 +1154,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                             }
                         case:
                         }
-                        curr_idx.inc()
                     }
                 case:
                 }
-                err_idx.inc()
             }
 
             output.push_str(indent_str)
@@ -1847,8 +1849,9 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     output.push_str(err_suffix)
     output.push_str(" != 0) {\n")
     // Propagate AllocError if current function throws it
-    mut curr_idx := 0
-    for curr_throw: ValueType in ctx.current_throw_types {
+    for curr_idx in 0..ctx.current_throw_types.len() {
+        mut curr_throw := ValueType.TCustom(INFER_TYPE)
+        ctx.current_throw_types.get(curr_idx, curr_throw)
         switch curr_throw {
         case ValueType.TCustom(curr_type_name):
             if curr_type_name.eq("AllocError") {
@@ -1864,7 +1867,6 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
             }
         case:
         }
-        curr_idx.inc()
     }
     output.push_str(indent_str)
     output.push_str("}\n")
@@ -1905,8 +1907,9 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         output.push_str("if (_arr_status_")
         output.push_str(err_suffix)
         output.push_str(" != 0) {\n")
-        curr_idx = 0
-        for curr_throw: ValueType in ctx.current_throw_types {
+        for curr_idx in 0..ctx.current_throw_types.len() {
+            mut curr_throw := ValueType.TCustom(INFER_TYPE)
+            ctx.current_throw_types.get(curr_idx, curr_throw)
             switch curr_throw {
             case ValueType.TCustom(curr_type_name):
                 if curr_type_name.eq("IndexOutOfBoundsError") {
@@ -1922,7 +1925,6 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
                 }
             case:
             }
-            curr_idx.inc()
         }
         output.push_str(indent_str)
         output.push_str("}\n")
@@ -1930,6 +1932,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     }
 
     catch (err: AllocError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     return arr_var
 }
@@ -3930,8 +3933,9 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str)
             param_count.inc()
         }
 
-        mut i := 0
-        for throw_type: ValueType in func_def.throw_types {
+        for i in 0..func_def.throw_types.len() {
+            mut throw_type := ValueType.TCustom(INFER_TYPE)
+            func_def.throw_types.get(i, throw_type)
             if param_count.gt(0) {
                 output.push_str(", ")
             }
@@ -3940,7 +3944,6 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str)
             output.push_str("* _err")
             output.push_str(I64.to_str(i.add(1)))
             param_count.inc()
-            i.inc()
         }
     }
 
@@ -5131,8 +5134,9 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
 
     // Declare error structs for each throw type
-    mut idx := 0
-    for throw_type: ValueType in throw_types {
+    for idx in 0..throw_types.len() {
+        mut throw_type := ValueType.TCustom(INFER_TYPE)
+        throw_types.get(idx, throw_type)
         switch throw_type {
         case ValueType.TCustom(type_name):
             output.push_str(indent_str)
@@ -5144,7 +5148,6 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             output.push_str(" = {};\n")
         case:
         }
-        idx.inc()
     }
 
     // Check if this is a variadic function call and construct array BEFORE the call
@@ -5292,10 +5295,11 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             switch err_type_param.node_type {
             case NodeType.Identifier(err_type_name):
                 // Find index of this error type
-                mut catch_err_idx := 0
                 mut found_idx := 0
                 mut found := false
-                for vt: ValueType in throw_types {
+                for catch_err_idx in 0..throw_types.len() {
+                    mut vt := ValueType.TCustom(INFER_TYPE)
+                    throw_types.get(catch_err_idx, vt)
                     switch vt {
                     case ValueType.TCustom(name):
                         if name.eq(err_type_name) {
@@ -5305,7 +5309,6 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                         }
                     case:
                     }
-                    catch_err_idx.inc()
                 }
 
                 if found {
@@ -5502,8 +5505,9 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Declare error structs for each throw type of the called function
-    mut idx := 0
-    for throw_type: ValueType in throw_types {
+    for idx in 0..throw_types.len() {
+        mut throw_type := ValueType.TCustom(INFER_TYPE)
+        throw_types.get(idx, throw_type)
         switch throw_type {
         case ValueType.TCustom(type_name):
             output.push_str(indent_str)
@@ -5515,7 +5519,6 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             output.push_str(" = {};\n")
         case:
         }
-        idx.inc()
     }
 
     // Check for variadic function call
@@ -5601,23 +5604,26 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     output.push_str(");\n")
 
     // Generate error propagation: if status != 0, copy error to caller's error param and return
-    mut called_idx := 0
-    for called_throw_type: ValueType in throw_types {
+    for called_idx in 0..throw_types.len() {
+        mut called_throw_type := ValueType.TCustom(INFER_TYPE)
+        throw_types.get(called_idx, called_throw_type)
         switch called_throw_type {
         case ValueType.TCustom(called_type_name):
             // Find matching error type in current function's throw types
             mut current_idx := 0
             mut found := false
-            for cur_vt: ValueType in ctx.current_throw_types {
+            for i in 0..ctx.current_throw_types.len() {
+                mut cur_vt := ValueType.TCustom(INFER_TYPE)
+                ctx.current_throw_types.get(i, cur_vt)
                 switch cur_vt {
                 case ValueType.TCustom(name):
                     if name.eq(called_type_name) {
                         found = true
+                        current_idx = i
                         break
                     }
                 case:
                 }
-                current_idx.inc()
             }
             if found {
                 output.push_str(indent_str)
@@ -5637,7 +5643,6 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             }
         case:
         }
-        called_idx.inc()
     }
 
     // Success case: assign return value to target variable if needed
@@ -5816,8 +5821,9 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Declare error structs for each throw type of the called function
-    mut idx := 0
-    for throw_type: ValueType in throw_types {
+    for idx in 0..throw_types.len() {
+        mut throw_type := ValueType.TCustom(INFER_TYPE)
+        throw_types.get(idx, throw_type)
         switch throw_type {
         case ValueType.TCustom(type_name):
             output.push_str(indent_str)
@@ -5829,7 +5835,6 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             output.push_str(" = {};\n")
         case:
         }
-        idx.inc()
     }
 
     // Check for variadic function call
@@ -5905,8 +5910,9 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     output.push_str(");\n")
 
     // Bug #39 fix: Use simple status checks with goto, not if-block nesting
-    mut goto_err_idx := 0
-    for goto_throw_type: ValueType in throw_types {
+    for goto_err_idx in 0..throw_types.len() {
+        mut goto_throw_type := ValueType.TCustom(INFER_TYPE)
+        throw_types.get(goto_err_idx, goto_throw_type)
         switch goto_throw_type {
         case ValueType.TCustom(type_name):
             // Check if there's a local catch for this error type
@@ -5931,16 +5937,18 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
                 // Check if this error type is in current_throw_types (propagate to caller)
                 mut prop_idx := 0
                 mut found_prop := false
-                for prop_vt: ValueType in ctx.current_throw_types {
+                for i in 0..ctx.current_throw_types.len() {
+                    mut prop_vt := ValueType.TCustom(INFER_TYPE)
+                    ctx.current_throw_types.get(i, prop_vt)
                     switch prop_vt {
                     case ValueType.TCustom(n):
                         if n.eq(type_name) {
                             found_prop = true
+                            prop_idx = i
                             break
                         }
                     case:
                     }
-                    prop_idx.inc()
                 }
                 if found_prop {
                     output.push_str(indent_str)
@@ -5961,7 +5969,6 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             }
         case:
         }
-        goto_err_idx.inc()
     }
 
     // Success case: assign return value to target variable if needed
