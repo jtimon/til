@@ -71,8 +71,8 @@ not := func(b: Bool) returns Bool {
 }
 
 or := func(args: ..Bool) returns Bool {
-    for val: Bool in args {
-        if val {
+    for b: Bool in args {
+        if b {
             return true
         }
     }
@@ -80,8 +80,8 @@ or := func(args: ..Bool) returns Bool {
 }
 
 and := func(args: ..Bool) returns Bool {
-    for val: Bool in args {
-        if not(val) {
+    for b: Bool in args {
+        if not(b) {
             return false
         }
     }

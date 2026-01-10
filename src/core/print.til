@@ -6,15 +6,15 @@ single_print := ext_proc(s: Str) {}
 print_flush  := ext_proc() {}
 
 print := proc(args: ..Str) {
-    for val: Str in args {
-        single_print(val)
+    for print_arg: Str in args {
+        single_print(print_arg)
     }
     print_flush()
 }
 
 println := proc(args: ..Str) {
-    for val: Str in args {
-        single_print(val)
+    for print_arg: Str in args {
+        single_print(print_arg)
     }
     single_print("\n")
     print_flush()

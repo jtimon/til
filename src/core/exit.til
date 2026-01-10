@@ -10,8 +10,8 @@ exit := ext_func(code: I64) {}
 panic := proc(loc_str: Str, msg: Str, extra_msgs: ..Str) {
     single_print(loc_str)
     single_print(msg)
-    for val: Str in extra_msgs {
-        single_print(val)
+    for extra_msg: Str in extra_msgs {
+        single_print(extra_msg)
     }
     single_print("\n")
     print_flush()
