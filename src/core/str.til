@@ -1,4 +1,4 @@
-mode lib
+mode liba
 
 import("core.bounds")
 import("core.mem")
@@ -580,7 +580,7 @@ format := func(prefix: Str, args: ..Str) returns Str {
 
     result.c_string = malloc(result.cap.add(1))  // +1 for null terminator
     if NULL.eq(result.c_string) {
-        panic(loc(), "format: malloc failed")
+        panic(loc(), "format: malloc failed, size=", result.cap.to_str())
     }
 
     mut offset := 0
