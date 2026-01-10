@@ -184,9 +184,10 @@ run_tests := proc() {
     build_tests()
     mut status := 0
     status = run_stream_cmd("./bin/tests")
+    tests_status := status
     status = run_stream_cmd("cp gen/c/test/constfold.c src/test/constfold.c")
     println("Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c")
-    if status.eq(0).not() {
+    if tests_status.eq(0).not() {
         exit(1)
     }
 }

@@ -1040,6 +1040,7 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/mut_test.til"))
     rs_common.push(TestEntry(path="src/test/namespaces.til"))
     rs_common.push(TestEntry(path="src/test/optional_args.til"))
+    rs_common.push(TestEntry(path="src/test/panic.til", expected_status=1))
     rs_common.push(TestEntry(path="src/test/parallel_cmd.til"))
     rs_common.push(TestEntry(path="src/test/pointers.til"))
     rs_common.push(TestEntry(path="src/test/return_value_usage.til"))
@@ -1123,6 +1124,7 @@ main := proc(args: ..Str) {
     til_interpreted.push(TestEntry(path="src/test/mut_test.til"))  // TODO: too few args to til_Array_get
     til_interpreted.push(TestEntry(path="src/test/namespaces.til"))  // TODO: too few args to til_Array_get
     til_interpreted.push(TestEntry(path="src/test/optional_args.til"))  // TODO: too few args to til_Array_get
+    til_interpreted.push(TestEntry(path="src/test/panic.til", expected_status=1))  // TODO: Bug #80 blocks til_compiled
     til_interpreted.push(TestEntry(path="src/test/parallel_cmd.til"))  // TODO: too few args to til_Array_get
     til_interpreted.push(TestEntry(path="src/test/pointers.til"))  // TODO: too few args to til_Array_get
     til_interpreted.push(TestEntry(path="src/test/return_value_usage.til"))  // TODO: segfault

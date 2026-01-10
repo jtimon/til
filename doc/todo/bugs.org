@@ -236,31 +236,6 @@ Also has shadowing warnings for variables like ~til_s_cloned~ in generated clone
 The C codegen should cast typed pointers to ~const til_Dynamic*~ when calling
 ~til_Vec_push~, or Vec push should be specialized per type.
 
-** Bug #93: Test runner returns exit code 0 even with failures
-:PROPERTIES:
-:DISCOVERED: 2026-01-08
-:IMPACT: CI/CD reliability
-:STATUS: Open
-:END:
-
-*** Description
-~make benchmark~ returns exit code 0 even when tests fail. Example output shows
-"Failed: 2/107" but the process exits successfully. This breaks CI/CD pipelines
-that rely on exit codes to detect failures.
-
-*** Example
-#+BEGIN_SRC
-$ make benchmark
-...
-Failed:                  2/107
-src/tests.til:739:15:2// tests failed.
-$ echo $?
-0
-#+END_SRC
-
-*** Expected Behavior
-Exit code should be non-zero when any tests fail.
-
 ** Bug #92: Range loops should allow explicit iterator type annotation
 :PROPERTIES:
 :DISCOVERED: 2026-01-08
@@ -1034,6 +1009,36 @@ main := proc(args: ..Str) {
 2. The C codegen should unpack argv into individual named parameters for custom signatures.
 
 * Fixed Bugs
+
+** Bug #93: Test runner returns exit code 0 even with failures
+:PROPERTIES:
+:DISCOVERED: 2026-01-08
+:FIXED: 2026-01-10
+:IMPACT: CI/CD reliability
+:STATUS: Fixed
+:END:
+
+*** Description
+~make tests~ returned exit code 0 even when tests failed. This broke CI/CD
+pipelines that rely on exit codes to detect failures.
+
+*** Root Cause
+In make.til's ~run_tests~ proc, the exit code from ~./bin/tests~ was being
+overwritten by the subsequent ~cp~ command before checking.
+
+*** Fix
+Save the tests exit code before running cp:
+#+BEGIN_SRC til
+status = run_stream_cmd("./bin/tests")
+tests_status := status  // Save before cp overwrites it
+status = run_stream_cmd("cp gen/c/test/constfold.c src/test/constfold.c")
+if tests_status.eq(0).not() {
+    exit(1)
+}
+#+END_SRC
+
+*** Test
+Added src/test/panic.til with expected_status=1 to verify exit code handling.
 
 ** Bug #95: Need spread operator to expand Vec/Array for variadic arguments
 :PROPERTIES:

@@ -1,0 +1,4 @@
+mode test
+
+// Test that panic exits with non-zero status
+panic(loc(), "intentional panic for testing")
