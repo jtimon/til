@@ -8,6 +8,122 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #97: Disallow variable shadowing - type checker should error "X already declared"
+:PROPERTIES:
+:DISCOVERED: 2026-01-10
+:IMPACT: Variable shadowing causes C codegen to mix up types, generating broken C code
+:STATUS: Open
+:END:
+
+*** Description
+TIL's C code generator doesn't properly handle variable shadowing (reusing the same
+variable name in nested scopes). When Rust code uses shadowing (like ~let arg = ...~
+multiple times), the translated TIL code reuses variable names, but the C codegen
+assigns all shadowed variables to a single C variable, causing type conflicts.
+
+*** Example
+TIL code with shadowing:
+#+BEGIN_SRC til
+mut arg := Declaration()  // Outer scope
+// ... use arg ...
+mut arg := Expr()         // Inner scope - shadows outer arg
+// ... use arg ...
+#+END_SRC
+
+Generated C code (BROKEN):
+#+BEGIN_SRC c
+til_Declaration til_arg;  // Declared once as Declaration
+// ...
+til_arg = (til_Expr){...};  // ERROR: assigning Expr to Declaration variable
+#+END_SRC
+
+*** Root Cause
+The C codegen hoists all variable declarations to function scope and reuses the
+same C variable for all TIL variables with the same name, even when they're
+shadowed in different scopes.
+
+*** Existing Checks (that aren't catching this)
+There are already 2 "already declared" checks in src/rs/init.rs:
+
+1. Line 165 in ~declare_var_in_arena()~: Checks ~current_frame.arena_index~ for duplicates
+   #+BEGIN_SRC rust
+   if name != "_" && current_frame.arena_index.contains_key(&name) {
+       return Err(format!("Variable '{}' already declared in this scope", name));
+   }
+   #+END_SRC
+
+2. Line 1022 in ~init_context()~: Checks if func/symbol already exists using ~lookup_symbol()~
+   #+BEGIN_SRC rust
+   if decl.name != "_" && (context.scope_stack.lookup_func(&decl.name).is_some() ||
+                           context.scope_stack.lookup_symbol(&decl.name).is_some()) {
+       errors.push(e.error(&context.path, "init", &format!("'{}' already declared.", decl.name)));
+   }
+   #+END_SRC
+
+These checks aren't catching the shadowing cases that cause C codegen bugs.
+
+*Why they don't catch nested scope shadowing:*
+- ~init_context()~ only processes frame 0 (top-level/global scope of files)
+- It only pushes 2 scope types: Global and Function (no Block scopes for if/while/for)
+- Shadowing bugs occur in nested blocks INSIDE functions, which init never processes
+- The typer processes nested scopes, but has no "already declared" check for current frame
+
+*** Solution Attempts
+
+*Attempt 1: Check in typer's check_declaration() function*
+
+Added new helper method in ~src/rs/init.rs~ (ScopeStack impl):
+#+BEGIN_SRC rust
+pub fn lookup_symbol_current_frame(&self, name: &str) -> Option<&SymbolInfo> {
+    if let Some(current_frame) = self.frames.last() {
+        current_frame.symbols.get(name)
+    } else {
+        None
+    }
+}
+#+END_SRC
+
+Added check in ~check_declaration()~ function in ~src/rs/typer.rs~, after extracting
+inner_e and before the existing ~lookup_symbol().is_none()~ check:
+#+BEGIN_SRC rust
+// Bug #97: Disallow variable redeclaration in same scope
+// Skip check for "_" - it's special for discarding values
+// Skip frame 0 - already checked by init_context
+if decl.name != "_" && context.scope_stack.frames.len() > 1 {
+    if context.scope_stack.lookup_symbol_current_frame(&decl.name).is_some() {
+        errors.push(e.error(&context.path, "type", &format!("Variable '{}' already declared in this scope", decl.name)));
+        return errors;
+    }
+}
+#+END_SRC
+
+*Result:* Check worked but triggered false positives on 43 legitimate declarations. Examples:
+- ~src/core/vec.til:286~: "Variable 'elem' already declared in this scope"
+- ~src/core/vec.til:303-304~: "Variable 'prev' already declared in this scope", "Variable 'curr' already declared"
+- ~src/core/str.til:28-29~: "Variable 'self_byte' already declared", "Variable 'other_byte' already declared"
+
+*Problems:*
+1. These are legitimate declarations inside for-in loop bodies, not actual shadowing bugs
+2. Each variable is only declared once in the source code (e.g., line 303: ~mut prev := ""~)
+3. The typer only walks code once during type checking, doesn't execute loop iterations
+4. Yet the check sees them as "already declared in this scope"
+
+*Mystery:* Why is ~check_declaration()~ being called multiple times for the same
+declaration, or why does ~lookup_symbol_current_frame()~ find the symbol already
+declared when it should be the first time seeing it?
+
+Need to investigate:
+- Does catch block processing cause multiple passes?
+- Does ~check_types_with_context()~ get called multiple times on the same Body?
+- Is there something about how for-in bodies are type-checked that repeats?
+
+This matches CLAUDE.md guidance: "AVOID variable shadowing in Rust - TIL doesn't
+support shadowing the same way" (Issue #66 in future.org).
+
+*** Workaround
+Manually rename shadowed variables to unique names (e.g., ~arg1~, ~arg2~, or
+~outer_arg~, ~inner_arg~) in both TIL and Rust code to maintain consistency.
+
 ** Bug #96: Unreachable code error when return is before catch in early-return pattern
 :PROPERTIES:
 :DISCOVERED: 2026-01-09
