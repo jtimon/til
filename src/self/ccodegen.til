@@ -2250,8 +2250,8 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
         }
         // For non-identifier args (literals, compound literals), emit with (til_Dynamic*)&
         // But first check if already hoisted (hoisted_exprs already includes & prefix)
-        arg_addr := to_ptr(arg)
-        if ctx.hoisted_exprs.contains_key(arg_addr) {
+        dyn_arg_addr := to_ptr(arg)
+        if ctx.hoisted_exprs.contains_key(dyn_arg_addr) {
             // Already hoisted with & prefix - just emit it
             emit_expr(arg, output, 0, ctx, context)
         } else {

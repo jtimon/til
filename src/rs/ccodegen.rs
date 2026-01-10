@@ -1728,8 +1728,8 @@ fn emit_arg_with_param_type(
         }
         // For non-identifier args (literals, compound literals), emit with (til_Dynamic*)&
         // But first check if already hoisted (hoisted_exprs already includes & prefix)
-        let arg_addr = arg as *const Expr as usize;
-        if ctx.hoisted_exprs.contains_key(&arg_addr) {
+        let dyn_arg_addr = arg as *const Expr as usize;
+        if ctx.hoisted_exprs.contains_key(&dyn_arg_addr) {
             // Already hoisted with & prefix - just emit it
             emit_expr(arg, output, 0, ctx, context)?;
         } else if matches!(&arg.node_type, NodeType::LLiteral(_)) {
