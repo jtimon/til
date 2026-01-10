@@ -147,9 +147,81 @@ Need to investigate:
 This matches CLAUDE.md guidance: "AVOID variable shadowing in Rust - TIL doesn't
 support shadowing the same way" (Issue #66 in future.org).
 
+*** Reproduction
+Test file: ~src/test/shadowing.til~ (not in tests.til until fixed)
+
+#+BEGIN_SRC til
+mode test
+
+test_shadowing_different_types := proc() {
+    mut x := 1        // I64
+    if true {
+        mut x := "hi" // Str - different type, C will fail to compile
+    }
+}
+test_shadowing_different_types()
+#+END_SRC
+
+*Results:*
+- ~rstil interpret src/test/shadowing.til~ - passes (exit 0), interpreter allows shadowing
+- ~rstil run src/test/shadowing.til~ - fails (exit 1), C compilation error:
+#+BEGIN_SRC
+gen/c/test/shadowing.c:64:17: error: incompatible types when assigning to type 'til_I64' from type 'til_Str'
+   64 |         til_x = ((til_Str){(til_I64)"hi", 2});
+#+END_SRC
+
+This demonstrates the bug: C codegen reuses the outer variable ~til_x~ (declared as I64)
+instead of creating a new variable for the inner shadowing declaration.
+
 *** Workaround
 Manually rename shadowed variables to unique names (e.g., ~arg1~, ~arg2~, or
 ~outer_arg~, ~inner_arg~) in both TIL and Rust code to maintain consistency.
+
+*** Design Options
+
+This is a design decision, not just a bug fix. Options:
+
+*Option A: Minimal - only disallow what C disallows*
+- Disallow shadowing with different types in same function (what breaks C codegen)
+- Allow same-type shadowing (C handles this fine)
+- Least restrictive, matches C's actual limitations
+- Typer cost: check type matches if name exists in any enclosing scope
+
+*Option B: Strict - disallow all shadowing in same scope*
+- Disallow any redeclaration in the same block scope, regardless of type
+- More restrictive than C (C allows same-type shadowing in nested blocks)
+- Typer cost: check name doesn't exist in current frame only
+- Codegen benefit: can keep simple variable hoisting, no renaming needed
+
+*Option C: Very strict - disallow all shadowing in entire function*
+- Disallow any reuse of variable name anywhere in a function
+- Most restrictive, prevents all shadowing confusion
+- Typer cost: check name doesn't exist in any frame
+- Codegen benefit: maximum simplicity
+
+*Option D: Permissive like Rust - allow all shadowing*
+- Allow shadowing anywhere, like Rust does
+- Requires codegen to rename variables (e.g., ~x~ -> ~x_1~, ~x_2~)
+- Typer cost: track shadow depth per variable
+- Codegen cost: variable renaming logic, scope tracking
+
+*** Two-Step Fix Plan
+
+*Step 1 (initial):* Check in ccodegen, not typer - disallow ALL shadowing in function
+- Keep ~declared_vars~ as simple ~HashSet<String>~ (no type tracking needed)
+- If variable name already exists when declaring, emit TIL error
+- Stricter than necessary (blocks same-type shadowing too) but much simpler
+- Avoids the typer false positive mystery entirely
+- Error message: "variable 'x' already declared in this function"
+
+*Step 2 (final):* Implement the chosen design option in typer
+- May require more sophisticated scope tracking
+- Deferred until design is finalized (needs more examples to decide)
+
+*** Decision
+
+Final solution: TBD (needs more examples, possibly look at Haskell approach)
+Initial solution: Check in ccodegen - error on ANY shadowing in same function (simpler than type tracking)
 
 ** Bug #96: Unreachable code error when return is before catch in early-return pattern
 :PROPERTIES:
