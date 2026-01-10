@@ -25,3 +25,52 @@ mode test
 //     assert_eq(6, bin_op_i64(subtract, 10, 4))
 // }
 // function_pointer_test() // TODO Implement
+
+// Map test - for discussion
+// IntTransform := func(x: I64) returns I64
+//
+// double := func(x: I64) returns I64 {
+//     return x.mul(2)
+// }
+//
+// map_basic_test := proc() {
+//     numbers := Vec(I64)
+//     numbers.push(1)
+//     numbers.push(2)
+//     numbers.push(3)
+//
+//     doubled := numbers.map(double)
+//
+//     assert_eq(loc(), 2, doubled.get(0))
+//     assert_eq(loc(), 4, doubled.get(1))
+//     assert_eq(loc(), 6, doubled.get(2))
+// }
+// map_basic_test()
+//
+// // Map with lookup and default - the pattern we need for ccodegen
+// map_with_default_test := proc() {
+//     lookup := Map(I64, Str)
+//     lookup.set(1, "one")
+//     lookup.set(3, "three")
+//
+//     ids := Vec(I64)
+//     ids.push(1)
+//     ids.push(2)
+//     ids.push(3)
+//
+//     // Option A: map with a closure that handles the default
+//     names := ids.map(func(id: I64) returns Str {
+//         mut result := "unknown"
+//         lookup.get(id, result)
+//         catch (err: KeyNotFoundError) { }
+//         return result
+//     })
+//
+//     // Option B: specialized map_get method
+//     names2 := ids.map_get(lookup, "unknown")
+//
+//     assert_eq_str(loc(), "one", names.get(0))
+//     assert_eq_str(loc(), "unknown", names.get(1))
+//     assert_eq_str(loc(), "three", names.get(2))
+// }
+// map_with_default_test()

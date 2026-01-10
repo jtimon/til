@@ -1,0 +1,53 @@
+* Lambda Functions in TIL
+
+** Design Philosophy
+
+TIL uses the same syntax for inline "lambda" functions as for regular function definitions.
+There is no special lambda syntax.
+
+** Example
+
+#+begin_src til
+// Regular named function
+double := func(x: I64) returns I64 {
+    return x.mul(2)
+}
+
+// Same syntax inline as an argument
+doubled := numbers.map(func(x: I64) returns I64 {
+    return x.mul(2)
+})
+#+end_src
+
+** Trade-offs
+
+More verbose than Rust's closure syntax:
+#+begin_src rust
+// Rust
+numbers.iter().map(|x| x * 2)
+#+end_src
+
+But more consistent and intuitive:
+- No separate syntax to learn
+- A function is a function, whether named or inline
+- Similar to C function pointer syntax, familiar to C programmers
+
+** Discoverability
+
+A newbie who has never heard of "lambda functions" can discover them naturally:
+1. Learn that functions can be passed as arguments
+2. Realize they can inline a function definition just like they might inline a constant
+3. No new concept needed - just using existing syntax in a new place
+
+The goal is that users explore and discover this naturally rather than needing to learn
+a special "lambda" or "closure" concept.
+
+** Prior Art
+
+This is, I think, how Jai tries to do it too, but I don't know for sure.
+I've watched too many people talking about their languages and I mix them up now.
+
+** Related
+
+- Issue #91: First-Class Functions (doc/todo/future.org)
+- src/test/function_pointers.til (early draft/test cases)

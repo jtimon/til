@@ -258,7 +258,7 @@ Once core mechanism works, expand capabilities:
 :DISCOVERED: 2026-01-07
 :IMPACT: Language feature, polymorphism, higher-order programming
 :STATUS: Open
-:RELATED: Bug #90 (semicolon syntax), src/test/function_pointers.til (early draft)
+:RELATED: Bug #90 (semicolon syntax), src/test/function_pointers.til (early draft), doc/lamda.org
 :END:
 
 *** Background
