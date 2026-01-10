@@ -6427,18 +6427,18 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     mut args := Vec.new(Expr)
                     mut ai := 1
                     while ai.lt(rhs_fcall.params.len()) {
-                        mut arg := Expr()
-                        rhs_fcall.params.get(ai, arg)
-                        args.push(arg.clone())
+                        mut fcall_arg := Expr()
+                        rhs_fcall.params.get(ai, fcall_arg)
+                        args.push(fcall_arg.clone())
                         ai.inc()
                     }
                     empty_hoisted := Map.new(I64, Str)
                     dynamic_hoisted := hoist_for_dynamic_params(args, param_types, empty_hoisted, output, indent, ctx, context)
                     for h: HoistedArg in dynamic_hoisted {
                         if h.index.lt(args.len()) {
-                            mut arg := Expr()
-                            args.get(h.index, arg)
-                            expr_key := to_ptr(arg)
+                            mut hoisted_arg := Expr()
+                            args.get(h.index, hoisted_arg)
+                            expr_key := to_ptr(hoisted_arg)
                             mut hoisted_val := "&"
                             hoisted_val.push_str(h.temp_var)
                             ctx.hoisted_exprs.set(expr_key, hoisted_val)
@@ -6451,9 +6451,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     ref_hoisted := hoist_for_ref_params(args, param_by_ref, hoisted_map, output, indent, ctx, context)
                     for h: HoistedArg in ref_hoisted {
                         if h.index.lt(args.len()) {
-                            mut arg := Expr()
-                            args.get(h.index, arg)
-                            expr_key := to_ptr(arg)
+                            mut ref_arg := Expr()
+                            args.get(h.index, ref_arg)
+                            expr_key := to_ptr(ref_arg)
                             mut hoisted_val := "&"
                             hoisted_val.push_str(h.temp_var)
                             ctx.hoisted_exprs.set(expr_key, hoisted_val)
@@ -6529,18 +6529,18 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     mut args := Vec.new(Expr)
                     mut ai := 1
                     while ai.lt(rhs_fcall.params.len()) {
-                        mut arg := Expr()
-                        rhs_fcall.params.get(ai, arg)
-                        args.push(arg.clone())
+                        mut fcall_arg := Expr()
+                        rhs_fcall.params.get(ai, fcall_arg)
+                        args.push(fcall_arg.clone())
                         ai.inc()
                     }
                     empty_hoisted := Map.new(I64, Str)
                     dynamic_hoisted := hoist_for_dynamic_params(args, param_types, empty_hoisted, output, indent, ctx, context)
                     for h: HoistedArg in dynamic_hoisted {
                         if h.index.lt(args.len()) {
-                            mut arg := Expr()
-                            args.get(h.index, arg)
-                            expr_key := to_ptr(arg)
+                            mut hoisted_arg := Expr()
+                            args.get(h.index, hoisted_arg)
+                            expr_key := to_ptr(hoisted_arg)
                             mut hoisted_val := "&"
                             hoisted_val.push_str(h.temp_var)
                             ctx.hoisted_exprs.set(expr_key, hoisted_val)
@@ -6553,9 +6553,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                     ref_hoisted := hoist_for_ref_params(args, param_by_ref, hoisted_map, output, indent, ctx, context)
                     for h: HoistedArg in ref_hoisted {
                         if h.index.lt(args.len()) {
-                            mut arg := Expr()
-                            args.get(h.index, arg)
-                            expr_key := to_ptr(arg)
+                            mut ref_arg := Expr()
+                            args.get(h.index, ref_arg)
+                            expr_key := to_ptr(ref_arg)
                             mut hoisted_val := "&"
                             hoisted_val.push_str(h.temp_var)
                             ctx.hoisted_exprs.set(expr_key, hoisted_val)

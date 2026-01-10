@@ -5158,16 +5158,16 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                         let empty_hoisted = std::collections::HashMap::new();
                         let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
                         for h in &dynamic_hoisted {
-                            if let Some(arg) = args.get(h.index) {
-                                let expr_addr = arg as *const Expr as usize;
+                            if let Some(hoisted_arg) = args.get(h.index) {
+                                let expr_addr = hoisted_arg as *const Expr as usize;
                                 ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
                             }
                         }
                         let mut hoisted_map: std::collections::HashMap<usize, String> = dynamic_hoisted.into_iter().map(|h| (h.index, h.temp_var)).collect();
                         let ref_hoisted = hoist_for_ref_params(args, &param_by_ref, &hoisted_map, output, indent, ctx, context)?;
                         for h in ref_hoisted {
-                            if let Some(arg) = args.get(h.index) {
-                                let expr_addr = arg as *const Expr as usize;
+                            if let Some(ref_arg) = args.get(h.index) {
+                                let expr_addr = ref_arg as *const Expr as usize;
                                 ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
                             }
                             hoisted_map.insert(h.index, h.temp_var);
@@ -5216,16 +5216,16 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                         let empty_hoisted = std::collections::HashMap::new();
                         let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
                         for h in &dynamic_hoisted {
-                            if let Some(arg) = args.get(h.index) {
-                                let expr_addr = arg as *const Expr as usize;
+                            if let Some(hoisted_arg) = args.get(h.index) {
+                                let expr_addr = hoisted_arg as *const Expr as usize;
                                 ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
                             }
                         }
                         let mut hoisted_map: std::collections::HashMap<usize, String> = dynamic_hoisted.into_iter().map(|h| (h.index, h.temp_var)).collect();
                         let ref_hoisted = hoist_for_ref_params(args, &param_by_ref, &hoisted_map, output, indent, ctx, context)?;
                         for h in ref_hoisted {
-                            if let Some(arg) = args.get(h.index) {
-                                let expr_addr = arg as *const Expr as usize;
+                            if let Some(ref_arg) = args.get(h.index) {
+                                let expr_addr = ref_arg as *const Expr as usize;
                                 ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
                             }
                             hoisted_map.insert(h.index, h.temp_var);
