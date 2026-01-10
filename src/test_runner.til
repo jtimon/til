@@ -65,7 +65,7 @@ format_time := func(ms: I64) returns Str {
 // path: src/test/foo.til -> gen/out/test/foo
 // mode: rs_interpreted, til_compiled, etc.
 // args: "help" -> ".help", "help foo" -> ".help_foo", "" -> ""
-get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
+get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str throws AllocError {
     // Convert src/test/foo.til -> gen/out/test/foo
     base := path.replace(".til", "").replace("src/", "gen/out/")
 
@@ -274,5 +274,4 @@ main := proc(args: ..Str) {
 
     catch (err: AllocError) { panic(loc(), err.msg) }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: I64_OverflowError) { panic(loc(), err.msg) }
 }

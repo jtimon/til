@@ -6919,7 +6919,7 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                 case:
                 }
                 output.push_str("(")
-                // Emit regular args
+                // Emit regular args with proper by-ref handling
                 mut args := Vec.new(Expr)
                 mut arg_idx2 := 1
                 while arg_idx2.lt(return_expr.params.len()) {
@@ -6928,6 +6928,19 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                     args.push(arg)
                     arg_idx2.inc()
                 }
+                // Look up function param info for by-ref handling
+                mut param_info := Vec.new(ParamTypeInfo)
+                fd := get_fcall_func_def(context, return_expr)
+                for fd_arg: Declaration in fd.args {
+                    mut pi := ParamTypeInfo()
+                    pi.value_type = fd_arg.value_type
+                    pi.has_value_type = true
+                    pi.by_ref = param_needs_by_ref(fd_arg)
+                    param_info.push(pi)
+                }
+                catch (err: KeyNotFoundError) {
+                    // REM: function not found, param_info stays empty
+                }
                 mut i := 0
                 while i.lt(variadic_fcall_info.regular_count) {
                     if i.gt(0) {
@@ -6935,7 +6948,15 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                     }
                     mut arg := Expr()
                     args.get(i, arg)
-                    emit_expr(arg, output, 0, ctx, context)
+                    mut param_type_ptr := Ptr()
+                    mut by_ref := true
+                    if i.lt(param_info.len()) {
+                        mut pi := ParamTypeInfo()
+                        param_info.get(i, pi)
+                        param_type_ptr.data = to_ptr(pi.value_type)
+                        by_ref = pi.by_ref
+                    }
+                    emit_arg_with_param_type(arg, i, hoisted, param_type_ptr, by_ref, output, ctx, context)
                     i.inc()
                 }
                 // Emit variadic array pointer

@@ -5453,13 +5453,22 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                         output.push_str(&til_func_name(func_name));
                     }
                     output.push_str("(");
-                    // Emit regular args
+                    // Emit regular args with proper by-ref handling
                     let args: Vec<_> = return_expr.params.iter().skip(1).collect();
+                    // Look up function param info for by-ref handling
+                    let param_info: Vec<ParamTypeInfo> = if let Some(fd) = get_fcall_func_def(context, return_expr) {
+                        fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
+                    } else {
+                        Vec::new()
+                    };
                     for (i, arg) in args.iter().take(variadic_fcall_info.regular_count).enumerate() {
                         if i > 0 {
                             output.push_str(", ");
                         }
-                        emit_expr(arg, output, 0, ctx, context)?;
+                        let (param_type, by_ref) = param_info.get(i)
+                            .map(|info| (info.value_type.as_ref(), info.by_ref))
+                            .unwrap_or((None, true));
+                        emit_arg_with_param_type(arg, i, &hoisted, param_type, by_ref, output, ctx, context)?;
                     }
                     // Emit variadic array pointer
                     if variadic_fcall_info.regular_count > 0 {

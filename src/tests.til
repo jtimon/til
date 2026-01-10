@@ -253,7 +253,7 @@ kill_running_and_panic := proc(running: Vec, msg: Str) {
 // path: src/test/foo.til -> gen/out/test/foo
 // mode: rs_interpreted, til_compiled, etc.
 // args: "help" -> ".help", "help foo" -> ".help_foo", "" -> ""
-get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
+get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str throws AllocError {
     base := path.replace(".til", "").replace("src/", "gen/out/")
     mut args_part := ""
     if cmd_args.len().gt(0) {
@@ -265,7 +265,7 @@ get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str th
 // Spawn a test using test.til
 // test.til handles: run command, compare output, report result
 // Output is redirected to a result file for later reading
-spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns RunningTest throws SpawnError, AllocError, IndexOutOfBoundsError, I64_OverflowError {
+spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns RunningTest throws SpawnError {
     // Build command: ./bin/test_runner <mode> <out_mode> <expected_status> <file> [args...]
     mut cmd := format("./bin/test_runner ", phase.test_mode, " ", phase.out_mode, " ", entry.expected_status.to_str(), " ", entry.path)
     if entry.cmd_args.len().gt(0) {
@@ -564,7 +564,6 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
     catch (err: SleepError) { kill_running_and_panic(running, err.msg) }
     catch (err: AllocError) { kill_running_and_panic(running, err.msg) }
     catch (err: IndexOutOfBoundsError) { kill_running_and_panic(running, err.msg) }
-    catch (err: I64_OverflowError) { kill_running_and_panic(running, err.msg) }
 
     return errors
 }
