@@ -2742,7 +2742,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
             throw func_expr.error(context.path, "type", format(
                 "Cannot call '", combined_name, "', it is not a function, it is '", value_type_to_str(value_type), "'"))
         }
-        throw func_expr.lang_error(context.path, "type", "Could not find function definition")
+        throw func_expr.lang_error(context.path, "type", format("Could not find function definition for '", combined_name, "'"))
     case:
         throw func_expr.lang_error(context.path, "type", "Expected Identifier node type")
     }

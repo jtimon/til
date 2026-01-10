@@ -2111,7 +2111,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                     "Cannot call '{}', it is not a function, it is '{}'",
                     combined_name, value_type_to_str(&value_type))))
             }
-            return Err(func_expr.lang_error(&context.path, "type", "Could not find function definition"))
+            return Err(func_expr.lang_error(&context.path, "type", &format!("Could not find function definition for '{}'", combined_name)))
         },
         _ => return Err(func_expr.lang_error(&context.path, "type", "Expected Identifier node type"))
     }
