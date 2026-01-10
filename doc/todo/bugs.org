@@ -8,6 +8,33 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #98: ext_proc errors should throw specific error types instead of panicking
+:PROPERTIES:
+:DISCOVERED: 2026-01-10
+:IMPACT: ext_proc failures (writefile, readfile, etc.) panic instead of throwing catchable errors
+:STATUS: Open
+:END:
+
+*** Description
+Currently, ext_proc functions like writefile, readfile, etc. either:
+- Rust (ext.rs): Return Err() which bubbles up and crashes
+- C (ext.c): Panic with fprintf+exit
+
+Instead, they should throw specific TIL error types (like WriteError, ReadError) that
+can be caught with TIL's catch blocks, similar to how AllocError works for malloc.
+
+*** Example (future behavior)
+#+BEGIN_SRC til
+write_err := writefile(path, contents)
+catch (err: WriteError) {
+    println("Write failed: ", err.msg)
+}
+#+END_SRC
+
+*** Current Workaround
+Check return values manually (for functions that return error strings) or let the
+program crash on I/O failures.
+
 ** Bug #97: Disallow variable shadowing - type checker should error "X already declared"
 :PROPERTIES:
 :DISCOVERED: 2026-01-10

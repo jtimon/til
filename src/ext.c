@@ -179,16 +179,22 @@ static inline til_Str til_readfile(const til_Str* path)
     return s;
 }
 
-// writefile: write string to file
-static inline til_I64 til_writefile(const til_Str* path, const til_Str* contents)
+// writefile: write string to file, returns empty string on success
+// Bug #98: Should throw WriteError instead of panicking
+static inline til_Str til_writefile(const til_Str* path, const til_Str* contents)
 {
     FILE* f = fopen((const char*)path->c_string, "wb");
     if (!f) {
-        return -1;
+        fprintf(stderr, "PANIC: writefile: could not open file '%s'\n", (const char*)path->c_string);
+        exit(1);
     }
     size_t written = fwrite((const char*)contents->c_string, 1, contents->cap, f);
     fclose(f);
-    return (til_I64)written;
+    if (written != (size_t)contents->cap) {
+        fprintf(stderr, "PANIC: writefile: write failed for '%s'\n", (const char*)path->c_string);
+        exit(1);
+    }
+    return (til_Str){(til_I64)"", 0};
 }
 
 // run_cmd: run command with arguments, capture output and return exit code

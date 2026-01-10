@@ -514,6 +514,29 @@ proc_readfile := proc(mut context: Context, e: Expr) returns EvalResult throws S
     return EvalResult.new(source)
 }
 
+proc_writefile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "writefile", 2, true)
+
+    path_result := eval_expr(context, e.get(1))
+    if path_result.is_throw {
+        return path_result
+    }
+    path := path_result.value
+
+    contents_result := eval_expr(context, e.get(2))
+    if contents_result.is_throw {
+        return contents_result
+    }
+    contents := contents_result.value
+
+    // Call host-provided writefile (when running on rstil)
+    err := writefile(path, contents)
+    if not(err.is_empty()) {
+        throw e.error(context.path, "eval", format("Problem writing file '", path, "': ", err))
+    }
+    return EvalResult.new("")
+}
+
 // WARNING: run_cmd executes shell commands.
 // In mode safe_script, only whitelisted commands are allowed (configurable).
 // In other modes, arbitrary commands can be executed - use with caution.

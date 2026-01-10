@@ -3344,6 +3344,8 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return proc_print_flush(context, e)
     } else if name.eq("readfile") {
         return proc_readfile(context, e)
+    } else if name.eq("writefile") {
+        return proc_writefile(context, e)
     } else if name.eq("run_cmd") {
         return proc_run_cmd(context, e)
     } else if name.eq("spawn_cmd") {
