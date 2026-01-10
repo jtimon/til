@@ -734,3 +734,42 @@ test_vec_with_capacity := proc() {
     }
 }
 test_vec_with_capacity()
+
+test_sort_str_vec := proc() {
+    mut variants := Vec.new(Str)
+    variants.push("zebra")
+    variants.push("apple")
+    variants.push("banana")
+    variants.push("cherry")
+
+    sort_str_vec(variants)
+
+    // Verify sorted order
+    mut v0 := ""
+    mut v1 := ""
+    mut v2 := ""
+    mut v3 := ""
+    variants.get(0, v0)
+    variants.get(1, v1)
+    variants.get(2, v2)
+    variants.get(3, v3)
+
+    assert_eq_str(loc(), "apple", v0)
+    assert_eq_str(loc(), "banana", v1)
+    assert_eq_str(loc(), "cherry", v2)
+    assert_eq_str(loc(), "zebra", v3)
+
+    variants.delete()
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_sort_str_vec()

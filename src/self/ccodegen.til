@@ -10,6 +10,29 @@ import("self.typer")
 // Prefix for all TIL-generated names in C code (structs, functions, types)
 TIL_PREFIX := "til_"
 
+// Helper: Sort Vec<EnumVariant> by name field in-place (simple bubble sort)
+sort_enum_variants := proc(mut v: Vec) {
+    mut n := v.len()
+    while gt(n, 1) {
+        mut new_n := 0
+        for i in 1..n {
+            mut prev := EnumVariant()
+            mut curr := EnumVariant()
+            v.get(i.sub(1), prev)
+            v.get(i, curr)
+            if gt(prev.name.cmp(curr.name), 0) {
+                v.set(i.sub(1), curr)
+                v.set(i, prev)
+                new_n = i
+            }
+            catch (err: IndexOutOfBoundsError) {
+                panic(loc(), "sort_enum_variants: ", err.msg)
+            }
+        }
+        n = new_n
+    }
+}
+
 // Codegen context for tracking function info
 CodegenContext := struct {
     // Counter for generating unique temp variable names (deterministic per-compilation)
@@ -3415,7 +3438,7 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, mut output: 
     for v: EnumVariant in enum_def.variants {
         variants.push(v.clone())
     }
-    variants.sort_by_key_str(proc(v: EnumVariant) returns Str { return v.name })
+    sort_enum_variants(variants)
 
     // 1. Emit tag enum: typedef enum { Color_Unknown = 0, ... } Color_Tag;
     output.push_str("typedef enum {\n")
@@ -3555,7 +3578,7 @@ emit_enum_declaration := proc(expr: Expr, mut output: Str) throws Str {
                 for v: EnumVariant in enum_def.variants {
                     variants.push(v.name)
                 }
-                variants.sort()
+                sort_str_vec(variants)
 
                 mut index := 0
                 for variant_name: Str in variants {
@@ -3617,7 +3640,7 @@ emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, mut output
     for v: EnumVariant in enum_def.variants {
         variants.push(v.name)
     }
-    variants.sort()
+    sort_str_vec(variants)
 
     // Function signature - takes pointer since Dynamic params are passed by reference
     output.push_str("static inline til_Str ")

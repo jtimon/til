@@ -293,3 +293,26 @@ Vec := struct {
         return result
     }
 }
+
+// Sort a Vec<Str> in-place (simple bubble sort)
+sort_str_vec := proc(mut v: Vec) {
+    mut n := v.len()
+    while gt(n, 1) {
+        mut new_n := 0
+        for i in 1..n {
+            mut prev := ""
+            mut curr := ""
+            v.get(i.sub(1), prev)
+            v.get(i, curr)
+            if gt(prev.cmp(curr), 0) {
+                v.set(i.sub(1), curr)
+                v.set(i, prev)
+                new_n = i
+            }
+            catch (err: IndexOutOfBoundsError) {
+                panic(loc(), "sort_str_vec: ", err.msg)
+            }
+        }
+        n = new_n
+    }
+}
