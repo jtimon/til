@@ -4876,7 +4876,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
                 mut first_type := ValueType.TCustom(INFER_TYPE)
                 fd3.return_types.get(0, first_type)
                 mut sym_info := SymbolInfo()
-                sym_info.value_type = first_type.clone()
+                sym_info.value_type = first_type
                 sym_info.is_mut = true
                 sym_info.is_copy = false
                 sym_info.is_own = false
@@ -5096,7 +5096,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             mut first_type := ValueType.TCustom(INFER_TYPE)
             fd4.return_types.get(0, first_type)
             mut sym_info := SymbolInfo()
-            sym_info.value_type = first_type.clone()
+            sym_info.value_type = first_type
             sym_info.is_mut = true
             sym_info.is_copy = false
             sym_info.is_own = false
@@ -5467,7 +5467,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             mut first_type := ValueType.TCustom("")
             fd4.return_types.get(0, first_type)
             mut sym_info := SymbolInfo()
-            sym_info.value_type = first_type.clone()
+            sym_info.value_type = first_type
             sym_info.is_mut = true
             sym_info.is_copy = false
             sym_info.is_own = false
@@ -5781,7 +5781,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             mut first_type := ValueType.TCustom("")
             fd4.return_types.get(0, first_type)
             mut sym_info := SymbolInfo()
-            sym_info.value_type = first_type.clone()
+            sym_info.value_type = first_type
             sym_info.is_mut = true
             sym_info.is_copy = false
             sym_info.is_own = false
@@ -6170,7 +6170,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
     }
     // Add to scope_stack so get_value_type can find it
     mut symbol_info := SymbolInfo()
-    symbol_info.value_type = var_type.clone()
+    symbol_info.value_type = var_type
     symbol_info.is_mut = decl.is_mut
     symbol_info.is_copy = false
     symbol_info.is_own = false
@@ -8355,7 +8355,7 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                 // Push scope and declare binding variable
                 context.scope_stack.push(ScopeType.Block)
                 mut symbol_info := SymbolInfo()
-                symbol_info.value_type = payload_type_opt.clone()
+                symbol_info.value_type = payload_type_opt
                 symbol_info.is_mut = false
                 symbol_info.is_copy = false
                 symbol_info.is_own = false
