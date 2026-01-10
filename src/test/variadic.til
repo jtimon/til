@@ -6,19 +6,6 @@ concat2 := proc(args: ..Str) returns Str {
         result = format(result, val)
     }
 
-    catch(err: I64_OverflowError) {
-        println(loc(), "I64_OverflowError thrown:")
-        println(err.msg)
-    }
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError thrown:")
-        println(err.msg)
-    }
-    catch(err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-    }
-
     return result
 }
 assert_eq_str(loc(), "Variadic: foobarbaz", concat2("Variadic: ", "foo", "bar", "baz"))
@@ -61,7 +48,7 @@ assert_eq(loc(), 6, test_i64_variadic(1, 2, 3))
 assert_eq(loc(), 30, test_i64_variadic(10, 20))
 assert_eq(loc(), 0, test_i64_variadic())
 
-test_str_variadic := func(args: ..Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
+test_str_variadic := func(args: ..Str) returns Str {
     mut result := ""
     for val: Str in args {
         result = format(result, val)

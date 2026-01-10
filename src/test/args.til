@@ -42,25 +42,7 @@ test_bool_args := proc() {
 test_bool_args()
 
 test_str_arg := proc(s: Str) returns Str {
-    result := format(s, " world")
-
-    // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
-    return result
+    return format(s, " world")
 }
 
 test_str_args := proc() {
@@ -124,23 +106,6 @@ test_mut_bool()
 
 append_str := proc(mut s: Str, suffix: Str) {
     s = format(s, suffix)
-
-    // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
 }
 
 test_mut_str := proc() {
@@ -256,7 +221,6 @@ test_non_mut_isolation()
 
 push_value := proc(mut arr: Vec, value: I64) {
     arr.push(value)
-
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
@@ -532,25 +496,7 @@ test_own_can_modify()
 
 // Test 4: own with string
 consume_string := proc(own s: Str) returns Str {
-    result := format(s, " consumed")
-
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
-
-    return result
+    return format(s, " consumed")
 }
 
 test_own_string := proc() {
@@ -635,17 +581,7 @@ test_named_args_basic()
 // === Step 2: Optional Arguments (with defaults) ===
 
 greet := func(name: Str, greeting: Str = "Hello") returns Str {
-    result := format(greeting, " ", name)
-    catch (err: AllocError) {
-        return "error"
-    }
-    catch (err: IndexOutOfBoundsError) {
-        return "error"
-    }
-    catch (err: I64_OverflowError) {
-        return "error"
-    }
-    return result
+    return format(greeting, " ", name)
 }
 
 test_optional_args := proc() {
@@ -686,15 +622,6 @@ join_strings := func(sep: Str, parts: ..Str) returns Str {
             result = format(result, sep, part)
         }
     }
-    catch (err: AllocError) {
-        return "error"
-    }
-    catch (err: IndexOutOfBoundsError) {
-        return "error"
-    }
-    catch (err: I64_OverflowError) {
-        return "error"
-    }
     return result
 }
 
@@ -715,15 +642,6 @@ log_with_level := func(level: I64 = 1, messages: ..Str) returns Str {
     mut result := format("[", level.to_str(), "] ")
     for msg: Str in messages {
         result = format(result, msg)
-    }
-    catch (err: AllocError) {
-        return "error"
-    }
-    catch (err: IndexOutOfBoundsError) {
-        return "error"
-    }
-    catch (err: I64_OverflowError) {
-        return "error"
     }
     return result
 }

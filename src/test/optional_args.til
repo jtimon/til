@@ -24,11 +24,7 @@ test_named_args_basic()
 
 // Function with one optional argument
 greet := func(name: Str, greeting: Str = "Hello") returns Str {
-    result := format(greeting, ", ", name, "!")
-    catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: I64_OverflowError) { panic(loc(), err.msg) }
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    return result
+    return format(greeting, ", ", name, "!")
 }
 
 // Function with all optional arguments

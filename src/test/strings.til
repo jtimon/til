@@ -124,12 +124,6 @@ test_strings := proc() {
     assert_eq_str(loc(), "hello world test", join(parts, " "))  // different separator
     assert_eq_str(loc(), "helloworldtest", join(parts, ""))  // empty separator
 
-    catch(err: I64_OverflowError) {
-        panic(loc(), "Unexpected I64_OverflowError")
-    }
-    catch(err: IndexOutOfBoundsError) {
-        panic(loc(), "Unexpected IndexOutOfBoundsError")
-    }
     catch(err: AllocError) {
         panic(loc(), "Unexpected AllocError")
     }

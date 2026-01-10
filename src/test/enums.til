@@ -202,7 +202,7 @@ test_str_payloads := proc() {
     assert(loc(), extracted_long.eq("bright-yellow-green"))
 
     // Test in switch statement
-    test_color_name_match := proc(col: Color) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
+    test_color_name_match := proc(col: Color) returns Str {
         switch col {
         case Color.Name(name):
             return format("color name: ", name)
@@ -220,22 +220,6 @@ test_str_payloads := proc() {
     number_color := Color.Number(255)
     assert(loc(), test_color_name_match(number_color).eq("color code: 255"))
 
-    // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_str_payloads()
 

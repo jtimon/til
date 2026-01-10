@@ -92,11 +92,6 @@ test_vec_str := proc() {
         println(err.msg)
         exit(1)
     }
-    catch(err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_vec_str()
 
