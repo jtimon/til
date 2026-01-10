@@ -44,6 +44,7 @@ Why: When something fails, you need to see the FULL output. Filtering hides crit
 - **NEVER** Use git checkout or git restore, period
 - **NEVER** Revert any changes manually or in any other way unless explicitly told to
 - **NEVER** Do more than what the user asked - do precisely what was requested and nothing else
+- **NEVER** Use shell scripts - use til scripts in `mode safe_script` instead. If safe_script is too limited for what you need, don't try a workaround - stop and ask the author of the language
 
 ## CRITICAL: Stay Within Project Directory
 - **NEVER** create or read files outside the project directory
