@@ -916,554 +916,116 @@ run_print_cmd := proc(mut output_str: Str, args: ..Str) returns I64 {
 The self-hosted TIL compiler generates C code that differs from the Rust compiler's output.
 The generated C code fails to compile with gcc due to multiple issues.
 
-*** Method to Find Divergences
-Use the til_diff.til script to compare C output from rstil vs rstil_til:
+*** History
 
-#+BEGIN_SRC bash
-./bin/rstil interpret src/til_diff.til src/examples/hello_script.til
-#+END_SRC
+**** 2026-01-01 to 2026-01-08: Initial Approach (Abandoned)
+Original approach was to incrementally fix divergences in the existing ccodegen.til
+through line-by-line comparison with ccodegen.rs. This proved problematic because:
+- ccodegen.til had many missing ports from Rust
+- Contained unauthorized workarounds and non-matching comments
+- AI assistants kept adding more divergences instead of fixing them
+- The accumulation of issues made systematic comparison impossible
 
-*** Methodology: Fix Once, Fix Correctly
+**** 2026-01-09: Fresh Rewrite
+Decision made to delete all self-hosted compiler files and start fresh:
+- Commit ~1f29279a~: "Remove self-hosted compiler files for fresh rewrite"
+- Blind translation of ccodegen.til, builder.til, til.til from Rust
+- ~150+ commits fixing syntax, types, missing methods, etc.
 
-CRITICAL: The goal is to fix Bug #80 ONCE, correctly. Not to move fast.
+***** WARNING: Broken Commit Range
+Commits from ~1f29279a~ (origin/master + 1) through ~fad411f8~ are ALL BROKEN.
+The build fails throughout this range because:
+1. Fresh translation introduced many syntax/type errors
+2. Each commit fixed some errors but build still failed
+3. Only at ~fad411f8~ "Fix uninitialized variables..." does build pass again
 
-**** Why Conservative Status Updates Matter
-- Marking uncertain items as MATCH creates false confidence
-- If we later discover false MATCHes, we must reset Status column and re-read ALL functions
-- Multiple careful passes are better than one fast pass followed by a full reset
-- Only mark MATCH when 100% certain: either actual code change made, or line-by-line verification done
+This matters for:
+- ~git bisect~: Skip this entire range, it's all broken
+- ~git rebase -i~: Could squash ~1f29279a..fad411f8~ into single commit
+- Archaeology: Don't waste time investigating individual commits in this range
 
-**** What "MATCH" Actually Means
+**** 2026-01-10: Current State
+Build passes. 134/134 tests pass. However:
+- 7 tests in all_common (work with both rstil and til compilers)
+- 58 tests in til_interpreted (work with til interpret, not til run)
+- These 58 tests fail in til_compiled mode due to C codegen issues
 
-MATCH is NOT:
-- "Logic is semantically equivalent"
-- "Tests pass"
-- "Structured slightly differently but works"
-- "Close enough"
+*** Current Error Summary
 
-MATCH IS:
-- Every line verified against Rust
-- Variable names identical to Rust
-- Comments copied verbatim from Rust
-- Control flow structure identical (only rs2til.org patterns allowed to differ)
-- If you haven't read BOTH versions line-by-line, it's DIVERGE
+The 58 tests in til_interpreted have these failure modes when run with ~./bin/til run~:
 
-**** Rules for Status Column
-1. *MATCH* - Only when:
-   - Line-by-line comparison of ENTIRE function done
-   - ALL differences follow rs2til.org RULES exactly
-   - Same variable names as Rust
-   - Same comments as Rust (copy verbatim)
-   - Same control flow structure
-   - CRITICAL: Fixing ONE issue does NOT make it MATCH - must verify ALL lines
-2. *DIVERGE* - When in doubt:
-   - Assumed patterns are "acceptable" without verification against rs2til.org
-   - Similar but not verified identical line-by-line
-   - rs2til.org doesn't explicitly cover the case
-3. *DELETED* - Function removed from TIL to match Rust
+| Error Type | Count | Example |
+|------------|-------|---------|
+| too few args to til_Array_get | 38 | Missing arguments in generated function calls |
+| segfault | 16 | Crash during C execution |
+| malloc failed | 1 | ufcs.til - memory issue during compilation |
+| may pass | 2 | exit.til, undefined.til (expected exit codes) |
 
-**** Incremental Pass Workflow
-1. Pick one DIVERGE item
-2. Read Rust version line-by-line
-3. Read TIL version line-by-line
-4. Either fix TIL to match, or verify it already matches
-5. Run ~time timeout 600 make benchmark~
-6. If passes: Update Status, commit immediately
-7. If fails: Revert, keep as DIVERGE, move to next
+*** Debugging Tools
 
-**** Final Bulk Pass (Last Resort)
-Only when incremental passes stop making progress:
-1. Translate ALL remaining DIVERGE items at once
-2. No testing until complete
-3. Very risky - minimize items reaching this phase
-4. If fails, bisect to find problem
+- ~./src/til_diff.til src/test/foo.til~ - compare rstil vs til generated C code
+- ~timeout 10 ./bin/til run src/test/foo.til 2>&1~ - test single file
+- ~gdb -batch -ex "run ..." -ex "bt" ./bin/til~ - get crash backtrace
+- Look at ~gen/c/test/*.c~ for generated code
 
-*** Findings
-The diff revealed these divergences:
+*** Current Fix Plan
 
-1. *Struct definition style* - FIXED
-   - rstil: ~struct til_Str { ... };~
-   - til: ~typedef struct { ... } Str;~
-   - Fix: Changed emit_struct_declaration to use ~struct til_Name { };~ format
+See plan file: ~/.claude/plans/precious-enchanting-dewdrop.md
 
-2. *Field types for Str fields* - FIXED
-   - rstil: ~til_Str msg;~
-   - til: ~const char* msg;~
-   - Fix: Removed wrong special case in til_type_to_c that returned ~const char*~ for Str
+**** Iterative Fix Workflow
+1. User picks a test from til_interpreted that they want working in til_compiled
+2. Run til_diff to compare rstil vs til generated C code
+3. Analyze the diff - identify what's different
+4. Identify root cause in ccodegen.til
+5. Verify against Rust - check equivalent code in ccodegen.rs
+6. Fix following rs2til.org - apply correct translation pattern
+7. Test the fix: ~./bin/til run src/test/chosen_test.til~
+8. Run ~make benchmark 2>&1 | tee tmp/benchmark_output.txt~
+9. Re-run all failing tests in parallel to update TODO comments:
+   - Run ~timeout 10 ./bin/til run src/test/X.til 2>&1~ for each test
+   - Update inline TODO comments with current errors
+   - If any tests now pass, move them to all_common
+   - If tests were moved, run ~make benchmark~ again to verify
+10. Commit the fix (tests.til has up-to-date TODOs)
+11. Wait for user to pick next test to fix
 
-**** Remaining issues for empty.til (boilerplate/header):
-
-3. *Forward declarations position differs* - FIXED
-   - rstil emits forward declarations before ~#include <ext.c>~
-   - til emits them after
-   - Top-level function names now have til_ prefix (FIXED via emit_func_prototype/declaration)
-   - Struct function names now have til_ prefix (FIXED via emit_struct_func_prototypes/bodies)
-   - Fix: Reordered passes in emit() to match Rust (prototypes → ext.c → constants)
-
-4. *~#include <ext.c>~ vs inline helpers* - FIXED
-   - rstil: ~#include <ext.c>~
-   - til: emits inline helpers (u8_to_i64, single_print, etc.) instead
-   - Fix: Removed Pass 1c that emitted inline helpers; ext.c is already included
-
-5. *Constants missing til_ prefix* - FIXED
-   - rstil: ~const til_I64 til_NULL = 0;~
-   - til: ~const I64 NULL = 0;~
-   - Both the type and variable name are missing prefix
-   - Fix: Changed emit_constant_declaration to use til_name() for both var_name and type
-
-**** Remaining issues for empty.til (function bodies):
-
-6. *Parameter passing style in size_of* - FIXED
-   - rstil: ~const til_Str* type_name~ (pointer)
-   - til: ~til_Str type_name~ (by value)
-   - Fix: emit_size_of_function now uses pointer param, call sites use &
-
-7. *Temp variable naming*
-   - rstil: ~_tmp_or_0~, ~_tmp_or_1~, etc. (incrementing counter)
-   - til: ~_tmp_or__tmp_~ (counter not incrementing, outputs "_tmp_" instead of number)
-
-8. *Function call argument passing*
-   - rstil: ~til_I64_to_str(&til_MAX_U8)~ (address-of for pointer params)
-   - til: ~til_I64_to_str(til_MAX_U8)~ (by value)
-   - Follows from pointer param handling - if param is pointer, must use &
-
-9. *Pointer dereference style*
-   - rstil: ~(*til_b).data~ (explicit dereference then field access)
-   - til: ~til_b.data~ (direct field access on pointer - wrong)
-
-10. *Literal hoisting for pointer params*
-    - rstil: Hoists Type and I64 literals into temp variables, then passes &temp
-      #+BEGIN_EXAMPLE
-      til_Type _tmp_or_4 = "Str";
-      til_I64 _tmp_or_5 = 0;
-      int _arr_status = til_Array_new(&_tmp_or_2, &_err_alloc, _tmp_or_4, &_tmp_or_5);
-      #+END_EXAMPLE
-    - til: Passes literals inline without hoisting
-      #+BEGIN_EXAMPLE
-      int _arr_status = til_Array_new(&_tmp_or__tmp_, &_err_alloc, "Str", 0);
-      #+END_EXAMPLE
-
-11. *Dynamic pointer casting*
-    - rstil: ~(til_Dynamic*)&til_val~ (explicit cast to Dynamic pointer)
-    - til: ~til_val~ (missing cast and address-of)
-
-**** Detailed Fix Analysis
-
-***** Issue 7: Temp naming - ~next_mangled~ produces "_tmp_" instead of counter number
-
-*Symptom*: All temp vars have suffix ~_tmp_~ instead of incrementing numbers (0, 1, 2...)
-- rstil output: ~_tmp_or_0~, ~_tmp_or_1~, ~_tmp_or_2~ (incrementing)
-- til output: ~_tmp_or__tmp_~ (all same, counter value replaced by "_tmp_")
-
-*Location*: ~src/self/ccodegen.til~ lines 112-119
-
-*Rust reference*: ~src/rs/ccodegen.rs~ lines 74-80
-
-****** Investigation findings
-
-The ~next_mangled~ function itself looks correct:
+**** Test Tracking
+Each test in til_interpreted (src/tests.til) has an inline TODO comment explaining
+why it fails in til_compiled:
 #+BEGIN_SRC til
-next_mangled := proc(mut ctx: CodegenContext) returns Str {
-    n := ctx.mangling_counter
-    ctx.mangling_counter.inc()
-    if gt(ctx.current_function_name.len(), 0) {
-        return concat("_tmp_", ctx.current_function_name).concat("_").concat(n.to_str())
-    }
-    return concat("_tmp_", n.to_str())
-}
+til_interpreted.push(TestEntry(path="src/test/foo.til"))  // TODO: too few args to til_Array_get
 #+END_SRC
 
-However, investigation revealed *TWO locations missing the counter reset pattern*:
+**** Critical Rules
+- Source of truth is Rust + rs2til.org - TIL code must match Rust translated per rs2til.org rules
+- Validate changes by comparing Rust to TIL - run ~git diff~ and check both sides match per rs2til.org
+- Correctness per rs2til.org is primary - whether a change "fixes" a test is secondary
+- If change follows rs2til.org but doesn't fix issue - there's a DIFFERENT bug elsewhere
+- NEVER filter make benchmark output - see ALL errors
+- Avoid variable shadowing - Bug #97 disallows it
+- Port fixes to BOTH Rust and TIL when needed
 
-****** Missing reset #1: ~emit_func_declaration~ (lines 3043-3120)
+*** Progress
 
-TIL code (WRONG):
-#+BEGIN_SRC til
-// Save and set current function name for nested function mangling
-mut prev_function_name := ctx.current_function_name
-ctx.current_function_name = decl.name
-// MISSING: prev_mangling_counter save and reset!
-#+END_SRC
+**** Fixed Issues (from fresh rewrite)
+1. Variable shadowing in emit_declaration (fcall_arg, hoisted_arg, ref_arg)
+2. Variable shadowing in builder (reuse errors vector, default_fd rename)
+3. Uninitialized variables after throwing calls:
+   - detect_variadic_fcall (8 locations)
+   - get_type_arg_name
+   - lookup_struct
+   - get_fcall_func_def in emit_throw
 
-Rust code (CORRECT - lines 3250-3253):
-#+BEGIN_SRC rust
-let prev_function_name = ctx.current_function_name.clone();
-let prev_mangling_counter = ctx.mangling_counter;
-ctx.current_function_name = Some(decl.name.clone());
-ctx.mangling_counter = 0;  // Reset counter per-function for determinism
-#+END_SRC
-
-TIL also missing restore at end (line 3120 only restores ~prev_function_name~).
-
-****** Missing reset #2: ~emit_declaration~ nested function handling (lines 7384-7463)
-
-TIL saves/restores these context fields:
-- ~saved_throw_types~, ~saved_return_types~
-- ~saved_mut_params~, ~saved_variadic_params~
-- ~saved_declared_vars~, ~saved_function_name~
-
-But does NOT save/restore ~mangling_counter~!
-
-Rust (lines 4844, 4849, 4905) correctly does:
-#+BEGIN_SRC rust
-let prev_mangling_counter = ctx.mangling_counter;
-ctx.mangling_counter = 0;  // Reset counter per-function for determinism
-// ... later ...
-ctx.mangling_counter = prev_mangling_counter;
-#+END_SRC
-
-****** Correctly handled: ~emit_struct_func_bodies~ (lines 2566-2589)
-
-This case DOES have correct handling:
-#+BEGIN_SRC til
-mut prev_mangling_counter := ctx.mangling_counter
-ctx.current_function_name = mangled_name
-ctx.mangling_counter = 0
-// ... function body ...
-ctx.mangling_counter = prev_mangling_counter
-#+END_SRC
-
-****** Unexplained symptom
-
-The missing resets would cause the counter to keep incrementing globally (47, 48, 49...),
-but the actual symptom is ~n.to_str()~ returning ~"_tmp_"~ instead of any number.
-This suggests there may be an *additional issue* beyond missing resets, possibly:
-- Type confusion where ~n~ is somehow a Str instead of I64
-- Bug in how method calls on local variables are compiled
-- Some form of variable shadowing in TIL's scoping
-
-****** Fix steps
-
-1. Add counter save/reset/restore to ~emit_func_declaration~ (3 lines)
-2. Add counter save/reset/restore to ~emit_declaration~ nested function case (3 lines)
-3. Test if this fixes the symptom
-4. If symptom persists, investigate method call compilation for ~n.to_str()~
-
-***** Issue 8: Argument passing - missing ~&~ for pointer params
-
-*Symptom*: Function calls pass values directly instead of addresses
-
-*Location*: Multiple emit_* functions that generate function call arguments
-
-*Rust reference*: Rust uses ~format!("&{}", ...)~ or ~output.push_str("&")~ for ref params
-
-*Analysis*:
-When a function parameter is by-ref (pointer), the caller must use ~&var~ syntax.
-TIL ccodegen is emitting just ~var~ without the address-of operator.
-
-*Fix steps*:
-1. In ~emit_arg_with_param_type~ (or equivalent), check if param is by-ref
-2. If param is by-ref and arg is not already an address expression, prepend "&"
-3. Key functions to check: ~emit_fcall~, ~emit_arg_or_hoisted~, ~emit_arg_with_param_type~
-
-***** Issue 9: Pointer dereference - ~til_b.data~ should be ~(*til_b).data~ - FIXED
-
-*Symptom*: Field access on pointer params uses ~.~ instead of ~->~ or ~(*ptr).~
-
-*Location*: Three places where ~current_ref_params~ is populated
-
-*Rust reference*: ccodegen.rs lines 2927-2930 and 3206-3209 and 4852-4855
-
-*Root cause*:
-TIL only added ~mut~ params to ~current_ref_params~, but Rust adds ALL non-copy
-params (Bug #60 fix). Non-copy params (including const struct params) are passed
-by pointer in C, so they need dereference when accessed as values.
-
-*Fix applied*:
-Changed three locations from ~if arg.is_mut~ to ~if not(arg.is_copy)~:
-1. ~emit_struct_func_bodies~ (line 2527)
-2. ~emit_func_declaration~ (line 3065)
-3. ~emit_declaration~ for nested functions (line 7408)
-
-Added "Bug #60" comment to match Rust for future reference.
-
-***** Issue 10: Literal hoisting - Type and I64 literals need temp variables - FIXED
-
-*Symptom*: Can't take address of string/integer literal for pointer params
-
-*Location*: ~hoist_variadic_args~ function (line 8973)
-
-*Rust reference*: ~src/rs/ccodegen.rs~ lines 1352-1389 (Bug #60 fix)
-
-*Root cause*:
-When calling Array.new, the Type and I64 params need hoisting because:
-- Can't do ~&"Str"~ (address of string literal for const char* const*)
-- Can't do ~&0~ (address of integer literal)
-
-TIL was passing literals directly but Rust hoists them into temp vars.
-
-*Fix applied*:
-Added hoisting for Type and I64 params before Array.new call:
-1. ~til_Type type_temp = "elem_type";~
-2. ~til_I64 count_temp = N;~
-3. Pass ~type_temp~ (no &, already const char*) and ~&count_temp~ to Array.new
-
-Added Bug #60 comments to match Rust.
-
-***** Issue 11: Dynamic casting - need ~(til_Dynamic*)&val~ - FIXED
-
-*Symptom*: Array.get/set calls missing Dynamic pointer cast
-
-*Location*: ~hoist_variadic_args~ and ~emit_throwing_call_with_goto~
-
-*Rust reference*: ccodegen.rs lines 1439-1442 shows ~(til_Dynamic*)&~ pattern
-
-*Analysis*:
-When passing values to Array.set which expects ~til_Dynamic*~, we need:
-- ~(til_Dynamic*)&value~ for the value argument
-TIL ccodegen was just passing ~&value~ without the Dynamic cast.
-
-*Fix applied*:
-1. In ~hoist_variadic_args~ (line 9033): Changed ~", &"~ to ~", (til_Dynamic*)&"~
-   using TIL_PREFIX for consistency with Rust
-2. In ~emit_throwing_call_with_goto~ (line 5692): Changed hardcoded
-   ~"(til_Dynamic*)&"~ to use TIL_PREFIX (~"(".concat(TIL_PREFIX).concat("Dynamic*)&")~)
-
-***** Issue 3: Forward declarations position - FIXED
-
-*Symptom*: Forward declarations appear after ~#include <ext.c>~ instead of before
-
-*Location*: ~emit~ function main pass ordering
-
-*Rust reference*: Check pass ordering in ccodegen.rs ~emit~ function
-
-*Analysis*:
-The pass order in emit() differs between Rust and TIL. Rust emits:
-1. Typedefs
-2. Forward declarations
-3. ~#include <ext.c>~
-4. Function bodies
-
-TIL has different ordering. Need to match Rust's pass sequence.
-
-*Fix applied*: Reordered passes in emit() to match Rust:
-- Pass 2: function prototypes (forward declarations)
-- Pass 3: #include <ext.c>
-- Pass 4: constants and til_size_of
-- Pass 5: function definitions
-- Pass 6: other statements
-
-*** Root Cause
-ccodegen.til has diverged significantly from ccodegen.rs and needs to be re-synced.
+**** Known Error Patterns in Generated C
+- ~invalid initializer~ (e.g., ~til_Str x = til_panic;~) - function treated as value
+- ~too few arguments to function~ - missing args in generated calls
+- ~undeclared variable~ - variable not emitted
 
 *** Files That Must Match
-All self-hosted TIL files must match their Rust counterparts:
 - ~ccodegen.til~ must match ~ccodegen.rs~
 - ~til.til~ must match ~rstil.rs~
 - ~builder.til~ must match ~builder.rs~
 - ~target.til~ must match ~target.rs~
-
-*** Fix
-Systematically compare each .rs file with its .til counterpart and fix all divergences.
-Use the diff method above to verify generated C code is identical.
-
-*** Comprehensive Comparison
-
-**** target.rs vs target.til - COMPLETE MATCH
-All enums and functions match:
-- Enums: Lang, Target
-- Functions: lang_from_str, lang_to_str, lang_file_extension, target_from_str, target_to_str,
-  default_lang_for_target, supported_langs_for_target, is_lang_supported_for_target,
-  validate_lang_for_target, toolchain_command, toolchain_extra_args, executable_extension,
-  detect_current_target
-
-**** builder.rs vs builder.til - NEEDS REVIEW
-| Rust | TIL | Status |
-|------|-----|--------|
-| parse_file | parse_file | ? |
-| collect_imports | collect_imports_single | Different name |
-| merge_asts | - | Missing in TIL |
-| is_import_call | is_import_call | ? |
-| build | build | ? |
-| - | merge_dep_params | TIL only |
-| - | get_import_path | TIL only |
-
-**** rstil.rs vs til.til - NEEDS REVIEW
-| Rust | TIL | Status |
-|------|-----|--------|
-| parse_build_options | - | Not ported (CLI arg parsing) |
-| usage | usage | ? |
-| interpret_file_or_exit | interpret_file_or_exit | ? |
-| build_file_or_exit | build_file_or_exit | ? |
-| run_file_or_exit | run_file_or_exit | ? |
-| main | main | ? |
-| - | translate_file_or_exit | TIL only |
-
-**** ccodegen.rs vs ccodegen.til - PARTIAL MATCH
-
-***** Structs - Comparison
-
-****** Structs in Both
-| Struct | Status | Notes |
-|--------|--------|-------|
-| VariadicParamInfo | MATCH | |
-| CatchLabelInfo | MATCH | |
-| HoistedArg | MATCH | |
-| VariantInfo | MATCH | |
-| CollectedDeclaration | MATCH | |
-| ThrowingDefault | MATCH | |
-| CatchLabelInfoEntry | PARTIAL | TIL has extra ~catch_block: Expr~ - cannot remove (causes hangs in til_compiled), assignment removed |
-| ParamTypeInfo | MATCH | Changed to use ~Ptr~ for value_type, removed ~has_type~ |
-| SwitchCaseInfo | MATCH | Struct removed entirely from both Rust and TIL - parser enforces default-last |
-| ThrowingFCallInfo | MATCH | Struct removed entirely from both Rust and TIL - logic inlined at call sites |
-| VariadicFCallInfo | MATCH | Removed ~is_variadic~ field, detect_variadic_fcall throws KeyNotFoundError |
-| CodegenContext | MATCH | Rust changed to ~String~ with ~""~ = None per rs2til.org |
-
-****** TIL-only Structs (UNNECESSARY per rs2til.org)
-All unnecessary result structs have been removed:
-- FuncNameResult removed (2026-01-05) - get_func_name_string/get_til_func_name_string now throw KeyNotFoundError
-- FuncLookupResult removed (2026-01-05) - get_fcall_func_def now throws KeyNotFoundError, callers use
-  scoped catch blocks (if true { }) to distinguish between different KeyNotFoundError sources
-
-***** Helper Functions - Present
-| Function | Rust | TIL | Status | Notes |
-|----------|------|-----|--------|-------|
-| next_mangled | Y | Y | MATCH | Uses func_name variable and method chaining (2026-01-05) |
-| til_name | Y | Y | MATCH | Combined if statements match Rust match arms (2026-01-05) |
-| emit_struct_literal_assign | Y | Y | MATCH | Uses push_str like Rust |
-| emit_struct_literal_start | Y | Y | MATCH | Uses push_str like Rust |
-| til_func_name | Y | Y | MATCH | |
-| get_func_name_string | Y | Y | MATCH | vec+join vs string concat produces same result, acceptable |
-| get_til_func_name_string | Y | Y | MATCH | vec+join vs string concat produces same result, acceptable |
-| get_type_arg_name | Y | Y | MATCH | Option->throws is correct rs2til.org translation |
-| get_fcall_func_def | Y | Y | MATCH | Option->throws, TIL wrapper call is equivalent |
-| param_needs_by_ref | Y | Y | MATCH | |
-| til_type_to_c | Y | Y | MATCH | Removed extra default case |
-| value_type_to_c_name | Y | Y | MATCH | Error uses value_type_to_str (acceptable - no {:?} in TIL) |
-| has_str | - | - | DELETED | Removed 2026-01-05 - inlined at call sites like Rust |
-| get_field_type_dependency | Y | Y | MATCH | Added 2026-01-05 - returns empty for None |
-
-***** Type/Struct/Enum Detection - Present
-| Function | Rust | TIL | Status | Notes |
-|----------|------|-----|--------|-------|
-| is_struct_declaration | Y | Y | MATCH | Single return false at end, not(is_empty()), commit f07f8e7c |
-| is_enum_declaration | Y | Y | MATCH | Single return false at end, commit bb4ba851 |
-| is_enum_with_payloads | Y | Y | MATCH | Single return false at end, commit 9ae61d8b |
-| is_constant_declaration | Y | Y | MATCH | Single return false at end, added Rust comments, commit ded07f40 |
-| is_global_declaration | Y | Y | MATCH | Single return false at end, grouped cases, commit fdae1c87 |
-| is_throwing_fcall | Y | Y | MATCH | proc vs func is TIL idiom, logic matches Rust (2026-01-05) |
-| is_func_declaration | Y | Y | MATCH | Single return false at end |
-| enum_has_payloads | Y | Y | MATCH | Uses for-in loop like Rust iterator (2026-01-05) |
-| variant_has_payload | - | - | DELETED | Removed 2026-01-05 - was not in Rust |
-| get_struct_name | Y | Y | MATCH | "" sentinel for Option per rs2til.org, fixed unused var (2026-01-05) |
-| get_struct_dependencies | Y | Y | MATCH | Now uses get_field_type_dependency helper (2026-01-05) |
-| get_enum_name | Y | Y | MATCH | "" sentinel for Option per rs2til.org, fixed unused var (2026-01-05) |
-| get_enum_dependencies | Y | Y | MATCH | Uses for-in loop, method chaining (2026-01-05) |
-| get_type_name | Y | Y | MATCH | "" sentinel for Option<String> per rs2til.org |
-| get_type_dependencies | Y | Y | MATCH | Simplified empty return: return Vec.new(Str) |
-| get_fcall_func_name | Y | Y | MATCH | Rust Option -> TIL throws KeyNotFoundError per rs2til.org |
-| get_struct_construction_type | Y | Y | MATCH | Method chaining fixed (2026-01-05), actual code change |
-| get_enum_construction_type | Y | Y | MATCH | Option<String>->"" sentinel per rs2til.org |
-| get_case_variant_info | Y | Y | MATCH | mut result pattern is acceptable TIL idiom per rs2til.org |
-| parse_pattern_variant_name | Y | Y | MATCH | Extra catches needed for TIL's throwing get_substr |
-
-***** Topological Sort - Present
-| Function | Rust | TIL | Status | Notes |
-|----------|------|-----|--------|-------|
-| topological_sort_types | Y | Y | MATCH | Now uses Vec<Vec> like Rust |
-| topological_sort_structs | - | - | DELETED | Removed 2026-01-05 - old function, Rust uses topological_sort_types |
-
-***** Emit Functions - All Present
-NOTE: All emit functions follow common divergence patterns:
-- TIL uses `mut result := output` + return instead of mutating output in place
-- TIL uses switch/case instead of if-let pattern matching
-- TIL uses get() + catch instead of direct indexing
-- TIL has extra catch blocks for error handling
-
-| Function | Rust | TIL | Status | Notes |
-|----------|------|-----|--------|-------|
-| emit | Y (pub) | Y | MATCH | Fixed: variable names (fd, main_has_variadic, has_multi, child), combined conditions with .and() |
-| emit_struct_declaration | Y | Y | MATCH | Fixed: now uses if member.is_mut { } like Rust |
-| emit_struct_constants | Y | Y | MATCH | Fixed: for-in loop, catch for til_type_to_c failures |
-| emit_struct_func_prototypes | Y | Y | MATCH | Fixed: for-in loop, removed is_ext check not in Rust |
-| emit_struct_func_body | Y | Y | MATCH | Added 2026-01-05 - extracted from emit_struct_func_bodies |
-| emit_struct_func_bodies | Y | Y | MATCH | Now uses emit_struct_func_body helper (2026-01-05) |
-| emit_enum_declaration | Y | Y | MATCH | Fixed: added til_name(), removed TIL-only comments |
-| emit_enum_with_payloads | Y | Y | MATCH | Fixed: struct EnumName {} instead of typedef struct {} |
-| emit_enum_to_str_function | Y | Y | MATCH | Fixed: removed TIL-only Bug #38 comment |
-| emit_enum_to_str_for_declaration | Y | Y | MATCH | Already matches with rs2til.org patterns |
-| emit_enum_size_of_constant | Y | Y | MATCH | Already matches with rs2til.org patterns |
-| emit_size_of_function | Y | Y | MATCH | Fixed: for-in loop, removed Bug #38 comment |
-| emit_func_signature | Y | Y | MATCH | Fixed: removed unused ctx parameter to match Rust |
-| emit_func_prototype | Y | Y | MATCH | Fixed: removed unused ctx parameter |
-| emit_func_declaration | Y | Y | MATCH | Fixed: reordered operations to match Rust exactly, fixed all comments (2026-01-06) |
-| emit_constant_declaration | Y | Y | MATCH | Fixed: uses c_type + emit_literal() like Rust, var_name order matches (2026-01-06) |
-| emit_global_declaration | Y | Y | MATCH | Fixed: var_name order, c_type fallback with "int", output structure (2026-01-06) |
-| emit_expr | Y | Y | MATCH | Fixed: removed extra comments not in Rust (2026-01-06) |
-| emit_body | Y | Y | MATCH | Same logic: save/restore catch_labels, call emit_stmts (2026-01-06) |
-| emit_stmts | Y | Y | DIVERGE | ~200 lines, loop var ~scan_idx~ vs Rust ~idx~, many gteq() vs .gteq() |
-| emit_if | Y | Y | MATCH | Uses acceptable TIL idioms: switch/case, get()+catch, method syntax (2026-01-06) |
-| emit_while | Y | Y | MATCH | Fixed: range loops for indent building |
-| emit_break | Y | Y | MATCH | Fixed: range loop for indent building |
-| emit_continue | Y | Y | MATCH | Fixed: range loop for indent building |
-| emit_switch | Y | Y | MATCH | Removed SwitchCaseInfo, parser enforces default-last |
-| emit_fcall | Y | Y | DIVERGE | ~500 lines, Option→has_*:Bool pattern, many minor style diffs |
-| emit_declaration | Y | Y | MATCH | Restructured: removed duplicate underscore check, added prototype generation, fixed order (2026-01-06) |
-| emit_funcdef | Y | Y | MATCH | Used indent_str like Rust, _func_def naming, same comments (2026-01-06) |
-| emit_assignment | Y | Y | MATCH | Added throwing FCall check before hoist, indent_str at top (2026-01-06) |
-| emit_return | Y | Y | MATCH | Restructured to match Rust flow: is_throwing var, early return for throwing FCall (2026-01-06) |
-| emit_throw | Y | Y | MATCH | Consolidated indent_str to top, fixed variable names to match Rust (2026-01-06) |
-| emit_literal | Y | Y | MATCH | Added character escaping loop to match Rust (2026-01-06) |
-| emit_str_literal | Y | Y | MATCH | Added character escaping loop with for-in to match Rust (2026-01-06) |
-| emit_identifier_without_nested | - | - | DELETED | Removed 2026-01-05 - was not in Rust |
-| prescan_func_level_catches | Y | Y | MATCH | Comments moved inside function to match Rust (2026-01-06) |
-
-***** Hoisting/Throwing Functions - Present
-NOTE: Same common divergence patterns as Emit Functions (see above).
-
-| Function | Rust | TIL | Status | Notes |
-|----------|------|-----|--------|-------|
-| check_throwing_fcall | N | N | MATCH | Function removed entirely from both - logic inlined at 3 call sites |
-| hoist_throwing_expr | Y | Y | DIVERGE | ~150 lines, Option→has_*:Bool pattern for variadic_arr_var |
-| hoist_throwing_args | Y | Y | DIVERGE | ~250 lines, slicing &params[1..] vs separate start index |
-| hoist_for_ref_params | Y | Y | MATCH | Fixed: chained concat for func_name, logic matches Rust (2026-01-06) |
-| hoist_for_dynamic_params | Y | Y | MATCH | Fresh translation from Rust following rs2til.org (2026-01-06) |
-| hoist_variadic_args | Y | Y | DIVERGE | ~150 lines, HashMap iteration differs (keys+get vs iter) |
-| detect_variadic_fcall | Y | Y | MATCH | Fixed: uses get_til_func_name_string, same comment/vars as Rust |
-| emit_variadic_call | Y | Y | DIVERGE | ~200 lines, Option→has_*:Bool for variadic_arr_var param |
-| emit_throwing_call | Y | Y | DIVERGE | ~300 lines, Option→has_*:Bool pattern throughout |
-| emit_throwing_call_propagate | Y | Y | DIVERGE | ~250 lines, Option→has_*:Bool pattern |
-| emit_throwing_call_with_goto | Y | Y | DIVERGE | ~250 lines, Option→has_*:Bool pattern |
-| emit_fcall_with_hoisted | Y | Y | DIVERGE | ~150 lines, Option→has_*:Bool pattern |
-| emit_fcall_name_and_args_for_throwing | Y | Y | DIVERGE | ~100 lines, Option→has_*:Bool for variadic_arr_var |
-| emit_arg_or_hoisted | Y | Y | DIVERGE | Structural: calls emit_arg_with_param_type with has_param_type:Bool |
-| emit_arg_with_param_type | Y | Y | DIVERGE | Structural: Option<&ValueType>→ValueType+has_param_type:Bool |
-| emit_arg_with_mut | - | - | DELETED | Removed 2026-01-05 - Rust uses emit_arg_with_param_type |
-
-***** Collection Functions - Present
-
-***** DIVERGE Pattern Summary (2026-01-06)
-The remaining 23 DIVERGE items share these common patterns:
-
-1. *Option<T> parameters* → TIL uses ~T~ + ~has_*: Bool~ flag
-   - rs2til.org says use ~Ptr~ with NULL=None, but TIL uses Bool flags
-   - Affects: emit_arg_with_param_type, hoist_for_ref_params, hoist_for_dynamic_params, etc.
-   - Fix: Change TIL to use ~Ptr~ pattern per rs2til.org
-
-2. *Option<T> return from map.get()* → TIL uses try/catch with Bool flag
-   - Pattern: ~mut found := false; map.get(k, v); found = true; catch {}~
-   - Acceptable per rs2til.org (throws KeyNotFoundError)
-
-3. *Loop variable names* differ (TIL ~ai~, ~scan_idx~ vs Rust ~idx~, ~i~)
-   - Simple fix: rename to match Rust
-
-4. *Method style* - TIL uses ~gteq(x, y)~ vs Rust-like ~x.gteq(y)~
-   - rs2til.org says prefer method chaining
-   - Simple fix: change to method style
-
-5. *HashMap iteration* - TIL uses ~keys.get()~ loop vs Rust ~.iter()~
-   - Acceptable TIL idiom (no direct iterator support)
-
-6. *Structural differences* - Some functions have fundamentally different code organization
-   - emit_constant_declaration, emit_global_declaration: inline literal handling vs emit_literal()
-   - These need careful refactoring
-
-| Function | Rust | TIL | Status | Notes |
-|----------|------|-----|--------|-------|
-| collect_func_info | Y | Y | MATCH | Fixed loop vars to idx, comments match, HashMap iter via for-in+get (rs2til.org rule 20) |
-| collect_nested_func_info | Y | Y | MATCH | Fixed: chained concat for mangled_name, Option<&str>→Str per rs2til.org (2026-01-06) |
-| collect_declarations_in_body | Y | Y | MATCH | Same comments, same vars (decls, collected, stmt), switch/case OK |
-| collect_declarations_recursive | Y | Y | MATCH | Fixed name→type_name, method chaining for gteq/lt/add, comments match |
 
 ** Bug #64: Custom main args in mode cli don't work properly
 :PROPERTIES:
