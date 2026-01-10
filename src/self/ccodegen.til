@@ -612,12 +612,13 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
             }
 
             // Detect and construct variadic array if needed
-            variadic_info := detect_variadic_fcall(expr, ctx)
+            mut variadic_info := VariadicFCallInfo()
+            variadic_info = detect_variadic_fcall(expr, ctx)
+            catch (err: KeyNotFoundError) {
+                // REM: Not variadic - variadic_info stays at default
+            }
             mut variadic_arr_var := ""
             mut has_variadic := false
-            catch (err: KeyNotFoundError) {
-                // REM: Not variadic, continue
-            }
             if not(variadic_info.elem_type.is_empty()) {
                 has_variadic = true
                 mut variadic_args := Vec.new(Expr)
@@ -756,9 +757,10 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
     // Check if this is a non-throwing variadic call - also needs hoisting
     switch expr.node_type {
     case NodeType.FCall:
-        variadic_fcall_info := detect_variadic_fcall(expr, ctx)
+        mut variadic_fcall_info := VariadicFCallInfo()
+        variadic_fcall_info = detect_variadic_fcall(expr, ctx)
         catch (err: KeyNotFoundError) {
-            // REM: Not variadic, continue to next check
+            // REM: Not variadic - variadic_fcall_info stays at default
         }
         if not(variadic_fcall_info.elem_type.is_empty()) {
             // Recursively hoist any throwing/variadic calls in this call's arguments first
@@ -1016,11 +1018,12 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
         }
 
         // Check if it's a variadic call (even if not throwing)
-        variadic_info := detect_variadic_fcall(arg, ctx)
-        mut has_variadic_info := not(variadic_info.elem_type.is_empty())
+        mut variadic_info := VariadicFCallInfo()
+        variadic_info = detect_variadic_fcall(arg, ctx)
         catch (err: KeyNotFoundError) {
-            has_variadic_info = false
+            // REM: Not variadic - variadic_info stays at default
         }
+        mut has_variadic_info := not(variadic_info.elem_type.is_empty())
 
         // Handle throwing calls (may also be variadic)
         if has_throwing_fd {
@@ -2136,8 +2139,11 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
     }
 
     // Check if arg is a type identifier - emit as string literal (matches interpreter.rs)
-    type_name := get_type_arg_name(arg, context)
-    catch (err: KeyNotFoundError) { }
+    mut type_name := ""
+    type_name = get_type_arg_name(arg, context)
+    catch (err: KeyNotFoundError) {
+        // REM: Not a type arg - type_name stays at default ""
+    }
     if not(type_name.is_empty()) {
         output.push_str("\"")
         output.push_str(type_name)
@@ -2295,8 +2301,11 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                     switch first_param.node_type {
                     case NodeType.Identifier(field_name):
                         // Check if 'name' is a struct type and 'field_name' is a constant
-                        struct_def := context.scope_stack.lookup_struct(name)
-                        catch (err: KeyNotFoundError) { }
+                        mut struct_def := SStructDef()
+                        struct_def = context.scope_stack.lookup_struct(name)
+                        catch (err: KeyNotFoundError) {
+                            // REM: Not a struct - struct_def stays at default
+                        }
                         if struct_def.default_values.contains_key(field_name) {
                             // Struct constant - emit &til_StructName_constant
                             output.push_str("&")
@@ -4685,17 +4694,23 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
         // Check for non-throwing variadic calls in declarations/assignments
         // These need special handling because variadic array must be constructed first
         if maybe_fcall_found {
-            variadic_fcall_info := detect_variadic_fcall(maybe_fcall, ctx)
-            // Check that this is NOT a throwing function (those are handled above)
-            fd := get_fcall_func_def(context, maybe_fcall)
-            mut is_throwing := not(fd.throw_types.is_empty())
+            mut variadic_fcall_info := VariadicFCallInfo()
+            variadic_fcall_info = detect_variadic_fcall(maybe_fcall, ctx)
             catch (err: KeyNotFoundError) {
-                is_throwing = false
+                // REM: Not variadic - variadic_fcall_info stays at default
             }
-            if not(is_throwing) {
-                emit_variadic_call(maybe_fcall, variadic_fcall_info.elem_type, variadic_fcall_info.regular_count, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)
-                i.inc()
-                continue
+            if not(variadic_fcall_info.elem_type.is_empty()) {
+                // Check that this is NOT a throwing function (those are handled above)
+                fd := get_fcall_func_def(context, maybe_fcall)
+                mut is_throwing := not(fd.throw_types.is_empty())
+                catch (err: KeyNotFoundError) {
+                    is_throwing = false
+                }
+                if not(is_throwing) {
+                    emit_variadic_call(maybe_fcall, variadic_fcall_info.elem_type, variadic_fcall_info.regular_count, maybe_decl_name, maybe_assign_name, output, effective_indent, ctx, context)
+                    i.inc()
+                    continue
+                }
             }
         }
 
@@ -5542,12 +5557,16 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Check for variadic function call
-    variadic_info := detect_variadic_fcall(fcall, ctx)
-    mut variadic_arr_var := hoist_variadic_args(variadic_info.elem_type, fcall.params, hoisted, variadic_info.regular_count, output, indent, ctx, context)
-    mut has_variadic := true
+    mut variadic_info := VariadicFCallInfo()
+    variadic_info = detect_variadic_fcall(fcall, ctx)
     catch (err: KeyNotFoundError) {
-        has_variadic = false
-        variadic_arr_var = ""
+        // REM: Not variadic - variadic_info stays at default
+    }
+    mut variadic_arr_var := ""
+    mut has_variadic := false
+    if not(variadic_info.elem_type.is_empty()) {
+        has_variadic = true
+        variadic_arr_var = hoist_variadic_args(variadic_info.elem_type, fcall.params, hoisted, variadic_info.regular_count, output, indent, ctx, context)
     }
 
     // Generate the function call with output parameters
@@ -5858,12 +5877,16 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Check for variadic function call
-    variadic_info := detect_variadic_fcall(fcall, ctx)
-    mut variadic_arr_var := hoist_variadic_args(variadic_info.elem_type, fcall.params, hoisted, variadic_info.regular_count, output, indent, ctx, context)
-    mut has_variadic := true
+    mut variadic_info := VariadicFCallInfo()
+    variadic_info = detect_variadic_fcall(fcall, ctx)
     catch (err: KeyNotFoundError) {
-        has_variadic = false
-        variadic_arr_var = ""
+        // REM: Not variadic - variadic_info stays at default
+    }
+    mut variadic_arr_var := ""
+    mut has_variadic := false
+    if not(variadic_info.elem_type.is_empty()) {
+        has_variadic = true
+        variadic_arr_var = hoist_variadic_args(variadic_info.elem_type, fcall.params, hoisted, variadic_info.regular_count, output, indent, ctx, context)
     }
 
     // Generate the function call with output parameters
@@ -6886,11 +6909,13 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
             expr.params.get(0, return_expr)
             switch return_expr.node_type {
             case NodeType.FCall:
-                variadic_fcall_info := detect_variadic_fcall(return_expr, ctx)
+                mut variadic_fcall_info := VariadicFCallInfo()
+                variadic_fcall_info = detect_variadic_fcall(return_expr, ctx)
                 catch (err: KeyNotFoundError) {
-                    // REM: not variadic
+                    // REM: not variadic - variadic_fcall_info stays at default
                 }
-                // Variadic call in return - need to hoist it
+                if not(variadic_fcall_info.elem_type.is_empty()) {
+                    // Variadic call in return - need to hoist it
                 // First, hoist any nested throwing/variadic calls in the arguments
                 mut all_args := Vec.new(Expr)
                 mut arg_idx := 1
@@ -7000,6 +7025,7 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                 output.push_str(temp_var)
                 output.push_str(";\n")
                 return
+                }
             case:
             }
         }
@@ -7142,25 +7168,29 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             case NodeType.Identifier(name):
                 // Check if this is a constructor (struct/enum) or a function call
                 // If it's a function that returns a type, use the return type
-                fd := get_fcall_func_def(context, thrown_expr)
+                mut func_def := SFuncDef()
+                func_def = get_fcall_func_def(context, thrown_expr)
                 catch (err: KeyNotFoundError) {
                     // Not a function, assume it's a constructor
                     thrown_type_name = name.clone()
                 }
-                // It's a function - use its return type as the thrown type
-                if not(fd.return_types.is_empty()) {
-                    mut ret_type := ValueType.TCustom("")
-                    fd.return_types.get(0, ret_type)
-                    switch ret_type {
-                    case ValueType.TCustom(type_name):
-                        thrown_type_name = type_name.clone()
-                    case:
-                        // Return type is a primitive (like Str) - convert to name
-                        thrown_type_name = value_type_to_str(ret_type)
+                // Only check func_def's return types if we successfully got it (thrown_type_name still empty)
+                if thrown_type_name.is_empty() {
+                    // It's a function - use its return type as the thrown type
+                    if not(func_def.return_types.is_empty()) {
+                        mut ret_type := ValueType.TCustom("")
+                        func_def.return_types.get(0, ret_type)
+                        switch ret_type {
+                        case ValueType.TCustom(type_name):
+                            thrown_type_name = type_name.clone()
+                        case:
+                            // Return type is a primitive (like Str) - convert to name
+                            thrown_type_name = value_type_to_str(ret_type)
+                        }
+                    } else {
+                        // No return type, assume it's a constructor
+                        thrown_type_name = name.clone()
                     }
-                } else {
-                    // No return type, assume it's a constructor
-                    thrown_type_name = name.clone()
                 }
             case:
                 throw "ccodegen: throw FCall must have identifier as first param"
