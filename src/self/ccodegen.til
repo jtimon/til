@@ -3029,15 +3029,6 @@ emit_global_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
                     c_type = "int"
                 }
             }
-            catch (err: KeyNotFoundError) {
-                c_type = til_type_to_c(decl.value_type)
-                catch (err2: Str) {
-                    c_type = "int"
-                }
-                catch (err2: KeyNotFoundError) {
-                    c_type = "int"
-                }
-            }
 
             // Emit static declaration (no initializer - will be set in main)
             output.push_str("static ")
@@ -3267,19 +3258,35 @@ emit_struct_constants := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 for member: Declaration in struct_def.members {
                     // Only emit non-mut, non-function fields as constants
                     if not(member.is_mut) {
-                        c_type := til_type_to_c(member.value_type)
-                        // Get the default value
-                        mut default_val := Expr()
-                        struct_def.default_values.get(member.name, default_val)
-                        output.push_str("const ")
-                        output.push_str(c_type)
-                        output.push_str(" ")
-                        output.push_str(struct_name)
-                        output.push_str("_")
-                        output.push_str(member.name)
-                        output.push_str(" = ")
-                        emit_expr(default_val, output, 0, ctx, context)
-                        output.push_str(";\n")
+                        mut c_type_valid := false
+                        mut c_type := ""
+                        c_type = til_type_to_c(member.value_type)
+                        c_type_valid = true
+                        catch (err: Str) {
+                            // REM: Rust's Err case - til_type_to_c failed, skip this member
+                        }
+
+                        if c_type_valid {
+                            mut default_val_valid := false
+                            mut default_val := Expr()
+                            struct_def.default_values.get(member.name, default_val)
+                            default_val_valid = true
+                            catch (err: KeyNotFoundError) {
+                                // REM: Rust's None case - member has no default value, skip
+                            }
+
+                            if default_val_valid {
+                                output.push_str("const ")
+                                output.push_str(c_type)
+                                output.push_str(" ")
+                                output.push_str(struct_name)
+                                output.push_str("_")
+                                output.push_str(member.name)
+                                output.push_str(" = ")
+                                emit_expr(default_val, output, 0, ctx, context)
+                                output.push_str(";\n")
+                            }
+                        }
                     }
                 }
                 // Emit size_of constant for this struct
