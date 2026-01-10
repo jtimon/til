@@ -4916,7 +4916,27 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
     } else if not(assign_name.eq("")) {
         // Assignment
         output.push_str(indent_str)
-        output.push_str(til_name(assign_name))
+        // Check if assignment target is a field access on a mut param (self.field)
+        // If so, emit with -> instead of .
+        dot_pos := assign_name.find(".")
+        if dot_pos.gteq(0) {
+            base := assign_name.get_substr(0, dot_pos)
+            rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())
+            if ctx.current_ref_params.contains(base) {
+                // Mut param field access: til_self->field
+                output.push_str(til_name(base))
+                output.push_str("->")
+                output.push_str(rest)
+            } else {
+                output.push_str(til_name(assign_name))
+            }
+        } else if ctx.current_ref_params.contains(assign_name) {
+            // Direct assignment to mut param: *til_self = value
+            output.push_str("*")
+            output.push_str(til_name(assign_name))
+        } else {
+            output.push_str(til_name(assign_name))
+        }
         output.push_str(" = ")
 
         // Emit function call

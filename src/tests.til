@@ -582,7 +582,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         println("\n=== til_interpreted (", til_interpreted.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("* til_interpreted\n")
         mut til_interp_phases := Vec.new(TestPhase)
-        til_interp_phases.push(TestPhase(test_mode="til_interpreted", out_mode="interpreted", label="til interpreted"))
+        til_interp_phases.push(TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
         errors_found = errors_found.add(run_parallel(til_interpreted, til_interp_phases, parallelism, til_interp_totals, benchmark_content))
     }
 
@@ -593,7 +593,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         println("\n=== til_compiled (", til_compiled.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("\n* til_compiled\n")
         mut til_compile_phases := Vec.new(TestPhase)
-        til_compile_phases.push(TestPhase(test_mode="til_compiled", out_mode="compiled", label="til compiled"))
+        til_compile_phases.push(TestPhase(test_mode="til_compiled", out_mode="til_compiled", label="til compiled"))
         errors_found = errors_found.add(run_parallel(til_compiled, til_compile_phases, parallelism, til_compile_totals, benchmark_content))
     }
 
@@ -605,8 +605,8 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         println("\n=== til_common (", til_common.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("\n* til_common\n")
         mut til_common_phases := Vec.new(TestPhase)
-        til_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="interpreted", label="til interpreted"))
-        til_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="interpreted", label="til compiled"))
+        til_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="til_interpreted", label="til interpreted"))
+        til_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="til_interpreted", label="til compiled"))
         errors_found = errors_found.add(run_parallel(til_common, til_common_phases, parallelism, til_common_totals, benchmark_content))
     }
 
@@ -617,7 +617,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         println("\n=== rs_interpreted (", rs_interpreted.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("\n* rs_interpreted\n")
         mut rs_interp_phases := Vec.new(TestPhase)
-        rs_interp_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="interpreted", label="interpreted"))
+        rs_interp_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
         errors_found = errors_found.add(run_parallel(rs_interpreted, rs_interp_phases, parallelism, rs_interp_totals, benchmark_content))
     }
 
@@ -628,7 +628,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         println("\n=== rs_compiled (", rs_compiled.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("\n* rs_compiled\n")
         mut rs_compile_phases := Vec.new(TestPhase)
-        rs_compile_phases.push(TestPhase(test_mode="rs_compiled", out_mode="compiled", label="compiled"))
+        rs_compile_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_compiled", label="compiled"))
         errors_found = errors_found.add(run_parallel(rs_compiled, rs_compile_phases, parallelism, rs_compile_totals, benchmark_content))
     }
 
@@ -640,8 +640,8 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         println("\n=== rs_common (", rs_common.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("\n* rs_common\n")
         mut rs_common_phases := Vec.new(TestPhase)
-        rs_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="interpreted", label="interpreted"))
-        rs_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="interpreted", label="compiled"))
+        rs_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
+        rs_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="compiled"))
         errors_found = errors_found.add(run_parallel(rs_common, rs_common_phases, parallelism, rs_common_totals, benchmark_content))
     }
 
@@ -655,10 +655,10 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
         println("\n=== all_common (", all_common.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("\n* all_common\n")
         mut all_common_phases := Vec.new(TestPhase)
-        all_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="interpreted", label="rs interpreted"))
-        all_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="compiled", label="rs compiled"))
-        all_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="interpreted", label="til interpreted"))
-        all_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="compiled", label="til compiled"))
+        all_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="rs interpreted"))
+        all_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="rs compiled"))
+        all_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="rs_interpreted", label="til interpreted"))
+        all_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="rs_interpreted", label="til compiled"))
         errors_found = errors_found.add(run_parallel(all_common, all_common_phases, parallelism, all_common_totals, benchmark_content))
     }
 
@@ -739,8 +739,11 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     }
 }
 
-regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
-    // Note: til_interpreted uses same .out files as rs_interpreted, no separate regen needed
+regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec, til_common: Vec, til_compiled: Vec, til_interpreted: Vec, all_common: Vec) {
+    // rs_common, rs_interpreted, all_common -> .rs_interpreted.out (via regen_test)
+    // rs_compiled -> .rs_compiled.out (via regen_test_compiled)
+    // til_common, til_interpreted -> .til_interpreted.out (via regen_test_til)
+    // til_compiled -> .til_compiled.out (via regen_test_til_compiled)
     if files.len().eq(0) {
         // regen all
         for entry: TestEntry in rs_common {
@@ -750,6 +753,18 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec)
             regen_test_compiled(entry)
         }
         for entry: TestEntry in rs_interpreted {
+            regen_test(entry)
+        }
+        for entry: TestEntry in til_common {
+            regen_test_til(entry)
+        }
+        for entry: TestEntry in til_compiled {
+            regen_test_til_compiled(entry)
+        }
+        for entry: TestEntry in til_interpreted {
+            regen_test_til(entry)
+        }
+        for entry: TestEntry in all_common {
             regen_test(entry)
         }
     } else {
@@ -768,6 +783,26 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec)
                 }
             }
             for entry: TestEntry in rs_interpreted {
+                if entry.path.eq(file).or(entry.path.ends_with(file)) {
+                    regen_test(entry)
+                }
+            }
+            for entry: TestEntry in til_common {
+                if entry.path.eq(file).or(entry.path.ends_with(file)) {
+                    regen_test_til(entry)
+                }
+            }
+            for entry: TestEntry in til_compiled {
+                if entry.path.eq(file).or(entry.path.ends_with(file)) {
+                    regen_test_til_compiled(entry)
+                }
+            }
+            for entry: TestEntry in til_interpreted {
+                if entry.path.eq(file).or(entry.path.ends_with(file)) {
+                    regen_test_til(entry)
+                }
+            }
+            for entry: TestEntry in all_common {
                 if entry.path.eq(file).or(entry.path.ends_with(file)) {
                     regen_test(entry)
                 }
@@ -797,15 +832,20 @@ ensure_parent_dir := proc(file_path: Str) throws AllocError {
 }
 
 // Auto-generate missing .out files
-// test_mode: "interpreted" uses rstil interpret, "compiled" uses rstil run
+// test_mode determines which binary and command to use
 ensure_out_file := proc(path: Str, cmd_args: Str, out_path: Str, test_mode: Str) {
     // file_mtime returns -1 if file doesn't exist
     if file_mtime(out_path).lt(0) {
         mut output := ""
         mut cmd := ""
-        if test_mode.eq("compiled") {
+        if test_mode.eq("rs_compiled") {
             cmd = concat("./bin/rstil run ", path)
+        } else if test_mode.eq("til_interpreted") {
+            cmd = concat("./bin/til interpret ", path)
+        } else if test_mode.eq("til_compiled") {
+            cmd = concat("./bin/til run ", path)
         } else {
+            // rs_interpreted is the default
             cmd = concat("./bin/rstil interpret ", path)
         }
         if not(cmd_args.eq("")) {
@@ -845,7 +885,7 @@ test_til_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms:
 }
 
 regen_test := proc(entry: TestEntry) throws AllocError {
-    out_path := get_out_path(entry.path, "interpreted", entry.cmd_args)
+    out_path := get_out_path(entry.path, "rs_interpreted", entry.cmd_args)
 
     mut output := ""
     mut exit_code := 0
@@ -862,7 +902,7 @@ regen_test := proc(entry: TestEntry) throws AllocError {
 }
 
 regen_test_compiled := proc(entry: TestEntry) throws AllocError {
-    out_path := get_out_path(entry.path, "compiled", entry.cmd_args)
+    out_path := get_out_path(entry.path, "rs_compiled", entry.cmd_args)
 
     mut output := ""
     mut exit_code := 0
@@ -875,7 +915,41 @@ regen_test_compiled := proc(entry: TestEntry) throws AllocError {
     formatted := format_expected(entry.cmd_args, exit_code, output)
     ensure_parent_dir(out_path)
     _ := writefile(out_path, formatted)
-    println("Regenerated (compiled): ", out_path)
+    println("Regenerated (rs_compiled): ", out_path)
+}
+
+regen_test_til := proc(entry: TestEntry) throws AllocError {
+    out_path := get_out_path(entry.path, "til_interpreted", entry.cmd_args)
+
+    mut output := ""
+    mut exit_code := 0
+    if entry.cmd_args.eq("") {
+        exit_code = output.run_cmd("./bin/til", "interpret", entry.path)
+    } else {
+        cmd := concat(concat("./bin/til interpret ", entry.path), concat(" ", entry.cmd_args))
+        exit_code = output.run_cmd("bash", "-c", cmd)
+    }
+    formatted := format_expected(entry.cmd_args, exit_code, output)
+    ensure_parent_dir(out_path)
+    _ := writefile(out_path, formatted)
+    println("Regenerated (til_interpreted): ", out_path)
+}
+
+regen_test_til_compiled := proc(entry: TestEntry) throws AllocError {
+    out_path := get_out_path(entry.path, "til_compiled", entry.cmd_args)
+
+    mut output := ""
+    mut exit_code := 0
+    if entry.cmd_args.eq("") {
+        exit_code = output.run_cmd("./bin/til", "run", entry.path)
+    } else {
+        cmd := concat(concat("./bin/til run ", entry.path), concat(" ", entry.cmd_args))
+        exit_code = output.run_cmd("bash", "-c", cmd)
+    }
+    formatted := format_expected(entry.cmd_args, exit_code, output)
+    ensure_parent_dir(out_path)
+    _ := writefile(out_path, formatted)
+    println("Regenerated (til_compiled): ", out_path)
 }
 
 usage := proc() {
@@ -1145,7 +1219,7 @@ main := proc(args: ..Str) {
                 remaining_args.get(i, path)
                 files.push(path)
             }
-            regen(files, rs_common, rs_compiled, rs_interpreted)
+            regen(files, rs_common, rs_compiled, rs_interpreted, til_common, til_compiled, til_interpreted, all_common)
         case:
             usage()
         }

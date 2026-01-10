@@ -115,24 +115,6 @@ get_cmd_prefix := func(test_mode: Str) returns Str {
     }
 }
 
-// Get output mode (which .out file to compare against)
-// For most modes, it matches the mode name
-// But compiled modes still use "compiled" for output comparison
-get_out_mode := func(test_mode: Str) returns Str {
-    switch test_mode {
-    case "rs_interpreted":
-        return "interpreted"
-    case "rs_compiled":
-        return "compiled"
-    case "til_interpreted":
-        return "interpreted"
-    case "til_compiled":
-        return "compiled"
-    case:
-        return "interpreted"
-    }
-}
-
 // Ensure parent directory exists
 ensure_parent_dir := proc(file_path: Str) throws AllocError {
     mut last_slash := 0

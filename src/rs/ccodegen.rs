@@ -3875,7 +3875,26 @@ fn emit_variadic_call(
     } else if let Some(var_name) = assign_name {
         // Assignment
         output.push_str(&indent_str);
-        output.push_str(&til_name(var_name));
+        // Check if assignment target is a field access on a mut param (self.field)
+        // If so, emit with -> instead of .
+        if let Some(dot_pos) = var_name.find('.') {
+            let base = &var_name[..dot_pos];
+            let rest = &var_name[dot_pos + 1..];
+            if ctx.current_ref_params.contains(base) {
+                // Mut param field access: til_self->field
+                output.push_str(&til_name(base));
+                output.push_str("->");
+                output.push_str(rest);
+            } else {
+                output.push_str(&til_name(var_name));
+            }
+        } else if ctx.current_ref_params.contains(var_name) {
+            // Direct assignment to mut param: *til_self = value
+            output.push_str("*");
+            output.push_str(&til_name(var_name));
+        } else {
+            output.push_str(&til_name(var_name));
+        }
         output.push_str(" = ");
 
         // Emit function call
