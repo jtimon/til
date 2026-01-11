@@ -240,7 +240,7 @@ til_Str til_concat(const til_Str* til_a, const til_Str* til_b) {
         int _arr_status__tmp_concat_2 = til_Array_new(&_tmp_concat_1, &_err_alloc__tmp_concat_2, _tmp_concat_3, &_tmp_concat_4);
         if (_arr_status__tmp_concat_2 != 0) {
         }
-        til_panic(&((til_Str){(til_I64)"src/core/str.til:546:15:", 24}), &((til_Str){(til_I64)"concat: integer overflow", 24}), &_tmp_concat_1);
+        til_panic(&((til_Str){(til_I64)"src/core/str.til:544:15:", 24}), &((til_Str){(til_I64)"concat: integer overflow", 24}), &_tmp_concat_1);
         til_Array_delete(&_tmp_concat_1);
     }
     til_I64 _tmp_concat_6 = til_add(&til_result.cap, &(til_I64){1});
@@ -258,7 +258,7 @@ til_Str til_concat(const til_Str* til_a, const til_Str* til_b) {
         int _arr_status__tmp_concat_8 = til_Array_new(&_tmp_concat_7, &_err_alloc__tmp_concat_8, _tmp_concat_9, &_tmp_concat_10);
         if (_arr_status__tmp_concat_8 != 0) {
         }
-        til_panic(&((til_Str){(til_I64)"src/core/str.til:551:15:", 24}), &((til_Str){(til_I64)"concat: malloc failed", 21}), &_tmp_concat_7);
+        til_panic(&((til_Str){(til_I64)"src/core/str.til:549:15:", 24}), &((til_Str){(til_I64)"concat: malloc failed", 21}), &_tmp_concat_7);
         til_Array_delete(&_tmp_concat_7);
     }
     til_memcpy(&til_result.c_string, &til_a->c_string, &til_a->cap);
@@ -278,7 +278,7 @@ til_Str til_concat(const til_Str* til_a, const til_Str* til_b) {
         int _arr_status__tmp_concat_15 = til_Array_new(&_tmp_concat_14, &_err_alloc__tmp_concat_15, _tmp_concat_16, &_tmp_concat_17);
         if (_arr_status__tmp_concat_15 != 0) {
         }
-        til_panic(&((til_Str){(til_I64)"src/core/str.til:561:15:", 24}), &til_err.msg, &_tmp_concat_14);
+        til_panic(&((til_Str){(til_I64)"src/core/str.til:559:15:", 24}), &til_err.msg, &_tmp_concat_14);
         til_Array_delete(&_tmp_concat_14);
     }
     return til_result;
@@ -306,7 +306,7 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
                 int _arr_status__tmp_format_4 = til_Array_new(&_tmp_format_3, &_err_alloc__tmp_format_4, _tmp_format_5, &_tmp_format_6);
                 if (_arr_status__tmp_format_4 != 0) {
                 }
-                til_panic(&((til_Str){(til_I64)"src/core/str.til:577:19:", 24}), &((til_Str){(til_I64)"format: integer overflow while summing cap", 42}), &_tmp_format_3);
+                til_panic(&((til_Str){(til_I64)"src/core/str.til:575:19:", 24}), &((til_Str){(til_I64)"format: integer overflow while summing cap", 42}), &_tmp_format_3);
                 til_Array_delete(&_tmp_format_3);
             }
             til_I64_inc(&til_i);
@@ -326,7 +326,7 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
                 int _arr_status__tmp_format_9 = til_Array_new(&_tmp_format_8, &_err_alloc__tmp_format_9, _tmp_format_10, &_tmp_format_11);
                 if (_arr_status__tmp_format_9 != 0) {
                 }
-                til_panic(&((til_Str){(til_I64)"src/core/str.til:577:19:", 24}), &((til_Str){(til_I64)"format: integer overflow while summing cap", 42}), &_tmp_format_8);
+                til_panic(&((til_Str){(til_I64)"src/core/str.til:575:19:", 24}), &((til_Str){(til_I64)"format: integer overflow while summing cap", 42}), &_tmp_format_8);
                 til_Array_delete(&_tmp_format_8);
             }
             til_I64_dec(&til_i);
@@ -352,7 +352,7 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
         _arr_status__tmp_format_15 = til_Array_set(&_err_idx__tmp_format_15, &_tmp_format_14, &_tmp_format_19, (til_Dynamic*)&_tmp_format_16);
         if (_arr_status__tmp_format_15 != 0) {
         }
-        til_panic(&((til_Str){(til_I64)"src/core/str.til:583:15:", 24}), &((til_Str){(til_I64)"format: malloc failed, size=", 28}), &_tmp_format_14);
+        til_panic(&((til_Str){(til_I64)"src/core/str.til:581:15:", 24}), &((til_Str){(til_I64)"format: malloc failed, size=", 28}), &_tmp_format_14);
         til_Array_delete(&_tmp_format_14);
     }
     til_I64 til_offset = 0;
@@ -376,7 +376,7 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
             int _arr_status__tmp_format_23 = til_Array_new(&_tmp_format_22, &_err_alloc__tmp_format_23, _tmp_format_24, &_tmp_format_25);
             if (_arr_status__tmp_format_23 != 0) {
             }
-            til_panic(&((til_Str){(til_I64)"src/core/str.til:590:5:", 23}), &til_err.msg, &_tmp_format_22);
+            til_panic(&((til_Str){(til_I64)"src/core/str.til:588:5:", 23}), &til_err.msg, &_tmp_format_22);
             til_Array_delete(&_tmp_format_22);
         }
         til_I64 _tmp_format_26 = til_add(&til_result.c_string, &til_offset);
@@ -398,7 +398,7 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
         int _arr_status__tmp_format_30 = til_Array_new(&_tmp_format_29, &_err_alloc__tmp_format_30, _tmp_format_31, &_tmp_format_32);
         if (_arr_status__tmp_format_30 != 0) {
         }
-        til_panic(&((til_Str){(til_I64)"src/core/str.til:600:15:", 24}), &til_err.msg, &_tmp_format_29);
+        til_panic(&((til_Str){(til_I64)"src/core/str.til:598:15:", 24}), &til_err.msg, &_tmp_format_29);
         til_Array_delete(&_tmp_format_29);
     }
     if (0) { _catch_AllocError__tmp_format_1:
@@ -411,7 +411,7 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
         int _arr_status__tmp_format_34 = til_Array_new(&_tmp_format_33, &_err_alloc__tmp_format_34, _tmp_format_35, &_tmp_format_36);
         if (_arr_status__tmp_format_34 != 0) {
         }
-        til_panic(&((til_Str){(til_I64)"src/core/str.til:603:15:", 24}), &til_err.msg, &_tmp_format_33);
+        til_panic(&((til_Str){(til_I64)"src/core/str.til:601:15:", 24}), &til_err.msg, &_tmp_format_33);
         til_Array_delete(&_tmp_format_33);
     }
     return til_result;

@@ -156,8 +156,8 @@ List := struct {
         }
 
         // Write new value
-        mut value_ptr := to_ptr(value)
-        memcpy(add(self.data, old_offset), value_ptr, new_size)
+        mut diff_value_ptr := to_ptr(value)
+        memcpy(add(self.data, old_offset), diff_value_ptr, new_size)
 
         // Update metadata
         self.type_names.set(index, new_type)

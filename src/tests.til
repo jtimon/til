@@ -357,8 +357,8 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
             neg_one := sub(0, 1)
             if not(status.eq(neg_one)) {
                 // Phase finished - parse result from test.til
-                mut phase := TestPhase()
-                phases.get(current.current_phase, phase)
+                mut current_phase := TestPhase()
+                phases.get(current.current_phase, current_phase)
 
                 mut time_ms := 0
                 mut error_output := ""
@@ -377,7 +377,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                     errors.inc()
                     println(error_output)
                     completed_count.inc()
-                    println("[", completed_count.to_str(), "/", tests.len().to_str(), "] ", current.entry.path, " - FAILED (", phase.label, ")")
+                    println("[", completed_count.to_str(), "/", tests.len().to_str(), "] ", current.entry.path, " - FAILED (", current_phase.label, ")")
 
                     // Remove from running
                     last_idx := running.len().sub(1)
@@ -391,12 +391,12 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
 
                     // Start next test
                     if pending_idx.lt(tests.len()) {
-                        mut entry := TestEntry()
-                        tests.get(pending_idx, entry)
-                        mut first_phase := TestPhase()
-                        phases.get(0, first_phase)
-                        rt := spawn_test(entry, first_phase, next_id)
-                        running.push(rt)
+                        mut fail_next_entry := TestEntry()
+                        tests.get(pending_idx, fail_next_entry)
+                        mut fail_first_phase := TestPhase()
+                        phases.get(0, fail_first_phase)
+                        fail_rt := spawn_test(fail_next_entry, fail_first_phase, next_id)
+                        running.push(fail_rt)
                         pending_idx.inc()
                         next_id.inc()
                     }
@@ -468,33 +468,33 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                         }
                         // For 4-phase tests (all_common: rs_interpreted, rs_compiled, til_interpreted, til_compiled)
                         if num_phases.eq(4) {
-                            mut t0 := 0  // rs_interpreted
-                            mut t1 := 0  // rs_compiled
-                            mut t2 := 0  // til_interpreted
-                            mut t3 := 0  // til_compiled
-                            current.phase_times.get(0, t0)
-                            current.phase_times.get(1, t1)
-                            current.phase_times.get(2, t2)
-                            current.phase_times.get(3, t3)
+                            mut rs_interp := 0  // rs_interpreted
+                            mut rs_comp := 0    // rs_compiled
+                            mut til_interp := 0 // til_interpreted
+                            mut til_comp := 0   // til_compiled
+                            current.phase_times.get(0, rs_interp)
+                            current.phase_times.get(1, rs_comp)
+                            current.phase_times.get(2, til_interp)
+                            current.phase_times.get(3, til_comp)
                             // Compare rstil modes: interpreted vs compiled
                             mut rstil_faster := ""
-                            if t0.lt(t1) {
+                            if rs_interp.lt(rs_comp) {
                                 rstil_faster = "interpreted"
-                            } else if t1.lt(t0) {
+                            } else if rs_comp.lt(rs_interp) {
                                 rstil_faster = "compiled"
                             }
                             // Compare interpreted: rstil vs til
                             mut interp_faster := ""
-                            if t0.lt(t2) {
+                            if rs_interp.lt(til_interp) {
                                 interp_faster = "rstil"
-                            } else if t2.lt(t0) {
+                            } else if til_interp.lt(rs_interp) {
                                 interp_faster = "til"
                             }
                             // Compare compiled: rstil vs til
                             mut compiled_faster := ""
-                            if t1.lt(t3) {
+                            if rs_comp.lt(til_comp) {
                                 compiled_faster = "rstil"
-                            } else if t3.lt(t1) {
+                            } else if til_comp.lt(rs_comp) {
                                 compiled_faster = "til"
                             }
                             // Build annotation
@@ -528,23 +528,23 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                         benchmark_content = benchmark_content.concat("- ").concat(current.entry.path).concat(" :: ").concat(bench_timing).concat(faster).concat("\n")
 
                         // Remove from running
-                        last_idx := running.len().sub(1)
-                        if i.lt(last_idx) {
-                            mut last := RunningTest()
-                            running.get(last_idx, last)
-                            running.set(i, last)
+                        success_last_idx := running.len().sub(1)
+                        if i.lt(success_last_idx) {
+                            mut success_last := RunningTest()
+                            running.get(success_last_idx, success_last)
+                            running.set(i, success_last)
                         }
-                        mut popped := RunningTest()
-                        running.pop(popped)
+                        mut success_popped := RunningTest()
+                        running.pop(success_popped)
 
                         // Start next test
                         if pending_idx.lt(tests.len()) {
-                            mut entry := TestEntry()
-                            tests.get(pending_idx, entry)
-                            mut first_phase := TestPhase()
-                            phases.get(0, first_phase)
-                            rt := spawn_test(entry, first_phase, next_id)
-                            running.push(rt)
+                            mut next_entry := TestEntry()
+                            tests.get(pending_idx, next_entry)
+                            mut next_first_phase := TestPhase()
+                            phases.get(0, next_first_phase)
+                            next_rt := spawn_test(next_entry, next_first_phase, next_id)
+                            running.push(next_rt)
                             pending_idx.inc()
                             next_id.inc()
                         }
@@ -1211,9 +1211,9 @@ main := proc(args: ..Str) {
             }
         case "regen":
             mut files := Vec.new(Str)
-            for i in 1..remaining_args.len() {
+            for regen_idx in 1..remaining_args.len() {
                 mut path := ""
-                remaining_args.get(i, path)
+                remaining_args.get(regen_idx, path)
                 files.push(path)
             }
             regen(files, rs_common, rs_compiled, rs_interpreted, til_common, til_compiled, til_interpreted, all_common)

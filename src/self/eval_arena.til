@@ -450,35 +450,35 @@ EvalArena := struct {
                                 }
 
                                 if is_struct {
-                                    combined_name := format(id, ".", decl.name)
+                                    nested_combined_name := format(id, ".", decl.name)
                                     nested_symbol := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true)
                                     // Must declare symbol BEFORE recursive call (needed for is_mut lookup)
-                                    ctx.scope_stack.declare_symbol(combined_name, nested_symbol)
+                                    ctx.scope_stack.declare_symbol(nested_combined_name, nested_symbol)
                                     mut sym_entry := SymbolEntry()
-                                    sym_entry.name = combined_name
+                                    sym_entry.name = nested_combined_name
                                     sym_entry.info = nested_symbol
                                     result.symbols.push(sym_entry)
 
                                     // Special case: Str field initialization
                                     if type_name.eq("Str") {
                                         // Register inline offset BEFORE insert_string so it writes to the inline space
-                                        field_arena_offset := add(offset, field_offset)
+                                        str_field_offset := add(offset, field_offset)
                                         mut str_mapping := EvalArenaMapping()
-                                        str_mapping.name = combined_name
-                                        str_mapping.offset = field_arena_offset
+                                        str_mapping.name = nested_combined_name
+                                        str_mapping.offset = str_field_offset
                                         result.arena_mappings.push(str_mapping)
                                         // Need to temporarily insert for insert_string to work
-                                        ctx.scope_stack.insert_var(combined_name, field_arena_offset)
-                                        EvalArena.insert_string(ctx, combined_name, default_value, e)
+                                        ctx.scope_stack.insert_var(nested_combined_name, str_field_offset)
+                                        EvalArena.insert_string(ctx, nested_combined_name, default_value, e)
                                     } else {
                                         // Use existing offset for nested struct (inline allocation)
-                                        field_arena_offset := add(offset, field_offset)
+                                        nested_field_offset := add(offset, field_offset)
                                         mut nested_mapping := EvalArenaMapping()
-                                        nested_mapping.name = combined_name
-                                        nested_mapping.offset = field_arena_offset
+                                        nested_mapping.name = nested_combined_name
+                                        nested_mapping.offset = nested_field_offset
                                         result.arena_mappings.push(nested_mapping)
                                         // Need to temporarily insert for recursive call to work
-                                        ctx.scope_stack.insert_var(combined_name, field_arena_offset)
+                                        ctx.scope_stack.insert_var(nested_combined_name, nested_field_offset)
                                         // Extract nested defaults (field.subfield -> subfield)
                                         prefix := format(decl.name, ".")
                                         mut nested_defaults := Map.new(Str, Str)
@@ -494,7 +494,7 @@ EvalArena := struct {
                                                 nested_defaults.set(rest, dv)
                                             }
                                         }
-                                        nested_result := EvalArena.insert_struct_core(ctx, combined_name, type_name, field_arena_offset, nested_defaults, e)
+                                        nested_result := EvalArena.insert_struct_core(ctx, nested_combined_name, type_name, nested_field_offset, nested_defaults, e)
                                         catch (err: Str) {
                                             throw e.lang_error(ctx.path, "context", format("insert_struct: Failed to initialize nested struct '", id, ".", decl.name, "'"))
                                         }
@@ -720,27 +720,27 @@ EvalArena := struct {
             }
 
             if have_base_offset {
-                mut str_def := ctx.scope_stack.lookup_struct("Str")
+                mut existing_str_def := ctx.scope_stack.lookup_struct("Str")
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "context", "ERROR: 'Str' struct definition not found")
                 }
 
-                mut current_offset := 0
-                for decl: Declaration in str_def.members {
-                    if decl.is_mut {
-                        type_size := ctx.get_type_size(value_type_to_str(decl.value_type))
-                        absolute_offset := add(base_offset, current_offset)
+                mut existing_offset := 0
+                for existing_decl: Declaration in existing_str_def.members {
+                    if existing_decl.is_mut {
+                        existing_type_size := ctx.get_type_size(value_type_to_str(existing_decl.value_type))
+                        absolute_offset := add(base_offset, existing_offset)
 
-                        if decl.name.eq("c_string") {
+                        if existing_decl.name.eq("c_string") {
                             g_arena.set(absolute_offset, to_ptr(string_offset), 8)
                         } else {
-                            if decl.name.eq("cap") {
+                            if existing_decl.name.eq("cap") {
                                 g_arena.set(absolute_offset, to_ptr(str_len), 8)
                             }
                         }
 
-                        ctx.scope_stack.insert_var(format(id, ".", decl.name), absolute_offset)
-                        current_offset = add(current_offset, type_size)
+                        ctx.scope_stack.insert_var(format(id, ".", existing_decl.name), absolute_offset)
+                        existing_offset = add(existing_offset, existing_type_size)
                     }
                 }
                 throw KeyNotFoundError(msg="already handled")
@@ -1189,7 +1189,7 @@ EvalArena := struct {
             }
         } else {
             // Allocate max enum size, write tag and payload, then zero-pad remaining
-            offset := g_arena.put(to_ptr(enum_value), 8)
+            new_enum_offset := g_arena.put(to_ptr(enum_value), 8)
             if payload_data.len().gt(0) {
                 _ := g_arena.put(payload_data.ptr, payload_data.len())
             }
@@ -1199,7 +1199,7 @@ EvalArena := struct {
             }
             result.has_mapping = true
             result.mapping_name = id
-            result.mapping_offset = offset
+            result.mapping_offset = new_enum_offset
         }
 
         // Clear the temp payload after using it (set to NULL Ptr)
@@ -1418,11 +1418,11 @@ EvalArena := struct {
         switch value_type {
         case ValueType.TCustom(custom_type):
             if custom_type.eq("I64") {
-                val := EvalArena.get_i64(ctx, field_id, e)
-                result = Expr.new_explicit(NodeType.LLiteral(Literal.Number(val.to_str())), Vec.new(Expr), 0, 0)
+                i64_val := EvalArena.get_i64(ctx, field_id, e)
+                result = Expr.new_explicit(NodeType.LLiteral(Literal.Number(i64_val.to_str())), Vec.new(Expr), 0, 0)
             } else if custom_type.eq("U8") {
-                val := EvalArena.get_u8(ctx, field_id, e)
-                result = Expr.new_explicit(NodeType.LLiteral(Literal.Number(val.to_str())), Vec.new(Expr), 0, 0)
+                u8_val := EvalArena.get_u8(ctx, field_id, e)
+                result = Expr.new_explicit(NodeType.LLiteral(Literal.Number(u8_val.to_str())), Vec.new(Expr), 0, 0)
             } else {
                 // Check if nested struct
                 mut is_struct := false

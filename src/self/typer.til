@@ -377,6 +377,8 @@ check_if_statement := proc(mut context: Context, e: Expr) returns Vec throws Str
 
     // Type check the condition expression exists, but don't enforce it must be Bool
     // NOTE: Bool type checking removed - Bool is a regular struct, not a special primitive
+    // DEBUG: This call to get_value_type triggers type checking of the condition
+    // which might recursively process nested expressions
     mut val_type := ValueType.TCustom("")
     val_type = get_value_type(context, inner_e)
     catch (error_string: Str) {
@@ -640,9 +642,9 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 member_names.push(decl.name.clone())
             }
 
-            for i in 1..e_clone.params.len() {
+            for struct_arg_idx in 1..e_clone.params.len() {
                 mut struct_arg := Expr()
-                struct_arg = e_clone.get(i)
+                struct_arg = e_clone.get(struct_arg_idx)
                 switch struct_arg.node_type {
                 case NodeType.NamedArg(field_name):
                     if not(member_names.contains(field_name)) {
@@ -671,9 +673,9 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
 
     max_arg_def := func_def.args.len()
     mut def_arg_idx: I64 = 0  // Bug #61: Track definition arg separately from provided arg
-    for i in 0..e_clone.params.len().sub(1) {
+    for fcall_arg_idx in 0..e_clone.params.len().sub(1) {
         mut arg_expr := Expr()
-        arg_expr = e_clone.get(i.add(1))
+        arg_expr = e_clone.get(fcall_arg_idx.add(1))
         catch (get_err: Str) {
             errors.push(get_err)
             return errors
@@ -822,18 +824,18 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
                     // NOTE: Bool removed from this list - it's a regular struct, not a special primitive
                     mut is_primitive := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Str"))
                     if not(is_primitive) {
-                        mut struct_found := false
-                        mut struct_def := SStructDef()
-                        struct_def = context.scope_stack.lookup_struct(type_name)
-                        struct_found = true
+                        mut copy_struct_found := false
+                        mut copy_struct_def := SStructDef()
+                        copy_struct_def = context.scope_stack.lookup_struct(type_name)
+                        copy_struct_found = true
                         catch (struct_err: KeyNotFoundError) {
                             // Not found
                         }
-                        if struct_found {
+                        if copy_struct_found {
                             // Check if clone() exists as a const (associated function)
                             mut has_clone := false
                             mut clone_decl := Declaration()
-                            clone_decl = struct_def.get_member("clone")
+                            clone_decl = copy_struct_def.get_member("clone")
                             has_clone = not(clone_decl.is_mut)
                             catch (clone_err: Str) {
                                 // No clone method found - has_clone stays false
@@ -960,6 +962,8 @@ check_fcall_return_usage := proc(context: Context, e: Expr, expr_context: ExprCo
 
 check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr) returns Vec throws Str {
     mut errors := Vec.new(Str)
+    // Bug #97: Clear function_locals at start of each function
+    context.scope_stack.function_locals.clear()
     if not(context.mode_def.allows_procs).and(func_def.is_proc()) {
         errors.push(e.error(context.path, "type", "Procs not allowed in pure modes"))
     }
@@ -1254,9 +1258,9 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     }
 
                     // Then check body for other thrown exceptions
-                    mut temp_thrown_types := Vec.new(ThrownType)
-                    errors.extend(check_body_returns_throws(context, e, func_def, catch_body_expr.params, temp_thrown_types, return_found))
-                    thrown_types.extend(temp_thrown_types)
+                    mut catch_thrown_types := Vec.new(ThrownType)
+                    errors.extend(check_body_returns_throws(context, e, func_def, catch_body_expr.params, catch_thrown_types, return_found))
+                    thrown_types.extend(catch_thrown_types)
                     _ := context.scope_stack.pop()
                     catch (err: Str) {
                         // Ignore pop error
@@ -1273,14 +1277,14 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     called_throw_str := value_type_to_str(called_throw)
                     error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
 
-                    mut te1 := ThrownType()
-                    te1.type_str = called_throw_str
-                    te1.msg = p.error(context.path, "type", error_msg)
-                    thrown_types.push(te1)
-                    mut te2 := ThrownType()
-                    te2.type_str = called_throw_str
-                    te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
-                    thrown_types.push(te2)
+                    mut fcall_te1 := ThrownType()
+                    fcall_te1.type_str = called_throw_str
+                    fcall_te1.msg = p.error(context.path, "type", error_msg)
+                    thrown_types.push(fcall_te1)
+                    mut fcall_te2 := ThrownType()
+                    fcall_te2.type_str = called_throw_str
+                    fcall_te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
+                    thrown_types.push(fcall_te2)
                     ct_idx.inc()
                 }
 
@@ -1291,10 +1295,10 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     p.params.get(argi, arg)
                     switch arg.node_type {
                     case NodeType.FCall:
-                        mut nested_func_def := get_func_def_for_fcall(context, arg)
-                        mut temp_thrown_types := Vec.new(ThrownType)
-                        errors.extend(check_body_returns_throws(context, arg, nested_func_def, arg.params, temp_thrown_types, return_found))
-                        thrown_types.extend(temp_thrown_types)
+                        mut arg_nested_func_def := get_func_def_for_fcall(context, arg)
+                        mut arg_thrown_types := Vec.new(ThrownType)
+                        errors.extend(check_body_returns_throws(context, arg, arg_nested_func_def, arg.params, arg_thrown_types, return_found))
+                        thrown_types.extend(arg_thrown_types)
                         catch (err: Str) {
                             errors.push(arg.error(context.path, "type", format("Failed to resolve nested function call: ", err)))
                         }
@@ -1304,16 +1308,16 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     // Bug #36 fix: Handle named arguments in struct literals (e.g., Map(keys=self.keys.clone()))
                     case NodeType.NamedArg(_):
                         if arg.params.len().gt(0) {
-                            mut value_expr := Expr()
-                            arg.params.get(0, value_expr)
-                            switch value_expr.node_type {
+                            mut named_arg_value_expr := Expr()
+                            arg.params.get(0, named_arg_value_expr)
+                            switch named_arg_value_expr.node_type {
                             case NodeType.FCall:
-                                mut nested_func_def := get_func_def_for_fcall(context, value_expr)
-                                mut temp_thrown_types := Vec.new(ThrownType)
-                                errors.extend(check_body_returns_throws(context, value_expr, nested_func_def, value_expr.params, temp_thrown_types, return_found))
-                                thrown_types.extend(temp_thrown_types)
+                                mut named_arg_nested_func_def := get_func_def_for_fcall(context, named_arg_value_expr)
+                                mut named_arg_thrown_types := Vec.new(ThrownType)
+                                errors.extend(check_body_returns_throws(context, named_arg_value_expr, named_arg_nested_func_def, named_arg_value_expr.params, named_arg_thrown_types, return_found))
+                                thrown_types.extend(named_arg_thrown_types)
                                 catch (err: Str) {
-                                    errors.push(value_expr.error(context.path, "type", format("Failed to resolve nested function call in named arg: ", err)))
+                                    errors.push(named_arg_value_expr.error(context.path, "type", format("Failed to resolve nested function call in named arg: ", err)))
                                 }
                                 catch (err: KeyNotFoundError) {
                                     // Enum/struct constructor - no throw checking needed
@@ -1333,60 +1337,60 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     // Enum/struct constructor - but arguments may contain throwing function calls (Bug #36 fix)
                     mut argi2 := 1
                     while argi2.lt(p.params.len()) {
-                        mut arg := Expr()
-                        p.params.get(argi2, arg)
-                        switch arg.node_type {
+                        mut ctor_arg := Expr()
+                        p.params.get(argi2, ctor_arg)
+                        switch ctor_arg.node_type {
                         case NodeType.FCall:
-                            mut nested_func_def := get_func_def_for_fcall(context, arg)
+                            mut ctor_nested_func_def := get_func_def_for_fcall(context, ctor_arg)
                             // Bug #86: Can't use for-in with ValueType (enum with enum payload)
-                            mut ct_idx := 0
-                            while ct_idx.lt(nested_func_def.throw_types.len()) {
-                                mut called_throw := ValueType.TCustom("")
-                                nested_func_def.throw_types.get(ct_idx, called_throw)
-                                called_throw_str := value_type_to_str(called_throw)
-                                error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
-                                mut te1 := ThrownType()
-                                te1.type_str = called_throw_str
-                                te1.msg = arg.error(context.path, "type", error_msg)
-                                thrown_types.push(te1)
-                                mut te2 := ThrownType()
-                                te2.type_str = called_throw_str
-                                te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
-                                thrown_types.push(te2)
-                                ct_idx.inc()
+                            mut ctor_ct_idx := 0
+                            while ctor_ct_idx.lt(ctor_nested_func_def.throw_types.len()) {
+                                mut ctor_called_throw := ValueType.TCustom("")
+                                ctor_nested_func_def.throw_types.get(ctor_ct_idx, ctor_called_throw)
+                                ctor_called_throw_str := value_type_to_str(ctor_called_throw)
+                                ctor_error_msg := format("Function throws '", ctor_called_throw_str, "', but it is not declared in this function's throws section.")
+                                mut ctor_te1 := ThrownType()
+                                ctor_te1.type_str = ctor_called_throw_str
+                                ctor_te1.msg = ctor_arg.error(context.path, "type", ctor_error_msg)
+                                thrown_types.push(ctor_te1)
+                                mut ctor_te2 := ThrownType()
+                                ctor_te2.type_str = ctor_called_throw_str
+                                ctor_te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
+                                thrown_types.push(ctor_te2)
+                                ctor_ct_idx.inc()
                             }
                             catch (err2: Str) {
-                                errors.push(arg.error(context.path, "type", format("Failed to resolve nested function call: ", err2)))
+                                errors.push(ctor_arg.error(context.path, "type", format("Failed to resolve nested function call: ", err2)))
                             }
                             catch (err2: KeyNotFoundError) {
                             }
                         // Bug #36 fix: Handle named arguments in struct literals
                         case NodeType.NamedArg(_):
-                            if arg.params.len().gt(0) {
-                                mut value_expr := Expr()
-                                arg.params.get(0, value_expr)
-                                switch value_expr.node_type {
+                            if ctor_arg.params.len().gt(0) {
+                                mut ctor_named_value_expr := Expr()
+                                ctor_arg.params.get(0, ctor_named_value_expr)
+                                switch ctor_named_value_expr.node_type {
                                 case NodeType.FCall:
-                                    mut nested_func_def := get_func_def_for_fcall(context, value_expr)
+                                    mut ctor_named_nested_func_def := get_func_def_for_fcall(context, ctor_named_value_expr)
                                     // Bug #86: Can't use for-in with ValueType (enum with enum payload)
-                                    mut ct_idx := 0
-                                    while ct_idx.lt(nested_func_def.throw_types.len()) {
-                                        mut called_throw := ValueType.TCustom("")
-                                        nested_func_def.throw_types.get(ct_idx, called_throw)
-                                        called_throw_str := value_type_to_str(called_throw)
-                                        error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
-                                        mut te1 := ThrownType()
-                                        te1.type_str = called_throw_str
-                                        te1.msg = value_expr.error(context.path, "type", error_msg)
-                                        thrown_types.push(te1)
-                                        mut te2 := ThrownType()
-                                        te2.type_str = called_throw_str
-                                        te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
-                                        thrown_types.push(te2)
-                                        ct_idx.inc()
+                                    mut ctor_named_ct_idx := 0
+                                    while ctor_named_ct_idx.lt(ctor_named_nested_func_def.throw_types.len()) {
+                                        mut ctor_named_called_throw := ValueType.TCustom("")
+                                        ctor_named_nested_func_def.throw_types.get(ctor_named_ct_idx, ctor_named_called_throw)
+                                        ctor_named_called_throw_str := value_type_to_str(ctor_named_called_throw)
+                                        ctor_named_error_msg := format("Function throws '", ctor_named_called_throw_str, "', but it is not declared in this function's throws section.")
+                                        mut ctor_named_te1 := ThrownType()
+                                        ctor_named_te1.type_str = ctor_named_called_throw_str
+                                        ctor_named_te1.msg = ctor_named_value_expr.error(context.path, "type", ctor_named_error_msg)
+                                        thrown_types.push(ctor_named_te1)
+                                        mut ctor_named_te2 := ThrownType()
+                                        ctor_named_te2.type_str = ctor_named_called_throw_str
+                                        ctor_named_te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
+                                        thrown_types.push(ctor_named_te2)
+                                        ctor_named_ct_idx.inc()
                                     }
                                     catch (err2: Str) {
-                                        errors.push(value_expr.error(context.path, "type", format("Failed to resolve nested function call in named arg: ", err2)))
+                                        errors.push(ctor_named_value_expr.error(context.path, "type", format("Failed to resolve nested function call in named arg: ", err2)))
                                     }
                                     catch (err2: KeyNotFoundError) {
                                     }
@@ -1400,75 +1404,75 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                 }
 
             case NodeType.While:
-                mut temp_thrown_types := Vec.new(ThrownType)
+                mut while_thrown_types := Vec.new(ThrownType)
                 if p.params.len().gt(0) {
-                    mut cond_expr := Expr()
-                    p.params.get(0, cond_expr)
-                    mut single_cond := Vec.new(Expr)
-                    single_cond.push(cond_expr)
-                    errors.extend(check_body_returns_throws(context, e, func_def, single_cond, temp_thrown_types, return_found))
+                    mut while_cond_expr := Expr()
+                    p.params.get(0, while_cond_expr)
+                    mut while_single_cond := Vec.new(Expr)
+                    while_single_cond.push(while_cond_expr)
+                    errors.extend(check_body_returns_throws(context, e, func_def, while_single_cond, while_thrown_types, return_found))
                 }
                 if p.params.len().gt(1) {
-                    mut body_expr := Expr()
-                    p.params.get(1, body_expr)
-                    errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_types, return_found))
+                    mut while_body_expr := Expr()
+                    p.params.get(1, while_body_expr)
+                    errors.extend(check_body_returns_throws(context, e, func_def, while_body_expr.params, while_thrown_types, return_found))
                 }
-                thrown_types.extend(temp_thrown_types)
+                thrown_types.extend(while_thrown_types)
 
             case NodeType.ForIn(var_type_name):
                 // ForIn: params[0]=var, params[1]=collection, params[2]=body
-                mut temp_thrown_types := Vec.new(ThrownType)
+                mut forin_thrown_types := Vec.new(ThrownType)
                 if p.params.len().gt(1) {
                     mut collection_expr := Expr()
                     p.params.get(1, collection_expr)
                     mut single_collection := Vec.new(Expr)
                     single_collection.push(collection_expr)
-                    errors.extend(check_body_returns_throws(context, e, func_def, single_collection, temp_thrown_types, return_found))
+                    errors.extend(check_body_returns_throws(context, e, func_def, single_collection, forin_thrown_types, return_found))
                 }
                 if p.params.len().gt(2) {
-                    mut body_expr := Expr()
-                    p.params.get(2, body_expr)
+                    mut forin_body_expr := Expr()
+                    p.params.get(2, forin_body_expr)
                     // Push scope and declare loop variable before checking body
-                    mut var_name := ""
+                    mut forin_var_name := ""
                     if p.params.len().gt(0) {
-                        mut var_expr := Expr()
-                        p.params.get(0, var_expr)
-                        switch var_expr.node_type {
+                        mut forin_var_expr := Expr()
+                        p.params.get(0, forin_var_expr)
+                        switch forin_var_expr.node_type {
                         case NodeType.Identifier(name):
-                            var_name = name
+                            forin_var_name = name
                         case:
                         }
                     }
                     context.scope_stack.push(ScopeType.Block)
-                    context.scope_stack.declare_symbol(var_name, SymbolInfo(value_type=ValueType.TCustom(var_type_name), is_mut=true))
-                    errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_types, return_found))
+                    context.scope_stack.declare_symbol(forin_var_name, SymbolInfo(value_type=ValueType.TCustom(var_type_name), is_mut=true))
+                    errors.extend(check_body_returns_throws(context, e, func_def, forin_body_expr.params, forin_thrown_types, return_found))
                     _ := context.scope_stack.pop()
                 }
-                thrown_types.extend(temp_thrown_types)
+                thrown_types.extend(forin_thrown_types)
 
             case NodeType.If:
-                mut temp_thrown_types := Vec.new(ThrownType)
+                mut if_thrown_types := Vec.new(ThrownType)
                 if p.params.len().gt(0) {
-                    mut cond_expr := Expr()
-                    p.params.get(0, cond_expr)
-                    mut single_cond := Vec.new(Expr)
-                    single_cond.push(cond_expr)
-                    errors.extend(check_body_returns_throws(context, e, func_def, single_cond, temp_thrown_types, return_found))
+                    mut if_cond_expr := Expr()
+                    p.params.get(0, if_cond_expr)
+                    mut if_single_cond := Vec.new(Expr)
+                    if_single_cond.push(if_cond_expr)
+                    errors.extend(check_body_returns_throws(context, e, func_def, if_single_cond, if_thrown_types, return_found))
                 }
                 if p.params.len().gt(1) {
                     mut then_block := Expr()
                     p.params.get(1, then_block)
-                    errors.extend(check_body_returns_throws(context, e, func_def, then_block.params, temp_thrown_types, return_found))
+                    errors.extend(check_body_returns_throws(context, e, func_def, then_block.params, if_thrown_types, return_found))
                 }
                 if p.params.len().gt(2) {
                     mut else_block := Expr()
                     p.params.get(2, else_block)
-                    errors.extend(check_body_returns_throws(context, e, func_def, else_block.params, temp_thrown_types, return_found))
+                    errors.extend(check_body_returns_throws(context, e, func_def, else_block.params, if_thrown_types, return_found))
                 }
-                thrown_types.extend(temp_thrown_types)
+                thrown_types.extend(if_thrown_types)
 
             case NodeType.Switch:
-                mut temp_thrown_types := Vec.new(ThrownType)
+                mut switch_thrown_types := Vec.new(ThrownType)
 
                 // Get switch expression type for pattern matching
                 mut switch_expr_type := ValueType.TCustom("")
@@ -1485,24 +1489,24 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     // Analyze the switch expression itself (could throw)
                     mut single_switch := Vec.new(Expr)
                     single_switch.push(switch_expr)
-                    errors.extend(check_body_returns_throws(context, e, func_def, single_switch, temp_thrown_types, return_found))
+                    errors.extend(check_body_returns_throws(context, e, func_def, single_switch, switch_thrown_types, return_found))
                 }
 
                 mut si := 1
                 while si.add(1).lt(p.params.len()) {
-                    mut case_expr := Expr()
-                    p.params.get(si, case_expr)
-                    mut body_expr := Expr()
-                    p.params.get(si.add(1), body_expr)
+                    mut switch_case_expr := Expr()
+                    p.params.get(si, switch_case_expr)
+                    mut switch_body_expr := Expr()
+                    p.params.get(si.add(1), switch_body_expr)
 
                     // Check case expression
                     mut single_case := Vec.new(Expr)
-                    single_case.push(case_expr)
-                    errors.extend(check_body_returns_throws(context, e, func_def, single_case, temp_thrown_types, return_found))
+                    single_case.push(switch_case_expr)
+                    errors.extend(check_body_returns_throws(context, e, func_def, single_case, switch_thrown_types, return_found))
 
                     // For pattern matching, add the binding variable to scope before checking body
                     // This mirrors check_switch_statement's scope handling (Bug #28 fix)
-                    switch case_expr.node_type {
+                    switch switch_case_expr.node_type {
                     case NodeType.Pattern(pattern_info):
                         mut handled := false
                         switch switch_expr_type {
@@ -1516,8 +1520,8 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                             // Look up payload type (Ptr to ValueType, NULL = None)
                             // Bug #38 fix: use helper method
-                            mut enum_def := context.scope_stack.lookup_enum(enum_name)
-                            mut payload_ptr := enum_def.get(variant)
+                            mut switch_enum_def := context.scope_stack.lookup_enum(enum_name)
+                            mut payload_ptr := switch_enum_def.get(variant)
                             catch (err: KeyNotFoundError) { }
 
                             // If payload exists (not NULL), add binding to scope
@@ -1526,7 +1530,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
                                 context.scope_stack.push(ScopeType.Block)
                                 context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo(value_type=payload_type))
-                                errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_types, return_found))
+                                errors.extend(check_body_returns_throws(context, e, func_def, switch_body_expr.params, switch_thrown_types, return_found))
                                 _ := context.scope_stack.pop()
                                 handled = true
                             }
@@ -1534,15 +1538,15 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                             // Not a custom type
                         }
                         if not(handled) {
-                            errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_types, return_found))
+                            errors.extend(check_body_returns_throws(context, e, func_def, switch_body_expr.params, switch_thrown_types, return_found))
                         }
                     case:
-                        errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_types, return_found))
+                        errors.extend(check_body_returns_throws(context, e, func_def, switch_body_expr.params, switch_thrown_types, return_found))
                     }
 
                     si = si.add(2)
                 }
-                thrown_types.extend(temp_thrown_types)
+                thrown_types.extend(switch_thrown_types)
 
             case NodeType.Declaration(decl):
                 // Bug #28 fix: Declare variables so subsequent statements can reference them
@@ -1586,12 +1590,12 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                             // Check for enum constructors (e.g., Color.Green(true))
                             if id_expr.params.len().eq(1) {
-                                mut symbol := context.scope_stack.lookup_symbol(name)
-                                switch symbol.value_type {
+                                mut enum_symbol := context.scope_stack.lookup_symbol(name)
+                                switch enum_symbol.value_type {
                                 case ValueType.TType(TTypeDef.TEnumDef):
-                                    mut variant_expr := Expr()
-                                    id_expr.params.get(0, variant_expr)
-                                    switch variant_expr.node_type {
+                                    mut enum_variant_expr := Expr()
+                                    id_expr.params.get(0, enum_variant_expr)
+                                    switch enum_variant_expr.node_type {
                                     case NodeType.Identifier(variant_name):
                                         is_constructor = true
                                     case:
@@ -1608,28 +1612,28 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                         }
 
                         if not(is_constructor) {
-                            mut called_func_def := get_func_def_for_fcall(context, initializer)
-                            mut ct_idx2 := 0
-                            while ct_idx2.lt(called_func_def.throw_types.len()) {
-                                mut called_throw := ValueType.TCustom("")
-                                called_func_def.throw_types.get(ct_idx2, called_throw)
-                                called_throw_str := value_type_to_str(called_throw)
-                                error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
+                            mut decl_called_func_def := get_func_def_for_fcall(context, initializer)
+                            mut decl_ct_idx := 0
+                            while decl_ct_idx.lt(decl_called_func_def.throw_types.len()) {
+                                mut decl_called_throw := ValueType.TCustom("")
+                                decl_called_func_def.throw_types.get(decl_ct_idx, decl_called_throw)
+                                decl_called_throw_str := value_type_to_str(decl_called_throw)
+                                decl_error_msg := format("Function throws '", decl_called_throw_str, "', but it is not declared in this function's throws section.")
 
-                                mut te1 := ThrownType()
-                                te1.type_str = called_throw_str
-                                te1.msg = initializer.error(context.path, "type", error_msg)
-                                thrown_types.push(te1)
-                                mut te2 := ThrownType()
-                                te2.type_str = called_throw_str
-                                te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
-                                thrown_types.push(te2)
-                                ct_idx2.inc()
+                                mut decl_te1 := ThrownType()
+                                decl_te1.type_str = decl_called_throw_str
+                                decl_te1.msg = initializer.error(context.path, "type", decl_error_msg)
+                                thrown_types.push(decl_te1)
+                                mut decl_te2 := ThrownType()
+                                decl_te2.type_str = decl_called_throw_str
+                                decl_te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
+                                thrown_types.push(decl_te2)
+                                decl_ct_idx.inc()
                             }
 
-                            mut temp_thrown_types := Vec.new(ThrownType)
-                            errors.extend(check_body_returns_throws(context, initializer, called_func_def, initializer.params, temp_thrown_types, return_found))
-                            thrown_types.extend(temp_thrown_types)
+                            mut decl_thrown_types := Vec.new(ThrownType)
+                            errors.extend(check_body_returns_throws(context, initializer, decl_called_func_def, initializer.params, decl_thrown_types, return_found))
+                            thrown_types.extend(decl_thrown_types)
                             catch (err: Str) {
                                 // If we can't resolve the function, skip throw checking
                             }
@@ -1643,37 +1647,37 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
             case NodeType.Assignment(var_name):
                 if p.params.len().gt(0) {
-                    mut initializer := Expr()
-                    p.params.get(0, initializer)
+                    mut assign_initializer := Expr()
+                    p.params.get(0, assign_initializer)
 
-                    switch initializer.node_type {
+                    switch assign_initializer.node_type {
                     case NodeType.FCall:
-                        mut is_constructor := false
+                        mut assign_is_constructor := false
 
-                        mut id_expr := initializer.get(0)
-                        switch id_expr.node_type {
+                        mut assign_id_expr := assign_initializer.get(0)
+                        switch assign_id_expr.node_type {
                         case NodeType.Identifier(name):
                             // Only skip default constructor calls
-                            if id_expr.params.len().eq(0) {
-                                mut symbol := context.scope_stack.lookup_symbol(name)
-                                switch symbol.value_type {
+                            if assign_id_expr.params.len().eq(0) {
+                                mut assign_symbol := context.scope_stack.lookup_symbol(name)
+                                switch assign_symbol.value_type {
                                 case ValueType.TType(TTypeDef.TStructDef):
-                                    is_constructor = true
+                                    assign_is_constructor = true
                                 case:
                                 }
                                 catch (err: KeyNotFoundError) { }
                             }
 
                             // Check for enum constructors
-                            if id_expr.params.len().eq(1) {
-                                mut symbol := context.scope_stack.lookup_symbol(name)
-                                switch symbol.value_type {
+                            if assign_id_expr.params.len().eq(1) {
+                                mut assign_symbol2 := context.scope_stack.lookup_symbol(name)
+                                switch assign_symbol2.value_type {
                                 case ValueType.TType(TTypeDef.TEnumDef):
-                                    mut variant_expr := Expr()
-                                    id_expr.params.get(0, variant_expr)
-                                    switch variant_expr.node_type {
+                                    mut assign_variant_expr := Expr()
+                                    assign_id_expr.params.get(0, assign_variant_expr)
+                                    switch assign_variant_expr.node_type {
                                     case NodeType.Identifier(variant_name):
-                                        is_constructor = true
+                                        assign_is_constructor = true
                                     case:
                                     }
                                 case:
@@ -1687,29 +1691,29 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                             errors.push(err)
                         }
 
-                        if not(is_constructor) {
-                            mut called_func_def := get_func_def_for_fcall(context, initializer)
-                            mut ct_idx2 := 0
-                            while ct_idx2.lt(called_func_def.throw_types.len()) {
-                                mut called_throw := ValueType.TCustom("")
-                                called_func_def.throw_types.get(ct_idx2, called_throw)
-                                called_throw_str := value_type_to_str(called_throw)
-                                error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
+                        if not(assign_is_constructor) {
+                            mut assign_called_func_def := get_func_def_for_fcall(context, assign_initializer)
+                            mut assign_ct_idx := 0
+                            while assign_ct_idx.lt(assign_called_func_def.throw_types.len()) {
+                                mut assign_called_throw := ValueType.TCustom("")
+                                assign_called_func_def.throw_types.get(assign_ct_idx, assign_called_throw)
+                                assign_called_throw_str := value_type_to_str(assign_called_throw)
+                                assign_error_msg := format("Function throws '", assign_called_throw_str, "', but it is not declared in this function's throws section.")
 
-                                mut te1 := ThrownType()
-                                te1.type_str = called_throw_str
-                                te1.msg = initializer.error(context.path, "type", error_msg)
-                                thrown_types.push(te1)
-                                mut te2 := ThrownType()
-                                te2.type_str = called_throw_str
-                                te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
-                                thrown_types.push(te2)
-                                ct_idx2.inc()
+                                mut assign_te1 := ThrownType()
+                                assign_te1.type_str = assign_called_throw_str
+                                assign_te1.msg = assign_initializer.error(context.path, "type", assign_error_msg)
+                                thrown_types.push(assign_te1)
+                                mut assign_te2 := ThrownType()
+                                assign_te2.type_str = assign_called_throw_str
+                                assign_te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
+                                thrown_types.push(assign_te2)
+                                assign_ct_idx.inc()
                             }
 
-                            mut temp_thrown_types := Vec.new(ThrownType)
-                            errors.extend(check_body_returns_throws(context, initializer, called_func_def, initializer.params, temp_thrown_types, return_found))
-                            thrown_types.extend(temp_thrown_types)
+                            mut assign_thrown_types := Vec.new(ThrownType)
+                            errors.extend(check_body_returns_throws(context, assign_initializer, assign_called_func_def, assign_initializer.params, assign_thrown_types, return_found))
+                            thrown_types.extend(assign_thrown_types)
                             catch (err: Str) {
                                 // If we can't resolve the function, skip throw checking
                             }
@@ -1822,6 +1826,24 @@ check_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retu
     mut existing := context.scope_stack.lookup_symbol(decl.name)
     catch (err: KeyNotFoundError) {
         already_declared = false
+    }
+
+    // Bug #97: Disallow variable shadowing within a function
+    // Only check when inside a function (not at global scope).
+    // Track declarations by (name, line, col) to handle AST duplication from transformations
+    // like for-in desugaring, while still catching actual shadowing.
+    if not(decl.name.eq("_")).and(context.scope_stack.is_inside_function()) {
+        // Skip if this exact declaration was already processed (AST duplication)
+        if context.scope_stack.is_already_processed(decl.name, e.line, e.col) {
+            // Same declaration visited again due to AST duplication - skip
+        } else if context.scope_stack.is_shadowing_in_function(decl.name, e.line, e.col) {
+            // Same name at different location - actual shadowing
+            errors.push(e.lang_error(context.path, "type", format("Variable '", decl.name, "' already declared in this function (shadowing not allowed)")))
+            return errors
+        } else {
+            // New declaration - register it
+            context.scope_stack.register_function_local(decl.name, e.line, e.col)
+        }
     }
 
     if not(already_declared) {
@@ -1943,36 +1965,36 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
         } else if var_name.contains(".") {
             // Field access assignment where the field itself isn't registered in symbols
             // With dynamic offset calculation, we need to validate against struct definition
-            mut parts := var_name.split(".")
-            mut base_var := ""
-            parts.get(0, base_var)
+            mut field_parts := var_name.split(".")
+            mut field_base_var := ""
+            field_parts.get(0, field_base_var)
 
-            mut base_exists := true
-            mut base_info := context.scope_stack.lookup_symbol(base_var)
+            mut field_base_exists := true
+            mut field_base_info := context.scope_stack.lookup_symbol(field_base_var)
             catch (err: KeyNotFoundError) {
-                base_exists = false
+                field_base_exists = false
             }
 
-            if base_exists {
+            if field_base_exists {
                 // Check base mutability
-                if not(base_info.is_mut).and(not(base_info.is_copy)).and(not(base_info.is_own)) {
-                    errors.push(e.error(context.path, "type", format("Cannot assign to field of constant '", base_var, "', Suggestion: declare it as 'mut ", base_var, "'.")))
+                if not(field_base_info.is_mut).and(not(field_base_info.is_copy)).and(not(field_base_info.is_own)) {
+                    errors.push(e.error(context.path, "type", format("Cannot assign to field of constant '", field_base_var, "', Suggestion: declare it as 'mut ", field_base_var, "'.")))
                 }
 
                 // Validate field path exists in struct definition
-                mut current_type := base_info.value_type
+                mut current_type := field_base_info.value_type
                 mut has_error := false
                 mut pi := 1
-                while pi.lt(parts.len()) {
+                while pi.lt(field_parts.len()) {
                     if not(has_error) {
                         mut field_name := ""
-                        parts.get(pi, field_name)
+                        field_parts.get(pi, field_name)
                         switch current_type {
                         case ValueType.TCustom(type_name):
-                            mut struct_def := context.scope_stack.lookup_struct(type_name)
+                            mut field_struct_def := context.scope_stack.lookup_struct(type_name)
                             // Find field in struct members
                             mut field_found := false
-                            for field_decl: Declaration in struct_def.members {
+                            for field_decl: Declaration in field_struct_def.members {
                                 if field_decl.name.eq(field_name) {
                                     current_type = field_decl.value_type
                                     field_found = true
@@ -1994,7 +2016,7 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
                     pi.inc()
                 }
             } else {
-                errors.push(e.error(context.path, "type", format("Undefined symbol '", base_var, "'")))
+                errors.push(e.error(context.path, "type", format("Undefined symbol '", field_base_var, "'")))
             }
         } else {
             errors.push(e.error(context.path, "type", format("Suggestion: try changing '", var_name, " =' for '", var_name, " :='\nExplanation: Cannot assign to undefined symbol '", var_name, "'.")))
@@ -2137,7 +2159,7 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
     // Exhaustiveness check only for enums
     switch switch_expr_type {
     case ValueType.TCustom(enum_name):
-        mut enum_def := context.scope_stack.lookup_enum(enum_name)
+        mut exh_enum_def := context.scope_stack.lookup_enum(enum_name)
         mut matched_variants := Vec.new(Str)
 
         mut j := 1
@@ -2149,18 +2171,18 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
             case NodeType.Pattern(exh_pattern_info):
                 // Pattern matching: case EnumType.Variant(binding)
                 // Extract the variant name from the full "EnumType.Variant" string
-                variant_name := exh_pattern_info.variant_name
-                mut dot_pos := variant_name.rfind(".")
-                if dot_pos.gt(sub(0, 1)) {
-                    enum_part := variant_name.get_substr(0, dot_pos)
-                    variant_part := variant_name.get_substr(dot_pos.add(1), variant_name.len())
+                exh_variant_name := exh_pattern_info.variant_name
+                mut exh_dot_pos := exh_variant_name.rfind(".")
+                if exh_dot_pos.gt(sub(0, 1)) {
+                    enum_part := exh_variant_name.get_substr(0, exh_dot_pos)
+                    variant_part := exh_variant_name.get_substr(exh_dot_pos.add(1), exh_variant_name.len())
                     if not(enum_part.eq(enum_name)) {
                         errors.push(exh_case_expr.error(context.path, "type", format("Mismatched enum type '", enum_part, "', expected '", enum_name, "'.")))
                     }
                     matched_variants.push(variant_part)
                 } else {
                     // Just the variant name without enum prefix
-                    matched_variants.push(variant_name)
+                    matched_variants.push(exh_variant_name)
                 }
 
             case NodeType.Identifier(exh_name):
@@ -2192,9 +2214,9 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
 
         if not(default_found) {
             // Bug #38 fix: use variants Vec
-            for vi in 0..enum_def.variants.len() {
+            for vi in 0..exh_enum_def.variants.len() {
                 mut ev := EnumVariant()
-                enum_def.variants.get(vi, ev)
+                exh_enum_def.variants.get(vi, ev)
                 if not(matched_variants.contains(ev.name)) {
                     errors.push(e.error(context.path, "type", format("Switch is missing case for variant '", ev.name, "'")))
                 }
@@ -2470,45 +2492,45 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
         }
 
         if not(has_size) {
-            mut struct_name := "unknown"
+            mut size_struct_name := "unknown"
             if e.params.len().gt(0) {
-                mut first_param := e.get(0)
-                switch first_param.node_type {
+                mut size_first_param := e.get(0)
+                switch size_first_param.node_type {
                 case NodeType.Identifier(name):
-                    struct_name = name
+                    size_struct_name = name
                 case:
-                    struct_name = "unknown"
+                    size_struct_name = "unknown"
                 }
             }
 
             // Build methods string
-            mut methods_str := ""
+            mut size_methods_str := ""
             if has_push {
-                methods_str = format(methods_str, "push()")
+                size_methods_str = format(size_methods_str, "push()")
             }
             if has_get {
-                if methods_str.len().gt(0) {
-                    methods_str = format(methods_str, "/")
+                if size_methods_str.len().gt(0) {
+                    size_methods_str = format(size_methods_str, "/")
                 }
-                methods_str = format(methods_str, "get()")
+                size_methods_str = format(size_methods_str, "get()")
             }
             if has_set {
-                if methods_str.len().gt(0) {
-                    methods_str = format(methods_str, "/")
+                if size_methods_str.len().gt(0) {
+                    size_methods_str = format(size_methods_str, "/")
                 }
-                methods_str = format(methods_str, "set()")
+                size_methods_str = format(size_methods_str, "set()")
             }
             if has_insert {
-                if methods_str.len().gt(0) {
-                    methods_str = format(methods_str, "/")
+                if size_methods_str.len().gt(0) {
+                    size_methods_str = format(size_methods_str, "/")
                 }
-                methods_str = format(methods_str, "insert()")
+                size_methods_str = format(size_methods_str, "insert()")
             }
 
             errors.push(e.error(context.path, "type", format(
-                "Collection-like struct '", struct_name, "' has ", methods_str, " method(s) but no size() method.\n",
+                "Collection-like struct '", size_struct_name, "' has ", size_methods_str, " method(s) but no size() method.\n",
                 "Reason: Collection types must provide their size in bytes.\n",
-                "Suggestion: add 'size := func(self: ", struct_name, ") returns I64 { ... }' to struct '", struct_name, "'.\n",
+                "Suggestion: add 'size := func(self: ", size_struct_name, ") returns I64 { ... }' to struct '", size_struct_name, "'.\n",
                 "Note: size() should return the total size in bytes, not element count (use len() for that)."
             )))
         }
@@ -2671,32 +2693,32 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                     // Regular function not found with UFCS, try associated function
                 }
                 if ufcs_found {
-                    mut empty_params := Vec.new(Expr)
-                    mut new_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), fcall_expr.get(0), empty_params)
-                    mut new_args := Vec.new(Expr)
-                    new_args.push(new_e)
-                    new_args.push(extra_arg_e)
+                    mut ufcs_empty_params := Vec.new(Expr)
+                    mut ufcs_new_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), fcall_expr.get(0), ufcs_empty_params)
+                    mut ufcs_new_args := Vec.new(Expr)
+                    ufcs_new_args.push(ufcs_new_e)
+                    ufcs_new_args.push(extra_arg_e)
                     // Extend with params[1..]
-                    mut k := 1
-                    while k.lt(fcall_expr.params.len()) {
-                        mut arg_e := fcall_expr.get(k)
-                        new_args.push(arg_e)
-                        k.inc()
+                    mut ufcs_k := 1
+                    while ufcs_k.lt(fcall_expr.params.len()) {
+                        mut ufcs_arg_e := fcall_expr.get(ufcs_k)
+                        ufcs_new_args.push(ufcs_arg_e)
+                        ufcs_k.inc()
                     }
-                    fcall_expr = Expr.new_clone(NodeType.FCall, fcall_expr.get(0), new_args)
+                    fcall_expr = Expr.new_clone(NodeType.FCall, fcall_expr.get(0), ufcs_new_args)
                     return ufcs_func_def
                 }
 
                 // Associated functions used with UFCS (aka methods)
                 // Bug #28 fix: Use get_value_type() to dynamically resolve field access chains
-                mut value_type := ValueType.TCustom("")
-                mut value_type_valid := true
-                value_type = get_value_type(context, extra_arg_e)
+                mut ufcs_value_type := ValueType.TCustom("")
+                mut ufcs_value_type_valid := true
+                ufcs_value_type = get_value_type(context, extra_arg_e)
                 catch (err: Str) {
-                    value_type_valid = false
+                    ufcs_value_type_valid = false
                 }
-                if value_type_valid {
-                    switch value_type {
+                if ufcs_value_type_valid {
+                    switch ufcs_value_type {
                     case ValueType.TCustom(custom_type_name):
                         id_expr_name := format(custom_type_name, ".", ufcs_func_name)
                         mut assoc_found := false
@@ -2707,23 +2729,23 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                             // Associated function not found
                         }
                         if assoc_found {
-                            mut empty_params2 := Vec.new(Expr)
-                            mut new_e2 := Expr.new_clone(NodeType.Identifier(id_expr_name), fcall_expr.get(0), empty_params2)
-                            mut new_args2 := Vec.new(Expr)
-                            new_args2.push(new_e2)
-                            new_args2.push(extra_arg_e)
+                            mut assoc_empty_params := Vec.new(Expr)
+                            mut assoc_new_e := Expr.new_clone(NodeType.Identifier(id_expr_name), fcall_expr.get(0), assoc_empty_params)
+                            mut assoc_new_args := Vec.new(Expr)
+                            assoc_new_args.push(assoc_new_e)
+                            assoc_new_args.push(extra_arg_e)
                             // Extend with params[1..]
-                            mut m := 1
-                            while m.lt(fcall_expr.params.len()) {
-                                mut arg_e := fcall_expr.get(m)
-                                new_args2.push(arg_e)
-                                m.inc()
+                            mut assoc_m := 1
+                            while assoc_m.lt(fcall_expr.params.len()) {
+                                mut assoc_arg_e := fcall_expr.get(assoc_m)
+                                assoc_new_args.push(assoc_arg_e)
+                                assoc_m.inc()
                             }
-                            fcall_expr = Expr.new_clone(NodeType.FCall, fcall_expr.get(0), new_args2)
+                            fcall_expr = Expr.new_clone(NodeType.FCall, fcall_expr.get(0), assoc_new_args)
                             return assoc_func_def
                         }
                     case:
-                        found_value_type := value_type
+                        found_value_type := ufcs_value_type
                         throw func_expr.error(context.path, "type", format(
                             "'", new_combined_name, "' is of type '", value_type_to_str(found_value_type), "' and thus can't have a '", ufcs_func_name, "' associated function"))
                     }
@@ -2734,13 +2756,13 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
         }
         // Check if this is actually a field being called as a function
         mut is_field := true
-        value_type := get_value_type(context, func_expr)
+        field_value_type := get_value_type(context, func_expr)
         catch (err: Str) {
             is_field = false
         }
         if is_field {
             throw func_expr.error(context.path, "type", format(
-                "Cannot call '", combined_name, "', it is not a function, it is '", value_type_to_str(value_type), "'"))
+                "Cannot call '", combined_name, "', it is not a function, it is '", value_type_to_str(field_value_type), "'"))
         }
         throw func_expr.lang_error(context.path, "type", format("Could not find function definition for '", combined_name, "'"))
     case:
@@ -2862,8 +2884,8 @@ is_expr_calling_procs := func(context: Context, e: Expr) returns Bool throws Str
 
     case NodeType.Assignment(var_name):
         if e.params.len().gt(0) {
-            mut inner_e := e.get(0)
-            return is_expr_calling_procs(context, inner_e)
+            mut assign_inner_e := e.get(0)
+            return is_expr_calling_procs(context, assign_inner_e)
         } else {
             e.exit_error("type", format("while assigning ", var_name, ", parameter is unexpectedly missing."))
             return true

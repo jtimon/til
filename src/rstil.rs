@@ -32,17 +32,17 @@ fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, bo
     let mut lang: Option<Lang> = None;
     let mut translate_only = false;
 
-    for arg in args {
-        if arg.starts_with("--target=") {
-            let value = &arg[9..];
-            target = Some(target_from_str(value)?);
-        } else if arg.starts_with("--lang=") {
-            let value = &arg[7..];
-            lang = Some(lang_from_str(value)?);
-        } else if arg == "--translate" {
+    for opt_arg in args {
+        if opt_arg.starts_with("--target=") {
+            let target_value = &opt_arg[9..];
+            target = Some(target_from_str(target_value)?);
+        } else if opt_arg.starts_with("--lang=") {
+            let lang_value = &opt_arg[7..];
+            lang = Some(lang_from_str(lang_value)?);
+        } else if opt_arg == "--translate" {
             translate_only = true;
         } else {
-            remaining.push(arg.clone());
+            remaining.push(opt_arg.clone());
         }
     }
 

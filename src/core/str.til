@@ -271,22 +271,22 @@ Str := struct {
         mut dst_idx := 0
         while src_idx.lt(self.len()) {
             # Check if 'from' matches at current position
-            mut matches := true
+            mut found_match := true
             if src_idx.lteq(self.len().sub(from.len())) {
-                for i in 0..from.len() {
-                    mut self_byte : U8 = 0
-                    mut from_byte : U8 = 0
-                    memcpy(to_ptr(self_byte), add(self.c_string, src_idx.add(i)), 1)
-                    memcpy(to_ptr(from_byte), add(from.c_string, i), 1)
-                    if not(U8.eq(self_byte, from_byte)) {
-                        matches = false
+                for j in 0..from.len() {
+                    mut src_byte : U8 = 0
+                    mut pattern_byte : U8 = 0
+                    memcpy(to_ptr(src_byte), add(self.c_string, src_idx.add(j)), 1)
+                    memcpy(to_ptr(pattern_byte), add(from.c_string, j), 1)
+                    if not(U8.eq(src_byte, pattern_byte)) {
+                        found_match = false
                     }
                 }
             } else {
-                matches = false
+                found_match = false
             }
 
-            if matches {
+            if found_match {
                 # Copy 'to' string
                 memcpy(add(result.c_string, dst_idx), to.c_string, to.len())
                 dst_idx = dst_idx.add(to.len())
@@ -308,17 +308,15 @@ Str := struct {
 
     /** Get byte value at index */
     char_at := func(self: Str, index: I64) returns U8 {
+        mut result: U8 = 0
         if index.lt(0) {
-            mut zero: U8 = 0
-            return zero
+            return result
         }
         if index.gteq(self.len()) {
-            mut zero: U8 = 0
-            return zero
+            return result
         }
-        mut byte_val: U8 = 0
-        memcpy(to_ptr(byte_val), add(self.c_string, index), 1)
-        return byte_val
+        memcpy(to_ptr(result), add(self.c_string, index), 1)
+        return result
     }
 
     /** Lexicographic comparison: returns negative if self < other, 0 if equal, positive if self > other */
@@ -416,8 +414,8 @@ Str := struct {
 
         # Add remaining part after last delimiter
         if start.lt(self.len()) {
-            part := self.get_substr(start, self.len())
-            parts.push(part)
+            remaining_part := self.get_substr(start, self.len())
+            parts.push(remaining_part)
         } else {
             if start.eq(self.len()) {
                 parts.push("")

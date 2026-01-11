@@ -74,8 +74,8 @@ Map := struct {
                 }
             } else {
                 // For other types, use memcmp
-                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
-                keys_match = memcmp(to_ptr(key), existing_key_ptr, self.key_type_size)
+                mut cmp_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                keys_match = memcmp(to_ptr(key), cmp_key_ptr, self.key_type_size)
             }
 
             if keys_match.eq(0) {
@@ -115,8 +115,8 @@ Map := struct {
                     keys_match = 1
                 }
             } else {
-                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
-                keys_match = memcmp(to_ptr(key), existing_key_ptr, self.key_type_size)
+                mut cmp_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                keys_match = memcmp(to_ptr(key), cmp_key_ptr, self.key_type_size)
             }
 
             if keys_match.eq(0) {
@@ -158,8 +158,8 @@ Map := struct {
                     keys_match = 1
                 }
             } else {
-                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
-                keys_match = memcmp(to_ptr(key), existing_key_ptr, self.key_type_size)
+                mut cmp_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                keys_match = memcmp(to_ptr(key), cmp_key_ptr, self.key_type_size)
             }
 
             if keys_match.eq(0) {
@@ -196,8 +196,8 @@ Map := struct {
                     keys_match = 1
                 }
             } else {
-                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
-                keys_match = memcmp(to_ptr(key), existing_key_ptr, self.key_type_size)
+                mut cmp_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                keys_match = memcmp(to_ptr(key), cmp_key_ptr, self.key_type_size)
             }
 
             if keys_match.eq(0) {
@@ -228,8 +228,8 @@ Map := struct {
                     keys_match = 1
                 }
             } else {
-                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
-                keys_match = memcmp(to_ptr(key), existing_key_ptr, self.key_type_size)
+                mut cmp_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                keys_match = memcmp(to_ptr(key), cmp_key_ptr, self.key_type_size)
             }
 
             if keys_match.eq(0) {
@@ -282,8 +282,8 @@ Map := struct {
                     keys_match = 1
                 }
             } else {
-                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
-                keys_match = memcmp(to_ptr(key), existing_key_ptr, self.key_type_size)
+                mut cmp_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                keys_match = memcmp(to_ptr(key), cmp_key_ptr, self.key_type_size)
             }
 
             if keys_match.eq(0) {

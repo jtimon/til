@@ -313,15 +313,15 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
 
     // Collect core.til and its imports
     if not(path.eq(core_path)) {
-        core_result := parse_file(core_path)
+        codegen_core_result := parse_file(core_path)
         _ := imported.insert(core_path)
-        collect_imports(core_result.ast, imported, dep_asts, context)
+        collect_imports(codegen_core_result.ast, imported, dep_asts, context)
         // Precomp core.til with its own path
-        saved_path := context.path.clone()
+        core_saved_path := context.path.clone()
         context.path = core_path
-        core_ast := precomp_expr(context, core_result.ast)
-        context.path = saved_path
-        dep_asts.push(core_ast)
+        core_precomp_ast := precomp_expr(context, codegen_core_result.ast)
+        context.path = core_saved_path
+        dep_asts.push(core_precomp_ast)
     }
 
     // Collect mode imports
@@ -332,11 +332,11 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
             mode_result := parse_file(file_path)
             collect_imports(mode_result.ast, imported, dep_asts, context)
             // Precomp mode file with its own path
-            saved_path := context.path.clone()
+            mode_saved_path := context.path.clone()
             context.path = file_path.clone()
-            mode_ast := precomp_expr(context, mode_result.ast)
-            context.path = saved_path
-            dep_asts.push(mode_ast)
+            mode_precomp_ast := precomp_expr(context, mode_result.ast)
+            context.path = mode_saved_path
+            dep_asts.push(mode_precomp_ast)
         }
     }
 

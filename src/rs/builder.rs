@@ -233,15 +233,15 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
 
     // Collect core.til and its imports
     if path != core_path {
-        let (core_ast, _) = parse_file(core_path)?;
+        let (codegen_core_ast, _) = parse_file(core_path)?;
         imported.insert(core_path.to_string());
-        collect_imports(&core_ast, &mut imported, &mut dep_asts, &mut context)?;
+        collect_imports(&codegen_core_ast, &mut imported, &mut dep_asts, &mut context)?;
         // Precomp core.til with its own path
-        let saved_path = context.path.clone();
+        let core_saved_path = context.path.clone();
         context.path = core_path.to_string();
-        let core_ast = crate::rs::precomp::precomp_expr(&mut context, &core_ast)?;
-        context.path = saved_path;
-        dep_asts.push(core_ast);
+        let core_precomp_ast = crate::rs::precomp::precomp_expr(&mut context, &codegen_core_ast)?;
+        context.path = core_saved_path;
+        dep_asts.push(core_precomp_ast);
     }
 
     // Collect mode imports
@@ -252,11 +252,11 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
             let (mode_ast, _) = parse_file(&file_path)?;
             collect_imports(&mode_ast, &mut imported, &mut dep_asts, &mut context)?;
             // Precomp mode file with its own path
-            let saved_path = context.path.clone();
+            let mode_saved_path = context.path.clone();
             context.path = file_path.clone();
-            let mode_ast = crate::rs::precomp::precomp_expr(&mut context, &mode_ast)?;
-            context.path = saved_path;
-            dep_asts.push(mode_ast);
+            let mode_precomp_ast = crate::rs::precomp::precomp_expr(&mut context, &mode_ast)?;
+            context.path = mode_saved_path;
+            dep_asts.push(mode_precomp_ast);
         }
     }
 

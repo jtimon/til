@@ -28,19 +28,19 @@ parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws St
     mut lang := Lang.C
     mut translate_only := false
 
-    for arg: Str in args {
-        if arg.starts_with("--target=") {
-            value := arg.get_substr(9, arg.len())
-            target = target_from_str(value)
+    for opt_arg: Str in args {
+        if opt_arg.starts_with("--target=") {
+            target_value := opt_arg.get_substr(9, opt_arg.len())
+            target = target_from_str(target_value)
             target_set = true
-        } else if arg.starts_with("--lang=") {
-            value := arg.get_substr(7, arg.len())
-            lang = lang_from_str(value)
+        } else if opt_arg.starts_with("--lang=") {
+            lang_value := opt_arg.get_substr(7, opt_arg.len())
+            lang = lang_from_str(lang_value)
             lang_set = true
-        } else if arg.eq("--translate") {
+        } else if opt_arg.eq("--translate") {
             translate_only = true
         } else {
-            remaining.push(arg.clone())
+            remaining.push(opt_arg.clone())
         }
     }
 
@@ -152,9 +152,9 @@ main := proc(args: ..Str) {
             mut main_args := Vec.new(Str)
             mut j := 2
             while j.lt(args.len()) {
-                mut arg := ""
-                args.get(j, arg)
-                main_args.push(arg)
+                mut interp_arg := ""
+                args.get(j, interp_arg)
+                main_args.push(interp_arg)
                 j.inc()
             }
             interpret_file_or_exit(path, main_args)
@@ -163,16 +163,16 @@ main := proc(args: ..Str) {
             return
         } else if command.eq("build") {
             // Parse build options from remaining args
-            opts := parse_build_options(remaining_args)
-            if opts.remaining.is_empty() {
+            build_opts := parse_build_options(remaining_args)
+            if build_opts.remaining.is_empty() {
                 println("Error: No path specified")
                 usage()
                 exit(1)
             }
-            mut first_path := ""
-            opts.remaining.get(0, first_path)
-            translate_only := opts.translate_only
-            build_file_or_exit(first_path, opts.target, opts.lang, translate_only)
+            mut build_first_path := ""
+            build_opts.remaining.get(0, build_first_path)
+            translate_only := build_opts.translate_only
+            build_file_or_exit(build_first_path, build_opts.target, build_opts.lang, translate_only)
             catch (err: Str) {
                 println("Error: ", err)
                 exit(1)
@@ -181,15 +181,15 @@ main := proc(args: ..Str) {
             return
         } else if command.eq("translate") {
             // Parse build options from remaining args
-            opts := parse_build_options(remaining_args)
-            if opts.remaining.is_empty() {
+            translate_opts := parse_build_options(remaining_args)
+            if translate_opts.remaining.is_empty() {
                 println("Error: No path specified")
                 usage()
                 exit(1)
             }
-            mut first_path := ""
-            opts.remaining.get(0, first_path)
-            build_file_or_exit(first_path, opts.target, opts.lang, true)
+            mut translate_first_path := ""
+            translate_opts.remaining.get(0, translate_first_path)
+            build_file_or_exit(translate_first_path, translate_opts.target, translate_opts.lang, true)
             catch (err: Str) {
                 println("Error: ", err)
                 exit(1)
@@ -198,26 +198,26 @@ main := proc(args: ..Str) {
             return
         } else if command.eq("run") {
             // Parse build options from remaining args
-            opts := parse_build_options(remaining_args)
-            if opts.remaining.is_empty() {
+            run_opts := parse_build_options(remaining_args)
+            if run_opts.remaining.is_empty() {
                 println("Error: No path specified")
                 usage()
                 exit(1)
             }
-            mut first_path := ""
-            opts.remaining.get(0, first_path)
+            mut run_first_path := ""
+            run_opts.remaining.get(0, run_first_path)
             // Pass remaining paths as arguments to the compiled program
             mut extra_args := Vec.new(Str)
-            if opts.remaining.len().gt(1) {
+            if run_opts.remaining.len().gt(1) {
                 mut k := 1
-                while k.lt(opts.remaining.len()) {
-                    mut arg := ""
-                    opts.remaining.get(k, arg)
-                    extra_args.push(arg)
+                while k.lt(run_opts.remaining.len()) {
+                    mut run_arg := ""
+                    run_opts.remaining.get(k, run_arg)
+                    extra_args.push(run_arg)
                     k.inc()
                 }
             }
-            run_file_or_exit(first_path, opts.target, opts.lang, extra_args)
+            run_file_or_exit(run_first_path, run_opts.target, run_opts.lang, extra_args)
             catch (err: Str) {
                 println("Error: ", err)
                 exit(1)

@@ -253,9 +253,9 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                             nested = eval_struct_defaults(ctx, type_name, e)
                             // Iterate nested map and insert with prefix
                             mut keys := nested.keys
-                            for j in 0..nested.len() {
+                            for nested_j in 0..nested.len() {
                                 mut k := ""
-                                keys.get(j, k)
+                                keys.get(nested_j, k)
                                 mut v := ""
                                 nested.get(k, v)
                                 defaults.set(format(decl.name, ".", k), v)
@@ -266,12 +266,12 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                             instance_id := res.value
                             mut primitive_values := read_struct_primitive_fields(ctx, instance_id, type_name, decl.name, e)
                             mut pkeys := primitive_values.keys
-                            for j in 0..primitive_values.len() {
-                                mut k := ""
-                                pkeys.get(j, k)
-                                mut v := ""
-                                primitive_values.get(k, v)
-                                defaults.set(k, v)
+                            for prim_j in 0..primitive_values.len() {
+                                mut prim_k := ""
+                                pkeys.get(prim_j, prim_k)
+                                mut prim_v := ""
+                                primitive_values.get(prim_k, prim_v)
+                                defaults.set(prim_k, prim_v)
                             }
 
                             catch (err: KeyNotFoundError) {
@@ -392,13 +392,13 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
         }
     case NodeType.While:
         _ := validate_conditional_params(context.path, e, "while", 2, 2)
-        mut cond_expr := Expr()
-        e.params.get(0, cond_expr)
-        mut result_cond := eval_expr(context, cond_expr)
-        if result_cond.is_throw {
-            return result_cond
+        mut while_cond_expr := Expr()
+        e.params.get(0, while_cond_expr)
+        mut while_result_cond := eval_expr(context, while_cond_expr)
+        if while_result_cond.is_throw {
+            return while_result_cond
         }
-        while eval_condition_to_bool(context, result_cond, cond_expr) {
+        while eval_condition_to_bool(context, while_result_cond, while_cond_expr) {
             result := eval_expr(context, e.get(1))
             if result.is_return.or(result.is_throw) {
                 return result
@@ -409,10 +409,10 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
             }
             // Continue just skips to the next iteration (re-evaluate condition)
             // No special handling needed - we just don't return
-            cond_expr = e.get(0)
-            result_cond = eval_expr(context, cond_expr)
-            if result_cond.is_throw {
-                return result_cond
+            while_cond_expr = e.get(0)
+            while_result_cond = eval_expr(context, while_cond_expr)
+            if while_result_cond.is_throw {
+                return while_result_cond
             }
         }
         return EvalResult.new("")
@@ -516,52 +516,52 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                         case ValueType.TCustom(type_name):
                             if type_name.eq("I64") {
                                 // Get the arena offset for this enum variable
-                                mut var_offset := context.scope_stack.lookup_var(enum_var_name)
+                                mut i64_var_offset := context.scope_stack.lookup_var(enum_var_name)
                                 catch (err: KeyNotFoundError) {
                                     throw case_expr.error(context.path, "eval", format("Variable '", enum_var_name, "' not found in arena"))
                                 }
 
                                 // I64 payload is 8 bytes after the enum tag
-                                payload_offset := add(var_offset, 8)
+                                i64_payload_offset := add(i64_var_offset, 8)
                                 mut i64_val : I64 = 0
-                                memcpy(to_ptr(i64_val), g_arena.get(payload_offset, 8), 8)
+                                memcpy(to_ptr(i64_val), g_arena.get(i64_payload_offset, 8), 8)
 
                                 // Declare symbol and insert into arena
-                                sym_info := SymbolInfo(value_type=ValueType.TCustom("I64"), is_mut=false, is_copy=false, is_own=false)
-                                context.scope_stack.declare_symbol(pattern_binding, sym_info)
+                                i64_sym_info := SymbolInfo(value_type=ValueType.TCustom("I64"), is_mut=false, is_copy=false, is_own=false)
+                                context.scope_stack.declare_symbol(pattern_binding, i64_sym_info)
                                 EvalArena.insert_i64(context, pattern_binding, i64_val.to_str(), case_expr)
                             } else if type_name.eq("Str") {
                                 // Get the arena offset for this enum variable
-                                mut var_offset := context.scope_stack.lookup_var(enum_var_name)
+                                mut str_var_offset := context.scope_stack.lookup_var(enum_var_name)
                                 catch (err: KeyNotFoundError) {
                                     throw case_expr.error(context.path, "eval", format("Variable '", enum_var_name, "' not found in arena"))
                                 }
 
                                 // Str payload is 16 bytes after the enum tag (c_string ptr + size)
-                                payload_offset := add(var_offset, 8)
+                                str_payload_offset := add(str_var_offset, 8)
 
                                 // Extract c_string pointer (first 8 bytes)
                                 mut ptr_offset : I64 = 0
-                                memcpy(to_ptr(ptr_offset), g_arena.get(payload_offset, 8), 8)
+                                memcpy(to_ptr(ptr_offset), g_arena.get(str_payload_offset, 8), 8)
 
                                 // Extract size (next 8 bytes)
                                 mut str_size : I64 = 0
-                                memcpy(to_ptr(str_size), g_arena.get(add(payload_offset, 8), 8), 8)
+                                memcpy(to_ptr(str_size), g_arena.get(add(str_payload_offset, 8), 8), 8)
 
                                 // Declare symbol first
-                                sym_info := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
-                                context.scope_stack.declare_symbol(pattern_binding, sym_info)
+                                str_sym_info := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
+                                context.scope_stack.declare_symbol(pattern_binding, str_sym_info)
 
                                 // Read the actual string from arena and insert
                                 if str_size.gt(0).and(ptr_offset.gt(0)) {
                                     // Read string bytes from arena
                                     mut str_val := ""
-                                    mut i := 0
-                                    while i.lt(str_size) {
-                                        mut byte_val : U8 = U8.from_i64(0)
-                                        memcpy(to_ptr(byte_val), g_arena.get(add(ptr_offset, i), 1), 1)
-                                        str_val = format(str_val, byte_to_str(byte_val))
-                                        i = add(i, 1)
+                                    mut str_byte_i := 0
+                                    while str_byte_i.lt(str_size) {
+                                        mut str_byte_val : U8 = U8.from_i64(0)
+                                        memcpy(to_ptr(str_byte_val), g_arena.get(add(ptr_offset, str_byte_i), 1), 1)
+                                        str_val = format(str_val, byte_to_str(str_byte_val))
+                                        str_byte_i = add(str_byte_i, 1)
                                     }
                                     catch (err: U8_OverflowError) {
                                         throw case_expr.error(context.path, "eval", "U8 overflow while reading Str payload")
@@ -581,13 +581,13 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                                 case ValueType.TType(TTypeDef.TStructDef):
                                     // Handle struct payloads (including Bool)
                                     // Get the arena offset for this enum variable
-                                    mut var_offset := context.scope_stack.lookup_var(enum_var_name)
+                                    mut struct_var_offset := context.scope_stack.lookup_var(enum_var_name)
                                     catch (err: KeyNotFoundError) {
                                         throw case_expr.error(context.path, "eval", format("Variable '", enum_var_name, "' not found in arena"))
                                     }
 
                                     // Struct payload starts 8 bytes after the enum tag
-                                    payload_offset := add(var_offset, 8)
+                                    struct_payload_offset := add(struct_var_offset, 8)
 
                                     // Get struct size
                                     struct_size := context.get_type_size(type_name)
@@ -596,8 +596,8 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                                     }
 
                                     // Declare symbol
-                                    sym_info := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=false, is_copy=false, is_own=false)
-                                    context.scope_stack.declare_symbol(pattern_binding, sym_info)
+                                    struct_sym_info := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=false, is_copy=false, is_own=false)
+                                    context.scope_stack.declare_symbol(pattern_binding, struct_sym_info)
 
                                     // Allocate struct in arena from template
                                     mut template_offset := 0
@@ -612,21 +612,21 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                                     catch (err: KeyNotFoundError) {
                                         throw case_expr.error(context.path, "eval", format("Struct '", pattern_binding, "' not found in arena"))
                                     }
-                                    g_arena.set(dest_offset, g_arena.get(payload_offset, struct_size), struct_size)
+                                    g_arena.set(dest_offset, g_arena.get(struct_payload_offset, struct_size), struct_size)
                                 case ValueType.TType(TTypeDef.TEnumDef):
                                     // Handle enum payloads
                                     // Read the payload bytes from outer enum
-                                    mut var_offset := context.scope_stack.lookup_var(enum_var_name)
+                                    mut nested_enum_var_offset := context.scope_stack.lookup_var(enum_var_name)
                                     catch (err: KeyNotFoundError) {
                                         throw case_expr.error(context.path, "eval", format("Variable '", enum_var_name, "' not found in arena"))
                                     }
 
                                     // Enum payload starts 8 bytes after the outer enum tag
-                                    payload_offset := add(var_offset, 8)
+                                    nested_enum_payload_offset := add(nested_enum_var_offset, 8)
 
                                     // Read inner enum variant tag (first 8 bytes of payload)
                                     mut variant_pos : I64 = 0
-                                    memcpy(to_ptr(variant_pos), g_arena.get(payload_offset, 8), 8)
+                                    memcpy(to_ptr(variant_pos), g_arena.get(nested_enum_payload_offset, 8), 8)
 
                                     // Get inner enum definition
                                     mut inner_enum_def := context.scope_stack.lookup_enum(type_name)
@@ -664,17 +664,17 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                                         memcpy(to_ptr(inner_payload_type), inner_payload_ptr.data, size_of(ValueType))
 
                                         // Get the inner payload size
-                                        inner_payload_size := EvalArena.get_payload_size_for_type(context, inner_payload_type, add(payload_offset, 8), case_expr)
+                                        inner_payload_size := EvalArena.get_payload_size_for_type(context, inner_payload_type, add(nested_enum_payload_offset, 8), case_expr)
 
                                         if inner_payload_size.gt(0) {
                                             // Copy inner payload bytes
                                             mut inner_payload_data := Vec.new(U8)
-                                            mut pi := 0
-                                            while pi.lt(inner_payload_size) {
-                                                mut byte_val : U8 = 0
-                                                memcpy(to_ptr(byte_val), g_arena.get(add(add(payload_offset, 8), pi), 1), 1)
-                                                inner_payload_data.push(byte_val)
-                                                pi = add(pi, 1)
+                                            mut inner_pi := 0
+                                            while inner_pi.lt(inner_payload_size) {
+                                                mut inner_byte_val : U8 = 0
+                                                memcpy(to_ptr(inner_byte_val), g_arena.get(add(add(nested_enum_payload_offset, 8), inner_pi), 1), 1)
+                                                inner_payload_data.push(inner_byte_val)
+                                                inner_pi = add(inner_pi, 1)
                                             }
                                             // Set temp_enum_payload for insert_enum
                                             // Bug #74 fix: Heap-allocate EnumPayload to avoid use-after-free
@@ -686,22 +686,22 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                                     }
 
                                     // Declare symbol
-                                    sym_info := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=false, is_copy=false, is_own=false)
-                                    context.scope_stack.declare_symbol(pattern_binding, sym_info)
+                                    nested_enum_sym_info := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=false, is_copy=false, is_own=false)
+                                    context.scope_stack.declare_symbol(pattern_binding, nested_enum_sym_info)
 
                                     // Insert enum using the proper insert_enum function
                                     enum_val_str := format(type_name, ".", variant_name)
                                     _ := EvalArena.insert_enum(context, pattern_binding, type_name, enum_val_str, case_expr)
                                 case:
                                     // Other custom types - just declare symbol
-                                    sym_info := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
-                                    context.scope_stack.declare_symbol(pattern_binding, sym_info)
+                                    custom_sym_info := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
+                                    context.scope_stack.declare_symbol(pattern_binding, custom_sym_info)
                                 }
                             }
                         case:
                             // Non-custom type - declare symbol only
-                            sym_info := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
-                            context.scope_stack.declare_symbol(pattern_binding, sym_info)
+                            fallback_sym_info := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
+                            context.scope_stack.declare_symbol(pattern_binding, fallback_sym_info)
                         }
                     }
 
@@ -779,23 +779,23 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
         } else if e.params.len().gt(1) {
             throw e.lang_error(context.path, "eval", "multiple return values not implemented yet")
         } else {
-            result := eval_expr(context, e.get(0))
-            if result.is_throw {
-                return result
+            return_result := eval_expr(context, e.get(0))
+            if return_result.is_throw {
+                return return_result
             }
-            return EvalResult.new_return(result.value)
+            return EvalResult.new_return(return_result.value)
         }
     case NodeType.Throw:
         if not(e.params.len().eq(1)) {
             throw e.lang_error(context.path, "eval", "Throw can only return one value. This should have been caught before")
         } else {
             param_expr := e.get(0)
-            result := eval_expr(context, param_expr)
-            if result.is_throw {
-                return result
+            throw_result := eval_expr(context, param_expr)
+            if throw_result.is_throw {
+                return throw_result
             }
             thrown_type := get_value_type(context, param_expr)
-            return EvalResult.new_throw(result.value, thrown_type)
+            return EvalResult.new_throw(throw_result.value, thrown_type)
         }
     case NodeType.Catch:
         throw e.lang_error(context.path, "eval", "Catch statements should always be evaluated within bodies.")
@@ -843,10 +843,10 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
             // Check if this is a struct literal (has named args) or default constructor
             mut has_named_args := false
-            for i in 1..e.params.len() {
-                mut arg := Expr()
-                e.params.get(i, arg)
-                switch arg.node_type {
+            for check_i in 1..e.params.len() {
+                mut check_arg := Expr()
+                e.params.get(check_i, check_arg)
+                switch check_arg.node_type {
                 case NodeType.NamedArg(_):
                     has_named_args = true
                 case:
@@ -867,12 +867,12 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                 insert_struct_instance(context, temp_name.clone(), name, e)
 
                 // Process named arguments to override field values
-                for j in 1..e.params.len() {
-                    mut arg := Expr()
-                    e.params.get(j, arg)
+                for named_j in 1..e.params.len() {
+                    mut named_arg := Expr()
+                    e.params.get(named_j, named_arg)
                     mut field_name := ""
                     mut is_named_arg := false
-                    switch arg.node_type {
+                    switch named_arg.node_type {
                     case NodeType.NamedArg(fname):
                         field_name = fname
                         is_named_arg = true
@@ -884,49 +884,49 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                         // Find the field type in the struct definition
                         mut field_type := ValueType.TCustom("")
                         mut found_field := false
-                        for k in 0..struct_members.len() {
+                        for named_k in 0..struct_members.len() {
                             mut member := Declaration()
-                            struct_members.get(k, member)
+                            struct_members.get(named_k, member)
                             if member.name.eq(field_name) {
                                 field_type = member.value_type
                                 found_field = true
                             }
                         }
                         if not(found_field) {
-                            throw arg.error(context.path, "eval", format("Field '", field_name, "' not found in struct '", name, "'"))
+                            throw named_arg.error(context.path, "eval", format("Field '", field_name, "' not found in struct '", name, "'"))
                         }
 
                         // Evaluate the value expression
-                        value_expr := arg.get(0)
-                        value_result := eval_expr(context, value_expr)
-                        if value_result.is_throw {
-                            return value_result
+                        named_value_expr := named_arg.get(0)
+                        named_value_result := eval_expr(context, named_value_expr)
+                        if named_value_result.is_throw {
+                            return named_value_result
                         }
 
                         // Set the field value based on its type
                         field_id := format(temp_name, ".", field_name)
                         switch field_type {
-                        case ValueType.TCustom(type_name):
-                            if type_name.eq("I64") {
-                                EvalArena.insert_i64(context, field_id.clone(), value_result.value.clone(), arg)
-                            } else if type_name.eq("U8") {
-                                EvalArena.insert_u8(context, field_id.clone(), value_result.value.clone(), arg)
-                            } else if type_name.eq("Str") {
-                                EvalArena.insert_string(context, field_id.clone(), value_result.value.clone(), arg)
+                        case ValueType.TCustom(field_type_name):
+                            if field_type_name.eq("I64") {
+                                EvalArena.insert_i64(context, field_id.clone(), named_value_result.value.clone(), named_arg)
+                            } else if field_type_name.eq("U8") {
+                                EvalArena.insert_u8(context, field_id.clone(), named_value_result.value.clone(), named_arg)
+                            } else if field_type_name.eq("Str") {
+                                EvalArena.insert_string(context, field_id.clone(), named_value_result.value.clone(), named_arg)
                             } else {
                                 // Could be enum or nested struct
-                                custom_symbol := context.scope_stack.lookup_symbol(type_name.clone())
-                                switch custom_symbol.value_type {
+                                field_custom_symbol := context.scope_stack.lookup_symbol(field_type_name.clone())
+                                switch field_custom_symbol.value_type {
                                 case ValueType.TType(TTypeDef.TEnumDef):
-                                    _ := EvalArena.insert_enum(context, field_id.clone(), type_name.clone(), value_result.value.clone(), arg)
+                                    _ := EvalArena.insert_enum(context, field_id.clone(), field_type_name.clone(), named_value_result.value.clone(), named_arg)
                                 case ValueType.TType(TTypeDef.TStructDef):
-                                    EvalArena.copy_fields(context, type_name.clone(), value_result.value.clone(), field_id.clone(), arg)
+                                    EvalArena.copy_fields(context, field_type_name.clone(), named_value_result.value.clone(), field_id.clone(), named_arg)
                                 case:
-                                    throw arg.error(context.path, "eval", format("Unsupported field type '", type_name, "' for field '", field_name, "'"))
+                                    throw named_arg.error(context.path, "eval", format("Unsupported field type '", field_type_name, "' for field '", field_name, "'"))
                                 }
                             }
                         case:
-                            throw arg.error(context.path, "eval", format("Unsupported field type for field '", field_name, "'"))
+                            throw named_arg.error(context.path, "eval", format("Unsupported field type for field '", field_name, "'"))
                         }
                     } // end if is_named_arg
                 }
@@ -1047,29 +1047,29 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                 case Literal.Str(_):
                                     if struct_type_name.eq("Str") {
                                         // For string literals, create a temporary Str struct
-                                        last_frame2 := context.scope_stack.last_frame()
-                                        temp_var_name := format("__temp_str_", I64.to_str(last_frame2.arena_index.len()))
-                                        string_value := payload_result.value
+                                        str_lit_last_frame := context.scope_stack.last_frame()
+                                        str_lit_temp_var_name := format("__temp_str_", I64.to_str(str_lit_last_frame.arena_index.len()))
+                                        str_lit_string_value := payload_result.value
 
                                         // Add symbol entry before calling insert_string
-                                        context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))
+                                        context.scope_stack.declare_symbol(str_lit_temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))
 
-                                        EvalArena.insert_string(context, temp_var_name, string_value, e)
-                                        struct_var_name = temp_var_name
+                                        EvalArena.insert_string(context, str_lit_temp_var_name, str_lit_string_value, e)
+                                        struct_var_name = str_lit_temp_var_name
                                         struct_var_set = true
                                     }
                                 case Literal.Number(_):
                                     if struct_type_name.eq("I64") {
                                         // For I64 literals, create a temporary I64 struct
-                                        last_frame3 := context.scope_stack.last_frame()
-                                        temp_var_name := format("__temp_i64_", I64.to_str(last_frame3.arena_index.len()))
-                                        i64_value := payload_result.value
+                                        i64_lit_last_frame := context.scope_stack.last_frame()
+                                        i64_lit_temp_var_name := format("__temp_i64_", I64.to_str(i64_lit_last_frame.arena_index.len()))
+                                        i64_lit_value := payload_result.value
 
                                         // Add symbol entry before calling insert_i64
-                                        context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom("I64")))
+                                        context.scope_stack.declare_symbol(i64_lit_temp_var_name, SymbolInfo(value_type=ValueType.TCustom("I64")))
 
-                                        EvalArena.insert_i64(context, temp_var_name, i64_value, e)
-                                        struct_var_name = temp_var_name
+                                        EvalArena.insert_i64(context, i64_lit_temp_var_name, i64_lit_value, e)
+                                        struct_var_name = i64_lit_temp_var_name
                                         struct_var_set = true
                                     }
                                 case:
@@ -1077,14 +1077,14 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                             // Bug #56 fix: Handle FCall (e.g., x.clone()) for Str payloads
                             case NodeType.FCall:
                                 if struct_type_name.eq("Str") {
-                                    last_frame4 := context.scope_stack.last_frame()
-                                    temp_var_name := format("__temp_str_", I64.to_str(last_frame4.arena_index.len()))
-                                    string_value := payload_result.value
+                                    str_fcall_last_frame := context.scope_stack.last_frame()
+                                    str_fcall_temp_var_name := format("__temp_str_", I64.to_str(str_fcall_last_frame.arena_index.len()))
+                                    str_fcall_string_value := payload_result.value
 
-                                    context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))
+                                    context.scope_stack.declare_symbol(str_fcall_temp_var_name, SymbolInfo(value_type=ValueType.TCustom("Str")))
 
-                                    EvalArena.insert_string(context, temp_var_name, string_value, e)
-                                    struct_var_name = temp_var_name
+                                    EvalArena.insert_string(context, str_fcall_temp_var_name, str_fcall_string_value, e)
+                                    struct_var_name = str_fcall_temp_var_name
                                     struct_var_set = true
                                 }
                             case:
@@ -1095,14 +1095,14 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                             }
 
                             // Get struct offset from arena
-                            mut offset := 0
-                            offset = context.scope_stack.lookup_var(struct_var_name)
+                            mut struct_offset := 0
+                            struct_offset = context.scope_stack.lookup_var(struct_var_name)
                             catch (err: KeyNotFoundError) {
                                 throw e.error(context.path, "eval", format("Struct '", struct_var_name, "' not found in arena"))
                             }
 
                             // Copy struct bytes from arena
-                            payload_bytes = arena_memory_slice(g_arena, offset, struct_size)
+                            payload_bytes = arena_memory_slice(g_arena, struct_offset, struct_size)
                             handled_payload = true
 
                         case ValueType.TType(TTypeDef.TEnumDef):
@@ -1117,34 +1117,34 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                     enum_var_set = true
                                 } else {
                                     // This is a nested enum constructor call (e.g., InnerEnum.ValueA(42))
-                                    last_frame4 := context.scope_stack.last_frame()
-                                    temp_var_name := format("__temp_enum_", I64.to_str(last_frame4.arena_index.len()))
+                                    enum_ctor_last_frame := context.scope_stack.last_frame()
+                                    enum_ctor_temp_var_name := format("__temp_enum_", I64.to_str(enum_ctor_last_frame.arena_index.len()))
 
-                                    nested_result := eval_expr(context, payload_expr)
-                                    if nested_result.is_throw {
-                                        return nested_result
+                                    enum_ctor_nested_result := eval_expr(context, payload_expr)
+                                    if enum_ctor_nested_result.is_throw {
+                                        return enum_ctor_nested_result
                                     }
 
-                                    context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom(struct_type_name)))
+                                    context.scope_stack.declare_symbol(enum_ctor_temp_var_name, SymbolInfo(value_type=ValueType.TCustom(struct_type_name)))
 
-                                    _ := EvalArena.insert_enum(context, temp_var_name, struct_type_name, nested_result.value, e)
-                                    enum_var_name = temp_var_name
+                                    _ := EvalArena.insert_enum(context, enum_ctor_temp_var_name, struct_type_name, enum_ctor_nested_result.value, e)
+                                    enum_var_name = enum_ctor_temp_var_name
                                     enum_var_set = true
                                 }
                             case NodeType.FCall:
                                 // This is a nested enum constructor call
-                                last_frame5 := context.scope_stack.last_frame()
-                                temp_var_name := format("__temp_enum_", I64.to_str(last_frame5.arena_index.len()))
+                                enum_fcall_last_frame := context.scope_stack.last_frame()
+                                enum_fcall_temp_var_name := format("__temp_enum_", I64.to_str(enum_fcall_last_frame.arena_index.len()))
 
-                                nested_result := eval_expr(context, payload_expr)
-                                if nested_result.is_throw {
-                                    return nested_result
+                                enum_fcall_nested_result := eval_expr(context, payload_expr)
+                                if enum_fcall_nested_result.is_throw {
+                                    return enum_fcall_nested_result
                                 }
 
-                                context.scope_stack.declare_symbol(temp_var_name, SymbolInfo(value_type=ValueType.TCustom(struct_type_name)))
+                                context.scope_stack.declare_symbol(enum_fcall_temp_var_name, SymbolInfo(value_type=ValueType.TCustom(struct_type_name)))
 
-                                _ := EvalArena.insert_enum(context, temp_var_name, struct_type_name, nested_result.value, e)
-                                enum_var_name = temp_var_name
+                                _ := EvalArena.insert_enum(context, enum_fcall_temp_var_name, struct_type_name, enum_fcall_nested_result.value, e)
+                                enum_var_name = enum_fcall_temp_var_name
                                 enum_var_set = true
                             case:
                             }
@@ -1287,31 +1287,31 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
         if s.eq(INFER_TYPE) {
             throw e.lang_error(context.path, "eval", format("'", declaration.name, "' declared of type '", value_type_to_str(declaration.value_type), "' but still to infer type '", s, "'"))
         } else if s.eq("I64") {
-            result := eval_expr(context, inner_e)
-            if result.is_throw {
-                return result
+            i64_result := eval_expr(context, inner_e)
+            if i64_result.is_throw {
+                return i64_result
             }
-            expr_result_str := result.value
+            i64_expr_result_str := i64_result.value
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))
-            EvalArena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
+            EvalArena.insert_primitive(context, declaration.name, value_type, i64_expr_result_str, e)
             return EvalResult.new("")
         } else if s.eq("U8") {
-            result := eval_expr(context, inner_e)
-            if result.is_throw {
-                return result
+            u8_result := eval_expr(context, inner_e)
+            if u8_result.is_throw {
+                return u8_result
             }
-            expr_result_str := result.value
+            u8_expr_result_str := u8_result.value
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))
-            EvalArena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
+            EvalArena.insert_primitive(context, declaration.name, value_type, u8_expr_result_str, e)
             return EvalResult.new("")
         } else if s.eq("Str") {
-            result := eval_expr(context, inner_e)
-            if result.is_throw {
-                return result
+            str_result := eval_expr(context, inner_e)
+            if str_result.is_throw {
+                return str_result
             }
-            expr_result_str := result.value
+            str_expr_result_str := str_result.value
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo(value_type=value_type, is_mut=declaration.is_mut, is_copy=declaration.is_copy, is_own=declaration.is_own))
-            EvalArena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
+            EvalArena.insert_primitive(context, declaration.name, value_type, str_expr_result_str, e)
             return EvalResult.new("")
         } else {
             // Custom type (not I64/U8/Str)
@@ -1334,11 +1334,11 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             }
 
             if is_enum_def {
-                result := eval_expr(context, inner_e)
-                if result.is_throw {
-                    return result
+                enum_def_result := eval_expr(context, inner_e)
+                if enum_def_result.is_throw {
+                    return enum_def_result
                 }
-                enum_expr_result_str := result.value
+                enum_expr_result_str := enum_def_result.value
                 _ := EvalArena.insert_enum(context, declaration.name, custom_type_name, enum_expr_result_str, e)
             } else if is_struct_def {
                 // Special case for instantiation
@@ -1371,46 +1371,46 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                     }
                 }
                 // otherwise continue, it's a function that returns a struct
-                result := eval_expr(context, inner_e)
-                if result.is_throw {
-                    return result
+                struct_def_result := eval_expr(context, inner_e)
+                if struct_def_result.is_throw {
+                    return struct_def_result
                 }
-                expr_result_str := result.value
+                struct_expr_result_str := struct_def_result.value
 
                 // Bug #25 fix: mut declarations should create independent copies
                 // Exception: temporary return values can be transferred (zero-copy)
                 // Non-mut declarations can share offsets (will use 'own' keyword for transfers in future)
-                is_temp_return_val := expr_result_str.starts_with(RETURN_INSTANCE_NAME)
+                is_temp_return_val := struct_expr_result_str.starts_with(RETURN_INSTANCE_NAME)
 
                 if declaration.is_mut {
                     if not(is_temp_return_val) {
                         // Allocate space and copy fields for mut declaration (independent copy)
                         insert_struct_instance(context, declaration.name, custom_type_name, e)
-                        EvalArena.copy_fields(context, custom_type_name, expr_result_str, declaration.name, e)
+                        EvalArena.copy_fields(context, custom_type_name, struct_expr_result_str, declaration.name, e)
                     } else {
                         // Share offset for temp return value (zero-copy transfer)
-                        offset := context.scope_stack.lookup_var(expr_result_str)
+                        struct_offset := context.scope_stack.lookup_var(struct_expr_result_str)
                         catch (err: KeyNotFoundError) {
-                            throw e.lang_error(context.path, "eval", format("Could not find arena index for '", expr_result_str, "'"))
+                            throw e.lang_error(context.path, "eval", format("Could not find arena index for '", struct_expr_result_str, "'"))
                         }
-                        mut last_idx := context.scope_stack.frames.len().sub(1)
-                        mut last_frame := ScopeFrame()
-                        context.scope_stack.frames.get(last_idx, last_frame)
-                        last_frame.arena_index.set(declaration.name, offset)
-                        context.scope_stack.frames.set(last_idx, last_frame)
+                        mut struct_last_idx := context.scope_stack.frames.len().sub(1)
+                        mut struct_last_frame := ScopeFrame()
+                        context.scope_stack.frames.get(struct_last_idx, struct_last_frame)
+                        struct_last_frame.arena_index.set(declaration.name, struct_offset)
+                        context.scope_stack.frames.set(struct_last_idx, struct_last_frame)
                         context.map_instance_fields(custom_type_name, declaration.name, e)
                     }
                 } else {
                     // Share offset for non-mut declaration (zero-copy transfer)
-                    offset2 := context.scope_stack.lookup_var(expr_result_str)
+                    struct_offset2 := context.scope_stack.lookup_var(struct_expr_result_str)
                     catch (err: KeyNotFoundError) {
-                        throw e.lang_error(context.path, "eval", format("Could not find arena index for '", expr_result_str, "'"))
+                        throw e.lang_error(context.path, "eval", format("Could not find arena index for '", struct_expr_result_str, "'"))
                     }
-                    mut last_idx2 := context.scope_stack.frames.len().sub(1)
-                    mut last_frame2 := ScopeFrame()
-                    context.scope_stack.frames.get(last_idx2, last_frame2)
-                    last_frame2.arena_index.set(declaration.name, offset2)
-                    context.scope_stack.frames.set(last_idx2, last_frame2)
+                    mut struct_last_idx2 := context.scope_stack.frames.len().sub(1)
+                    mut struct_last_frame2 := ScopeFrame()
+                    context.scope_stack.frames.get(struct_last_idx2, struct_last_frame2)
+                    struct_last_frame2.arena_index.set(declaration.name, struct_offset2)
+                    context.scope_stack.frames.set(struct_last_idx2, struct_last_frame2)
                     context.map_instance_fields(custom_type_name, declaration.name, e)
                 }
             } else {
@@ -1473,21 +1473,21 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
 
                     // Handle member based on type
                     switch member_value_type {
-                    case ValueType.TCustom(type_name):
-                        result := eval_expr(context, default_value)
-                        if result.is_throw {
-                            return result
+                    case ValueType.TCustom(member_type_name):
+                        member_result := eval_expr(context, default_value)
+                        if member_result.is_throw {
+                            return member_result
                         }
-                        expr_result_str := result.value
-                        if type_name.eq("I64") {
-                            EvalArena.insert_primitive(context, combined_name, member_value_type, expr_result_str, e)
-                        } else if type_name.eq("U8") {
-                            EvalArena.insert_primitive(context, combined_name, member_value_type, expr_result_str, e)
-                        } else if type_name.eq("Str") {
-                            EvalArena.insert_primitive(context, combined_name, member_value_type, expr_result_str, e)
+                        member_expr_result_str := member_result.value
+                        if member_type_name.eq("I64") {
+                            EvalArena.insert_primitive(context, combined_name, member_value_type, member_expr_result_str, e)
+                        } else if member_type_name.eq("U8") {
+                            EvalArena.insert_primitive(context, combined_name, member_value_type, member_expr_result_str, e)
+                        } else if member_type_name.eq("Str") {
+                            EvalArena.insert_primitive(context, combined_name, member_value_type, member_expr_result_str, e)
                         } else {
-                            insert_struct_instance(context, combined_name, type_name, e)
-                            EvalArena.copy_fields(context, type_name, expr_result_str, combined_name, e)
+                            insert_struct_instance(context, combined_name, member_type_name, e)
+                            EvalArena.copy_fields(context, member_type_name, member_expr_result_str, combined_name, e)
                         }
                     case ValueType.TFunction(func_type):
                         switch default_value.node_type {
@@ -1565,51 +1565,51 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
         if s.eq(INFER_TYPE) {
             throw e.lang_error(context.path, "eval", format("Cannot assign ", var_name, ", type should already be inferred of type '", value_type_to_str(symbol_info.value_type), "'."))
         } else if s.eq("I64") {
-            result := eval_expr(context, inner_e)
-            if result.is_throw {
-                return result
+            assign_i64_result := eval_expr(context, inner_e)
+            if assign_i64_result.is_throw {
+                return assign_i64_result
             }
-            expr_result_str := result.value
-            EvalArena.insert_primitive(context, var_name, value_type, expr_result_str, e)
+            assign_i64_expr_result_str := assign_i64_result.value
+            EvalArena.insert_primitive(context, var_name, value_type, assign_i64_expr_result_str, e)
         } else if s.eq("U8") {
-            result := eval_expr(context, inner_e)
-            if result.is_throw {
-                return result
+            assign_u8_result := eval_expr(context, inner_e)
+            if assign_u8_result.is_throw {
+                return assign_u8_result
             }
-            expr_result_str := result.value
-            EvalArena.insert_primitive(context, var_name, value_type, expr_result_str, e)
+            assign_u8_expr_result_str := assign_u8_result.value
+            EvalArena.insert_primitive(context, var_name, value_type, assign_u8_expr_result_str, e)
         } else if s.eq("Str") {
-            result := eval_expr(context, inner_e)
-            if result.is_throw {
-                return result
+            assign_str_result := eval_expr(context, inner_e)
+            if assign_str_result.is_throw {
+                return assign_str_result
             }
-            expr_result_str := result.value
-            EvalArena.insert_primitive(context, var_name, value_type, expr_result_str, e)
+            assign_str_expr_result_str := assign_str_result.value
+            EvalArena.insert_primitive(context, var_name, value_type, assign_str_expr_result_str, e)
         } else {
             // Custom type
-            custom_type_name := s
-            custom_symbol_info := context.scope_stack.lookup_symbol(custom_type_name)
+            assign_custom_type_name := s
+            assign_custom_symbol_info := context.scope_stack.lookup_symbol(assign_custom_type_name)
             catch (err: KeyNotFoundError) {
-                throw inner_e.lang_error(context.path, "eval", format("Unknown custom type '", custom_type_name, "'"))
+                throw inner_e.lang_error(context.path, "eval", format("Unknown custom type '", assign_custom_type_name, "'"))
             }
 
-            switch custom_symbol_info.value_type {
+            switch assign_custom_symbol_info.value_type {
             case ValueType.TType(TTypeDef.TEnumDef):
-                result := eval_expr(context, inner_e)
-                if result.is_throw {
-                    return result
+                assign_enum_result := eval_expr(context, inner_e)
+                if assign_enum_result.is_throw {
+                    return assign_enum_result
                 }
-                expr_result_str := result.value
-                _ := EvalArena.insert_enum(context, var_name, custom_type_name, expr_result_str, e)
+                assign_enum_expr_result_str := assign_enum_result.value
+                _ := EvalArena.insert_enum(context, var_name, assign_custom_type_name, assign_enum_expr_result_str, e)
             case ValueType.TType(TTypeDef.TStructDef):
-                result := eval_expr(context, inner_e)
-                if result.is_throw {
-                    return result
+                assign_struct_result := eval_expr(context, inner_e)
+                if assign_struct_result.is_throw {
+                    return assign_struct_result
                 }
-                expr_result_str := result.value
-                EvalArena.copy_fields(context, custom_type_name, expr_result_str, var_name, inner_e)
+                assign_struct_expr_result_str := assign_struct_result.value
+                EvalArena.copy_fields(context, assign_custom_type_name, assign_struct_expr_result_str, var_name, inner_e)
             case:
-                throw inner_e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of custom type '", custom_type_name, "' of value type '", value_type_to_str(custom_symbol_info.value_type), "'."))
+                throw inner_e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of custom type '", assign_custom_type_name, "' of value type '", value_type_to_str(assign_custom_symbol_info.value_type), "'."))
             }
         }
         return EvalResult.new("")
@@ -1773,25 +1773,25 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
                 }
                 switch custom_symbol_info.value_type {
                 case ValueType.TType(TTypeDef.TEnumDef):
-                    enum_val := EvalArena.get_enum(context, current_name, last_inner_e)
+                    field_enum_val := EvalArena.get_enum(context, current_name, last_inner_e)
                     // Set temp_enum_payload if this enum has a payload
-                    if not(NULL.eq(enum_val.payload.data)) {
+                    if not(NULL.eq(field_enum_val.payload.data)) {
                         // Read payload vec from Ptr
-                        mut payload_vec := Vec.new(U8)
-                        memcpy(to_ptr(payload_vec), enum_val.payload.data, size_of(Vec))
+                        mut field_payload_vec := Vec.new(U8)
+                        memcpy(to_ptr(field_payload_vec), field_enum_val.payload.data, size_of(Vec))
                         // Check if payload_type is set (not NULL)
-                        if not(NULL.eq(enum_val.payload_type.data)) {
+                        if not(NULL.eq(field_enum_val.payload_type.data)) {
                             // Read payload_type from Ptr
-                            mut payload_type := ValueType.TCustom("")
-                            memcpy(to_ptr(payload_type), enum_val.payload_type.data, size_of(ValueType))
+                            mut field_payload_type := ValueType.TCustom("")
+                            memcpy(to_ptr(field_payload_type), field_enum_val.payload_type.data, size_of(ValueType))
                             // Bug #74 fix: Heap-allocate EnumPayload to avoid use-after-free
-                            mut temp_payload := EnumPayload(data=payload_vec.clone(), value_type=payload_type)
-                            heap_payload_ptr := malloc(size_of(EnumPayload))
-                            memcpy(heap_payload_ptr, to_ptr(temp_payload), size_of(EnumPayload))
-                            context.temp_enum_payload.data = heap_payload_ptr
+                            mut field_temp_payload := EnumPayload(data=field_payload_vec.clone(), value_type=field_payload_type)
+                            field_heap_payload_ptr := malloc(size_of(EnumPayload))
+                            memcpy(field_heap_payload_ptr, to_ptr(field_temp_payload), size_of(EnumPayload))
+                            context.temp_enum_payload.data = field_heap_payload_ptr
                         }
                     }
-                    return EvalResult.new(format(curr_type_name_str, ".", enum_val.enum_name))
+                    return EvalResult.new(format(curr_type_name_str, ".", field_enum_val.enum_name))
                 case ValueType.TType(TTypeDef.TStructDef):
                     return EvalResult.new(current_name)
                 case:
@@ -1836,11 +1836,11 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
 
             // Build the full field path by traversing params[1..]
             mut current_name := result_name
-            for i in 1..e.params.len() {
-                field_expr := e.get(i)
-                switch field_expr.node_type {
-                case NodeType.Identifier(field_name):
-                    current_name = format(current_name, ".", field_name)
+            for path_i in 1..e.params.len() {
+                path_field_expr := e.get(path_i)
+                switch path_field_expr.node_type {
+                case NodeType.Identifier(path_field_name):
+                    current_name = format(current_name, ".", path_field_name)
                 case:
                     throw e.error(context.path, "eval", "Expected identifier in field access chain")
                 }
@@ -1849,23 +1849,23 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
             // Now evaluate the final field access using the built path
             // We need to determine the type of the final field to return it properly
             switch base_type {
-            case ValueType.TCustom(type_name):
+            case ValueType.TCustom(base_type_name):
                 // Get the struct definition to traverse the field chain
-                mut current_type := type_name
-                for i in 1..e.params.len() {
-                    field_expr := e.get(i)
-                    switch field_expr.node_type {
-                    case NodeType.Identifier(field_name):
-                        struct_def := context.scope_stack.lookup_struct(current_type)
+                mut current_type := base_type_name
+                for type_i in 1..e.params.len() {
+                    type_field_expr := e.get(type_i)
+                    switch type_field_expr.node_type {
+                    case NodeType.Identifier(type_field_name):
+                        type_struct_def := context.scope_stack.lookup_struct(current_type)
                         catch (err: KeyNotFoundError) {
                             throw e.error(context.path, "eval", format("Struct '", current_type, "' not found"))
                         }
-                        member := SStructDef.get_member_or_err(struct_def, field_name, current_type, context.path, e)
-                        switch member.value_type {
+                        type_member := SStructDef.get_member_or_err(type_struct_def, type_field_name, current_type, context.path, e)
+                        switch type_member.value_type {
                         case ValueType.TCustom(inner_type):
                             current_type = inner_type
                         case:
-                            throw e.error(context.path, "eval", format("Unexpected field type for '", field_name, "'"))
+                            throw e.error(context.path, "eval", format("Unexpected field type for '", type_field_name, "'"))
                         }
                     case:
                         // Already handled above
@@ -1916,23 +1916,23 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
         }
     case ValueType.TType(TTypeDef.TStructDef):
         return eval_identifier_expr_struct(name, context, e)
-    case ValueType.TCustom(s):
-        if s.eq(INFER_TYPE) {
+    case ValueType.TCustom(ident_s):
+        if ident_s.eq(INFER_TYPE) {
             throw e.lang_error(context.path, "eval", format("Can't infer the type of identifier '", name, "'."))
-        } else if s.eq("I64") {
-            i64_val := EvalArena.get_i64(context, name, e)
-            return EvalResult.new(I64.to_str(i64_val))
-        } else if s.eq("U8") {
-            u8_val : U8 = EvalArena.get_u8(context, name, e)
-            return EvalResult.new(U8.to_str(u8_val))
-        } else if s.eq("Str") {
+        } else if ident_s.eq("I64") {
+            ident_i64_val := EvalArena.get_i64(context, name, e)
+            return EvalResult.new(I64.to_str(ident_i64_val))
+        } else if ident_s.eq("U8") {
+            ident_u8_val : U8 = EvalArena.get_u8(context, name, e)
+            return EvalResult.new(U8.to_str(ident_u8_val))
+        } else if ident_s.eq("Str") {
             if e.params.len().eq(0) {
-                val := string_from_context(context, name, e)
-                return EvalResult.new(val)
+                ident_val := string_from_context(context, name, e)
+                return EvalResult.new(ident_val)
             }
-            return eval_custom_expr(e, context, name, s)
+            return eval_custom_expr(e, context, name, ident_s)
         } else {
-            return eval_custom_expr(e, context, name, s)
+            return eval_custom_expr(e, context, name, ident_s)
         }
     case:
         throw e.todo_error(context.path, "eval", format("Can't use identifier '", name, "'. Type ", value_type_to_str(symbol_info.value_type), " not supported yet."))
@@ -2127,7 +2127,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
 
                             mut body_expr := Expr()
                             stmt.params.get(2, body_expr)
-                            result := eval_body(context, body_expr.params)
+                            catch_body_result := eval_body(context, body_expr.params)
 
                             // Clean up the error variable binding after the catch block
                             _ := context.scope_stack.remove_symbol(var_name)
@@ -2146,10 +2146,10 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                 }
                             }
 
-                            if result.is_return.or(result.is_break).or(result.is_continue) {
-                                return result
-                            } else if result.is_throw {
-                                pending_throw = result
+                            if catch_body_result.is_return.or(catch_body_result.is_break).or(catch_body_result.is_continue) {
+                                return catch_body_result
+                            } else if catch_body_result.is_throw {
+                                pending_throw = catch_body_result
                                 has_pending_throw = true
                             } else {
                                 has_pending_throw = false
@@ -2160,18 +2160,18 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
             }
         } else {
             // If no pending throw, ignore catch statements
-            mut is_catch := false
+            mut body_is_catch := false
             switch stmt.node_type {
             case NodeType.Catch:
-                is_catch = true
+                body_is_catch = true
             case:
             }
-            if not(is_catch) {
-                result := eval_expr(context, stmt)
-                if result.is_return.or(result.is_break).or(result.is_continue) {
-                    return result
-                } else if result.is_throw {
-                    pending_throw = result
+            if not(body_is_catch) {
+                stmt_result := eval_expr(context, stmt)
+                if stmt_result.is_return.or(stmt_result.is_break).or(stmt_result.is_continue) {
+                    return stmt_result
+                } else if stmt_result.is_throw {
+                    pending_throw = stmt_result
                     has_pending_throw = true
                 }
             }
@@ -2292,13 +2292,13 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     mut has_enum_backup := false
                     switch current_arg.node_type {
                     case NodeType.Identifier(id_name):
-                        mut sym := SymbolInfo()
-                        sym = context.scope_stack.lookup_symbol(id_name)
-                        switch sym.value_type {
-                        case ValueType.TCustom(arg_type_name):
-                            mut type_sym := SymbolInfo()
-                            type_sym = context.scope_stack.lookup_symbol(arg_type_name)
-                            switch type_sym.value_type {
+                        mut enum_arg_sym := SymbolInfo()
+                        enum_arg_sym = context.scope_stack.lookup_symbol(id_name)
+                        switch enum_arg_sym.value_type {
+                        case ValueType.TCustom(enum_arg_type_name):
+                            mut enum_type_sym := SymbolInfo()
+                            enum_type_sym = context.scope_stack.lookup_symbol(enum_arg_type_name)
+                            switch enum_type_sym.value_type {
                             case ValueType.TType(TTypeDef.TEnumDef):
                                 enum_val := EvalArena.get_enum(context, id_name, e)
                                 if not(NULL.eq(enum_val.payload.data)) {
@@ -2325,7 +2325,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     if eval_result.is_throw {
                         return eval_result
                     }
-                    result_str := eval_result.value
+                    arg_result_str := eval_result.value
 
                     // Restore enum payload if we saved it
                     if has_enum_backup {
@@ -2383,29 +2383,29 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             function_frame.arena_index.set(arg.name, offset)
 
                             // Transfer all related entries (for structs with fields, strings with metadata, etc.)
-                            prefix := format(source_var, ".")
+                            own_prefix := format(source_var, ".")
                             lf6 := context.scope_stack.last_frame()
                             mut keys_to_transfer := Vec.new(Str)
-                            mut arena_keys := lf6.arena_index.keys
-                            for ki in 0..lf6.arena_index.len() {
-                                mut key := ""
-                                arena_keys.get(ki, key)
-                                if key.starts_with(prefix) {
-                                    keys_to_transfer.push(key.clone())
+                            mut own_arena_keys := lf6.arena_index.keys
+                            for own_ki in 0..lf6.arena_index.len() {
+                                mut collect_key := ""
+                                own_arena_keys.get(own_ki, collect_key)
+                                if collect_key.starts_with(own_prefix) {
+                                    keys_to_transfer.push(collect_key.clone())
                                 }
                             }
 
-                            for ki2 in 0..keys_to_transfer.len() {
-                                mut key := ""
-                                keys_to_transfer.get(ki2, key)
-                                mut field_offset := 0
-                                field_offset = context.scope_stack.lookup_var(key)
-                                mut new_key := key.replace(source_var, arg.name)
-                                function_frame.arena_index.set(new_key, field_offset)
+                            for own_ki2 in 0..keys_to_transfer.len() {
+                                mut transfer_key := ""
+                                keys_to_transfer.get(own_ki2, transfer_key)
+                                mut transfer_field_offset := 0
+                                transfer_field_offset = context.scope_stack.lookup_var(transfer_key)
+                                mut own_new_key := transfer_key.replace(source_var, arg.name)
+                                function_frame.arena_index.set(own_new_key, transfer_field_offset)
                                 // Also transfer symbol info for fields
                                 mut field_sym := SymbolInfo()
-                                field_sym = context.scope_stack.lookup_symbol(key)
-                                function_frame.symbols.set(new_key, field_sym.clone())
+                                field_sym = context.scope_stack.lookup_symbol(transfer_key)
+                                function_frame.symbols.set(own_new_key, field_sym.clone())
                                 catch (err_sym: KeyNotFoundError) { }
                             }
                             catch (err_var: KeyNotFoundError) { }
@@ -2415,11 +2415,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             // Remove from caller's context (ownership transferred)
                             _ := context.scope_stack.remove_var(source_var)
                             _ := context.scope_stack.remove_symbol(source_var)
-                            for ki3 in 0..keys_to_transfer.len() {
-                                mut key := ""
-                                keys_to_transfer.get(ki3, key)
-                                _ := context.scope_stack.remove_var(key)
-                                _ := context.scope_stack.remove_symbol(key)
+                            for own_ki3 in 0..keys_to_transfer.len() {
+                                mut remove_key := ""
+                                keys_to_transfer.get(own_ki3, remove_key)
+                                _ := context.scope_stack.remove_var(remove_key)
+                                _ := context.scope_stack.remove_symbol(remove_key)
                             }
 
                             param_index.inc()
@@ -2445,64 +2445,64 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             // Field access like s.cap is also an Identifier node but has params
                             if current_arg.params.len().eq(0) {
                                 // Share arena offset from caller context (zero-copy pass-by-reference)
-                                mut offset := 0
-                                offset = context.scope_stack.lookup_var(source_var)
+                                mut share_offset := 0
+                                share_offset = context.scope_stack.lookup_var(source_var)
                                 // Create symbol info for parameter using the resolved type
                                 param_symbol := SymbolInfo(value_type=resolved_value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
                                 function_frame.symbols.set(arg.name.clone(), param_symbol)
-                                function_frame.arena_index.set(arg.name.clone(), offset)
+                                function_frame.arena_index.set(arg.name.clone(), share_offset)
 
                                 // CRITICAL: Copy all nested field offsets AND symbols from ALL frames to callee
                                 // insert_struct registers nested field offsets (e.g., "l.start.x")
                                 // We need to copy these so field access works in the callee
                                 // Must search ALL frames because globals like `true` are in frame 0
-                                prefix := format(source_var, ".")
-                                replacement_prefix := format(arg.name, ".")
-                                mut field_offsets_to_copy := Vec.new(EvalArenaMapping)
-                                mut field_symbols_to_copy := Vec.new(SymbolEntry)
-                                for fi in 0..context.scope_stack.frames.len() {
+                                ref_prefix := format(source_var, ".")
+                                ref_replacement_prefix := format(arg.name, ".")
+                                mut ref_field_offsets_to_copy := Vec.new(EvalArenaMapping)
+                                mut ref_field_symbols_to_copy := Vec.new(SymbolEntry)
+                                for ref_fi in 0..context.scope_stack.frames.len() {
                                     mut caller_frame := ScopeFrame()
-                                    context.scope_stack.frames.get(fi, caller_frame)
+                                    context.scope_stack.frames.get(ref_fi, caller_frame)
                                     // Copy arena_index entries
-                                    arena_keys := caller_frame.arena_index.keys
-                                    for aki in 0..arena_keys.len() {
-                                        mut key := ""
-                                        arena_keys.get(aki, key)
-                                        if key.starts_with(prefix) {
-                                            mut value := 0
-                                            caller_frame.arena_index.get(key, value)
-                                            mut new_key := key.replace(prefix, replacement_prefix)
-                                            mut mapping := EvalArenaMapping()
-                                            mapping.name = new_key
-                                            mapping.offset = value
-                                            field_offsets_to_copy.push(mapping)
+                                    ref_arena_keys := caller_frame.arena_index.keys
+                                    for ref_aki in 0..ref_arena_keys.len() {
+                                        mut ref_key := ""
+                                        ref_arena_keys.get(ref_aki, ref_key)
+                                        if ref_key.starts_with(ref_prefix) {
+                                            mut ref_value := 0
+                                            caller_frame.arena_index.get(ref_key, ref_value)
+                                            mut ref_new_key := ref_key.replace(ref_prefix, ref_replacement_prefix)
+                                            mut ref_mapping := EvalArenaMapping()
+                                            ref_mapping.name = ref_new_key
+                                            ref_mapping.offset = ref_value
+                                            ref_field_offsets_to_copy.push(ref_mapping)
                                         }
                                     }
                                     // Copy symbols entries
                                     symbol_keys := caller_frame.symbols.keys
-                                    for ski in 0..symbol_keys.len() {
+                                    for ref_ski in 0..symbol_keys.len() {
                                         mut skey := ""
-                                        symbol_keys.get(ski, skey)
-                                        if skey.starts_with(prefix) {
+                                        symbol_keys.get(ref_ski, skey)
+                                        if skey.starts_with(ref_prefix) {
                                             mut svalue := SymbolInfo()
                                             caller_frame.symbols.get(skey, svalue)
-                                            new_skey := skey.replace(prefix, replacement_prefix)
-                                            mut entry := SymbolEntry()
-                                            entry.name = new_skey
-                                            entry.info = svalue.clone()
-                                            field_symbols_to_copy.push(entry)
+                                            new_skey := skey.replace(ref_prefix, ref_replacement_prefix)
+                                            mut ref_entry := SymbolEntry()
+                                            ref_entry.name = new_skey
+                                            ref_entry.info = svalue.clone()
+                                            ref_field_symbols_to_copy.push(ref_entry)
                                         }
                                     }
                                 }
-                                for foi in 0..field_offsets_to_copy.len() {
-                                    mut mapping := EvalArenaMapping()
-                                    field_offsets_to_copy.get(foi, mapping)
-                                    function_frame.arena_index.set(mapping.name, mapping.offset)
+                                for ref_foi in 0..ref_field_offsets_to_copy.len() {
+                                    mut apply_mapping := EvalArenaMapping()
+                                    ref_field_offsets_to_copy.get(ref_foi, apply_mapping)
+                                    function_frame.arena_index.set(apply_mapping.name, apply_mapping.offset)
                                 }
-                                for fsi in 0..field_symbols_to_copy.len() {
-                                    mut entry := SymbolEntry()
-                                    field_symbols_to_copy.get(fsi, entry)
-                                    function_frame.symbols.set(entry.name, entry.info)
+                                for ref_fsi in 0..ref_field_symbols_to_copy.len() {
+                                    mut apply_entry := SymbolEntry()
+                                    ref_field_symbols_to_copy.get(ref_fsi, apply_entry)
+                                    function_frame.symbols.set(apply_entry.name, apply_entry.info)
                                 }
 
                                 // Track that this parameter was passed by reference
@@ -2521,11 +2521,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     {
                         switch resolved_type_name {
                         case "I64":
-                            EvalArena.insert_i64_into_frame(context, function_frame, arg.name, result_str, e)
+                            EvalArena.insert_i64_into_frame(context, function_frame, arg.name, arg_result_str, e)
                         case "U8":
-                            EvalArena.insert_u8_into_frame(context, function_frame, arg.name, result_str, e)
+                            EvalArena.insert_u8_into_frame(context, function_frame, arg.name, arg_result_str, e)
                         case "Str":
-                            EvalArena.insert_string_into_frame(context, function_frame, arg.name, result_str, e)
+                            EvalArena.insert_string_into_frame(context, function_frame, arg.name, arg_result_str, e)
                         case:
                             // Custom type (enum or struct)
                             mut custom_symbol := SymbolInfo()
@@ -2550,7 +2550,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             }
                             if is_enum_def {
                                 // Transfer payload from outer context if present (temp_enum_payload already on context)
-                                _ := EvalArena.insert_enum_into_frame(context, function_frame, arg.name, resolved_type_name, result_str, e)
+                                _ := EvalArena.insert_enum_into_frame(context, function_frame, arg.name, resolved_type_name, arg_result_str, e)
                             } else if is_struct_def {
                                 // Bug #10 fix: Handle field access chains like s.items
                                 mut source_id := ""
@@ -2560,12 +2560,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     switch current_arg.node_type {
                                     case NodeType.Identifier(base_id):
                                         full_path = base_id.clone()
-                                        for pi in 0..current_arg.params.len() {
-                                            mut param := Expr()
-                                            current_arg.params.get(pi, param)
-                                            switch param.node_type {
-                                            case NodeType.Identifier(field_name):
-                                                full_path = format(full_path, ".", field_name)
+                                        for struct_pi in 0..current_arg.params.len() {
+                                            mut struct_param := Expr()
+                                            current_arg.params.get(struct_pi, struct_param)
+                                            switch struct_param.node_type {
+                                            case NodeType.Identifier(struct_field_name):
+                                                full_path = format(full_path, ".", struct_field_name)
                                             case:
                                                 throw e.lang_error(context.path, "eval", "Field access must use identifiers")
                                             }
@@ -2573,8 +2573,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         source_id = full_path
                                     case:
                                         // For non-identifier expressions (like Vec.new(Expr)),
-                                        // use the result_str which contains the allocated result
-                                        source_id = result_str.clone()
+                                        // use the arg_result_str which contains the allocated result
+                                        source_id = arg_result_str.clone()
                                     }
                                 } else {
                                     switch current_arg.node_type {
@@ -2582,8 +2582,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         source_id = ident_name.clone()
                                     case:
                                         // For non-identifier expressions (like Vec.new(Expr)),
-                                        // use the result_str which contains the allocated result
-                                        source_id = result_str.clone()
+                                        // use the arg_result_str which contains the allocated result
+                                        source_id = arg_result_str.clone()
                                     }
                                 }
 
@@ -2661,55 +2661,55 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
                                         // Copy nested field offsets (e.g., "o1.inner_vec._len" -> "self._len")
                                         // Must search ALL frames because globals like `true` are in frame 0
-                                        prefix := format(id_, ".")
-                                        replacement_prefix := format(arg.name, ".")
-                                        mut field_offsets_to_copy := Vec.new(EvalArenaMapping)
-                                        mut field_symbols_to_copy := Vec.new(SymbolEntry)
-                                        for fi in 0..context.scope_stack.frames.len() {
-                                            mut caller_frame := ScopeFrame()
-                                            context.scope_stack.frames.get(fi, caller_frame)
+                                        pbr_prefix := format(id_, ".")
+                                        pbr_replacement_prefix := format(arg.name, ".")
+                                        mut pbr_field_offsets_to_copy := Vec.new(EvalArenaMapping)
+                                        mut pbr_field_symbols_to_copy := Vec.new(SymbolEntry)
+                                        for pbr_fi in 0..context.scope_stack.frames.len() {
+                                            mut pbr_caller_frame := ScopeFrame()
+                                            context.scope_stack.frames.get(pbr_fi, pbr_caller_frame)
                                             // Copy arena_index entries
-                                            arena_keys := caller_frame.arena_index.keys
-                                            for aki in 0..arena_keys.len() {
-                                                mut key := ""
-                                                arena_keys.get(aki, key)
-                                                if key.starts_with(prefix) {
-                                                    mut value := 0
-                                                    caller_frame.arena_index.get(key, value)
-                                                    mut new_key := key.replace(prefix, replacement_prefix)
-                                                    mut mapping := EvalArenaMapping()
-                                                    mapping.name = new_key
-                                                    mapping.offset = value
-                                                    field_offsets_to_copy.push(mapping)
+                                            pbr_arena_keys := pbr_caller_frame.arena_index.keys
+                                            for pbr_aki in 0..pbr_arena_keys.len() {
+                                                mut pbr_key := ""
+                                                pbr_arena_keys.get(pbr_aki, pbr_key)
+                                                if pbr_key.starts_with(pbr_prefix) {
+                                                    mut pbr_value := 0
+                                                    pbr_caller_frame.arena_index.get(pbr_key, pbr_value)
+                                                    mut pbr_new_key := pbr_key.replace(pbr_prefix, pbr_replacement_prefix)
+                                                    mut pbr_mapping := EvalArenaMapping()
+                                                    pbr_mapping.name = pbr_new_key
+                                                    pbr_mapping.offset = pbr_value
+                                                    pbr_field_offsets_to_copy.push(pbr_mapping)
                                                 }
                                             }
                                             // Copy symbols entries
-                                            symbol_keys := caller_frame.symbols.keys
-                                            for ski in 0..symbol_keys.len() {
-                                                mut skey := ""
-                                                symbol_keys.get(ski, skey)
-                                                if skey.starts_with(prefix) {
-                                                    mut svalue := SymbolInfo()
-                                                    caller_frame.symbols.get(skey, svalue)
-                                                    new_skey := skey.replace(prefix, replacement_prefix)
-                                                    mut entry := SymbolEntry()
-                                                    entry.name = new_skey
-                                                    entry.info = svalue.clone()
-                                                    field_symbols_to_copy.push(entry)
+                                            pbr_symbol_keys := pbr_caller_frame.symbols.keys
+                                            for pbr_ski in 0..pbr_symbol_keys.len() {
+                                                mut pbr_skey := ""
+                                                pbr_symbol_keys.get(pbr_ski, pbr_skey)
+                                                if pbr_skey.starts_with(pbr_prefix) {
+                                                    mut pbr_svalue := SymbolInfo()
+                                                    pbr_caller_frame.symbols.get(pbr_skey, pbr_svalue)
+                                                    pbr_new_skey := pbr_skey.replace(pbr_prefix, pbr_replacement_prefix)
+                                                    mut pbr_entry := SymbolEntry()
+                                                    pbr_entry.name = pbr_new_skey
+                                                    pbr_entry.info = pbr_svalue.clone()
+                                                    pbr_field_symbols_to_copy.push(pbr_entry)
                                                 }
                                             }
                                         }
                                         // Insert collected offsets
-                                        for foi in 0..field_offsets_to_copy.len() {
-                                            mut mapping := EvalArenaMapping()
-                                            field_offsets_to_copy.get(foi, mapping)
-                                            function_frame.arena_index.set(mapping.name, mapping.offset)
+                                        for pbr_foi in 0..pbr_field_offsets_to_copy.len() {
+                                            mut pbr_apply_mapping := EvalArenaMapping()
+                                            pbr_field_offsets_to_copy.get(pbr_foi, pbr_apply_mapping)
+                                            function_frame.arena_index.set(pbr_apply_mapping.name, pbr_apply_mapping.offset)
                                         }
                                         // Insert collected symbols
-                                        for fsi in 0..field_symbols_to_copy.len() {
-                                            mut entry := SymbolEntry()
-                                            field_symbols_to_copy.get(fsi, entry)
-                                            function_frame.symbols.set(entry.name, entry.info)
+                                        for pbr_fsi in 0..pbr_field_symbols_to_copy.len() {
+                                            mut pbr_apply_entry := SymbolEntry()
+                                            pbr_field_symbols_to_copy.get(pbr_fsi, pbr_apply_entry)
+                                            function_frame.symbols.set(pbr_apply_entry.name, pbr_apply_entry.info)
                                         }
 
                                         // Track that this was passed by reference
@@ -2724,71 +2724,71 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
                                         // If we saved offsets, restore them with temp keys for copy_fields
                                         if has_saved_offsets {
-                                            for mi in 0..saved_offsets.offsets.len() {
-                                                mut mapping := EvalArenaMapping()
-                                                saved_offsets.offsets.get(mi, mapping)
-                                                mut new_key := ""
-                                                if mapping.name.eq(id_) {
-                                                    new_key = saved_offsets.temp_src_key.clone()
-                                                } else if mapping.name.starts_with(format(id_, ".")) {
-                                                    new_key = format(saved_offsets.temp_src_key, mapping.name.get_substr(id_.len(), mapping.name.len()))
+                                            for restore_mi in 0..saved_offsets.offsets.len() {
+                                                mut restore_mapping := EvalArenaMapping()
+                                                saved_offsets.offsets.get(restore_mi, restore_mapping)
+                                                mut restore_new_key := ""
+                                                if restore_mapping.name.eq(id_) {
+                                                    restore_new_key = saved_offsets.temp_src_key.clone()
+                                                } else if restore_mapping.name.starts_with(format(id_, ".")) {
+                                                    restore_new_key = format(saved_offsets.temp_src_key, restore_mapping.name.get_substr(id_.len(), restore_mapping.name.len()))
                                                 } else {
-                                                    new_key = mapping.name.clone()
+                                                    restore_new_key = restore_mapping.name.clone()
                                                 }
                                                 mut lf9_idx := context.scope_stack.frames.len().sub(1)
                                                 mut lf9 := ScopeFrame()
                                                 context.scope_stack.frames.get(lf9_idx, lf9)
-                                                lf9.arena_index.set(new_key, mapping.offset)
+                                                lf9.arena_index.set(restore_new_key, restore_mapping.offset)
                                                 context.scope_stack.frames.set(lf9_idx, lf9)
                                             }
 
                                             EvalArena.copy_fields(context, resolved_type_name, saved_offsets.temp_src_key, arg.name, e)
 
                                             // Clean up temp keys
-                                            for ci in 0..saved_offsets.offsets.len() {
-                                                mut mapping := EvalArenaMapping()
-                                                saved_offsets.offsets.get(ci, mapping)
-                                                mut new_key := ""
-                                                if mapping.name.eq(id_) {
-                                                    new_key = saved_offsets.temp_src_key.clone()
-                                                } else if mapping.name.starts_with(format(id_, ".")) {
-                                                    new_key = format(saved_offsets.temp_src_key, mapping.name.get_substr(id_.len(), mapping.name.len()))
+                                            for cleanup_ci in 0..saved_offsets.offsets.len() {
+                                                mut cleanup_mapping := EvalArenaMapping()
+                                                saved_offsets.offsets.get(cleanup_ci, cleanup_mapping)
+                                                mut cleanup_new_key := ""
+                                                if cleanup_mapping.name.eq(id_) {
+                                                    cleanup_new_key = saved_offsets.temp_src_key.clone()
+                                                } else if cleanup_mapping.name.starts_with(format(id_, ".")) {
+                                                    cleanup_new_key = format(saved_offsets.temp_src_key, cleanup_mapping.name.get_substr(id_.len(), cleanup_mapping.name.len()))
                                                 } else {
-                                                    new_key = mapping.name.clone()
+                                                    cleanup_new_key = cleanup_mapping.name.clone()
                                                 }
-                                                _ := context.scope_stack.remove_var(new_key)
+                                                _ := context.scope_stack.remove_var(cleanup_new_key)
                                             }
                                         } else {
                                             // Temporarily register source struct's base offset and symbol
                                             // so that copy_fields() can calculate field offsets dynamically
-                                            mut src_offset := 0
-                                            mut src_offset_found := false
-                                            src_offset = context.scope_stack.lookup_var(id_)
-                                            src_offset_found = true
+                                            mut copy_src_offset := 0
+                                            mut copy_src_offset_found := false
+                                            copy_src_offset = context.scope_stack.lookup_var(id_)
+                                            copy_src_offset_found = true
                                             catch (err: KeyNotFoundError) { }
-                                            if not(src_offset_found) {
+                                            if not(copy_src_offset_found) {
                                                 if id_.contains(".") {
                                                     // Field path - calculate offset dynamically
-                                                    src_offset = context.get_field_offset(id_)
+                                                    copy_src_offset = context.get_field_offset(id_)
                                                 } else {
                                                     throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context arena_index"))
                                                 }
                                             }
-                                            mut src_symbol := SymbolInfo()
-                                            mut src_symbol_found := false
-                                            src_symbol = context.scope_stack.lookup_symbol(id_)
-                                            src_symbol_found = true
+                                            mut copy_src_symbol := SymbolInfo()
+                                            mut copy_src_symbol_found := false
+                                            copy_src_symbol = context.scope_stack.lookup_symbol(id_)
+                                            copy_src_symbol_found = true
                                             catch (err: KeyNotFoundError) { }
-                                            if not(src_symbol_found) {
+                                            if not(copy_src_symbol_found) {
                                                 throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context symbols"))
                                             }
 
                                             mut lf10_idx := context.scope_stack.frames.len().sub(1)
                                             mut lf10 := ScopeFrame()
                                             context.scope_stack.frames.get(lf10_idx, lf10)
-                                            lf10.arena_index.set(id_.clone(), src_offset)
+                                            lf10.arena_index.set(id_.clone(), copy_src_offset)
                                             context.scope_stack.frames.set(lf10_idx, lf10)
-                                            context.scope_stack.declare_symbol(id_.clone(), src_symbol.clone())
+                                            context.scope_stack.declare_symbol(id_.clone(), copy_src_symbol.clone())
                                             EvalArena.copy_fields(context, resolved_type_name, id_, arg.name, e)
                                             _ := context.scope_stack.remove_var(id_)
                                             _ := context.scope_stack.remove_symbol(id_)
@@ -2806,11 +2806,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     context.scope_stack.frames.push(function_frame)
 
                                     // Temporarily register source for copy_fields
-                                    src_offset := context.scope_stack.lookup_var(source_id)
+                                    expr_src_offset := context.scope_stack.lookup_var(source_id)
                                     catch (err: KeyNotFoundError) {
                                         throw e.lang_error(context.path, "eval", format("Source '", source_id, "' not found in caller context"))
                                     }
-                                    src_symbol := context.scope_stack.lookup_symbol(source_id)
+                                    expr_src_symbol := context.scope_stack.lookup_symbol(source_id)
                                     catch (err: KeyNotFoundError) {
                                         throw e.lang_error(context.path, "eval", format("Source symbol '", source_id, "' not found"))
                                     }
@@ -2818,9 +2818,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     mut lf11_idx := context.scope_stack.frames.len().sub(1)
                                     mut lf11 := ScopeFrame()
                                     context.scope_stack.frames.get(lf11_idx, lf11)
-                                    lf11.arena_index.set(source_id.clone(), src_offset)
+                                    lf11.arena_index.set(source_id.clone(), expr_src_offset)
                                     context.scope_stack.frames.set(lf11_idx, lf11)
-                                    context.scope_stack.declare_symbol(source_id.clone(), src_symbol.clone())
+                                    context.scope_stack.declare_symbol(source_id.clone(), expr_src_symbol.clone())
                                     EvalArena.copy_fields(context, resolved_type_name, source_id, arg.name, e)
                                     _ := context.scope_stack.remove_var(source_id)
                                     _ := context.scope_stack.remove_symbol(source_id)
@@ -2833,22 +2833,22 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         _ := context.scope_stack.remove_var(source_id)
                                         _ := context.scope_stack.remove_symbol(source_id)
                                         // Also remove field entries
-                                        prefix := format(source_id, ".")
-                                        mut keys_to_remove := Vec.new(Str)
+                                        cleanup_prefix := format(source_id, ".")
+                                        mut cleanup_keys_to_remove := Vec.new(Str)
                                         lf7 := context.scope_stack.last_frame()
-                                        arena_keys := lf7.arena_index.keys
-                                        for ki in 0..arena_keys.len() {
-                                            mut key := ""
-                                            arena_keys.get(ki, key)
-                                            if key.starts_with(prefix) {
-                                                keys_to_remove.push(key.clone())
+                                        cleanup_arena_keys := lf7.arena_index.keys
+                                        for cleanup_ki in 0..cleanup_arena_keys.len() {
+                                            mut cleanup_key := ""
+                                            cleanup_arena_keys.get(cleanup_ki, cleanup_key)
+                                            if cleanup_key.starts_with(cleanup_prefix) {
+                                                cleanup_keys_to_remove.push(cleanup_key.clone())
                                             }
                                         }
-                                        for ri in 0..keys_to_remove.len() {
-                                            mut key := ""
-                                            keys_to_remove.get(ri, key)
-                                            _ := context.scope_stack.remove_var(key)
-                                            _ := context.scope_stack.remove_symbol(key)
+                                        for cleanup_ri in 0..cleanup_keys_to_remove.len() {
+                                            mut remove_cleanup_key := ""
+                                            cleanup_keys_to_remove.get(cleanup_ri, remove_cleanup_key)
+                                            _ := context.scope_stack.remove_var(remove_cleanup_key)
+                                            _ := context.scope_stack.remove_symbol(remove_cleanup_key)
                                         }
                                     }
                                 }
@@ -2884,17 +2884,17 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             type_symbol_found = true
             catch (err: KeyNotFoundError) { }
             if type_symbol_found {
-                mut is_struct_def := false
+                mut thrown_is_struct_def := false
                 switch type_symbol.value_type {
                 case ValueType.TType(ttype_val2):
                     switch ttype_val2 {
                     case TTypeDef.TStructDef:
-                        is_struct_def = true
+                        thrown_is_struct_def = true
                     case:
                     }
                 case:
                 }
-                if is_struct_def {
+                if thrown_is_struct_def {
                     // Copy the base variable entry first (from function frame to caller frame)
                     mut base_offset := 0
                     mut base_offset_found := false
@@ -2903,12 +2903,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     catch (err: KeyNotFoundError) { }
                     if base_offset_found {
                         // Get the second-to-last frame (caller's frame)
-                        frame_count := context.scope_stack.frames.len()
-                        if frame_count.gteq(2) {
-                            mut caller_frame := ScopeFrame()
-                            context.scope_stack.frames.get(frame_count.sub(2), caller_frame)
-                            caller_frame.arena_index.set(result.value.clone(), base_offset)
-                            context.scope_stack.frames.set(frame_count.sub(2), caller_frame)
+                        thrown_frame_count := context.scope_stack.frames.len()
+                        if thrown_frame_count.gteq(2) {
+                            mut thrown_caller_frame := ScopeFrame()
+                            context.scope_stack.frames.get(thrown_frame_count.sub(2), thrown_caller_frame)
+                            thrown_caller_frame.arena_index.set(result.value.clone(), base_offset)
+                            context.scope_stack.frames.set(thrown_frame_count.sub(2), thrown_caller_frame)
                         }
                     }
 
@@ -2918,29 +2918,29 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     // Copy arena_index entries (including nested fields like .msg.c_string)
                     mut keys_to_copy := Vec.new(Str)
                     lf8 := context.scope_stack.last_frame()
-                    arena_keys := lf8.arena_index.keys
-                    for ki in 0..arena_keys.len() {
-                        mut key := ""
-                        arena_keys.get(ki, key)
-                        if key.starts_with(source_prefix) {
-                            keys_to_copy.push(key.clone())
+                    thrown_arena_keys := lf8.arena_index.keys
+                    for thrown_ki in 0..thrown_arena_keys.len() {
+                        mut thrown_key := ""
+                        thrown_arena_keys.get(thrown_ki, thrown_key)
+                        if thrown_key.starts_with(source_prefix) {
+                            keys_to_copy.push(thrown_key.clone())
                         }
                     }
-                    frame_count := context.scope_stack.frames.len()
+                    copy_frame_count := context.scope_stack.frames.len()
                     for kci in 0..keys_to_copy.len() {
-                        mut src_key := ""
-                        keys_to_copy.get(kci, src_key)
-                        mut src_offset := 0
-                        mut src_offset_found := false
-                        src_offset = context.scope_stack.lookup_var(src_key)
-                        src_offset_found = true
+                        mut arena_src_key := ""
+                        keys_to_copy.get(kci, arena_src_key)
+                        mut arena_src_offset := 0
+                        mut arena_src_offset_found := false
+                        arena_src_offset = context.scope_stack.lookup_var(arena_src_key)
+                        arena_src_offset_found = true
                         catch (err: KeyNotFoundError) { }
-                        if src_offset_found {
-                            if frame_count.gteq(2) {
-                                mut caller_frame := ScopeFrame()
-                                context.scope_stack.frames.get(frame_count.sub(2), caller_frame)
-                                caller_frame.arena_index.set(src_key.clone(), src_offset)
-                                context.scope_stack.frames.set(frame_count.sub(2), caller_frame)
+                        if arena_src_offset_found {
+                            if copy_frame_count.gteq(2) {
+                                mut arena_caller_frame := ScopeFrame()
+                                context.scope_stack.frames.get(copy_frame_count.sub(2), arena_caller_frame)
+                                arena_caller_frame.arena_index.set(arena_src_key.clone(), arena_src_offset)
+                                context.scope_stack.frames.set(copy_frame_count.sub(2), arena_caller_frame)
                             }
                         }
                     }
@@ -2948,15 +2948,15 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     // Copy symbol entries for fields
                     symbol_keys_to_copy := context.scope_stack.get_symbols_with_prefix(source_prefix)
                     for ski in 0..symbol_keys_to_copy.len() {
-                        mut src_key := ""
-                        symbol_keys_to_copy.get(ski, src_key)
+                        mut sym_src_key := ""
+                        symbol_keys_to_copy.get(ski, sym_src_key)
                         mut src_symbol := SymbolInfo()
                         mut src_symbol_found := false
-                        src_symbol = context.scope_stack.lookup_symbol(src_key)
+                        src_symbol = context.scope_stack.lookup_symbol(sym_src_key)
                         src_symbol_found = true
                         catch (err: KeyNotFoundError) { }
                         if src_symbol_found {
-                            context.scope_stack.declare_symbol(src_key.clone(), src_symbol.clone())
+                            context.scope_stack.declare_symbol(sym_src_key.clone(), src_symbol.clone())
                         }
                     }
                 }
@@ -3001,34 +3001,34 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     mut saved_enum_value := EnumVal()
     mut has_saved_enum_value := false
     if func_def.return_types.len().eq(1) {
-        mut return_type := ValueType.TCustom("")
-        func_def.return_types.get(0, return_type)
-        mut is_tcustom := false
-        mut custom_type_name := ""
-        switch return_type {
+        mut ret_return_type := ValueType.TCustom("")
+        func_def.return_types.get(0, ret_return_type)
+        mut ret_is_tcustom := false
+        mut ret_custom_type_name := ""
+        switch ret_return_type {
         case ValueType.TCustom(custom_name):
-            is_tcustom = true
-            custom_type_name = custom_name
+            ret_is_tcustom = true
+            ret_custom_type_name = custom_name
         case:
         }
-        if is_tcustom {
-            mut custom_symbol := SymbolInfo()
-            mut custom_symbol_found := false
-            custom_symbol = context.scope_stack.lookup_symbol(custom_type_name)
-            custom_symbol_found = true
+        if ret_is_tcustom {
+            mut ret_custom_symbol := SymbolInfo()
+            mut ret_custom_symbol_found := false
+            ret_custom_symbol = context.scope_stack.lookup_symbol(ret_custom_type_name)
+            ret_custom_symbol_found = true
             catch (err: KeyNotFoundError) { }
-            if custom_symbol_found {
-                mut is_enum_def := false
-                switch custom_symbol.value_type {
+            if ret_custom_symbol_found {
+                mut ret_is_enum_def := false
+                switch ret_custom_symbol.value_type {
                 case ValueType.TType(ttype_val3):
                     switch ttype_val3 {
                     case TTypeDef.TEnumDef:
-                        is_enum_def = true
+                        ret_is_enum_def = true
                     case:
                     }
                 case:
                 }
-                if is_enum_def {
+                if ret_is_enum_def {
                     if not(result_str.contains(".")) {
                         // This is a variable, not a constructor - save the enum value
                         saved_enum_value = EvalArena.get_enum(context, result_str, e)
@@ -3059,61 +3059,61 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             }
         }
 
-        mut is_tcustom := false
-        mut type_name := ""
+        mut mut_arg_is_tcustom := false
+        mut mut_arg_type_name := ""
         switch m.value_type {
         case ValueType.TCustom(custom_name):
-            is_tcustom = true
-            type_name = custom_name
+            mut_arg_is_tcustom = true
+            mut_arg_type_name = custom_name
         case:
         }
 
-        if is_tcustom {
-            switch type_name {
+        if mut_arg_is_tcustom {
+            switch mut_arg_type_name {
             case "I64":
-                i64_val := EvalArena.get_i64(context, m.arg_name, e)
-                collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.I64(i64_val)))
+                mut_arg_i64_val := EvalArena.get_i64(context, m.arg_name, e)
+                collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.I64(mut_arg_i64_val)))
             case "U8":
-                u8_val : U8 = EvalArena.get_u8(context, m.arg_name, e)
-                collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.U8(u8_val)))
+                mut_arg_u8_val : U8 = EvalArena.get_u8(context, m.arg_name, e)
+                collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.U8(mut_arg_u8_val)))
             case "Str":
-                val := string_from_context(context, m.arg_name, e)
-                collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Str(val)))
+                mut_arg_val := string_from_context(context, m.arg_name, e)
+                collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Str(mut_arg_val)))
             case:
                 // Custom type (enum or struct)
-                mut symbol_info := SymbolInfo()
-                mut symbol_info_found := false
-                symbol_info = context.scope_stack.lookup_symbol(type_name)
-                symbol_info_found = true
+                mut mut_arg_symbol_info := SymbolInfo()
+                mut mut_arg_symbol_info_found := false
+                mut_arg_symbol_info = context.scope_stack.lookup_symbol(mut_arg_type_name)
+                mut_arg_symbol_info_found = true
                 catch (err: KeyNotFoundError) { }
-                if not(symbol_info_found) {
+                if not(mut_arg_symbol_info_found) {
                     _ := context.scope_stack.pop()
                     context.path = saved_path
-                    throw e.lang_error(context.path, "eval", format("Cannot use '", m.arg_name, "' of type '", type_name, "' as an mut argument. Undefined symbol."))
+                    throw e.lang_error(context.path, "eval", format("Cannot use '", m.arg_name, "' of type '", mut_arg_type_name, "' as an mut argument. Undefined symbol."))
                 }
-                mut is_enum_def := false
-                mut is_struct_def := false
-                switch symbol_info.value_type {
+                mut mut_arg_is_enum_def := false
+                mut mut_arg_is_struct_def := false
+                switch mut_arg_symbol_info.value_type {
                 case ValueType.TType(ttype_val4):
                     switch ttype_val4 {
                     case TTypeDef.TEnumDef:
-                        is_enum_def = true
+                        mut_arg_is_enum_def = true
                     case TTypeDef.TStructDef:
-                        is_struct_def = true
+                        mut_arg_is_struct_def = true
                     }
                 case:
                 }
-                if is_enum_def {
-                    enum_val := EvalArena.get_enum(context, m.arg_name, e)
-                    collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Enum(enum_val)))
-                } else if is_struct_def {
-                    mut offset := 0
-                    mut offset_found := false
-                    offset = context.scope_stack.lookup_var(m.arg_name)
-                    offset_found = true
+                if mut_arg_is_enum_def {
+                    mut_arg_enum_val := EvalArena.get_enum(context, m.arg_name, e)
+                    collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Enum(mut_arg_enum_val)))
+                } else if mut_arg_is_struct_def {
+                    mut mut_arg_offset := 0
+                    mut mut_arg_offset_found := false
+                    mut_arg_offset = context.scope_stack.lookup_var(m.arg_name)
+                    mut_arg_offset_found = true
                     catch (err: KeyNotFoundError) { }
-                    if offset_found {
-                        collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Struct(MutArgStructData(offset=offset, type_name=type_name.clone(), was_passed_by_ref=was_passed_by_ref))))
+                    if mut_arg_offset_found {
+                        collected_mut_args.push(CollectedMutArg(source_name=m.source_name.clone(), value=MutArgValue.Struct(MutArgStructData(offset=mut_arg_offset, type_name=mut_arg_type_name.clone(), was_passed_by_ref=was_passed_by_ref))))
                     } else {
                         _ := context.scope_stack.pop()
                         context.path = saved_path
@@ -3122,7 +3122,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 } else {
                     _ := context.scope_stack.pop()
                     context.path = saved_path
-                    throw e.lang_error(context.path, "eval", format("Cannot use '", m.arg_name, "' of type '", type_name, "' as a mut argument. Not an enum or struct, but a '", value_type_to_str(symbol_info.value_type), "'."))
+                    throw e.lang_error(context.path, "eval", format("Cannot use '", m.arg_name, "' of type '", mut_arg_type_name, "' as a mut argument. Not an enum or struct, but a '", value_type_to_str(mut_arg_symbol_info.value_type), "'."))
                 }
             }
         } else {
@@ -3147,21 +3147,21 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             EvalArena.insert_u8(context, c.source_name, U8.to_str(val), e)
         case MutArgValue.Str(val):
             EvalArena.insert_string(context, c.source_name, val, e)
-        case MutArgValue.Enum(enum_val):
+        case MutArgValue.Enum(writeback_enum_val):
             // Bug #38 fix: Set temp_enum_payload so insert_enum preserves the payload
-            if not(NULL.eq(enum_val.payload.data)).and(not(NULL.eq(enum_val.payload_type.data))) {
+            if not(NULL.eq(writeback_enum_val.payload.data)).and(not(NULL.eq(writeback_enum_val.payload_type.data))) {
                 // Read payload Vec and ValueType from the pointers
-                mut payload_vec := Vec.new(U8)
-                memcpy(to_ptr(payload_vec), enum_val.payload.data, size_of(Vec))
-                mut payload_type := ValueType.TCustom("")
-                memcpy(to_ptr(payload_type), enum_val.payload_type.data, size_of(ValueType))
+                mut writeback_payload_vec := Vec.new(U8)
+                memcpy(to_ptr(writeback_payload_vec), writeback_enum_val.payload.data, size_of(Vec))
+                mut writeback_payload_type := ValueType.TCustom("")
+                memcpy(to_ptr(writeback_payload_type), writeback_enum_val.payload_type.data, size_of(ValueType))
                 // Create EnumPayload and set temp_enum_payload
-                mut temp_payload := EnumPayload(data=payload_vec.clone(), value_type=payload_type)
-                heap_payload_ptr := malloc(size_of(EnumPayload))
-                memcpy(heap_payload_ptr, to_ptr(temp_payload), size_of(EnumPayload))
-                context.temp_enum_payload.data = heap_payload_ptr
+                mut writeback_temp_payload := EnumPayload(data=writeback_payload_vec.clone(), value_type=writeback_payload_type)
+                writeback_heap_payload_ptr := malloc(size_of(EnumPayload))
+                memcpy(writeback_heap_payload_ptr, to_ptr(writeback_temp_payload), size_of(EnumPayload))
+                context.temp_enum_payload.data = writeback_heap_payload_ptr
             }
-            _ := EvalArena.insert_enum(context, c.source_name, enum_val.enum_type, format(enum_val.enum_type, ".", enum_val.enum_name), e)
+            _ := EvalArena.insert_enum(context, c.source_name, writeback_enum_val.enum_type, format(writeback_enum_val.enum_type, ".", writeback_enum_val.enum_name), e)
         case MutArgValue.Struct(struct_data):
             mut lf12_idx := context.scope_stack.frames.len().sub(1)
             mut lf12 := ScopeFrame()
@@ -3177,43 +3177,43 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     // If function returns a user-defined struct or enum, copy it back to caller frame as temp return val
     // NOTE: Frame already popped above, using saved_return_offset and saved_enum_value
     if func_def.return_types.len().eq(1) {
-        mut return_type := ValueType.TCustom("")
-        func_def.return_types.get(0, return_type)
-        mut is_tcustom := false
-        mut custom_type_name := ""
-        switch return_type {
+        mut copy_ret_return_type := ValueType.TCustom("")
+        func_def.return_types.get(0, copy_ret_return_type)
+        mut copy_ret_is_tcustom := false
+        mut copy_ret_custom_type_name := ""
+        switch copy_ret_return_type {
         case ValueType.TCustom(custom_name):
-            is_tcustom = true
-            custom_type_name = custom_name
+            copy_ret_is_tcustom = true
+            copy_ret_custom_type_name = custom_name
         case:
         }
-        if is_tcustom {
+        if copy_ret_is_tcustom {
             // Skip primitive types I64, U8, Str - they return values directly
-            switch custom_type_name {
+            switch copy_ret_custom_type_name {
             case "I64":
             case "U8":
             case "Str":
                 // Do nothing for primitive types
             case:
-                mut custom_symbol := SymbolInfo()
-                mut custom_symbol_found := false
-                custom_symbol = context.scope_stack.lookup_symbol(custom_type_name)
-                custom_symbol_found = true
+                mut copy_ret_custom_symbol := SymbolInfo()
+                mut copy_ret_custom_symbol_found := false
+                copy_ret_custom_symbol = context.scope_stack.lookup_symbol(copy_ret_custom_type_name)
+                copy_ret_custom_symbol_found = true
                 catch (err: KeyNotFoundError) { }
-                if custom_symbol_found {
-                    mut is_struct_def := false
-                    mut is_enum_def := false
-                    switch custom_symbol.value_type {
+                if copy_ret_custom_symbol_found {
+                    mut copy_ret_is_struct_def := false
+                    mut copy_ret_is_enum_def := false
+                    switch copy_ret_custom_symbol.value_type {
                     case ValueType.TType(ttype_val5):
                         switch ttype_val5 {
                         case TTypeDef.TStructDef:
-                            is_struct_def = true
+                            copy_ret_is_struct_def = true
                         case TTypeDef.TEnumDef:
-                            is_enum_def = true
+                            copy_ret_is_enum_def = true
                         }
                     case:
                     }
-                    if is_struct_def {
+                    if copy_ret_is_struct_def {
                         return_instance := format(RETURN_INSTANCE_NAME, I64.to_str(g_arena.temp_id_counter))
                         g_arena.temp_id_counter = g_arena.temp_id_counter.add(1)
 
@@ -3221,20 +3221,20 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         if not(has_saved_return_offset) {
                             throw e.lang_error(context.path, "eval", format("Missing arena index for return value '", result_str, "'"))
                         }
-                        offset := saved_return_offset
+                        copy_ret_offset := saved_return_offset
 
                         // Insert the temporary return variable into the caller's frame
-                        context.scope_stack.declare_symbol(return_instance.clone(), SymbolInfo(value_type=ValueType.TCustom(custom_type_name.clone()), is_mut=true))
+                        context.scope_stack.declare_symbol(return_instance.clone(), SymbolInfo(value_type=ValueType.TCustom(copy_ret_custom_type_name.clone()), is_mut=true))
 
                         // Share the base offset in caller's frame
                         mut lf13_idx := context.scope_stack.frames.len().sub(1)
                         mut lf13 := ScopeFrame()
                         context.scope_stack.frames.get(lf13_idx, lf13)
-                        lf13.arena_index.set(return_instance.clone(), offset)
+                        lf13.arena_index.set(return_instance.clone(), copy_ret_offset)
                         context.scope_stack.frames.set(lf13_idx, lf13)
 
                         return EvalResult.new_return(return_instance) // CLEANUP SITE 4: Return struct instance
-                    } else if is_enum_def {
+                    } else if copy_ret_is_enum_def {
                         // For enum returns, check if result_str is a constructor expression or a variable
                         if result_str.contains(".") {
                             // This is a constructor expression - just return as-is
@@ -3246,26 +3246,26 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             throw e.lang_error(context.path, "eval", format("Missing enum value for return value '", result_str, "'"))
                         }
 
-                        return_instance := format(RETURN_INSTANCE_NAME, I64.to_str(g_arena.temp_id_counter))
+                        enum_return_instance := format(RETURN_INSTANCE_NAME, I64.to_str(g_arena.temp_id_counter))
                         g_arena.temp_id_counter = g_arena.temp_id_counter.add(1)
 
                         // Set temp_enum_payload if the enum has a payload
                         if not(NULL.eq(saved_enum_value.payload.data)) {
-                            mut payload_vec := Vec.new(U8)
-                            memcpy(to_ptr(payload_vec), saved_enum_value.payload.data, size_of(Vec))
+                            mut copy_ret_payload_vec := Vec.new(U8)
+                            memcpy(to_ptr(copy_ret_payload_vec), saved_enum_value.payload.data, size_of(Vec))
                             if not(NULL.eq(saved_enum_value.payload_type.data)) {
-                                mut payload_type := ValueType.TCustom("")
-                                memcpy(to_ptr(payload_type), saved_enum_value.payload_type.data, size_of(ValueType))
+                                mut copy_ret_payload_type := ValueType.TCustom("")
+                                memcpy(to_ptr(copy_ret_payload_type), saved_enum_value.payload_type.data, size_of(ValueType))
                                 // Bug #74 fix: Heap-allocate EnumPayload to avoid use-after-free
-                                mut temp_payload := EnumPayload(data=payload_vec.clone(), value_type=payload_type)
-                                heap_payload_ptr := malloc(size_of(EnumPayload))
-                                memcpy(heap_payload_ptr, to_ptr(temp_payload), size_of(EnumPayload))
-                                context.temp_enum_payload.data = heap_payload_ptr
+                                mut copy_ret_temp_payload := EnumPayload(data=copy_ret_payload_vec.clone(), value_type=copy_ret_payload_type)
+                                copy_ret_heap_payload_ptr := malloc(size_of(EnumPayload))
+                                memcpy(copy_ret_heap_payload_ptr, to_ptr(copy_ret_temp_payload), size_of(EnumPayload))
+                                context.temp_enum_payload.data = copy_ret_heap_payload_ptr
                             }
                         }
 
-                        _ := EvalArena.insert_enum(context, return_instance, saved_enum_value.enum_type, format(saved_enum_value.enum_type, ".", saved_enum_value.enum_name), e)
-                        return EvalResult.new_return(return_instance) // CLEANUP SITE 6: Return enum variable
+                        _ := EvalArena.insert_enum(context, enum_return_instance, saved_enum_value.enum_type, format(saved_enum_value.enum_type, ".", saved_enum_value.enum_name), e)
+                        return EvalResult.new_return(enum_return_instance) // CLEANUP SITE 6: Return enum variable
                     }
                 }
             }

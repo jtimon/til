@@ -376,7 +376,7 @@ impl EvalArena {
                             },
                             _ => {
                                 if ctx.scope_stack.lookup_struct(type_name).is_some() {
-                                    let combined_name = format!("{}.{}", id, decl.name);
+                                    let nested_combined_name = format!("{}.{}", id, decl.name);
                                     let nested_symbol = SymbolInfo {
                                         value_type: ValueType::TCustom(type_name.clone()),
                                         is_mut: true,
@@ -385,29 +385,29 @@ impl EvalArena {
                                         is_comptime_const: false,
                                     };
                                     // Must declare symbol BEFORE recursive call (needed for is_mut lookup)
-                                    ctx.scope_stack.declare_symbol(combined_name.clone(), nested_symbol.clone());
-                                    result.symbols.push(SymbolEntry { name: combined_name.clone(), info: nested_symbol });
+                                    ctx.scope_stack.declare_symbol(nested_combined_name.clone(), nested_symbol.clone());
+                                    result.symbols.push(SymbolEntry { name: nested_combined_name.clone(), info: nested_symbol });
 
                                     // Special case: Str field initialization
                                     if type_name == "Str" {
                                         // Register inline offset BEFORE insert_string so it writes to the inline space
-                                        let field_arena_offset = offset + field_offset;
-                                        result.arena_mappings.push(EvalArenaMapping { name: combined_name.clone(), offset: field_arena_offset });
+                                        let str_field_offset = offset + field_offset;
+                                        result.arena_mappings.push(EvalArenaMapping { name: nested_combined_name.clone(), offset: str_field_offset });
                                         // Need to temporarily insert for insert_string to work
-                                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
-                                        EvalArena::insert_string(ctx, &combined_name, &default_value, e)?;
+                                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(nested_combined_name.clone(), str_field_offset);
+                                        EvalArena::insert_string(ctx, &nested_combined_name, &default_value, e)?;
                                     } else {
                                         // Use existing offset for nested struct (inline allocation)
-                                        let field_arena_offset = offset + field_offset;
-                                        result.arena_mappings.push(EvalArenaMapping { name: combined_name.clone(), offset: field_arena_offset });
+                                        let nested_field_offset = offset + field_offset;
+                                        result.arena_mappings.push(EvalArenaMapping { name: nested_combined_name.clone(), offset: nested_field_offset });
                                         // Need to temporarily insert for recursive call to work
-                                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
+                                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(nested_combined_name.clone(), nested_field_offset);
                                         // Extract nested defaults (field.subfield -> subfield)
                                         let prefix = format!("{}.", decl.name);
                                         let nested_defaults: HashMap<String, String> = defaults.iter()
                                             .filter_map(|(k, v)| k.strip_prefix(&prefix).map(|rest| (rest.to_string(), v.clone())))
                                             .collect();
-                                        let nested_result = EvalArena::insert_struct_core(ctx, &combined_name, type_name, Some(field_arena_offset), &nested_defaults, e)
+                                        let nested_result = EvalArena::insert_struct_core(ctx, &nested_combined_name, type_name, Some(nested_field_offset), &nested_defaults, e)
                                             .map_err(|_| e.lang_error(&ctx.path, "context", &format!("insert_struct: Failed to initialize nested struct '{}.{}'", id, decl.name)))?;
                                         // Collect nested mappings (but they're already inserted by the temp inserts above)
                                         result.arena_mappings.extend(nested_result.arena_mappings);
@@ -593,22 +593,22 @@ impl EvalArena {
 
         if is_field {
             if let Some(base_offset) = ctx.scope_stack.lookup_var(id) {
-                if let Some(str_def) = ctx.scope_stack.lookup_struct("Str") {
-                    let members = str_def.members.clone();
-                    let mut current_offset = 0;
+                if let Some(existing_str_def) = ctx.scope_stack.lookup_struct("Str") {
+                    let members = existing_str_def.members.clone();
+                    let mut existing_offset = 0;
 
-                    for decl in members.iter() {
-                        if decl.is_mut {
-                            let type_size = ctx.get_type_size( &value_type_to_str(&decl.value_type))?;
-                            let absolute_offset = base_offset + current_offset;
-                            if decl.name == "c_string" {
+                    for existing_decl in members.iter() {
+                        if existing_decl.is_mut {
+                            let existing_type_size = ctx.get_type_size( &value_type_to_str(&existing_decl.value_type))?;
+                            let absolute_offset = base_offset + existing_offset;
+                            if existing_decl.name == "c_string" {
                                 EvalArena::g().set(absolute_offset, &string_offset_bytes)?;
-                            } else if decl.name == "cap" {
+                            } else if existing_decl.name == "cap" {
                                 EvalArena::g().set(absolute_offset, &len_bytes)?;
                             }
 
-                            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, decl.name), absolute_offset);
-                            current_offset += type_size;
+                            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, existing_decl.name), absolute_offset);
+                            existing_offset += existing_type_size;
                         }
                     }
                     return Ok(None)
@@ -931,7 +931,7 @@ impl EvalArena {
                 }
             } else {
                 // Allocate max enum size, write tag and payload, then zero-pad remaining
-                let offset = EvalArena::g().put(&enum_value.to_le_bytes())?;
+                let new_enum_offset = EvalArena::g().put(&enum_value.to_le_bytes())?;
                 if let Some(payload_bytes) = &payload_data {
                     EvalArena::g().put(&payload_bytes)?;
                 }
@@ -939,7 +939,7 @@ impl EvalArena {
                 if actual_size < max_enum_size {
                     EvalArena::g().reserve(max_enum_size - actual_size)?;
                 }
-                Some(EvalArenaMapping { name: id.to_string(), offset })
+                Some(EvalArenaMapping { name: id.to_string(), offset: new_enum_offset })
             }
         };
 
@@ -1128,12 +1128,12 @@ impl EvalArena {
     ) -> Result<Expr, String> {
         match value_type {
             ValueType::TCustom(ref t) if t == "I64" => {
-                let val = Self::get_i64(ctx, field_id, e)?;
-                Ok(Expr::new_explicit(NodeType::LLiteral(Literal::Number(val.to_string())), vec![], 0, 0))
+                let i64_val = Self::get_i64(ctx, field_id, e)?;
+                Ok(Expr::new_explicit(NodeType::LLiteral(Literal::Number(i64_val.to_string())), vec![], 0, 0))
             },
             ValueType::TCustom(ref t) if t == "U8" => {
-                let val = Self::get_u8(ctx, field_id, e)?;
-                Ok(Expr::new_explicit(NodeType::LLiteral(Literal::Number(val.to_string())), vec![], 0, 0))
+                let u8_val = Self::get_u8(ctx, field_id, e)?;
+                Ok(Expr::new_explicit(NodeType::LLiteral(Literal::Number(u8_val.to_string())), vec![], 0, 0))
             },
             ValueType::TCustom(ref nested_type) => {
                 // Check if nested struct

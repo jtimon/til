@@ -103,8 +103,8 @@ impl Lexer {
         match self.tokens.get(i) {
             Some(t) => Ok(t),
             None => {
-                let t = self.peek();
-                return Err(t.lang_error(&self.path, &format!("Token in pos {} is out of bounds", i)))
+                let err_token = self.peek();
+                return Err(err_token.lang_error(&self.path, &format!("Token in pos {} is out of bounds", i)))
             },
         }
     }
@@ -115,20 +115,20 @@ impl Lexer {
 
     pub fn previous(&self) -> Result<Token, String> {
         if self.current == 0 {
-            let t = self.peek();
-            return Err(t.lang_error(&self.path, "No previous token (at position 0)"));
+            let err_token1 = self.peek();
+            return Err(err_token1.lang_error(&self.path, "No previous token (at position 0)"));
         }
         if self.current - 1 >= self.tokens.len() {
-            let t = self.peek();
-            return Err(t.lang_error(&self.path, "Previous token is out of bounds"));
+            let err_token2 = self.peek();
+            return Err(err_token2.lang_error(&self.path, "Previous token is out of bounds"));
         }
         return Ok(self.tokens[self.current - 1].clone());
     }
 
     pub fn advance(&mut self, count: usize) -> Result<(), String> {
         if self.current + count > self.tokens.len() {
-            let t = self.peek();
-            return Err(t.lang_error(&self.path, &format!("Attempt to advance by {} from {} would exceed bounds ({} tokens total)",
+            let err_token = self.peek();
+            return Err(err_token.lang_error(&self.path, &format!("Attempt to advance by {} from {} would exceed bounds ({} tokens total)",
                                              count, self.current, self.tokens.len())));
         }
         self.current += count;
@@ -136,12 +136,12 @@ impl Lexer {
     }
 
     pub fn peek_ahead(&self, offset: usize) -> Result<Token, String> {
-        let i = self.current + offset;
-        if i >= self.tokens.len() {
-            let t = self.peek();
-            return Err(t.lang_error(&self.path, &format!("Peek ahead by {} from {} is out of bounds", offset, self.current)));
+        let peek_idx = self.current + offset;
+        if peek_idx >= self.tokens.len() {
+            let err_token = self.peek();
+            return Err(err_token.lang_error(&self.path, &format!("Peek ahead by {} from {} is out of bounds", offset, self.current)));
         }
-        return Ok(self.tokens[i].clone());
+        return Ok(self.tokens[peek_idx].clone());
     }
 
     pub fn next(&self) -> Result<Token, String> {

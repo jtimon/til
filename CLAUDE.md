@@ -37,6 +37,9 @@ time timeout 300 make benchmark
 
 Why: When something fails, you need to see the FULL output. Filtering hides critical error messages and forces re-running the entire command.
 
+## CRITICAL: Obey User Instructions
+When the user gives you instructions, OBEY THEM. Do exactly what they say. If they give steps in order, follow that order. If they tell you to do something first, do it first. Do not reinterpret, do not decide you know better, do not skip ahead. Just obey. This should be obvious but apparently needs to be stated explicitly.
+
 ## Various things
 - **NEVER** Ignore warnings from either rustc, rstil, til or gcc, always ask the user what to do about them
 - **NEVER** Use weird unicode symbols anywhere, stay ASCII

@@ -142,27 +142,27 @@ SFuncDef := struct {
         mut result := SFuncDef()
         result.function_type = self.function_type
         // Deep clone args
-        for i in 0..self.args.len() {
+        for arg_idx in 0..self.args.len() {
             mut arg := Declaration()
-            self.args.get(i, arg)
+            self.args.get(arg_idx, arg)
             result.args.push(arg.clone())
         }
         // Deep clone return_types
-        for i in 0..self.return_types.len() {
+        for rt_idx in 0..self.return_types.len() {
             mut rt := ValueType.TCustom("")
-            self.return_types.get(i, rt)
+            self.return_types.get(rt_idx, rt)
             result.return_types.push(value_type_clone(rt))
         }
         // Deep clone throw_types
-        for i in 0..self.throw_types.len() {
+        for tt_idx in 0..self.throw_types.len() {
             mut tt := ValueType.TCustom("")
-            self.throw_types.get(i, tt)
+            self.throw_types.get(tt_idx, tt)
             result.throw_types.push(value_type_clone(tt))
         }
         // Deep clone body
-        for i in 0..self.body.len() {
+        for body_idx in 0..self.body.len() {
             mut e := Expr()
-            self.body.get(i, e)
+            self.body.get(body_idx, e)
             result.body.push(e.clone())
         }
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
@@ -202,17 +202,17 @@ SStructDef := struct {
     clone := func(self: SStructDef) returns SStructDef throws AllocError {
         mut result := SStructDef()
         // Deep clone members
-        for i in 0..self.members.len() {
+        for member_idx in 0..self.members.len() {
             mut m := Declaration()
-            self.members.get(i, m)
+            self.members.get(member_idx, m)
             result.members.push(m.clone())
         }
         // Deep clone default_values Map<Str, Expr>
-        for i in 0..self.default_values.keys.len() {
+        for dv_idx in 0..self.default_values.keys.len() {
             mut k := ""
             mut v := Expr()
-            self.default_values.keys.get(i, k)
-            self.default_values.values.get(i, v)
+            self.default_values.keys.get(dv_idx, k)
+            self.default_values.values.get(dv_idx, v)
             result.default_values.set(k.clone(), v.clone())
         }
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
@@ -254,14 +254,14 @@ literal_clone := func(lit: Literal) returns Literal throws AllocError {
     switch lit {
     case Literal.Number(s):
         // TODO Bug #56: inline s.clone() should work here
-        s_cloned := s.clone()
-        return Literal.Number(s_cloned)
+        num_cloned := s.clone()
+        return Literal.Number(num_cloned)
     case Literal.Str(s):
-        s_cloned := s.clone()
-        return Literal.Str(s_cloned)
+        str_cloned := s.clone()
+        return Literal.Str(str_cloned)
     case Literal.List(s):
-        s_cloned := s.clone()
-        return Literal.List(s_cloned)
+        list_cloned := s.clone()
+        return Literal.List(list_cloned)
     }
     // Unreachable, but TIL requires a return
     return lit
@@ -300,17 +300,17 @@ node_type_clone := func(nt: NodeType) returns NodeType throws AllocError {
         lit_cloned := literal_clone(lit)
         return NodeType.LLiteral(lit_cloned)
     case NodeType.Identifier(s):
-        s_cloned := s.clone()
-        return NodeType.Identifier(s_cloned)
+        id_cloned := s.clone()
+        return NodeType.Identifier(id_cloned)
     case NodeType.Declaration(decl):
         decl_cloned := decl.clone()
         return NodeType.Declaration(decl_cloned)
     case NodeType.Assignment(s):
-        s_cloned := s.clone()
-        return NodeType.Assignment(s_cloned)
+        assign_cloned := s.clone()
+        return NodeType.Assignment(assign_cloned)
     case NodeType.NamedArg(s):
-        s_cloned := s.clone()
-        return NodeType.NamedArg(s_cloned)
+        named_arg_cloned := s.clone()
+        return NodeType.NamedArg(named_arg_cloned)
     case NodeType.FuncDef(fd):
         fd_cloned := fd.clone()
         return NodeType.FuncDef(fd_cloned)
@@ -324,8 +324,8 @@ node_type_clone := func(nt: NodeType) returns NodeType throws AllocError {
         pi_cloned := pi.clone()
         return NodeType.Pattern(pi_cloned)
     case NodeType.ForIn(s):
-        s_cloned := s.clone()
-        return NodeType.ForIn(s_cloned)
+        forin_cloned := s.clone()
+        return NodeType.ForIn(forin_cloned)
     case:
         // Simple variants (Body, FCall, Return, etc.) have no payload to clone
         return nt
@@ -486,11 +486,11 @@ ValueType := enum {
 value_type_clone := func(vt: ValueType) returns ValueType throws AllocError {
     switch vt {
     case ValueType.TCustom(s):
-        s_cloned := s.clone()
-        return ValueType.TCustom(s_cloned)
+        custom_cloned := s.clone()
+        return ValueType.TCustom(custom_cloned)
     case ValueType.TMulti(s):
-        s_cloned := s.clone()
-        return ValueType.TMulti(s_cloned)
+        multi_cloned := s.clone()
+        return ValueType.TMulti(multi_cloned)
     case:
         // TFunction and TType have no heap allocations to clone
         return vt
@@ -838,8 +838,8 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
         throw concat("parse_func_proc_args: ", err.msg)
     }
 
-    tt := t.token_type
-    switch tt {
+    final_tt := t.token_type
+    switch final_tt {
     case TokenType.RightParen:
         return args
     case:
@@ -1061,14 +1061,14 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
                     throw next2_t.error(lexer.path, format("Expected type identifier after '", enum_val_name, " :', found '", token_type_to_str(next2_t.token_type), "'."))
                 }
             case TokenType.Comma:
-                mut variant := EnumVariant()
-                variant.name = enum_val_name
-                variants.push(variant)  // None = NULL pointer (default)
+                mut comma_variant := EnumVariant()
+                comma_variant.name = enum_val_name
+                variants.push(comma_variant)  // None = NULL pointer (default)
                 // Continue
             case TokenType.RightBrace:
-                mut variant := EnumVariant()
-                variant.name = enum_val_name
-                variants.push(variant)  // None = NULL pointer (default)
+                mut brace_variant := EnumVariant()
+                brace_variant.name = enum_val_name
+                variants.push(brace_variant)  // None = NULL pointer (default)
                 end_found = true
                 lexer.advance(1)  // Advance past the RightBrace since we peeked it with next()
             case:
@@ -2094,14 +2094,14 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
             ntt4 := next_t.token_type
             switch ntt4 {
             case TokenType.RightBrace:
-                body_expr := Expr.new_parse(NodeType.Body, t.clone(), body_params)
-                params.push(body_expr)
+                brace_body_expr := Expr.new_parse(NodeType.Body, t.clone(), body_params)
+                params.push(brace_body_expr)
                 end_found = true
                 lexer.advance(1)
                 inner_loop_done = true  // TODO: Replace with 'break' when implemented (Rust line 1238)
             case TokenType.Case:
-                body_expr := Expr.new_parse(NodeType.Body, t.clone(), body_params)
-                params.push(body_expr)
+                case_body_expr := Expr.new_parse(NodeType.Body, t.clone(), body_params)
+                params.push(case_body_expr)
                 inner_loop_done = true  // TODO: Replace with 'break' when implemented (Rust line 1242)
             case:
                 stmt := parse_statement(lexer)

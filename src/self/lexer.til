@@ -124,8 +124,8 @@ Lexer := struct {
 
     get_token := func(self: Lexer, i: I64) returns Token throws Str {
         if i.gteq(self.tokens.len()) {
-            mut t := self.peek()
-            throw t.lang_error(self.path, format("Token in pos ", i.to_str(), " is out of bounds"))
+            mut err_token := self.peek()
+            throw err_token.lang_error(self.path, format("Token in pos ", i.to_str(), " is out of bounds"))
         }
         mut t := Token()
         self.tokens.get(i, t)
@@ -147,12 +147,12 @@ Lexer := struct {
 
     previous := func(self: Lexer) returns Token throws Str {
         if self.current.eq(0) {
-            mut t := self.peek()
-            throw t.lang_error(self.path, "No previous token (at position 0)")
+            mut err_token1 := self.peek()
+            throw err_token1.lang_error(self.path, "No previous token (at position 0)")
         }
         if self.current.sub(1).gteq(self.tokens.len()) {
-            mut t := self.peek()
-            throw t.lang_error(self.path, "Previous token is out of bounds")
+            mut err_token2 := self.peek()
+            throw err_token2.lang_error(self.path, "Previous token is out of bounds")
         }
         mut t := Token()
         self.tokens.get(self.current.sub(1), t)
@@ -168,8 +168,8 @@ Lexer := struct {
 
     advance := func(mut self: Lexer, count: I64) throws Str {
         if self.current.add(count).gt(self.tokens.len()) {
-            mut t := self.peek()
-            throw t.lang_error(self.path, format("Attempt to advance by ", count.to_str(), " from ", self.current.to_str(),
+            mut err_token := self.peek()
+            throw err_token.lang_error(self.path, format("Attempt to advance by ", count.to_str(), " from ", self.current.to_str(),
                     " would exceed bounds (", self.tokens.len().to_str(), " tokens total)"))
         }
         self.current = self.current.add(count)
@@ -179,13 +179,13 @@ Lexer := struct {
     }
 
     peek_ahead := func(self: Lexer, offset: I64) returns Token throws Str {
-        i := self.current.add(offset)
-        if i.gteq(self.tokens.len()) {
-            mut t := self.peek()
-            throw t.lang_error(self.path, format("Peek ahead by ", offset.to_str(), " from ", self.current.to_str(), " is out of bounds"))
+        peek_idx := self.current.add(offset)
+        if peek_idx.gteq(self.tokens.len()) {
+            mut err_token := self.peek()
+            throw err_token.lang_error(self.path, format("Peek ahead by ", offset.to_str(), " from ", self.current.to_str(), " is out of bounds"))
         }
         mut t := Token()
-        self.tokens.get(i, t)
+        self.tokens.get(peek_idx, t)
         result := t.clone()
         catch (err: IndexOutOfBoundsError) {
             throw err.msg

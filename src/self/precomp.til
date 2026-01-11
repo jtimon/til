@@ -74,14 +74,14 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
     // This happens when the provided arg type doesn't match the optional arg type
     mut has_optional_before_variadic := false
     if is_variadic.and(func_def.args.len().gt(1)) {
-        mut j := 0
-        while j.lt(func_def.args.len().sub(1)) {
-            mut def_arg := Declaration()
-            func_def.args.get(j, def_arg)
-            if not(NULL.eq(def_arg.default_value.data)) {
+        mut check_j := 0
+        while check_j.lt(func_def.args.len().sub(1)) {
+            mut check_def_arg := Declaration()
+            func_def.args.get(check_j, check_def_arg)
+            if not(NULL.eq(check_def_arg.default_value.data)) {
                 has_optional_before_variadic = true
             }
-            j.inc()
+            check_j.inc()
         }
     }
 
@@ -111,8 +111,8 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
 
         // Process optional args before the variadic
         while def_arg_idx.lt(func_def.args.len().sub(1)) {
-            mut def_arg := Declaration()
-            func_def.args.get(def_arg_idx, def_arg)
+            mut opt_def_arg := Declaration()
+            func_def.args.get(def_arg_idx, opt_def_arg)
 
             // Check if we have a provided arg that matches this def arg's type
             mut matches := false
@@ -121,7 +121,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
                 mut found_type := ValueType.TCustom("")
                 found_type = get_value_type(context, provided_arg)
                 catch (type_err: Str) {}
-                expected := def_arg.value_type
+                expected := opt_def_arg.value_type
                 switch expected {
                 case ValueType.TCustom(tn):
                     if tn.eq("Dynamic").or(tn.eq("Type")) {
@@ -138,13 +138,13 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
                 // Use provided arg
                 result.push(e.get(call_arg_idx.add(1)))
                 call_arg_idx.inc()
-            } else if not(NULL.eq(def_arg.default_value.data)) {
+            } else if not(NULL.eq(opt_def_arg.default_value.data)) {
                 // Use default - dereference the Ptr to Expr
-                mut default_expr := Expr()
-                memcpy(to_ptr(default_expr), def_arg.default_value.data, size_of(Expr))
-                result.push(default_expr.clone())
+                mut opt_default_expr := Expr()
+                memcpy(to_ptr(opt_default_expr), opt_def_arg.default_value.data, size_of(Expr))
+                result.push(opt_default_expr.clone())
             } else {
-                throw e.error(context.path, "precomp", format("Missing argument for non-optional parameter '", def_arg.name, "'"))
+                throw e.error(context.path, "precomp", format("Missing argument for non-optional parameter '", opt_def_arg.name, "'"))
             }
             def_arg_idx.inc()
         }
@@ -160,9 +160,9 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
 
     // Count positional args (before first named arg)
     mut positional_count := 0
-    for i in 1..e.params.len() {
-        mut arg := e.get(i)
-        switch arg.node_type {
+    for count_i in 1..e.params.len() {
+        mut count_arg := e.get(count_i)
+        switch count_arg.node_type {
         case NodeType.NamedArg(_):
             break
         case:
@@ -174,8 +174,8 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
     mut seen_named := false
     i = 1
     while i.lt(e.params.len()) {
-        mut arg := e.get(i)
-        switch arg.node_type {
+        mut check_arg := e.get(i)
+        switch check_arg.node_type {
         case NodeType.NamedArg(_):
             seen_named = true
         case:
@@ -211,34 +211,34 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
     // Place named arguments
     i = positional_count.add(1)
     while i.lt(e.params.len()) {
-        mut arg := e.get(i)
-        switch arg.node_type {
+        mut named_arg := e.get(i)
+        switch named_arg.node_type {
         case NodeType.NamedArg(arg_name):
             // Find the parameter index by name
             mut param_idx := sub(0, 1)
-            mut j := 0
-            while j.lt(func_def.args.len()) {
-                mut arg_decl := Declaration()
-                func_def.args.get(j, arg_decl)
-                if arg_decl.name.eq(arg_name) {
-                    param_idx = j
-                    j = func_def.args.len() // break
+            mut search_j := 0
+            while search_j.lt(func_def.args.len()) {
+                mut search_arg_decl := Declaration()
+                func_def.args.get(search_j, search_arg_decl)
+                if search_arg_decl.name.eq(arg_name) {
+                    param_idx = search_j
+                    search_j = func_def.args.len() // break
                 } else {
-                    j.inc()
+                    search_j.inc()
                 }
             }
             if param_idx.lt(0) {
-                throw arg.error(context.path, "precomp", format("Unknown parameter name '", arg_name, "'"))
+                throw named_arg.error(context.path, "precomp", format("Unknown parameter name '", arg_name, "'"))
             }
             mut already_set := false
             final_args_set.get(param_idx, already_set)
             if already_set {
-                throw arg.error(context.path, "precomp", format("Argument '", arg_name, "' specified multiple times"))
+                throw named_arg.error(context.path, "precomp", format("Argument '", arg_name, "' specified multiple times"))
             }
-            if arg.params.len().eq(0) {
-                throw arg.error(context.path, "precomp", format("Named argument '", arg_name, "' has no value"))
+            if named_arg.params.len().eq(0) {
+                throw named_arg.error(context.path, "precomp", format("Named argument '", arg_name, "' has no value"))
             }
-            final_args.set(param_idx, arg.get(0))
+            final_args.set(param_idx, named_arg.get(0))
             final_args_set.set(param_idx, true)
         case:
         }
@@ -251,19 +251,19 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
         mut is_set := false
         final_args_set.get(i, is_set)
         if is_set {
-            mut arg := Expr()
-            final_args.get(i, arg)
-            result.push(arg)
+            mut final_arg := Expr()
+            final_args.get(i, final_arg)
+            result.push(final_arg)
         } else {
             // Check if this parameter has a default value
-            mut arg_decl := Declaration()
-            func_def.args.get(i, arg_decl)
-            if not(NULL.eq(arg_decl.default_value.data)) {
-                mut default_expr := Expr()
-                memcpy(to_ptr(default_expr), arg_decl.default_value.data, size_of(Expr))
-                result.push(default_expr.clone())
+            mut final_arg_decl := Declaration()
+            func_def.args.get(i, final_arg_decl)
+            if not(NULL.eq(final_arg_decl.default_value.data)) {
+                mut final_default_expr := Expr()
+                memcpy(to_ptr(final_default_expr), final_arg_decl.default_value.data, size_of(Expr))
+                result.push(final_default_expr.clone())
             } else {
-                throw e.error(context.path, "precomp", format("Missing argument for parameter '", arg_decl.name, "'"))
+                throw e.error(context.path, "precomp", format("Missing argument for parameter '", final_arg_decl.name, "'"))
             }
         }
         i.inc()
@@ -434,19 +434,19 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                 return false  // Unknown function
             }
             // It's a struct constructor - check all args are comptime
-            mut j := 1
-            while j.lt(e.params.len()) {
-                mut arg := Expr()
-                e.params.get(j, arg)
+            mut struct_j := 1
+            while struct_j.lt(e.params.len()) {
+                mut struct_arg := Expr()
+                e.params.get(struct_j, struct_arg)
                 catch (err4: IndexOutOfBoundsError) {
                     return false
                 }
                 // Handle named args - check the value inside
-                mut arg_to_check := arg
-                switch arg.node_type {
+                mut arg_to_check := struct_arg
+                switch struct_arg.node_type {
                 case NodeType.NamedArg(_):
-                    if arg.params.len().gt(0) {
-                        arg.params.get(0, arg_to_check)
+                    if struct_arg.params.len().gt(0) {
+                        struct_arg.params.get(0, arg_to_check)
                         catch (err5: IndexOutOfBoundsError) {
                             return false
                         }
@@ -456,7 +456,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                 if not(is_comptime_evaluable(context, arg_to_check)) {
                     return false
                 }
-                j.inc()
+                struct_j.inc()
             }
             return true  // Struct constructor with all comptime args
         }
@@ -471,17 +471,17 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         // Functions that can throw are allowed - if they actually throw,
         // we'll report the error in eval_comptime.
         // All arguments must be comptime-evaluable
-        mut i := 1
-        while i.lt(e.params.len()) {
-            mut arg := Expr()
-            e.params.get(i, arg)
+        mut fcall_i := 1
+        while fcall_i.lt(e.params.len()) {
+            mut fcall_arg := Expr()
+            e.params.get(fcall_i, fcall_arg)
             catch (err: IndexOutOfBoundsError) {
                 return false
             }
-            if not(is_comptime_evaluable(context, arg)) {
+            if not(is_comptime_evaluable(context, fcall_arg)) {
                 return false
             }
-            i.inc()
+            fcall_i.inc()
         }
         return true
     case:
@@ -831,15 +831,15 @@ precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
             }
         } else {
             // Empty enum - shouldn't happen, fall back to struct-like constructor
-            mut type_call_params := Vec.new(Expr)
-            type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
-            type_call = Expr.new_explicit(NodeType.FCall, type_call_params, e.line, e.col)
+            mut empty_enum_type_call_params := Vec.new(Expr)
+            empty_enum_type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
+            type_call = Expr.new_explicit(NodeType.FCall, empty_enum_type_call_params, e.line, e.col)
         }
     } else {
         // Not an enum - use struct-like constructor: TYPE()
-        mut type_call_params := Vec.new(Expr)
-        type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
-        type_call = Expr.new_explicit(NodeType.FCall, type_call_params, e.line, e.col)
+        mut struct_type_call_params := Vec.new(Expr)
+        struct_type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
+        type_call = Expr.new_explicit(NodeType.FCall, struct_type_call_params, e.line, e.col)
     }
 
     mut var_decl_params := Vec.new(Expr)
@@ -1198,15 +1198,15 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
             // Skip primitives (I64, U8) - handled above. Skip Str - needs special handling.
             if not(custom_type_name.eq("I64")).and(not(custom_type_name.eq("U8"))).and(not(custom_type_name.eq("Str"))) {
                 // Check if this is a struct type (not a struct definition)
-                mut sym := context.scope_stack.lookup_symbol(custom_type_name)
+                mut instance_sym := context.scope_stack.lookup_symbol(custom_type_name)
                 catch (err: KeyNotFoundError) {
                     // Type not found, skip
                 }
-                switch sym.value_type {
+                switch instance_sym.value_type {
                 case ValueType.TType(TTypeDef.TStructDef):
-                    saved_path := context.path
+                    instance_saved_path := context.path
                     _ := eval_declaration(decl, context, e)
-                    context.path = saved_path
+                    context.path = instance_saved_path
                 case:
                 }
             }
@@ -1472,38 +1472,38 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 if got_type2 {
                     // Get type name from value_type - TCustom or TMulti (variadic params become Array)
                     mut custom_type_name := ""
-                    mut has_type_name := false
+                    mut assoc_has_type_name := false
                     switch value_type {
                     case ValueType.TCustom(type_name):
                         custom_type_name = type_name
-                        has_type_name = true
+                        assoc_has_type_name = true
                     case ValueType.TMulti:
                         custom_type_name = "Array"
-                        has_type_name = true
+                        assoc_has_type_name = true
                     case:
                     }
-                    if has_type_name {
-                        mut method_name := format(custom_type_name, ".", ufcs_func_name)
+                    if assoc_has_type_name {
+                        mut assoc_method_name := format(custom_type_name, ".", ufcs_func_name)
                         mut assoc_method_found := false
-                        mut dummy5 := context.scope_stack.lookup_func(method_name)
+                        mut dummy5 := context.scope_stack.lookup_func(assoc_method_name)
                         assoc_method_found = true
                         catch (err: KeyNotFoundError) {
                             // Not found
                         }
                         if assoc_method_found {
-                            mut new_id_e := Expr.new_clone(NodeType.Identifier(method_name), func_expr, Vec.new(Expr))
-                            mut new_args := Vec.new(Expr)
-                            new_args.push(new_id_e)
-                            new_args.push(receiver_expr)
+                            mut assoc_new_id_e := Expr.new_clone(NodeType.Identifier(assoc_method_name), func_expr, Vec.new(Expr))
+                            mut assoc_new_args := Vec.new(Expr)
+                            assoc_new_args.push(assoc_new_id_e)
+                            assoc_new_args.push(receiver_expr)
                             // Add remaining args from outer new_e
-                            mut j := 1
-                            while j.lt(new_e.params.len()) {
-                                mut arg := Expr()
-                                new_e.params.get(j, arg)
-                                new_args.push(arg)
-                                j.inc()
+                            mut assoc_j := 1
+                            while assoc_j.lt(new_e.params.len()) {
+                                mut assoc_arg := Expr()
+                                new_e.params.get(assoc_j, assoc_arg)
+                                assoc_new_args.push(assoc_arg)
+                                assoc_j.inc()
                             }
-                            return Expr.new_clone(NodeType.FCall, func_expr, new_args)
+                            return Expr.new_clone(NodeType.FCall, func_expr, assoc_new_args)
                         }
                     }
                 }
@@ -1516,19 +1516,19 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     // Not found
                 }
                 if standalone_found {
-                    mut new_id_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), func_expr, Vec.new(Expr))
-                    mut new_args := Vec.new(Expr)
-                    new_args.push(new_id_e)
-                    new_args.push(receiver_expr)
+                    mut standalone_new_id_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), func_expr, Vec.new(Expr))
+                    mut standalone_new_args := Vec.new(Expr)
+                    standalone_new_args.push(standalone_new_id_e)
+                    standalone_new_args.push(receiver_expr)
                     // Add remaining args from outer new_e
-                    mut j := 1
-                    while j.lt(new_e.params.len()) {
-                        mut arg := Expr()
-                        new_e.params.get(j, arg)
-                        new_args.push(arg)
-                        j.inc()
+                    mut standalone_j := 1
+                    while standalone_j.lt(new_e.params.len()) {
+                        mut standalone_arg := Expr()
+                        new_e.params.get(standalone_j, standalone_arg)
+                        standalone_new_args.push(standalone_arg)
+                        standalone_j.inc()
                     }
-                    return Expr.new_clone(NodeType.FCall, func_expr, new_args)
+                    return Expr.new_clone(NodeType.FCall, func_expr, standalone_new_args)
                 }
             case:
             }

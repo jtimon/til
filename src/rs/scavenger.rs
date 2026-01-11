@@ -74,14 +74,14 @@ fn collect_used_types_from_func(context: &Context, func_def: &crate::rs::parser:
     }
     // Collect from return types
     for ret_type in &func_def.return_types {
-        if let Some(type_name) = extract_type_name(ret_type) {
-            used_types.insert(type_name);
+        if let Some(ret_type_name) = extract_type_name(ret_type) {
+            used_types.insert(ret_type_name);
         }
     }
     // Collect from throw types
     for throw_type in &func_def.throw_types {
-        if let Some(type_name) = extract_type_name(throw_type) {
-            used_types.insert(type_name);
+        if let Some(throw_type_name) = extract_type_name(throw_type) {
+            used_types.insert(throw_type_name);
         }
     }
     // Collect from body
@@ -308,15 +308,15 @@ fn compute_reachable(
         } else if let Some(struct_def) = context.scope_stack.lookup_struct(&func_name) {
             // Struct constructor - collect calls from field initializers only
             // (skip FuncDef values which are methods - their bodies should only be walked if the method itself is reachable)
-            let mut called: HashSet<String> = HashSet::new();
+            let mut struct_called: HashSet<String> = HashSet::new();
             for default_expr in struct_def.default_values.values() {
                 if let NodeType::FuncDef(_) = &default_expr.node_type {
                     // Skip methods - they're handled separately via their qualified names
                     continue;
                 }
-                collect_called_functions(default_expr, &mut called);
+                collect_called_functions(default_expr, &mut struct_called);
             }
-            for called_func in called {
+            for called_func in struct_called {
                 mark_reachable(called_func, &mut reachable, &mut worklist);
             }
         } else {
@@ -352,10 +352,10 @@ fn compute_reachable(
                 let builtin_types = ["Str", "I64", "Bool", "U8", "F64", "Array", "Vec", "List", "Map", "Set"];
                 let mut found = false;
                 for builtin in &builtin_types {
-                    let full_method = format!("{}.{}", builtin, method_name);
-                    if context.scope_stack.lookup_func(&full_method).is_some() {
+                    let builtin_full_method = format!("{}.{}", builtin, method_name);
+                    if context.scope_stack.lookup_func(&builtin_full_method).is_some() {
                         // Found a matching method - mark it reachable instead
-                        mark_reachable(full_method, &mut reachable, &mut worklist);
+                        mark_reachable(builtin_full_method, &mut reachable, &mut worklist);
                         found = true;
                         break;
                     }
@@ -363,9 +363,9 @@ fn compute_reachable(
                 // Also check user-defined structs for the method
                 if !found {
                     for struct_name in context.scope_stack.get_all_struct_names() {
-                        let full_method = format!("{}.{}", struct_name, method_name);
-                        if context.scope_stack.lookup_func(&full_method).is_some() {
-                            mark_reachable(full_method, &mut reachable, &mut worklist);
+                        let user_full_method = format!("{}.{}", struct_name, method_name);
+                        if context.scope_stack.lookup_func(&user_full_method).is_some() {
+                            mark_reachable(user_full_method, &mut reachable, &mut worklist);
                             found = true;
                             break;
                         }
@@ -387,8 +387,8 @@ fn compute_reachable(
 
     // Add struct types when their methods are reachable (e.g., Foo.bar reachable -> Foo is used)
     for func_name in &reachable {
-        if let Some(dot_pos) = func_name.find('.') {
-            let struct_name = &func_name[..dot_pos];
+        if let Some(method_dot_pos) = func_name.find('.') {
+            let struct_name = &func_name[..method_dot_pos];
             // Only add if this is actually a struct (not an enum)
             if context.scope_stack.lookup_struct(struct_name).is_some() {
                 used_types.insert(struct_name.to_string());
@@ -400,8 +400,8 @@ fn compute_reachable(
     let mut type_worklist: Vec<String> = used_types.iter().cloned().collect();
     while let Some(type_name) = type_worklist.pop() {
         // Check struct field types
-        if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
-            for member in &struct_def.members {
+        if let Some(closure_struct_def) = context.scope_stack.lookup_struct(&type_name) {
+            for member in &closure_struct_def.members {
                 if let Some(field_type) = extract_type_name(&member.value_type) {
                     if !used_types.contains(&field_type) {
                         used_types.insert(field_type.clone());
@@ -411,8 +411,8 @@ fn compute_reachable(
             }
         }
         // Check enum payload types
-        if let Some(enum_def) = context.scope_stack.lookup_enum(&type_name) {
-            for variant in &enum_def.variants {
+        if let Some(closure_enum_def) = context.scope_stack.lookup_enum(&type_name) {
+            for variant in &closure_enum_def.variants {
                 if let Some(payload_type) = &variant.payload_type {
                     if let Some(payload_type_name) = extract_type_name(payload_type) {
                         if !used_types.contains(&payload_type_name) {

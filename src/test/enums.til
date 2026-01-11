@@ -709,8 +709,8 @@ test_switch_pattern_str := proc() {
     // Test extracting another string
     switch blue {
     case Color.Name(name):
-        mut name_copy := name
-        if Str.eq(name_copy, "blue") {
+        mut blue_name_copy := name
+        if Str.eq(blue_name_copy, "blue") {
             result = "blue color"
         } else {
             result = "ERROR: Should be blue"

@@ -332,8 +332,8 @@ fn topological_sort_types(types: &[&Expr]) -> Vec<usize> {
 
     // Build adjacency list (dependencies)
     let mut deps: Vec<Vec<usize>> = vec![Vec::new(); types.len()];
-    for (idx, expr) in types.iter().enumerate() {
-        for dep_name in get_type_dependencies(expr) {
+    for (idx, dep_expr) in types.iter().enumerate() {
+        for dep_name in get_type_dependencies(dep_expr) {
             if let Some(&dep_idx) = name_to_idx.get(&dep_name) {
                 if dep_idx != idx {
                     deps[idx].push(dep_idx);
@@ -360,8 +360,8 @@ fn topological_sort_types(types: &[&Expr]) -> Vec<usize> {
     }
 
     let mut queue: Vec<usize> = Vec::new();
-    for (idx, &degree) in in_degree.iter().enumerate() {
-        if degree == 0 {
+    for (idx, &queue_degree) in in_degree.iter().enumerate() {
+        if queue_degree == 0 {
             queue.push(idx);
         }
     }
@@ -432,12 +432,12 @@ fn hoist_throwing_expr(
 
         // Declare error variables for each throw type
         let temp_suffix = next_mangled(ctx);
-        for (err_idx, throw_type) in throwing_fd.throw_types.iter().enumerate() {
-            if let ValueType::TCustom(type_name) = throw_type {
+        for (decl_err_idx, decl_throw_type) in throwing_fd.throw_types.iter().enumerate() {
+            if let ValueType::TCustom(type_name) = decl_throw_type {
                 output.push_str(&indent_str);
                 output.push_str(&til_name(type_name));
                 output.push_str(" _err");
-                output.push_str(&err_idx.to_string());
+                output.push_str(&decl_err_idx.to_string());
                 output.push_str("_");
                 output.push_str(&temp_suffix);
                 output.push_str(";\n");
@@ -471,8 +471,8 @@ fn hoist_throwing_expr(
         // Emit error checking - propagate or goto based on context
         // Check if there are local catch labels for these error types
         let mut has_local_catch = false;
-        for throw_type in &throwing_fd.throw_types {
-            if let ValueType::TCustom(type_name) = throw_type {
+        for check_throw_type in &throwing_fd.throw_types {
+            if let ValueType::TCustom(type_name) = check_throw_type {
                 if ctx.local_catch_labels.contains_key(type_name) {
                     has_local_catch = true;
                     break;
@@ -482,18 +482,18 @@ fn hoist_throwing_expr(
 
         if has_local_catch {
             // Use goto for local catches
-            for (err_idx, throw_type) in throwing_fd.throw_types.iter().enumerate() {
-                if let ValueType::TCustom(type_name) = throw_type {
+            for (local_err_idx, local_throw_type) in throwing_fd.throw_types.iter().enumerate() {
+                if let ValueType::TCustom(type_name) = local_throw_type {
                     if let Some(catch_info) = ctx.local_catch_labels.get(type_name) {
                         output.push_str(&indent_str);
                         output.push_str("if (_status_");
                         output.push_str(&temp_suffix);
                         output.push_str(" == ");
-                        output.push_str(&(err_idx + 1).to_string());
+                        output.push_str(&(local_err_idx + 1).to_string());
                         output.push_str(") { ");
                         output.push_str(&catch_info.temp_var);
                         output.push_str(" = _err");
-                        output.push_str(&err_idx.to_string());
+                        output.push_str(&local_err_idx.to_string());
                         output.push_str("_");
                         output.push_str(&temp_suffix);
                         output.push_str("; goto ");
@@ -509,8 +509,8 @@ fn hoist_throwing_expr(
             output.push_str(&temp_suffix);
             output.push_str(" != 0) {\n");
 
-            for (err_idx, throw_type) in throwing_fd.throw_types.iter().enumerate() {
-                if let ValueType::TCustom(type_name) = throw_type {
+            for (prop_err_idx, prop_throw_type) in throwing_fd.throw_types.iter().enumerate() {
+                if let ValueType::TCustom(type_name) = prop_throw_type {
                     for (curr_idx, curr_throw) in ctx.current_throw_types.iter().enumerate() {
                         if let ValueType::TCustom(curr_type_name) = curr_throw {
                             if curr_type_name == type_name {
@@ -518,11 +518,11 @@ fn hoist_throwing_expr(
                                 output.push_str("    if (_status_");
                                 output.push_str(&temp_suffix);
                                 output.push_str(" == ");
-                                output.push_str(&(err_idx + 1).to_string());
+                                output.push_str(&(prop_err_idx + 1).to_string());
                                 output.push_str(") { *_err");
                                 output.push_str(&(curr_idx + 1).to_string());
                                 output.push_str(" = _err");
-                                output.push_str(&err_idx.to_string());
+                                output.push_str(&prop_err_idx.to_string());
                                 output.push_str("_");
                                 output.push_str(&temp_suffix);
                                 output.push_str("; return ");
@@ -559,123 +559,124 @@ fn hoist_throwing_expr(
     if let NodeType::FCall = &expr.node_type {
         if let Some(variadic_fcall_info) = detect_variadic_fcall(expr, ctx) {
             // Recursively hoist any throwing/variadic calls in this call's arguments first
-            let nested_hoisted: std::collections::HashMap<usize, String> = if expr.params.len() > 1 {
-                let nested_args = &expr.params[1..];
-                let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
-                nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
+            let ntv_nested_hoisted: std::collections::HashMap<usize, String> = if expr.params.len() > 1 {
+                let ntv_nested_args = &expr.params[1..];
+                let ntv_nested_vec = hoist_throwing_args(ntv_nested_args, output, indent, ctx, context)?;
+                ntv_nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
             } else {
                 std::collections::HashMap::new()
             };
 
-            let temp_var = next_mangled(ctx);
+            let ntv_temp_var = next_mangled(ctx);
 
             // Determine return type from function
-            let func_name = get_fcall_func_name(expr)
+            let ntv_func_name = get_fcall_func_name(expr)
                 .ok_or_else(|| expr.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
-            let fd = get_fcall_func_def(context, expr)
-                .ok_or_else(|| expr.lang_error(&context.path, "ccodegen", &format!("Function not found: {}", func_name)))?;
-            let ret_type = fd.return_types.first()
+            let ntv_fd = get_fcall_func_def(context, expr)
+                .ok_or_else(|| expr.lang_error(&context.path, "ccodegen", &format!("Function not found: {}", ntv_func_name)))?;
+            let ntv_ret_type = ntv_fd.return_types.first()
                 .ok_or_else(|| expr.lang_error(&context.path, "ccodegen", "Function has no return type"))?;
-            let c_type = til_type_to_c(ret_type)
+            let ntv_c_type = til_type_to_c(ntv_ret_type)
                 .map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
 
             // Declare temp variable
             output.push_str(&indent_str);
-            output.push_str(&c_type);
+            output.push_str(&ntv_c_type);
             output.push_str(" ");
-            output.push_str(&temp_var);
+            output.push_str(&ntv_temp_var);
             output.push_str(";\n");
 
             // Construct variadic array
-            let variadic_args: Vec<_> = expr.params.iter().skip(1 + variadic_fcall_info.regular_count).collect();
-            let variadic_arr_var = if !variadic_args.is_empty() {
-                hoist_variadic_args(&variadic_fcall_info.elem_type, &variadic_args, &nested_hoisted, variadic_fcall_info.regular_count, output, indent, ctx, context)?
+            let ntv_variadic_args: Vec<_> = expr.params.iter().skip(1 + variadic_fcall_info.regular_count).collect();
+            let ntv_variadic_arr_var = if !ntv_variadic_args.is_empty() {
+                hoist_variadic_args(&variadic_fcall_info.elem_type, &ntv_variadic_args, &ntv_nested_hoisted, variadic_fcall_info.regular_count, output, indent, ctx, context)?
             } else {
-                hoist_variadic_args(&variadic_fcall_info.elem_type, &[], &nested_hoisted, variadic_fcall_info.regular_count, output, indent, ctx, context)?
+                hoist_variadic_args(&variadic_fcall_info.elem_type, &[], &ntv_nested_hoisted, variadic_fcall_info.regular_count, output, indent, ctx, context)?
             };
 
             // Calculate param_by_ref and param_types for proper by-ref handling
-            let param_by_ref: Vec<bool> = expr.params.iter().skip(1).enumerate()
-                .map(|(i, _)| fd.args.get(i).map(|a| param_needs_by_ref(a)).unwrap_or(false))
+            let ntv_param_by_ref: Vec<bool> = expr.params.iter().skip(1).enumerate()
+                .map(|(ntv_pi, _)| ntv_fd.args.get(ntv_pi).map(|a| param_needs_by_ref(a)).unwrap_or(false))
                 .collect();
-            let param_types: Vec<Option<ValueType>> = expr.params.iter().skip(1).enumerate()
-                .map(|(i, _)| fd.args.get(i).map(|a| a.value_type.clone()))
+            let ntv_param_types: Vec<Option<ValueType>> = expr.params.iter().skip(1).enumerate()
+                .map(|(ntv_pi, _)| ntv_fd.args.get(ntv_pi).map(|a| a.value_type.clone()))
                 .collect();
 
             // Emit the function call (non-throwing, so direct assignment)
             output.push_str(&indent_str);
-            output.push_str(&temp_var);
+            output.push_str(&ntv_temp_var);
             output.push_str(" = ");
 
             // Emit function name
-            if let Some(func_name) = get_fcall_func_name(expr) {
-                output.push_str(&til_func_name(&func_name));
+            let ntv_fcall_func_name = get_fcall_func_name(expr);
+            if let Some(fcall_name) = &ntv_fcall_func_name {
+                output.push_str(&til_func_name(fcall_name));
             }
             output.push('(');
 
             // Emit regular args (using nested hoisted temps)
-            let mut first = true;
-            for (i, param) in expr.params.iter().skip(1).take(variadic_fcall_info.regular_count).enumerate() {
-                if !first {
+            let mut ntv_first = true;
+            for (ntv_i, ntv_param) in expr.params.iter().skip(1).take(variadic_fcall_info.regular_count).enumerate() {
+                if !ntv_first {
                     output.push_str(", ");
                 }
-                first = false;
-                let ptype = param_types.get(i).and_then(|p| p.as_ref());
-                let by_ref = param_by_ref.get(i).copied().unwrap_or(false);
-                emit_arg_with_param_type(param, i, &nested_hoisted, ptype, by_ref, output, ctx, context)?;
+                ntv_first = false;
+                let ntv_ptype_val = ntv_param_types.get(ntv_i).and_then(|p| p.as_ref());
+                let ntv_by_ref = ntv_param_by_ref.get(ntv_i).copied().unwrap_or(false);
+                emit_arg_with_param_type(ntv_param, ntv_i, &ntv_nested_hoisted, ntv_ptype_val, ntv_by_ref, output, ctx, context)?;
             }
 
             // Emit variadic array pointer
-            if !first {
+            if !ntv_first {
                 output.push_str(", ");
             }
             output.push_str("&");
-            output.push_str(&variadic_arr_var);
+            output.push_str(&ntv_variadic_arr_var);
             output.push_str(");\n");
 
             // Emit Array.delete for the variadic array
             output.push_str(&indent_str);
             output.push_str(TIL_PREFIX);
             output.push_str("Array_delete(&");
-            output.push_str(&variadic_arr_var);
+            output.push_str(&ntv_variadic_arr_var);
             output.push_str(");\n");
 
             // Record in hoisted_exprs map using expression address
-            let expr_addr = expr as *const Expr as usize;
-            ctx.hoisted_exprs.insert(expr_addr, temp_var.clone());
+            let ntv_expr_addr = expr as *const Expr as usize;
+            ctx.hoisted_exprs.insert(ntv_expr_addr, ntv_temp_var.clone());
 
-            return Ok(Some(temp_var));
+            return Ok(Some(ntv_temp_var));
         }
     }
 
     // Check if this is a struct literal with throwing default values
     if let NodeType::FCall = &expr.node_type {
-        if let Some(func_name) = get_func_name_string(&expr.params[0]) {
-            let has_named_args = expr.params.iter().skip(1).any(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
-            if let Some(struct_def) = context.scope_stack.lookup_struct(&func_name).cloned() {
+        if let Some(sl_func_name) = get_func_name_string(&expr.params[0]) {
+            let has_named_args = expr.params.iter().skip(1).any(|sl_arg| matches!(&sl_arg.node_type, NodeType::NamedArg(_)));
+            if let Some(sl_struct_def) = context.scope_stack.lookup_struct(&sl_func_name).cloned() {
                 if expr.params.len() == 1 || has_named_args {
                     // This is a struct literal - check for throwing defaults
                     // Build map of named arg names that are provided
                     let mut provided_names: std::collections::HashSet<String> = std::collections::HashSet::new();
-                    for arg in expr.params.iter().skip(1) {
-                        if let NodeType::NamedArg(field_name) = &arg.node_type {
+                    for sl_na_arg in expr.params.iter().skip(1) {
+                        if let NodeType::NamedArg(field_name) = &sl_na_arg.node_type {
                             provided_names.insert(field_name.clone());
                         }
                     }
 
                     // For each member with a default that's a throwing call and not overridden, emit temp var
-                    for member in &struct_def.members {
+                    for member in &sl_struct_def.members {
                         if !member.is_mut {
                             continue;
                         }
                         if provided_names.contains(&member.name) {
                             continue; // Named arg overrides default
                         }
-                        if let Some(default_expr) = struct_def.default_values.get(&member.name) {
-                            if is_throwing_fcall(default_expr, context) {
+                        if let Some(sl_default_expr) = sl_struct_def.default_values.get(&member.name) {
+                            if is_throwing_fcall(sl_default_expr, context) {
                                 // Get the function's throw types
-                                let throw_types = if let Some(first_param) = default_expr.params.first() {
-                                    if let Some(lookup_name) = get_til_func_name_string(first_param) {
+                                let sl_throw_types = if let Some(sl_first_param) = sl_default_expr.params.first() {
+                                    if let Some(lookup_name) = get_til_func_name_string(sl_first_param) {
                                         context.scope_stack.lookup_func(&lookup_name)
                                             .map(|fd| fd.throw_types.clone())
                                             .unwrap_or_default()
@@ -686,16 +687,16 @@ fn hoist_throwing_expr(
                                     Vec::new()
                                 };
 
-                                let temp_name = next_mangled(ctx);
+                                let sl_temp_name = next_mangled(ctx);
                                 // Emit the function call with out-param using emit_throwing_call_propagate
-                                emit_throwing_call_propagate(default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
+                                emit_throwing_call_propagate(sl_default_expr, &sl_throw_types, Some(&sl_temp_name), None, output, indent, ctx, context)?;
                                 // Record that this struct default was hoisted using "struct_name:member_name" key
-                                let key = format!("{}:{}", func_name, member.name);
-                                ctx.hoisted_struct_defaults.insert(key, temp_name);
+                                let sl_key = format!("{}:{}", sl_func_name, member.name);
+                                ctx.hoisted_struct_defaults.insert(sl_key, sl_temp_name);
                             } else {
                                 // Also recursively hoist any throwing expressions in the default
                                 // This handles nested struct constructors with throwing defaults
-                                hoist_throwing_expr(default_expr, output, indent, ctx, context)?;
+                                hoist_throwing_expr(sl_default_expr, output, indent, ctx, context)?;
                             }
                         }
                     }
@@ -746,12 +747,12 @@ fn hoist_throwing_args(
         let variadic_info = detect_variadic_fcall(arg, ctx);
 
         // Handle throwing calls (may also be variadic)
-        if let Some(throwing_fd) = throwing_fd_opt {
+        if let Some(thr_fd) = throwing_fd_opt {
             // RECURSIVELY hoist any throwing calls in this call's arguments first
-            let nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
-                let nested_args = &arg.params[1..];
-                let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
-                nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
+            let thr_nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
+                let thr_nested_args = &arg.params[1..];
+                let thr_nested_vec = hoist_throwing_args(thr_nested_args, output, indent, ctx, context)?;
+                thr_nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
             } else {
                 std::collections::HashMap::new()
             };
@@ -759,41 +760,41 @@ fn hoist_throwing_args(
             let temp_var = next_mangled(ctx);
 
             // Determine the C type for the temp variable
-            let c_type = if !throwing_fd.return_types.is_empty() {
-                til_type_to_c(throwing_fd.return_types.first().unwrap()).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))?
+            let thr_c_type = if !thr_fd.return_types.is_empty() {
+                til_type_to_c(thr_fd.return_types.first().unwrap()).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))?
             } else {
                 return Err(arg.lang_error(&context.path, "ccodegen", "Cannot hoist throwing call with no return type"));
             };
 
             // Declare temp variable
             output.push_str(&indent_str);
-            output.push_str(&c_type);
+            output.push_str(&thr_c_type);
             output.push_str(" ");
             output.push_str(&temp_var);
             output.push_str(";\n");
 
             // Declare error variables for each throw type
-            let temp_suffix = next_mangled(ctx);
-            for (err_idx, throw_type) in throwing_fd.throw_types.iter().enumerate() {
-                if let ValueType::TCustom(type_name) = throw_type {
+            let thr_temp_suffix = next_mangled(ctx);
+            for (thr_decl_err_idx, thr_decl_throw_type) in thr_fd.throw_types.iter().enumerate() {
+                if let ValueType::TCustom(type_name) = thr_decl_throw_type {
                     output.push_str(&indent_str);
                     output.push_str(&til_name(type_name));
                     output.push_str(" _err");
-                    output.push_str(&err_idx.to_string());
+                    output.push_str(&thr_decl_err_idx.to_string());
                     output.push_str("_");
-                    output.push_str(&temp_suffix);
+                    output.push_str(&thr_temp_suffix);
                     output.push_str(";\n");
                 }
             }
 
             // Detect and construct variadic array if needed
-            let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
-                let variadic_args: Vec<_> = arg.params.iter().skip(1 + vi.regular_count).collect();
-                if !variadic_args.is_empty() {
-                    Some(hoist_variadic_args(&vi.elem_type, &variadic_args, &nested_hoisted, vi.regular_count, output, indent, ctx, context)?)
+            let thr_variadic_arr_var: Option<String> = if let Some(ref thr_vi) = variadic_info {
+                let thr_variadic_args: Vec<_> = arg.params.iter().skip(1 + thr_vi.regular_count).collect();
+                if !thr_variadic_args.is_empty() {
+                    Some(hoist_variadic_args(&thr_vi.elem_type, &thr_variadic_args, &thr_nested_hoisted, thr_vi.regular_count, output, indent, ctx, context)?)
                 } else {
                     // Empty variadic - still need an array (with 0 elements)
-                    Some(hoist_variadic_args(&vi.elem_type, &[], &nested_hoisted, vi.regular_count, output, indent, ctx, context)?)
+                    Some(hoist_variadic_args(&thr_vi.elem_type, &[], &thr_nested_hoisted, thr_vi.regular_count, output, indent, ctx, context)?)
                 }
             } else {
                 None
@@ -802,41 +803,41 @@ fn hoist_throwing_args(
             // Emit the function call with output pointers
             output.push_str(&indent_str);
             output.push_str("int _status_");
-            output.push_str(&temp_suffix);
+            output.push_str(&thr_temp_suffix);
             output.push_str(" = ");
 
             // Emit the function name and args (using nested hoisted temps)
-            emit_fcall_name_and_args_for_throwing(arg, &temp_var, &temp_suffix, &throwing_fd.throw_types, &nested_hoisted, variadic_arr_var.as_deref(), output, ctx, context)?;
+            emit_fcall_name_and_args_for_throwing(arg, &temp_var, &thr_temp_suffix, &thr_fd.throw_types, &thr_nested_hoisted, thr_variadic_arr_var.as_deref(), output, ctx, context)?;
 
             output.push_str(";\n");
 
             // Emit error checking - propagate if any error occurred
             output.push_str(&indent_str);
             output.push_str("if (_status_");
-            output.push_str(&temp_suffix);
+            output.push_str(&thr_temp_suffix);
             output.push_str(" != 0) {\n");
 
             // Propagate error based on status value
             // For now, propagate to corresponding error pointer in current function
-            for (err_idx, throw_type) in throwing_fd.throw_types.iter().enumerate() {
-                if let ValueType::TCustom(type_name) = throw_type {
+            for (thr_prop_err_idx, thr_prop_throw_type) in thr_fd.throw_types.iter().enumerate() {
+                if let ValueType::TCustom(type_name) = thr_prop_throw_type {
                     // Find matching throw type in current function
-                    for (curr_idx, curr_throw) in ctx.current_throw_types.iter().enumerate() {
-                        if let ValueType::TCustom(curr_type_name) = curr_throw {
+                    for (thr_curr_idx, thr_curr_throw) in ctx.current_throw_types.iter().enumerate() {
+                        if let ValueType::TCustom(curr_type_name) = thr_curr_throw {
                             if curr_type_name == type_name {
                                 output.push_str(&indent_str);
                                 output.push_str("    if (_status_");
-                                output.push_str(&temp_suffix);
+                                output.push_str(&thr_temp_suffix);
                                 output.push_str(" == ");
-                                output.push_str(&(err_idx + 1).to_string());
+                                output.push_str(&(thr_prop_err_idx + 1).to_string());
                                 output.push_str(") { *_err");
-                                output.push_str(&(curr_idx + 1).to_string());
+                                output.push_str(&(thr_curr_idx + 1).to_string());
                                 output.push_str(" = _err");
-                                output.push_str(&err_idx.to_string());
+                                output.push_str(&thr_prop_err_idx.to_string());
                                 output.push_str("_");
-                                output.push_str(&temp_suffix);
+                                output.push_str(&thr_temp_suffix);
                                 output.push_str("; return ");
-                                output.push_str(&(curr_idx + 1).to_string());
+                                output.push_str(&(thr_curr_idx + 1).to_string());
                                 output.push_str("; }\n");
                                 break;
                             }
@@ -849,94 +850,95 @@ fn hoist_throwing_args(
             output.push_str("}\n");
 
             // Emit Array.delete if variadic array was constructed
-            if let Some(arr_var) = &variadic_arr_var {
+            if let Some(thr_arr_var) = &thr_variadic_arr_var {
                 output.push_str(&indent_str);
                 output.push_str(TIL_PREFIX);
                 output.push_str("Array_delete(&");
-                output.push_str(arr_var);
+                output.push_str(thr_arr_var);
                 output.push_str(");\n");
             }
 
             // Record in hoisted_exprs map using expression address
-            let expr_addr = arg as *const Expr as usize;
-            ctx.hoisted_exprs.insert(expr_addr, temp_var.clone());
+            let thr_expr_addr = arg as *const Expr as usize;
+            ctx.hoisted_exprs.insert(thr_expr_addr, temp_var.clone());
             hoisted.push(HoistedArg { index: idx, temp_var });
         }
         // Handle non-throwing variadic calls
-        else if let Some(vi) = variadic_info {
+        else if let Some(ntv_vi) = variadic_info {
             // RECURSIVELY hoist any throwing/variadic calls in this call's arguments first
-            let nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
-                let nested_args = &arg.params[1..];
-                let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
-                nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
+            let ntv_nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
+                let ntv_nested_args = &arg.params[1..];
+                let ntv_nested_vec = hoist_throwing_args(ntv_nested_args, output, indent, ctx, context)?;
+                ntv_nested_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
             } else {
                 std::collections::HashMap::new()
             };
 
-            let temp_var = next_mangled(ctx);
+            let ntv_temp_var = next_mangled(ctx);
 
             // Determine return type from function
-            let func_name = get_fcall_func_name(arg)
+            let ntv_func_name = get_fcall_func_name(arg)
                 .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
-            let fd = get_fcall_func_def(context, arg)
-                .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", &format!("Function not found: {}", func_name)))?;
-            let ret_type = fd.return_types.first()
+            let ntv_fd = get_fcall_func_def(context, arg)
+                .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", &format!("Function not found: {}", ntv_func_name)))?;
+            let ntv_ret_type = ntv_fd.return_types.first()
                 .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Function has no return type"))?;
-            let c_type = til_type_to_c(ret_type)
+            let ntv_c_type = til_type_to_c(ntv_ret_type)
                 .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))?;
 
             // Declare temp variable
             output.push_str(&indent_str);
-            output.push_str(&c_type);
+            output.push_str(&ntv_c_type);
             output.push_str(" ");
-            output.push_str(&temp_var);
+            output.push_str(&ntv_temp_var);
             output.push_str(";\n");
 
             // Construct variadic array
-            let variadic_args: Vec<_> = arg.params.iter().skip(1 + vi.regular_count).collect();
-            let variadic_arr_var = if !variadic_args.is_empty() {
-                hoist_variadic_args(&vi.elem_type, &variadic_args, &nested_hoisted, vi.regular_count, output, indent, ctx, context)?
+            let ntv_variadic_args: Vec<_> = arg.params.iter().skip(1 + ntv_vi.regular_count).collect();
+            let ntv_variadic_arr_var = if !ntv_variadic_args.is_empty() {
+                hoist_variadic_args(&ntv_vi.elem_type, &ntv_variadic_args, &ntv_nested_hoisted, ntv_vi.regular_count, output, indent, ctx, context)?
             } else {
-                hoist_variadic_args(&vi.elem_type, &[], &nested_hoisted, vi.regular_count, output, indent, ctx, context)?
+                hoist_variadic_args(&ntv_vi.elem_type, &[], &ntv_nested_hoisted, ntv_vi.regular_count, output, indent, ctx, context)?
             };
 
             // Calculate param_by_ref and param_types for proper by-ref handling
-            let param_by_ref: Vec<bool> = arg.params.iter().skip(1).enumerate()
-                .map(|(i, _)| fd.args.get(i).map(|a| param_needs_by_ref(a)).unwrap_or(false))
+            let ntv_param_by_ref: Vec<bool> = arg.params.iter().skip(1).enumerate()
+                .map(|(ntv_pi, _)| ntv_fd.args.get(ntv_pi).map(|a| param_needs_by_ref(a)).unwrap_or(false))
                 .collect();
-            let param_types: Vec<Option<ValueType>> = arg.params.iter().skip(1).enumerate()
-                .map(|(i, _)| fd.args.get(i).map(|a| a.value_type.clone()))
+            let ntv_param_types: Vec<Option<ValueType>> = arg.params.iter().skip(1).enumerate()
+                .map(|(ntv_pi, _)| ntv_fd.args.get(ntv_pi).map(|a| a.value_type.clone()))
                 .collect();
 
             // Emit the function call (non-throwing, so direct assignment)
             output.push_str(&indent_str);
-            output.push_str(&temp_var);
+            output.push_str(&ntv_temp_var);
             output.push_str(" = ");
 
             // Emit function name
-            if let Some(func_name) = get_fcall_func_name(arg) {
-                output.push_str(&til_func_name(&func_name));
+            let ntv_fcall_func_name = get_fcall_func_name(arg);
+            if let Some(fcall_name) = &ntv_fcall_func_name {
+                output.push_str(&til_func_name(fcall_name));
             }
             output.push('(');
 
             // Emit regular args with proper by-ref handling
-            let mut first = true;
-            for (i, param) in arg.params.iter().skip(1).take(vi.regular_count).enumerate() {
-                if !first {
+            let mut ntv_first = true;
+            for (ntv_i, ntv_param) in arg.params.iter().skip(1).take(ntv_vi.regular_count).enumerate() {
+                if !ntv_first {
                     output.push_str(", ");
                 }
-                first = false;
-                let ptype = param_types.get(i).and_then(|p| p.as_ref());
-                let by_ref = param_by_ref.get(i).copied().unwrap_or(false);
-                emit_arg_with_param_type(param, i, &nested_hoisted, ptype, by_ref, output, ctx, context)?;
+                ntv_first = false;
+                let ntv_ptype_val = ntv_param_types.get(ntv_i).and_then(|p| p.as_ref());
+                let ntv_by_ref = ntv_param_by_ref.get(ntv_i).copied().unwrap_or(false);
+                emit_arg_with_param_type(ntv_param, ntv_i, &ntv_nested_hoisted, ntv_ptype_val, ntv_by_ref, output, ctx, context)?;
             }
 
             // Emit variadic array pointer
-            if !first {
+            if !ntv_first {
                 output.push_str(", ");
             }
             output.push('&');
-            output.push_str(&variadic_arr_var);
+            output.push_str(&ntv_variadic_arr_var);
 
             output.push_str(");\n");
 
@@ -944,13 +946,13 @@ fn hoist_throwing_args(
             output.push_str(&indent_str);
             output.push_str(TIL_PREFIX);
             output.push_str("Array_delete(&");
-            output.push_str(&variadic_arr_var);
+            output.push_str(&ntv_variadic_arr_var);
             output.push_str(");\n");
 
             // Record in hoisted_exprs map using expression address
-            let expr_addr = arg as *const Expr as usize;
-            ctx.hoisted_exprs.insert(expr_addr, temp_var.clone());
-            hoisted.push(HoistedArg { index: idx, temp_var });
+            let ntv_expr_addr = arg as *const Expr as usize;
+            ctx.hoisted_exprs.insert(ntv_expr_addr, ntv_temp_var.clone());
+            hoisted.push(HoistedArg { index: idx, temp_var: ntv_temp_var });
         }
         // Handle non-throwing, non-variadic FCalls - still need to recurse into their arguments
         // to find deeply nested variadic/throwing calls (e.g., not(or(false)))
@@ -5608,20 +5610,20 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // For FCall, we need to determine if it's:
     // 1. A constructor like DivideByZero() - use the type name
     // 2. A function that returns an error type like format() - use the return type
-    let thrown_type_name = match &thrown_expr.node_type {
+    let nh_thrown_type_name = match &thrown_expr.node_type {
         NodeType::FCall => {
             if !thrown_expr.params.is_empty() {
                 if let NodeType::Identifier(name) = &thrown_expr.params[0].node_type {
                     // Check if this is a constructor (struct/enum) or a function call
                     // If it's a function that returns a type, use the return type
-                    if let Some(fd) = get_fcall_func_def(context, thrown_expr) {
+                    if let Some(func_def) = get_fcall_func_def(context, thrown_expr) {
                         // It's a function - use its return type as the thrown type
-                        if let Some(ret_type) = fd.return_types.first() {
-                            if let crate::rs::parser::ValueType::TCustom(type_name) = ret_type {
+                        if let Some(nh_ret_type) = func_def.return_types.first() {
+                            if let crate::rs::parser::ValueType::TCustom(type_name) = nh_ret_type {
                                 type_name.clone()
                             } else {
                                 // Return type is a primitive (like Str) - convert to name
-                                crate::rs::parser::value_type_to_str(ret_type)
+                                crate::rs::parser::value_type_to_str(nh_ret_type)
                             }
                         } else {
                             // No return type, assume it's a constructor
@@ -5640,11 +5642,11 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         }
         NodeType::Identifier(name) => {
             // Look up the type of the identifier (could be a variable or type name)
-            if let Ok(value_type) = get_value_type(context, thrown_expr) {
-                if let crate::rs::parser::ValueType::TCustom(type_name) = value_type {
+            if let Ok(nh_value_type) = get_value_type(context, thrown_expr) {
+                if let crate::rs::parser::ValueType::TCustom(type_name) = nh_value_type {
                     type_name
                 } else {
-                    crate::rs::parser::value_type_to_str(&value_type)
+                    crate::rs::parser::value_type_to_str(&nh_value_type)
                 }
             } else {
                 // Fallback: assume identifier is a type name (for struct constructors without args)
@@ -5663,15 +5665,15 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     };
 
     // Check if this type is locally caught (has a catch block at function level)
-    if let Some(catch_info) = ctx.local_catch_labels.get(&thrown_type_name) {
-        let label = catch_info.label.clone();
-        let temp_var = catch_info.temp_var.clone();
+    if let Some(nh_catch_info) = ctx.local_catch_labels.get(&nh_thrown_type_name) {
+        let nh_label = nh_catch_info.label.clone();
+        let nh_temp_var = nh_catch_info.temp_var.clone();
         // Hoist any throwing function calls in the thrown expression
-        let hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall = &thrown_expr.node_type {
+        let nh_hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall = &thrown_expr.node_type {
             if thrown_expr.params.len() > 1 {
-                let args = &thrown_expr.params[1..];
-                let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-                hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
+                let nh_args = &thrown_expr.params[1..];
+                let nh_hoisted_vec = hoist_throwing_args(nh_args, output, indent, ctx, context)?;
+                nh_hoisted_vec.into_iter().map(|nh_h| (nh_h.index, nh_h.temp_var)).collect()
             } else {
                 std::collections::HashMap::new()
             }
@@ -5681,12 +5683,12 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
         // Store the error value in temp variable
         output.push_str(&indent_str);
-        output.push_str(&temp_var);
+        output.push_str(&nh_temp_var);
         output.push_str(" = ");
 
         // Emit the thrown expression
         if let NodeType::FCall = &thrown_expr.node_type {
-            emit_fcall_with_hoisted(thrown_expr, &hoisted, output, ctx, context)?;
+            emit_fcall_with_hoisted(thrown_expr, &nh_hoisted, output, ctx, context)?;
         } else {
             emit_expr(thrown_expr, output, 0, ctx, context)?;
         }
@@ -5695,32 +5697,32 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         // Jump to the catch block
         output.push_str(&indent_str);
         output.push_str("goto ");
-        output.push_str(&label);
+        output.push_str(&nh_label);
         output.push_str(";\n");
         return Ok(());
     }
 
     // Find the index of this type in current_throw_types
     // Note: Str is represented as TCustom("Str") in the type system
-    let mut error_index: Option<usize> = None;
-    for (i, vt) in ctx.current_throw_types.iter().enumerate() {
-        if let crate::rs::parser::ValueType::TCustom(name) = vt {
-            if name == &thrown_type_name {
-                error_index = Some(i);
+    let mut nh_error_index: Option<usize> = None;
+    for (nh_i, nh_vt) in ctx.current_throw_types.iter().enumerate() {
+        if let crate::rs::parser::ValueType::TCustom(name) = nh_vt {
+            if name == &nh_thrown_type_name {
+                nh_error_index = Some(nh_i);
                 break;
             }
         }
     }
 
-    match error_index {
+    match nh_error_index {
         Some(idx) => {
             // Hoist throwing function calls from arguments of the thrown expression
             // E.g., throw Error.new(format(...)) needs to hoist format() first
-            let hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall = &thrown_expr.node_type {
+            let nh_prop_hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall = &thrown_expr.node_type {
                 if thrown_expr.params.len() > 1 {
-                    let args = &thrown_expr.params[1..];
-                    let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-                    hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
+                    let nh_prop_args = &thrown_expr.params[1..];
+                    let nh_prop_hoisted_vec = hoist_throwing_args(nh_prop_args, output, indent, ctx, context)?;
+                    nh_prop_hoisted_vec.into_iter().map(|nh_prop_h| (nh_prop_h.index, nh_prop_h.temp_var)).collect()
                 } else {
                     std::collections::HashMap::new()
                 }
@@ -5735,7 +5737,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
             // Emit the thrown expression, using hoisted temp vars for arguments
             if let NodeType::FCall = &thrown_expr.node_type {
-                emit_fcall_with_hoisted(thrown_expr, &hoisted, output, ctx, context)?;
+                emit_fcall_with_hoisted(thrown_expr, &nh_prop_hoisted, output, ctx, context)?;
             } else {
                 emit_expr(thrown_expr, output, 0, ctx, context)?;
             }
@@ -5748,7 +5750,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         }
         None => Err(format!(
             "ccodegen: thrown type '{}' not found in function's throw types: {:?}",
-            thrown_type_name, ctx.current_throw_types
+            nh_thrown_type_name, ctx.current_throw_types
         )),
     }
 }
@@ -5858,18 +5860,18 @@ fn emit_fcall_with_hoisted(
                     output.push_str(&member.name);
                     output.push_str(" = ");
                     // Use named arg value if provided, otherwise use default
-                    if let Some(value_expr) = named_values.get(&member.name) {
-                        emit_expr(value_expr, output, 0, ctx, context)?;
-                    } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
+                    if let Some(member_value_expr) = named_values.get(&member.name) {
+                        emit_expr(member_value_expr, output, 0, ctx, context)?;
+                    } else if let Some(member_default_expr) = struct_def.default_values.get(&member.name) {
                         // Check if this was a throwing default - use temp var instead
-                        let key = format!("{}:{}", func_name, member.name);
-                        if let Some(temp_name) = ctx.hoisted_struct_defaults.get(&key) {
-                            output.push_str(temp_name);
-                        } else if throwing_default_names.contains(&member.name) || is_throwing_fcall(default_expr, context) {
+                        let lookup_key = format!("{}:{}", func_name, member.name);
+                        if let Some(hoisted_temp_name) = ctx.hoisted_struct_defaults.get(&lookup_key) {
+                            output.push_str(hoisted_temp_name);
+                        } else if throwing_default_names.contains(&member.name) || is_throwing_fcall(member_default_expr, context) {
                             // Shouldn't happen - throwing defaults should be hoisted
                             output.push_str("/* ERROR: unhoisted throwing default */");
                         } else {
-                            emit_expr(default_expr, output, 0, ctx, context)?;
+                            emit_expr(member_default_expr, output, 0, ctx, context)?;
                         }
                     } else {
                         output.push_str("0");
@@ -5898,22 +5900,22 @@ fn emit_fcall_with_hoisted(
         }
     };
 
-    for (i, arg) in expr.params.iter().skip(1).enumerate() {
-        if i > 0 {
+    for (emit_i, emit_arg) in expr.params.iter().skip(1).enumerate() {
+        if emit_i > 0 {
             output.push_str(", ");
         }
         // Check if arg is a type identifier - emit as string literal
-        if let Some(type_name) = get_type_arg_name(arg, context) {
+        if let Some(type_name) = get_type_arg_name(emit_arg, context) {
             output.push_str("\"");
             output.push_str(&type_name);
             output.push_str("\"");
         } else if !param_info.is_empty() {
-            let (param_type, by_ref) = param_info.get(i)
-                .map(|info| (info.value_type.as_ref(), info.by_ref))
+            let (loop_param_type, loop_by_ref) = param_info.get(emit_i)
+                .map(|loop_pi| (loop_pi.value_type.as_ref(), loop_pi.by_ref))
                 .unwrap_or((None, false));
-            emit_arg_with_param_type(arg, i, hoisted, param_type, by_ref, output, ctx, context)?;
+            emit_arg_with_param_type(emit_arg, emit_i, hoisted, loop_param_type, loop_by_ref, output, ctx, context)?;
         } else {
-            emit_arg_or_hoisted(arg, i, hoisted, output, ctx, context)?;
+            emit_arg_or_hoisted(emit_arg, emit_i, hoisted, output, ctx, context)?;
         }
     }
     output.push_str(")");
@@ -5953,20 +5955,20 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
         }
     }
     if expr.params.len() > 2 {
-        let else_decls = collect_declarations_in_body(&expr.params[2], context);
-        for decl in else_decls {
-            let c_var_name = til_name(&decl.name);
-            if !ctx.declared_vars.contains(&c_var_name) {
-                if let Ok(c_type) = til_type_to_c(&decl.value_type) {
+        let hoist_else_decls = collect_declarations_in_body(&expr.params[2], context);
+        for else_decl in hoist_else_decls {
+            let else_c_var_name = til_name(&else_decl.name);
+            if !ctx.declared_vars.contains(&else_c_var_name) {
+                if let Ok(else_c_type) = til_type_to_c(&else_decl.value_type) {
                     output.push_str(&indent_str);
-                    output.push_str(&c_type);
+                    output.push_str(&else_c_type);
                     output.push_str(" ");
-                    output.push_str(&c_var_name);
+                    output.push_str(&else_c_var_name);
                     output.push_str(";\n");
-                    ctx.declared_vars.insert(c_var_name);
+                    ctx.declared_vars.insert(else_c_var_name);
                     // Also register in scope_stack so get_value_type can find it
-                    context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
-                        value_type: decl.value_type.clone(),
+                    context.scope_stack.declare_symbol(else_decl.name.clone(), SymbolInfo {
+                        value_type: else_decl.value_type.clone(),
                         is_mut: false,
                         is_copy: false,
                         is_own: false,

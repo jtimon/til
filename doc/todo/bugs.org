@@ -39,7 +39,7 @@ program crash on I/O failures.
 :PROPERTIES:
 :DISCOVERED: 2026-01-10
 :IMPACT: Variable shadowing causes C codegen to mix up types, generating broken C code
-:STATUS: Open
+:STATUS: Partially Fixed
 :END:
 
 *** Description
@@ -218,10 +218,102 @@ This is a design decision, not just a bug fix. Options:
 - May require more sophisticated scope tracking
 - Deferred until design is finalized (needs more examples to decide)
 
+*Attempt 2: Check in ccodegen at hoist points*
+
+Tried the "initial solution" approach: check in ccodegen's hoisting code, error on
+ANY redeclaration using simple ~HashSet<String>~.
+
+Added check at hoist points (emit_if, emit_while, emit_switch, emit_stmts catch):
+#+BEGIN_SRC rust
+if ctx.declared_vars.contains(&c_var_name) {
+    return Err("Variable 'x' already declared in this function (shadowing not allowed)");
+}
+#+END_SRC
+
+*Result:* Broke legitimate code patterns. Examples:
+- ~for arg in a {}; for arg in b {}~ - same variable reused in sibling loops
+- Variables declared in both if and else branches
+
+*Root cause:* Hoisting makes ALL variables function-scoped in C. When we hoist from
+sibling blocks (two loops, if/else branches), they share the same ~declared_vars~.
+The check can't distinguish:
+1. *Real shadowing:* outer variable shadowed by inner block declaration
+2. *Legitimate reuse:* same variable used in multiple sibling blocks
+
+*Approaches considered:*
+- Track which vars were "hoisted" vs "top-level declared" - adds complexity
+- Track types with HashMap, only error on type mismatch - also adds complexity
+- Both defeated the goal of "simpler than type tracking"
+
+*** Lessons Learned
+
+The "simple HashSet" approach doesn't work because hoisting fundamentally changes
+the problem. In TIL source, variables have block scope. In generated C, all
+variables are hoisted to function scope. This means:
+
+1. Sibling blocks (loops, if/else) legitimately share hoisted variables
+2. We can't just check "name exists" - we need to know WHERE it was declared
+3. Some complexity is unavoidable to distinguish shadowing from reuse
+
 *** Decision
 
 Final solution: TBD (needs more examples, possibly look at Haskell approach)
-Initial solution: Check in ccodegen - error on ANY shadowing in same function (simpler than type tracking)
+Initial solution: Deferred - the "simple" approach turned out to be not simple
+
+*** Partial Fix (2026-01-11)
+
+*What was done:*
+
+1. Added shadowing detection in Rust typer (src/rs/typer.rs, src/rs/init.rs):
+   - Added ~function_locals: HashSet<(String, usize, usize)>~ to ScopeStack
+   - Added helper methods: ~is_inside_function~, ~is_shadowing_in_function~,
+     ~is_already_processed~, ~register_function_local~
+   - Added check in ~check_declaration()~ that errors on shadowing within functions
+   - Tracks by (name, line, col) to handle AST duplication from for-in desugaring
+
+2. Renamed all shadowed variables in TIL source files:
+   - interpreter.til: ~270 renamed variables
+   - ccodegen.til: Numerous renames (fcall_arg, hoisted_arg, ref_arg, etc.)
+   - typer.til: Variable renames in switch cases and loops
+   - precomp.til, scavenger.til: Context-specific prefixes added
+   - builder.til, eval_arena.til, init.til: Various shadow fixes
+   - Core files (str.til, set.til, list.til, map.til): Minor renames
+   - enums.til test: Renamed name_copy to blue_name_copy
+
+3. All 136 tests pass with ~make benchmark~
+
+*What's still pending:*
+
+1. Final design decision: TBD (see Design Options section above)
+   - Current solution: Option C (disallow all shadowing within a function)
+   - Possible final solutions:
+     - Option A: Only disallow different-type shadowing (least restrictive)
+     - Option D: Allow all shadowing like Rust, rename variables in C codegen (e.g., x -> x_1, x_2)
+
+2. Port TIL variable renames to Rust for consistency: DONE
+   - ccodegen.til -> ccodegen.rs: DONE (added nh_, emit_, else_, loop_, ntv_ prefixes)
+   - init.til -> init.rs: DONE (added contextual prefixes)
+   - typer.til -> typer.rs: DONE (added idx, nested, exh_, field_ prefixes)
+   - lexer.til -> lexer.rs: DONE (err_token, peek_idx renames)
+   - scavenger.til -> scavenger.rs: NOT NEEDED (Rust uses Option patterns)
+   - precomp.til -> precomp.rs: NOT NEEDED (Rust uses block scoping)
+   - interpreter.til -> interpreter.rs: NOT NEEDED (Rust uses match arms with separate scopes)
+   - eval_arena.til -> eval_arena.rs: ALREADY HAD (existing_ prefixes)
+   - builder.til -> builder.rs: ALREADY HAD (core_saved_path, mode_saved_path, etc.)
+   - parser.til -> parser.rs: NOT NEEDED (Rust uses derive Clone, no manual clones)
+   - mode.til -> mode.rs: NOT NEEDED (Rust uses inline vec![] literals)
+
+   NOTE: Many TIL renames aren't needed in Rust because:
+   - Rust supports proper block scoping (variables in match arms, if blocks are independent)
+   - Rust uses Option<T> patterns instead of TIL's "found_X = true; catch" patterns
+   - TIL needs unique names because C codegen hoists all variables to function scope
+
+3. Port Rust shadowing detection to TIL for consistency: DONE
+   - Added function_locals field to ScopeStack in init.til
+   - Added helper methods to init.til (is_inside_function, is_shadowing_in_function,
+     is_already_processed, register_function_local)
+   - Added check in check_declaration() in typer.til
+   - Added function_locals.clear() at start of check_func_proc_types() in typer.til
 
 ** Bug #96: Unreachable code error when return is before catch in early-return pattern
 :PROPERTIES:

@@ -433,12 +433,12 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         },
         NodeType::While => {
             validate_conditional_params(&context.path, e, "while", 2, 2)?;
-            let mut cond_expr = e.get(0)?;
-            let mut result_cond = eval_expr(context, cond_expr)?;
-            if result_cond.is_throw {
-                return Ok(result_cond.clone())
+            let mut while_cond_expr = e.get(0)?;
+            let mut while_result_cond = eval_expr(context, while_cond_expr)?;
+            if while_result_cond.is_throw {
+                return Ok(while_result_cond.clone())
             }
-            while eval_condition_to_bool(context, &result_cond, cond_expr)? {
+            while eval_condition_to_bool(context, &while_result_cond, while_cond_expr)? {
                 let result = eval_expr(context, e.get(1)?)?;
                 if result.is_return || result.is_throw {
                     return Ok(result)
@@ -449,10 +449,10 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                 }
                 // Continue just skips to the next iteration (re-evaluate condition)
                 // No special handling needed - we just don't return
-                cond_expr = e.get(0)?;
-                result_cond = eval_expr(context, cond_expr)?;
-                if result_cond.is_throw {
-                    return Ok(result_cond)
+                while_cond_expr = e.get(0)?;
+                while_result_cond = eval_expr(context, while_cond_expr)?;
+                if while_result_cond.is_throw {
+                    return Ok(while_result_cond)
                 }
             }
             Ok(EvalResult::new(""))
@@ -770,11 +770,11 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             } else if e.params.len() > 1 {
                 return Err(e.lang_error(&context.path, "eval", "multiple return values not implemented yet"))
             } else {
-                let result = eval_expr(context, e.get(0)?)?;
-                if result.is_throw {
-                    return Ok(result)
+                let return_result = eval_expr(context, e.get(0)?)?;
+                if return_result.is_throw {
+                    return Ok(return_result)
                 }
-                return Ok(EvalResult::new_return(&result.value))
+                return Ok(EvalResult::new_return(&return_result.value))
             }
         },
         NodeType::Throw => {
@@ -782,12 +782,12 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                 return Err(e.lang_error(&context.path, "eval", "Throw can only return one value. This should have been caught before"))
             } else {
                 let param_expr = e.get(0)?;
-                let result = eval_expr(context, param_expr)?;
-                if result.is_throw {
-                    return Ok(result)
+                let throw_result = eval_expr(context, param_expr)?;
+                if throw_result.is_throw {
+                    return Ok(throw_result)
                 }
                 let thrown_type = get_value_type(context, param_expr)?;
-                return Ok(EvalResult::new_throw(&result.value, thrown_type))
+                return Ok(EvalResult::new_throw(&throw_result.value, thrown_type))
             }
         },
         NodeType::Catch => {
@@ -863,53 +863,53 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 insert_struct_instance(context, &temp_name, &name, e)?;
 
                 // Process named arguments to override field values
-                for arg in e.params.iter().skip(1) {
-                    if let NodeType::NamedArg(field_name) = &arg.node_type {
+                for named_arg in e.params.iter().skip(1) {
+                    if let NodeType::NamedArg(field_name) = &named_arg.node_type {
                         // Find the field type in the struct definition
                         let field_decl = struct_members.iter()
                             .find(|f| f.name == *field_name)
-                            .ok_or_else(|| arg.error(&context.path, "eval",
+                            .ok_or_else(|| named_arg.error(&context.path, "eval",
                                 &format!("Field '{}' not found in struct '{}'", field_name, name)))?;
                         let field_type = field_decl.value_type.clone();
 
                         // Evaluate the value expression
-                        let value_expr = arg.get(0)?;
-                        let value_result = eval_expr(context, value_expr)?;
-                        if value_result.is_throw {
-                            return Ok(value_result);
+                        let named_value_expr = named_arg.get(0)?;
+                        let named_value_result = eval_expr(context, named_value_expr)?;
+                        if named_value_result.is_throw {
+                            return Ok(named_value_result);
                         }
 
                         // Set the field value based on its type
                         let field_id = format!("{}.{}", temp_name, field_name);
                         match &field_type {
-                            ValueType::TCustom(type_name) => {
-                                match type_name.as_str() {
+                            ValueType::TCustom(field_type_name) => {
+                                match field_type_name.as_str() {
                                     "I64" | "U8" | "Str" => {
-                                        EvalArena::insert_primitive(context, &field_id, &field_type, &value_result.value, arg)?;
+                                        EvalArena::insert_primitive(context, &field_id, &field_type, &named_value_result.value, named_arg)?;
                                     },
                                     _ => {
                                         // Could be enum or nested struct
-                                        let custom_symbol = context.scope_stack.lookup_symbol(&type_name)
-                                            .ok_or_else(|| arg.error(&context.path, "eval",
-                                                &format!("Unknown type '{}' for field '{}'", type_name, field_name)))?;
-                                        let custom_value_type = custom_symbol.value_type.clone();
-                                        match &custom_value_type {
+                                        let field_custom_symbol = context.scope_stack.lookup_symbol(&field_type_name)
+                                            .ok_or_else(|| named_arg.error(&context.path, "eval",
+                                                &format!("Unknown type '{}' for field '{}'", field_type_name, field_name)))?;
+                                        let field_custom_value_type = field_custom_symbol.value_type.clone();
+                                        match &field_custom_value_type {
                                             ValueType::TType(TTypeDef::TEnumDef) => {
-                                                EvalArena::insert_enum(context, &field_id, &type_name, &value_result.value, arg)?;
+                                                EvalArena::insert_enum(context, &field_id, &field_type_name, &named_value_result.value, named_arg)?;
                                             },
                                             ValueType::TType(TTypeDef::TStructDef) => {
-                                                EvalArena::copy_fields(context, &type_name, &value_result.value, &field_id, arg)?;
+                                                EvalArena::copy_fields(context, &field_type_name, &named_value_result.value, &field_id, named_arg)?;
                                             },
                                             _ => {
-                                                return Err(arg.error(&context.path, "eval",
-                                                    &format!("Unsupported field type '{}' for field '{}'", type_name, field_name)));
+                                                return Err(named_arg.error(&context.path, "eval",
+                                                    &format!("Unsupported field type '{}' for field '{}'", field_type_name, field_name)));
                                             }
                                         }
                                     }
                                 }
                             },
                             _ => {
-                                return Err(arg.error(&context.path, "eval",
+                                return Err(named_arg.error(&context.path, "eval",
                                     &format!("Unsupported field type for field '{}'", field_name)));
                             }
                         }
@@ -1003,11 +1003,11 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                         NodeType::Identifier(name) => name.clone(),
                                         NodeType::LLiteral(Literal::Str(_)) if struct_type_name == "Str" => {
                                             // For string literals, create a temporary Str struct
-                                            let temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
-                                            let string_value = &payload_result.value;
+                                            let str_lit_temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+                                            let str_lit_string_value = &payload_result.value;
 
                                             // Add symbol entry before calling insert_string
-                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
+                                            context.scope_stack.declare_symbol(str_lit_temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false, // Temporary string is immutable
                                                 is_copy: false,
@@ -1015,16 +1015,16 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 is_comptime_const: false,
                                             });
 
-                                            EvalArena::insert_string(context, &temp_var_name, &string_value.to_string(), e)?;
-                                            temp_var_name
+                                            EvalArena::insert_string(context, &str_lit_temp_var_name, &str_lit_string_value.to_string(), e)?;
+                                            str_lit_temp_var_name
                                         },
                                         NodeType::LLiteral(Literal::Number(_)) if struct_type_name == "I64" => {
                                             // For I64 literals, create a temporary I64 struct
-                                            let temp_var_name = format!("__temp_i64_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
-                                            let i64_value = &payload_result.value;
+                                            let i64_lit_temp_var_name = format!("__temp_i64_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+                                            let i64_lit_value = &payload_result.value;
 
                                             // Add symbol entry before calling insert_i64
-                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
+                                            context.scope_stack.declare_symbol(i64_lit_temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("I64".to_string()),
                                                 is_mut: false,
                                                 is_copy: false,
@@ -1032,15 +1032,15 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 is_comptime_const: false,
                                             });
 
-                                            EvalArena::insert_i64(context, &temp_var_name, &i64_value.to_string(), e)?;
-                                            temp_var_name
+                                            EvalArena::insert_i64(context, &i64_lit_temp_var_name, &i64_lit_value.to_string(), e)?;
+                                            i64_lit_temp_var_name
                                         },
                                         // Bug #56 fix: Handle FCall (e.g., x.clone()) for Str payloads
                                         NodeType::FCall if struct_type_name == "Str" => {
-                                            let temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
-                                            let string_value = &payload_result.value;
+                                            let str_fcall_temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+                                            let str_fcall_string_value = &payload_result.value;
 
-                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
+                                            context.scope_stack.declare_symbol(str_fcall_temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false,
                                                 is_copy: false,
@@ -1048,8 +1048,8 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 is_comptime_const: false,
                                             });
 
-                                            EvalArena::insert_string(context, &temp_var_name, &string_value.to_string(), e)?;
-                                            temp_var_name
+                                            EvalArena::insert_string(context, &str_fcall_temp_var_name, &str_fcall_string_value.to_string(), e)?;
+                                            str_fcall_temp_var_name
                                         },
                                         _ => return Err(e.error(&context.path, "eval", &format!("Enum variant payload must be a variable, literal, or function call, got {:?}", payload_expr.node_type))),
                                     };
@@ -1072,17 +1072,17 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                         NodeType::Identifier(_) | NodeType::FCall => {
                                             // This is a nested enum constructor call (e.g., InnerEnum.ValueA(42))
                                             // Create a temporary variable to hold the result
-                                            let temp_var_name = format!("__temp_enum_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+                                            let enum_ctor_temp_var_name = format!("__temp_enum_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
 
                                             // Recursively evaluate the enum constructor
                                             // This could be either an FCall or an Identifier with params (like Inner.A)
-                                            let nested_result = eval_expr(context, payload_expr)?;
-                                            if nested_result.is_throw {
-                                                return Ok(nested_result);
+                                            let enum_ctor_nested_result = eval_expr(context, payload_expr)?;
+                                            if enum_ctor_nested_result.is_throw {
+                                                return Ok(enum_ctor_nested_result);
                                             }
 
                                             // Add symbol entry before calling insert_enum
-                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
+                                            context.scope_stack.declare_symbol(enum_ctor_temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom(struct_type_name.clone()),
                                                 is_mut: false,
                                                 is_copy: false,
@@ -1092,8 +1092,8 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
                                             // The result is the enum variant name (e.g., "InnerEnum.ValueA")
                                             // insert_enum will use context.temp_enum_payload for the payload bytes
-                                            EvalArena::insert_enum(context, &temp_var_name, struct_type_name, &nested_result.value, e)?;
-                                            temp_var_name
+                                            EvalArena::insert_enum(context, &enum_ctor_temp_var_name, struct_type_name, &enum_ctor_nested_result.value, e)?;
+                                            enum_ctor_temp_var_name
                                         },
                                         _ => return Err(e.error(&context.path, "eval", &format!("Enum payload must be a variable identifier or enum constructor, got {:?}", payload_expr.node_type))),
                                     };

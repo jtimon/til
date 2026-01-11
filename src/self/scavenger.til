@@ -35,11 +35,11 @@ collect_used_types_from_expr := proc(context: Context, e: Expr, mut used_types: 
             name := get_combined_name_from_identifier(e.get(0))
             if name.len().gt(0).and(name.find(".").lt(0)) {
                 // Check if this is a struct constructor
-                mut found_struct := false
+                mut fcall_found_struct := false
                 dummy := context.scope_stack.lookup_struct(name)
-                found_struct = true
+                fcall_found_struct = true
                 catch (err: KeyNotFoundError) { }
-                if found_struct {
+                if fcall_found_struct {
                     _ := used_types.insert(name)
                 }
             }
@@ -47,9 +47,9 @@ collect_used_types_from_expr := proc(context: Context, e: Expr, mut used_types: 
     case NodeType.Identifier(name):
         // Type references - check if this is a known struct or enum
         if name.len().gt(0).and(e.params.len().eq(0)) {
-            mut found_struct := false
+            mut ident_found_struct := false
             dummy_struct := context.scope_stack.lookup_struct(name)
-            found_struct = true
+            ident_found_struct = true
             catch (err: KeyNotFoundError) { }
 
             mut found_enum := false
@@ -57,7 +57,7 @@ collect_used_types_from_expr := proc(context: Context, e: Expr, mut used_types: 
             found_enum = true
             catch (err: KeyNotFoundError) { }
 
-            if found_struct.or(found_enum) {
+            if ident_found_struct.or(found_enum) {
                 _ := used_types.insert(name.clone())
             }
         }
@@ -80,21 +80,21 @@ collect_used_types_from_func := proc(context: Context, func_def: SFuncDef, mut u
         }
     }
     // Collect from return types
-    for i in 0..func_def.return_types.len() {
+    for ret_i in 0..func_def.return_types.len() {
         mut ret_type := ValueType.TCustom("")
-        func_def.return_types.get(i, ret_type)
-        type_name := extract_type_name(ret_type)
-        if type_name.len().gt(0) {
-            _ := used_types.insert(type_name)
+        func_def.return_types.get(ret_i, ret_type)
+        ret_type_name := extract_type_name(ret_type)
+        if ret_type_name.len().gt(0) {
+            _ := used_types.insert(ret_type_name)
         }
     }
     // Collect from throw types
-    for i in 0..func_def.throw_types.len() {
+    for throw_i in 0..func_def.throw_types.len() {
         mut throw_type := ValueType.TCustom("")
-        func_def.throw_types.get(i, throw_type)
-        type_name := extract_type_name(throw_type)
-        if type_name.len().gt(0) {
-            _ := used_types.insert(type_name)
+        func_def.throw_types.get(throw_i, throw_type)
+        throw_type_name := extract_type_name(throw_type)
+        if throw_type_name.len().gt(0) {
+            _ := used_types.insert(throw_type_name)
         }
     }
     // Collect from body
@@ -384,7 +384,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
             if found_struct {
                 // Struct constructor - collect calls from field initializers only
                 // (skip FuncDef values which are methods - their bodies should only be walked if the method itself is reachable)
-                mut called := Set.new(Str)
+                mut struct_called := Set.new(Str)
                 for default_expr: Expr in struct_def.default_values.values {
                     switch default_expr.node_type {
                     case NodeType.FuncDef(_):
@@ -392,19 +392,19 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                         continue
                     case:
                     }
-                    collect_called_functions(default_expr, called)
+                    collect_called_functions(default_expr, struct_called)
                 }
-                for called_func: Str in called {
+                for called_func: Str in struct_called {
                     mark_reachable(called_func, reachable, worklist)
                 }
             } else {
                 // Check if this is an enum constructor (e.g., Color.Name)
                 mut found_enum := false
-                mut dot_pos := func_name.find(".")
-                if dot_pos.gt(0) {
-                    mut enum_name := func_name.get_substr(0, dot_pos)
-                    mut enum_def := SEnumDef()
-                    enum_def = context.scope_stack.lookup_enum(enum_name)
+                mut ctor_dot_pos := func_name.find(".")
+                if ctor_dot_pos.gt(0) {
+                    mut enum_name := func_name.get_substr(0, ctor_dot_pos)
+                    mut ctor_enum_def := SEnumDef()
+                    ctor_enum_def = context.scope_stack.lookup_enum(enum_name)
                     found_enum = true
                     catch (err: KeyNotFoundError) {
                     }
@@ -417,9 +417,9 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                 }
 
                 // Check if this is just an enum type name (e.g., ValueType without variant)
-                if dot_pos.lt(0).or(dot_pos.eq(0)) {
-                    mut enum_def := SEnumDef()
-                    enum_def = context.scope_stack.lookup_enum(func_name)
+                if ctor_dot_pos.lt(0).or(ctor_dot_pos.eq(0)) {
+                    mut type_enum_def := SEnumDef()
+                    type_enum_def = context.scope_stack.lookup_enum(func_name)
                     continue
                     catch (err: KeyNotFoundError) {
                     }
@@ -472,11 +472,11 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
 
                         mut found_method := false
                         for builtin: Str in builtin_types {
-                            full_method := format(builtin, ".", method_name)
-                            mut dummy_fd := SFuncDef()
-                            dummy_fd = context.scope_stack.lookup_func(full_method)
+                            builtin_full_method := format(builtin, ".", method_name)
+                            mut builtin_dummy_fd := SFuncDef()
+                            builtin_dummy_fd = context.scope_stack.lookup_func(builtin_full_method)
                             // Found a matching method - mark it reachable instead
-                            mark_reachable(full_method, reachable, worklist)
+                            mark_reachable(builtin_full_method, reachable, worklist)
                             found_method = true
                             break
                             catch (err: KeyNotFoundError) { }
@@ -486,10 +486,10 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                         if not(found_method) {
                             struct_names := context.scope_stack.get_all_struct_names()
                             for struct_name: Str in struct_names {
-                                full_method := format(struct_name, ".", method_name)
-                                mut dummy_fd := SFuncDef()
-                                dummy_fd = context.scope_stack.lookup_func(full_method)
-                                mark_reachable(full_method, reachable, worklist)
+                                user_full_method := format(struct_name, ".", method_name)
+                                mut user_dummy_fd := SFuncDef()
+                                user_dummy_fd = context.scope_stack.lookup_func(user_full_method)
+                                mark_reachable(user_full_method, reachable, worklist)
                                 found_method = true
                                 break
                                 catch (err: KeyNotFoundError) { }
@@ -519,15 +519,15 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
 
     // Add struct types when their methods are reachable (e.g., Foo.bar reachable -> Foo is used)
     for func_name: Str in reachable {
-        dot_pos := func_name.find(".")
-        if dot_pos.gt(0) {
-            struct_name := func_name.get_substr(0, dot_pos)
+        method_dot_pos := func_name.find(".")
+        if method_dot_pos.gt(0) {
+            struct_name := func_name.get_substr(0, method_dot_pos)
             // Only add if this is actually a struct (not an enum)
-            mut found_struct := false
+            mut method_found_struct := false
             dummy := context.scope_stack.lookup_struct(struct_name)
-            found_struct = true
+            method_found_struct = true
             catch (err: KeyNotFoundError) { }
-            if found_struct {
+            if method_found_struct {
                 _ := used_types.insert(struct_name)
             }
         }
@@ -543,12 +543,12 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
         type_worklist.pop(type_name)
 
         // Check struct field types
-        mut found_struct := false
-        struct_def := context.scope_stack.lookup_struct(type_name)
-        found_struct = true
+        mut closure_found_struct := false
+        closure_struct_def := context.scope_stack.lookup_struct(type_name)
+        closure_found_struct = true
         catch (err: KeyNotFoundError) { }
-        if found_struct {
-            for member: Declaration in struct_def.members {
+        if closure_found_struct {
+            for member: Declaration in closure_struct_def.members {
                 field_type := extract_type_name(member.value_type)
                 if field_type.len().gt(0) {
                     if not(used_types.contains(field_type)) {
@@ -560,12 +560,12 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
         }
 
         // Check enum payload types
-        mut found_enum := false
-        enum_def := context.scope_stack.lookup_enum(type_name)
-        found_enum = true
+        mut closure_found_enum := false
+        closure_enum_def := context.scope_stack.lookup_enum(type_name)
+        closure_found_enum = true
         catch (err: KeyNotFoundError) { }
-        if found_enum {
-            for variant: EnumVariant in enum_def.variants {
+        if closure_found_enum {
+            for variant: EnumVariant in closure_enum_def.variants {
                 if not(variant.payload_type.is_null()) {
                     // Read the ValueType from the Ptr
                     mut vt := ValueType.TCustom("")
@@ -637,13 +637,13 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 case NodeType.Declaration(decl):
                     // Skip declarations - only their initializers matter if not functions
                     if stmt.params.len().gt(0) {
-                        inner := stmt.get(0)
-                        switch inner.node_type {
+                        script_inner := stmt.get(0)
+                        switch script_inner.node_type {
                         case NodeType.FuncDef(_):
                             // Skip function declarations - they're not roots themselves
                         case:
                             // Non-function declaration initializer - collect calls from it
-                            collect_called_functions(inner, roots)
+                            collect_called_functions(script_inner, roots)
                         }
                     }
                 case:
@@ -657,13 +657,13 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 switch stmt.node_type {
                 case NodeType.Declaration(decl):
                     if stmt.params.len().gt(0) {
-                        inner := stmt.get(0)
-                        switch inner.node_type {
+                        lib_inner := stmt.get(0)
+                        switch lib_inner.node_type {
                         case NodeType.FuncDef(_):
                             // Skip function declarations
                         case:
                             // Non-function declaration initializer - collect calls from it
-                            collect_called_functions(inner, roots)
+                            collect_called_functions(lib_inner, roots)
                         }
                     }
                 case:
@@ -706,8 +706,8 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             switch stmt.node_type {
             case NodeType.Declaration(decl):
                 if stmt.params.len().gt(0) {
-                    inner := stmt.get(0)
-                    switch inner.node_type {
+                    rebuild_inner := stmt.get(0)
+                    switch rebuild_inner.node_type {
                     case NodeType.FuncDef(func_def):
                         // Function declaration - keep if reachable or external
                         if func_def.is_ext().or(reachable.contains(decl.name)) {

@@ -45,8 +45,8 @@ Set := struct {
                     elems_match = 1
                 }
             } else {
-                mut existing_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
-                elems_match = memcmp(to_ptr(elem), existing_elem_ptr, self.elem_type_size)
+                mut cmp_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
+                elems_match = memcmp(to_ptr(elem), cmp_elem_ptr, self.elem_type_size)
             }
 
             if elems_match.eq(0) {
@@ -81,8 +81,8 @@ Set := struct {
                     elems_match = 1
                 }
             } else {
-                mut existing_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
-                elems_match = memcmp(to_ptr(elem), existing_elem_ptr, self.elem_type_size)
+                mut cmp_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
+                elems_match = memcmp(to_ptr(elem), cmp_elem_ptr, self.elem_type_size)
             }
 
             if elems_match.eq(0) {
@@ -123,8 +123,8 @@ Set := struct {
                     elems_match = 1
                 }
             } else {
-                mut existing_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
-                elems_match = memcmp(to_ptr(elem), existing_elem_ptr, self.elem_type_size)
+                mut cmp_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
+                elems_match = memcmp(to_ptr(elem), cmp_elem_ptr, self.elem_type_size)
             }
 
             if elems_match.eq(0) {

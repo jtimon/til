@@ -97,14 +97,14 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
 
         // Process optional args before the variadic
         while def_arg_idx < func_def.args.len() - 1 {  // -1 to stop before variadic
-            let def_arg = &func_def.args[def_arg_idx];
+            let opt_def_arg = &func_def.args[def_arg_idx];
 
             // Check if we have a provided arg that matches this def arg's type
             let mut matches = false;
             if call_arg_idx < call_args.len() {
                 let provided_arg = &call_args[call_arg_idx];
                 if let Ok(found_type) = get_value_type(&context, provided_arg) {
-                    let expected = &def_arg.value_type;
+                    let expected = &opt_def_arg.value_type;
                     matches = match expected {
                         ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => true,
                         _ => expected == &found_type,
@@ -116,11 +116,11 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
                 // Use provided arg
                 result.push(call_args[call_arg_idx].clone());
                 call_arg_idx += 1;
-            } else if let Some(default_expr) = &def_arg.default_value {
+            } else if let Some(opt_default_expr) = &opt_def_arg.default_value {
                 // Use default
-                result.push((**default_expr).clone());
+                result.push((**opt_default_expr).clone());
             } else {
-                return Err(e.error(&context.path, "precomp", &format!("Missing argument for non-optional parameter '{}'", def_arg.name)));
+                return Err(e.error(&context.path, "precomp", &format!("Missing argument for non-optional parameter '{}'", opt_def_arg.name)));
             }
             def_arg_idx += 1;
         }
@@ -1173,14 +1173,14 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                             _ => None,
                         };
                         if let Some(ref type_name) = custom_type_name {
-                            let method_name = format!("{}.{}", type_name, ufcs_func_name);
-                            if context.scope_stack.lookup_func(&method_name).is_some() {
-                                let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), e.get(0)?, Vec::new());
-                                let mut new_args = Vec::new();
-                                new_args.push(new_e);
-                                new_args.push(receiver_expr);
-                                new_args.extend(e.params[1..].to_vec());
-                                return Ok(Expr::new_clone(NodeType::FCall, e.get(0)?, new_args));
+                            let assoc_method_name = format!("{}.{}", type_name, ufcs_func_name);
+                            if context.scope_stack.lookup_func(&assoc_method_name).is_some() {
+                                let assoc_new_id_e = Expr::new_clone(NodeType::Identifier(assoc_method_name.clone()), e.get(0)?, Vec::new());
+                                let mut assoc_new_args = Vec::new();
+                                assoc_new_args.push(assoc_new_id_e);
+                                assoc_new_args.push(receiver_expr);
+                                assoc_new_args.extend(e.params[1..].to_vec());
+                                return Ok(Expr::new_clone(NodeType::FCall, e.get(0)?, assoc_new_args));
                             }
                         }
                     }
@@ -1191,12 +1191,12 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
                 // Fall back to standalone function
                 if context.scope_stack.lookup_func(&ufcs_func_name.to_string()).is_some() {
-                    let new_e = Expr::new_clone(NodeType::Identifier(ufcs_func_name.clone()), e.get(0)?, Vec::new());
-                    let mut new_args = Vec::new();
-                    new_args.push(new_e);
-                    new_args.push(receiver_expr);
-                    new_args.extend(e.params[1..].to_vec());
-                    return Ok(Expr::new_clone(NodeType::FCall, e.get(0)?, new_args));
+                    let standalone_new_id_e = Expr::new_clone(NodeType::Identifier(ufcs_func_name.clone()), e.get(0)?, Vec::new());
+                    let mut standalone_new_args = Vec::new();
+                    standalone_new_args.push(standalone_new_id_e);
+                    standalone_new_args.push(receiver_expr);
+                    standalone_new_args.extend(e.params[1..].to_vec());
+                    return Ok(Expr::new_clone(NodeType::FCall, e.get(0)?, standalone_new_args));
                 }
             }
         }

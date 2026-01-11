@@ -73,6 +73,10 @@ pub struct ScopeFrame {
 pub struct ScopeStack {
     /// Stack of scope frames
     pub frames: Vec<ScopeFrame>,
+    /// Bug #97: Track all variable declarations in the current function by (name, line, col).
+    /// Using location allows handling AST duplication from transformations like for-in desugaring,
+    /// while still catching actual shadowing (same name at different source location).
+    pub function_locals: HashSet<(String, usize, usize)>,
 }
 
 #[allow(dead_code)]
@@ -80,6 +84,7 @@ impl ScopeStack {
     pub fn new() -> Self {
         ScopeStack {
             frames: Vec::new(),
+            function_locals: HashSet::new(),
         }
     }
 
@@ -120,6 +125,58 @@ impl ScopeStack {
             }
         }
         None
+    }
+
+    /// Bug #97: Check if we're currently inside a function (not at global scope).
+    pub fn is_inside_function(&self) -> bool {
+        for frame in self.frames.iter().rev() {
+            if frame.scope_type == ScopeType::Function {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Bug #97: Check if symbol exists in an ENCLOSING function scope (not current frame, not global).
+    /// Searches from parent frame back to the nearest Function frame (inclusive).
+    /// Used to detect variable shadowing - only errors if symbol is in an outer scope.
+    pub fn lookup_symbol_in_enclosing_scope(&self, name: &str) -> Option<&SymbolInfo> {
+        // Skip the current frame - we're looking for shadowing of outer variables
+        for frame in self.frames.iter().rev().skip(1) {
+            if let Some(sym) = frame.symbols.get(name) {
+                return Some(sym);
+            }
+            // Stop at Function frame - don't search into global scope
+            if frame.scope_type == ScopeType::Function {
+                break;
+            }
+        }
+        None
+    }
+
+    /// Bug #97: Check if a variable name was already declared at a DIFFERENT location in this function.
+    /// Returns true if the name exists but at a different (line, col) - indicating actual shadowing.
+    /// Returns false if same (name, line, col) exists - indicating AST duplication, not shadowing.
+    pub fn is_shadowing_in_function(&self, name: &str, line: usize, col: usize) -> bool {
+        // Check if any entry with same name but different location exists
+        for (existing_name, existing_line, existing_col) in &self.function_locals {
+            if existing_name == name && (*existing_line != line || *existing_col != col) {
+                return true; // Same name at different location = shadowing
+            }
+        }
+        false
+    }
+
+    /// Bug #97: Check if this exact declaration (name, line, col) was already processed.
+    /// Used to detect AST duplication from transformations like for-in desugaring.
+    pub fn is_already_processed(&self, name: &str, line: usize, col: usize) -> bool {
+        self.function_locals.contains(&(name.to_string(), line, col))
+    }
+
+    /// Bug #97: Register a variable declaration in the current function.
+    /// Call this when declaring a new variable.
+    pub fn register_function_local(&mut self, name: &str, line: usize, col: usize) {
+        self.function_locals.insert((name.to_string(), line, col));
     }
 
     /// Bug #50: Check if accessing this symbol would require closure capture.
@@ -474,14 +531,14 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         return Err(e.lang_error(&context.path, "init", &format!("enum '{}' not found in context", f_name)));
                     },
                 };
-                let after_dot = match id_expr.params.get(0) {
+                let enum_after_dot_expr = match id_expr.params.get(0) {
                     Some(_after_dot) => _after_dot,
                     None => {
                         // Just referencing the enum type itself, not constructing
                         return Ok(ValueType::TType(TTypeDef::TEnumDef));
                     },
                 };
-                match &after_dot.node_type {
+                match &enum_after_dot_expr.node_type {
                     NodeType::Identifier(variant_name) => {
                         // Check if this variant exists in the enum
                         let variant_type = match enum_def.get(variant_name) {
@@ -524,7 +581,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         return Ok(ValueType::TCustom(f_name.clone()));
                     },
                     _ => {
-                        return Err(e.lang_error(&context.path, "init", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+                        return Err(e.lang_error(&context.path, "init", &format!("Expected identifier after '{}.' found '{:?}'", f_name, enum_after_dot_expr.node_type)));
                     },
                 }
             },
@@ -532,49 +589,49 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 // Check if it's an enum first
                 if context.scope_stack.lookup_enum(custom_type_name).is_some() {
                     // It's an enum - try UFCS method call
-                    let after_dot = match id_expr.params.get(0) {
+                    let enum_after_dot = match id_expr.params.get(0) {
                         Some(_after_dot) => _after_dot,
                         None => {
                             return Ok(ValueType::TCustom(f_name.clone()));
                         },
                     };
-                    match &after_dot.node_type {
-                        NodeType::Identifier(after_dot_name) => {
+                    match &enum_after_dot.node_type {
+                        NodeType::Identifier(enum_after_dot_name) => {
                             // Try associated method first
-                            let method_name = format!("{}.{}", custom_type_name, after_dot_name);
-                            if let Some(func_def) = context.scope_stack.lookup_func(&method_name) {
-                                return value_type_func_proc(&context.path, &e, &method_name, func_def);
+                            let enum_method_name = format!("{}.{}", custom_type_name, enum_after_dot_name);
+                            if let Some(func_def) = context.scope_stack.lookup_func(&enum_method_name) {
+                                return value_type_func_proc(&context.path, &e, &enum_method_name, func_def);
                             }
 
                             // Fall back to UFCS: try standalone function with enum as first arg
                             match get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol) {
                                 Ok(ok_val) => return Ok(ok_val),
                                 Err(_) => {
-                                    return Err(e.error(&context.path, "init", &format!("enum '{}' has no method '{}' and no matching function found for UFCS", custom_type_name, after_dot_name)));
+                                    return Err(e.error(&context.path, "init", &format!("enum '{}' has no method '{}' and no matching function found for UFCS", custom_type_name, enum_after_dot_name)));
                                 },
                             }
                         },
                         _ => {
-                            return Err(e.lang_error(&context.path, "init", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+                            return Err(e.lang_error(&context.path, "init", &format!("Expected identifier after '{}.' found '{:?}'", f_name, enum_after_dot.node_type)));
                         },
                     }
                 }
 
                 // Not an enum, try struct
-                let struct_def = match context.scope_stack.lookup_struct(custom_type_name) {
+                let custom_struct_def = match context.scope_stack.lookup_struct(custom_type_name) {
                     Some(_struct_def) => _struct_def,
                     None => {
                         return Err(e.lang_error(&context.path, "init", &format!("type '{}' not found in context", f_name)));
                     },
                 };
-                let after_dot = match id_expr.params.get(0) {
+                let struct_after_dot = match id_expr.params.get(0) {
                     Some(_after_dot) => _after_dot,
                     None => {
                         return Ok(ValueType::TCustom(f_name.clone()));
                     },
                 };
-                match &after_dot.node_type {
-                    NodeType::Identifier(after_dot_name) => {
+                match &struct_after_dot.node_type {
+                    NodeType::Identifier(struct_after_dot_name) => {
                         // Bug #10 fix: Check if we have a multi-level chain like struct.field.method
                         // If id_expr.params has 2+ elements, try to resolve all-but-last as field access
                         if id_expr.params.len() >= 2 {
@@ -591,9 +648,9 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                                     match &intermediate_type {
                                         ValueType::TCustom(intermediate_type_name) => {
                                             // First check if it's a method on this type
-                                            let method_name = format!("{}.{}", intermediate_type_name, final_member_name);
-                                            if let Some(func_def) = context.scope_stack.lookup_func(&method_name) {
-                                                return value_type_func_proc(&context.path, &e, &method_name, func_def);
+                                            let intermediate_method_name = format!("{}.{}", intermediate_type_name, final_member_name);
+                                            if let Some(func_def) = context.scope_stack.lookup_func(&intermediate_method_name) {
+                                                return value_type_func_proc(&context.path, &e, &intermediate_method_name, func_def);
                                             }
 
                                             // Try UFCS: standalone function with intermediate type as first arg
@@ -603,9 +660,9 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
                                             // Check if it's a struct with this member as a field
                                             if let Some(intermediate_struct_def) = context.scope_stack.lookup_struct(intermediate_type_name) {
-                                                if let Some(member_decl) = intermediate_struct_def.get_member(final_member_name) {
+                                                if let Some(intermediate_member_decl) = intermediate_struct_def.get_member(final_member_name) {
                                                     // It's a field access - return the field's type
-                                                    return Ok(member_decl.value_type.clone());
+                                                    return Ok(intermediate_member_decl.value_type.clone());
                                                 }
                                             }
                                         },
@@ -618,91 +675,91 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         }
 
                         // Original logic: single-level access (struct.member)
-                        let member_decl = match struct_def.get_member(after_dot_name) {
+                        let direct_member_decl = match custom_struct_def.get_member(struct_after_dot_name) {
                             Some(_member) => _member,
                             None => {
                                 match get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol) {
                                     Ok(ok_val) => return Ok(ok_val),
                                     Err(error_string) => {
                                         println!("{}", error_string);
-                                        return Err(e.error(&context.path, "init", &format!("struct '{}' has no member '{}' c", custom_type_name, after_dot_name)));
+                                        return Err(e.error(&context.path, "init", &format!("struct '{}' has no member '{}' c", custom_type_name, struct_after_dot_name)));
                                     },
                                 }
                             },
                         };
-                        let member_default_value = match struct_def.default_values.get(after_dot_name) {
+                        let direct_member_default_value = match custom_struct_def.default_values.get(struct_after_dot_name) {
                             Some(_member) => _member,
                             None => {
-                                return Err(e.error(&context.path, "init", &format!("struct '{}' has no member '{}' d", custom_type_name, after_dot_name)));
+                                return Err(e.error(&context.path, "init", &format!("struct '{}' has no member '{}' d", custom_type_name, struct_after_dot_name)));
                             },
                         };
-                        match &member_default_value.node_type {
+                        match &direct_member_default_value.node_type {
                             NodeType::FuncDef(func_def) => {
-                                let combined_name = format!("{}.{}", custom_type_name, after_dot_name);
-                                return value_type_func_proc(&context.path, &e, &combined_name, &func_def);
+                                let struct_combined_name = format!("{}.{}", custom_type_name, struct_after_dot_name);
+                                return value_type_func_proc(&context.path, &e, &struct_combined_name, &func_def);
                             },
                             _  => {
                                 return Err(e.error(&context.path, "init", &format!("Cannot call '{}.{}', it is not a function, it is '{}'",
-                                                                    f_name, after_dot_name, value_type_to_str(&member_decl.value_type))));
+                                                                    f_name, struct_after_dot_name, value_type_to_str(&direct_member_decl.value_type))));
                             },
                         }
                     },
 
                     _ => {
-                        return Err(e.lang_error(&context.path, "init", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+                        return Err(e.lang_error(&context.path, "init", &format!("Expected identifier after '{}.' found '{:?}'", f_name, struct_after_dot.node_type)));
                     },
                 }
             },
             ValueType::TMulti(_) => {
                 // Variadic parameters are implemented as Array at runtime
                 // Treat them as Array for type checking method calls
-                let custom_type_name = "Array";
-                let struct_def = match context.scope_stack.lookup_struct(custom_type_name) {
+                let variadic_type_name = "Array";
+                let variadic_struct_def = match context.scope_stack.lookup_struct(variadic_type_name) {
                     Some(_struct_def) => _struct_def,
                     None => {
-                        return Err(e.lang_error(&context.path, "init", &format!("struct '{}' not found in context", custom_type_name)));
+                        return Err(e.lang_error(&context.path, "init", &format!("struct '{}' not found in context", variadic_type_name)));
                     },
                 };
-                let after_dot = match id_expr.params.get(0) {
+                let variadic_after_dot = match id_expr.params.get(0) {
                     Some(_after_dot) => _after_dot,
                     None => {
-                        return Ok(ValueType::TCustom(custom_type_name.to_string()));
+                        return Ok(ValueType::TCustom(variadic_type_name.to_string()));
                     },
                 };
-                match &after_dot.node_type {
-                    NodeType::Identifier(after_dot_name) => {
-                        let member_decl = match struct_def.get_member(after_dot_name) {
+                match &variadic_after_dot.node_type {
+                    NodeType::Identifier(variadic_after_dot_name) => {
+                        let variadic_member_decl = match variadic_struct_def.get_member(variadic_after_dot_name) {
                             Some(_member) => _member,
                             None => {
                                 match get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol) {
                                     Ok(ok_val) => return Ok(ok_val),
                                     Err(error_string) => {
                                         println!("{}", error_string);
-                                        return Err(e.error(&context.path, "init", &format!("struct '{}' has no member '{}' (variadic)", custom_type_name, after_dot_name)));
+                                        return Err(e.error(&context.path, "init", &format!("struct '{}' has no member '{}' (variadic)", variadic_type_name, variadic_after_dot_name)));
                                     },
                                 }
                             },
                         };
-                        let member_default_value = match struct_def.default_values.get(after_dot_name) {
+                        let variadic_member_default_value = match variadic_struct_def.default_values.get(variadic_after_dot_name) {
                             Some(_member) => _member,
                             None => {
-                                return Err(e.error(&context.path, "init", &format!("struct '{}' has no member '{}' (variadic default)", custom_type_name, after_dot_name)));
+                                return Err(e.error(&context.path, "init", &format!("struct '{}' has no member '{}' (variadic default)", variadic_type_name, variadic_after_dot_name)));
                             },
                         };
-                        match &member_default_value.node_type {
+                        match &variadic_member_default_value.node_type {
                             NodeType::FuncDef(func_def) => {
-                                let combined_name = format!("{}.{}", custom_type_name, after_dot_name);
-                                return value_type_func_proc(&context.path, &e, &combined_name, &func_def);
+                                let variadic_combined_name = format!("{}.{}", variadic_type_name, variadic_after_dot_name);
+                                return value_type_func_proc(&context.path, &e, &variadic_combined_name, &func_def);
                             },
                             _  => {
                                 return Err(e.error(&context.path, "init", &format!("Cannot call '{}.{}', it is not a function, it is '{}'",
-                                                                    custom_type_name, after_dot_name, value_type_to_str(&member_decl.value_type))));
+                                                                    variadic_type_name, variadic_after_dot_name, value_type_to_str(&variadic_member_decl.value_type))));
                             },
                         }
                     },
 
                     _ => {
-                        return Err(e.lang_error(&context.path, "init", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+                        return Err(e.lang_error(&context.path, "init", &format!("Expected identifier after '{}.' found '{:?}'", f_name, variadic_after_dot.node_type)));
                     },
                 }
             },
@@ -738,21 +795,21 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
             if name == "_" && !e.params.is_empty() {
                 // Get the type of the base expression (params[0])
                 let base_expr = e.get(0)?;
-                let mut current_type = get_value_type(context, base_expr)?;
+                let mut underscore_current_type = get_value_type(context, base_expr)?;
 
                 // Traverse the field access chain in params[1..]
-                for i in 1..e.params.len() {
-                    let field_expr = e.get(i)?;
+                for field_idx in 1..e.params.len() {
+                    let field_expr = e.get(field_idx)?;
                     let field_name = match &field_expr.node_type {
                         NodeType::Identifier(n) => n,
                         _ => return Err(e.error(&context.path, "init", "Expected identifier in field access chain")),
                     };
 
-                    match &current_type {
+                    match &underscore_current_type {
                         ValueType::TCustom(type_name) => {
-                            if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
-                                if let Some(member) = struct_def.get_member(field_name) {
-                                    current_type = member.value_type.clone();
+                            if let Some(underscore_struct_def) = context.scope_stack.lookup_struct(type_name) {
+                                if let Some(member) = underscore_struct_def.get_member(field_name) {
+                                    underscore_current_type = member.value_type.clone();
                                 } else {
                                     return Err(e.error(&context.path, "init", &format!("Struct '{}' has no member '{}'", type_name, field_name)));
                                 }
@@ -760,14 +817,14 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
                                 return Err(e.error(&context.path, "init", &format!("'{}' is not a struct", type_name)));
                             }
                         },
-                        _ => return Err(e.error(&context.path, "init", &format!("Cannot access fields on type '{}'", value_type_to_str(&current_type)))),
+                        _ => return Err(e.error(&context.path, "init", &format!("Cannot access fields on type '{}'", value_type_to_str(&underscore_current_type)))),
                     }
                 }
 
-                return Ok(current_type);
+                return Ok(underscore_current_type);
             }
 
-            let mut current_type = match context.scope_stack.lookup_symbol(name) {
+            let mut id_current_type = match context.scope_stack.lookup_symbol(name) {
                 Some(symbol_info_m) => {
                     symbol_info_m.value_type.clone()
                 },
@@ -776,7 +833,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
 
             // If there are no parameters, just return the type of the first identifier
             if e.params.is_empty() {
-                return Ok(current_type);
+                return Ok(id_current_type);
             }
 
             // Now, process each nested member.
@@ -786,45 +843,45 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
                     node_type => return Err(e.lang_error(&context.path, "init", &format!("Identifiers can only contain identifiers, found '{:?}'", node_type))),
                 };
 
-                match &current_type {
+                match &id_current_type {
                     ValueType::TType(TTypeDef::TStructDef) => {
                         // If it's a struct, resolve its member
-                        let struct_def = context.scope_stack.lookup_struct(name)
+                        let type_struct_def = context.scope_stack.lookup_struct(name)
                             .ok_or_else(|| e.error(&context.path, "init", &format!("Struct '{}' not found", name)))?;
 
-                        let decl = struct_def.get_member_or_err(member_name, name, &context.path, e)?;
-                        current_type = decl.value_type.clone();
+                        let type_decl = type_struct_def.get_member_or_err(member_name, name, &context.path, e)?;
+                        id_current_type = type_decl.value_type.clone();
                     },
                     ValueType::TType(TTypeDef::TEnumDef) => {
                         // If it's an enum, resolve the variant
-                        let enum_def = context.scope_stack.lookup_enum(name)
+                        let nested_enum_def = context.scope_stack.lookup_enum(name)
                             .ok_or_else(|| e.error(&context.path, "init", &format!("Enum '{}' not found", name)))?;
 
-                        if enum_def.contains_key(member_name) {
+                        if nested_enum_def.contains_key(member_name) {
                             return Ok(ValueType::TCustom(name.to_string()));
                         } else {
                             return Err(e.error(&context.path, "init", &format!("Enum '{}' has no value '{}'", name, member_name)));
                         }
                     },
-                    ValueType::TCustom(custom_type_name) => {
+                    ValueType::TCustom(nested_custom_type_name) => {
                         // If it's a custom type (a struct), resolve the member
-                        let struct_def = context.scope_stack.lookup_struct(custom_type_name)
-                            .ok_or_else(|| e.error(&context.path, "init", &format!("Struct '{}' not found", custom_type_name)))?;
+                        let nested_struct_def = context.scope_stack.lookup_struct(nested_custom_type_name)
+                            .ok_or_else(|| e.error(&context.path, "init", &format!("Struct '{}' not found", nested_custom_type_name)))?;
 
-                        let decl = struct_def.get_member_or_err(member_name, custom_type_name, &context.path, e)?;
-                        current_type = decl.value_type.clone();
+                        let nested_decl = nested_struct_def.get_member_or_err(member_name, nested_custom_type_name, &context.path, e)?;
+                        id_current_type = nested_decl.value_type.clone();
                     },
                     ValueType::TMulti(_variadic_type_name) => {
                         // Variadic parameters are implemented as Array at runtime
-                        current_type = ValueType::TCustom("Array".to_string());
+                        id_current_type = ValueType::TCustom("Array".to_string());
                     },
                     _ => {
-                        return Err(e.error(&context.path, "init", &format!("'{}' of type '{}' can't have members", name, value_type_to_str(&current_type))));
+                        return Err(e.error(&context.path, "init", &format!("'{}' of type '{}' can't have members", name, value_type_to_str(&id_current_type))));
                     }
                 }
             }
 
-            Ok(current_type) // Return the type of the last field (x)
+            Ok(id_current_type) // Return the type of the last field (x)
         },
 
         NodeType::Pattern(PatternInfo { variant_name, .. }) => {
@@ -1214,14 +1271,14 @@ impl Context {
 
     // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
     pub fn get_variant_pos(selfi: &SEnumDef, variant_name: &str, path: &str, e: &Expr) -> Result<i64, String> {
-        for (i, v) in selfi.variants.iter().enumerate() {
-            if v.name == variant_name {
-                return Ok(i as i64);
+        for (search_idx, search_v) in selfi.variants.iter().enumerate() {
+            if search_v.name == variant_name {
+                return Ok(search_idx as i64);
             }
         }
         let mut names: Vec<&str> = vec![];
-        for v in &selfi.variants {
-            names.push(v.name.as_str());
+        for name_v in &selfi.variants {
+            names.push(name_v.name.as_str());
         }
         Err(e.lang_error(path, "context", &format!("Error: Enum variant '{}' not found in variants: {:?}.", variant_name, names)))
     }
@@ -1229,12 +1286,12 @@ impl Context {
     // Bug #38 fix: Use ordered variants Vec for consistent variant positioning
     pub fn variant_pos_to_str(selfi: &SEnumDef, position: i64, path: &str, e: &Expr) -> Result<String, String> {
         if position < 0 || position >= selfi.variants.len() as i64 {
-            let mut names: Vec<&str> = vec![];
-            for v in &selfi.variants {
-                names.push(v.name.as_str());
+            let mut err_names: Vec<&str> = vec![];
+            for err_v in &selfi.variants {
+                err_names.push(err_v.name.as_str());
             }
             return Err(e.lang_error(path, "context", &format!("Error: Invalid position '{}' for enum variant in '{:?}'.",
-                                                        position, names)));
+                                                        position, err_names)));
         }
 
         return Ok(selfi.variants[position as usize].name.clone())
