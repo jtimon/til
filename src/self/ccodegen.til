@@ -746,8 +746,8 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
                 output.push_str(");\n")
             }
 
-            // Record in hoisted_exprs map using expression address
-            expr_addr := to_ptr(expr)
+            // Record in hoisted_exprs map using expression's line+col (stable across copies)
+            expr_addr := expr.line.mul(1000000).add(expr.col)
             ctx.hoisted_exprs.set(expr_addr, temp_var.clone())
 
             return temp_var
@@ -878,8 +878,8 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
             output.push_str(ntv_variadic_arr_var)
             output.push_str(");\n")
 
-            // Record in hoisted_exprs map using expression address
-            ntv_expr_addr := to_ptr(expr)
+            // Record in hoisted_exprs map using expression's token position (stable across copies)
+            ntv_expr_addr := expr.line.mul(1000000).add(expr.col)
             ctx.hoisted_exprs.set(ntv_expr_addr, ntv_temp_var.clone())
 
             return ntv_temp_var
@@ -1175,8 +1175,8 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 output.push_str(");\n")
             }
 
-            // Record in hoisted_exprs map using expression address
-            thr_expr_addr := to_ptr(arg)
+            // Record in hoisted_exprs map using expression's token position (stable across copies)
+            thr_expr_addr := arg.line.mul(1000000).add(arg.col)
             ctx.hoisted_exprs.set(thr_expr_addr, thr_temp_var.clone())
             hoisted.push(HoistedArg(index=idx, temp_var=thr_temp_var))
         }
@@ -1306,8 +1306,8 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             output.push_str(ntv_variadic_arr_var)
             output.push_str(");\n")
 
-            // Record in hoisted_exprs map using expression address
-            ntv_expr_addr := to_ptr(arg)
+            // Record in hoisted_exprs map using expression's token position (stable across copies)
+            ntv_expr_addr := arg.line.mul(1000000).add(arg.col)
             ctx.hoisted_exprs.set(ntv_expr_addr, ntv_temp_var.clone())
             hoisted.push(HoistedArg(index=idx, temp_var=ntv_temp_var))
         }
@@ -1348,7 +1348,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                     mut dyn_nested_arg := Expr()
                     else_nested_args.get(h.index, dyn_nested_arg)
                     catch (err: IndexOutOfBoundsError) { }
-                    dyn_expr_addr := to_ptr(dyn_nested_arg)
+                    dyn_expr_addr := dyn_nested_arg.line.mul(1000000).add(dyn_nested_arg.col)
                     ctx.hoisted_exprs.set(dyn_expr_addr, format("&", h.temp_var))
                 }
             }
@@ -1390,7 +1390,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
     mut idx := 0
     for arg: Expr in args {
         // Skip if already hoisted by throwing args hoister or by a previous function call
-        arg_addr := to_ptr(arg)
+        arg_addr := arg.line.mul(1000000).add(arg.col)
         if already_hoisted.contains_key(idx).or(ctx.hoisted_exprs.contains_key(arg_addr)) {
             idx.inc()
             continue
@@ -1605,7 +1605,7 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
     mut idx := 0
     for arg: Expr in args {
         // Skip if already hoisted
-        arg_addr := to_ptr(arg)
+        arg_addr := arg.line.mul(1000000).add(arg.col)
         if already_hoisted.contains_key(idx).or(ctx.hoisted_exprs.contains_key(arg_addr)) {
             idx.inc()
             continue
@@ -1640,11 +1640,11 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
                     // The result is an lvalue, doesn't need hoisting
                     needs_hoisting = false
                 } else {
-                    is_variable := context.scope_stack.lookup_symbol(name)
                     mut has_variable := true
+                    is_variable := context.scope_stack.lookup_symbol(name)
                     catch (err: KeyNotFoundError) { has_variable = false }
-                    is_function := context.scope_stack.lookup_func(name)
                     mut has_function := true
+                    is_function := context.scope_stack.lookup_func(name)
                     catch (err: KeyNotFoundError) { has_function = false }
                     // Only needs hoisting if it's not a variable AND not a function call
                     // (i.e., it's a Type.method call like I64.to_str)
@@ -2134,7 +2134,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
     }
 
     // Also check ctx.hoisted_exprs for expressions hoisted via other mechanisms
-    arg_addr := to_ptr(arg)
+    arg_addr := arg.line.mul(1000000).add(arg.col)
     if ctx.hoisted_exprs.contains_key(arg_addr) {
         mut temp_expr := ""
         ctx.hoisted_exprs.get(arg_addr, temp_expr)
@@ -2265,7 +2265,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
         }
         // For non-identifier args (literals, compound literals), emit with (til_Dynamic*)&
         // But first check if already hoisted (hoisted_exprs already includes & prefix)
-        dyn_arg_addr := to_ptr(arg)
+        dyn_arg_addr := arg.line.mul(1000000).add(arg.col)
         if ctx.hoisted_exprs.contains_key(dyn_arg_addr) {
             // Already hoisted with & prefix - just emit it
             emit_expr(arg, output, 0, ctx, context)
@@ -4195,7 +4195,7 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
 
 emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     // Check if this expression has been hoisted (for nested variadic/throwing calls)
-    expr_addr := to_ptr(expr)
+    expr_addr := expr.line.mul(1000000).add(expr.col)
     mut temp_var := ""
     ctx.hoisted_exprs.get(expr_addr, temp_var)
     if true { // TODO Bug #96 workaround
@@ -6550,7 +6550,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                         if mut_h.index.lt(mut_args.len()) {
                             mut mut_hoisted_arg := Expr()
                             mut_args.get(mut_h.index, mut_hoisted_arg)
-                            mut_dyn_expr_key := to_ptr(mut_hoisted_arg)
+                            mut_dyn_expr_key := mut_hoisted_arg.line.mul(1000000).add(mut_hoisted_arg.col)
                             mut mut_dyn_hoisted_val := "&"
                             mut_dyn_hoisted_val.push_str(mut_h.temp_var)
                             ctx.hoisted_exprs.set(mut_dyn_expr_key, mut_dyn_hoisted_val)
@@ -6565,7 +6565,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                         if mut_h3.index.lt(mut_args.len()) {
                             mut mut_ref_arg := Expr()
                             mut_args.get(mut_h3.index, mut_ref_arg)
-                            mut_ref_expr_key := to_ptr(mut_ref_arg)
+                            mut_ref_expr_key := mut_ref_arg.line.mul(1000000).add(mut_ref_arg.col)
                             mut mut_ref_hoisted_val := "&"
                             mut_ref_hoisted_val.push_str(mut_h3.temp_var)
                             ctx.hoisted_exprs.set(mut_ref_expr_key, mut_ref_hoisted_val)
@@ -6652,7 +6652,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                         if const_h.index.lt(const_args.len()) {
                             mut const_hoisted_arg := Expr()
                             const_args.get(const_h.index, const_hoisted_arg)
-                            const_expr_key := to_ptr(const_hoisted_arg)
+                            const_expr_key := const_hoisted_arg.line.mul(1000000).add(const_hoisted_arg.col)
                             mut const_hoisted_val := "&"
                             const_hoisted_val.push_str(const_h.temp_var)
                             ctx.hoisted_exprs.set(const_expr_key, const_hoisted_val)
@@ -6667,7 +6667,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                         if const_h3.index.lt(const_args.len()) {
                             mut const_ref_arg := Expr()
                             const_args.get(const_h3.index, const_ref_arg)
-                            const_ref_expr_key := to_ptr(const_ref_arg)
+                            const_ref_expr_key := const_ref_arg.line.mul(1000000).add(const_ref_arg.col)
                             mut const_ref_hoisted_val := "&"
                             const_ref_hoisted_val.push_str(const_h3.temp_var)
                             ctx.hoisted_exprs.set(const_ref_expr_key, const_ref_hoisted_val)
@@ -8805,7 +8805,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(til_name(enum_type_name))
                 output.push_str("_to_str(")
                 // Check if the argument was already hoisted
-                enum_expr_key := to_ptr(enum_arg)
+                enum_expr_key := enum_arg.line.mul(1000000).add(enum_arg.col)
                 if ctx.hoisted_exprs.contains_key(enum_expr_key) {
                     emit_expr(enum_arg, output, 0, ctx, context)
                 } else {
@@ -8921,7 +8921,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             }
         } else {
             // Check if ptr_arg was hoisted with & prefix already
-            ptr_expr_key := to_ptr(ptr_arg)
+            ptr_expr_key := ptr_arg.line.mul(1000000).add(ptr_arg.col)
             if ctx.hoisted_exprs.contains_key(ptr_expr_key) {
                 mut temp_var := ""
                 ctx.hoisted_exprs.get(ptr_expr_key, temp_var)

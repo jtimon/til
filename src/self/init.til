@@ -472,12 +472,15 @@ ScopeStack := struct {
             mut struct_name := Str()
             parts.get(0, struct_name)
             _ := self.lookup_struct(struct_name)
+            // Bug fix: catch MUST be inside the if block to catch exceptions
+            // from lookup_struct. TIL catch semantics require the catch to be
+            // in the same scope as the throwing code.
+            catch (err: KeyNotFoundError) {
+                return false
+            }
             return true
         }
         catch (err: IndexOutOfBoundsError) {
-            return false
-        }
-        catch (err: KeyNotFoundError) {
             return false
         }
         return false
