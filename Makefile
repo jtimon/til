@@ -10,7 +10,7 @@ RSTIL_SRCS := src/rstil.rs $(wildcard src/rs/*.rs)
 
 bin/rstil: $(RSTIL_SRCS)
 	@mkdir -p bin
-	rustc src/rstil.rs -o bin/rstil
+	rustc -D warnings src/rstil.rs -o bin/rstil
 
 # Compiled make.til for faster builds
 MAKE_TIL_DEPS := make.til $(wildcard src/std/*.til) $(wildcard src/core/*.til)

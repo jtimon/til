@@ -47,7 +47,7 @@ build_rstil := proc() {
 
     mut status := 0
     status = run_stream_cmd("mkdir -p bin")
-    status = run_stream_cmd("rustc src/rstil.rs -o bin/rstil")
+    status = run_stream_cmd("rustc -D warnings src/rstil.rs -o bin/rstil")
     if status.eq(0).not() {
         exit(1)
     }

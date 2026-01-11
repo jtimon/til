@@ -8,6 +8,32 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #99: Eliminate all C compiler warnings and enable -Werror
+:PROPERTIES:
+:DISCOVERED: 2026-01-11
+:IMPACT: Warnings may hide real bugs; clean builds improve code quality
+:STATUS: Open
+:END:
+
+*** Description
+The generated C code and ext.c produce various gcc warnings. These should be
+fixed so we can enable ~-Werror~ (treat warnings as errors) in the build.
+
+*** Compiler flags
+- gcc: ~-Werror~ treats all warnings as errors
+- rustc: ~-D warnings~ treats all warnings as errors
+
+*** Status
+- rustc: DONE - added ~-D warnings~ to Makefile and make.til (no warnings currently)
+- gcc: TODO - need to fix warnings before enabling ~-Werror~
+
+*** Known gcc warnings
+- Bug #94 documents some warnings in bug47.til compilation
+- Need to audit all generated C code for warnings
+
+*** Related
+- Bug #94: gcc warnings cause bug47.til compilation failure
+
 ** Bug #98: ext_proc errors should throw specific error types instead of panicking
 :PROPERTIES:
 :DISCOVERED: 2026-01-10
