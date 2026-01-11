@@ -552,7 +552,8 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
     // Check if this expression itself is a throwing call
     switch expr.node_type {
     case NodeType.FCall:
-        throwing_fd := get_fcall_func_def(context, expr)
+        mut throwing_fd := SFuncDef()
+        throwing_fd = get_fcall_func_def(context, expr)
         catch (err: KeyNotFoundError) {
             // REM: Not a function call we can look up, continue
         }
