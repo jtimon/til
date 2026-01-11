@@ -5257,15 +5257,20 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             }
             mut vi_arg := Expr()
             fcall.params.get(vi_arg_idx.add(1), vi_arg)  // +1 to skip func name
+            catch (err: IndexOutOfBoundsError) {
+                vi_arg_idx.inc()
+                continue
+            }
             mut vi_param_type_val := ValueType.TCustom(INFER_TYPE)
             param_types.get(vi_arg_idx, vi_param_type_val)
+            catch (err: IndexOutOfBoundsError) { }
             mut vi_param_type_ptr := Ptr()
             vi_param_type_ptr.data = to_ptr(vi_param_type_val)
             mut vi_by_ref := false
             param_by_ref.get(vi_arg_idx, vi_by_ref)
+            catch (err: IndexOutOfBoundsError) { }
             emit_arg_with_param_type(vi_arg, vi_arg_idx, hoisted, vi_param_type_ptr, vi_by_ref, output, ctx, context)
             vi_arg_idx.inc()
-            catch (err: IndexOutOfBoundsError) { }
         }
         // Emit variadic array pointer
         if needs_ret.or(not(throw_types.is_empty())).or(variadic_info.regular_count.gt(0)) {
@@ -5283,18 +5288,23 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             }
             mut nv_arg := Expr()
             fcall.params.get(nv_arg_i, nv_arg)
+            catch (err: IndexOutOfBoundsError) {
+                nv_arg_i.inc()
+                continue
+            }
             nv_arg_idx := nv_arg_i.sub(1)
             // Get parameter type and mutability for this argument
             mut nv_param_type_val := ValueType.TCustom(INFER_TYPE)
             param_types.get(nv_arg_idx, nv_param_type_val)
+            catch (err: IndexOutOfBoundsError) { }
             mut nv_param_type_ptr := Ptr()
             nv_param_type_ptr.data = to_ptr(nv_param_type_val)
             mut nv_by_ref := false
             param_by_ref.get(nv_arg_idx, nv_by_ref)
+            catch (err: IndexOutOfBoundsError) { }
             emit_arg_with_param_type(nv_arg, nv_arg_idx, hoisted, nv_param_type_ptr, nv_by_ref, output, ctx, context)
             nv_args_started = true
             nv_arg_i.inc()
-            catch (err: IndexOutOfBoundsError) { }
         }
     }
 
@@ -5459,7 +5469,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Calculate param_types and param_by_ref
-    mut param_types := Vec.new(Ptr)  // Ptr to ValueType, NULL = None
+    mut param_types := Vec.new(ValueType)
     mut param_by_ref := Vec.new(Bool)
     mut arg_idx := 0
     for arg: Expr in fcall.params {
@@ -5470,17 +5480,15 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         fd2 := get_fcall_func_def(context, fcall)
         mut param_arg := Declaration()
         fd2.args.get(arg_idx.sub(1), param_arg)
-        mut ptr := Ptr()
-        ptr.data = to_ptr(param_arg.value_type)
-        param_types.push(ptr)
+        param_types.push(param_arg.value_type)
         param_by_ref.push(param_needs_by_ref(param_arg))
         arg_idx.inc()
         catch (err: KeyNotFoundError) {
-            param_types.push(Ptr())  // NULL = None
+            param_types.push(ValueType.TCustom(INFER_TYPE))
             param_by_ref.push(false)
         }
         catch (err: IndexOutOfBoundsError) {
-            param_types.push(Ptr())  // NULL = None
+            param_types.push(ValueType.TCustom(INFER_TYPE))
             param_by_ref.push(false)
         }
     }
@@ -5640,13 +5648,20 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             }
             mut var_arg := Expr()
             fcall.params.get(var_arg_i.add(1), var_arg)
+            catch (err: IndexOutOfBoundsError) {
+                var_arg_i.inc()
+                continue
+            }
             mut var_by_ref := false
             param_by_ref.get(var_arg_i, var_by_ref)
-            mut var_param_type := Ptr()
-            param_types.get(var_arg_i, var_param_type)
-            emit_arg_with_param_type(var_arg, var_arg_i, hoisted, var_param_type, var_by_ref, output, ctx, context)
-            var_arg_i.inc()
             catch (err: IndexOutOfBoundsError) { }
+            mut var_param_type_val := ValueType.TCustom(INFER_TYPE)
+            param_types.get(var_arg_i, var_param_type_val)
+            catch (err: IndexOutOfBoundsError) { }
+            mut var_param_type_ptr := Ptr()
+            var_param_type_ptr.data = to_ptr(var_param_type_val)
+            emit_arg_with_param_type(var_arg, var_arg_i, hoisted, var_param_type_ptr, var_by_ref, output, ctx, context)
+            var_arg_i.inc()
         }
         if needs_ret.or(not(throw_types.is_empty())).or(variadic_info.regular_count.gt(0)) {
             output.push_str(", ")
@@ -5654,24 +5669,29 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         output.push_str("&")
         output.push_str(variadic_arr_var)
     } else {
-        mut nv_args_started := false
-        mut nv_arg_i := 0
-        for nv_arg: Expr in fcall.params {
-            if nv_arg_i.eq(0) {
-                nv_arg_i.inc()
+        // Non-variadic: emit all args directly
+        mut args_started := false
+        mut arg_i := 0
+        for arg: Expr in fcall.params {
+            if arg_i.eq(0) {
+                arg_i.inc()
                 continue
             }
-            if needs_ret.or(not(throw_types.is_empty())).or(nv_args_started) {
+            if needs_ret.or(not(throw_types.is_empty())).or(args_started) {
                 output.push_str(", ")
             }
-            mut nv_by_ref := false
-            param_by_ref.get(nv_arg_i.sub(1), nv_by_ref)
-            mut nv_param_type := Ptr()
-            param_types.get(nv_arg_i.sub(1), nv_param_type)
-            emit_arg_with_param_type(nv_arg, nv_arg_i.sub(1), hoisted, nv_param_type, nv_by_ref, output, ctx, context)
-            nv_args_started = true
-            nv_arg_i.inc()
+            // Get parameter type and mutability for this argument
+            mut by_ref := false
+            param_by_ref.get(arg_i.sub(1), by_ref)
             catch (err: IndexOutOfBoundsError) { }
+            mut param_type_val := ValueType.TCustom(INFER_TYPE)
+            param_types.get(arg_i.sub(1), param_type_val)
+            catch (err: IndexOutOfBoundsError) { }
+            mut param_type_ptr := Ptr()
+            param_type_ptr.data = to_ptr(param_type_val)
+            emit_arg_with_param_type(arg, arg_i.sub(1), hoisted, param_type_ptr, by_ref, output, ctx, context)
+            args_started = true
+            arg_i.inc()
         }
     }
 
@@ -5788,7 +5808,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Calculate param_types and param_by_ref
-    mut param_types := Vec.new(Ptr)  // Ptr to ValueType, NULL = None
+    mut param_types := Vec.new(ValueType)
     mut param_by_ref := Vec.new(Bool)
     mut arg_idx := 0
     for arg: Expr in fcall.params {
@@ -5799,17 +5819,15 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         fd2 := get_fcall_func_def(context, fcall)
         mut param_arg := Declaration()
         fd2.args.get(arg_idx.sub(1), param_arg)
-        mut ptr := Ptr()
-        ptr.data = to_ptr(param_arg.value_type)
-        param_types.push(ptr)
+        param_types.push(param_arg.value_type)
         param_by_ref.push(param_needs_by_ref(param_arg))
         arg_idx.inc()
         catch (err: KeyNotFoundError) {
-            param_types.push(Ptr())  // NULL = None
+            param_types.push(ValueType.TCustom(INFER_TYPE))
             param_by_ref.push(false)
         }
         catch (err: IndexOutOfBoundsError) {
-            param_types.push(Ptr())  // NULL = None
+            param_types.push(ValueType.TCustom(INFER_TYPE))
             param_by_ref.push(false)
         }
     }
@@ -5962,7 +5980,11 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Emit arguments
     mut args_started := false
-    regular_arg_count := variadic_info.regular_count
+    // For non-variadic functions, use a large value so all args are emitted
+    mut regular_arg_count := 999999999
+    if has_variadic {
+        regular_arg_count = variadic_info.regular_count
+    }
     mut arg_i := 0
     for arg: Expr in fcall.params {
         if arg_i.eq(0) {
@@ -5977,12 +5999,15 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         }
         mut by_ref := false
         param_by_ref.get(arg_i.sub(1), by_ref)
-        mut param_type := Ptr()
-        param_types.get(arg_i.sub(1), param_type)
-        emit_arg_with_param_type(arg, arg_i.sub(1), hoisted, param_type, by_ref, output, ctx, context)
+        catch (err: IndexOutOfBoundsError) { }
+        mut param_type_val := ValueType.TCustom(INFER_TYPE)
+        param_types.get(arg_i.sub(1), param_type_val)
+        catch (err: IndexOutOfBoundsError) { }
+        mut param_type_ptr := Ptr()
+        param_type_ptr.data = to_ptr(param_type_val)
+        emit_arg_with_param_type(arg, arg_i.sub(1), hoisted, param_type_ptr, by_ref, output, ctx, context)
         args_started = true
         arg_i.inc()
-        catch (err: IndexOutOfBoundsError) { }
     }
 
     // Add variadic array if present

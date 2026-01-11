@@ -1174,6 +1174,31 @@ int _status__tmp_panic_1 = til_Array_get(&_err0__tmp_panic_1);
 #+END_SRC
 Affects 5 locations in hello_script.til (lines 101, 132, 165, 185, 233)
 
+****** 2026-01-11: Fixed - Multiple issues in emit_throwing_call* functions
+Root cause: Several interrelated bugs in argument emission for throwing function calls.
+
+1. Catch block placement: Catch blocks were placed AFTER emit_arg_with_param_type(),
+   so when param_by_ref.get() or param_types.get() threw IndexOutOfBoundsError,
+   emit_arg_with_param_type was skipped entirely, causing missing arguments.
+
+2. param_types type mismatch: emit_throwing_call_propagate and emit_throwing_call_with_goto
+   stored Vec<Ptr> but hoist_for_dynamic_params expected Vec<ValueType>. This caused
+   incorrect Dynamic casts to be applied to all arguments.
+
+3. regular_arg_count defaulting to 0: In emit_throwing_call_with_goto, for non-variadic
+   functions, regular_arg_count came from variadic_info.regular_count which defaults to 0.
+   The loop `if arg_i.sub(1).gteq(regular_arg_count)` would break immediately.
+   Fixed by using 999999999 for non-variadic (matches Rust's usize::MAX pattern).
+
+Fixed in emit_throwing_call, emit_throwing_call_propagate, emit_throwing_call_with_goto:
+- Move catch blocks immediately after .get() calls, before emit_arg_with_param_type
+- Change param_types from Vec<Ptr> to Vec<ValueType>
+- Convert ValueType to Ptr when calling emit_arg_with_param_type
+- Use large default for regular_arg_count in non-variadic case
+
+After fix: til_Array_get arguments now match rstil output.
+Remaining diffs are hoisting differences (temp var numbering) which are cosmetic.
+
 ***** Issue 2: til_malloc missing 1 argument
 rstil generates:
 #+BEGIN_SRC c
