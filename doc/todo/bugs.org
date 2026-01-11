@@ -1162,11 +1162,9 @@ When a test passes til_compiled, remove TODO and move to all_common.
 **** Issues Found in hello_script.til Diff
 1. ~til_Array_get~ missing arguments - til generates ~til_Array_get(&_err0)~ but rstil
    generates ~til_Array_get(&_err0, array, &index, (til_Dynamic*)&out)~
-2. String literals encoded as numbers - til generates numeric encoding like
-   ~"1151149947..."~ instead of readable ~"src/core/exit.til:13:5:"~
-3. Function names emitted as variables - ~til_Str x = til_panic;~ treats function as value
-4. Extra Array operations - til generates extra ~Array_new~ and ~Array_set~ calls
-5. Compound literals vs intermediate variables - til uses ~&(til_I64){expr}~ inline,
+2. Function names emitted as variables - ~til_Str x = til_panic;~ treats function as value
+3. Extra Array operations - til generates extra ~Array_new~ and ~Array_set~ calls
+4. Compound literals vs intermediate variables - til uses ~&(til_I64){expr}~ inline,
    rstil uses ~til_I64 _tmp = expr; &_tmp~
 
 **** Known Error Patterns in Generated C

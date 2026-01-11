@@ -9253,7 +9253,14 @@ emit_str_literal := proc(s: Str, mut output: Str) {
         } else if c.eq(quote) {
             output.push_str("\\\"")
         } else {
-            output.push_str(c.to_str())
+            char_str := s.get_substr(i, add(i, 1))
+            catch (err: IndexOutOfBoundsError) {
+                panic(loc(), "IndexOutOfBoundsError in emit_str_literal: ", err.msg)
+            }
+            catch (err: AllocError) {
+                panic(loc(), "AllocError in emit_str_literal: ", err.msg)
+            }
+            output.push_str(char_str)
         }
         i.inc()
         catch (err: U8_OverflowError) {
