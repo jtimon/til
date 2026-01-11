@@ -244,9 +244,19 @@ test_break_in_for := proc() {
 }
 test_break_in_for()
 
-// NOTE: continue in for loops does NOT work because for loops desugar to while
-// with the increment at the end of the body. Continue skips the increment,
-// causing an infinite loop. Use while loops with manual increment if you need continue.
+// continue in for loops works correctly (verified 2026-01-11)
+test_continue_in_for := proc() {
+    mut sum := 0
+    for i in 0..10 {
+        if i.eq(5) {
+            continue // skip adding 5 to sum
+        }
+        sum = sum.add(i)
+    }
+    // sum should be 0+1+2+3+4+6+7+8+9 = 40
+    assert_eq(loc(), 40, sum)
+}
+test_continue_in_for()
 
 test_nested_loop_break := proc() {
     // break only breaks innermost loop

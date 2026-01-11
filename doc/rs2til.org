@@ -452,10 +452,10 @@ for i in 0..10 {
 
 *** continue
 
-Works in ~while~ loops only. Does NOT work correctly in ~for~ loops.
+Works in both ~while~ and ~for~ loops.
 
 #+begin_src til
-// CORRECT: continue in while loop
+// continue in while loop
 mut i := 0
 while lt(i, 10) {
     i.inc()
@@ -464,28 +464,15 @@ while lt(i, 10) {
     }
     // ... rest of body
 }
-#+end_src
 
-WARNING: ~continue~ in ~for~ loops causes infinite loops because ~for~ desugars to
-~while~ with the increment at the end of the body. ~continue~ skips the increment.
-
-#+begin_src til
-// WRONG: causes infinite loop!
+// continue in for loop (works correctly)
 for i in 0..10 {
     if i.eq(5) {
-        continue  // BUG: skips the implicit i.inc(), loops forever at i=5
+        continue  // skip adding 5 to sum
     }
+    sum = sum.add(i)
 }
-
-// CORRECT: use while with manual increment before continue
-mut i := 0
-while lt(i, 10) {
-    i.inc()  // increment BEFORE any continue
-    if i.eq(5) {
-        continue
-    }
-    // ...
-}
+// sum = 0+1+2+3+4+6+7+8+9 = 40
 #+end_src
 
 ** For-in loops
