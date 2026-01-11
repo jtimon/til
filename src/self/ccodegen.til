@@ -1665,7 +1665,11 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
             if not(arg.params.is_empty()) {
                 mut first := Expr()
                 arg.params.get(0, first)
-                combined := get_combined_name(context.path, first)
+                mut combined := get_combined_name(context.path, first)
+                catch (err: Str) {
+                    // Rust uses unwrap_or_default() - empty string means needs hoisting
+                    combined = ""
+                }
                 needs_hoisting = not(context.scope_stack.is_type_constructor(combined))
             } else {
                 needs_hoisting = true
@@ -2058,11 +2062,15 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
         }
     } else {
         // Get function param info for Dynamic casting, mut handling
-        nv_found_func := get_fcall_func_def(context, expr)
         mut nv_param_info := Vec.new(ParamTypeInfo)
-        catch (err: KeyNotFoundError) { }
-        for nv_p: Declaration in nv_found_func.args {
-            nv_param_info.push(ParamTypeInfo(value_type=nv_p.value_type, by_ref=param_needs_by_ref(nv_p)))
+        nv_found_func := get_fcall_func_def(context, expr)
+        if true { // TODO Bug #96 workaround - only run if get_fcall_func_def succeeded
+            for nv_p: Declaration in nv_found_func.args {
+                nv_param_info.push(ParamTypeInfo(value_type=nv_p.value_type, by_ref=param_needs_by_ref(nv_p)))
+            }
+        }
+        catch (err: KeyNotFoundError) {
+            // Function not found - nv_param_info stays empty
         }
 
         // Emit remaining arguments (using hoisted temps where available)
@@ -5096,8 +5104,9 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
     mut hoisted := Map.new(I64, Str)
+    // Build args slice from index 1 (skip function name at index 0)
+    mut args := Vec.new(Expr)
     if fcall.params.len().gt(1) {
-        mut args := Vec.new(Expr)
         mut collect_i := 1
         while collect_i.lt(fcall.params.len()) {
             mut collect_arg := Expr()
@@ -5113,7 +5122,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // Hoist non-lvalue args (string literals, function calls) when param type is Dynamic
     if fcall.params.len().gt(1) {
-        dynamic_hoisted := hoist_for_dynamic_params(fcall.params, param_types, hoisted, output, indent, ctx, context)
+        dynamic_hoisted := hoist_for_dynamic_params(args, param_types, hoisted, output, indent, ctx, context)
         for h: HoistedArg in dynamic_hoisted {
             hoisted.set(h.index, h.temp_var)
         }
@@ -5121,7 +5130,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // Hoist struct-returning FCall args when param is by-ref (can't use compound literal for structs)
     if fcall.params.len().gt(1) {
-        ref_hoisted := hoist_for_ref_params(fcall.params, param_by_ref, hoisted, output, indent, ctx, context)
+        ref_hoisted := hoist_for_ref_params(args, param_by_ref, hoisted, output, indent, ctx, context)
         for h: HoistedArg in ref_hoisted {
             hoisted.set(h.index, h.temp_var)
         }
@@ -5478,8 +5487,9 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
     mut hoisted := Map.new(I64, Str)
+    // Build args slice from index 1 (skip function name at index 0)
+    mut args := Vec.new(Expr)
     if fcall.params.len().gt(1) {
-        mut args := Vec.new(Expr)
         mut i := 1
         while i.lt(fcall.params.len()) {
             mut arg := Expr()
@@ -5495,7 +5505,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Hoist non-lvalue args when param type is Dynamic
     if fcall.params.len().gt(1) {
-        dynamic_hoisted := hoist_for_dynamic_params(fcall.params, param_types, hoisted, output, indent, ctx, context)
+        dynamic_hoisted := hoist_for_dynamic_params(args, param_types, hoisted, output, indent, ctx, context)
         for h: HoistedArg in dynamic_hoisted {
             hoisted.set(h.index, h.temp_var)
         }
@@ -5503,7 +5513,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Hoist struct-returning FCall args when param is by-ref
     if fcall.params.len().gt(1) {
-        ref_hoisted := hoist_for_ref_params(fcall.params, param_by_ref, hoisted, output, indent, ctx, context)
+        ref_hoisted := hoist_for_ref_params(args, param_by_ref, hoisted, output, indent, ctx, context)
         for h: HoistedArg in ref_hoisted {
             hoisted.set(h.index, h.temp_var)
         }
@@ -5806,8 +5816,9 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
     mut hoisted := Map.new(I64, Str)
+    // Build args slice from index 1 (skip function name at index 0)
+    mut args := Vec.new(Expr)
     if fcall.params.len().gt(1) {
-        mut args := Vec.new(Expr)
         mut i := 1
         while i.lt(fcall.params.len()) {
             mut arg := Expr()
@@ -5823,7 +5834,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Hoist non-lvalue args when param type is Dynamic
     if fcall.params.len().gt(1) {
-        dynamic_hoisted := hoist_for_dynamic_params(fcall.params, param_types, hoisted, output, indent, ctx, context)
+        dynamic_hoisted := hoist_for_dynamic_params(args, param_types, hoisted, output, indent, ctx, context)
         for h: HoistedArg in dynamic_hoisted {
             hoisted.set(h.index, h.temp_var)
         }
@@ -5831,7 +5842,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Hoist struct-returning FCall args when param is by-ref
     if fcall.params.len().gt(1) {
-        ref_hoisted := hoist_for_ref_params(fcall.params, param_by_ref, hoisted, output, indent, ctx, context)
+        ref_hoisted := hoist_for_ref_params(args, param_by_ref, hoisted, output, indent, ctx, context)
         for h: HoistedArg in ref_hoisted {
             hoisted.set(h.index, h.temp_var)
         }

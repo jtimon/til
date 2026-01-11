@@ -1166,6 +1166,11 @@ When a test passes til_compiled, remove TODO and move to all_common.
 2. ~til_malloc~ missing arguments - same pattern as til_Array_get
 3. Hoisting differences - rstil hoists to temp vars (~til_I64 _tmp = expr; &_tmp~),
    til uses inline compound literals (~&(til_I64){expr}~)
+   - Fixed slice bug: hoist_for_dynamic_params and hoist_for_ref_params now receive
+     args slice from index 1 (matching Rust's &fcall.params[1..])
+   - Remaining diffs may be due to builtin functions (memcpy, add, mul) not being
+     in scope_stack, causing get_fcall_func_def to skip hoisting
+   - Both outputs (temp vars vs compound literals) are valid C
 4. ~.msg = til_format(...)~ inline vs ~.msg = _tmp~ with hoisted call
 
 **** Known Error Patterns in Generated C
