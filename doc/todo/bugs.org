@@ -1160,18 +1160,53 @@ When a test passes til_compiled, remove TODO and move to all_common.
    - get_fcall_func_def in emit_throw
    - get_fcall_func_def in hoist_throwing_expr
 
-**** Issues Found in hello_script.til Diff
-1. ~til_Array_get~ missing arguments - til generates ~til_Array_get(&_err0)~ but rstil
-   generates ~til_Array_get(&_err0, array, &index, (til_Dynamic*)&out)~
-2. ~til_malloc~ missing arguments - same pattern as til_Array_get
-3. Hoisting differences - rstil hoists to temp vars (~til_I64 _tmp = expr; &_tmp~),
-   til uses inline compound literals (~&(til_I64){expr}~)
-   - Fixed slice bug: hoist_for_dynamic_params and hoist_for_ref_params now receive
-     args slice from index 1 (matching Rust's &fcall.params[1..])
-   - Remaining diffs may be due to builtin functions (memcpy, add, mul) not being
-     in scope_stack, causing get_fcall_func_def to skip hoisting
-   - Both outputs (temp vars vs compound literals) are valid C
-4. ~.msg = til_format(...)~ inline vs ~.msg = _tmp~ with hoisted call
+**** Issues Found in hello_script.til Diff (2026-01-11)
+Current diff from ~./src/til_diff.til src/examples/hello_script.til~:
+
+***** Issue 1: til_Array_get missing 3 arguments
+rstil generates:
+#+BEGIN_SRC c
+int _status__tmp_panic_1 = til_Array_get(&_err0__tmp_panic_1, til_extra_msgs, &_for_i_panic_0, (til_Dynamic*)&til_extra_msg);
+#+END_SRC
+til generates:
+#+BEGIN_SRC c
+int _status__tmp_panic_1 = til_Array_get(&_err0__tmp_panic_1);
+#+END_SRC
+Affects 5 locations in hello_script.til (lines 101, 132, 165, 185, 233)
+
+***** Issue 2: til_malloc missing 1 argument
+rstil generates:
+#+BEGIN_SRC c
+til_I64 _tmp_format_13 = til_add(&til_result.cap, &(til_I64){1});
+int _status__tmp_format_12 = til_malloc(&_ret__tmp_format_12, &_err0__tmp_format_12, &_tmp_format_13);
+#+END_SRC
+til generates:
+#+BEGIN_SRC c
+int _status__tmp_format_12 = til_malloc(&_ret__tmp_format_12, &_err0__tmp_format_12);
+#+END_SRC
+
+***** Issue 3: Hoisting differences
+rstil hoists expressions to temp vars:
+#+BEGIN_SRC c
+til_I64 _tmp_format_14 = til_mul(til_index, &til_self->type_size);
+const til_I64 til_src = til_add(&til_self->ptr, &_tmp_format_14);
+#+END_SRC
+til uses inline compound literals:
+#+BEGIN_SRC c
+const til_I64 til_src = til_add(&til_self->ptr, &(til_I64){til_mul(til_index, &til_self->type_size)});
+#+END_SRC
+Both are valid C but cause temp variable numbering drift.
+
+***** Issue 4: .msg inline vs hoisted
+rstil hoists format call:
+#+BEGIN_SRC c
+til_Str _tmp_til_Array_get_7 = til_format(...);
+*_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_til_Array_get_7};
+#+END_SRC
+til inlines:
+#+BEGIN_SRC c
+*_err1 = (til_IndexOutOfBoundsError){.msg = til_format(...)};
+#+END_SRC
 
 **** Known Error Patterns in Generated C
 - ~too few arguments to function~ - missing args in generated calls

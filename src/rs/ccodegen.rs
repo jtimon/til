@@ -4128,13 +4128,13 @@ fn emit_throwing_call(
     // Emit arguments - handle variadic separately from regular args
     if let Some(ref vi) = variadic_info {
         // Variadic call: emit regular args first, then variadic array pointer
-        for (arg_idx, arg) in fcall.params.iter().skip(1).take(vi.regular_count).enumerate() {
-            if needs_ret || !throw_types.is_empty() || arg_idx > 0 {
+        for (vi_arg_idx, vi_arg) in fcall.params.iter().skip(1).take(vi.regular_count).enumerate() {
+            if needs_ret || !throw_types.is_empty() || vi_arg_idx > 0 {
                 output.push_str(", ");
             }
-            let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-            let by_ref = param_by_ref.get(arg_idx).copied().unwrap_or(false);
-            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, by_ref, output, ctx, context)?;
+            let vi_param_type = param_types.get(vi_arg_idx).and_then(|p| p.as_ref());
+            let vi_by_ref = param_by_ref.get(vi_arg_idx).copied().unwrap_or(false);
+            emit_arg_with_param_type(vi_arg, vi_arg_idx, &hoisted, vi_param_type, vi_by_ref, output, ctx, context)?;
         }
 
         // Emit variadic array pointer
@@ -4147,16 +4147,16 @@ fn emit_throwing_call(
         }
     } else {
         // Non-variadic: emit all args directly
-        let mut args_started = false;
-        for (arg_idx, arg) in fcall.params.iter().skip(1).enumerate() {
-            if needs_ret || !throw_types.is_empty() || args_started {
+        let mut nv_args_started = false;
+        for (nv_arg_idx, nv_arg) in fcall.params.iter().skip(1).enumerate() {
+            if needs_ret || !throw_types.is_empty() || nv_args_started {
                 output.push_str(", ");
             }
             // Get parameter type and mutability for this argument
-            let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-            let by_ref = param_by_ref.get(arg_idx).copied().unwrap_or(false);
-            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, by_ref, output, ctx, context)?;
-            args_started = true;
+            let nv_param_type = param_types.get(nv_arg_idx).and_then(|p| p.as_ref());
+            let nv_by_ref = param_by_ref.get(nv_arg_idx).copied().unwrap_or(false);
+            emit_arg_with_param_type(nv_arg, nv_arg_idx, &hoisted, nv_param_type, nv_by_ref, output, ctx, context)?;
+            nv_args_started = true;
         }
     }
 
