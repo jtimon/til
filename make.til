@@ -225,6 +225,17 @@ run_test_cross := proc() {
     println("=== All cross-compilation tests passed ===")
 }
 
+// Build til with debug symbols and run gdb
+build_til_debug := proc() {
+    build_rstil_til()
+    mut status := 0
+    status = run_stream_cmd("gcc -g -O0 -o bin/til_debug gen/c/til.c -lm -I src")
+    if status.eq(0).not() {
+        exit(1)
+    }
+    _ := run_stream_cmd("gdb ./bin/til_debug")
+}
+
 // WARNING: This target depends on til_til which hangs
 diff_til := proc() {
     // Compare C output from rstil vs til
@@ -238,7 +249,7 @@ diff_til := proc() {
 main := proc(args: ..Str) {
     if not(args.len().eq(1)) {
         println("Usage: make.til <target>")
-        println("Available targets: clean, rstil, repl, rstil_til, til_til, tests, regen, benchmark, test-cross, diff_til")
+        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff_til")
         exit(1)
     }
     mut target := ""
@@ -254,6 +265,8 @@ main := proc(args: ..Str) {
         build_rstil_til()
     case "til_til":
         build_til_til()
+    case "til_debug":
+        build_til_debug()
     case "tests":
         run_tests()
     case "regen":
@@ -266,7 +279,7 @@ main := proc(args: ..Str) {
         diff_til()
     case:
         println("Unknown target: ", target)
-        println("Available targets: clean, rstil, repl, rstil_til, til_til, tests, regen, benchmark, test-cross, diff_til")
+        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff_til")
         exit(1)
     }
 

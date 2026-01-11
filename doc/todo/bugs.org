@@ -1084,8 +1084,9 @@ The 58 tests in til_interpreted have these failure modes when run with ~./bin/ti
 
 - ~./src/til_diff.til src/test/foo.til~ - compare rstil vs til generated C code
 - ~timeout 10 ./bin/til run src/test/foo.til 2>&1~ - test single file
+- ~./make.til til_debug~ - build til with debug symbols for gdb
+- ~gdb ./bin/til_debug~ - step through with breakpoints, inspect variable values
 - ~gdb -batch -ex "run ..." -ex "bt" ./bin/til~ - get crash backtrace
-- ~gdb~ with breakpoints to inspect variable values
 - Look at ~gen/c/test/*.c~ for generated code
 
 *** Current Fix Plan
@@ -1106,7 +1107,7 @@ Current test: ~src/examples/hello_script.til~
 5. Verify against Rust - check equivalent code in ccodegen.rs
 6. Fix following rs2til.org - apply correct translation pattern
 7. Test the fix: ~./bin/til run src/test/chosen_test.til~
-8. Run ~make benchmark 2>&1 | tee tmp/benchmark_output.txt~
+8. Run ~timeout 300 make benchmark~ (always use timeout 300 for make benchmark)
 9. Re-run all failing tests in parallel to update TODO comments:
    - Run ~timeout 10 ./bin/til run src/test/X.til 2>&1~ for each test in til_interpreted
    - Update inline TODO comments with current errors
@@ -1162,13 +1163,12 @@ When a test passes til_compiled, remove TODO and move to all_common.
 **** Issues Found in hello_script.til Diff
 1. ~til_Array_get~ missing arguments - til generates ~til_Array_get(&_err0)~ but rstil
    generates ~til_Array_get(&_err0, array, &index, (til_Dynamic*)&out)~
-2. Function names emitted as variables - ~til_Str x = til_panic;~ treats function as value
-3. Extra Array operations - til generates extra ~Array_new~ and ~Array_set~ calls
-4. Compound literals vs intermediate variables - til uses ~&(til_I64){expr}~ inline,
-   rstil uses ~til_I64 _tmp = expr; &_tmp~
+2. ~til_malloc~ missing arguments - same pattern as til_Array_get
+3. Hoisting differences - rstil hoists to temp vars (~til_I64 _tmp = expr; &_tmp~),
+   til uses inline compound literals (~&(til_I64){expr}~)
+4. ~.msg = til_format(...)~ inline vs ~.msg = _tmp~ with hoisted call
 
 **** Known Error Patterns in Generated C
-- ~invalid initializer~ (e.g., ~til_Str x = til_panic;~) - function treated as value
 - ~too few arguments to function~ - missing args in generated calls
 - ~undeclared variable~ - variable not emitted
 
