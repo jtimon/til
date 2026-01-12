@@ -994,13 +994,10 @@ main := proc(args: ..Str) {
     // rs_common: tests that pass with rstil but NOT yet with til (interpreted or compiled)
     // (tests that pass all 4 modes are in all_common)
     mut rs_common := Vec.new(TestEntry)
-    rs_common.push(TestEntry(path="src/test/arenas.til"))  // TODO: til compiled gcc type mismatch
     rs_common.push(TestEntry(path="src/test/args.til"))  // TODO: til compiled segfault
-    rs_common.push(TestEntry(path="src/test/arrays.til"))  // TODO: til compiled gcc type mismatch
     rs_common.push(TestEntry(path="src/test/bug43.til"))  // TODO: til compiled segfault
     rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: slow (~41s) but works
     rs_common.push(TestEntry(path="src/test/bug50.til", expected_status=1))  // REM: must stay in rs_common - "rstil" vs "til" in error msg (Issue #69)
-    rs_common.push(TestEntry(path="src/test/bug52.til"))  // TODO: til compiled gcc shadow warning
     rs_common.push(TestEntry(path="src/test/bug55.til"))  // TODO: til compiled segfault
     rs_common.push(TestEntry(path="src/test/bug56.til"))  // TODO: til compiled segfault
     rs_common.push(TestEntry(path="src/test/bug57.til"))  // TODO: til compiled segfault
@@ -1053,12 +1050,9 @@ main := proc(args: ..Str) {
     // til_interpreted: tests that pass with til interpret but NOT yet with til_compiled
     // (tests that pass all 4 modes are in all_common)
     mut til_interpreted := Vec.new(TestEntry)
-    til_interpreted.push(TestEntry(path="src/test/arenas.til"))  // TODO: gcc type mismatch
     til_interpreted.push(TestEntry(path="src/test/args.til"))  // TODO: segfault
-    til_interpreted.push(TestEntry(path="src/test/arrays.til"))  // TODO: gcc type mismatch
     til_interpreted.push(TestEntry(path="src/test/bug43.til"))  // TODO: segfault
     // til_interpreted.push(TestEntry(path="src/test/bug47.til")) // TODO slow (~41s) but works
-    til_interpreted.push(TestEntry(path="src/test/bug52.til"))  // TODO: gcc shadow warning
     til_interpreted.push(TestEntry(path="src/test/bug55.til"))  // TODO: segfault
     til_interpreted.push(TestEntry(path="src/test/bug56.til"))  // TODO: segfault
     til_interpreted.push(TestEntry(path="src/test/bug57.til"))  // TODO: segfault
@@ -1098,6 +1092,9 @@ main := proc(args: ..Str) {
 
     // all_common: tests run with ALL 4 modes (rs_interpreted, rs_compiled, til_interpreted, til_compiled)
     mut all_common := Vec.new(TestEntry)
+    all_common.push(TestEntry(path="src/test/arenas.til"))
+    all_common.push(TestEntry(path="src/test/arrays.til"))
+    all_common.push(TestEntry(path="src/test/bug52.til"))
     all_common.push(TestEntry(path="src/examples/empty.til"))
     all_common.push(TestEntry(path="src/examples/hello_cli.til"))
     all_common.push(TestEntry(path="src/examples/hello_lib.til"))

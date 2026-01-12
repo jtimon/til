@@ -1064,22 +1064,24 @@ This matters for:
 - Archaeology: Don't waste time investigating individual commits in this range
 
 **** 2026-01-12: Current State
-Build passes. 109/109 tests pass. Test breakdown:
-- 33 tests in all_common (pass all 4 modes)
-- 32 tests in til_interpreted (pass til interpret, fail til compile)
-- 37 tests in rs_common (pass rstil, fail til compile)
+Build passes. 107/107 tests pass. Test breakdown:
+- 36 tests in all_common (pass all 4 modes)
+- 29 tests in til_interpreted (pass til interpret, fail til compile)
+- 34 tests in rs_common (pass rstil, fail til compile)
 - 1 test in til_common (panic.til - different error message format)
+
+Recent fixes:
+- Fixed gcc stderr handling in builder.til to match Rust (capture stderr, only show on failure)
+- Moved arenas.til, arrays.til, bug52.til to all_common
 
 *** Current Error Summary
 
-The 32 tests in til_interpreted have these failure modes when run with ~./bin/til run~:
+The 29 tests in til_interpreted have these failure modes when run with ~./bin/til run~:
 
 | Error Type | Count | Example |
 |------------|-------|---------|
-| segfault | 28 | Crash during C execution |
-| gcc shadow warning | 1 | bug52.til - variable shadowing in generated C |
-| gcc error undeclared | 1 | c_mem.til - variable not declared |
-| gcc type mismatch | 2 | arenas.til, arrays.til - incompatible pointer types |
+| segfault | 27 | Crash during C execution |
+| gcc error undeclared | 2 | c_mem.til, lists.til - variable not declared |
 
 *** Debugging Tools
 
@@ -1098,7 +1100,7 @@ TIL code must be an exact translation from Rust (comments and variable names inc
 using rs2til.org translation rules. Any differences detected must be fixed immediately,
 even if only cosmetic.
 
-Current test: ~src/test/arrays.til~
+Current test: ~src/test/c_mem.til~
 
 **** Iterative Fix Workflow
 1. User picks a test from til_interpreted that they want working in til_compiled
