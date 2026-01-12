@@ -1233,6 +1233,93 @@ til inlines:
 *_err1 = (til_IndexOutOfBoundsError){.msg = til_format(...)};
 #+END_SRC
 
+****** 2026-01-12: Fixed - is_struct_constructor catch placement in init.til
+The is_struct_constructor function in init.til had a catch block placed outside
+the if block where the throwing code was:
+
+#+BEGIN_SRC til
+// WRONG - catch was outside if block, never catches lookup_struct exceptions
+if parts.len().eq(1) {
+    _ := self.lookup_struct(struct_name)
+    return true
+}
+catch (err: KeyNotFoundError) {  // Never triggered!
+    return false
+}
+#+END_SRC
+
+Fixed by moving the catch inside the if block:
+
+#+BEGIN_SRC til
+// CORRECT - catch inside same scope as throwing code
+if parts.len().eq(1) {
+    _ := self.lookup_struct(struct_name)
+    catch (err: KeyNotFoundError) {
+        return false
+    }
+    return true
+}
+#+END_SRC
+
+This fix resolves the hoisting differences - til_diff.til now shows "OK: No differences found!"
+
+****** 2026-01-12: Test re-categorization after is_struct_constructor fix
+With the catch placement fix, many tests now pass til_compiled mode.
+Updated test categories in src/tests.til:
+- 17 tests in all_common (pass all 4 modes)
+- 49 tests in til_interpreted (pass til interpret, fail til compile)
+- 53 tests in rs_common (pass rstil, fail til compile)
+
+****** 2026-01-12: Discovered til.til run_cmd_vec swallows output
+Tests showing "empty output" in til_compiled mode are caused by til.til's
+run_cmd_vec function capturing stdout into a variable but never printing it:
+
+#+BEGIN_SRC til
+run_cmd_vec := proc(cmd: Str, args: Vec) returns I64 {
+    mut full_cmd := cmd
+    for arg: Str in args { full_cmd = full_cmd.concat(" ").concat(arg) }
+    mut output := ""
+    return output.run_cmd("bash", "-c", full_cmd)  // output captured but never printed!
+}
+#+END_SRC
+
+In contrast, rstil.rs uses Command::new().status() which inherits stdout.
+This is NOT a ccodegen bug - the C code is identical. Needs separate fix in til.til.
+
+****** 2026-01-12: Fixed run_cmd_vec output swallowing
+Added run_cmd_vec_print to sys.til that prints captured output after run_cmd:
+
+#+BEGIN_SRC til
+run_cmd_vec_print := proc(cmd: Str, args: Vec) returns I64 {
+    mut full_cmd := cmd
+    for arg: Str in args {
+        full_cmd = full_cmd.concat(" ").concat(arg)
+    }
+    mut output := ""
+    exit_code := output.run_cmd("bash", "-c", full_cmd)
+    if output.len().gt(0) {
+        print(output)
+    }
+    return exit_code
+}
+#+END_SRC
+
+Updated til.til's run_file_or_exit to use run_cmd_vec_print instead of run_cmd_vec.
+This matches rstil.rs's Command::new().status() behavior of inheriting stdout.
+
+****** 2026-01-12: Final test re-categorization after run_cmd_vec_print fix
+Tests that were failing with "empty output" now work correctly.
+Updated test categories in src/tests.til:
+- 22 tests in all_common (pass all 4 modes)
+- 1 test in til_common (panic.til - error msg format differs "til" vs "rstil")
+- 43 tests in til_interpreted (pass til interpret, fail til compile)
+- 48 tests in rs_common (pass rstil, fail til compile)
+- Total: 121 tests, 0 failures
+
+Tests moved to all_common:
+- hello_cli.til, hello_script.til, lolalalo.til (examples)
+- bug46.til, underscore.til (tests)
+
 **** Known Error Patterns in Generated C
 - ~too few arguments to function~ - missing args in generated calls
 - ~undeclared variable~ - variable not emitted

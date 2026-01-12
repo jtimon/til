@@ -42,6 +42,23 @@ run_cmd_vec := proc(cmd: Str, args: Vec) returns I64 {
 }
 
 /**
+ * Like run_cmd_vec but prints the output (inherits stdout/stderr behavior).
+ * Use this when you want the subprocess output to be visible to the user.
+ */
+run_cmd_vec_print := proc(cmd: Str, args: Vec) returns I64 {
+    mut full_cmd := cmd
+    for arg: Str in args {
+        full_cmd = full_cmd.concat(" ").concat(arg)
+    }
+    mut output := ""
+    exit_code := output.run_cmd("bash", "-c", full_cmd)
+    if output.len().gt(0) {
+        print(output)
+    }
+    return exit_code
+}
+
+/**
  * Like run_cmd but prints the command before executing it.
  */
 run_print_cmd := proc(mut output_str: Str, args: ..Str) returns I64 {

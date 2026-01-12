@@ -120,7 +120,8 @@ run_file_or_exit := proc(path: Str, target: Target, lang: Lang, extra_args: Vec)
     }
 
     // Run the compiled binary with any extra arguments
-    exit_code := run_cmd_vec(exe_path, extra_args)
+    // Use run_cmd_vec_print to inherit stdout/stderr like rstil does
+    exit_code := run_cmd_vec_print(exe_path, extra_args)
     if not(exit_code.eq(0)) {
         exit(exit_code)
     }
