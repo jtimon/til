@@ -1447,6 +1447,104 @@ main := proc(args: ..Str) {
 1. The interpreter should auto-convert Str args to I64 when main expects I64.
 2. The C codegen should unpack argv into individual named parameters for custom signatures.
 
+** Bug #100: Get rid of rstil
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPACT: Remove dependency on Rust implementation
+:STATUS: Blocked
+:END:
+
+*** Description
+Track requirements for removing the Rust implementation (rstil) and relying solely
+on the self-hosted TIL compiler/interpreter.
+
+*** Requirements
+- [ ] Bug #64: Custom main args in mode cli don't work properly
+- [ ] Bug #78: TIL scavenger/ccodegen divergence from Rust
+- [ ] Bug #80: ccodegen.til must generate identical C code to ccodegen.rs
+- [ ] Issue #82: make.til - Replace Makefile with TIL
+- [ ] Bug #83: No spread/splat operator for variadic argument forwarding
+- [ ] Bug #84: run_cmd output capture broken in compiled mode
+- [ ] Bug #85: Typer accepts struct literal with non-existent field name
+- [ ] Bug #86: For-in loop fails with enum that has enum payload
+- [ ] Bug #87: Scavenger not pruning struct methods
+- [ ] Issue #88: Macro Support (Compile-Time Evaluation)
+- [ ] Bug #90: Parser requires semicolon for bodyless func/proc definitions
+- [ ] Issue #91: First-Class Functions
+- [ ] Bug #92: Range loops should allow explicit iterator type annotation
+- [ ] Bug #94: gcc warnings cause bug47.til compilation failure
+- [ ] Bug #98: ext_proc errors should throw specific error types instead of panicking
+- [ ] Bug #99: Eliminate all C compiler warnings and enable -Werror
+- [ ] Bug #101: Warn/error on unused things
+- [ ] Remove Makefile, build with just gcc + make.til
+  - Bootstrap: ~gcc bootstrap/til.c -o bin/til && ./make.til install~
+  - make.til handles all build logic (rebuilding bin/til, itself, tests, etc.)
+  - Remove rust targets from tests.til
+  - Two fewer dependencies: rustc and make gone, only gcc remains
+- [ ] Verify feature parity: all modes work (interpret, run, build, translate, repl)
+- [ ] Bug #102: Automatic dependency tracking from imports
+- [ ] Decide on acceptable performance and binary size criteria
+  - Current state:
+    - Size: til 2.3M vs rstil 6.8M
+    - Dependencies: til (libc only) vs rstil (libc + libgcc_s)
+  - Possible performance metrics:
+    - All tests in all_common show "faster til" for both interpreted and compiled
+    - ~til build til.til~ vs ~rstil build til.til~ (blocked by #80 infinite loop)
+  - Possible performance criteria:
+    - Ambitious: til faster or equal to rstil on every test
+    - Moderate: no test more than 20% slower than rstil
+    - Less ambitious: accept whatever we have when other requirements are met
+  - Possible size criteria:
+    - Ideal: til binary smaller than rstil
+    - Accept growth if justified by performance (e.g., templates/monomorphization)
+
+** Bug #102: Automatic dependency tracking from imports
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPACT: Build performance, eliminates manual dependency lists
+:STATUS: Design needed
+:END:
+
+*** Description
+Have til translate/build/run analyze dependencies from import() calls automatically,
+instead of hardcoding them in make.til like a traditional Makefile.
+
+When a file has a shebang with ~til run~, if the binary already exists and neither
+the source nor any of its dependencies changed, run the binary directly without
+recompiling.
+
+*** Design Ideas
+- Parse imports statically to build dependency graph
+- For non-TIL dependencies, add ~ext_dep("src/ext.c")~ declaration
+- Compare mtimes: if binary newer than all deps, skip recompilation
+- Similar to how Go handles imports and incremental builds
+
+*** Open Questions
+- Where to cache the dependency graph? Recompute each time vs store in file?
+- For ext_dep files: track their includes too, or just the file itself?
+- System libraries: probably ignore (assume stable)
+
+** Bug #101: Warn/error on unused things
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPACT: Code quality, catch dead code
+:STATUS: Design needed
+:END:
+
+*** Description
+Add warnings or errors for unused variables, functions, imports, struct fields, etc.
+Currently we rely on rustc to catch these. Once rstil is gone, TIL needs this itself.
+
+*** Open Questions
+- Warning vs error? (warnings can be ignored, errors force action)
+- How to suppress for legitimate cases:
+  - core.til is imported everywhere, not all exports used in every file
+  - Unused struct methods (might be part of an interface/API)
+  - Test helpers only used in some tests
+  - Public library exports
+- Syntax for suppression - don't want Rust-style #[allow(unused)] annotations
+- Compare approaches from other languages (Go, Zig, etc.)
+
 * Fixed Bugs
 
 ** Bug #93: Test runner returns exit code 0 even with failures
