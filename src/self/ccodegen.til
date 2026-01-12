@@ -1334,36 +1334,55 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 _ := hoist_throwing_args(else_nested_args, output, indent, ctx, context)
 
                 // Also hoist Dynamic params for this nested FCall
-                else_fd := get_fcall_func_def(context, arg)
-                catch (err: KeyNotFoundError) { }
-                mut else_param_types := Vec.new(ValueType)
-                for a: Declaration in else_fd.args {
-                    else_param_types.push(a.value_type)
+                mut else_fd := SFuncDef()
+                mut else_fd_found := false
+                else_fd = get_fcall_func_def(context, arg)
+                else_fd_found = true
+                catch (err: KeyNotFoundError) {
+                    // REM: Function not found - skip dynamic param hoisting
                 }
-                empty_hoisted := Map.new(I64, Str)
-                dynamic_hoisted := hoist_for_dynamic_params(else_nested_args, else_param_types, empty_hoisted, output, indent, ctx, context)
-                // Record hoisted Dynamic params in hoisted_exprs with & prefix
-                // (needed because emit_expr won't know to add & for Dynamic params)
-                for h: HoistedArg in dynamic_hoisted {
-                    mut dyn_nested_arg := Expr()
-                    else_nested_args.get(h.index, dyn_nested_arg)
-                    catch (err: IndexOutOfBoundsError) { }
-                    dyn_expr_addr := dyn_nested_arg.line.mul(1000000).add(dyn_nested_arg.col)
-                    ctx.hoisted_exprs.set(dyn_expr_addr, format("&", h.temp_var))
+                if else_fd_found {
+                    mut else_param_types := Vec.new(ValueType)
+                    for a: Declaration in else_fd.args {
+                        else_param_types.push(a.value_type)
+                    }
+                    empty_hoisted := Map.new(I64, Str)
+                    dynamic_hoisted := hoist_for_dynamic_params(else_nested_args, else_param_types, empty_hoisted, output, indent, ctx, context)
+                    // Record hoisted Dynamic params in hoisted_exprs with & prefix
+                    // (needed because emit_expr won't know to add & for Dynamic params)
+                    for h: HoistedArg in dynamic_hoisted {
+                        mut dyn_nested_arg := Expr()
+                        else_nested_args.get(h.index, dyn_nested_arg)
+                        catch (err: IndexOutOfBoundsError) { }
+                        dyn_expr_addr := dyn_nested_arg.line.mul(1000000).add(dyn_nested_arg.col)
+                        ctx.hoisted_exprs.set(dyn_expr_addr, format("&", h.temp_var))
+                    }
                 }
             }
             // Handle struct literal arguments (no args, or only named args) - need to hoist their throwing defaults
             // For struct literals like Expr() passed as arguments, their throwing default field values
             // (e.g., params = Vec.new(Expr)) need to be hoisted BEFORE the struct literal is created
             else if is_fcall {
-                else_func_name := get_fcall_func_name(arg)
-                _ := context.scope_stack.lookup_struct(else_func_name)
+                mut else_func_name := ""
+                mut else_func_name_found := false
+                else_func_name = get_fcall_func_name(arg)
+                else_func_name_found = true
                 catch (err: KeyNotFoundError) {
-                    // REM: Not a struct, continue
+                    // REM: Can't get function name - skip
                 }
-                // This is a struct literal - hoist its throwing defaults
-                _ := hoist_throwing_expr(arg, output, indent, ctx, context)
-                catch (err: KeyNotFoundError) { }
+                if else_func_name_found {
+                    mut else_is_struct := false
+                    _ := context.scope_stack.lookup_struct(else_func_name)
+                    else_is_struct = true
+                    catch (err: KeyNotFoundError) {
+                        // REM: Not a struct - skip
+                    }
+                    if else_is_struct {
+                        // This is a struct literal - hoist its throwing defaults
+                        _ := hoist_throwing_expr(arg, output, indent, ctx, context)
+                        catch (err: KeyNotFoundError) { }
+                    }
+                }
             }
             // Bug #55 fix: Handle non-FCall arguments (like NamedArg) by recursing via hoist_throwing_expr
             // This ensures throwing calls inside named args are hoisted properly
@@ -2412,7 +2431,11 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
             // Bug #60: FCall result is rvalue, can't take address directly
             // For simple typedefs like I64: use compound literal &(Type){fcall()}
             // For struct types: use GCC statement expression ({ Type _t = fcall(); &_t; })
-            fc_fd := get_fcall_func_def(context, arg)
+            // Bug #60: FCall result handling with proper if-let-Some translation
+            mut fc_fd := SFuncDef()
+            mut fc_fd_found := false
+            fc_fd = get_fcall_func_def(context, arg)
+            fc_fd_found = true
             catch (err: KeyNotFoundError) {
                 // Bug #60: No function def found - might be enum/struct constructor FCall
                 // Use get_value_type to infer the result type
@@ -2438,42 +2461,45 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                     emit_expr(arg, output, 0, ctx, context)
                 }
             }
-            if not(fc_fd.return_types.is_empty()) {
-                mut fc_ret_type := ValueType.TCustom("")
-                fc_fd.return_types.get(0, fc_ret_type)
-                fc_ret_c_type := til_type_to_c(fc_ret_type)
-                // Check if return type is a simple typedef (I64) vs struct
-                // I64 is the only simple typedef - all others are structs
-                mut fc_is_simple_type := false
-                switch fc_ret_type {
-                case ValueType.TCustom(fc_ret_type_name):
-                    if fc_ret_type_name.eq("I64") {
-                        fc_is_simple_type = true
+            if fc_fd_found {
+                if not(fc_fd.return_types.is_empty()) {
+                    mut fc_ret_type := ValueType.TCustom("")
+                    fc_fd.return_types.get(0, fc_ret_type)
+                    fc_ret_c_type := til_type_to_c(fc_ret_type)
+                    // Check if return type is a simple typedef (I64) vs struct
+                    // I64 is the only simple typedef - all others are structs
+                    mut fc_is_simple_type := false
+                    switch fc_ret_type {
+                    case ValueType.TCustom(fc_ret_type_name):
+                        if fc_ret_type_name.eq("I64") {
+                            fc_is_simple_type = true
+                        }
+                    case:
                     }
-                case:
-                }
-                if fc_is_simple_type {
-                    output.push_str("&(")
-                    output.push_str(fc_ret_c_type)
-                    output.push_str("){")
-                    emit_expr(arg, output, 0, ctx, context)
-                    output.push_str("}")
+                    if fc_is_simple_type {
+                        output.push_str("&(")
+                        output.push_str(fc_ret_c_type)
+                        output.push_str("){")
+                        emit_expr(arg, output, 0, ctx, context)
+                        output.push_str("}")
+                    } else {
+                        // Struct type - use GCC statement expression
+                        fc_struct_temp_var := next_mangled(ctx)
+                        output.push_str("({ ")
+                        output.push_str(fc_ret_c_type)
+                        output.push_str(" ")
+                        output.push_str(fc_struct_temp_var)
+                        output.push_str(" = ")
+                        emit_expr(arg, output, 0, ctx, context)
+                        output.push_str("; &")
+                        output.push_str(fc_struct_temp_var)
+                        output.push_str("; })")
+                    }
                 } else {
-                    // Struct type - use GCC statement expression
-                    fc_struct_temp_var := next_mangled(ctx)
-                    output.push_str("({ ")
-                    output.push_str(fc_ret_c_type)
-                    output.push_str(" ")
-                    output.push_str(fc_struct_temp_var)
-                    output.push_str(" = ")
                     emit_expr(arg, output, 0, ctx, context)
-                    output.push_str("; &")
-                    output.push_str(fc_struct_temp_var)
-                    output.push_str("; })")
                 }
-            } else {
-                emit_expr(arg, output, 0, ctx, context)
             }
+            // If fc_fd_found is false, catch block already emitted
         case:
             emit_expr(arg, output, 0, ctx, context)
         }

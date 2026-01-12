@@ -1063,22 +1063,23 @@ This matters for:
 - ~git rebase -i~: Could squash ~1f29279a..fad411f8~ into single commit
 - Archaeology: Don't waste time investigating individual commits in this range
 
-**** 2026-01-10: Current State
-Build passes. 134/134 tests pass. However:
-- 7 tests in all_common (work with both rstil and til compilers)
-- 58 tests in til_interpreted (work with til interpret, not til run)
-- These 58 tests fail in til_compiled mode due to C codegen issues
+**** 2026-01-12: Current State
+Build passes. 109/109 tests pass. Test breakdown:
+- 33 tests in all_common (pass all 4 modes)
+- 32 tests in til_interpreted (pass til interpret, fail til compile)
+- 37 tests in rs_common (pass rstil, fail til compile)
+- 1 test in til_common (panic.til - different error message format)
 
 *** Current Error Summary
 
-The 58 tests in til_interpreted have these failure modes when run with ~./bin/til run~:
+The 32 tests in til_interpreted have these failure modes when run with ~./bin/til run~:
 
 | Error Type | Count | Example |
 |------------|-------|---------|
-| too few args to til_Array_get | 38 | Missing arguments in generated function calls |
-| segfault | 16 | Crash during C execution |
-| malloc failed | 1 | ufcs.til - memory issue during compilation |
-| may pass | 2 | exit.til, undefined.til (expected exit codes) |
+| segfault | 28 | Crash during C execution |
+| gcc shadow warning | 1 | bug52.til - variable shadowing in generated C |
+| gcc error undeclared | 1 | c_mem.til - variable not declared |
+| gcc type mismatch | 2 | arenas.til, arrays.til - incompatible pointer types |
 
 *** Debugging Tools
 
@@ -1097,7 +1098,7 @@ TIL code must be an exact translation from Rust (comments and variable names inc
 using rs2til.org translation rules. Any differences detected must be fixed immediately,
 even if only cosmetic.
 
-Current test: ~src/examples/hello_script.til~
+Current test: ~src/test/arrays.til~
 
 **** Iterative Fix Workflow
 1. User picks a test from til_interpreted that they want working in til_compiled
@@ -1319,6 +1320,28 @@ Updated test categories in src/tests.til:
 Tests moved to all_common:
 - hello_cli.til, hello_script.til, lolalalo.til (examples)
 - bug46.til, underscore.til (tests)
+
+****** 2026-01-12: Fixed hello_test.til constant folding
+Two fixes to make hello_test.til pass til_compiled:
+
+1. emit_arg_with_param_type in ccodegen.til: Added fc_fd_found flag to prevent
+   double-emission when catch block handles KeyNotFoundError. The catch block
+   would emit the expression, then code continued to emit it again.
+
+2. is_comptime_evaluable in precomp.til: Changed from lookup_func to
+   get_func_def_for_fcall_with_expr for proper UFCS resolution. This allows
+   constant folding of expressions like ~not(I64.eq(42, 43))~.
+
+Tests moved to all_common (11 tests):
+- hello_test.til, arithmetics.til, bools.til
+- branchless.til, bug41.til, circular_test.til, comparisons.til
+- eval.til, intro.til, literals.til, namespaces.til, variadic.til
+
+Tests moved back from all_common (failed til_compiled):
+- arenas.til (gcc type mismatch)
+- arrays.til (gcc type mismatch)
+- bug52.til (gcc shadow warning)
+- underscore.til (segfault)
 
 **** Known Error Patterns in Generated C
 - ~too few arguments to function~ - missing args in generated calls

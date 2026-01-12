@@ -405,60 +405,80 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         // For now, hardcode malloc exclusion since it's an ext_func with side effects.
         if f_name.eq("malloc") { return false }
 
-        mut func_def := context.scope_stack.lookup_func(f_name)
+        // Use get_func_def_for_fcall_with_expr like interpreter does
+        mut e_clone := e.clone()
+        catch (err: AllocError) {
+            return false  // Can't clone expression
+        }
+        mut func_def := SFuncDef()
+        mut func_def_found := false
+        func_def = get_func_def_for_fcall_with_expr(context, e_clone)
+        func_def_found = true
         catch (err: KeyNotFoundError) {
             // Could be a struct constructor - check if all args are comptime
             combined_name := get_combined_name(context.path, e.get(0))
             catch (err2: Str) {
                 return false
             }
-            mut struct_def := context.scope_stack.lookup_struct(combined_name)
+            // Try to look up as struct
+            mut is_struct := false
+            _ := context.scope_stack.lookup_struct(combined_name)
+            is_struct = true
             catch (err3: KeyNotFoundError) {
-                // Check if it's an enum constructor (e.g., Color.Green(true))
-                if context.scope_stack.is_enum_constructor(combined_name) {
-                    // It's an enum constructor - check all args are comptime
-                    mut k := 1
-                    while k.lt(e.params.len()) {
-                        mut arg := Expr()
-                        e.params.get(k, arg)
-                        catch (err_arg: IndexOutOfBoundsError) {
-                            return false
-                        }
-                        if not(is_comptime_evaluable(context, arg)) {
-                            return false
-                        }
-                        k.inc()
-                    }
-                    return true
-                }
-                return false  // Unknown function
+                // REM: Not a struct
             }
-            // It's a struct constructor - check all args are comptime
-            mut struct_j := 1
-            while struct_j.lt(e.params.len()) {
-                mut struct_arg := Expr()
-                e.params.get(struct_j, struct_arg)
-                catch (err4: IndexOutOfBoundsError) {
-                    return false
-                }
-                // Handle named args - check the value inside
-                mut arg_to_check := struct_arg
-                switch struct_arg.node_type {
-                case NodeType.NamedArg(_):
-                    if struct_arg.params.len().gt(0) {
-                        struct_arg.params.get(0, arg_to_check)
-                        catch (err5: IndexOutOfBoundsError) {
-                            return false
-                        }
+            if is_struct {
+                // It's a struct constructor - check all args are comptime
+                mut struct_j := 1
+                while struct_j.lt(e.params.len()) {
+                    mut struct_arg := Expr()
+                    e.params.get(struct_j, struct_arg)
+                    catch (err4: IndexOutOfBoundsError) {
+                        return false
                     }
-                case:
+                    // Handle named args - check the value inside
+                    mut arg_to_check := struct_arg
+                    switch struct_arg.node_type {
+                    case NodeType.NamedArg(_):
+                        if struct_arg.params.len().gt(0) {
+                            struct_arg.params.get(0, arg_to_check)
+                            catch (err5: IndexOutOfBoundsError) {
+                                return false
+                            }
+                        }
+                    case:
+                    }
+                    if not(is_comptime_evaluable(context, arg_to_check)) {
+                        return false
+                    }
+                    struct_j.inc()
                 }
-                if not(is_comptime_evaluable(context, arg_to_check)) {
-                    return false
-                }
-                struct_j.inc()
+                return true  // Struct constructor with all comptime args
             }
-            return true  // Struct constructor with all comptime args
+            // Check if it's an enum constructor (e.g., Color.Green(true))
+            if context.scope_stack.is_enum_constructor(combined_name) {
+                // It's an enum constructor - check all args are comptime
+                mut k := 1
+                while k.lt(e.params.len()) {
+                    mut arg := Expr()
+                    e.params.get(k, arg)
+                    catch (err_arg: IndexOutOfBoundsError) {
+                        return false
+                    }
+                    if not(is_comptime_evaluable(context, arg)) {
+                        return false
+                    }
+                    k.inc()
+                }
+                return true
+            }
+            return false  // Unknown function
+        }
+        catch (err: Str) {
+            return false  // Function lookup error
+        }
+        if not(func_def_found) {
+            return false
         }
         // Must be pure function (not proc) that returns a value
         if func_def.is_proc() {
