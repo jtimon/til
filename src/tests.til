@@ -998,7 +998,6 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/bug43.til"))  // TODO: til compiled segfault
     rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: slow (~41s) but works
     rs_common.push(TestEntry(path="src/test/bug50.til", expected_status=1))  // REM: must stay in rs_common - "rstil" vs "til" in error msg (Issue #69)
-    rs_common.push(TestEntry(path="src/test/maps.til"))  // TODO: gcc incompatible pointer type
     rs_common.push(TestEntry(path="src/test/panic.til", expected_status=1))  // TODO: error msg format differs from til
     rs_common.push(TestEntry(path="src/test/test_parser.til"))  // TODO: slow (~28s) but works
     rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: slow (~4min) but works
@@ -1024,7 +1023,6 @@ main := proc(args: ..Str) {
     // til_interpreted: tests that pass with til interpret but NOT yet with til_compiled
     // (tests that pass all 4 modes are in all_common)
     mut til_interpreted := Vec.new(TestEntry)
-    til_interpreted.push(TestEntry(path="src/test/maps.til"))  // TODO: gcc incompatible pointer type
 
     // til_compiled: tests run with the self-hosted TIL compiler only
     mut til_compiled := Vec.new(TestEntry)
@@ -1080,6 +1078,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/lists.til"))
     all_common.push(TestEntry(path="src/test/literals.til"))
     all_common.push(TestEntry(path="src/test/loops.til"))
+    all_common.push(TestEntry(path="src/test/maps.til"))
     all_common.push(TestEntry(path="src/test/modes.til"))
     all_common.push(TestEntry(path="src/test/mut_test.til"))
     all_common.push(TestEntry(path="src/test/namespaces.til"))

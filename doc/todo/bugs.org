@@ -1064,13 +1064,13 @@ This matters for:
 - Archaeology: Don't waste time investigating individual commits in this range
 
 **** 2026-01-12: Progress - Fixed if-let-Ok pattern in init.til
-Build passes. 81/81 tests pass (0 failures). Test breakdown:
-- 64 tests in all_common (pass all 4 modes)
+Build passes. 80/80 tests pass (0 failures). Test breakdown:
+- 65 tests in all_common (pass all 4 modes) - includes maps.til!
 - 1 test in til_common (panic.til)
 - 4 tests in rs_interpreted
 - 3 tests in rs_compiled
-- 8 tests in rs_common
-- 1 test in til_interpreted (maps.til)
+- 7 tests in rs_common
+- 0 tests in til_interpreted (empty!)
 
 Recent fixes:
 - Fixed gcc stderr handling in builder.til to match Rust (capture stderr, only show on failure)
@@ -1084,6 +1084,11 @@ Recent fixes:
   - target_type was used after get_value_type could throw, causing garbage data
   - Added flag pattern: ~mut have_target_type := true~ with catch setting to false
   - This fixed enums.til and other nested function + switch case failures
+- KEY FIX: Fixed ext.c run_cmd returning wrong exit code when output exceeds 64KB buffer
+  - Rust's Command::output() captures all output; ext.c had 64KB limit
+  - When buffer filled, pclose() with unread data caused gcc to get SIGPIPE -> non-zero exit
+  - Added drain loop to consume remaining output before pclose()
+  - This fixed maps.til and allowed moving it to all_common (all 4 modes pass)
 
 *** Root Cause Analysis
 
@@ -1115,9 +1120,9 @@ if have_target_type {
 #+end_src
 
 *** Remaining Work
-- maps.til still in til_interpreted (fails in til_compiled mode)
-- 8 tests in rs_common (pass with rstil but not with til)
+- 7 tests in rs_common (pass with rstil but not with til)
 - Final verification: ~./src/til_diff.til src/til.til~ must show no differences
+  - Note: times out at 300s - likely infinite loop (til compiled total is only 80s)
 
 *** Debugging Tools
 

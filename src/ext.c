@@ -278,6 +278,10 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
         total += n;
     }
     buf[total] = '\0';
+    // Drain any remaining output to prevent SIGPIPE killing the child process
+    // This ensures we get the correct exit code even if output exceeds buffer
+    char drain_buf[4096];
+    while (fread(drain_buf, 1, sizeof(drain_buf), f) > 0) {}
     int status = pclose(f);
     int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 
