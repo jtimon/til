@@ -6979,11 +6979,15 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
             // Check if return expression is a call to a throwing function
             switch thr_return_expr.node_type {
             case NodeType.FCall:
-                thr_fd := get_fcall_func_def(context, thr_return_expr)
+                // Bug #80: Use flag pattern for if-let-Some translation
+                mut thr_fd := SFuncDef()
+                mut thr_fd_found := false
+                thr_fd = get_fcall_func_def(context, thr_return_expr)
+                thr_fd_found = true
                 catch (err: KeyNotFoundError) {
                     // REM: no func def found
                 }
-                if not(thr_fd.throw_types.is_empty()) {
+                if thr_fd_found.and(not(thr_fd.throw_types.is_empty())) {
                     // Return expression is a throwing function call - emit with error propagation
                     // The result will be stored via the assign_name "*_ret"
                     emit_throwing_call_propagate(thr_return_expr, thr_fd.throw_types, "", "*_ret", output, indent, ctx, context)
