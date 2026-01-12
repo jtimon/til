@@ -400,3 +400,37 @@ Add TempleOS as a compilation target, producing HolyC instead of C.
 - Partly for fun/flexing and, why not? Also to honor Terry's ideal language: HolyC
 - Practical use: TempleOS is tiny, useful for minimal docker containers
 - Integration with mode gui (Issue #103) for native TempleOS graphics
+
+** Issue #105: First-Class Structs
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPACT: Language feature, anonymous data structures
+:STATUS: Open
+:RELATED: Issue #91 (First-Class Functions), Issue #106 (First-Class Enums)
+:END:
+
+*** Description
+Allow anonymous struct type definitions to be passed as arguments:
+
+#+BEGIN_SRC til
+some_function(struct {x := 0, y := 0})
+#+END_SRC
+
+Similar in spirit to Issue #91 (first-class functions) but for structs.
+
+** Issue #106: First-Class Enums
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPACT: Language feature, anonymous data structures
+:STATUS: Open
+:RELATED: Issue #91 (First-Class Functions), Issue #105 (First-Class Structs)
+:END:
+
+*** Description
+Allow anonymous enum type definitions to be passed as arguments:
+
+#+BEGIN_SRC til
+some_function(enum {A, B})
+#+END_SRC
+
+Similar in spirit to Issue #91 (first-class functions) but for enums.
