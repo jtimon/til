@@ -1048,35 +1048,25 @@ main := proc(args: ..Str) {
     // til_interpreted: tests that pass with til interpret but NOT yet with til_compiled
     // (tests that pass all 4 modes are in all_common)
     mut til_interpreted := Vec.new(TestEntry)
-    til_interpreted.push(TestEntry(path="src/test/args.til"))  // TODO: segfault
-    til_interpreted.push(TestEntry(path="src/test/bug43.til"))  // TODO: segfault
     // til_interpreted.push(TestEntry(path="src/test/bug47.til")) // TODO slow (~41s) but works
     til_interpreted.push(TestEntry(path="src/test/bug55.til"))  // TODO: segfault
     til_interpreted.push(TestEntry(path="src/test/bug56.til"))  // TODO: segfault
-    til_interpreted.push(TestEntry(path="src/test/bug57.til"))  // TODO: segfault
     til_interpreted.push(TestEntry(path="src/test/clone.til"))  // TODO: segfault
     til_interpreted.push(TestEntry(path="src/test/constfold.til"))  // TODO: segfault
-    til_interpreted.push(TestEntry(path="src/test/cross_file_forward.til"))  // TODO: segfault
-    til_interpreted.push(TestEntry(path="src/test/deterministic.til"))  // TODO: segfault
     til_interpreted.push(TestEntry(path="src/test/enums.til"))  // TODO: segfault
     til_interpreted.push(TestEntry(path="src/test/errors.til"))  // TODO: segfault
     til_interpreted.push(TestEntry(path="src/test/flow.til"))  // TODO: segfault
-    til_interpreted.push(TestEntry(path="src/test/forward_declarations.til"))  // TODO: segfault
+    til_interpreted.push(TestEntry(path="src/test/forward_declarations.til"))  // TODO: timeout
     til_interpreted.push(TestEntry(path="src/test/func_purity.til"))  // TODO: segfault
-    til_interpreted.push(TestEntry(path="src/test/loops.til"))  // TODO: segfault
-    til_interpreted.push(TestEntry(path="src/test/maps.til"))  // TODO: segfault
+    til_interpreted.push(TestEntry(path="src/test/maps.til"))  // TODO: error
     til_interpreted.push(TestEntry(path="src/test/modes.til"))  // TODO: segfault
-    til_interpreted.push(TestEntry(path="src/test/mut_test.til"))  // TODO: segfault
     til_interpreted.push(TestEntry(path="src/test/return_value_usage.til"))  // TODO: segfault
     til_interpreted.push(TestEntry(path="src/test/scope_isolation.til"))  // TODO: segfault
-    til_interpreted.push(TestEntry(path="src/test/sets.til"))  // TODO: segfault
-    til_interpreted.push(TestEntry(path="src/test/strings.til"))  // TODO: segfault
     til_interpreted.push(TestEntry(path="src/test/structs.til"))  // TODO: segfault
     til_interpreted.push(TestEntry(path="src/test/test_lexer.til"))  // TODO: segfault
     // til_interpreted.push(TestEntry(path="src/test/test_parser.til"))  // TODO slow (~28s) but works
-    til_interpreted.push(TestEntry(path="src/test/ufcs.til"))  // TODO: segfault
+    til_interpreted.push(TestEntry(path="src/test/ufcs.til"))  // TODO: error
     til_interpreted.push(TestEntry(path="src/test/underscore.til"))  // TODO: segfault
-    til_interpreted.push(TestEntry(path="src/test/vecs.til"))  // TODO: segfault
     // til_interpreted.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO slow (~4min) but works
 
     // til_compiled: tests run with the self-hosted TIL compiler only
@@ -1089,9 +1079,14 @@ main := proc(args: ..Str) {
     // all_common: tests run with ALL 4 modes (rs_interpreted, rs_compiled, til_interpreted, til_compiled)
     mut all_common := Vec.new(TestEntry)
     all_common.push(TestEntry(path="src/test/arenas.til"))
+    all_common.push(TestEntry(path="src/test/args.til"))
     all_common.push(TestEntry(path="src/test/arrays.til"))
+    all_common.push(TestEntry(path="src/test/bug43.til"))
     all_common.push(TestEntry(path="src/test/bug52.til"))
+    all_common.push(TestEntry(path="src/test/bug57.til"))
     all_common.push(TestEntry(path="src/test/c_mem.til"))
+    all_common.push(TestEntry(path="src/test/cross_file_forward.til"))
+    all_common.push(TestEntry(path="src/test/deterministic.til"))
     all_common.push(TestEntry(path="src/examples/empty.til"))
     all_common.push(TestEntry(path="src/examples/hello_cli.til"))
     all_common.push(TestEntry(path="src/examples/hello_lib.til"))
@@ -1118,14 +1113,19 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/intro.til"))
     all_common.push(TestEntry(path="src/test/lists.til"))
     all_common.push(TestEntry(path="src/test/literals.til"))
+    all_common.push(TestEntry(path="src/test/loops.til"))
+    all_common.push(TestEntry(path="src/test/mut_test.til"))
     all_common.push(TestEntry(path="src/test/namespaces.til"))
     all_common.push(TestEntry(path="src/test/optional_args.til"))
     all_common.push(TestEntry(path="src/test/parallel_cmd.til"))
     all_common.push(TestEntry(path="src/test/pointers.til"))
+    all_common.push(TestEntry(path="src/test/sets.til"))
+    all_common.push(TestEntry(path="src/test/strings.til"))
     all_common.push(TestEntry(path="src/test/syscalls.til"))
     all_common.push(TestEntry(path="src/test/u8.til"))
     all_common.push(TestEntry(path="src/test/undefined.til", expected_status=1))
     all_common.push(TestEntry(path="src/test/variadic.til"))
+    all_common.push(TestEntry(path="src/test/vecs.til"))
 
     // Parse remaining args (after -j was extracted)
     if remaining_args.len().eq(0) {

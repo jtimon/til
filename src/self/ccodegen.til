@@ -6828,21 +6828,26 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str thr
             switch first_param.node_type {
             case NodeType.Identifier(type_name):
                 // Use lookup_enum to check if this is a known enum type
-                enum_def := context.scope_stack.lookup_enum(type_name)
+                mut enum_def := SEnumDef()
+                mut enum_def_found := false
+                enum_def = context.scope_stack.lookup_enum(type_name)
+                enum_def_found = true
                 catch (err: KeyNotFoundError) {
                     // REM: Not an enum - continue to check Identifier case below
                 }
-                // Check if there's a nested identifier (the variant)
-                if not(first_param.params.is_empty()) {
-                    mut variant_param := Expr()
-                    first_param.params.get(0, variant_param)
-                    switch variant_param.node_type {
-                    case NodeType.Identifier(variant_name):
-                        // Verify the variant exists in the enum
-                        if enum_def.contains_key(variant_name) {
-                            return type_name.clone()
+                if enum_def_found {
+                    // Check if there's a nested identifier (the variant)
+                    if not(first_param.params.is_empty()) {
+                        mut variant_param := Expr()
+                        first_param.params.get(0, variant_param)
+                        switch variant_param.node_type {
+                        case NodeType.Identifier(variant_name):
+                            // Verify the variant exists in the enum
+                            if enum_def.contains_key(variant_name) {
+                                return type_name.clone()
+                            }
+                        case:
                         }
-                    case:
                     }
                 }
             case:
@@ -6900,11 +6905,14 @@ emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut
         // Check if RHS is a call to a throwing function
         switch rhs_expr.node_type {
         case NodeType.FCall:
-            fd := get_fcall_func_def(context, rhs_expr)
+            mut fd := SFuncDef()
+            mut fd_found := false
+            fd = get_fcall_func_def(context, rhs_expr)
+            fd_found = true
             catch (err: KeyNotFoundError) {
                 // REM: no func def found, continue with normal assignment
             }
-            if not(fd.throw_types.is_empty()) {
+            if fd_found.and(not(fd.throw_types.is_empty())) {
                 // RHS is a throwing function call - emit with error propagation
                 // (typer should ensure non-throwing context doesn't call throwing functions without catch)
                 // Pass raw name so function can properly handle field access on mut params

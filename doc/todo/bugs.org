@@ -1065,8 +1065,8 @@ This matters for:
 
 **** 2026-01-12: Current State
 Build passes. 105/105 tests pass. Test breakdown:
-- 38 tests in all_common (pass all 4 modes)
-- 27 tests in til_interpreted (pass til interpret, fail til compile)
+- 48 tests in all_common (pass all 4 modes)
+- 17 tests in til_interpreted (pass til interpret, fail til compile)
 - 32 tests in rs_common (pass rstil, fail til compile)
 - 1 test in til_common (panic.til - different error message format)
 
@@ -1076,14 +1076,20 @@ Recent fixes:
 - Fixed hoisted_exprs collision: clear per-function to avoid cross-file line/col key collisions
   (TIL uses line*1000000+col for keys which isn't globally unique like Rust's memory pointers)
 - Moved c_mem.til, lists.til to all_common
+- Fixed if-let-Some translation bugs: get_enum_construction_type, emit_assignment
+  (Added flag patterns per rs2til.org to handle KeyNotFoundError properly)
+- Moved 10 more tests to all_common: args, bug43, bug57, cross_file_forward, deterministic,
+  loops, mut_test, sets, strings, vecs
 
 *** Current Error Summary
 
-The 27 tests in til_interpreted have these failure modes when run with ~./bin/til run~:
+The 17 tests in til_interpreted have these failure modes when run with ~./bin/til run~:
 
 | Error Type | Count | Example |
 |------------|-------|---------|
-| segfault | 27 | Crash during C execution |
+| segfault | 14 | Crash during C execution |
+| timeout  | 1  | forward_declarations.til |
+| error    | 2  | maps.til, ufcs.til |
 
 *** Debugging Tools
 
