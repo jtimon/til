@@ -1063,33 +1063,61 @@ This matters for:
 - ~git rebase -i~: Could squash ~1f29279a..fad411f8~ into single commit
 - Archaeology: Don't waste time investigating individual commits in this range
 
-**** 2026-01-12: Current State
-Build passes. 105/105 tests pass. Test breakdown:
-- 48 tests in all_common (pass all 4 modes)
-- 17 tests in til_interpreted (pass til interpret, fail til compile)
-- 32 tests in rs_common (pass rstil, fail til compile)
-- 1 test in til_common (panic.til - different error message format)
+**** 2026-01-12: Progress - Fixed if-let-Ok pattern in init.til
+Build passes. 81/81 tests pass (0 failures). Test breakdown:
+- 64 tests in all_common (pass all 4 modes)
+- 1 test in til_common (panic.til)
+- 4 tests in rs_interpreted
+- 3 tests in rs_compiled
+- 8 tests in rs_common
+- 1 test in til_interpreted (maps.til)
 
 Recent fixes:
 - Fixed gcc stderr handling in builder.til to match Rust (capture stderr, only show on failure)
-- Moved arenas.til, arrays.til, bug52.til to all_common
 - Fixed hoisted_exprs collision: clear per-function to avoid cross-file line/col key collisions
-  (TIL uses line*1000000+col for keys which isn't globally unique like Rust's memory pointers)
-- Moved c_mem.til, lists.til to all_common
-- Fixed if-let-Some translation bugs: get_enum_construction_type, emit_assignment
-  (Added flag patterns per rs2til.org to handle KeyNotFoundError properly)
-- Moved 10 more tests to all_common: args, bug43, bug57, cross_file_forward, deterministic,
-  loops, mut_test, sets, strings, vecs
+- Fixed many if-let-Some translation bugs in ccodegen.til per rs2til.org rules:
+  - emit_switch: enum_has_payloads, collect_declarations, payload lookup patterns
+  - collect_declarations_recursive: type inference pattern
+  - emit_assignment, emit_if, emit_while: vt check patterns
+  - Various enum/struct lookup patterns with flag variables
+- KEY FIX: Fixed if-let-Ok translation bug in init.til get_fcall_value_type
+  - target_type was used after get_value_type could throw, causing garbage data
+  - Added flag pattern: ~mut have_target_type := true~ with catch setting to false
+  - This fixed enums.til and other nested function + switch case failures
 
-*** Current Error Summary
+*** Root Cause Analysis
 
-The 17 tests in til_interpreted have these failure modes when run with ~./bin/til run~:
+The recurring bug pattern was if-let-Some/if-let-Ok translations from Rust:
 
-| Error Type | Count | Example |
-|------------|-------|---------|
-| segfault | 14 | Crash during C execution |
-| timeout  | 1  | forward_declarations.til |
-| error    | 2  | maps.til, ufcs.til |
+#+begin_src rust
+// Rust: if get_value_type fails, body is skipped
+if let Ok(target_type) = get_value_type(context, first_arg) {
+    // use target_type
+}
+#+end_src
+
+#+begin_src til
+// WRONG TIL: target_type is garbage if get_value_type throws!
+target_type := get_value_type(context, first_arg)
+catch (err: Str) { }
+switch target_type {  // Uses garbage!
+#+end_src
+
+#+begin_src til
+// CORRECT TIL: flag pattern per rs2til.org
+mut have_target_type := true
+target_type := get_value_type(context, first_arg)
+catch (err: Str) {
+    have_target_type = false
+}
+if have_target_type {
+    switch target_type {  // Safe to use
+#+end_src
+
+*** Remaining Work
+- maps.til still in til_interpreted (fails in til_compiled mode)
+- 8 tests in rs_common (pass with rstil but not with til)
+- Final verification: ~./src/til_diff.til src/til.til~ must show no differences
 
 *** Debugging Tools
 
@@ -1099,10 +1127,6 @@ The 17 tests in til_interpreted have these failure modes when run with ~./bin/ti
 - ~gdb ./bin/til_debug~ - step through with breakpoints, inspect variable values
 - ~gdb -batch -ex "run ..." -ex "bt" ./bin/til~ - get crash backtrace
 - Look at ~gen/c/test/*.c~ for generated code
-
-*** Current Fix Plan
-
-One issue per commit. Don't try to fix everything at once.
 
 TIL code must be an exact translation from Rust (comments and variable names included)
 using rs2til.org translation rules. Any differences detected must be fixed immediately,

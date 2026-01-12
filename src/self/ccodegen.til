@@ -1486,15 +1486,20 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                 switch id_first_param.node_type {
                 case NodeType.Identifier(field_or_variant):
                     // Check if this is an enum constructor
+                    mut id_have_enum_def := true
                     id_enum_def := context.scope_stack.lookup_enum(name)
+                    catch (err: KeyNotFoundError) {
+                        id_have_enum_def = false
+                    }
                     mut id_is_enum_variant := false
-                    for v: EnumVariant in id_enum_def.variants {
-                        if v.name.eq(field_or_variant) {
-                            id_is_enum_variant = true
-                            break
+                    if id_have_enum_def {
+                        for v: EnumVariant in id_enum_def.variants {
+                            if v.name.eq(field_or_variant) {
+                                id_is_enum_variant = true
+                                break
+                            }
                         }
                     }
-                    catch (err: KeyNotFoundError) { }
                     if id_is_enum_variant {
                         // Enum constructor returns the enum type
                         c_type = til_name(name)
@@ -1555,16 +1560,19 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                         parts.get(0, fc_type_name)
                         mut fc_variant_name := ""
                         parts.get(1, fc_variant_name)
+                        mut fc_have_enum_def := true
                         fc_enum_def := context.scope_stack.lookup_enum(fc_type_name)
-                        mut fc_is_enum_variant := false
-                        for v: EnumVariant in fc_enum_def.variants {
-                            if v.name.eq(fc_variant_name) {
-                                fc_is_enum_variant = true
-                                break
-                            }
-                        }
                         catch (err: KeyNotFoundError) {
-                            // REM: Enum not found, fc_is_enum_variant stays false
+                            fc_have_enum_def = false
+                        }
+                        mut fc_is_enum_variant := false
+                        if fc_have_enum_def {
+                            for v: EnumVariant in fc_enum_def.variants {
+                                if v.name.eq(fc_variant_name) {
+                                    fc_is_enum_variant = true
+                                    break
+                                }
+                            }
                         }
                         if fc_is_enum_variant {
                             // Enum constructor returns the enum type
@@ -2380,10 +2388,17 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                 // The base expression (params[0]) may be an rvalue (function call), so use temp var
                 if ref_name.eq("_").and(not(arg.params.is_empty())) {
                     // Get the type of the full expression for the temp var
+                    mut ufcs_c_type := "int"
+                    mut have_ufcs_vt := true
                     ufcs_vt := get_value_type(context, arg)
-                    mut ufcs_c_type := til_type_to_c(ufcs_vt)
                     catch (err: Str) {
-                        ufcs_c_type = "int"
+                        have_ufcs_vt = false
+                    }
+                    if have_ufcs_vt {
+                        ufcs_c_type = til_type_to_c(ufcs_vt)
+                        catch (err: Str) {
+                            ufcs_c_type = "int"
+                        }
                     }
                     ufcs_temp_var := next_mangled(ctx)
                     output.push_str("({ ")
@@ -2446,31 +2461,36 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
             // For struct types: use GCC statement expression ({ Type _t = fcall(); &_t; })
             // Bug #60: FCall result handling with proper if-let-Some translation
             mut fc_fd := SFuncDef()
-            mut fc_fd_found := false
+            mut fc_fd_found := true
             fc_fd = get_fcall_func_def(context, arg)
-            fc_fd_found = true
             catch (err: KeyNotFoundError) {
+                fc_fd_found = false
                 // Bug #60: No function def found - might be enum/struct constructor FCall
                 // Use get_value_type to infer the result type
+                mut have_fc_vt := true
                 fc_vt := get_value_type(context, arg)
-                switch fc_vt {
-                case ValueType.TCustom(fc_type_name):
-                    // Custom type constructor - use statement expression
-                    fc_c_type := format(TIL_PREFIX, fc_type_name)
-                    fc_temp_var := next_mangled(ctx)
-                    output.push_str("({ ")
-                    output.push_str(fc_c_type)
-                    output.push_str(" ")
-                    output.push_str(fc_temp_var)
-                    output.push_str(" = ")
-                    emit_expr(arg, output, 0, ctx, context)
-                    output.push_str("; &")
-                    output.push_str(fc_temp_var)
-                    output.push_str("; })")
-                case:
-                    emit_expr(arg, output, 0, ctx, context)
-                }
                 catch (err: Str) {
+                    have_fc_vt = false
+                }
+                if have_fc_vt {
+                    switch fc_vt {
+                    case ValueType.TCustom(fc_type_name):
+                        // Custom type constructor - use statement expression
+                        fc_c_type := format(TIL_PREFIX, fc_type_name)
+                        fc_temp_var := next_mangled(ctx)
+                        output.push_str("({ ")
+                        output.push_str(fc_c_type)
+                        output.push_str(" ")
+                        output.push_str(fc_temp_var)
+                        output.push_str(" = ")
+                        emit_expr(arg, output, 0, ctx, context)
+                        output.push_str("; &")
+                        output.push_str(fc_temp_var)
+                        output.push_str("; })")
+                    case:
+                        emit_expr(arg, output, 0, ctx, context)
+                    }
+                } else {
                     emit_expr(arg, output, 0, ctx, context)
                 }
             }
@@ -3104,11 +3124,23 @@ emit_global_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
             // Determine the type from the initializer expression using get_value_type
             mut first_param := Expr()
             expr.params.get(0, first_param)
+            mut have_vt := true
             vt := get_value_type(context, first_param)
-            mut c_type := til_type_to_c(vt)
             catch (err: Str) {
+                have_vt = false
+            }
+            mut c_type := "int"
+            if have_vt {
+                c_type = til_type_to_c(vt)
+                catch (err: Str) {
+                    c_type = til_type_to_c(decl.value_type)
+                    catch (err2: Str) {
+                        c_type = "int"
+                    }
+                }
+            } else {
                 c_type = til_type_to_c(decl.value_type)
-                catch (err2: Str) {
+                catch (err: Str) {
                     c_type = "int"
                 }
             }
@@ -3751,13 +3783,16 @@ emit_enum_to_str_for_declaration := proc(expr: Expr, mut output: Str, context: C
     switch expr.node_type {
     case NodeType.Declaration(decl):
         enum_name := decl.name
+        mut have_enum_def := true
         enum_def := context.scope_stack.lookup_enum(enum_name)
-        c_enum_name := til_name(enum_name)
-        emit_enum_to_str_function(c_enum_name, enum_def, output)
         catch (err: KeyNotFoundError) {
-            throw "emit_enum_to_str_for_declaration: enum not found"
+            have_enum_def = false
         }
-        return
+        if have_enum_def {
+            c_enum_name := til_name(enum_name)
+            emit_enum_to_str_function(c_enum_name, enum_def, output)
+            return
+        }
     case:
     }
     throw "emit_enum_to_str_for_declaration: not an enum declaration"
@@ -4292,18 +4327,21 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
             switch type_first_param.node_type {
             case NodeType.Identifier(type_field):
                 // Check if this is an enum variant by looking up in context
+                mut type_have_enum_def := true
                 type_enum_def := context.scope_stack.lookup_enum(name)
-                if type_enum_def.contains_key(type_field) {
-                    // Enum variant: Type.Variant -> til_Type_make_Variant()
-                    output.push_str(TIL_PREFIX)
-                    output.push_str(name)
-                    output.push_str("_make_")
-                    output.push_str(type_field)
-                    output.push_str("()")
-                    return
-                }
                 catch (err: KeyNotFoundError) {
-                    // Not an enum, check for struct
+                    type_have_enum_def = false
+                }
+                if type_have_enum_def {
+                    if type_enum_def.contains_key(type_field) {
+                        // Enum variant: Type.Variant -> til_Type_make_Variant()
+                        output.push_str(TIL_PREFIX)
+                        output.push_str(name)
+                        output.push_str("_make_")
+                        output.push_str(type_field)
+                        output.push_str("()")
+                        return
+                    }
                 }
                 // Check if this is a struct constant access
                 type_struct_def := context.scope_stack.lookup_struct(name)
@@ -4454,21 +4492,27 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
             for decl: CollectedDeclaration in decls {
                 c_var_name := til_name(decl.name)
                 if not(ctx.declared_vars.contains(c_var_name)) {
+                    mut have_c_type := true
                     c_type := til_type_to_c(decl.value_type)
-                    output.push_str(indent_str)
-                    output.push_str(c_type)
-                    output.push_str(" ")
-                    output.push_str(c_var_name)
-                    output.push_str(";\n")
-                    _ := ctx.declared_vars.insert(c_var_name)
-                    // Also register in scope_stack so get_value_type can find it
-                    mut sym_info := SymbolInfo()
-                    sym_info.value_type = decl.value_type
-                    sym_info.is_mut = false
-                    sym_info.is_copy = false
-                    sym_info.is_own = false
-                    sym_info.is_comptime_const = false
-                    context.scope_stack.declare_symbol(decl.name.clone(), sym_info)
+                    catch (err: Str) {
+                        have_c_type = false
+                    }
+                    if have_c_type {
+                        output.push_str(indent_str)
+                        output.push_str(c_type)
+                        output.push_str(" ")
+                        output.push_str(c_var_name)
+                        output.push_str(";\n")
+                        _ := ctx.declared_vars.insert(c_var_name)
+                        // Also register in scope_stack so get_value_type can find it
+                        mut sym_info := SymbolInfo()
+                        sym_info.value_type = decl.value_type
+                        sym_info.is_mut = false
+                        sym_info.is_copy = false
+                        sym_info.is_own = false
+                        sym_info.is_comptime_const = false
+                        context.scope_stack.declare_symbol(decl.name.clone(), sym_info)
+                    }
                 }
             }
         }
@@ -6918,18 +6962,19 @@ emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut
         switch rhs_expr.node_type {
         case NodeType.FCall:
             mut fd := SFuncDef()
-            mut fd_found := false
+            mut fd_found := true
             fd = get_fcall_func_def(context, rhs_expr)
-            fd_found = true
             catch (err: KeyNotFoundError) {
-                // REM: no func def found, continue with normal assignment
+                fd_found = false
             }
-            if fd_found.and(not(fd.throw_types.is_empty())) {
+            if fd_found {
+            if not(fd.throw_types.is_empty()) {
                 // RHS is a throwing function call - emit with error propagation
                 // (typer should ensure non-throwing context doesn't call throwing functions without catch)
                 // Pass raw name so function can properly handle field access on mut params
                 emit_throwing_call_propagate(rhs_expr, fd.throw_types, "", name, output, indent, ctx, context)
                 return
+            }
             }
         case:
         }
@@ -7325,16 +7370,20 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         }
     case NodeType.Identifier(name):
         // Look up the type of the identifier (could be a variable or type name)
+        mut nh_have_value_type := true
         nh_value_type := get_value_type(context, thrown_expr)
         catch (err: Str) {
             // Fallback: assume identifier is a type name (for struct constructors without args)
             nh_thrown_type_name = name.clone()
+            nh_have_value_type = false
         }
-        switch nh_value_type {
-        case ValueType.TCustom(type_name):
-            nh_thrown_type_name = type_name.clone()
-        case:
-            nh_thrown_type_name = value_type_to_str(nh_value_type)
+        if nh_have_value_type {
+            switch nh_value_type {
+            case ValueType.TCustom(type_name):
+                nh_thrown_type_name = type_name.clone()
+            case:
+                nh_thrown_type_name = value_type_to_str(nh_value_type)
+            }
         }
     case NodeType.LLiteral(lit):
         // Literal values - determine their type
@@ -7505,10 +7554,12 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, mut output: Str, mut c
         }
         arg_idx.inc()
     }
+    mut have_struct_def := true
     struct_def := context.scope_stack.lookup_struct(func_name)
     catch (err: KeyNotFoundError) {
-        // REM: not a struct, continue to function call
+        have_struct_def = false
     }
+    if have_struct_def {
     if expr.params.len().eq(1).or(has_named_args) {
         output.push_str("(")
         output.push_str(TIL_PREFIX)
@@ -7638,6 +7689,7 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, mut output: Str, mut c
             output.push_str("}")
         }
         return
+    }
     }
 
     // Function call: til_func_name(args...)
@@ -7783,16 +7835,19 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
     output.push_str("if (")
     emit_expr(condition, output, 0, ctx, context)
     // Bool is a struct with .data field - extract for C truthiness
+    mut have_vt := true
     vt := get_value_type(context, condition)
     catch (err: Str) {
-        // REM: couldn't get value type
+        have_vt = false
     }
-    switch vt {
-    case ValueType.TCustom(type_name):
-        if type_name.eq("Bool") {
-            output.push_str(".data")
+    if have_vt {
+        switch vt {
+        case ValueType.TCustom(type_name):
+            if type_name.eq("Bool") {
+                output.push_str(".data")
+            }
+        case:
         }
-    case:
     }
     output.push_str(") {\n")
 
@@ -7886,16 +7941,19 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         output.push_str("while (")
         emit_expr(condition, output, 0, ctx, context)
         // Bool is a struct with .data field - extract for C truthiness
+        mut have_while_vt := true
         vt := get_value_type(context, condition)
         catch (err: Str) {
-            // REM: couldn't get value type
+            have_while_vt = false
         }
-        switch vt {
-        case ValueType.TCustom(type_name):
-            if type_name.eq("Bool") {
-                output.push_str(".data")
+        if have_while_vt {
+            switch vt {
+            case ValueType.TCustom(type_name):
+                if type_name.eq("Bool") {
+                    output.push_str(".data")
+                }
+            case:
             }
-        case:
         }
         output.push_str(") {\n")
     } else {
@@ -7912,16 +7970,19 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         output.push_str("if (!(")
         emit_expr(condition, output, 0, ctx, context)
         // Bool is a struct with .data field - extract for C truthiness
+        mut have_inner_vt := true
         inner_vt := get_value_type(context, condition)
         catch (err: Str) {
-            // REM: couldn't get value type
+            have_inner_vt = false
         }
-        switch inner_vt {
-        case ValueType.TCustom(type_name):
-            if type_name.eq("Bool") {
-                output.push_str(".data")
+        if have_inner_vt {
+            switch inner_vt {
+            case ValueType.TCustom(type_name):
+                if type_name.eq("Bool") {
+                    output.push_str(".data")
+                }
+            case:
             }
-        case:
         }
         output.push_str(")) break;\n")
     }
@@ -8119,10 +8180,13 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
             if name.eq(INFER_TYPE).and(not(expr.params.is_empty())) {
                 mut first_param := Expr()
                 expr.params.get(0, first_param)
+                mut have_inferred := true
                 inferred := get_value_type(context, first_param)
-                value_type = inferred
                 catch (err: Str) {
-                    value_type = decl.value_type
+                    have_inferred = false
+                }
+                if have_inferred {
+                    value_type = inferred
                 }
             }
         case:
@@ -8273,10 +8337,13 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
         if has_switch_type {
             switch switch_type {
             case ValueType.TCustom(enum_name):
+                mut have_enum_def := true
                 enum_def := context.scope_stack.lookup_enum(enum_name)
-                enum_has_payloads_flag = enum_has_payloads(enum_def)
                 catch (err: KeyNotFoundError) {
-                    // REM: enum not found
+                    have_enum_def = false
+                }
+                if have_enum_def {
+                    enum_has_payloads_flag = enum_has_payloads(enum_def)
                 }
             case:
                 // REM: not a custom type
@@ -8304,23 +8371,26 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
         for decl: CollectedDeclaration in decls {
             c_var_name := til_name(decl.name)
             if not(ctx.declared_vars.contains(c_var_name)) {
+                mut have_c_type := true
                 c_type := til_type_to_c(decl.value_type)
-                output.push_str(indent_str)
-                output.push_str(c_type)
-                output.push_str(" ")
-                output.push_str(c_var_name)
-                output.push_str(";\n")
-                _ := ctx.declared_vars.insert(c_var_name)
-                // Also register in scope_stack so get_value_type can find it
-                mut symbol_info := SymbolInfo()
-                symbol_info.value_type = decl.value_type
-                symbol_info.is_mut = false
-                symbol_info.is_copy = false
-                symbol_info.is_own = false
-                symbol_info.is_comptime_const = false
-                context.scope_stack.declare_symbol(decl.name.clone(), symbol_info)
                 catch (err: Str) {
-                    // REM: til_type_to_c failed, skip this decl
+                    have_c_type = false
+                }
+                if have_c_type {
+                    output.push_str(indent_str)
+                    output.push_str(c_type)
+                    output.push_str(" ")
+                    output.push_str(c_var_name)
+                    output.push_str(";\n")
+                    _ := ctx.declared_vars.insert(c_var_name)
+                    // Also register in scope_stack so get_value_type can find it
+                    mut symbol_info := SymbolInfo()
+                    symbol_info.value_type = decl.value_type
+                    symbol_info.is_mut = false
+                    symbol_info.is_copy = false
+                    symbol_info.is_own = false
+                    symbol_info.is_comptime_const = false
+                    context.scope_stack.declare_symbol(decl.name.clone(), symbol_info)
                 }
             }
         }
@@ -8556,21 +8626,25 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
             if has_switch_type {
                 switch switch_type {
                 case ValueType.TCustom(enum_name):
-                    mut payload_enum_def := context.scope_stack.lookup_enum(enum_name)
+                    mut have_payload_enum_def := true
+                    payload_enum_def := context.scope_stack.lookup_enum(enum_name)
                     catch (err: KeyNotFoundError) {
-                        // REM: enum not found - equivalent to Rust's None case
+                        have_payload_enum_def = false
                     }
-                    mut payload_ptr := payload_enum_def.get(parsed_info.variant_name)
-                    catch (err: KeyNotFoundError) {
-                        // REM: variant not found - equivalent to Rust's None case
-                    }
-                    catch (err: IndexOutOfBoundsError) {
-                        throw err.msg
-                    }
-                    // Now check if we got a payload type (Ptr not NULL)
-                    if not(payload_ptr.is_null()) {
-                        memcpy(to_ptr(payload_type_opt), payload_ptr.data, size_of(ValueType))
-                        has_payload_type = true
+                    if have_payload_enum_def {
+                        mut have_payload_ptr := true
+                        payload_ptr := payload_enum_def.get(parsed_info.variant_name)
+                        catch (err: KeyNotFoundError) {
+                            have_payload_ptr = false
+                        }
+                        catch (err: IndexOutOfBoundsError) {
+                            throw err.msg
+                        }
+                        // Now check if we got a payload type (Ptr not NULL)
+                        if have_payload_ptr.and(not(payload_ptr.is_null())) {
+                            memcpy(to_ptr(payload_type_opt), payload_ptr.data, size_of(ValueType))
+                            has_payload_type = true
+                        }
                     }
                 case:
                     // REM: not a custom type
@@ -9048,14 +9122,14 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     }
 
     // Check for struct construction: TypeName() -> (til_TypeName){defaults...}
-    mut struct_def_opt_exists := false
+    mut struct_def_opt_exists := true
     struct_def_opt := context.scope_stack.lookup_struct(func_name)
-    struct_def_opt_exists = true
     catch (err: KeyNotFoundError) {
-        // REM: not a struct
+        struct_def_opt_exists = false
     }
 
-    if struct_def_opt_exists.and(expr.params.len().eq(1)) {
+    if struct_def_opt_exists {
+    if expr.params.len().eq(1) {
         // Use the struct definition to get default values
         if struct_def_opt.members.is_empty().or(struct_def_opt.default_values.is_empty()) {
             output.push_str("(")
@@ -9154,6 +9228,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         }
         return
     }
+    }
 
     // Regular function call
     // Detect and construct variadic array if needed (only at statement level)
@@ -9190,12 +9265,15 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             parts.get(0, type_name_part)
             mut variant_name_part := ""
             parts.get(1, variant_name_part)
+            mut ctor_have_enum_def := true
             enum_def := context.scope_stack.lookup_enum(type_name_part)
-            if enum_def.contains_key(variant_name_part) {
-                is_enum_constructor = true
-            }
             catch (err: KeyNotFoundError) {
-                // REM: not an enum
+                ctor_have_enum_def = false
+            }
+            if ctor_have_enum_def {
+                if enum_def.contains_key(variant_name_part) {
+                    is_enum_constructor = true
+                }
             }
         }
     }

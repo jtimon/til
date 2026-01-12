@@ -765,28 +765,31 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         mut first_arg := e.get(1)  // Get the UFCS target (skip func name at index 0)
 
         // Try to get the type of the first argument
-        mut target_type := get_value_type(context, first_arg)
+        mut have_target_type := true
+        target_type := get_value_type(context, first_arg)
         catch (err: Str) {
-            // Couldn't determine type, fall through
+            have_target_type = false
         }
 
-        switch target_type {
-        case ValueType.TCustom(custom_type_name):
-            // Check if this type has an associated method with this name
-            mut method_name := format(custom_type_name, ".", f_name)
-            mut found_method := false
-            mut method_func_def := SFuncDef()
-            method_func_def = context.scope_stack.lookup_func(method_name)
-            found_method = true
-            catch (err: KeyNotFoundError) {
-                // Not found, fall through
+        if have_target_type {
+            switch target_type {
+            case ValueType.TCustom(custom_type_name):
+                // Check if this type has an associated method with this name
+                mut method_name := format(custom_type_name, ".", f_name)
+                mut found_method := false
+                mut method_func_def := SFuncDef()
+                method_func_def = context.scope_stack.lookup_func(method_name)
+                found_method = true
+                catch (err: KeyNotFoundError) {
+                    // Not found, fall through
+                }
+                if found_method {
+                    // UFCS method exists! Use it instead of standalone function
+                    return value_type_func_proc(context.path, e, method_name, method_func_def)
+                }
+            case:
+                // Not TCustom or no method, fall through
             }
-            if found_method {
-                // UFCS method exists! Use it instead of standalone function
-                return value_type_func_proc(context.path, e, method_name, method_func_def)
-            }
-        case:
-            // Not TCustom or no method, fall through
         }
         // If we couldn't determine type or no associated method exists, fall through
     }

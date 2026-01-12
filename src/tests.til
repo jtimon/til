@@ -1001,7 +1001,6 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/maps.til"))  // TODO: gcc incompatible pointer type
     rs_common.push(TestEntry(path="src/test/panic.til", expected_status=1))  // TODO: error msg format differs from til
     rs_common.push(TestEntry(path="src/test/test_parser.til"))  // TODO: slow (~28s) but works
-    rs_common.push(TestEntry(path="src/test/ufcs.til"))  // TODO: format malloc failed - memory corruption
     rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: slow (~4min) but works
 
     mut rs_compiled := Vec.new(TestEntry)
@@ -1026,7 +1025,6 @@ main := proc(args: ..Str) {
     // (tests that pass all 4 modes are in all_common)
     mut til_interpreted := Vec.new(TestEntry)
     til_interpreted.push(TestEntry(path="src/test/maps.til"))  // TODO: gcc incompatible pointer type
-    til_interpreted.push(TestEntry(path="src/test/ufcs.til"))  // TODO: format malloc failed - memory corruption
 
     // til_compiled: tests run with the self-hosted TIL compiler only
     mut til_compiled := Vec.new(TestEntry)
@@ -1097,6 +1095,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/test_lexer.til"))
     all_common.push(TestEntry(path="src/test/u8.til"))
     all_common.push(TestEntry(path="src/test/underscore.til"))
+    all_common.push(TestEntry(path="src/test/ufcs.til"))
     all_common.push(TestEntry(path="src/test/undefined.til", expected_status=1))
     all_common.push(TestEntry(path="src/test/variadic.til"))
     all_common.push(TestEntry(path="src/test/vecs.til"))
