@@ -552,12 +552,15 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
     // Check if this expression itself is a throwing call
     switch expr.node_type {
     case NodeType.FCall:
+        // Bug #80: Use flag pattern for if-let-Some translation
         mut throwing_fd := SFuncDef()
+        mut throwing_fd_found := false
         throwing_fd = get_fcall_func_def(context, expr)
+        throwing_fd_found = true
         catch (err: KeyNotFoundError) {
             // REM: Not a function call we can look up, continue
         }
-        if not(throwing_fd.throw_types.is_empty()) {
+        if throwing_fd_found.and(not(throwing_fd.throw_types.is_empty())) {
             // First, recursively hoist any throwing calls in this call's arguments
             mut nested_hoisted := Map.new(I64, Str)
             if expr.params.len().gt(1) {
@@ -907,9 +910,13 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
             }
             k.inc()
         }
-        sl_struct_def := context.scope_stack.lookup_struct(sl_func_name)
+        // Bug #80: Use flag pattern for if-let-Some translation
+        mut sl_struct_def := SStructDef()
+        mut sl_struct_def_found := false
+        sl_struct_def = context.scope_stack.lookup_struct(sl_func_name)
+        sl_struct_def_found = true
         catch (err: KeyNotFoundError) { }
-        if expr.params.len().eq(1).or(has_named_args) {
+        if sl_struct_def_found.and(expr.params.len().eq(1).or(has_named_args)) {
             // This is a struct literal - check for throwing defaults
             // Build map of named arg names that are provided
             mut provided_names := Set.new(Str)
