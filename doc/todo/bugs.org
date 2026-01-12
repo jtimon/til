@@ -1458,6 +1458,18 @@ main := proc(args: ..Str) {
 Track requirements for removing the Rust implementation (rstil) and relying solely
 on the self-hosted TIL compiler/interpreter.
 
+*** Why This Matters
+The current workflow is painful: every change must be made in two places (Rust and
+Til), following strict translation rules in rs2til.org that are easy to forget under
+pressure. Mistakes compound into bugs like #80.
+
+Once #80 is done, the 4-mode tests become the source of truth. We can trust them to
+catch divergence instead of manually policing every edit against rs2til.org.
+
+Once #100 is done - real liberation. One codebase, no translation burden, freedom to
+refactor and simplify without asking "does this still match the Rust?" The Til code
+can finally be idiomatic Til instead of "Til that looks like Rust."
+
 *** Requirements
 - [ ] Bug #64: Custom main args in mode cli don't work properly
 - [ ] Bug #78: TIL scavenger/ccodegen divergence from Rust
