@@ -270,20 +270,24 @@ toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec throws All
         result.push("-target")
         result.push("arm64-apple-macos11")
         result.push("-Wshadow")
+        result.push("-Wno-int-conversion")
     case Target.MacosX64:
         result.push("-target")
         result.push("x86_64-apple-macos10.12")
         result.push("-Wshadow")
+        result.push("-Wno-int-conversion")
     case Target.Wasm32:
         result.push("--target=wasm32")
         result.push("-nostdlib")
         result.push("-Wl,--no-entry")
         result.push("-Wl,--export-all")
         result.push("-Wshadow")
+        result.push("-Wno-int-conversion")
     case Target.TempleosX86:
         panic(loc(), "HolyC doesn't support -Wshadow")
     case:
         result.push("-Wshadow")  // gcc and mingw support -Wshadow
+        result.push("-Wno-int-conversion")
     }
     return result
 }
