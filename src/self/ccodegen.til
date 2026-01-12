@@ -3831,6 +3831,9 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     // Clear declared_vars and hoisted_struct_defaults for new function scope
     ctx.declared_vars.clear()
     ctx.hoisted_struct_defaults.clear()
+    // TIL-specific: clear hoisted_exprs to avoid cross-file collisions
+    // (TIL uses line/col for keys which aren't globally unique like Rust's memory pointers)
+    ctx.hoisted_exprs.clear()
 
     mangled_name := struct_name.concat("_").concat(member.name)
 
@@ -4168,6 +4171,9 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 // Clear declared_vars and hoisted_struct_defaults for new function scope
                 ctx.declared_vars.clear()
                 ctx.hoisted_struct_defaults.clear()
+                // TIL-specific: clear hoisted_exprs to avoid cross-file collisions
+                // (TIL uses line/col for keys which aren't globally unique like Rust's memory pointers)
+                ctx.hoisted_exprs.clear()
 
                 func_name := til_name(decl.name)
 

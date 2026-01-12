@@ -1064,24 +1064,26 @@ This matters for:
 - Archaeology: Don't waste time investigating individual commits in this range
 
 **** 2026-01-12: Current State
-Build passes. 107/107 tests pass. Test breakdown:
-- 36 tests in all_common (pass all 4 modes)
-- 29 tests in til_interpreted (pass til interpret, fail til compile)
-- 34 tests in rs_common (pass rstil, fail til compile)
+Build passes. 105/105 tests pass. Test breakdown:
+- 38 tests in all_common (pass all 4 modes)
+- 27 tests in til_interpreted (pass til interpret, fail til compile)
+- 32 tests in rs_common (pass rstil, fail til compile)
 - 1 test in til_common (panic.til - different error message format)
 
 Recent fixes:
 - Fixed gcc stderr handling in builder.til to match Rust (capture stderr, only show on failure)
 - Moved arenas.til, arrays.til, bug52.til to all_common
+- Fixed hoisted_exprs collision: clear per-function to avoid cross-file line/col key collisions
+  (TIL uses line*1000000+col for keys which isn't globally unique like Rust's memory pointers)
+- Moved c_mem.til, lists.til to all_common
 
 *** Current Error Summary
 
-The 29 tests in til_interpreted have these failure modes when run with ~./bin/til run~:
+The 27 tests in til_interpreted have these failure modes when run with ~./bin/til run~:
 
 | Error Type | Count | Example |
 |------------|-------|---------|
 | segfault | 27 | Crash during C execution |
-| gcc error undeclared | 2 | c_mem.til, lists.til - variable not declared |
 
 *** Debugging Tools
 
