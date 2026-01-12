@@ -1538,8 +1538,10 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
             }
         case NodeType.FCall:
             // For function calls, try to determine return type
+            mut have_fd := true
             fd := get_fcall_func_def(context, arg)
             catch (err: KeyNotFoundError) {
+                have_fd = false
                 func_name := get_fcall_func_name(arg)
                 catch (err: KeyNotFoundError) {
                     throw arg.lang_error(context.path, "ccodegen", err.msg)
@@ -1561,7 +1563,9 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                                 break
                             }
                         }
-                        catch (err: KeyNotFoundError) { }
+                        catch (err: KeyNotFoundError) {
+                            // REM: Enum not found, fc_is_enum_variant stays false
+                        }
                         if fc_is_enum_variant {
                             // Enum constructor returns the enum type
                             c_type = til_name(fc_type_name)
@@ -1580,22 +1584,24 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
                     c_type = til_name(func_name)
                 }
             }
-            if not(fd.throw_types.is_empty()) {
-                // Throwing call
-                if fd.return_types.is_empty() {
-                    throw arg.lang_error(context.path, "ccodegen", "Throwing call has no return type")
+            if have_fd {
+                if not(fd.throw_types.is_empty()) {
+                    // Throwing call
+                    if fd.return_types.is_empty() {
+                        throw arg.lang_error(context.path, "ccodegen", "Throwing call has no return type")
+                    }
+                    mut first_ret := ValueType.TCustom("")
+                    fd.return_types.get(0, first_ret)
+                    c_type = til_type_to_c(first_ret)
+                } else {
+                    // Non-throwing call
+                    mut ret_type := ValueType.TCustom("")
+                    fd.return_types.get(0, ret_type)
+                    catch (err: IndexOutOfBoundsError) {
+                        throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
+                    }
+                    c_type = til_type_to_c(ret_type)
                 }
-                mut first_ret := ValueType.TCustom("")
-                fd.return_types.get(0, first_ret)
-                c_type = til_type_to_c(first_ret)
-            } else {
-                // Non-throwing call
-                mut ret_type := ValueType.TCustom("")
-                fd.return_types.get(0, ret_type)
-                catch (err: IndexOutOfBoundsError) {
-                    throw arg.lang_error(context.path, "ccodegen", "Function has no return type")
-                }
-                c_type = til_type_to_c(ret_type)
             }
         case:
             throw arg.lang_error(context.path, "ccodegen", "Cannot determine type for dynamic param")
@@ -5098,10 +5104,11 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
-    mut mangled_name := ""
-    ctx.nested_func_names.get(func_name, mangled_name)
-    func_name = mangled_name
-    catch (err: KeyNotFoundError) { }
+    if ctx.nested_func_names.contains_key(func_name) {
+        mut mangled_name := ""
+        ctx.nested_func_names.get(func_name, mangled_name)
+        func_name = mangled_name
+    }
 
     // Generate unique temp names for this call
     temp_suffix := next_mangled(ctx)
@@ -5490,43 +5497,42 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
-    mut mangled_name := ""
-    ctx.nested_func_names.get(func_name, mangled_name)
-    func_name = mangled_name
-    catch (err: KeyNotFoundError) { }
+    if ctx.nested_func_names.contains_key(func_name) {
+        mut mangled_name := ""
+        ctx.nested_func_names.get(func_name, mangled_name)
+        func_name = mangled_name
+    }
 
     // Generate unique temp names for this call
     temp_suffix := next_mangled(ctx)
 
     // Determine if we need a return value temp variable
-    fd := get_fcall_func_def(context, fcall)
-    mut func_has_return := not(fd.return_types.is_empty())
+    // Only if function actually returns something AND we're capturing it
+    func_def_opt := get_fcall_func_def(context, fcall)
+    mut have_func_def := true
+    mut func_has_return := not(func_def_opt.return_types.is_empty())
     mut needs_ret := func_has_return.and(not(decl_name.eq("")).or(not(assign_name.eq(""))))
     catch (err: KeyNotFoundError) {
+        have_func_def = false
         func_has_return = false
         needs_ret = false
     }
 
-    // Calculate param_types and param_by_ref
+    // Calculate param_types early for Dynamic hoisting
     mut param_types := Vec.new(ValueType)
+    // Calculate param_by_ref for pointer passing
     mut param_by_ref := Vec.new(Bool)
-    mut arg_idx := 0
-    for arg: Expr in fcall.params {
-        if arg_idx.eq(0) {
-            arg_idx.inc()
-            continue
-        }
-        fd2 := get_fcall_func_def(context, fcall)
-        mut param_arg := Declaration()
-        fd2.args.get(arg_idx.sub(1), param_arg)
-        param_types.push(param_arg.value_type)
-        param_by_ref.push(param_needs_by_ref(param_arg))
-        arg_idx.inc()
-        catch (err: KeyNotFoundError) {
-            param_types.push(ValueType.TCustom(INFER_TYPE))
-            param_by_ref.push(false)
-        }
-        catch (err: IndexOutOfBoundsError) {
+    for param_idx in 1..fcall.params.len() {
+        if have_func_def {
+            mut param_arg := Declaration()
+            func_def_opt.args.get(param_idx.sub(1), param_arg)
+            param_types.push(param_arg.value_type)
+            param_by_ref.push(param_needs_by_ref(param_arg))
+            catch (err: IndexOutOfBoundsError) {
+                param_types.push(ValueType.TCustom(INFER_TYPE))
+                param_by_ref.push(false)
+            }
+        } else {
             param_types.push(ValueType.TCustom(INFER_TYPE))
             param_by_ref.push(false)
         }
@@ -5829,43 +5835,42 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Check if this is a call to a nested (hoisted) function - use mangled name
-    mut mangled_name := ""
-    ctx.nested_func_names.get(func_name, mangled_name)
-    func_name = mangled_name
-    catch (err: KeyNotFoundError) { }
+    if ctx.nested_func_names.contains_key(func_name) {
+        mut mangled_name := ""
+        ctx.nested_func_names.get(func_name, mangled_name)
+        func_name = mangled_name
+    }
 
     // Generate unique temp names for this call
     temp_suffix := next_mangled(ctx)
 
     // Determine if we need a return value temp variable
-    fd := get_fcall_func_def(context, fcall)
-    mut func_has_return := not(fd.return_types.is_empty())
+    // Only if function actually returns something AND we're capturing it
+    func_def_opt := get_fcall_func_def(context, fcall)
+    mut have_func_def := true
+    mut func_has_return := not(func_def_opt.return_types.is_empty())
     mut needs_ret := func_has_return.and(not(decl_name.eq("")).or(not(assign_name.eq(""))))
     catch (err: KeyNotFoundError) {
+        have_func_def = false
         func_has_return = false
         needs_ret = false
     }
 
-    // Calculate param_types and param_by_ref
+    // Calculate param_types early for Dynamic hoisting
     mut param_types := Vec.new(ValueType)
+    // Calculate param_by_ref for pointer passing
     mut param_by_ref := Vec.new(Bool)
-    mut arg_idx := 0
-    for arg: Expr in fcall.params {
-        if arg_idx.eq(0) {
-            arg_idx.inc()
-            continue
-        }
-        fd2 := get_fcall_func_def(context, fcall)
-        mut param_arg := Declaration()
-        fd2.args.get(arg_idx.sub(1), param_arg)
-        param_types.push(param_arg.value_type)
-        param_by_ref.push(param_needs_by_ref(param_arg))
-        arg_idx.inc()
-        catch (err: KeyNotFoundError) {
-            param_types.push(ValueType.TCustom(INFER_TYPE))
-            param_by_ref.push(false)
-        }
-        catch (err: IndexOutOfBoundsError) {
+    for param_idx in 1..fcall.params.len() {
+        if have_func_def {
+            mut param_arg := Declaration()
+            func_def_opt.args.get(param_idx.sub(1), param_arg)
+            param_types.push(param_arg.value_type)
+            param_by_ref.push(param_needs_by_ref(param_arg))
+            catch (err: IndexOutOfBoundsError) {
+                param_types.push(ValueType.TCustom(INFER_TYPE))
+                param_by_ref.push(false)
+            }
+        } else {
             param_types.push(ValueType.TCustom(INFER_TYPE))
             param_by_ref.push(false)
         }
