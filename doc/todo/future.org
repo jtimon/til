@@ -2,6 +2,7 @@
 #+AUTHOR: TIL Development
 #+DATE: 2025-12-31
 # BOT: Issues here use same numbering as bugs.org (from doc/todo/next_issue_num.txt)
+# BOT: add them at the top of open issues, when implemented, move them to the top of implemented issues
 
 * Overview
 
@@ -79,53 +80,6 @@ This rule is documented in CLAUDE.md.
 *** References
 - Bug #65: Specific instance where shadowing caused divergence
 - doc/todo/post.org: Original shadowing discussion (moved here)
-
-** Issue #69: Test Organization - all_common category
-:PROPERTIES:
-:DISCOVERED: 2025-12-31
-:IMPACT: Test infrastructure, rstil/til output validation
-:STATUS: Implemented
-:RELATED: bug50 (rstil vs til prefix mismatch)
-:END:
-
-*** Background
-Tests that pass with BOTH rstil and til (with identical output) need a category
-that runs all modes. Previously tests were either in ~rs_common~ (rstil only)
-or ~til_interpreted~ (til only), with no way to verify identical behavior.
-
-*** Solution Implemented
-Added ~all_common~ category in tests.til that runs 4 modes:
-- rs_interpreted (rstil interpret)
-- rs_compiled (rstil run)
-- til_interpreted (til interpret)
-- til_compiled (til run)
-
-Currently empty - ~til run~ segfaults on all tests (self-hosted compiler broken).
-When ~til run~ starts working, tests can be promoted from ~rs_common~.
-
-*** Test Categorization Strategy
-- ~all_common~: Tests producing identical output across all 4 modes (currently empty)
-- ~rs_common~: Tests that pass with rstil (67 tests)
-- ~til_interpreted~: Tests that pass with til interpret (47 tests)
-  - 46 tests are in BOTH rs_common and til_interpreted (duplicated for validation)
-  - 1 test (empty.til) is til-only
-- ~rs_interpreted~, ~rs_compiled~: Mode-specific tests
-- Empty categories are skipped in benchmark output
-
-*** Example: bug50
-bug50.til produces ~rstil type ERROR~ vs ~til type ERROR~ (binary name in output).
-It stays in ~rs_common~ until either:
-1. Binary name removed from error messages, OR
-2. Output normalization added to test comparison
-
-*** Benchmark Annotations
-4-phase all_common tests will show timing comparisons:
-- ~(rstil: faster interpreted)~ or ~(rstil: faster compiled)~ - comparing rstil modes
-- ~(interpreted: faster rstil)~ or ~(interpreted: faster til)~ - comparing interpreters
-- ~(compiled: faster rstil)~ or ~(compiled: faster til)~ - comparing compilers
-
-*** Files Modified
-- src/tests.til: Added all_common Vec, processing in run_all_tests(), updated usage()
 
 ** Issue #82: make.til - Replace Makefile with TIL
 :PROPERTIES:
@@ -614,3 +568,52 @@ These Python cases still need TIL equivalents:
 *** Notes
 This is a multi-step issue. Priorities A and B are sufficient for now.
 Final syntax may evolve as we address all Python import patterns.
+
+* Implemented Issues
+
+** Issue #69: Test Organization - all_common category
+:PROPERTIES:
+:DISCOVERED: 2025-12-31
+:IMPACT: Test infrastructure, rstil/til output validation
+:STATUS: Implemented
+:RELATED: bug50 (rstil vs til prefix mismatch)
+:END:
+
+*** Background
+Tests that pass with BOTH rstil and til (with identical output) need a category
+that runs all modes. Previously tests were either in ~rs_common~ (rstil only)
+or ~til_interpreted~ (til only), with no way to verify identical behavior.
+
+*** Solution Implemented
+Added ~all_common~ category in tests.til that runs 4 modes:
+- rs_interpreted (rstil interpret)
+- rs_compiled (rstil run)
+- til_interpreted (til interpret)
+- til_compiled (til run)
+
+Currently empty - ~til run~ segfaults on all tests (self-hosted compiler broken).
+When ~til run~ starts working, tests can be promoted from ~rs_common~.
+
+*** Test Categorization Strategy
+- ~all_common~: Tests producing identical output across all 4 modes (currently empty)
+- ~rs_common~: Tests that pass with rstil (67 tests)
+- ~til_interpreted~: Tests that pass with til interpret (47 tests)
+  - 46 tests are in BOTH rs_common and til_interpreted (duplicated for validation)
+  - 1 test (empty.til) is til-only
+- ~rs_interpreted~, ~rs_compiled~: Mode-specific tests
+- Empty categories are skipped in benchmark output
+
+*** Example: bug50
+bug50.til produces ~rstil type ERROR~ vs ~til type ERROR~ (binary name in output).
+It stays in ~rs_common~ until either:
+1. Binary name removed from error messages, OR
+2. Output normalization added to test comparison
+
+*** Benchmark Annotations
+4-phase all_common tests will show timing comparisons:
+- ~(rstil: faster interpreted)~ or ~(rstil: faster compiled)~ - comparing rstil modes
+- ~(interpreted: faster rstil)~ or ~(interpreted: faster til)~ - comparing interpreters
+- ~(compiled: faster rstil)~ or ~(compiled: faster til)~ - comparing compilers
+
+*** Files Modified
+- src/tests.til: Added all_common Vec, processing in run_all_tests(), updated usage()
