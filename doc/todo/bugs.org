@@ -118,6 +118,11 @@ can finally be idiomatic Til instead of "Til that looks like Rust."
     - Ideal: til binary smaller than rstil
     - Accept growth if justified by performance (e.g., templates/monomorphization)
 
+*** Not Required for #100
+- Bug #97: Partial fix is sufficient. Shadowing detection is in both Rust and TIL
+  typers, all existing code renamed. Final design decision (allow vs disallow)
+  can wait until after #100.
+
 ** Bug #99: Eliminate all C compiler warnings and enable -Werror
 :PROPERTIES:
 :DISCOVERED: 2026-01-11
