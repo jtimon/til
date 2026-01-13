@@ -206,6 +206,9 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                 // Bug #50: Closures not supported yet
                 errors.push(e.todo_error(&context.path, "type", &format!(
                     "Closures are not supported yet. Pass '{}' as a parameter to this function instead.", name)));
+            } else {
+                // Bug #101: Mark symbol as used
+                context.scope_stack.mark_symbol_used(name);
             }
         },
         NodeType::Declaration(decl) => {
@@ -476,6 +479,8 @@ fn check_forin_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors: Vec<String> = Vec::new();
     let f_name = get_func_name_in_call(e);
+    // Bug #101: Mark the function name as used (for local function declarations)
+    context.scope_stack.mark_symbol_used(&f_name);
     let mut e = e.clone();
     let func_def = match get_func_def_for_fcall_with_expr(&context, &mut e) {
         Ok(func_def_) => match func_def_ {
@@ -723,8 +728,13 @@ fn check_fcall_return_usage(context: &Context, e: &Expr, expr_context: ExprConte
 
 fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
+    // Bug #101: Save outer function's tracking state for nested function support
+    let saved_function_locals = context.scope_stack.function_locals.clone();
+    let mut saved_used_symbols = context.scope_stack.used_symbols.clone();
     // Bug #97: Clear function_locals at start of each function
     context.scope_stack.function_locals.clear();
+    // Bug #101: Clear used_symbols at start of each function
+    context.scope_stack.used_symbols.clear();
     if !context.mode_def.allows_procs && func_def.is_proc() {
         errors.push(e.error(&context.path, "type", "Procs not allowed in pure modes"));
     }
@@ -786,6 +796,8 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own, is_comptime_const: false });
             },
         }
+        // Bug #101: Register argument in function_locals for unused tracking
+        context.scope_stack.register_function_local(&arg.name, e.line, e.col);
     }
 
     // TODO re-enable test when it is decided what to do with free, memcpy and memset
@@ -797,6 +809,9 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
 
     // Don't check the bodies of external functions
     if func_def.is_ext() {
+        // Bug #101: Restore outer function's tracking state before returning
+        context.scope_stack.function_locals = saved_function_locals;
+        context.scope_stack.used_symbols = saved_used_symbols;
         return errors;
     }
 
@@ -849,6 +864,21 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                                                     declared_str)));
         }
     }
+
+    // Bug #101: Check for unused variables/arguments
+    for unused_name in context.scope_stack.get_unused_symbols() {
+        errors.push(e.error(&context.path, "type", &format!(
+            "Unused variable '{}'. Suggestion: Use it or rename to '_{}'.",
+            unused_name, unused_name)));
+    }
+
+    // Bug #101: Restore outer function's tracking state
+    // Merge inner function's used_symbols into saved state (for nested function closures)
+    for used_name in &context.scope_stack.used_symbols {
+        saved_used_symbols.insert(used_name.clone());
+    }
+    context.scope_stack.function_locals = saved_function_locals;
+    context.scope_stack.used_symbols = saved_used_symbols;
 
     return errors
 }
@@ -1583,6 +1613,8 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
     if context.scope_stack.lookup_func(var_name).is_some()  {
         errors.push(e.error(&context.path, "type", &format!("function '{}' cannot be assigned to.", var_name)));
     } else if context.scope_stack.lookup_symbol(var_name).is_some() {
+        // Bug #101: Mark the variable as used (even though we're assigning to it)
+        context.scope_stack.mark_symbol_used(var_name);
         let symbol_info = match context.scope_stack.lookup_symbol(var_name) {
             Some(info) => info,
             None => {
@@ -1596,6 +1628,8 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
         // Additional check: if this is a field access (e.g., "s.value"), also check base instance mutability
         if var_name.contains('.') {
             let base_var = var_name.split('.').next().unwrap();
+            // Bug #101: Mark base variable as used
+            context.scope_stack.mark_symbol_used(base_var);
             if let Some(base_info) = context.scope_stack.lookup_symbol(base_var) {
                 if !base_info.is_mut && !base_info.is_copy && !base_info.is_own {
                     errors.push(e.error(&context.path, "type", &format!("Cannot assign to field of constant '{}', Suggestion: declare it as 'mut {}'.", base_var, base_var)));
@@ -1607,6 +1641,8 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
         // With dynamic offset calculation, we need to validate against struct definition
         let field_parts: Vec<&str> = var_name.split('.').collect();
         let field_base_var = field_parts[0];
+        // Bug #101: Mark base variable as used
+        context.scope_stack.mark_symbol_used(field_base_var);
 
         if let Some(field_base_info) = context.scope_stack.lookup_symbol(field_base_var) {
             // Check base mutability
@@ -1667,11 +1703,15 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors: Vec<String> = Vec::new();
 
     let switch_expr_type = match e.get(0) {
-        Ok(expr) => match get_value_type(context, expr) {
-            Ok(t) => t,
-            Err(err) => {
-                errors.push(err);
-                return errors;
+        Ok(expr) => {
+            // Bug #101: Check the switch expression to mark variables as used
+            errors.extend(check_types_with_context(context, expr, ExprContext::ValueUsed));
+            match get_value_type(context, expr) {
+                Ok(t) => t,
+                Err(err) => {
+                    errors.push(err);
+                    return errors;
+                }
             }
         },
         Err(err) => {

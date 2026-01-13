@@ -1426,7 +1426,7 @@ EvalArena := struct {
             } else {
                 // Check if nested struct
                 mut is_struct := false
-                mut struct_def := ctx.scope_stack.lookup_struct(custom_type)
+                _struct_def := ctx.scope_stack.lookup_struct(custom_type)
                 is_struct = true
                 catch (err: KeyNotFoundError) {
                     // Not a struct

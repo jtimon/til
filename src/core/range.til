@@ -9,7 +9,7 @@ I64Range := struct {
     mut end: I64 = 0
 
     // Required by collection interface
-    size := func(self: I64Range) returns I64 {
+    size := func(_self: I64Range) returns I64 {
         return 16  // Two I64 fields (8 bytes each)
     }
 

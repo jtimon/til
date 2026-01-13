@@ -40,7 +40,7 @@ Arena := struct {
     }
 
     /** Read bytes from arena at offset (returns pointer to data) */
-    get := func(self: Arena, offset: I64, num_bytes: I64) returns I64 {
+    get := func(self: Arena, offset: I64, _num_bytes: I64) returns I64 {
         return add(self._memory.ptr, offset)
     }
 

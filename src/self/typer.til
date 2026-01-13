@@ -258,6 +258,9 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
                 // Bug #50: Closures not supported yet
                 errors.push(e.todo_error(context.path, "type", format(
                     "Closures are not supported yet. Pass '", name, "' as a parameter to this function instead.")))
+            } else {
+                // Bug #101: Mark symbol as used
+                context.scope_stack.mark_symbol_used(name)
             }
         }
     case NodeType.Declaration(decl):
@@ -311,7 +314,7 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
 
 // Helper function to validate conditional statement parameters
 // Returns empty string if OK, error message if validation fails
-validate_conditional_params := proc(path: Str, e: Expr, stmt_type: Str, min: I64, max: I64) returns Str {
+validate_conditional_params := proc(_path: Str, e: Expr, stmt_type: Str, min: I64, max: I64) returns Str {
     if e.params.len().lt(min).or(e.params.len().gt(max)) {
         if min.eq(max) {
             e.exit_error("type", format(stmt_type, " nodes must have exactly ", I64.to_str(min), " parameters."))
@@ -612,6 +615,8 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
 check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
     mut errors := Vec.new(Str)
     f_name := get_func_name_in_call(e)
+    // Bug #101: Mark the function name as used (for local function declarations)
+    context.scope_stack.mark_symbol_used(f_name)
     mut e_clone := e  // Clone for potential modification
 
     // Get func def, allowing for struct instantiation (returns None)
@@ -626,37 +631,37 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
     catch (err: KeyNotFoundError) {
         // None case - struct or enum instantiation
         // Validate field names for structs (Bug #85)
+        // Clone member names to avoid borrow conflict with check_types_with_context
         mut is_struct := false
-        mut struct_def := SStructDef()
-        struct_def = context.scope_stack.lookup_struct(f_name)
+        mut struct_member_names := Vec.new(Str)
+        mut _struct_def := SStructDef()
+        _struct_def = context.scope_stack.lookup_struct(f_name)
         is_struct = true
+        for decl: Declaration in _struct_def.members {
+            struct_member_names.push(decl.name.clone())
+        }
         catch (err2: KeyNotFoundError) {
-            // Not a struct - enum constructor, no validation needed
+            // Not a struct - enum constructor, no field validation needed
         }
 
-        if is_struct {
-            // Struct found - validate each NamedArg
-            // Collect member names first to avoid scope issues
-            mut member_names := Vec.new(Str)
-            for decl: Declaration in struct_def.members {
-                member_names.push(decl.name.clone())
-            }
-
-            for struct_arg_idx in 1..e_clone.params.len() {
-                mut struct_arg := Expr()
-                struct_arg = e_clone.get(struct_arg_idx)
+        // Type-check all arguments (both struct and enum constructors)
+        for struct_arg_idx in 1..e_clone.params.len() {
+            mut struct_arg := Expr()
+            struct_arg = e_clone.get(struct_arg_idx)
+            // Only validate field names for structs
+            if is_struct {
                 switch struct_arg.node_type {
                 case NodeType.NamedArg(field_name):
-                    if not(member_names.contains(field_name)) {
+                    if not(struct_member_names.contains(field_name)) {
                         mut err_msg := format("Field '", field_name, "' does not exist in struct '", f_name, "'")
                         mut field_err := struct_arg.error(context.path, "type", err_msg)
                         errors.push(field_err)
                     }
                 case:
                 }
-                // Also type-check the argument value
-                errors.extend(check_types_with_context(context, struct_arg, ExprContext.ValueUsed))
             }
+            // Also type-check the argument value
+            errors.extend(check_types_with_context(context, struct_arg, ExprContext.ValueUsed))
         }
         return errors
     }
@@ -962,8 +967,13 @@ check_fcall_return_usage := proc(context: Context, e: Expr, expr_context: ExprCo
 
 check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr) returns Vec throws Str {
     mut errors := Vec.new(Str)
+    // Bug #101: Save outer function's tracking state for nested function support
+    mut saved_function_locals := context.scope_stack.function_locals.clone()
+    mut saved_used_symbols := context.scope_stack.used_symbols.clone()
     // Bug #97: Clear function_locals at start of each function
     context.scope_stack.function_locals.clear()
+    // Bug #101: Clear used_symbols at start of each function
+    context.scope_stack.used_symbols.clear()
     if not(context.mode_def.allows_procs).and(func_def.is_proc()) {
         errors.push(e.error(context.path, "type", "Procs not allowed in pure modes"))
     }
@@ -1017,6 +1027,8 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
         case:
             context.scope_stack.declare_symbol(arg.name, SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own))
         }
+        // Bug #101: Register argument in function_locals for unused tracking
+        context.scope_stack.register_function_local(arg.name, e.line, e.col)
     }
 
     // TODO re-enable test when it is decided what to do with free, memcpy and memset
@@ -1028,6 +1040,9 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
 
     // Don't check the bodies of external functions
     if func_def.is_ext() {
+        // Bug #101: Restore outer function's tracking state before returning
+        context.scope_stack.function_locals = saved_function_locals
+        context.scope_stack.used_symbols = saved_used_symbols
         return errors
     }
 
@@ -1087,6 +1102,20 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
         }
         decl_throw_idx.inc()
     }
+
+    // Bug #101: Check for unused variables/arguments
+    mut unused_symbols := context.scope_stack.get_unused_symbols()
+    for unused_name: Str in unused_symbols {
+        errors.push(e.error(context.path, "type", format("Unused variable '", unused_name, "'. Suggestion: Use it or rename to '_", unused_name, "'.")))
+    }
+
+    // Bug #101: Restore outer function's tracking state
+    // Merge inner function's used_symbols into saved state (for nested function closures)
+    for used_name: Str in context.scope_stack.used_symbols {
+        _ := saved_used_symbols.insert(used_name)
+    }
+    context.scope_stack.function_locals = saved_function_locals
+    context.scope_stack.used_symbols = saved_used_symbols
 
     catch (err: AllocError) {
         throw err.msg
@@ -1557,7 +1586,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                     // Try to infer the type from the initializer (only if not already declared)
                     mut already_declared := true
-                    mut existing := context.scope_stack.lookup_symbol(decl.name)
+                    mut _existing := context.scope_stack.lookup_symbol(decl.name)
                     catch (err: KeyNotFoundError) {
                         already_declared = false
                     }
@@ -1773,7 +1802,7 @@ check_catch_statement := proc(mut context: Context, e: Expr) returns Vec throws 
 
     // Confirm that the type exists in the context (as done for function args)
     mut type_exists := true
-    mut type_symbol := context.scope_stack.lookup_symbol(type_name)
+    mut _type_symbol := context.scope_stack.lookup_symbol(type_name)
     catch (err: KeyNotFoundError) {
         type_exists = false
     }
@@ -1823,7 +1852,7 @@ check_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retu
     mut inner_e := e.get(0)
 
     mut already_declared := true
-    mut existing := context.scope_stack.lookup_symbol(decl.name)
+    mut _existing := context.scope_stack.lookup_symbol(decl.name)
     catch (err: KeyNotFoundError) {
         already_declared = false
     }
@@ -1871,7 +1900,7 @@ check_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retu
             }
             // During type checking, register struct fields so they can be accessed in the code
             // Memory allocation and default value evaluation happens during runtime in eval_declaration
-            mut struct_def := context.scope_stack.lookup_struct(custom_type)
+            _struct_def := context.scope_stack.lookup_struct(custom_type)
             context.register_struct_fields_for_typecheck(decl.name, custom_type)
             catch (err: KeyNotFoundError) {
                 // Not a struct, skip field registration
@@ -1928,7 +1957,7 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
 
     // Check if it's a function (can't assign to functions)
     mut is_func := true
-    mut func_def := context.scope_stack.lookup_func(var_name)
+    _func_def := context.scope_stack.lookup_func(var_name)
     catch (err: KeyNotFoundError) {
         is_func = false
     }
@@ -1944,6 +1973,8 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
         }
 
         if symbol_exists {
+            // Bug #101: Mark the variable as used (even though we're assigning to it)
+            context.scope_stack.mark_symbol_used(var_name)
             if not(symbol_info.is_mut).and(not(symbol_info.is_copy)).and(not(symbol_info.is_own)) {
                 errors.push(e.error(context.path, "type", format("Cannot assign to constant '", var_name, "', Suggestion: declare it as 'mut'.")))
             }
@@ -1953,6 +1984,8 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
                 if parts.len().gt(0) {
                     mut base_var := ""
                     parts.get(0, base_var)
+                    // Bug #101: Mark base variable as used
+                    context.scope_stack.mark_symbol_used(base_var)
                     mut base_info := context.scope_stack.lookup_symbol(base_var)
                     if not(base_info.is_mut).and(not(base_info.is_copy)).and(not(base_info.is_own)) {
                         errors.push(e.error(context.path, "type", format("Cannot assign to field of constant '", base_var, "', Suggestion: declare it as 'mut ", base_var, "'.")))
@@ -1968,6 +2001,8 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
             mut field_parts := var_name.split(".")
             mut field_base_var := ""
             field_parts.get(0, field_base_var)
+            // Bug #101: Mark base variable as used
+            context.scope_stack.mark_symbol_used(field_base_var)
 
             mut field_base_exists := true
             mut field_base_info := context.scope_stack.lookup_symbol(field_base_var)
@@ -2044,6 +2079,8 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
     mut errors := Vec.new(Str)
 
     mut switch_expr := e.get(0)
+    // Bug #101: Check the switch expression to mark variables as used
+    errors.extend(check_types_with_context(context, switch_expr, ExprContext.ValueUsed))
     mut switch_expr_type := get_value_type(context, switch_expr)
     catch (err: Str) {
         errors.push(err)
@@ -2133,7 +2170,7 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
                 } else {
                     // Variant not found
                     mut enum_exists := true
-                    mut check_enum := context.scope_stack.lookup_enum(enum_name)
+                    mut _check_enum := context.scope_stack.lookup_enum(enum_name)
                     catch (err: KeyNotFoundError) {
                         enum_exists = false
                     }

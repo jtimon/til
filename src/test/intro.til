@@ -29,7 +29,7 @@ abc_proc(false, false, false)
 
 // Procedures or procs can be declared and directly called in most modes including script
 abc_proc := proc(a: Bool, b: Bool, c: Bool) {
-    abc := proc(a: Bool, b: Bool, c: Bool) {
+    abc := proc(_a: Bool, _b: Bool, _c: Bool) {
         // Test that nested procs work
         test(loc(), true, "nested proc should execute")
     }

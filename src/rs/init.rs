@@ -77,6 +77,8 @@ pub struct ScopeStack {
     /// Using location allows handling AST duplication from transformations like for-in desugaring,
     /// while still catching actual shadowing (same name at different source location).
     pub function_locals: HashSet<(String, usize, usize)>,
+    /// Bug #101: Track which symbols have been used in the current function.
+    pub used_symbols: HashSet<String>,
 }
 
 #[allow(dead_code)]
@@ -85,6 +87,7 @@ impl ScopeStack {
         ScopeStack {
             frames: Vec::new(),
             function_locals: HashSet::new(),
+            used_symbols: HashSet::new(),
         }
     }
 
@@ -125,6 +128,26 @@ impl ScopeStack {
             }
         }
         None
+    }
+
+    /// Bug #101: Mark a symbol as used in the current function.
+    pub fn mark_symbol_used(&mut self, name: &str) {
+        self.used_symbols.insert(name.to_string());
+    }
+
+    /// Bug #101: Get all declared symbols in function_locals that are not in used_symbols
+    /// and don't start with underscore.
+    pub fn get_unused_symbols(&self) -> Vec<String> {
+        let mut unused: Vec<String> = Vec::new();
+        for (name, _line, _col) in &self.function_locals {
+            if !name.starts_with('_') && !self.used_symbols.contains(name) {
+                // Avoid duplicates (same name at multiple locations)
+                if !unused.contains(name) {
+                    unused.push(name.clone());
+                }
+            }
+        }
+        unused
     }
 
     /// Bug #97: Check if we're currently inside a function (not at global scope).

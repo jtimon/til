@@ -36,7 +36,7 @@ collect_used_types_from_expr := proc(context: Context, e: Expr, mut used_types: 
             if name.len().gt(0).and(name.find(".").lt(0)) {
                 // Check if this is a struct constructor
                 mut fcall_found_struct := false
-                dummy := context.scope_stack.lookup_struct(name)
+                _dummy := context.scope_stack.lookup_struct(name)
                 fcall_found_struct = true
                 catch (err: KeyNotFoundError) { }
                 if fcall_found_struct {
@@ -48,12 +48,12 @@ collect_used_types_from_expr := proc(context: Context, e: Expr, mut used_types: 
         // Type references - check if this is a known struct or enum
         if name.len().gt(0).and(e.params.len().eq(0)) {
             mut ident_found_struct := false
-            dummy_struct := context.scope_stack.lookup_struct(name)
+            _dummy_struct := context.scope_stack.lookup_struct(name)
             ident_found_struct = true
             catch (err: KeyNotFoundError) { }
 
             mut found_enum := false
-            dummy_enum := context.scope_stack.lookup_enum(name)
+            _dummy_enum := context.scope_stack.lookup_enum(name)
             found_enum = true
             catch (err: KeyNotFoundError) { }
 
@@ -439,14 +439,14 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                         parts.get(0, maybe_var)
                         // If first part is NOT a known struct/enum, it's likely a variable
                         mut found_struct_check := false
-                        mut dummy_struct := SStructDef()
-                        dummy_struct = context.scope_stack.lookup_struct(maybe_var)
+                        mut _dummy_struct := SStructDef()
+                        _dummy_struct = context.scope_stack.lookup_struct(maybe_var)
                         found_struct_check = true
                         catch (err: KeyNotFoundError) { }
 
                         mut found_enum_check := false
-                        mut dummy_enum := SEnumDef()
-                        dummy_enum = context.scope_stack.lookup_enum(maybe_var)
+                        mut _dummy_enum := SEnumDef()
+                        _dummy_enum = context.scope_stack.lookup_enum(maybe_var)
                         found_enum_check = true
                         catch (err: KeyNotFoundError) { }
 
@@ -473,8 +473,8 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                         mut found_method := false
                         for builtin: Str in builtin_types {
                             builtin_full_method := format(builtin, ".", method_name)
-                            mut builtin_dummy_fd := SFuncDef()
-                            builtin_dummy_fd = context.scope_stack.lookup_func(builtin_full_method)
+                            mut _builtin_dummy_fd := SFuncDef()
+                            _builtin_dummy_fd = context.scope_stack.lookup_func(builtin_full_method)
                             // Found a matching method - mark it reachable instead
                             mark_reachable(builtin_full_method, reachable, worklist)
                             found_method = true
@@ -487,8 +487,8 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                             struct_names := context.scope_stack.get_all_struct_names()
                             for struct_name: Str in struct_names {
                                 user_full_method := format(struct_name, ".", method_name)
-                                mut user_dummy_fd := SFuncDef()
-                                user_dummy_fd = context.scope_stack.lookup_func(user_full_method)
+                                mut _user_dummy_fd := SFuncDef()
+                                _user_dummy_fd = context.scope_stack.lookup_func(user_full_method)
                                 mark_reachable(user_full_method, reachable, worklist)
                                 found_method = true
                                 break
@@ -524,7 +524,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
             struct_name := func_name.get_substr(0, method_dot_pos)
             // Only add if this is actually a struct (not an enum)
             mut method_found_struct := false
-            dummy := context.scope_stack.lookup_struct(struct_name)
+            _dummy := context.scope_stack.lookup_struct(struct_name)
             method_found_struct = true
             catch (err: KeyNotFoundError) { }
             if method_found_struct {

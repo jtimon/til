@@ -540,7 +540,7 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
             return Expr.new_clone(NodeType.LLiteral(Literal.Str(result.value)), e, Vec.new(Expr))
         }
         // Check if it's a struct type - result.value is the instance name
-        mut struct_def := context.scope_stack.lookup_struct(type_name)
+        _struct_def := context.scope_stack.lookup_struct(type_name)
         catch (err: KeyNotFoundError) {
             // For enums and other types: eval_expr was called (catching any errors),
             // but we can't convert the result back to AST literal, so return original
@@ -1335,7 +1335,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // 3. Struct constructor - create instance like eval does (before arg transform)
     if not(combined_name.eq("")) {
         mut struct_found := false
-        mut dummy_struct := context.scope_stack.lookup_struct(combined_name)
+        _dummy_struct := context.scope_stack.lookup_struct(combined_name)
         struct_found = true
         catch (err: KeyNotFoundError) {
             // Not found
@@ -1438,7 +1438,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 if has_type_name {
                     mut method_name := format(type_name, ".", combined_name)
                     mut method_found := false
-                    mut dummy := context.scope_stack.lookup_func(method_name)
+                    _dummy := context.scope_stack.lookup_func(method_name)
                     method_found = true
                     catch (err: KeyNotFoundError) {
                         // Not found
@@ -1505,7 +1505,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     if assoc_has_type_name {
                         mut assoc_method_name := format(custom_type_name, ".", ufcs_func_name)
                         mut assoc_method_found := false
-                        mut dummy5 := context.scope_stack.lookup_func(assoc_method_name)
+                        _dummy5 := context.scope_stack.lookup_func(assoc_method_name)
                         assoc_method_found = true
                         catch (err: KeyNotFoundError) {
                             // Not found
@@ -1530,7 +1530,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
                 // Fall back to standalone function
                 mut standalone_found := false
-                mut dummy4 := context.scope_stack.lookup_func(ufcs_func_name)
+                _dummy4 := context.scope_stack.lookup_func(ufcs_func_name)
                 standalone_found = true
                 catch (err: KeyNotFoundError) {
                     // Not found

@@ -1681,10 +1681,10 @@ hoist_for_ref_params := proc(args: Vec, param_by_ref: Vec, already_hoisted: Map,
                     needs_hoisting = false
                 } else {
                     mut has_variable := true
-                    is_variable := context.scope_stack.lookup_symbol(name)
+                    _is_variable := context.scope_stack.lookup_symbol(name)
                     catch (err: KeyNotFoundError) { has_variable = false }
                     mut has_function := true
-                    is_function := context.scope_stack.lookup_func(name)
+                    _is_function := context.scope_stack.lookup_func(name)
                     catch (err: KeyNotFoundError) { has_function = false }
                     // Only needs hoisting if it's not a variable AND not a function call
                     // (i.e., it's a Type.method call like I64.to_str)
@@ -2999,7 +2999,7 @@ emit_constant_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenC
             expr.params.get(0, first_param)
             switch first_param.node_type {
             case NodeType.LLiteral(lit):
-                has_str := context.scope_stack.lookup_struct("Str")
+                _has_str := context.scope_stack.lookup_struct("Str")
                 mut has_str_bool := true
                 catch (err: KeyNotFoundError) {
                     has_str_bool = false
@@ -4344,7 +4344,7 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
                     }
                 }
                 // Check if this is a struct constant access
-                type_struct_def := context.scope_stack.lookup_struct(name)
+                _type_struct_def := context.scope_stack.lookup_struct(name)
                 if true { // TODO Bug #96 workaround
                     // Struct constant: Type.constant -> til_Type_constant
                     output.push_str(til_name(name))
@@ -9477,7 +9477,7 @@ emit_str_literal := proc(s: Str, mut output: Str) {
 emit_literal := proc(lit: Literal, mut output: Str, context: Context) throws Str {
     switch lit {
     case Literal.Str(s):
-        has_str := context.scope_stack.lookup_struct("Str")
+        _has_str := context.scope_stack.lookup_struct("Str")
         emit_str_literal(s, output)
         catch (err: KeyNotFoundError) {
             // No Str struct - emit raw string

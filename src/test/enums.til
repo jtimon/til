@@ -62,7 +62,7 @@ assert_eq_str(loc(), "enum cccccc by default",   test_return_switch_enum(Example
 // Test that enum variants are valid symbols and type-check
 test_enum_variant_resolution := proc() {
     mut my_enum_val: ExampleEnum = ExampleEnum.A
-    my_enum_val2 := ExampleEnum.B
+    _my_enum_val2 := ExampleEnum.B
     assert_eq_str(loc(), "ExampleEnum.A", enum_to_str(my_enum_val))
 
     my_enum_val = ExampleEnum.B

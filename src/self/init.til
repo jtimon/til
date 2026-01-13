@@ -97,12 +97,15 @@ ScopeStack := struct {
     // while still catching actual shadowing (same name at different source location).
     // Stored as "name:line:col" strings in a Set.
     mut function_locals: Set = Set.new(Str)
+    // Bug #101: Track which symbols have been used in the current function.
+    mut used_symbols: Set = Set.new(Str)
 
 
     new := func() returns ScopeStack {
         mut stack := ScopeStack()
         stack.frames = Vec.new(ScopeFrame)
         stack.function_locals = Set.new(Str)
+        stack.used_symbols = Set.new(Str)
         return stack
     }
 
@@ -557,7 +560,7 @@ ScopeStack := struct {
     }
 
     clone := func(self: ScopeStack) returns ScopeStack throws AllocError {
-        return ScopeStack(frames=self.frames.clone(), function_locals=self.function_locals.clone())
+        return ScopeStack(frames=self.frames.clone(), function_locals=self.function_locals.clone(), used_symbols=self.used_symbols.clone())
     }
 
     // Bug #97: Check if we're currently inside a function (not at global scope).
@@ -643,6 +646,46 @@ ScopeStack := struct {
         catch (err: AllocError) {
             panic(loc(), "register_function_local AllocError: ", err.msg)
         }
+    }
+
+    // Bug #101: Mark a symbol as used in the current function.
+    mark_symbol_used := proc(mut self: ScopeStack, name: Str) {
+        _ := self.used_symbols.insert(name)
+        catch (err: AllocError) {
+            panic(loc(), "mark_symbol_used AllocError: ", err.msg)
+        }
+    }
+
+    // Bug #101: Get all declared symbols in function_locals that are not in used_symbols
+    // and don't start with underscore.
+    get_unused_symbols := func(self: ScopeStack) returns Vec throws AllocError {
+        mut unused := Vec.new(Str)
+        for key: Str in self.function_locals {
+            // Extract name from "name:line:col" format
+            mut parts := key.split(":")
+            mut name := ""
+            parts.get(0, name)
+            catch (err: IndexOutOfBoundsError) {
+                // Skip malformed keys
+                continue
+            }
+            if not(name.starts_with("_")) {
+                if not(self.used_symbols.contains(name)) {
+                    // Avoid duplicates
+                    mut already_added := false
+                    for existing: Str in unused {
+                        if existing.eq(name) {
+                            already_added = true
+                            break
+                        }
+                    }
+                    if not(already_added) {
+                        unused.push(name)
+                    }
+                }
+            }
+        }
+        return unused
     }
 }
 
@@ -915,7 +958,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                     }
                     // Type check the payload argument
                     mut payload_expr := e.get(1)
-                    mut payload_actual_type := get_value_type(context, payload_expr)
+                    mut _payload_actual_type := get_value_type(context, payload_expr)
 
                     // TODO: Verify payload type matches expected type
                     // For now, we just accept any payload

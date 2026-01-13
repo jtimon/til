@@ -98,7 +98,7 @@ Vec3 := struct {
 // trying_dot_struct2 : Bool = MyStruct.bool_field.ccccc // TODO implement nested structs
 
 test_structs := proc() {
-    my_empty_struct := EmptyStruct() // NOTE: empty instantiations are allowed
+    _my_empty_struct := EmptyStruct() // NOTE: empty instantiations are allowed
     my_vec2 := Vec2(x=40, y=2)
     assert_eq(loc(), 42, Vec2.add_all_coordinates(my_vec2)) // associated functions using fields
     assert_eq(loc(), 42, my_vec2.add_all_coordinates()) // associated functions can be used as methods (if the first argument matches the type)
@@ -117,10 +117,10 @@ test_structs := proc() {
     another_vec2 := my_vec2 // make a copy
     assert_eq(loc(), Vec2.add_all_coordinates(my_vec2), Vec2.add_all_coordinates(another_vec2))
 
-    my_i8 := U8()
-    my_bool := Bool() /// TODO truly self host Bool with an U8
-    my_i64 := I64() // TODO truly self host I64 with an [8]U8
-    my_string := Str()
+    _my_i8 := U8()
+    _my_bool := Bool() /// TODO truly self host Bool with an U8
+    _my_i64 := I64() // TODO truly self host I64 with an [8]U8
+    _my_string := Str()
 
 }
 test_structs()

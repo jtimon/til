@@ -6,7 +6,7 @@ import("core.bounds")
 Bool := struct {
     mut data: U8 = 0
 
-    len := func(self: Bool) returns I64 {
+    len := func(_self: Bool) returns I64 {
         return 1
     }
 

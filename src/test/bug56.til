@@ -25,10 +25,10 @@ test_workaround := func() returns MyEnum throws AllocError {
 }
 
 run_test := proc() {
-    e2 := test_workaround()
+    _e2 := test_workaround()
     println("workaround in func: OK")
 
-    e3 := test_in_func()  // This will fail
+    _e3 := test_in_func()  // This will fail
     println("clone in func: OK")
 
     catch (err: AllocError) {

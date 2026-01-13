@@ -99,7 +99,7 @@ test_example_catch := proc() {
     assert_eq(loc(), 42, result1)
 
     b = 0
-    result := I64.to_str(a.safe_div(b)) // test declaration
+    _result := I64.to_str(a.safe_div(b)) // test declaration
     mut result2 := "0"
     result2 = I64.to_str(a.safe_div(b)) // test assignment
     catch (err: DivideByZero) {
@@ -120,7 +120,7 @@ another_func := proc() throws ErrorUndeclaredInFunc { // REM proc so precomp doe
 }
 
 SomeStruct := struct {
-    some_method := func(self: SomeStruct) throws ErrorUndeclaredInFunc {
+    some_method := func(_self: SomeStruct) throws ErrorUndeclaredInFunc {
         throw ErrorUndeclaredInFunc() // FIXED: the compiler now correctly tells us this error must be declared!
     }
 
@@ -213,7 +213,7 @@ test_catch_error_with_str_field()
 
 // Test rethrowing error field as different type
 // Note: takes dummy arg to prevent compile-time evaluation (precomp)
-trigger_out_of_bounds := func(dummy: I64) returns I64 throws Str, AllocError {
+trigger_out_of_bounds := func(_dummy: I64) returns I64 throws Str, AllocError {
     mut arr := Array.new(I64, 2)
     mut val := 0
     arr.get(10, val)  // Intentionally out of bounds
@@ -247,7 +247,7 @@ test_rethrow_error_field()
 
 // Test assigning error field to variable then throwing (Bug #29 regression)
 // Note: takes dummy arg to prevent compile-time evaluation (precomp)
-trigger_out_of_bounds_assign := func(dummy: I64) returns I64 throws Str, AllocError {
+trigger_out_of_bounds_assign := func(_dummy: I64) returns I64 throws Str, AllocError {
     mut arr := Array.new(I64, 2)
     mut val := 0
     arr.get(10, val)
@@ -400,7 +400,7 @@ bug36_test_throws_in_struct_literal := proc() returns Bug36TestData throws Bug36
 
 test_bug36 := proc() {
     mut caught := false
-    result := bug36_test_throws_in_struct_literal()
+    _result := bug36_test_throws_in_struct_literal()
     // Should not reach here
     assert(loc(), false)
 

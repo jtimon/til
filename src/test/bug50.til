@@ -4,10 +4,10 @@ mode test
 // This should fail with a todo_error saying closures are not supported yet.
 
 test_closure := proc() {
-    outer_var := 42
+    _outer_var := 42
 
     inner := func() returns I64 {
-        return outer_var  // Uses variable from outer scope - NOT SUPPORTED
+        return _outer_var  // Uses variable from outer scope - NOT SUPPORTED
     }
 
     result := inner()

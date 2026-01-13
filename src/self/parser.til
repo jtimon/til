@@ -379,7 +379,7 @@ Expr := struct {
         return s
     }
 
-    size := func(self: Expr) returns I64 {
+    size := func(_self: Expr) returns I64 {
         return size_of(Expr)
     }
 

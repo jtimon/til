@@ -182,7 +182,7 @@ test_mode_test()
 test_mode_invalid := proc() {
     mut threw_error := false
 
-    m := mode_from_name("invalid_mode", "test", dummy_token)
+    _m := mode_from_name("invalid_mode", "test", dummy_token)
 
     catch (err: Str) {
         threw_error = true

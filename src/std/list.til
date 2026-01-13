@@ -91,7 +91,7 @@ List := struct {
         mut stored_type := ""
         self.type_names.get(index, stored_type)
 
-        mut dest_type := type_as_str(dest)
+        mut _dest_type := type_as_str(dest)
 
         // TODO FIX type checking when Dynamic type checking is enabled
         // if not(Str.eq(stored_type, dest_type)) {

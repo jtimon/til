@@ -9,7 +9,7 @@ if true { // 'if', 'true' (font-lock-keyword-face in emacs)
     }
 }
 
-my_func := func(a1: Bool, a2: Bool, a3: Bool) returns Bool {
+my_func := func(_a1: Bool, _a2: Bool, _a3: Bool) returns Bool {
     return true
 }
 
@@ -64,7 +64,7 @@ mut x := 10 // 'x' in variable declaration (font-lock-variable-name-face in emac
 y := 20 // 'y' (font-lock-constant-face in emacs), since := works
 
 // Types in declarations and signatures
-proc_with_args := proc(arg1: I64, arg2: Str) { // 'I64', 'Str' (font-lock-type-face in emacs), 'arg1', 'arg2' (font-lock-constant-face in emacs)
+proc_with_args := proc(_arg1: I64, _arg2: Str) { // 'I64', 'Str' (font-lock-type-face in emacs), 'arg1', 'arg2' (font-lock-constant-face in emacs)
     return // 'return' (font-lock-keyword-face in emacs)
 }
 returns_bool := proc() returns Bool { // 'Bool' (font-lock-type-face in emacs), 'returns_bool' (font-lock-function-name-face in emacs)
@@ -76,7 +76,7 @@ mut z : I64 = 30 // 'mut' (font-lock-keyword-face in emacs), 'z' (font-lock-vari
 mut w := 40 // 'mut' (font-lock-keyword-face in emacs), 'w' (font-lock-variable-name-face in emacs)
 
 // Constant arguments in function signatures
-my_proc := proc(const_arg: I64, mut mut_arg: Str) { // 'const_arg' (font-lock-constant-face in emacs), 'mut' (font-lock-keyword-face in emacs), 'mut_arg' (font-lock-variable-name-face in emacs), 'I64', 'Str' (font-lock-type-face in emacs)
+my_proc := proc(_const_arg: I64, mut _mut_arg: Str) { // 'const_arg' (font-lock-constant-face in emacs), 'mut' (font-lock-keyword-face in emacs), 'mut_arg' (font-lock-variable-name-face in emacs), 'I64', 'Str' (font-lock-type-face in emacs)
     // Nothing here
 }
 

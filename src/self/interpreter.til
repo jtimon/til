@@ -149,7 +149,7 @@ read_struct_primitive_fields := proc(ctx: Context, instance_id: Str, struct_type
                     values.set(key, str_val)
                 } else {
                     // For nested structs (Vec, etc.), recursively read primitive fields
-                    mut dummy_struct := ctx.scope_stack.lookup_struct(type_name)
+                    _dummy_struct := ctx.scope_stack.lookup_struct(type_name)
                     mut nested_key := ""
                     if prefix.eq("") {
                         nested_key = decl.name
@@ -209,13 +209,13 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                     // Skip primitives, enums, and Str (handled specially)
                     if not(type_name.eq("U8")).and(not(type_name.eq("I64"))).and(not(type_name.eq("Str"))) {
                         mut is_enum := false
-                        mut dummy_enum := ctx.scope_stack.lookup_enum(type_name)
+                        _dummy_enum := ctx.scope_stack.lookup_enum(type_name)
                         is_enum = true
                         catch (err: KeyNotFoundError) {
                             is_enum = false
                         }
                         if not(is_enum) {
-                            mut dummy_struct := ctx.scope_stack.lookup_struct(type_name)
+                            _dummy_struct := ctx.scope_stack.lookup_struct(type_name)
                             // Eagerly create template for nested struct (handles forward refs)
                             mut _ := create_default_instance(ctx, type_name, e)
                             catch (err: KeyNotFoundError) {
@@ -240,13 +240,13 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                 if is_custom {
                     if not(type_name.eq("U8")).and(not(type_name.eq("I64"))).and(not(type_name.eq("Str"))) {
                         mut is_enum2 := false
-                        mut dummy_enum2 := ctx.scope_stack.lookup_enum(type_name)
+                        _dummy_enum2 := ctx.scope_stack.lookup_enum(type_name)
                         is_enum2 = true
                         catch (err: KeyNotFoundError) {
                             is_enum2 = false
                         }
                         if not(is_enum2) {
-                            mut dummy_struct2 := ctx.scope_stack.lookup_struct(type_name)
+                            _dummy_struct2 := ctx.scope_stack.lookup_struct(type_name)
 
                             // First, get static defaults for nested structs (Str, Vec fields)
                             mut nested := Map.new(Str, Str)
