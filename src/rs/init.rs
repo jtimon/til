@@ -318,6 +318,17 @@ impl ScopeStack {
         None
     }
 
+    // Check if a struct exists without retrieving it (cheap existence check)
+    // Equivalent to lookup_struct(...).is_some() but more explicit
+    pub fn has_struct(&self, name: &str) -> bool {
+        for frame in self.frames.iter().rev() {
+            if frame.structs.contains_key(name) {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Check if a combined name (e.g., "Color.Green") refers to an enum constructor
     pub fn is_enum_constructor(&self, combined_name: &str) -> bool {
         let parts: Vec<&str> = combined_name.split('.').collect();
@@ -1409,7 +1420,7 @@ impl Context {
             );
 
             if let ValueType::TCustom(nested_type_name) = &decl.value_type {
-                if self.scope_stack.lookup_struct(nested_type_name).is_some() {
+                if self.scope_stack.has_struct(nested_type_name) {
                     self.register_struct_fields_for_typecheck(&combined_name, nested_type_name);
                 }
             }

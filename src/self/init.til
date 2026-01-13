@@ -438,6 +438,22 @@ ScopeStack := struct {
         throw KeyNotFoundError(msg="lookup_struct: Struct not found in ScopeStack")
     }
 
+    // Check if a struct exists without retrieving it (cheap existence check)
+    // Equivalent to Rust's lookup_struct(...).is_some()
+    has_struct := func(self: ScopeStack, name: Str) returns Bool {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)
+            if frame.structs.contains_key(name) {
+                return true
+            }
+        }
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "IndexOutOfBoundsError in has_struct: ", err.msg)
+        }
+        return false
+    }
+
     // Check if a combined name (e.g., "Color.Green") refers to an enum constructor
     is_enum_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
         mut parts := combined_name.split(".")
@@ -2252,10 +2268,10 @@ Context := struct {
         return current_type
     }
 
-    register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws Str {
+    register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) {
         mut found_struct := false
         mut struct_def := SStructDef()
-        struct_def = self.scope_stack.lookup_struct(custom_type_name).clone()
+        struct_def = self.scope_stack.lookup_struct(custom_type_name)
         found_struct = true
         catch (err: KeyNotFoundError) {
             // Struct not found
@@ -2273,22 +2289,15 @@ Context := struct {
 
             switch decl.value_type {
             case ValueType.TCustom(nested_type_name):
-                mut found_nested := false
-                mut nested_struct_def := SStructDef()
-                nested_struct_def = self.scope_stack.lookup_struct(nested_type_name)
-                found_nested = true
-                catch (nested_err: KeyNotFoundError) {
-                    // Nested struct not found
-                }
-                if found_nested {
+                if self.scope_stack.has_struct(nested_type_name) {
                     self.register_struct_fields_for_typecheck(combined_name, nested_type_name)
                 }
             case:
                 # Not a custom type
             }
         }
-        catch (err: AllocError) {
-            throw err.msg
+        catch (err: Str) {
+            panic(loc(), "register_struct_fields_for_typecheck: ", err)
         }
     }
 
