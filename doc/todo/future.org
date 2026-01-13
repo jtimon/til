@@ -12,6 +12,107 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #111: Support returns Dynamic
+:PROPERTIES:
+:DISCOVERED: 2026-01-13
+:IMPACT: Cleaner API for Vec.get, enum_payload, etc.
+:STATUS: Open
+:RELATED: Issue #110 (enum_payload needs this)
+:END:
+
+*** Description
+Allow functions to return Dynamic type. Currently Vec.get uses inout parameter
+as workaround. With ~returns Dynamic~, APIs become cleaner and closer to Rust/templates.
+
+*** Key Constraint
+Disallow type inference for Dynamic returns - caller must annotate the type:
+#+BEGIN_SRC til
+val: I64 = vec.get(0)      // OK - type annotated
+val := vec.get(0)          // ERROR - can't infer Dynamic return
+#+END_SRC
+
+This sidesteps inference complexity while enabling the feature.
+
+*** Benefits
+- Vec.get returns value directly instead of inout param
+- enum_payload (Issue #110) can work cleanly
+- Closer to Rust and future templates
+- More idiomatic TIL
+
+*** Refactor Opportunity
+Once implemented, refactor collection APIs in src/core and src/self:
+- Array/Vec: get, pop, etc. return value instead of inout
+- Set/Map: get, contains, etc. return value instead of inout
+Big cleanup of self-hosted code.
+
+*** Example
+Current (workaround):
+#+BEGIN_SRC til
+mut val: I64 = 0
+vec.get(0, mut val)  // inout parameter
+#+END_SRC
+
+With returns Dynamic:
+#+BEGIN_SRC til
+val: I64 = vec.get(0)  // direct return
+#+END_SRC
+
+** Issue #110: Desugar switch to if/else in precomp
+:PROPERTIES:
+:DISCOVERED: 2026-01-13
+:IMPACT: Simplify interpreter and ccodegen, reduce internal complexity
+:STATUS: Open
+:RELATED: ccodegen payload hoisting, Issue #111 (enum_payload nicer with returns Dynamic)
+:END:
+
+*** Description
+Remove switch as an internal construct. In precomp, desugar switch/case to
+if/else chains with hoisted payload bindings (like ccodegen already does).
+
+*** Benefits
+- Interpreter doesn't need switch handling (uses precomp output)
+- Ccodegen doesn't need switch handling (uses precomp output)
+- One construct post-precomp (if/else), not two (if/else + switch)
+- Payload hoisting logic moves from ccodegen to precomp (single place)
+
+*** Example
+Before precomp:
+#+BEGIN_SRC til
+switch my_enum {
+    case Foo(x) { use(x) }
+    case Bar(y) { use(y) }
+    default { fallback() }
+}
+#+END_SRC
+
+After precomp:
+#+BEGIN_SRC til
+if enum_to_str(my_enum).eq("MyEnum.Foo") {
+    x := /* hoisted payload extraction */
+    use(x)
+} else if enum_to_str(my_enum).eq("MyEnum.Bar") {
+    y := /* hoisted payload extraction */
+    use(y)
+} else {
+    fallback()
+}
+#+END_SRC
+
+*** Required ext_func
+Need to add for payload extraction (like Vec.new takes Type):
+#+BEGIN_SRC til
+// With inout (works now):
+enum_payload := ext_func(e: Dynamic, payload_type: Type, mut p: Dynamic) {}
+
+// With returns Dynamic (nicer, needs Issue #111):
+enum_payload := ext_func(e: Dynamic, payload_type: Type) returns Dynamic {}
+#+END_SRC
+
+*** Notes
+- Gleam went the opposite direction (if/else to switch)
+- We prefer switch->if/else since payload hoisting is already in ccodegen
+- Just move that logic earlier (to precomp)
+
 ** Issue #66: Variable Shadowing Policy
 :PROPERTIES:
 :DISCOVERED: 2025-12-31
