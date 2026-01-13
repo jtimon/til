@@ -2824,18 +2824,18 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
 }
 
 // Emit a _to_str function for an enum type
-// Takes a pointer because enum_to_str(e: Dynamic) passes by reference
-// For simple enums: til_Str til_EnumName_to_str(til_EnumName* e)
-// For enums with payloads: til_Str til_EnumName_to_str(til_EnumName* e)
+// Takes a const pointer since we only read the enum
+// For simple enums: til_Str til_EnumName_to_str(const til_EnumName* e)
+// For enums with payloads: til_Str til_EnumName_to_str(const til_EnumName* e)
 fn emit_enum_to_str_function(enum_name: &str, enum_def: &SEnumDef, output: &mut String) {
     let has_payloads = enum_has_payloads(enum_def);
     let mut variants: Vec<_> = enum_def.variants.iter().map(|v| &v.name).collect();
     variants.sort();
 
-    // Function signature - takes pointer since Dynamic params are passed by reference
+    // Function signature - takes const pointer since we only read the enum
     output.push_str("static inline til_Str ");
     output.push_str(enum_name);
-    output.push_str("_to_str(");
+    output.push_str("_to_str(const ");
     output.push_str(enum_name);
     output.push_str("* e) {\n    switch(");
     if has_payloads {
