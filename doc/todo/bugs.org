@@ -89,7 +89,6 @@ can finally be idiomatic Til instead of "Til that looks like Rust."
 - [ ] Bug #86: For-in loop fails with enum that has enum payload
 - [ ] Bug #87: Scavenger not pruning struct methods
 - [ ] Issue #88: Macro Support (Compile-Time Evaluation)
-- [ ] Bug #90: Parser requires semicolon for bodyless func/proc definitions
 - [ ] Issue #91: First-Class Functions
 - [ ] Bug #92: Range loops should allow explicit iterator type annotation
 - [ ] Bug #94: gcc warnings cause bug47.til compilation failure
@@ -691,16 +690,20 @@ let collection_expr = if let NodeType::Range = &raw_collection_expr.node_type {
 :DISCOVERED: 2026-01-07
 :FIXED: 2026-01-07
 :IMPACT: Syntax ergonomics
-:STATUS: Fixed
+:STATUS: Partially Fixed
 :END:
 
 *** Description
 The parser cannot determine where a function/proc definition ends when there
 is no body. Previously required a semicolon as a terminator.
 
-*** Solution
+*** Initial Fix (2026-01-07)
 Semicolons are now completely optional - skipped by the lexer as whitespace.
 ~ext_func~ and ~ext_proc~ require an empty body ~{}~ instead of a semicolon.
+
+*** Final Solution (pending)
+Make the parser smart enough to not require empty bodies at all.
+Then remove all ~{}~ from ext_func/ext_proc declarations.
 
 *** Examples
 #+BEGIN_SRC til
