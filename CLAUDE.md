@@ -64,6 +64,11 @@ This is shared across ALL tracking documents (bugs.org, dry.org, etc.)
 4. Never reuse numbers, even for closed issues
 5. File location: `doc/todo/next_issue_num.txt` (NOT in `doc/`)
 
+## Active vs Fixed Bugs/Issues
+- **bugs.org**: "Active Bugs" section (before `* Fixed Bugs`) contains open bugs. Don't grep the whole file.
+- **future.org**: "Open Issues" section (before `* Implemented Issues`) contains open issues.
+- When listing open items, only look at the active/open sections, not the entire file.
+
 ## Catch Block Style
 **DO NOT** put catch blocks after every statement. Put them at the END of functions.
 
