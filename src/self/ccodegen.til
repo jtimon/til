@@ -2154,20 +2154,26 @@ emit_arg_or_hoisted := proc(arg: Expr, arg_idx: I64, hoisted: Map, mut output: S
 emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_type: Ptr, param_by_ref: Bool, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
     if hoisted.contains_key(arg_idx) {
         // Hoisted temp var is an lvalue - add & if param is Dynamic or by-ref
+        // For Dynamic params, also cast to (til_Dynamic*) to avoid incompatible pointer warning
         mut temp_var := ""
         hoisted.get(arg_idx, temp_var)
-        if param_by_ref {
-            output.push_str("&")
-        } else if not(param_type.is_null()) {
+        if not(param_type.is_null()) {
             mut vt := ValueType.TCustom("")
             memcpy(to_ptr(vt), param_type.data, size_of(ValueType))
             switch vt {
             case ValueType.TCustom(param_type_name):
                 if param_type_name.eq("Dynamic") {
-                    output.push_str("&")
+                    output.push_str("(")
+                    output.push_str(TIL_PREFIX)
+                    output.push_str("Dynamic*)&")
+                    output.push_str(temp_var)
+                    return
                 }
             case:
             }
+        }
+        if param_by_ref {
+            output.push_str("&")
         }
         output.push_str(temp_var)
         return
@@ -2179,6 +2185,29 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
         mut temp_expr := ""
         ctx.hoisted_exprs.get(arg_addr, temp_expr)
         // hoisted_exprs may store just the temp var name or with & prefix
+        // For Dynamic params, cast to (til_Dynamic*) to avoid incompatible pointer warning
+        mut is_dynamic_param := false
+        if not(param_type.is_null()) {
+            mut hoisted_vt := ValueType.TCustom("")
+            memcpy(to_ptr(hoisted_vt), param_type.data, size_of(ValueType))
+            switch hoisted_vt {
+            case ValueType.TCustom(hoisted_type_name):
+                if hoisted_type_name.eq("Dynamic") {
+                    is_dynamic_param = true
+                }
+            case:
+            }
+        }
+        if is_dynamic_param.and(not(temp_expr.starts_with("("))) {
+            output.push_str("(")
+            output.push_str(TIL_PREFIX)
+            output.push_str("Dynamic*)")
+            if not(temp_expr.starts_with("&")) {
+                output.push_str("&")
+            }
+            output.push_str(temp_expr)
+            return
+        }
         // Add & if param is by-ref and temp_expr doesn't already start with &
         if param_by_ref.and(not(temp_expr.starts_with("&"))) {
             output.push_str("&")
@@ -2865,7 +2894,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             output.push_str("    for (int i = 1; i < argc; i++) {\n")
             output.push_str("        til_Str _arg = {(til_I64)argv[i], strlen(argv[i])};\n")
             output.push_str("        til_IndexOutOfBoundsError _set_err;\n")
-            output.push_str("        til_Array_set(&_set_err, &_main_args, &(til_I64){i - 1}, &_arg);\n")
+            output.push_str("        til_Array_set(&_set_err, &_main_args, &(til_I64){i - 1}, (til_Dynamic*)&_arg);\n")
             output.push_str("    }\n")
             output.push_str("    til_main(&_main_args);\n")
         } else {
@@ -3004,10 +3033,21 @@ emit_constant_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenC
                 catch (err: KeyNotFoundError) {
                     has_str_bool = false
                 }
+                // Use the declaration's explicit type if available, otherwise infer from literal
                 mut c_type := ""
                 switch lit {
                 case Literal.Number(n):
-                    c_type = TIL_PREFIX.concat("I64")
+                    // Check if declaration has explicit type annotation
+                    switch decl.value_type {
+                    case ValueType.TCustom(const_type_name):
+                        if not(const_type_name.eq(INFER_TYPE)) {
+                            c_type = TIL_PREFIX.concat(const_type_name)
+                        } else {
+                            c_type = TIL_PREFIX.concat("I64")
+                        }
+                    case:
+                        c_type = TIL_PREFIX.concat("I64")
+                    }
                 case Literal.Str(s):
                     if has_str_bool {
                         c_type = TIL_PREFIX.concat("Str")

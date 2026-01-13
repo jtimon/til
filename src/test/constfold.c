@@ -108,7 +108,7 @@ const til_I64 til_MAX_I64 = 9223372036854775807;
 const til_I64 til_U8_SIZE = 1;
 const til_I64 til_MIN_U8 = 0;
 const til_I64 til_MAX_U8 = 255;
-const til_I64 til_ZERO_U8 = 0;
+const til_U8 til_ZERO_U8 = 0;
 
 static inline til_I64 til_size_of(const til_Str* type_name) {
     if (strcmp((char*)type_name->c_string, "IndexOutOfBoundsError") == 0) return til_size_of_IndexOutOfBoundsError;

@@ -1622,12 +1622,18 @@ fn emit_arg_with_param_type(
 ) -> Result<(), String> {
     if let Some(temp_var) = hoisted.get(&arg_idx) {
         // Hoisted temp var is an lvalue - add & if param is Dynamic or by-ref
+        // For Dynamic params, also cast to (til_Dynamic*) to avoid incompatible pointer warning
+        if let Some(ValueType::TCustom(param_type_name)) = param_type {
+            if param_type_name == "Dynamic" {
+                output.push_str("(");
+                output.push_str(TIL_PREFIX);
+                output.push_str("Dynamic*)&");
+                output.push_str(temp_var);
+                return Ok(());
+            }
+        }
         if param_by_ref {
             output.push_str("&");
-        } else if let Some(ValueType::TCustom(param_type_name)) = param_type {
-            if param_type_name == "Dynamic" {
-                output.push_str("&");
-            }
         }
         output.push_str(temp_var);
         return Ok(());
@@ -1637,6 +1643,18 @@ fn emit_arg_with_param_type(
     let arg_addr = arg as *const Expr as usize;
     if let Some(temp_expr) = ctx.hoisted_exprs.get(&arg_addr) {
         // hoisted_exprs may store just the temp var name or with & prefix
+        // For Dynamic params, cast to (til_Dynamic*) to avoid incompatible pointer warning
+        let is_dynamic = matches!(param_type, Some(ValueType::TCustom(name)) if name == "Dynamic");
+        if is_dynamic && !temp_expr.starts_with("(") {
+            output.push_str("(");
+            output.push_str(TIL_PREFIX);
+            output.push_str("Dynamic*)");
+            if !temp_expr.starts_with("&") {
+                output.push_str("&");
+            }
+            output.push_str(temp_expr);
+            return Ok(());
+        }
         // Add & if param is by-ref and temp_expr doesn't already start with &
         if param_by_ref && !temp_expr.starts_with("&") {
             output.push_str("&");
@@ -2197,7 +2215,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             output.push_str("    for (int i = 1; i < argc; i++) {\n");
             output.push_str("        til_Str _arg = {(til_I64)argv[i], strlen(argv[i])};\n");
             output.push_str("        til_IndexOutOfBoundsError _set_err;\n");
-            output.push_str("        til_Array_set(&_set_err, &_main_args, &(til_I64){i - 1}, &_arg);\n");
+            output.push_str("        til_Array_set(&_set_err, &_main_args, &(til_I64){i - 1}, (til_Dynamic*)&_arg);\n");
             output.push_str("    }\n");
             output.push_str("    til_main(&_main_args);\n");
         } else {
@@ -2283,8 +2301,20 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &mut Codegen
             // Handle literal constants (numbers, strings)
             if let NodeType::LLiteral(lit) = &expr.params[0].node_type {
                 let has_str = context.scope_stack.lookup_struct("Str").is_some();
+                // Use the declaration's explicit type if available, otherwise infer from literal
                 let c_type = match lit {
-                    Literal::Number(_) => format!("{}I64", TIL_PREFIX),
+                    Literal::Number(_) => {
+                        // Check if declaration has explicit type annotation
+                        if let ValueType::TCustom(type_name) = &decl.value_type {
+                            if type_name != INFER_TYPE {
+                                format!("{}{}", TIL_PREFIX, type_name)
+                            } else {
+                                format!("{}I64", TIL_PREFIX)
+                            }
+                        } else {
+                            format!("{}I64", TIL_PREFIX)
+                        }
+                    },
                     Literal::Str(_) => if has_str { format!("{}Str", TIL_PREFIX) } else { "const char*".to_string() },
                     Literal::List(_) => return Ok(()), // Skip list literals for now
                 };
