@@ -11,6 +11,11 @@ mul       := ext_func(a: I64, b: I64) returns I64 {}
 div       := ext_func(a: I64, b: I64) returns I64 {}
 mod       := ext_func(a: I64, b: I64) returns I64 {}
 
+// Bitwise operations
+I64_xor   := ext_func(a: I64, b: I64) returns I64 {}
+I64_and   := ext_func(a: I64, b: I64) returns I64 {}
+I64_or    := ext_func(a: I64, b: I64) returns I64 {}
+
 I64_SIZE  := 8
 // TODO we can't declare negative constants before declaring ext sub()
 // TODO negative literal number support

@@ -452,6 +452,27 @@ Str := struct {
 
         return result
     }
+
+    /** FNV-1a hash function for strings.
+     *  Returns a 64-bit hash value.
+     *  Good distribution, simple implementation. */
+    hash := func(self: Str) returns I64 {
+        // FNV-1a 64-bit constants (signed representation of unsigned values)
+        // Unsigned 14695981039346656037 = signed -3750763034362895579
+        FNV_OFFSET_BASIS : I64 = sub(0, 3750763034362895579)
+        FNV_PRIME : I64 = 1099511628211
+
+        mut h := FNV_OFFSET_BASIS
+        for i in 0..self.cap {
+            mut byte_val : U8 = 0
+            memcpy(to_ptr(byte_val), add(self.c_string, i), 1)
+            // h = h XOR byte
+            h = I64_xor(h, U8.to_i64(byte_val))
+            // h = h * FNV_PRIME (overflow is fine, we want wrapping multiplication)
+            h = mul(h, FNV_PRIME)
+        }
+        return h
+    }
 }
 
 /** Get a substring from start (inclusive) to end (exclusive). */

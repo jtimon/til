@@ -3320,6 +3320,12 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_div(context, e)
     } else if name.eq("mod") {
         return func_mod(context, e)
+    } else if name.eq("I64_xor") {
+        return func_i64_xor(context, e)
+    } else if name.eq("I64_and") {
+        return func_i64_and(context, e)
+    } else if name.eq("I64_or") {
+        return func_i64_or(context, e)
     } else if name.eq("str_to_i64") {
         return func_str_to_i64(context, e)
     } else if name.eq("i64_to_str") {

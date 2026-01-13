@@ -99,3 +99,32 @@ test_divmod_by_zero := proc() {
     test(loc(), mod(sub(0, 10), 0).eq(0), "mod(-10, 0) returns 0")
 }
 test_divmod_by_zero()
+
+// Bitwise operations - don't really belong in arithmetics, but here for now
+test_bitwise := proc() {
+    // XOR tests
+    test(loc(), I64_xor(0, 0).eq(0), "0 XOR 0 = 0")
+    test(loc(), I64_xor(1, 0).eq(1), "1 XOR 0 = 1")
+    test(loc(), I64_xor(0, 1).eq(1), "0 XOR 1 = 1")
+    test(loc(), I64_xor(1, 1).eq(0), "1 XOR 1 = 0")
+    test(loc(), I64_xor(12, 10).eq(6), "12 XOR 10 = 6 (1100 XOR 1010 = 0110)")
+    test(loc(), I64_xor(255, 15).eq(240), "255 XOR 15 = 240")
+
+    // AND tests
+    test(loc(), I64_and(0, 0).eq(0), "0 AND 0 = 0")
+    test(loc(), I64_and(1, 0).eq(0), "1 AND 0 = 0")
+    test(loc(), I64_and(0, 1).eq(0), "0 AND 1 = 0")
+    test(loc(), I64_and(1, 1).eq(1), "1 AND 1 = 1")
+    test(loc(), I64_and(12, 10).eq(8), "12 AND 10 = 8 (1100 AND 1010 = 1000)")
+    test(loc(), I64_and(255, 15).eq(15), "255 AND 15 = 15")
+    test(loc(), I64_and(16, 15).eq(0), "16 AND 15 = 0 (power of 2 mask)")
+
+    // OR tests
+    test(loc(), I64_or(0, 0).eq(0), "0 OR 0 = 0")
+    test(loc(), I64_or(1, 0).eq(1), "1 OR 0 = 1")
+    test(loc(), I64_or(0, 1).eq(1), "0 OR 1 = 1")
+    test(loc(), I64_or(1, 1).eq(1), "1 OR 1 = 1")
+    test(loc(), I64_or(12, 10).eq(14), "12 OR 10 = 14 (1100 OR 1010 = 1110)")
+    test(loc(), I64_or(255, 15).eq(255), "255 OR 15 = 255")
+}
+test_bitwise()

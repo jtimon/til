@@ -345,7 +345,7 @@ pub fn func_add(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
         .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'add': {}", err)))?;
     let b = b_result.value.parse::<i64>()
         .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'add': {}", err)))?;
-    Ok(EvalResult::new(&(a + b).to_string()))
+    Ok(EvalResult::new(&(a.wrapping_add(b)).to_string()))
 }
 
 pub fn func_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
@@ -362,7 +362,7 @@ pub fn func_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
         .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'sub': {}", err)))?;
     let b = b_result.value.parse::<i64>()
         .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'sub': {}", err)))?;
-    Ok(EvalResult::new(&(a - b).to_string()))
+    Ok(EvalResult::new(&(a.wrapping_sub(b)).to_string()))
 }
 
 pub fn func_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
@@ -379,7 +379,7 @@ pub fn func_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
         .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'mul': {}", err)))?;
     let b = b_result.value.parse::<i64>()
         .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'mul': {}", err)))?;
-    Ok(EvalResult::new(&(a * b).to_string()))
+    Ok(EvalResult::new(&(a.wrapping_mul(b)).to_string()))
 }
 
 pub fn func_div(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
@@ -422,6 +422,58 @@ pub fn func_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
         return Ok(EvalResult::new("0"));
     }
     Ok(EvalResult::new(&(a % b).to_string()))
+}
+
+// Bitwise operations - don't really belong in arithmetics, but here for now
+pub fn func_i64_xor(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "I64_xor", 2, false)?;
+    let a_result = eval_expr(context, e.get(1)?)?;
+    if a_result.is_throw {
+        return Ok(a_result);
+    }
+    let b_result = eval_expr(context, e.get(2)?)?;
+    if b_result.is_throw {
+        return Ok(b_result);
+    }
+    let a = a_result.value.parse::<i64>()
+        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'I64_xor': {}", err)))?;
+    let b = b_result.value.parse::<i64>()
+        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'I64_xor': {}", err)))?;
+    Ok(EvalResult::new(&(a ^ b).to_string()))
+}
+
+pub fn func_i64_and(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "I64_and", 2, false)?;
+    let a_result = eval_expr(context, e.get(1)?)?;
+    if a_result.is_throw {
+        return Ok(a_result);
+    }
+    let b_result = eval_expr(context, e.get(2)?)?;
+    if b_result.is_throw {
+        return Ok(b_result);
+    }
+    let a = a_result.value.parse::<i64>()
+        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'I64_and': {}", err)))?;
+    let b = b_result.value.parse::<i64>()
+        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'I64_and': {}", err)))?;
+    Ok(EvalResult::new(&(a & b).to_string()))
+}
+
+pub fn func_i64_or(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "I64_or", 2, false)?;
+    let a_result = eval_expr(context, e.get(1)?)?;
+    if a_result.is_throw {
+        return Ok(a_result);
+    }
+    let b_result = eval_expr(context, e.get(2)?)?;
+    if b_result.is_throw {
+        return Ok(b_result);
+    }
+    let a = a_result.value.parse::<i64>()
+        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'I64_or': {}", err)))?;
+    let b = b_result.value.parse::<i64>()
+        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'I64_or': {}", err)))?;
+    Ok(EvalResult::new(&(a | b).to_string()))
 }
 
 pub fn func_str_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {

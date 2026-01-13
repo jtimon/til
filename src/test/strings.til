@@ -124,6 +124,17 @@ test_strings := proc() {
     assert_eq_str(loc(), "hello world test", join(parts, " "))  // different separator
     assert_eq_str(loc(), "helloworldtest", join(parts, ""))  // empty separator
 
+    // hash tests (FNV-1a)
+    // Same string should always produce same hash
+    test(loc(), Str.hash("hello").eq(Str.hash("hello")), "same string same hash")
+    test(loc(), Str.hash("world").eq(Str.hash("world")), "same string same hash 2")
+    // Different strings should (usually) produce different hashes
+    test(loc(), not(Str.hash("hello").eq(Str.hash("world"))), "different strings different hash")
+    test(loc(), not(Str.hash("").eq(Str.hash("a"))), "empty vs non-empty different hash")
+    // Empty string should have a consistent hash (FNV offset basis)
+    empty_hash := Str.hash("")
+    test(loc(), empty_hash.eq(Str.hash("")), "empty string consistent hash")
+
     catch(err: AllocError) {
         panic(loc(), "Unexpected AllocError")
     }

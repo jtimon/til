@@ -76,6 +76,22 @@ static inline til_I64 til_mod(const til_I64* a, const til_I64* b)
     return *b == 0 ? 0 : *a % *b;
 }
 
+// Bitwise operations - don't really belong in arithmetics, but here for now
+static inline til_I64 til_I64_xor(const til_I64* a, const til_I64* b)
+{
+    return *a ^ *b;
+}
+
+static inline til_I64 til_I64_and(const til_I64* a, const til_I64* b)
+{
+    return *a & *b;
+}
+
+static inline til_I64 til_I64_or(const til_I64* a, const til_I64* b)
+{
+    return *a | *b;
+}
+
 // Memory functions
 static inline int til_malloc(til_I64* _ret, til_AllocError* _err, const til_I64* size)
 {
