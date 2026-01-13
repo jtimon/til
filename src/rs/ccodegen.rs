@@ -5404,7 +5404,18 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
         output.push_str(&til_name(name));
     }
     output.push_str(" = ");
-    if !expr.params.is_empty() {
+
+    // Check if LHS is Dynamic type - need to cast RHS to avoid int-to-pointer warning
+    let is_dynamic_target = context.scope_stack.lookup_symbol(name)
+        .map(|sym| matches!(&sym.value_type, ValueType::TCustom(t) if t == "Dynamic"))
+        .unwrap_or(false);
+
+    if is_dynamic_target && !expr.params.is_empty() {
+        output.push_str("(");
+        output.push_str(TIL_PREFIX);
+        output.push_str("Dynamic)");
+        emit_expr(&expr.params[0], output, 0, ctx, context)?;
+    } else if !expr.params.is_empty() {
         emit_expr(&expr.params[0], output, 0, ctx, context)?;
     }
     output.push_str(";\n");

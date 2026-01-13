@@ -267,7 +267,6 @@ toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec throws All
     // Bug #99: -Werror to forbid warnings. Suppress known issues for now,
     // then incrementally re-enable them as we fix each category.
     // -Wno-incompatible-pointer-types: Vec_push/Array_set receive typed* instead of void**
-    // -Wno-int-conversion: I64Range_get returns I64 into Dynamic
     mut result := Vec.new(Str)
     switch target {
     case Target.MacosArm64:
@@ -275,13 +274,11 @@ toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec throws All
         result.push("arm64-apple-macos11")
         result.push("-Werror")
         result.push("-Wno-incompatible-pointer-types")
-        result.push("-Wno-int-conversion")
     case Target.MacosX64:
         result.push("-target")
         result.push("x86_64-apple-macos10.12")
         result.push("-Werror")
         result.push("-Wno-incompatible-pointer-types")
-        result.push("-Wno-int-conversion")
     case Target.Wasm32:
         result.push("--target=wasm32")
         result.push("-nostdlib")
@@ -289,13 +286,11 @@ toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec throws All
         result.push("-Wl,--export-all")
         result.push("-Werror")
         result.push("-Wno-incompatible-pointer-types")
-        result.push("-Wno-int-conversion")
     case Target.TempleosX86:
         panic(loc(), "HolyC doesn't support these flags")
     case:
         result.push("-Werror")
         result.push("-Wno-incompatible-pointer-types")
-        result.push("-Wno-int-conversion")
     }
     return result
 }

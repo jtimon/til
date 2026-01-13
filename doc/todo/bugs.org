@@ -175,7 +175,6 @@ Current state: -Werror enabled with specific warning suppressions.
 *** Current Warning Suppressions (target.rs/til)
 These flags are currently suppressed to allow -Werror. Each needs to be fixed and re-enabled:
 - ~-Wno-incompatible-pointer-types~: Vec_push/Array_set receive typed* instead of void**
-- ~-Wno-int-conversion~: I64Range_get returns I64 into Dynamic
 
 *** Additional Fix: Null byte escaping in ccodegen (2026-01-13)
 GCC 13 errors on raw null bytes in string literals. Fixed emit_str_literal() in
@@ -186,7 +185,7 @@ ccodegen.rs and ccodegen.til to escape null bytes as ~\0~ in C output.
 - [X] Step 2: Add -Werror to build (2026-01-13)
 - [ ] Step 3a: Fix and re-enable -Wincompatible-pointer-types
 - [X] Step 3b: Fix and re-enable -Wdiscarded-qualifiers (2026-01-13) - added const to enum_to_str
-- [ ] Step 3c: Fix and re-enable -Wint-conversion
+- [X] Step 3c: Fix and re-enable -Wint-conversion (2026-01-13) - cast RHS to Dynamic in emit_assignment
 - [ ] Step 3d: Enable and fix -Wdangling-pointer
 - [ ] Step 3e: Enable and fix -Wreturn-type
 - [ ] Step 3f: Enable and fix -Wunused-variable

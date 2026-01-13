@@ -7008,10 +7008,30 @@ emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut
         output.push_str(til_name(name))
     }
     output.push_str(" = ")
+
+    // Check if LHS is Dynamic type - need to cast RHS to avoid int-to-pointer warning
+    mut is_dynamic_target := false
+    sym := context.scope_stack.lookup_symbol(name)
+    switch sym.value_type {
+    case ValueType.TCustom(t):
+        if t.eq("Dynamic") {
+            is_dynamic_target = true
+        }
+    case:
+    }
+    catch (err: KeyNotFoundError) {
+        // REM: Symbol not found means we don't know its type, so is_dynamic_target stays false
+    }
+
+    if is_dynamic_target {
+        output.push_str("(")
+        output.push_str(TIL_PREFIX)
+        output.push_str("Dynamic)")
+    }
     if not(expr.params.is_empty()) {
-        mut first_param := Expr()
-        expr.params.get(0, first_param)
-        emit_expr(first_param, output, 0, ctx, context)
+        mut assign_rhs := Expr()
+        expr.params.get(0, assign_rhs)
+        emit_expr(assign_rhs, output, 0, ctx, context)
     }
     output.push_str(";\n")
 
