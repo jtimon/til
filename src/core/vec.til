@@ -128,6 +128,14 @@ Vec := struct {
         memcpy(dest, src, self.type_size)
     }
 
+    /** Get pointer to element at index (no copy). */
+    get_ptr := func(self: Vec, index: I64) returns I64 throws IndexOutOfBoundsError {
+        if index.gteq(self._len) {
+            throw IndexOutOfBoundsError(msg=format(loc(), "Vec.get_ptr: index out of bounds"))
+        }
+        return add(self.ptr, mul(index, self.type_size))
+    }
+
     /** Set element at index. */
     set := proc(mut self: Vec, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
         if index.gteq(self._len) {

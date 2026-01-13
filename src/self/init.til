@@ -418,13 +418,22 @@ ScopeStack := struct {
     }
 
     lookup_struct := func(self: ScopeStack, name: Str) returns SStructDef throws KeyNotFoundError {
-        for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+        // Offset of structs field in ScopeFrame (after 4 Maps: arena_index, symbols, funcs, enums)
+        structs_offset := mul(size_of(Map), 4)
+        // Scratch map - Map.new() doesn't allocate Vec data
+        mut scratch_map := Map.new(Str, SStructDef)
 
-            if frame.structs.contains_key(name) {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            // Get pointer to frame in Vec (no copy of entire frame)
+            frame_ptr := self.frames.get_ptr(i)
+            // Get pointer to structs Map within the frame
+            structs_ptr := add(frame_ptr, structs_offset)
+            // Copy just the Map struct (pointers to data, not the data itself)
+            memcpy(to_ptr(scratch_map), structs_ptr, size_of(Map))
+
+            if scratch_map.contains_key(name) {
                 mut struct_def := SStructDef()
-                frame.structs.get(name, struct_def)
+                scratch_map.get(name, struct_def)
                 catch (err: KeyNotFoundError) {
                     // Struct not found, continue searching
                 }
@@ -441,10 +450,19 @@ ScopeStack := struct {
     // Check if a struct exists without retrieving it (cheap existence check)
     // Equivalent to Rust's lookup_struct(...).is_some()
     has_struct := func(self: ScopeStack, name: Str) returns Bool {
+        // Offset of structs field in ScopeFrame (after 4 Maps: arena_index, symbols, funcs, enums)
+        structs_offset := mul(size_of(Map), 4)
+        // Scratch map to hold the structs Map - Map.new() doesn't allocate Vec data
+        mut scratch_map := Map.new(Str, SStructDef)
+
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)
-            if frame.structs.contains_key(name) {
+            // Get pointer to frame in Vec (no copy of entire frame)
+            frame_ptr := self.frames.get_ptr(i)
+            // Get pointer to structs Map within the frame
+            structs_ptr := add(frame_ptr, structs_offset)
+            // Copy just the Map struct (pointers to data, not the data itself)
+            memcpy(to_ptr(scratch_map), structs_ptr, size_of(Map))
+            if scratch_map.contains_key(name) {
                 return true
             }
         }
