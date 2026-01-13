@@ -141,12 +141,17 @@ pub fn toolchain_command(target: &Target, lang: &Lang) -> Result<&'static str, S
 }
 
 pub fn toolchain_extra_args(target: &Target, _lang: &Lang) -> Vec<&'static str> {
+    // Bug #99: -Werror to forbid warnings. Suppress known issues for now,
+    // then incrementally re-enable them as we fix each category.
+    // -Wno-incompatible-pointer-types: Vec_push/Array_set receive typed* instead of void**
+    // -Wno-discarded-qualifiers: const to non-const in enum_to_str etc
+    // -Wno-int-conversion: I64Range_get returns I64 into Dynamic
     match target {
-        Target::MacosArm64 => vec!["-target", "arm64-apple-macos11", "-Wshadow", "-Wno-int-conversion"],
-        Target::MacosX64 => vec!["-target", "x86_64-apple-macos10.12", "-Wshadow", "-Wno-int-conversion"],
-        Target::Wasm32 => vec!["--target=wasm32", "-nostdlib", "-Wl,--no-entry", "-Wl,--export-all", "-Wshadow", "-Wno-int-conversion"],
-        Target::TempleosX86 => todo!("HolyC doesn't support -Wshadow"),
-        _ => vec!["-Wshadow", "-Wno-int-conversion"],  // gcc and mingw support -Wshadow
+        Target::MacosArm64 => vec!["-target", "arm64-apple-macos11", "-Werror", "-Wno-incompatible-pointer-types", "-Wno-discarded-qualifiers", "-Wno-int-conversion"],
+        Target::MacosX64 => vec!["-target", "x86_64-apple-macos10.12", "-Werror", "-Wno-incompatible-pointer-types", "-Wno-discarded-qualifiers", "-Wno-int-conversion"],
+        Target::Wasm32 => vec!["--target=wasm32", "-nostdlib", "-Wl,--no-entry", "-Wl,--export-all", "-Werror", "-Wno-incompatible-pointer-types", "-Wno-discarded-qualifiers", "-Wno-int-conversion"],
+        Target::TempleosX86 => todo!("HolyC doesn't support these flags"),
+        _ => vec!["-Werror", "-Wno-incompatible-pointer-types", "-Wno-discarded-qualifiers", "-Wno-int-conversion"],
     }
 }
 

@@ -9439,12 +9439,15 @@ emit_str_literal := proc(s: Str, mut output: Str) {
     mut i := 0
     while i.lt(s.len()) {
         c := s.char_at(i)
+        null_byte := U8.from_i64(0)
         newline := U8.from_i64(10)
         carriage_return := U8.from_i64(13)
         tab := U8.from_i64(9)
         backslash := U8.from_i64(92)
         quote := U8.from_i64(34)
-        if c.eq(newline) {
+        if c.eq(null_byte) {
+            output.push_str("\\0")
+        } else if c.eq(newline) {
             output.push_str("\\n")
         } else if c.eq(carriage_return) {
             output.push_str("\\r")
@@ -9486,12 +9489,15 @@ emit_literal := proc(lit: Literal, mut output: Str, context: Context) throws Str
             mut j := 0
             while j.lt(s.len()) {
                 c := s.char_at(j)
+                null_byte := U8.from_i64(0)
                 newline := U8.from_i64(10)
                 carriage_return := U8.from_i64(13)
                 tab := U8.from_i64(9)
                 backslash := U8.from_i64(92)
                 quote := U8.from_i64(34)
-                if c.eq(newline) {
+                if c.eq(null_byte) {
+                    output.push_str("\\0")
+                } else if c.eq(newline) {
                     output.push_str("\\n")
                 } else if c.eq(carriage_return) {
                     output.push_str("\\r")

@@ -7228,6 +7228,7 @@ fn emit_str_literal(s: &str, output: &mut String) {
     // Escape special characters for C string literals
     for c in s.chars() {
         match c {
+            '\0' => output.push_str("\\0"),
             '\n' => output.push_str("\\n"),
             '\r' => output.push_str("\\r"),
             '\t' => output.push_str("\\t"),
@@ -7250,6 +7251,7 @@ fn emit_literal(lit: &Literal, output: &mut String, context: &Context) -> Result
                 // Escape special characters for C string literals
                 for c in s.chars() {
                     match c {
+                        '\0' => output.push_str("\\0"),
                         '\n' => output.push_str("\\n"),
                         '\r' => output.push_str("\\r"),
                         '\t' => output.push_str("\\t"),

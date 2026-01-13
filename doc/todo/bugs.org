@@ -164,10 +164,38 @@ Audit of generated C code shows these warning types:
 | -Wunused-label               | Low      | Catch labels generated but not jumped to   |
 | -Wunused-parameter           | Low      | ext.c has unused _err params               |
 
-*** Fix Strategy
-1. High priority first - these may cause actual bugs
-2. Medium - add casts or specialize Vec_push per type
-3. Low - either fix in ccodegen or suppress with pragmas
+*** Fix Strategy (Incremental)
+Current state: -Werror enabled with specific warning suppressions.
+
+1. Suppress current warnings to get clean baseline (DONE)
+2. Enable ~-Werror~ (DONE - 2026-01-13)
+3. Re-enable warning flags one by one, fixing each category
+4. Once stable, switch to ~-Wall -Wextra -Werror~
+
+*** Current Warning Suppressions (target.rs/til)
+These flags are currently suppressed to allow -Werror. Each needs to be fixed and re-enabled:
+- ~-Wno-incompatible-pointer-types~: Vec_push/Array_set receive typed* instead of void**
+- ~-Wno-discarded-qualifiers~: const to non-const in enum_to_str etc
+- ~-Wno-int-conversion~: I64Range_get returns I64 into Dynamic
+
+*** Additional Fix: Null byte escaping in ccodegen (2026-01-13)
+GCC 13 errors on raw null bytes in string literals. Fixed emit_str_literal() in
+ccodegen.rs and ccodegen.til to escape null bytes as ~\0~ in C output.
+
+*** Progress
+- [X] Step 1: Suppress warnings (add -Wno-incompatible-pointer-types, -Wno-discarded-qualifiers, -Wno-int-conversion)
+- [X] Step 2: Add -Werror to build (2026-01-13)
+- [ ] Step 3a: Fix and re-enable -Wincompatible-pointer-types
+- [ ] Step 3b: Fix and re-enable -Wdiscarded-qualifiers
+- [ ] Step 3c: Fix and re-enable -Wint-conversion
+- [ ] Step 3d: Enable and fix -Wdangling-pointer
+- [ ] Step 3e: Enable and fix -Wreturn-type
+- [ ] Step 3f: Enable and fix -Wunused-variable
+- [ ] Step 3g: Enable and fix -Wunused-but-set-variable
+- [ ] Step 3h: Enable and fix -Wunused-label
+- [ ] Step 3i: Enable and fix -Wunused-parameter
+- [ ] Step 3j: Enable and fix -Wshadow
+- [ ] Step 4: Switch to -Wall -Wextra -Werror
 
 ** Bug #98: ext_proc errors should throw specific error types instead of panicking
 :PROPERTIES:
