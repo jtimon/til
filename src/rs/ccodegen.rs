@@ -3566,7 +3566,8 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                             output.push_str(&indent_str);
                             output.push_str("if (0) { ");
                             output.push_str(&label);
-                            output.push_str(":\n");
+                            // Add empty statement after label - C11 requires statement after label, not declaration
+                            output.push_str(":;\n");
 
                             // Bind error variable
                             if let NodeType::Identifier(err_var_name) = &stmt.params[0].node_type {

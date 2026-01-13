@@ -145,7 +145,7 @@ void til_panic(const til_Str* til_loc_str, const til_Str* til_msg, til_Array* ti
         til_IndexOutOfBoundsError _err0__tmp_panic_1 = {};
         int _status__tmp_panic_1 = til_Array_get(&_err0__tmp_panic_1, til_extra_msgs, &_for_i_panic_0, (til_Dynamic*)&til_extra_msg);
         if (_status__tmp_panic_1 == 1) { _thrown_IndexOutOfBoundsError__tmp_panic_0 = _err0__tmp_panic_1; goto _catch_IndexOutOfBoundsError__tmp_panic_0; }
-        if (0) { _catch_IndexOutOfBoundsError__tmp_panic_0:
+        if (0) { _catch_IndexOutOfBoundsError__tmp_panic_0:;
             til_IndexOutOfBoundsError til_err = _thrown_IndexOutOfBoundsError__tmp_panic_0;
             til_Array _tmp_panic_2;
             til_AllocError _err_alloc__tmp_panic_3;
@@ -207,7 +207,7 @@ void til_println(til_Array* til_args) {
         til_IndexOutOfBoundsError _err0__tmp_println_1 = {};
         int _status__tmp_println_1 = til_Array_get(&_err0__tmp_println_1, til_args, &_for_i_println_0, (til_Dynamic*)&til_print_arg);
         if (_status__tmp_println_1 == 1) { _thrown_IndexOutOfBoundsError__tmp_println_0 = _err0__tmp_println_1; goto _catch_IndexOutOfBoundsError__tmp_println_0; }
-        if (0) { _catch_IndexOutOfBoundsError__tmp_println_0:
+        if (0) { _catch_IndexOutOfBoundsError__tmp_println_0:;
             til_IndexOutOfBoundsError til_err = _thrown_IndexOutOfBoundsError__tmp_println_0;
             til_Array _tmp_println_2;
             til_AllocError _err_alloc__tmp_println_3;
@@ -268,7 +268,7 @@ til_Str til_concat(const til_Str* til_a, const til_Str* til_b) {
     til_I64 _tmp_concat_12 = til_add(&til_result.c_string, &til_result.cap);
     til_I64 _tmp_concat_13 = 1;
     til_memset(&_tmp_concat_12, &til_zero, &_tmp_concat_13);
-    if (0) { _catch_AllocError__tmp_concat_0:
+    if (0) { _catch_AllocError__tmp_concat_0:;
         til_AllocError til_err = _thrown_AllocError__tmp_concat_0;
         til_Array _tmp_concat_14;
         til_AllocError _err_alloc__tmp_concat_15;
@@ -366,7 +366,7 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
         til_IndexOutOfBoundsError _err0__tmp_format_21 = {};
         int _status__tmp_format_21 = til_Array_get(&_err0__tmp_format_21, til_args, &_for_i_format_0, (til_Dynamic*)&til_s);
         if (_status__tmp_format_21 == 1) { _thrown_IndexOutOfBoundsError__tmp_format_20 = _err0__tmp_format_21; goto _catch_IndexOutOfBoundsError__tmp_format_20; }
-        if (0) { _catch_IndexOutOfBoundsError__tmp_format_20:
+        if (0) { _catch_IndexOutOfBoundsError__tmp_format_20:;
             til_IndexOutOfBoundsError til_err = _thrown_IndexOutOfBoundsError__tmp_format_20;
             til_Array _tmp_format_22;
             til_AllocError _err_alloc__tmp_format_23;
@@ -388,7 +388,7 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
     til_I64 _tmp_format_27 = til_add(&til_result.c_string, &til_result.cap);
     til_I64 _tmp_format_28 = 1;
     til_memset(&_tmp_format_27, &til_zero, &_tmp_format_28);
-    if (0) { _catch_IndexOutOfBoundsError__tmp_format_0:
+    if (0) { _catch_IndexOutOfBoundsError__tmp_format_0:;
         til_IndexOutOfBoundsError til_err = _thrown_IndexOutOfBoundsError__tmp_format_0;
         til_Array _tmp_format_29;
         til_AllocError _err_alloc__tmp_format_30;
@@ -401,7 +401,7 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
         til_panic(&((til_Str){(til_I64)"src/core/str.til:598:15:", 24}), &til_err.msg, &_tmp_format_29);
         til_Array_delete(&_tmp_format_29);
     }
-    if (0) { _catch_AllocError__tmp_format_1:
+    if (0) { _catch_AllocError__tmp_format_1:;
         til_AllocError til_err = _thrown_AllocError__tmp_format_1;
         til_Array _tmp_format_33;
         til_AllocError _err_alloc__tmp_format_34;

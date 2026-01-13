@@ -283,7 +283,13 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
     char drain_buf[4096];
     while (fread(drain_buf, 1, sizeof(drain_buf), f) > 0) {}
     int status = pclose(f);
+#ifdef _WIN32
+    // On Windows, pclose returns the exit code directly
+    int exit_code = status;
+#else
+    // On Unix, pclose returns a wait status that needs WIFEXITED/WEXITSTATUS
     int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+#endif
 
     output_str->c_string = (til_I64)buf;
     output_str->cap = total;
@@ -308,6 +314,7 @@ static inline void til_eval_file(const til_Str* path) {
 
 #ifdef _WIN32
 #include <windows.h>
+#include <direct.h>  // for _mkdir
 
 // spawn_cmd: Spawn a command in the background, returns process handle
 static inline int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd) {

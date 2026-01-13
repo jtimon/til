@@ -4647,7 +4647,8 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                             output.push_str(indent_str)
                             output.push_str("if (0) { ")
                             output.push_str(catch_entry_label)
-                            output.push_str(":\n")
+                            // Add empty statement after label - C11 requires statement after label, not declaration
+                            output.push_str(":;\n")
 
                             // Bind error variable
                             mut emit_err_var_param := Expr()
