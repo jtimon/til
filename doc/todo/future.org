@@ -434,3 +434,183 @@ some_function(enum {A, B})
 #+END_SRC
 
 Similar in spirit to Issue #91 (first-class functions) but for enums.
+
+** Issue #107: First-Class Namespaces
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPACT: Language feature, anonymous namespaces
+:STATUS: Open
+:RELATED: Issue #91 (First-Class Functions), Issue #108 (Implement Namespaces)
+:END:
+
+*** Description
+Allow anonymous namespace definitions to be passed as arguments:
+
+#+BEGIN_SRC til
+some_function(namespace {
+    INC_VAL := 32
+    f := func(a: I64) returns I64 { return a.add(INC_VAL) }
+})
+#+END_SRC
+
+Similar in spirit to Issue #91 (first-class functions) but for namespaces.
+Depends on Issue #108 (proper namespace syntax).
+
+** Issue #108: Implement Namespaces
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPACT: Language feature, code organization
+:STATUS: Open
+:RELATED: Issue #107 (First-Class Namespaces)
+:END:
+
+*** Current State
+Structs are used as namespaces by declaring only constants (no mut).
+See src/test/namespaces.til:
+
+#+BEGIN_SRC til
+MyNamespace := struct {
+    field_static_str : Str = "hello MyNamespace.field_static_str"
+    field_static_bool : Bool = true
+    field_static_int : I64 = 42
+
+    proc_static := proc() {
+        assert_eq(loc(), 42, MyNamespace.field_static_int)
+    }
+
+    func_static_str := func() returns Str {
+        return "func called"
+    }
+}
+#+END_SRC
+
+*** What Works
+- Access static fields: ~MyNamespace.field_static_str~
+- Call static functions: ~MyNamespace.func_static_str()~
+- Call static procs: ~MyNamespace.proc_static()~
+
+*** What's Missing
+
+A. *Namespace for enums*
+   Enums can't have associated functions/constants. Structs can, enums cannot.
+
+   Example: ~clone~. Structs can define a ~clone~ method, but enums cannot:
+   #+BEGIN_SRC til
+   Tile := enum {
+       Object: struct { name := "", pos: struct { x := 0, y := 0 } }
+       Monster: SomeStructThatImplementsClone
+   }
+   // Currently no way to define Tile.clone(), but with namespaces:
+   namespace Tile {
+       clone := func(self: Tile) returns Tile { TODO("Tile.clone") }
+   }
+   #+END_SRC
+
+B. *Namespace for structs*
+   Currently methods are mixed inside struct definitions. A separate
+   namespace keyword would clarify intent and fit better with UFCS.
+
+   #+BEGIN_SRC til
+   Str := struct { ... }
+   namespace Str {
+       len := func(self: Str) returns I64 { ... }
+       concat := func(self: Str, other: Str) returns Str { ... }
+   }
+   #+END_SRC
+   Internally treated the same as current struct-embedded methods.
+
+   Can implement step A or step B first - they're independent.
+
+C. *One namespace per type per context*
+   Only one ~namespace Foo~ block allowed per type in the same context.
+   Could allow spreading across multiple blocks, but no clear gain -
+   only potential confusion. Keep it simple: one place for all methods.
+
+*** Keyword Choice
+Two options being considered:
+- ~namespace~ - matches UFCS concept better, more descriptive
+- ~impl~ - shorter, familiar to Rust developers
+
+Example with ~namespace~:
+#+BEGIN_SRC til
+MyEnum := enum { A, B, C }
+
+namespace MyEnum {
+    default := func() returns MyEnum { return MyEnum.A }
+    describe := func(self: MyEnum) returns Str { return "an enum" }
+}
+
+MyStruct := struct { x: I64 }
+
+namespace MyStruct {
+    new := func() returns MyStruct { return MyStruct(x=0) }
+    increment := func(self: MyStruct) returns MyStruct { return MyStruct(x=self.x.add(1)) }
+}
+#+END_SRC
+
+** Issue #109: Proper Imports
+:PROPERTIES:
+:DISCOVERED: 2026-01-13
+:IMPACT: Language feature, code organization, namespace control
+:STATUS: Open
+:RELATED: Issue #108 (Implement Namespaces)
+:END:
+
+*** Python Reference
+#+BEGIN_SRC python
+import os                            # import module as namespace
+import os as operating_system        # import module with alias
+
+from os import path, getcwd          # import specific items
+from os import path as p             # import specific item with alias
+
+from os import *                     # import all (discouraged)
+
+from . import sibling                # relative imports
+from .. import parent
+from ..package import module
+#+END_SRC
+
+*** Current State
+~import("module")~ imports everything into current namespace (like Python's ~from os import *~).
+
+*** Priorities
+
+A. *Namespaced imports*
+   #+BEGIN_SRC til
+   import("os")              // from os import *
+   getcwd()                  // getcwd() - directly available
+   #+END_SRC
+
+   #+BEGIN_SRC til
+   os := import("os")        // import os
+   os.getcwd()               // os.getcwd()
+   #+END_SRC
+
+B. *Selective imports*
+   Could save significant precomp/scavenger time by not loading everything.
+   #+BEGIN_SRC til
+   import("numpy", "array", "zeros")  // from numpy import array, zeros
+   array()                            // array()
+   zeros()                            // zeros()
+   #+END_SRC
+   Uses variadic arguments. Syntax may change as we cover more Python cases.
+
+C. *Namespaced + selective (TIL-specific, no Python equivalent)*
+   #+BEGIN_SRC til
+   np := import("numpy", "array", "zeros")
+   np.array()
+   np.zeros()
+   #+END_SRC
+   Combines A and B: namespaced access but only selected items and their own internal dependencies, recursively, are loaded.
+
+*** Future (lower priority)
+
+These Python cases still need TIL equivalents:
+- ~import os as operating_system~ - module alias
+- ~from os import getcwd as cwd~ - item alias
+- ~from . import sibling~ - relative imports (collides with current dot syntax for multiplatform, needs thought)
+
+*** Notes
+This is a multi-step issue. Priorities A and B are sufficient for now.
+Final syntax may evolve as we address all Python import patterns.
