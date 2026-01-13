@@ -768,3 +768,107 @@ test_sort_str_vec := proc() {
     }
 }
 test_sort_str_vec()
+
+test_vec_insert_at := proc() {
+    // Test insert_at with I64
+    mut vec := Vec.new(I64)
+    vec.push(10)
+    vec.push(30)
+    vec.push(40)
+
+    assert_eq(loc(), 3, vec.len())
+
+    // Insert at middle (index 1)
+    vec.insert_at(1, 20)
+
+    assert_eq(loc(), 4, vec.len())
+
+    mut val := 0
+    vec.get(0, val)
+    assert_eq(loc(), 10, val)
+    vec.get(1, val)
+    assert_eq(loc(), 20, val) // Newly inserted
+    vec.get(2, val)
+    assert_eq(loc(), 30, val) // Shifted right
+    vec.get(3, val)
+    assert_eq(loc(), 40, val) // Shifted right
+
+    // Insert at beginning (index 0)
+    vec.insert_at(0, 5)
+
+    assert_eq(loc(), 5, vec.len())
+    vec.get(0, val)
+    assert_eq(loc(), 5, val)
+    vec.get(1, val)
+    assert_eq(loc(), 10, val)
+
+    // Insert at end (index = len)
+    vec.insert_at(5, 50)
+
+    assert_eq(loc(), 6, vec.len())
+    vec.get(5, val)
+    assert_eq(loc(), 50, val)
+
+    vec.delete()
+
+    // Test insert_at with Str
+    mut strs := Vec.new(Str)
+    strs.push("a")
+    strs.push("c")
+
+    strs.insert_at(1, "b")
+
+    assert_eq(loc(), 3, strs.len())
+
+    mut s := ""
+    strs.get(0, s)
+    assert_eq_str(loc(), "a", s)
+    strs.get(1, s)
+    assert_eq_str(loc(), "b", s)
+    strs.get(2, s)
+    assert_eq_str(loc(), "c", s)
+
+    strs.delete()
+
+    // Test insert_at on empty vec
+    mut empty := Vec.new(I64)
+    empty.insert_at(0, 42)
+    assert_eq(loc(), 1, empty.len())
+    empty.get(0, val)
+    assert_eq(loc(), 42, val)
+    empty.delete()
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_vec_insert_at()
+
+test_vec_insert_at_out_of_bounds := proc() {
+    mut vec := Vec.new(I64)
+    vec.push(42)
+
+    // Try to insert at index > len (should throw)
+    vec.insert_at(5, 999)
+    panic(loc(), "Expected IndexOutOfBoundsError for insert_at with invalid index")
+
+    catch (err: IndexOutOfBoundsError) {
+        test(loc(), true, "IndexOutOfBoundsError correctly thrown for insert_at")
+    }
+
+    vec.delete()
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_vec_insert_at_out_of_bounds()

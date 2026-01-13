@@ -250,15 +250,17 @@ test_map_contains_key := proc() {
 }
 
 // Test position() method
+// Note: Map is sorted by key, so positions are in sorted order (blue < green < red)
 test_map_position := proc() {
     mut colors := Map.new(Str, I64)
     colors.insert("red", 1)
     colors.insert("green", 2)
     colors.insert("blue", 3)
 
-    test(loc(), colors.position("red").eq(0), "red should be at position 0")
+    // Sorted order: blue=0, green=1, red=2
+    test(loc(), colors.position("blue").eq(0), "blue should be at position 0")
     test(loc(), colors.position("green").eq(1), "green should be at position 1")
-    test(loc(), colors.position("blue").eq(2), "blue should be at position 2")
+    test(loc(), colors.position("red").eq(2), "red should be at position 2")
 
     mut pos := colors.position("yellow")
     test(loc(), pos.eq(sub(0, 1)), "non-existent key should return -1")

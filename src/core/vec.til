@@ -273,6 +273,49 @@ Vec := struct {
         self._len = sub(self._len, 1)
     }
 
+    /** Insert element at index, shifting remaining elements right.
+     *  Index must be in range [0, len] (can insert at end). */
+    insert_at := proc(mut self: Vec, index: I64, value: Dynamic) throws IndexOutOfBoundsError, AllocError {
+        if index.gt(self._len) {
+            throw IndexOutOfBoundsError(msg=format(loc(), "Vec.insert_at: index out of bounds"))
+        }
+
+        // Grow if needed (same logic as push)
+        if self._len.eq(self.cap) {
+            mut new_cap := mul(self.cap, 2)
+            if lt(new_cap, 1) {
+                new_cap = 1
+            }
+            if gt(new_cap, Vec.MAX_CAP) {
+                panic(loc(), "Vec.insert_at: capacity exceeded Vec.MAX_CAP")
+            }
+
+            mut new_ptr := malloc(mul(new_cap, self.type_size))
+            if gt(self._len, 0) {
+                memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
+            }
+            if gt(self.ptr, 0) {
+                free(self.ptr)
+            }
+            self.ptr = new_ptr
+            self.cap = new_cap
+        }
+
+        // Shift elements right (from end to index)
+        mut i := self._len
+        while i.gt(index) {
+            shift_src := add(self.ptr, mul(sub(i, 1), self.type_size))
+            mut shift_dest := add(self.ptr, mul(i, self.type_size))
+            memcpy(shift_dest, shift_src, self.type_size)
+            i = sub(i, 1)
+        }
+
+        // Insert value at index
+        mut insert_dest := add(self.ptr, mul(index, self.type_size))
+        memcpy(insert_dest, to_ptr(value), self.type_size)
+        self._len = add(self._len, 1)
+    }
+
     /** Convert vec to string representation (like Rust's {:?} format).
      *  Only works for Vec of Str elements. */
     to_str := func(self: Vec) returns Str {
