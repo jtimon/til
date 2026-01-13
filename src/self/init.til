@@ -149,14 +149,23 @@ ScopeStack := struct {
     }
 
     lookup_var := func(self: ScopeStack, name: Str) returns I64 throws KeyNotFoundError {
+        // Offset of arena_index field in ScopeFrame (first field, offset = 0)
+        arena_index_offset := 0
+        // Scratch map - Map.new() doesn't allocate Vec data
+        mut scratch_map := Map.new(Str, I64)
+
         // Walk up the stack from innermost to outermost
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+            // Get pointer to frame in Vec (no copy of entire frame)
+            frame_ptr := self.frames.get_ptr(i)
+            // Get pointer to arena_index Map within the frame
+            arena_index_ptr := add(frame_ptr, arena_index_offset)
+            // Copy just the Map struct (pointers to data, not the data itself)
+            memcpy(to_ptr(scratch_map), arena_index_ptr, size_of(Map))
 
-            if frame.arena_index.contains_key(name) {
+            if scratch_map.contains_key(name) {
                 mut offset := 0
-                frame.arena_index.get(name, offset)
+                scratch_map.get(name, offset)
                 catch (err: KeyNotFoundError) {
                     // Var not found, continue searching
                 }
@@ -171,13 +180,22 @@ ScopeStack := struct {
     }
 
     lookup_symbol := func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError {
-        for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+        // Offset of symbols field in ScopeFrame (after 1 Map: arena_index)
+        symbols_offset := size_of(Map)
+        // Scratch map - Map.new() doesn't allocate Vec data
+        mut scratch_map := Map.new(Str, SymbolInfo)
 
-            if frame.symbols.contains_key(name) {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            // Get pointer to frame in Vec (no copy of entire frame)
+            frame_ptr := self.frames.get_ptr(i)
+            // Get pointer to symbols Map within the frame
+            symbols_ptr := add(frame_ptr, symbols_offset)
+            // Copy just the Map struct (pointers to data, not the data itself)
+            memcpy(to_ptr(scratch_map), symbols_ptr, size_of(Map))
+
+            if scratch_map.contains_key(name) {
                 mut symbol := SymbolInfo()
-                frame.symbols.get(name, symbol)
+                scratch_map.get(name, symbol)
                 catch (err: KeyNotFoundError) {
                     // Symbol not found, continue searching
                 }
@@ -195,16 +213,30 @@ ScopeStack := struct {
     /// Returns true if we're inside a nested function and the symbol is defined
     /// in an outer function scope (not global, not current function).
     is_closure_capture := func(self: ScopeStack, name: Str) returns Bool {
+        // Offsets in ScopeFrame
+        symbols_offset := size_of(Map)  // After arena_index
+        scope_type_offset := mul(size_of(Map), 5)  // After all 5 Maps
+        // Scratch map for symbols
+        mut scratch_map := Map.new(Str, SymbolInfo)
+        // Scratch for scope_type
+        mut scratch_scope_type := ScopeType.Global
+
         mut function_boundaries_crossed := 0
         mut in_function := false
 
         // Walk from innermost to outermost scope
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+            // Get pointer to frame in Vec (no copy of entire frame)
+            frame_ptr := self.frames.get_ptr(i)
+            // Copy symbols Map
+            symbols_ptr := add(frame_ptr, symbols_offset)
+            memcpy(to_ptr(scratch_map), symbols_ptr, size_of(Map))
+            // Copy scope_type
+            scope_type_ptr := add(frame_ptr, scope_type_offset)
+            memcpy(to_ptr(scratch_scope_type), scope_type_ptr, size_of(ScopeType))
 
             // Track when we enter/exit function scopes
-            switch frame.scope_type {
+            switch scratch_scope_type {
             case ScopeType.Function:
                 if in_function {
                     // We've crossed from one function into an outer function
@@ -216,12 +248,12 @@ ScopeStack := struct {
             }
 
             // Check if symbol is in this frame
-            if frame.symbols.contains_key(name) {
+            if scratch_map.contains_key(name) {
                 // Symbol found - is it a closure capture?
                 // It's a capture if:
                 // 1. We've crossed at least one function boundary to get here
                 // 2. We're not in global scope
-                switch frame.scope_type {
+                switch scratch_scope_type {
                 case ScopeType.Global:
                     return false
                 case:
@@ -340,13 +372,22 @@ ScopeStack := struct {
     }
 
     lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
-        for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+        // Offset of funcs field in ScopeFrame (after 2 Maps: arena_index, symbols)
+        funcs_offset := mul(size_of(Map), 2)
+        // Scratch map - Map.new() doesn't allocate Vec data
+        mut scratch_map := Map.new(Str, SFuncDef)
 
-            if frame.funcs.contains_key(name) {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            // Get pointer to frame in Vec (no copy of entire frame)
+            frame_ptr := self.frames.get_ptr(i)
+            // Get pointer to funcs Map within the frame
+            funcs_ptr := add(frame_ptr, funcs_offset)
+            // Copy just the Map struct (pointers to data, not the data itself)
+            memcpy(to_ptr(scratch_map), funcs_ptr, size_of(Map))
+
+            if scratch_map.contains_key(name) {
                 mut func_def := SFuncDef()
-                frame.funcs.get(name, func_def)
+                scratch_map.get(name, func_def)
                 catch (err: KeyNotFoundError) {
                     // Function not found, continue searching
                 }
@@ -381,13 +422,22 @@ ScopeStack := struct {
     }
 
     lookup_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws KeyNotFoundError {
-        for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+        // Offset of enums field in ScopeFrame (after 3 Maps: arena_index, symbols, funcs)
+        enums_offset := mul(size_of(Map), 3)
+        // Scratch map - Map.new() doesn't allocate Vec data
+        mut scratch_map := Map.new(Str, SEnumDef)
 
-            if frame.enums.contains_key(name) {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            // Get pointer to frame in Vec (no copy of entire frame)
+            frame_ptr := self.frames.get_ptr(i)
+            // Get pointer to enums Map within the frame
+            enums_ptr := add(frame_ptr, enums_offset)
+            // Copy just the Map struct (pointers to data, not the data itself)
+            memcpy(to_ptr(scratch_map), enums_ptr, size_of(Map))
+
+            if scratch_map.contains_key(name) {
                 mut enum_def := SEnumDef()
-                frame.enums.get(name, enum_def)
+                scratch_map.get(name, enum_def)
                 catch (err: KeyNotFoundError) {
                     // Enum not found, continue searching
                 }
@@ -530,11 +580,20 @@ ScopeStack := struct {
 
     all_structs := func(self: ScopeStack) returns Vec throws Str {
         mut result := Vec.new(SStructDef)
-        for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+        // Offset of structs field in ScopeFrame (after 4 Maps: arena_index, symbols, funcs, enums)
+        structs_offset := mul(size_of(Map), 4)
+        // Scratch map to hold the structs Map - Map.new() doesn't allocate Vec data
+        mut scratch_map := Map.new(Str, SStructDef)
 
-            for struct_def: SStructDef in frame.structs.values {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            // Get pointer to frame in Vec (no copy of entire frame)
+            frame_ptr := self.frames.get_ptr(i)
+            // Get pointer to structs Map within the frame
+            structs_ptr := add(frame_ptr, structs_offset)
+            // Copy just the Map struct (pointers to data, not the data itself)
+            memcpy(to_ptr(scratch_map), structs_ptr, size_of(Map))
+
+            for struct_def: SStructDef in scratch_map.values {
                 result.push(struct_def)
             }
         }
@@ -567,12 +626,24 @@ ScopeStack := struct {
     get_symbols_with_prefix := func(self: ScopeStack, prefix: Str) returns Vec throws Str {
         // Collect all keys from all scopes that start with the given prefix
         mut keys := Vec.new(Str)
-        for frame: ScopeFrame in self.frames {
-            for key: Str in frame.symbols.keys {
+        // Offset of symbols field (after 1 Map: arena_index)
+        symbols_offset := mul(size_of(Map), 1)
+        // Scratch map to hold the symbols Map
+        mut scratch_map := Map.new(Str, SymbolInfo)
+
+        for i in 0..self.frames.len() {
+            frame_ptr := self.frames.get_ptr(i)
+            symbols_ptr := add(frame_ptr, symbols_offset)
+            memcpy(to_ptr(scratch_map), symbols_ptr, size_of(Map))
+
+            for key: Str in scratch_map.keys {
                 if key.starts_with(prefix) {
                     keys.push(key.clone())
                 }
             }
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw loc().concat("IndexOutOfBoundsError in get_symbols_with_prefix: ").concat(err.msg)
         }
         catch (err: AllocError) {
             throw err.msg
@@ -582,10 +653,22 @@ ScopeStack := struct {
 
     get_all_struct_names := func(self: ScopeStack) returns Vec throws Str {
         mut names := Vec.new(Str)
-        for frame: ScopeFrame in self.frames {
-            for key: Str in frame.structs.keys {
+        // Offset of structs field (after 4 Maps)
+        structs_offset := mul(size_of(Map), 4)
+        // Scratch map to hold the structs Map
+        mut scratch_map := Map.new(Str, SStructDef)
+
+        for i in 0..self.frames.len() {
+            frame_ptr := self.frames.get_ptr(i)
+            structs_ptr := add(frame_ptr, structs_offset)
+            memcpy(to_ptr(scratch_map), structs_ptr, size_of(Map))
+
+            for key: Str in scratch_map.keys {
                 names.push(key.clone())
             }
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw loc().concat("IndexOutOfBoundsError in get_all_struct_names: ").concat(err.msg)
         }
         catch (err: AllocError) {
             throw err.msg
@@ -599,10 +682,20 @@ ScopeStack := struct {
 
     // Bug #97: Check if we're currently inside a function (not at global scope).
     is_inside_function := func(self: ScopeStack) returns Bool {
+        // Offset of scope_type field in ScopeFrame (after 5 Maps)
+        scope_type_offset := mul(size_of(Map), 5)
+        // Scratch variable to hold scope_type
+        mut scratch_scope_type := ScopeType.Global
+
         for i in self.frames.len().sub(1)..sub(0, 1) {
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)
-            switch frame.scope_type {
+            // Get pointer to frame in Vec (no copy of entire frame)
+            frame_ptr := self.frames.get_ptr(i)
+            // Get pointer to scope_type within the frame
+            scope_type_ptr := add(frame_ptr, scope_type_offset)
+            // Copy just the scope_type
+            memcpy(to_ptr(scratch_scope_type), scope_type_ptr, size_of(ScopeType))
+
+            switch scratch_scope_type {
             case ScopeType.Function:
                 return true
             case:
@@ -618,6 +711,13 @@ ScopeStack := struct {
     // Searches from parent frame back to the nearest Function frame (inclusive).
     // Used to detect variable shadowing - only errors if symbol is in an outer scope.
     lookup_symbol_in_enclosing_scope := func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError {
+        // Offsets for fields in ScopeFrame
+        symbols_offset := mul(size_of(Map), 1)
+        scope_type_offset := mul(size_of(Map), 5)
+        // Scratch variables
+        mut scratch_symbols := Map.new(Str, SymbolInfo)
+        mut scratch_scope_type := ScopeType.Global
+
         // Skip the current frame - we're looking for shadowing of outer variables
         mut skipped_first := false
         for i in self.frames.len().sub(1)..sub(0, 1) {
@@ -625,16 +725,25 @@ ScopeStack := struct {
                 skipped_first = true
                 continue
             }
-            mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+            // Get pointer to frame in Vec (no copy of entire frame)
+            frame_ptr := self.frames.get_ptr(i)
 
-            if frame.symbols.contains_key(name) {
+            // Get symbols Map
+            symbols_ptr := add(frame_ptr, symbols_offset)
+            memcpy(to_ptr(scratch_symbols), symbols_ptr, size_of(Map))
+
+            if scratch_symbols.contains_key(name) {
                 mut symbol := SymbolInfo()
-                frame.symbols.get(name, symbol)
+                scratch_symbols.get(name, symbol)
                 return symbol
             }
+
+            // Get scope_type to check for Function boundary
+            scope_type_ptr := add(frame_ptr, scope_type_offset)
+            memcpy(to_ptr(scratch_scope_type), scope_type_ptr, size_of(ScopeType))
+
             // Stop at Function frame - don't search into global scope
-            switch frame.scope_type {
+            switch scratch_scope_type {
             case ScopeType.Function:
                 throw KeyNotFoundError(msg="lookup_symbol_in_enclosing_scope: Symbol not found before function boundary")
             case:
