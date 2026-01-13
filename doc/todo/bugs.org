@@ -517,28 +517,58 @@ even when there's a return statement before them in the textual order.
 :END:
 
 *** Description
-~src/test/bug47.til~ fails with exit code 141 in rs_compiled mode. GCC fails
-due to ~-Werror~ treating warnings as errors. The warnings are about
-~til_Vec_push~ expecting ~const til_Dynamic*~ but receiving typed pointers.
+~src/test/bug47.til~ originally failed with exit code 141 in rs_compiled mode.
+GCC failed due to ~-Werror~ treating warnings as errors.
 
-*** Root Cause
-Generated C code passes typed pointers (e.g., ~til_Str*~, ~til_ValueType*~)
-directly to ~til_Vec_push~ which expects ~const til_Dynamic*~.
+*** Test Results (2026-01-13)
+| Mode           | Result                    |
+|----------------+---------------------------|
+| rstil interpret | pass                      |
+| rstil run       | pass                      |
+| til interpret   | pass                      |
+| til run         | timeout (>150s)           |
 
-*** Example Warning
-#+BEGIN_SRC
-gen/c/test/bug47.c:3630:117: warning: passing argument 3 of 'til_Vec_push' from incompatible pointer type
-  til_Vec_push(&_err, &til_allowed_procs_in_funcs, &_tmp_mode_from_name_2);
-                                                   ^~~~~~~~~~~~~~~~~~~~~~
-                                                   til_Str *
-expected 'void * const*' but argument is of type 'til_Str *'
+The rstil versions now pass. The ~til run~ hangs - either infinite loop in
+til's ccodegen or extremely slow compilation.
+
+*** Current Warnings (2026-01-13)
+1654 total warnings when compiling with ~gcc -Wall -Wextra~:
+
+| Count | Type                        | Severity |
+|-------+-----------------------------+----------|
+|   933 | -Wunused-variable           | Low      |
+|   318 | -Wdangling-pointer          | High     |
+|   195 | -Wincompatible-pointer-types | Medium   |
+|   135 | -Wunused-but-set-variable   | Low      |
+|    66 | -Wunused-label              | Low      |
+|     5 | -Wunused-parameter          | Low      |
+|     1 | -Wreturn-type               | High     |
+|     1 | null character in literal   | Low      |
+
+**** Dangling Pointer (318 occurrences)
+Statement expressions return pointers to local variables that go out of scope:
+#+BEGIN_SRC c
+// Generated code pattern:
+if (til_not(({ til_Bool _tmp = til_U8_eq(&a, &b); &_tmp; })).data) { ... }
+//                                                 ^^^^^
+// _tmp goes out of scope, pointer dangles
 #+END_SRC
 
-Also has shadowing warnings for variables like ~til_s_cloned~ in generated clone functions.
+**** Incompatible Pointer Types (195 occurrences)
+Vec_push expects ~void**~ but receives typed pointers:
+#+BEGIN_SRC c
+til_Vec_push(&_err, &vec, &_tmp_str);  // _tmp_str is til_Str*
+#+END_SRC
 
-*** Potential Fix
-The C codegen should cast typed pointers to ~const til_Dynamic*~ when calling
-~til_Vec_push~, or Vec push should be specialized per type.
+**** Return Type (1 occurrence)
+Function ~til_get_value_type~ at line 13360 - control reaches end without return.
+
+*** TODO
+- [ ] Investigate why ~til run bug47.til~ hangs/times out
+- [ ] Fix dangling pointer pattern in ccodegen (high priority)
+- [ ] Fix missing return statement (high priority)
+- [ ] Add casts for Vec_push calls or specialize per type
+- [ ] Consider which unused-* warnings to fix vs suppress
 
 ** Bug #92: Range loops should allow explicit iterator type annotation
 :PROPERTIES:
