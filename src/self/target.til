@@ -265,26 +265,31 @@ toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
 
 toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec throws AllocError {
     // Bug #99: -Werror to forbid warnings.
+    // -Wno-return-type: clang is stricter than gcc about missing returns (Step 3e)
     mut result := Vec.new(Str)
     switch target {
     case Target.MacosArm64:
         result.push("-target")
         result.push("arm64-apple-macos11")
         result.push("-Werror")
+        result.push("-Wno-return-type")
     case Target.MacosX64:
         result.push("-target")
         result.push("x86_64-apple-macos10.12")
         result.push("-Werror")
+        result.push("-Wno-return-type")
     case Target.Wasm32:
         result.push("--target=wasm32")
         result.push("-nostdlib")
         result.push("-Wl,--no-entry")
         result.push("-Wl,--export-all")
         result.push("-Werror")
+        result.push("-Wno-return-type")
     case Target.TempleosX86:
         panic(loc(), "HolyC doesn't support these flags")
     case:
         result.push("-Werror")
+        result.push("-Wno-return-type")
     }
     return result
 }

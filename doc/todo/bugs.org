@@ -173,7 +173,7 @@ Current state: -Werror enabled with specific warning suppressions.
 4. Once stable, switch to ~-Wall -Wextra -Werror~
 
 *** Current Warning Suppressions (target.rs/til)
-All suppressions removed! -Werror is now enabled with no warning suppressions.
+- ~-Wno-return-type~: clang is stricter than gcc about missing returns in all paths
 
 *** Additional Fix: Null byte escaping in ccodegen (2026-01-13)
 GCC 13 errors on raw null bytes in string literals. Fixed emit_str_literal() in

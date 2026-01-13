@@ -142,12 +142,13 @@ pub fn toolchain_command(target: &Target, lang: &Lang) -> Result<&'static str, S
 
 pub fn toolchain_extra_args(target: &Target, _lang: &Lang) -> Vec<&'static str> {
     // Bug #99: -Werror to forbid warnings.
+    // -Wno-return-type: clang is stricter than gcc about missing returns (Step 3e)
     match target {
-        Target::MacosArm64 => vec!["-target", "arm64-apple-macos11", "-Werror"],
-        Target::MacosX64 => vec!["-target", "x86_64-apple-macos10.12", "-Werror"],
-        Target::Wasm32 => vec!["--target=wasm32", "-nostdlib", "-Wl,--no-entry", "-Wl,--export-all", "-Werror"],
+        Target::MacosArm64 => vec!["-target", "arm64-apple-macos11", "-Werror", "-Wno-return-type"],
+        Target::MacosX64 => vec!["-target", "x86_64-apple-macos10.12", "-Werror", "-Wno-return-type"],
+        Target::Wasm32 => vec!["--target=wasm32", "-nostdlib", "-Wl,--no-entry", "-Wl,--export-all", "-Werror", "-Wno-return-type"],
         Target::TempleosX86 => todo!("HolyC doesn't support these flags"),
-        _ => vec!["-Werror"],
+        _ => vec!["-Werror", "-Wno-return-type"],
     }
 }
 
