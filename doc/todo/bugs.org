@@ -8,6 +8,84 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #112: Map uses O(n) linear scan instead of hash lookup
+:PROPERTIES:
+:DISCOVERED: 2026-01-13
+:IMPACT: Major performance bottleneck - self-hosted interpreter 2.7x slower than Rust
+:STATUS: Open
+:END:
+
+*** Description
+The ~Map~ type in ~src/std/map.til~ uses O(n) linear scan for all operations (get,
+set, contains_key, insert). Rust uses ~HashMap~ with O(1) average lookup. This is
+the primary reason the TIL self-hosted interpreter is ~2.7x slower than rstil.
+
+*** Current Implementation (O(n))
+#+BEGIN_SRC til
+// src/std/map.til lines 58-86
+while lt(i, self._size) {
+    // Linear scan through ALL keys for every lookup
+    if Str.eq(self.key_type_name, "Str") {
+        // String comparison for each key
+    }
+    i = add(i, 1)
+}
+#+END_SRC
+
+*** Impact Analysis
+- ~ScopeFrame~ uses 4 Maps: arena_index, symbols, funcs, enums
+- 227 ~lookup_*~ calls throughout the codebase
+- Each lookup scans potentially hundreds of entries
+- With nested scopes, lookups iterate through multiple frames
+- Result: quadratic behavior in hot paths
+
+*** Fix Strategy (Two Phases)
+
+**** Phase 1: Sorted Vec + Binary Search (O(log n))
+- Keep keys sorted on insert
+- Use binary search for lookups
+- Simpler to implement, no hash function needed
+- Good enough for initial improvement
+
+**** Phase 2: Hash Map (O(1) average)
+- Implement proper hash table with buckets
+- Need hash function for Str keys
+
+*** Hash Function Options (for Phase 2)
+
+| Algorithm | Used By | Speed | Quality | Notes |
+|-----------+------------+-------+---------+---------------------------------------|
+| FNV-1a | Rust (old) | Fast | Good | Simple, 32/64-bit, good distribution |
+| SipHash | Rust | Med | Best | DoS-resistant, cryptographic quality |
+| xxHash | Many | Fast | Good | Extremely fast, good for large data |
+| MurmurHash3 | Java, etc | Fast | Good | Popular, well-tested |
+| wyhash | Go (new) | Fast | Good | Very fast, simple implementation |
+| djb2 | Classic | Fast | OK | Very simple, older |
+
+**** Recommended: FNV-1a
+- Simple implementation (~10 lines)
+- Good distribution for string keys
+- Fast enough for interpreter use
+- No external dependencies
+
+#+BEGIN_SRC c
+// FNV-1a hash (64-bit)
+uint64_t fnv1a(const char* str, size_t len) {
+    uint64_t hash = 14695981039346656037ULL;  // FNV offset basis
+    for (size_t i = 0; i < len; i++) {
+        hash ^= (uint8_t)str[i];
+        hash *= 1099511628211ULL;  // FNV prime
+    }
+    return hash;
+}
+#+END_SRC
+
+*** Implementation Notes
+- Bucket count: power of 2 (allows bitwise AND instead of modulo)
+- Collision handling: chaining (linked list) or open addressing
+- Load factor: resize when > 0.75 full
+- For TIL: can use ~ext_proc~ for C hash function, or implement in pure TIL
+
 ** Bug #102: Automatic dependency tracking from imports
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
