@@ -141,12 +141,23 @@ fixed so we can enable ~-Werror~ (treat warnings as errors) in the build.
 - rustc: DONE - added ~-D warnings~ to Makefile and make.til (no warnings currently)
 - gcc: TODO - need to fix warnings before enabling ~-Werror~
 
-*** Known gcc warnings
-- Bug #94 documents some warnings in bug47.til compilation
-- Need to audit all generated C code for warnings
+*** Warning Categories (2026-01-13)
+Audit of generated C code shows these warning types:
 
-*** Related
-- Bug #94: gcc warnings cause bug47.til compilation failure
+| Type                         | Priority | Notes                                      |
+|------------------------------+----------+--------------------------------------------|
+| -Wdangling-pointer           | High     | Statement expressions return &local_var    |
+| -Wreturn-type                | High     | Control reaches end of non-void function   |
+| -Wincompatible-pointer-types | Medium   | Vec_push receives typed* instead of void** |
+| -Wunused-variable            | Low      | Generated temp vars not always used        |
+| -Wunused-but-set-variable    | Low      | Similar to above                           |
+| -Wunused-label               | Low      | Catch labels generated but not jumped to   |
+| -Wunused-parameter           | Low      | ext.c has unused _err params               |
+
+*** Fix Strategy
+1. High priority first - these may cause actual bugs
+2. Medium - add casts or specialize Vec_push per type
+3. Low - either fix in ccodegen or suppress with pragmas
 
 ** Bug #98: ext_proc errors should throw specific error types instead of panicking
 :PROPERTIES:
