@@ -8,12 +8,71 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #113: Self-hosted interpreter fails with "symbol 'msg' not found"
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:IMPACT: Blocks HashMap implementation, breaks til_interpreted tests
+:STATUS: Open
+:END:
+
+*** Description
+The self-hosted TIL interpreter (bin/til) fails with "symbol 'msg' not found" in
+~generate_struct_mappings~ when using a ~mut~ variable (that was passed to Vec.get
+or Map.get) in a subsequent function call.
+
+*** Reproduction
+#+BEGIN_SRC til
+mode test
+import("core.vec")
+
+test_it := proc() {
+    mut v := Vec.new(I64)
+    v.push(42)
+    mut val := 0
+    v.get(0, val)
+    // This line fails with "symbol 'msg' not found":
+    test(loc(), val.eq(42), "test with val")
+
+    catch (err: AllocError) { exit(1) }
+    catch (err: IndexOutOfBoundsError) { exit(1) }
+}
+test_it()
+#+END_SRC
+
+*** Observations
+- Works with rstil (Rust interpreter)
+- Fails with til (self-hosted interpreter)
+- Issue is NOT specific to Map - happens with Vec.get too
+- The error mentions 'msg' which is the parameter name in test() function
+- Error thrown from ~generate_struct_mappings~ in ~src/self/eval_arena.til~
+
+*** Investigation Notes
+The error occurs when calling ~test(loc(), val.eq(42), "msg")~ after using val
+as a mut parameter to Vec.get/Map.get. Somewhere in the interpreter, when
+setting up the function call frame for test(), the symbol lookup for the 'msg'
+parameter fails. This suggests a divergence between how the Rust and TIL
+interpreters handle mut parameters or function call frames.
+
 ** Bug #112: Map uses O(n) linear scan instead of hash lookup
 :PROPERTIES:
 :DISCOVERED: 2026-01-13
 :IMPACT: Major performance bottleneck - self-hosted interpreter 2.7x slower than Rust
-:STATUS: Open
+:STATUS: Blocked by Bug #113
 :END:
+
+*** BLOCKER: Bug #113
+HashMap implementation was attempted but is blocked by Bug #113 (self-hosted
+interpreter fails with "symbol 'msg' not found"). The HashMap code itself works
+correctly with rstil, but when the self-hosted interpreter (bin/til) is rebuilt
+with the new Map, tests fail due to Bug #113. Must fix Bug #113 first.
+
+*** Attempted Implementation (branch wip_112)
+Full HashMap implementation exists on branch ~wip_112~:
+- Hash table with separate chaining (buckets + nexts arrays)
+- ~hash_key()~ using ~Str.hash()~ for string keys, FNV-1a for others
+- ~hash_lookup()~ for O(1) average key lookup
+- Same API preserved (same throws and returns)
+- All rstil tests pass, til_interpreted tests fail due to Bug #113
 
 *** Description
 The ~Map~ type in ~src/std/map.til~ uses O(n) linear scan for all operations (get,
