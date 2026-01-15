@@ -256,6 +256,45 @@ Tests in src/test/args.til (lines 494-621) - all passing
 ** 🔮 Future: Move-Only Types (Maybe)
 Needs more research and real-world examples to determine necessity.
 
+** 🔮 Future: Owned Struct Fields (Issue #115)
+Struct fields should declare ownership semantics.
+
+*** Problem
+Currently struct fields are just ~mut~ or not, but we can't express whether a
+struct OWNS its fields (should delete them) vs BORROWS them (someone else deletes).
+
+*** Example: Neural Network Layer
+#+BEGIN_SRC til
+Layer := struct {
+    own weights: Vec    // Layer owns this, deletes it
+    own output: Vec     // Layer owns this, deletes it
+    input: Vec          // Borrowed from previous layer, don't delete
+}
+#+END_SRC
+
+User sees Vec in all cases. The ~own~ keyword affects:
+- Owned field: Actual data stored, delete() called when parent deleted
+- Borrowed field: Internally a pointer, NOT deleted when parent deleted
+
+The previous layer's ~output~ IS the next layer's ~input~ - same memory, two views.
+
+*** Interaction with ASAP Destruction (Issue #117)
+When parent struct is deleted (automatically or explicitly):
+- Owned fields: Cascade delete
+- Borrowed fields: Leave alone
+
+*** Auto-Generated Methods
+With ownership info, compiler could auto-generate:
+- ~delete()~: Calls delete() on all owned fields
+- ~size()~: Sums size of all fields
+- ~clone()~: Deep clones owned fields, shallow copies borrowed
+
+*** Open Questions
+- Default: owned or borrowed? (Probably owned, like Rust)
+- Can primitives be "owned"? (Probably no - always copy)
+- How is a borrowed field assigned? (Must point to something that outlives struct)
+- Syntax: ~own field: T~ vs ~field: own T~ vs attribute
+
 * Conclusion
 
 TIL's ownership model has **remarkable convergence with Mojo**:
