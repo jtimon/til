@@ -151,15 +151,23 @@ and fixes ~40 call sites. For long-term, evaluate:
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Blocks HashMap implementation, breaks til_interpreted tests
-:STATUS: Open
+:STATUS: Not Reproducible
 :END:
 
-*** Description
+*** Status: Not Reproducible (in isolation)
+Created src/test/bug113.til to reproduce this issue, but all tests pass in all 4
+modes (rs_interpreted, rs_compiled, til_interpreted, til_compiled). The bug may
+be specific to the HashMap implementation context and cannot be isolated.
+
+Will not be closed until Bug #112 is resolved, since the bug was initially
+reproduced and documented when testing the HashMap implementation for #112.
+
+*** Original Description
 The self-hosted TIL interpreter (bin/til) fails with "symbol 'msg' not found" in
 ~generate_struct_mappings~ when using a ~mut~ variable (that was passed to Vec.get
 or Map.get) in a subsequent function call.
 
-*** Reproduction
+*** Reproduction Attempt
 #+BEGIN_SRC til
 mode test
 import("core.vec")
@@ -169,7 +177,7 @@ test_it := proc() {
     v.push(42)
     mut val := 0
     v.get(0, val)
-    // This line fails with "symbol 'msg' not found":
+    // This line was reported to fail with "symbol 'msg' not found":
     test(loc(), val.eq(42), "test with val")
 
     catch (err: AllocError) { exit(1) }
@@ -179,18 +187,9 @@ test_it()
 #+END_SRC
 
 *** Observations
-- Works with rstil (Rust interpreter)
-- Fails with til (self-hosted interpreter)
-- Issue is NOT specific to Map - happens with Vec.get too
-- The error mentions 'msg' which is the parameter name in test() function
-- Error thrown from ~generate_struct_mappings~ in ~src/self/eval_arena.til~
-
-*** Investigation Notes
-The error occurs when calling ~test(loc(), val.eq(42), "msg")~ after using val
-as a mut parameter to Vec.get/Map.get. Somewhere in the interpreter, when
-setting up the function call frame for test(), the symbol lookup for the 'msg'
-parameter fails. This suggests a divergence between how the Rust and TIL
-interpreters handle mut parameters or function call frames.
+- Originally reported to work with rstil but fail with til
+- Test file bug113.til passes in all modes - cannot reproduce
+- May only occur in specific HashMap implementation context
 
 ** Bug #112: Map uses O(n) linear scan instead of hash lookup
 :PROPERTIES:
