@@ -372,7 +372,7 @@ can finally be idiomatic Til instead of "Til that looks like Rust."
 - [ ] Bug #83: No spread/splat operator for variadic argument forwarding
 - [ ] Bug #84: run_cmd output capture broken in compiled mode
 - [ ] Bug #85: Typer accepts struct literal with non-existent field name
-- [ ] Bug #86: For-in loop fails with enum that has enum payload
+- [X] Bug #86: For-in loop fails with enum that has enum payload
 - [ ] Bug #87: Scavenger not pruning struct methods
 - [ ] Issue #88: Macro Support (Compile-Time Evaluation)
 - [ ] Issue #91: First-Class Functions
@@ -1347,48 +1347,6 @@ The TIL syntax differs slightly (e.g., ~at_global_scope.and(...)~ instead of
 *** Tests
 - tmp/test_constfold_scope.til - demonstrates the issue
 
-** Bug #86: For-in loop fails with enum that has enum payload
-:PROPERTIES:
-:DISCOVERED: 2026-01-06
-:IMPACT: Cannot use for-in loops with certain enum types
-:STATUS: Active (workaround: use while loop with get())
-:END:
-
-*** Description
-When an enum's first variant has another enum as its payload type, using that
-enum type in a for-in loop fails at init time with the error:
-"Enum constructor X expects payload of type Y, but got enum"
-
-*** Example
-#+BEGIN_SRC til
-InnerEnum := enum { FTFunc, FTProc }
-OuterEnum := enum {
-    TFunction: InnerEnum,  // First variant has enum payload
-    TCustom: Str,
-}
-
-mut v := Vec.new(OuterEnum)
-for item: OuterEnum in v {  // ERROR at init time
-    // ...
-}
-#+END_SRC
-
-*** Workaround
-Use a while loop with get() instead of for-in:
-#+BEGIN_SRC til
-mut i := 0
-while i.lt(v.len()) {
-    mut item := OuterEnum.TCustom("")
-    v.get(i, item)
-    // ...
-    i = i.add(1)
-}
-#+END_SRC
-
-*** Tests
-- src/test/bug86.til - demonstrates init error with enum-in-enum payload
-- src/test/loops.til - commented out test_forin_payload_enum (segfaults til run)
-
 ** Bug #83: No spread/splat operator for variadic argument forwarding
 :PROPERTIES:
 :DISCOVERED: 2026-01-03
@@ -1923,6 +1881,46 @@ main := proc(args: ..Str) {
 2. The C codegen should unpack argv into individual named parameters for custom signatures.
 
 * Fixed Bugs
+
+** Bug #86: For-in loop fails with enum that has enum payload
+:PROPERTIES:
+:DISCOVERED: 2026-01-06
+:FIXED: 2026-01-15
+:IMPACT: Cannot use for-in loops with certain enum types
+:STATUS: Fixed
+:END:
+
+*** Description
+When an enum's first variant has another enum as its payload type, using that
+enum type in a for-in loop fails at init time with the error:
+"Enum constructor X expects payload of type Y, but got enum"
+
+*** Example
+#+BEGIN_SRC til
+InnerEnum := enum { FTFunc, FTProc }
+OuterEnum := enum {
+    TFunction: InnerEnum,  // First variant has enum payload
+    TCustom: Str,
+}
+
+mut v := Vec.new(OuterEnum)
+for item: OuterEnum in v {  // ERROR at init time
+    // ...
+}
+#+END_SRC
+
+*** Root Cause
+~build_default_value~ in precomp.rs/til was generating invalid enum constructors.
+For an enum whose first variant has an enum payload, it generated ~InnerEnum()~
+instead of the correct ~InnerEnum.FTFunc~ (or appropriate default variant).
+
+*** Fix
+Made ~build_default_value~ recursive: when the first variant has an enum payload,
+it now calls ~build_default_value~ again for that nested enum, producing the
+correct default constructor chain.
+
+*** Tests
+- src/test/loops.til: test_forin_payload_enum (previously commented out, now works)
 
 ** Bug #93: Test runner returns exit code 0 even with failures
 :PROPERTIES:

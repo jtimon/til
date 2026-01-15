@@ -432,7 +432,8 @@ fn precomp_params(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 /// Build a default value expression for a given ValueType.
 /// Used when generating placeholder values for enum variant payloads in for-in loops.
 /// Bug #33: for-in loops don't work with enum collections
-fn build_default_value(vt: &ValueType, line: usize, col: usize) -> Expr {
+/// Bug #86: Handle enum payload types recursively
+fn build_default_value(context: &Context, vt: &ValueType, line: usize, col: usize) -> Expr {
     match vt {
         ValueType::TCustom(type_name) => {
             match type_name.as_str() {
@@ -460,13 +461,61 @@ fn build_default_value(vt: &ValueType, line: usize, col: usize) -> Expr {
                     line,
                     col,
                 ),
-                // For other types (structs, other enums), use the default constructor
-                _ => Expr::new_explicit(
-                    NodeType::FCall,
-                    vec![Expr::new_explicit(NodeType::Identifier(type_name.clone()), vec![], line, col)],
-                    line,
-                    col,
-                ),
+                // For other types (structs, other enums), check if it's an enum
+                _ => {
+                    // Bug #86: Check if this type is an enum - enums need special constructor syntax
+                    if let Some(enum_def) = context.scope_stack.lookup_enum(type_name) {
+                        // Build proper enum constructor: EnumType.FirstVariant or EnumType.FirstVariant(payload)
+                        if let Some(first_v) = enum_def.variants.first() {
+                            let first_variant = &first_v.name;
+                            let payload_type = &first_v.payload_type;
+                            let variant_id = Expr::new_explicit(
+                                NodeType::Identifier(first_variant.clone()),
+                                vec![],
+                                line,
+                                col,
+                            );
+                            let enum_id = Expr::new_explicit(
+                                NodeType::Identifier(type_name.clone()),
+                                vec![variant_id],
+                                line,
+                                col,
+                            );
+                            if let Some(payload_vt) = payload_type {
+                                // Variant has a payload - need FCall with default value (recursive)
+                                let default_arg = build_default_value(context, payload_vt, line, col);
+                                let enum_payload_fcall_params = vec![enum_id, default_arg];
+                                Expr::new_explicit(
+                                    NodeType::FCall,
+                                    enum_payload_fcall_params,
+                                    line,
+                                    col,
+                                )
+                            } else {
+                                // Variant has no payload - just the identifier chain
+                                enum_id
+                            }
+                        } else {
+                            // Empty enum - fall back to struct-like constructor (shouldn't happen)
+                            let empty_enum_fcall_params = vec![Expr::new_explicit(NodeType::Identifier(type_name.clone()), vec![], line, col)];
+                            Expr::new_explicit(
+                                NodeType::FCall,
+                                empty_enum_fcall_params,
+                                line,
+                                col,
+                            )
+                        }
+                    } else {
+                        // Not an enum - use struct-like constructor: TYPE()
+                        let struct_fcall_params = vec![Expr::new_explicit(NodeType::Identifier(type_name.clone()), vec![], line, col)];
+                        Expr::new_explicit(
+                            NodeType::FCall,
+                            struct_fcall_params,
+                            line,
+                            col,
+                        )
+                    }
+                }
             }
         }
         // For function types and other types, use a placeholder (shouldn't typically happen)
@@ -599,7 +648,7 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
 
             if let Some(payload_vt) = payload_type {
                 // Variant has a payload - need FCall with default value
-                let default_arg = build_default_value(payload_vt, e.line, e.col);
+                let default_arg = build_default_value(context, payload_vt, e.line, e.col);
                 Expr::new_explicit(
                     NodeType::FCall,
                     vec![enum_id, default_arg],

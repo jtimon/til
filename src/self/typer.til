@@ -1298,11 +1298,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
             case NodeType.FCall:
                 mut called_func_def := get_func_def_for_fcall(context, p)
-                // Bug #86: Can't use for-in with ValueType (enum with enum payload)
-                mut ct_idx := 0
-                while ct_idx.lt(called_func_def.throw_types.len()) {
-                    mut called_throw := ValueType.TCustom("")
-                    called_func_def.throw_types.get(ct_idx, called_throw)
+                for called_throw: ValueType in called_func_def.throw_types {
                     called_throw_str := value_type_to_str(called_throw)
                     error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
 
@@ -1314,7 +1310,6 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     fcall_te2.type_str = called_throw_str
                     fcall_te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                     thrown_types.push(fcall_te2)
-                    ct_idx.inc()
                 }
 
                 // Check nested function calls in arguments
@@ -1371,11 +1366,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                         switch ctor_arg.node_type {
                         case NodeType.FCall:
                             mut ctor_nested_func_def := get_func_def_for_fcall(context, ctor_arg)
-                            // Bug #86: Can't use for-in with ValueType (enum with enum payload)
-                            mut ctor_ct_idx := 0
-                            while ctor_ct_idx.lt(ctor_nested_func_def.throw_types.len()) {
-                                mut ctor_called_throw := ValueType.TCustom("")
-                                ctor_nested_func_def.throw_types.get(ctor_ct_idx, ctor_called_throw)
+                            for ctor_called_throw: ValueType in ctor_nested_func_def.throw_types {
                                 ctor_called_throw_str := value_type_to_str(ctor_called_throw)
                                 ctor_error_msg := format("Function throws '", ctor_called_throw_str, "', but it is not declared in this function's throws section.")
                                 mut ctor_te1 := ThrownType()
@@ -1386,7 +1377,6 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 ctor_te2.type_str = ctor_called_throw_str
                                 ctor_te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                                 thrown_types.push(ctor_te2)
-                                ctor_ct_idx.inc()
                             }
                             catch (err2: Str) {
                                 errors.push(ctor_arg.error(context.path, "type", format("Failed to resolve nested function call: ", err2)))
@@ -1401,11 +1391,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 switch ctor_named_value_expr.node_type {
                                 case NodeType.FCall:
                                     mut ctor_named_nested_func_def := get_func_def_for_fcall(context, ctor_named_value_expr)
-                                    // Bug #86: Can't use for-in with ValueType (enum with enum payload)
-                                    mut ctor_named_ct_idx := 0
-                                    while ctor_named_ct_idx.lt(ctor_named_nested_func_def.throw_types.len()) {
-                                        mut ctor_named_called_throw := ValueType.TCustom("")
-                                        ctor_named_nested_func_def.throw_types.get(ctor_named_ct_idx, ctor_named_called_throw)
+                                    for ctor_named_called_throw: ValueType in ctor_named_nested_func_def.throw_types {
                                         ctor_named_called_throw_str := value_type_to_str(ctor_named_called_throw)
                                         ctor_named_error_msg := format("Function throws '", ctor_named_called_throw_str, "', but it is not declared in this function's throws section.")
                                         mut ctor_named_te1 := ThrownType()
@@ -1416,7 +1402,6 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                         ctor_named_te2.type_str = ctor_named_called_throw_str
                                         ctor_named_te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                                         thrown_types.push(ctor_named_te2)
-                                        ctor_named_ct_idx.inc()
                                     }
                                     catch (err2: Str) {
                                         errors.push(ctor_named_value_expr.error(context.path, "type", format("Failed to resolve nested function call in named arg: ", err2)))
@@ -1642,10 +1627,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                         if not(is_constructor) {
                             mut decl_called_func_def := get_func_def_for_fcall(context, initializer)
-                            mut decl_ct_idx := 0
-                            while decl_ct_idx.lt(decl_called_func_def.throw_types.len()) {
-                                mut decl_called_throw := ValueType.TCustom("")
-                                decl_called_func_def.throw_types.get(decl_ct_idx, decl_called_throw)
+                            for decl_called_throw: ValueType in decl_called_func_def.throw_types {
                                 decl_called_throw_str := value_type_to_str(decl_called_throw)
                                 decl_error_msg := format("Function throws '", decl_called_throw_str, "', but it is not declared in this function's throws section.")
 
@@ -1657,7 +1639,6 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 decl_te2.type_str = decl_called_throw_str
                                 decl_te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                                 thrown_types.push(decl_te2)
-                                decl_ct_idx.inc()
                             }
 
                             mut decl_thrown_types := Vec.new(ThrownType)
@@ -1722,10 +1703,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
 
                         if not(assign_is_constructor) {
                             mut assign_called_func_def := get_func_def_for_fcall(context, assign_initializer)
-                            mut assign_ct_idx := 0
-                            while assign_ct_idx.lt(assign_called_func_def.throw_types.len()) {
-                                mut assign_called_throw := ValueType.TCustom("")
-                                assign_called_func_def.throw_types.get(assign_ct_idx, assign_called_throw)
+                            for assign_called_throw: ValueType in assign_called_func_def.throw_types {
                                 assign_called_throw_str := value_type_to_str(assign_called_throw)
                                 assign_error_msg := format("Function throws '", assign_called_throw_str, "', but it is not declared in this function's throws section.")
 
@@ -1737,7 +1715,6 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 assign_te2.type_str = assign_called_throw_str
                                 assign_te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
                                 thrown_types.push(assign_te2)
-                                assign_ct_idx.inc()
                             }
 
                             mut assign_thrown_types := Vec.new(ThrownType)
