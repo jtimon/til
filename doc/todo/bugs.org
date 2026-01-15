@@ -8,6 +8,145 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #114: ScopeStack lookup functions leak memory by copying entire ScopeFrame
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:IMPACT: Memory leak in self-hosted interpreter, grows with scope depth and lookup frequency
+:STATUS: Open - needs solution design
+:END:
+
+*** Description
+TIL's ScopeStack lookup functions (lookup_var, lookup_symbol, lookup_func, lookup_enum,
+lookup_struct, is_closure_capture, all_structs, etc.) copy entire ScopeFrame objects
+when iterating through frames:
+
+#+BEGIN_SRC til
+// Current pattern (leaks memory)
+for i in self.frames.len().sub(1)..sub(0, 1) {
+    mut frame := ScopeFrame()   // Allocates new ScopeFrame
+    self.frames.get(i, frame)   // Copies ALL fields including 5 Maps
+
+    if frame.arena_index.contains_key(name) {
+        // ...
+    }
+    // frame goes out of scope - Maps inside are NOT freed
+}
+#+END_SRC
+
+ScopeFrame contains 5 Maps (arena_index, symbols, funcs, enums, structs). Each copy
+duplicates the Map struct which holds pointers to heap-allocated Vec data. When the
+copied frame goes out of scope, those Map copies leak because TIL has no automatic
+destructor/drop mechanism.
+
+*** Why Rust Doesn't Have This Problem
+Rust iterates by reference, not by copy:
+#+BEGIN_SRC rust
+for frame in self.frames.iter().rev() {
+    if let Some(offset) = frame.arena_index.get(name) {
+        // frame is &ScopeFrame - no copy, no allocation
+    }
+}
+#+END_SRC
+
+*** Potential Solutions
+
+**** Option A: Return references from Vec.get (language change)
+Change Vec.get to return a reference/pointer instead of copying:
+#+BEGIN_SRC til
+// Hypothetical - would require language support for references
+for i in self.frames.len().sub(1)..sub(0, 1) {
+    frame := self.frames.get_ref(i)  // Returns reference, no copy
+    if frame.arena_index.contains_key(name) { ... }
+}
+#+END_SRC
+Pros: Matches Rust semantics, clean syntax
+Cons: Major language change, needs reference/borrow system
+
+**** Option B: Vec.get_ptr + manual offset calculation (branch approach)
+Use pointer arithmetic to access fields without copying entire struct:
+#+BEGIN_SRC til
+structs_offset := mul(size_of(Map), 4)
+mut scratch_map := Map.new(Str, SStructDef)
+for i in self.frames.len().sub(1)..sub(0, 1) {
+    frame_ptr := self.frames.get_ptr(i)
+    structs_ptr := add(frame_ptr, structs_offset)
+    memcpy(to_ptr(scratch_map), structs_ptr, size_of(Map))
+    if scratch_map.contains_key(name) { ... }
+}
+#+END_SRC
+Pros: Works now, fixes leak
+Cons: Fragile (hardcoded offsets), diverges from Rust significantly, error-prone
+
+**** Option C: Existence-check methods (has_struct, has_symbol, etc.)
+Add cheap existence-check methods that avoid full struct retrieval:
+#+BEGIN_SRC til
+// Instead of:
+_ := self.scope_stack.lookup_struct(name)  // Copies SStructDef
+catch { }
+
+// Use:
+if self.scope_stack.has_struct(name) { ... }  // Just checks existence
+#+END_SRC
+Pros: Simple, matches Rust .is_some() pattern, no language changes
+Cons: Only helps existence checks (~40 places), doesn't fix cases needing the value
+
+**** Option D: Explicit free/drop for complex types
+Add manual memory management:
+#+BEGIN_SRC til
+for i in self.frames.len().sub(1)..sub(0, 1) {
+    mut frame := ScopeFrame()
+    self.frames.get(i, frame)
+    // ... use frame ...
+    frame.free()  // Explicitly free copied Maps
+}
+#+END_SRC
+Pros: Explicit, controllable
+Cons: Error-prone, verbose, easy to forget
+
+**** Option E: For-in loop over Vec doesn't copy (compiler optimization)
+Make the compiler smart enough to not copy when iterating:
+#+BEGIN_SRC til
+for frame: ScopeFrame in self.frames.reverse() {
+    // frame is a reference, not a copy (compiler detects loop pattern)
+}
+#+END_SRC
+Pros: Clean syntax, no code changes needed
+Cons: Significant compiler work, may be complex to implement correctly
+
+**** Option F: ASAP destruction (Mojo-style automatic delete on last use)
+Compiler inserts destructor calls automatically when a value is last used:
+#+BEGIN_SRC til
+for i in self.frames.len().sub(1)..sub(0, 1) {
+    mut frame := ScopeFrame()
+    self.frames.get(i, frame)
+    if frame.arena_index.contains_key(name) {
+        // ...
+    }
+    // Compiler detects frame's last use and inserts: frame.__del__()
+}
+#+END_SRC
+Pros: Automatic, no manual memory management, matches Mojo semantics
+Cons: Requires:
+  - Destructor support (__del__ methods on types with heap data)
+  - Liveness analysis in compiler to detect last use
+  - Careful handling of control flow (returns, throws, branches)
+  - May interact poorly with references if added later
+
+This is how Mojo handles memory: values are destroyed as soon as they're last used,
+not at end of scope. This enables deterministic destruction without garbage collection.
+
+*** Recommended Approach
+Start with Option C (has_* methods) as immediate mitigation - it's simple, matches Rust,
+and fixes ~40 call sites. For long-term, evaluate:
+- Option F (ASAP destruction) - most automatic, Mojo-proven approach
+- Option A (references) - matches Rust semantics closely
+- Option E (smart for-in) - transparent optimization
+
+*** Related Work
+- Branch ~claude/detect-ccodegen-translation-diffs-A08OT~ attempted Option B
+- That branch was not merged due to Rust/TIL divergence concerns
+- ~has_struct~ method was prototyped on that branch
+
 ** Bug #113: Self-hosted interpreter fails with "symbol 'msg' not found"
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
