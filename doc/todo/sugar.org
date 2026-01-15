@@ -1,0 +1,63 @@
+#+TITLE: Syntactic Sugar and Convenience Functions
+#+AUTHOR: TIL Development
+#+DATE: 2026-01-15
+# BOT: Issues here use same numbering as bugs.org (from doc/todo/next_issue_num.txt)
+# BOT: add them at the top of open issues, when implemented, move them to the top of implemented issues
+
+* Overview
+
+This document tracks syntactic sugar and convenience functions that make TIL more
+ergonomic to use. These are not bug fixes or fundamental language changes, but
+quality-of-life improvements that reduce boilerplate and make common patterns easier.
+
+* Open Issues
+
+** Issue #120: Add Str.ends_with() and Str.starts_with()
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:IMPACT: Common string operations, needed for file filtering and pattern matching
+:STATUS: Open
+:END:
+
+*** Description
+Add convenience methods to check if a string starts or ends with a given substring.
+These are fundamental string operations found in virtually every language.
+
+*** Proposed API
+#+BEGIN_SRC til
+// In src/core/str.til
+Str := struct {
+    // ... existing methods ...
+
+    /** Check if string ends with suffix */
+    ends_with := func(self: Str, suffix: Str) returns Bool {
+        if suffix.len().gt(self.len()) {
+            return false
+        }
+        start := self.len().sub(suffix.len())
+        return self.get_substr(start, self.len()).eq(suffix)
+    }
+
+    /** Check if string starts with prefix */
+    starts_with := func(self: Str, prefix: Str) returns Bool {
+        if prefix.len().gt(self.len()) {
+            return false
+        }
+        return self.get_substr(0, prefix.len()).eq(prefix)
+    }
+}
+#+END_SRC
+
+*** Use cases
+- File extension filtering: ~filename.ends_with(".til")~
+- Path checking: ~path.starts_with("/home/")~
+- Protocol detection: ~url.starts_with("https://")~
+- Suffix stripping: ~if name.ends_with("Error") { ... }~
+
+*** Implementation notes
+- Pure TIL implementation using existing get_substr() and eq()
+- No new ext_func needed
+- Consider adding to both Rust interpreter and self-hosted compiler
+
+* Implemented Issues
+
