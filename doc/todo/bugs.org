@@ -8,6 +8,45 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #118: Unreachable code error message should clarify catch blocks are statements
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:IMPACT: Developer confusion, especially for LLMs and those from try/catch languages
+:STATUS: Open
+:END:
+
+*** Description
+The unreachable code error message doesn't clarify that catch blocks are also subject
+to this rule. Developers (and LLMs) coming from languages with try/catch syntax often
+place catch blocks after return statements, expecting them to work like Java/Python/C++
+where catch is syntactically bound to try and doesn't need to be "reached".
+
+In TIL, catch is a statement like any other - it must be reachable in normal control
+flow. It catches errors from statements above it, but only if execution can reach
+the catch line itself.
+
+*** Example of the confusion
+#+BEGIN_SRC til
+// WRONG - catch is unreachable (common mistake)
+clone := func(self: Array) returns Array {
+    cloned.ptr = malloc(total_bytes)
+    return cloned
+    catch (err: BadAlloc) { panic(...) }  // Dead code!
+}
+
+// CORRECT - catch before return
+clone := func(self: Array) returns Array {
+    cloned.ptr = malloc(total_bytes)
+    catch (err: BadAlloc) { panic(...) }  // Reachable
+    return cloned
+}
+#+END_SRC
+
+*** Proposed fix
+Add clarification to the unreachable code error message, something like:
+"unreachable code after return/throw. Note: this includes catch blocks - in TIL,
+catch is a statement that must be reachable, not a construct bound to try."
+
 ** Bug #114: ScopeStack lookup functions leak memory by copying entire ScopeFrame
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
