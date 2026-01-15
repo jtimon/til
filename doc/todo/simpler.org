@@ -1,0 +1,71 @@
+#+TITLE: Simplifications and Optimizations
+#+AUTHOR: TIL Development
+#+DATE: 2026-01-15
+# BOT: Issues here use same numbering as bugs.org (from doc/todo/next_issue_num.txt)
+# BOT: add them at the top of open issues, when implemented, move them to the top of implemented issues
+
+* Overview
+
+This document tracks simplifications and optimizations that improve code quality,
+reduce generated code size, or improve performance. Unlike bugs.org (problems to fix)
+or future.org (language design decisions), these are improvements to existing working code.
+
+* Open Issues
+
+** Issue #119: Skip empty struct error parameters in C codegen
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:IMPACT: Smaller generated C code, simpler function signatures
+:STATUS: Open
+:END:
+
+*** Description
+When a throws clause uses an empty struct (like BadAlloc), the C codegen currently
+passes a pointer to the error struct as a parameter. But for empty structs, this
+parameter is never used - neither by the thrower (nothing to set) nor by the catcher
+(nothing to read).
+
+The only thing that matters is the return status code, which indicates which error
+was thrown (0 = success, 1 = first throws type, 2 = second throws type, etc.).
+
+*** Current behavior
+#+BEGIN_SRC c
+// Generated C for: malloc := ext_func(size: I64) returns I64 throws BadAlloc {}
+static inline int til_malloc(til_I64* _ret, til_BadAlloc* _err, const til_I64* size) {
+    void* ptr = malloc((size_t)*size);
+    if (ptr == NULL && *size > 0) {
+        (void)_err;  // BadAlloc has no fields - parameter unused!
+        return 1;
+    }
+    *_ret = (til_I64)ptr;
+    return 0;
+}
+#+END_SRC
+
+*** Proposed behavior
+#+BEGIN_SRC c
+// For empty struct errors, don't pass the error parameter at all
+static inline int til_malloc(til_I64* _ret, const til_I64* size) {
+    void* ptr = malloc((size_t)*size);
+    if (ptr == NULL && *size > 0) {
+        return 1;  // Just return status, no struct to populate
+    }
+    *_ret = (til_I64)ptr;
+    return 0;
+}
+#+END_SRC
+
+*** Implementation notes
+- Check if error struct has zero fields when generating function signature
+- Skip the error parameter in both declaration and call sites
+- Return status is still used to determine which error was thrown
+- Catchers just need to know the error type, not receive any data
+
+*** Benefits
+- Smaller generated C code
+- Cleaner function signatures
+- Fewer pointer parameters to pass around
+- Encourages use of simple error types (just a marker, not a message carrier)
+
+* Implemented Issues
+
