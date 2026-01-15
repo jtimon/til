@@ -10,39 +10,43 @@ KeyNotFoundError := struct {
     mut msg: Str = ""
 }
 
-// Result of binary search: found flag and index
-BinarySearchResult := struct {
+// Result of hash lookup: found flag and index
+HashLookupResult := struct {
     mut found: Bool = false
     mut index: I64 = 0
 }
 
+// Map constants (module-level to avoid struct initialization issues)
+MAP_INITIAL_BUCKETS : I64 = 16
+MAP_LOAD_FACTOR_THRESHOLD : I64 = 75  // percent (75 = 0.75)
+
 /**
- * Generic Map implementation - sorted by key, O(log n) lookup via binary search.
- * Uses parallel arrays for keys and values (keys kept sorted).
+ * Generic Map implementation - O(1) average lookup via hash table with separate chaining.
+ * Uses parallel arrays for keys and values, with bucket chains for hash collision handling.
  * Type parameters passed as strings (key_type_name, value_type_name).
  * No generics syntax needed - uses dynamic typing like Array.
  *
  * Key type support:
- *   - Str: Fully supported (uses Str.cmp() for ordering)
- *   - I64, U8, Bool: Fully supported (uses memcmp for byte comparison)
+ *   - Str: Fully supported (uses Str.hash() for hashing, Str.eq() for comparison)
+ *   - I64, U8, Bool: Supported (uses byte-based hash and memcmp for comparison)
  *   - Other primitives: Should work with memcmp
  *   - Structs: NOT recommended as keys (memcmp compares raw bytes including padding)
  *
  * Value type support:
  *   - Fully dynamic: Any type works (I64, Str, Bool, U8, Vec2, Array, etc.)
  *   - Uses memcpy for storage and retrieval
- *
- * Note: This implementation maintains sorted order, not insertion order.
- * For iteration in insertion order, use a different data structure.
  */
 Map := struct {
     mut key_type_name: Str = ""       // e.g., "Str", "I64"
     mut key_type_size: I64 = 0        // from size_of(KeyType)
     mut value_type_name: Str = ""     // e.g., "Str", "Bool", "Expr"
     mut value_type_size: I64 = 0      // from size_of(ValueType)
-    mut keys: Vec = Vec()         // Dynamic array of keys (sorted)
-    mut values: Vec = Vec()       // Dynamic array of values (parallel)
+    mut keys: Vec = Vec()             // Dynamic array of keys
+    mut values: Vec = Vec()           // Dynamic array of values (parallel to keys)
+    mut buckets: Vec = Vec()          // Hash buckets: each entry is head index of chain (-1 = empty)
+    mut nexts: Vec = Vec()            // Chain links: nexts[i] is next index after i (-1 = end)
     mut _size: I64 = 0                // Number of entries (internal, use len() to access)
+    mut num_buckets: I64 = 0          // Current number of buckets
 
     /** Create new empty map with specified key and value types.
      *  Example: Map.new(Str, I64) */
@@ -52,80 +56,102 @@ Map := struct {
         m.key_type_size = size_of(KeyType)
         m.value_type_name = type_as_str(ValueType)
         m.value_type_size = size_of(ValueType)
-        // Can't pass Dynamic params to Vec.new(), so use type info directly
         m.keys = Vec.new_from_type_info(m.key_type_name, m.key_type_size)
         m.values = Vec.new_from_type_info(m.value_type_name, m.value_type_size)
+        m.buckets = Vec.new(I64)
+        m.nexts = Vec.new(I64)
         m._size = 0
+        m.num_buckets = MAP_INITIAL_BUCKETS
+        // Initialize all buckets to -1 (empty)
+        for _ in 0..m.num_buckets {
+            m.buckets.push(sub(0, 1))
+        }
+
+        catch (err: AllocError) {
+            panic(loc(), "Map.new: unexpected AllocError: ", err.msg)
+        }
+
         return m
     }
 
-    /** Compare two keys. Returns -1 if a < b, 0 if a == b, 1 if a > b.
-     *  For Str keys, uses lexicographic comparison via Str.cmp().
-     *  For other types, uses memcmp on raw bytes. */
-    compare_keys := func(self: Map, key_a_ptr: I64, key_b_ptr: I64) returns I64 {
+    /** Check if two keys are equal.
+     *  For Str keys, uses Str.eq().
+     *  For other types, uses memcmp. */
+    keys_equal := func(self: Map, key_a_ptr: I64, key_b_ptr: I64) returns Bool {
         if Str.eq(self.key_type_name, "Str") {
-            // For Str keys, use Str.cmp() for proper lexicographic ordering
             mut a := ""
             mut b := ""
             memcpy(to_ptr(a), key_a_ptr, self.key_type_size)
             memcpy(to_ptr(b), key_b_ptr, self.key_type_size)
-            return a.cmp(b)
+            return a.eq(b)
         } else {
-            // For other types, use memcmp
-            result := memcmp(key_a_ptr, key_b_ptr, self.key_type_size)
-            if lt(result, 0) {
-                return sub(0, 1)
-            } else if gt(result, 0) {
-                return 1
-            } else {
-                return 0
-            }
+            return memcmp(key_a_ptr, key_b_ptr, self.key_type_size).eq(0)
         }
     }
 
-    /** Binary search for key. Returns BinarySearchResult with found flag and index.
-     *  If found: index is where the key is.
-     *  If not found: index is where the key should be inserted. */
-    binary_search := func(self: Map, key: Dynamic) returns BinarySearchResult {
-        mut result := BinarySearchResult()
-
-        if self._size.eq(0) {
-            result.found = false
-            result.index = 0
-            return result
+    /** Hash a key and return bucket index.
+     *  For Str keys, uses Str.hash().
+     *  For other types, uses FNV-1a on raw bytes. */
+    hash_key := func(self: Map, key: Dynamic) returns I64 {
+        mut h : I64 = 0
+        if Str.eq(self.key_type_name, "Str") {
+            mut k := ""
+            memcpy(to_ptr(k), to_ptr(key), self.key_type_size)
+            h = k.hash()
+        } else {
+            // FNV-1a hash on raw bytes
+            FNV_OFFSET_BASIS : I64 = sub(0, 3750763034362895579)
+            FNV_PRIME : I64 = 1099511628211
+            h = FNV_OFFSET_BASIS
+            for i in 0..self.key_type_size {
+                mut byte_val : U8 = 0
+                memcpy(to_ptr(byte_val), add(to_ptr(key), i), 1)
+                h = I64_xor(h, U8.to_i64(byte_val))
+                h = mul(h, FNV_PRIME)
+            }
         }
+        // Make positive and get bucket index
+        if lt(h, 0) {
+            h = sub(0, h)
+        }
+        return mod(h, self.num_buckets)
+    }
 
-        mut low := 0
-        mut high := sub(self._size, 1)
-        mut keys_arr := self.keys
+    /** Hash lookup for key. Returns HashLookupResult with found flag and index.
+     *  If found: index is the position in keys/values arrays.
+     *  If not found: index is -1. */
+    hash_lookup := proc(self: Map, key: Dynamic) returns HashLookupResult {
+        mut result := HashLookupResult()
+        result.found = false
+        result.index = sub(0, 1)
 
-        while low.lteq(high) {
-            mut mid := add(low, div(sub(high, low), 2))
-            mut mid_key_ptr := add(keys_arr.ptr, mul(mid, self.key_type_size))
-            cmp := self.compare_keys(to_ptr(key), mid_key_ptr)
+        if self._size.gt(0) {
+            bucket_idx := self.hash_key(key)
+            mut idx : I64 = 0
+            self.buckets.get(bucket_idx, idx)
 
-            if cmp.eq(0) {
-                // Found exact match
-                result.found = true
-                result.index = mid
-                return result
-            } else if lt(cmp, 0) {
-                // key < mid_key, search left half
-                if mid.eq(0) {
-                    result.found = false
-                    result.index = 0
-                    return result
+            // Walk the chain
+            while idx.gteq(0) {
+                key_ptr := add(self.keys.ptr, mul(idx, self.key_type_size))
+                if self.keys_equal(to_ptr(key), key_ptr) {
+                    result.found = true
+                    result.index = idx
                 }
-                high = sub(mid, 1)
-            } else {
-                // key > mid_key, search right half
-                low = add(mid, 1)
+                if not(result.found) {
+                    // Move to next in chain
+                    mut next_idx : I64 = 0
+                    self.nexts.get(idx, next_idx)
+                    idx = next_idx
+                } else {
+                    idx = sub(0, 1)  // Exit loop
+                }
             }
         }
 
-        // Not found, return insertion point
-        result.found = false
-        result.index = low
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "Map.hash_lookup: unexpected IndexOutOfBoundsError: ", err.msg)
+        }
+
         return result
     }
 
@@ -133,15 +159,24 @@ Map := struct {
      *  Throws DuplicatedKeyError if key already exists.
      *  Use set() instead if you want to overwrite existing keys. */
     insert := proc(mut self: Map, key: Dynamic, value: Dynamic) throws AllocError, DuplicatedKeyError {
-        search := self.binary_search(key)
+        search := self.hash_lookup(key)
 
         if search.found {
             throw DuplicatedKeyError(msg=format(loc(), "Key already exists in map"))
         }
 
-        // Insert at sorted position
-        self.keys.insert_at(search.index, key)
-        self.values.insert_at(search.index, value)
+        // Append key and value
+        new_idx := self._size
+        self.keys.push(key)
+        self.values.push(value)
+
+        // Link into bucket chain (prepend to chain)
+        bucket_idx := self.hash_key(key)
+        mut old_head : I64 = 0
+        self.buckets.get(bucket_idx, old_head)
+        self.nexts.push(old_head)
+        self.buckets.set(bucket_idx, new_idx)
+
         self._size = add(self._size, 1)
 
         catch (err: IndexOutOfBoundsError) {
@@ -153,16 +188,24 @@ Map := struct {
      *  Overwrites value if key already exists.
      *  Creates new entry if key doesn't exist. */
     set := proc(mut self: Map, key: Dynamic, value: Dynamic) throws AllocError {
-        search := self.binary_search(key)
+        search := self.hash_lookup(key)
 
         if search.found {
             // Key found - update value in place
             mut value_ptr := add(self.values.ptr, mul(search.index, self.value_type_size))
             memcpy(value_ptr, to_ptr(value), self.value_type_size)
         } else {
-            // Key not found - insert at sorted position
-            self.keys.insert_at(search.index, key)
-            self.values.insert_at(search.index, value)
+            // Key not found - append and link into bucket chain
+            new_idx := self._size
+            self.keys.push(key)
+            self.values.push(value)
+
+            bucket_idx := self.hash_key(key)
+            mut old_head : I64 = 0
+            self.buckets.get(bucket_idx, old_head)
+            self.nexts.push(old_head)
+            self.buckets.set(bucket_idx, new_idx)
+
             self._size = add(self._size, 1)
         }
 
@@ -175,7 +218,7 @@ Map := struct {
      *  Copies value into dest parameter.
      *  Throws KeyNotFoundError if key doesn't exist. */
     get := proc(self: Map, key: Dynamic, mut dest: Dynamic) throws KeyNotFoundError {
-        search := self.binary_search(key)
+        search := self.hash_lookup(key)
 
         if search.found {
             mut value_ptr := add(self.values.ptr, mul(search.index, self.value_type_size))
@@ -188,19 +231,43 @@ Map := struct {
 
     /** Check if key exists in map. */
     contains_key := proc(self: Map, key: Dynamic) returns Bool {
-        search := self.binary_search(key)
+        search := self.hash_lookup(key)
         return search.found
     }
 
-    /** Remove key from map. Does nothing if key doesn't exist. */
+    /** Remove key from map. Does nothing if key doesn't exist.
+     *  Note: Uses lazy deletion - marks entry as removed but doesn't reclaim space. */
     remove := proc(mut self: Map, key: Dynamic) {
-        search := self.binary_search(key)
+        if self._size.eq(0) {
+            return
+        }
 
-        if search.found {
-            // Remove by shifting elements
-            self.keys.remove(search.index)
-            self.values.remove(search.index)
-            self._size = sub(self._size, 1)
+        bucket_idx := self.hash_key(key)
+        mut prev_idx : I64 = sub(0, 1)
+        mut idx : I64 = 0
+        self.buckets.get(bucket_idx, idx)
+
+        // Walk the chain to find the key
+        while idx.gteq(0) {
+            key_ptr := add(self.keys.ptr, mul(idx, self.key_type_size))
+            if self.keys_equal(to_ptr(key), key_ptr) {
+                // Found it - unlink from chain
+                mut next_idx : I64 = 0
+                self.nexts.get(idx, next_idx)
+
+                if prev_idx.lt(0) {
+                    // Removing head of chain
+                    self.buckets.set(bucket_idx, next_idx)
+                } else {
+                    // Removing from middle/end of chain
+                    self.nexts.set(prev_idx, next_idx)
+                }
+
+                self._size = sub(self._size, 1)
+                return
+            }
+            prev_idx = idx
+            self.nexts.get(idx, idx)
         }
 
         catch (err: IndexOutOfBoundsError) {
@@ -208,11 +275,11 @@ Map := struct {
         }
     }
 
-    /** Get position (index) of key in sorted order.
+    /** Get position (index) of key in internal storage.
      *  Returns -1 if key not found.
-     *  Note: This returns the sorted position, not insertion order. */
+     *  Note: With hash table, this returns internal storage index. */
     position := proc(self: Map, key: Dynamic) returns I64 {
-        search := self.binary_search(key)
+        search := self.hash_lookup(key)
         if search.found {
             return search.index
         }
@@ -234,6 +301,15 @@ Map := struct {
         self._size = 0
         self.keys._len = 0
         self.values._len = 0
+        self.nexts._len = 0
+        // Reset all buckets to -1 (empty)
+        for i in 0..self.num_buckets {
+            self.buckets.set(i, sub(0, 1))
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "Map.clear: unexpected IndexOutOfBoundsError: ", err.msg)
+        }
     }
 
     /** Get total size in bytes (keys + values). */
@@ -251,7 +327,14 @@ Map := struct {
         mut values_arr := self.values
         values_arr.delete()
 
+        mut buckets_arr := self.buckets
+        buckets_arr.delete()
+
+        mut nexts_arr := self.nexts
+        nexts_arr.delete()
+
         self._size = 0
+        self.num_buckets = 0
     }
 
     // Bug #36 fix: Now we can inline throwing functions in struct literal params
@@ -263,7 +346,10 @@ Map := struct {
             value_type_size=self.value_type_size,
             keys=self.keys.clone(),
             values=self.values.clone(),
-            _size=self._size
+            buckets=self.buckets.clone(),
+            nexts=self.nexts.clone(),
+            _size=self._size,
+            num_buckets=self.num_buckets
         )
     }
 }
