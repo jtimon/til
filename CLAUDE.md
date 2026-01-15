@@ -41,6 +41,7 @@ Why: When something fails, you need to see the FULL output. Filtering hides crit
 When the user gives you instructions, OBEY THEM. Do exactly what they say. If they give steps in order, follow that order. If they tell you to do something first, do it first. Do not reinterpret, do not decide you know better, do not skip ahead. Just obey. This should be obvious but apparently needs to be stated explicitly.
 
 ## Various things
+- **NEVER** Change a `func` to a `proc` without the compiler asking you - that won't fix anything since it's just a keyword for the type checker and precomp
 - **NEVER** Ignore warnings from either rustc, rstil, til or gcc, always ask the user what to do about them
 - **NEVER** Use weird unicode symbols anywhere, stay ASCII
 - **NEVER** Use cat, use read, write or echo instead
