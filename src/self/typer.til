@@ -2818,10 +2818,8 @@ is_expr_calling_procs := func(context: Context, e: Expr) returns Bool throws Str
 
     case NodeType.StructDef(struct_def):
         // Check if any default values call procs
-        for j in 0..struct_def.default_values._size {
+        for key: Str in struct_def.default_values.keys {
             mut default_expr := Expr()
-            mut key := ""
-            struct_def.default_values.keys.get(j, key)
             struct_def.default_values.get(key, default_expr)
             if is_expr_calling_procs(context, default_expr) {
                 return true
@@ -2973,10 +2971,6 @@ is_expr_calling_procs := func(context: Context, e: Expr) returns Bool throws Str
     case:
         // Unknown node type - assume it might call procs to be safe
         return false
-    }
-
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
     }
 
     return false

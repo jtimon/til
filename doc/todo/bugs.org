@@ -1882,6 +1882,57 @@ main := proc(args: ..Str) {
 
 * Fixed Bugs
 
+** Bug #115: Map iteration using wrong pattern (len() instead of direct iteration)
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:FIXED: 2026-01-15
+:IMPACT: Potential data corruption with Map lazy deletion; deviation from rs2til.org rules
+:STATUS: Fixed
+:END:
+
+*** Description
+Several places in interpreter.til and typer.til used index-based Map iteration with
+~map.len()~ instead of direct iteration over ~map.keys~ as specified in rs2til.org.
+This pattern would fail with lazy deletion where ~_size < keys._len~.
+
+*** Root Cause
+The Rust code uses ~for (k, v) in &map~ which iterates all keys. The correct TIL
+translation per rs2til.org is ~for k: Str in map.keys~, but several places used:
+
+#+BEGIN_SRC til
+// WRONG: Uses map.len() which returns _size
+for i in 0..map.len() {
+    map.keys.get(i, key)
+    ...
+}
+#+END_SRC
+
+*** Fix
+Changed all occurrences to use direct iteration per rs2til.org:
+
+#+BEGIN_SRC til
+// CORRECT: Direct iteration over keys Vec
+for key: Str in map.keys {
+    mut val := ...
+    map.get(key, val)
+    ...
+}
+#+END_SRC
+
+*** Files Modified
+- src/self/interpreter.til:
+  - Line ~161: nested_values iteration in read_struct_primitive_fields
+  - Line ~251: nested map iteration in eval_struct_defaults
+  - Line ~264: primitive_values iteration in eval_struct_defaults
+  - Lines ~2011, ~2044, ~2391: catch handler iterations (keys._len pattern)
+- src/self/typer.til:
+  - Line ~2821: default_values iteration in is_expr_calling_procs
+
+*** Notes
+- The keys._len pattern at lines 2011, 2044, 2391 is kept for future HashMap support
+- Removed now-unnecessary IndexOutOfBoundsError catch blocks
+- No performance impact (within noise margin)
+
 ** Bug #86: For-in loop fails with enum that has enum payload
 :PROPERTIES:
 :DISCOVERED: 2026-01-06
