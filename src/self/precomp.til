@@ -478,8 +478,13 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         if func_def.return_types.len().eq(0) {
             return false
         }
-        // Functions that can throw are allowed - if they actually throw,
-        // we'll report the error in eval_comptime.
+        // Bug #89 fix: Functions that can throw should NOT be constant-folded.
+        // If we constant-fold a throwing function, the throw becomes a compile-time error
+        // that cannot be caught by user code. By deferring to runtime, the throw can be
+        // caught by catch blocks in the user's code.
+        if func_def.throw_types.len().gt(0) {
+            return false
+        }
         // All arguments must be comptime-evaluable
         mut fcall_i := 1
         while fcall_i.lt(e.params.len()) {

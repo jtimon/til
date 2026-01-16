@@ -350,8 +350,13 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
             if func_def.return_types.is_empty() {
                 return false;
             }
-            // Functions that can throw are allowed - if they actually throw,
-            // we'll report the error in eval_comptime.
+            // Bug #89 fix: Functions that can throw should NOT be constant-folded.
+            // If we constant-fold a throwing function, the throw becomes a compile-time error
+            // that cannot be caught by user code. By deferring to runtime, the throw can be
+            // caught by catch blocks in the user's code.
+            if !func_def.throw_types.is_empty() {
+                return false;
+            }
             // All arguments must be comptime-evaluable
             for i in 1..e.params.len() {
                 if !is_comptime_evaluable(context, &e.params[i]) {
