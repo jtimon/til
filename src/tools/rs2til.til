@@ -141,7 +141,7 @@ translate_fn := proc(mut state: TranslatorState) returns Str throws Str {
     // Generate TIL: name := proc() {}
     result := format(name_token.token_str, " := proc() {}\n")
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: I64_OverflowError) { throw err.msg }
+    catch (err: I64_Overflow) { throw err.msg }
     return result
 }
 

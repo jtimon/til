@@ -28,27 +28,46 @@ MIN_I64   := sub(0, 922337203)
 MAX_I64   := 9223372036854775807 // REM This is a lie, see bellow.
 // MIN_I64   := sub(0, 9223372036854775808) // FIX Invalid number literal '9223372036854775808': number too large to fit in target t
 
-I64_OverflowError := struct {
+/** Error thrown by safe_add when overflow occurs. */
+I64_Overflow := struct {
     mut msg: Str = ""
 }
 
 /** Error thrown by safe_div() when dividing by zero. */
 DivideByZero := struct {}
 
-/** Division that throws DivideByZero when dividing by zero.
- *  Use div() if you want silent behavior (returns 0). */
-safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
-    if I64.eq(b, 0) {
-        throw DivideByZero()
-    }
-    return div(a, b)
-}
-
 /** I64 - Signed 64-bit integer type. */
 // Note that I64 and U8 don't have fields because they're the "real core types"
 // think of them as "half-external types" for now
 I64 := struct {
     // mut data : Array = Array.new("U8", size_of(U8), 8) // TODO Use [8]U8 for this one
+
+    /** Division that throws DivideByZero when dividing by zero.
+     *  Use div() if you want silent behavior (returns 0). */
+    safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
+        if I64.eq(b, 0) {
+            throw DivideByZero()
+        }
+        return div(a, b)
+    }
+
+    /** Addition that throws I64_Overflow when overflow occurs.
+     *  Use add() if you want silent wrapping behavior. */
+    safe_add := func(a: I64, b: I64) returns I64 throws I64_Overflow {
+        result := add(a, b)
+        // Overflow detection: adding positive gave smaller, or adding negative gave larger
+        if gt(b, 0) {
+            if lt(result, a) {
+                throw I64_Overflow(msg=format(loc(), "I64 overflow: ", a.to_str(), " + ", b.to_str()))
+            }
+        }
+        if lt(b, 0) {
+            if gt(result, a) {
+                throw I64_Overflow(msg=format(loc(), "I64 overflow: ", a.to_str(), " + ", b.to_str()))
+            }
+        }
+        return result
+    }
 
     eq := func(a: I64, b: I64) returns Bool {
         // REM We can't use the variadic or from here without mutual recusrion and a stack overflow

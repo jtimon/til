@@ -38,7 +38,7 @@ test_catch_with_fields()
 // DivideByZero and safe_div are now in core/i64.til
 
 unsafe_div := proc(a: I64, b: I64) returns I64 {
-    result := safe_div(a, b)
+    result := a.safe_div(b)
 
     catch (err: DivideByZero) {
         return 0
@@ -55,7 +55,7 @@ test_unsafe_div := proc() {
 test_unsafe_div()
 
 unsafe_div2 := proc(a: I64, b: I64) returns I64 {
-    res := safe_div(a, b)
+    res := a.safe_div(b)
     assertm(loc(), false, "DivideByZero should have been thrown")
     catch (err: DivideByZero) {
         return 0
@@ -74,7 +74,7 @@ test_unsafe_div2()
 // REM Remove 'throws DivideByZero' to trigger a static type error
 missing_throws := proc() throws DivideByZero {
     mut zero := 0 // REM mut so precomp doesn't catch the error at compile time
-    _ := safe_div(42, zero)
+    _ := I64.safe_div(42, zero)
 }
 // missing_throws() // REM Gives an error if uncommented
 
@@ -87,7 +87,7 @@ test_example_catch := proc() {
     mut catched := false
 
     // Test that division works when b is non-zero
-    mut result1 := safe_div(a, b)
+    mut result1 := a.safe_div(b)
     assert_eq(loc(), 42, result1)
 
     b = 0
@@ -99,7 +99,7 @@ test_example_catch := proc() {
     }
     assert(loc(), catched)
 
-    // safe_div(a, b) // REM this one is not catched nor example_catch throws anything, should give error
+    // a.safe_div(b) // REM this one is not catched nor example_catch throws anything, should give error
 }
 test_example_catch()
 
