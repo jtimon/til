@@ -425,6 +425,17 @@ fn compute_reachable(
         }
     }
 
+    // Issue #117: Mark delete methods as reachable for all used types
+    // This ensures auto-generated delete() calls have their methods included
+    for type_name in &used_types {
+        let delete_method = format!("{}.delete", type_name);
+        if context.scope_stack.lookup_func(&delete_method).is_some() {
+            if !reachable.contains(&delete_method) {
+                reachable.insert(delete_method);
+            }
+        }
+    }
+
     Ok(ComputeReachableResult { reachable, used_types, needs_variadic_support })
 }
 

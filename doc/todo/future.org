@@ -159,7 +159,7 @@ RegexMatch := struct {
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Fixes memory leaks automatically, Mojo-style memory management
-:STATUS: Open
+:STATUS: Partial (infrastructure only, disabled until Issue #116)
 :DEPENDS: Issue #116 (Str len/cap), Bug #101 (unused warnings - shared infrastructure)
 :RELATED: Bug #114 (memory leak documentation)
 :END:
@@ -168,9 +168,27 @@ RegexMatch := struct {
 Implement Mojo-style automatic destructor calls on last use. When a variable with
 heap data is last used, the compiler automatically inserts a ~delete()~ call.
 
+*** Partial Implementation (2026-01-16)
+Infrastructure added but auto-delete is disabled until Issue #116 (ownership tracking)
+is implemented. Without ownership tracking, we can't determine which variables own
+their memory vs which are copies/borrows, leading to double-free errors.
+
+Completed:
+- VarLifetime struct for tracking deletable variables (ccodegen.rs)
+- type_has_delete() helper to check if type has delete method (ccodegen.rs)
+- track_deletable_var() to register variables for cleanup (ccodegen.rs, disabled)
+- emit_auto_delete_cleanup() to emit delete calls at function end (ccodegen.rs, disabled)
+- Scavenger updated to include delete() methods for all used types (scavenger.rs, scavenger.til)
+- var_lifetimes saved/restored for nested functions (ccodegen.rs)
+
+To enable auto-delete (after Issue #116):
+1. Implement ownership tracking (is_own flag) in Issue #116
+2. Uncomment the track_deletable_var call in emit_declaration (ccodegen.rs:5094-5097)
+3. Port changes to ccodegen.til
+
 *** Prerequisites
 - Issue #116: Str needs len/cap refactor for ownership tracking
-- Bug #101: Unused variable warnings use similar liveness analysis
+- Bug #101: Unused variable warnings use similar liveness analysis (FIXED)
 
 *** Types with delete()
 Already implemented: Vec, Array, Set, Map, List, Ptr

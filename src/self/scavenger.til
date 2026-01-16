@@ -572,6 +572,21 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
         }
     }
 
+    // Issue #117: Mark delete methods as reachable for all used types
+    // This ensures auto-generated delete() calls have their methods included
+    for type_name: Str in used_types {
+        delete_method_name := format(type_name, ".delete")
+        mut found_delete := false
+        _ := context.scope_stack.lookup_func(delete_method_name)
+        found_delete = true
+        catch (err: KeyNotFoundError) { }
+        if found_delete {
+            if not(reachable.contains(delete_method_name)) {
+                _ := reachable.insert(delete_method_name)
+            }
+        }
+    }
+
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     return ComputeReachableResult(reachable=reachable, used_types=used_types, needs_variadic_support=needs_variadic_support)
 }

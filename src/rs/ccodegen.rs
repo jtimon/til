@@ -9,6 +9,17 @@ use std::collections::{HashMap, HashSet};
 // Prefix for all TIL-generated names in C code (structs, functions, types)
 const TIL_PREFIX: &str = "til_";
 
+// Issue #117: Track variable lifetime for ASAP destruction
+#[derive(Clone, Debug)]
+#[allow(dead_code)]  // last_use_stmt_idx is for future ASAP deletion within functions
+struct VarLifetime {
+    name: String,
+    value_type: ValueType,
+    has_delete: bool,
+    last_use_stmt_idx: Option<usize>,  // For future: intra-function ASAP deletion
+    is_deleted: bool,
+}
+
 // Codegen context for tracking function info
 struct CodegenContext {
     // Counter for generating unique temp variable names (deterministic per-compilation)
@@ -45,6 +56,9 @@ struct CodegenContext {
     // Map of hoisted struct default expressions ("struct_name:member_name" -> temp var name)
     // Used to track which struct literal defaults were hoisted as temp vars
     hoisted_struct_defaults: HashMap<String, String>,
+    // Issue #117: Track variable lifetimes for ASAP destruction
+    // Map variable name -> lifetime info
+    var_lifetimes: HashMap<String, VarLifetime>,
 }
 
 impl CodegenContext {
@@ -65,6 +79,7 @@ impl CodegenContext {
             hoisted_prototypes: Vec::new(),
             nested_func_names: HashMap::new(),
             hoisted_struct_defaults: HashMap::new(),
+            var_lifetimes: HashMap::new(),
         }
     }
 }
@@ -79,6 +94,71 @@ fn next_mangled(ctx: &mut CodegenContext) -> String {
         format!("_tmp_{}_{}", func_name, n)
     } else {
         format!("_tmp_{}", n)
+    }
+}
+
+// Issue #117: Check if a type has a delete() method
+// Returns true if Type.delete exists and takes (mut self: Type)
+#[allow(dead_code)]  // Used when auto-delete is enabled (requires Issue #116)
+fn type_has_delete(type_name: &str, context: &Context) -> bool {
+    let delete_method = format!("{}.delete", type_name);
+    if let Some(func_def) = context.scope_stack.lookup_func(&delete_method) {
+        // Verify signature: delete takes mut self: Type (1 arg)
+        if func_def.args.len() == 1 {
+            if let Some(first_arg) = func_def.args.first() {
+                if first_arg.is_mut {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+// Issue #117: Get the type name from a ValueType for delete checking
+fn get_deletable_type_name(value_type: &ValueType) -> Option<String> {
+    match value_type {
+        ValueType::TCustom(name) => Some(name.clone()),
+        _ => None,
+    }
+}
+
+// Issue #117: Track a variable for ASAP destruction if it has a delete method
+#[allow(dead_code)]  // Used when auto-delete is enabled (requires Issue #116)
+fn track_deletable_var(name: &str, value_type: &ValueType, ctx: &mut CodegenContext, context: &Context) {
+    if let Some(type_name) = get_deletable_type_name(value_type) {
+        if type_has_delete(&type_name, context) {
+            ctx.var_lifetimes.insert(name.to_string(), VarLifetime {
+                name: name.to_string(),
+                value_type: value_type.clone(),
+                has_delete: true,
+                last_use_stmt_idx: None,
+                is_deleted: false,
+            });
+        }
+    }
+}
+
+// Issue #117: Emit delete() calls for all tracked variables at function end
+// Variables are deleted in reverse order of declaration (like C++/Rust)
+fn emit_auto_delete_cleanup(output: &mut String, indent: usize, ctx: &mut CodegenContext) {
+    let indent_str = "    ".repeat(indent);
+    // Collect deletable vars and sort by name for deterministic order
+    // (HashMap iteration order is not stable)
+    let mut deletable_vars: Vec<&VarLifetime> = ctx.var_lifetimes.values()
+        .filter(|v| v.has_delete && !v.is_deleted)
+        .collect();
+    // Sort by name for deterministic output
+    deletable_vars.sort_by(|a, b| a.name.cmp(&b.name));
+    // Delete in reverse order (LIFO - last declared, first deleted)
+    for var in deletable_vars.into_iter().rev() {
+        if let Some(type_name) = get_deletable_type_name(&var.value_type) {
+            output.push_str(&indent_str);
+            output.push_str(&til_name(&type_name));
+            output.push_str("_delete(&");
+            output.push_str(&til_name(&var.name));
+            output.push_str(");\n");
+        }
     }
 }
 
@@ -2975,12 +3055,18 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     // Emit function body with catch pattern detection
     emit_stmts(&func_def.body, output, 1, ctx, context)?;
 
+    // Issue #117: Emit auto-delete cleanup for tracked variables at function end
+    emit_auto_delete_cleanup(output, 1, ctx);
+
     // For throwing void functions, add implicit return 0 at end
     if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
         output.push_str("    return 0;\n");
     }
 
     output.push_str("}\n\n");
+
+    // Issue #117: Clear var_lifetimes for next function
+    ctx.var_lifetimes.clear();
 
     // Restore previous function name and counter
     ctx.current_function_name = prev_function_name;
@@ -3260,12 +3346,18 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 // Emit function body with catch pattern detection
                 emit_stmts(&func_def.body, output, 1, ctx, context)?;
 
+                // Issue #117: Emit auto-delete cleanup for tracked variables at function end
+                emit_auto_delete_cleanup(output, 1, ctx);
+
                 // For throwing void functions, add implicit return 0 at end
                 if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
                     output.push_str("    return 0;\n");
                 }
 
                 output.push_str("}\n\n");
+
+                // Issue #117: Clear var_lifetimes for next function
+                ctx.var_lifetimes.clear();
 
                 // Pop the function scope frame
                 context.scope_stack.frames.pop();
@@ -4864,6 +4956,8 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 let prev_variadic_params = std::mem::take(&mut ctx.current_variadic_params);
                 let prev_function_name = ctx.current_function_name.clone();
                 let prev_mangling_counter = ctx.mangling_counter;
+                // Issue #117: Save var_lifetimes for nested function
+                let prev_var_lifetimes = std::mem::take(&mut ctx.var_lifetimes);
 
                 ctx.current_throw_types = func_def.throw_types.clone();
                 ctx.current_return_types = func_def.return_types.clone();
@@ -4909,6 +5003,8 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 emit_func_signature(&til_name(&mangled_name), func_def, &mut func_output)?;
                 func_output.push_str(" {\n");
                 emit_stmts(&func_def.body, &mut func_output, 1, ctx, context)?;
+                // Issue #117: Emit auto-delete cleanup for tracked variables at function end
+                emit_auto_delete_cleanup(&mut func_output, 1, ctx);
                 if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
                     func_output.push_str("    return 0;\n");
                 }
@@ -4923,6 +5019,8 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 ctx.declared_vars = prev_declared_vars;
                 ctx.current_ref_params = prev_mut_params;
                 ctx.current_variadic_params = prev_variadic_params;
+                // Issue #117: Restore var_lifetimes after nested function
+                ctx.var_lifetimes = prev_var_lifetimes;
                 ctx.current_function_name = prev_function_name;
                 ctx.mangling_counter = prev_mangling_counter;
 
@@ -4992,8 +5090,17 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     // Add to scope_stack so get_value_type can find it
     context.scope_stack.declare_symbol(
         name.clone(),
-        SymbolInfo { value_type: var_type, is_mut: decl.is_mut, is_copy: false, is_own: false, is_comptime_const: false }
+        SymbolInfo { value_type: var_type.clone(), is_mut: decl.is_mut, is_copy: false, is_own: false, is_comptime_const: false }
     );
+
+    // Issue #117: Track variable for ASAP destruction if it has delete()
+    // DISABLED until Issue #116 (ownership tracking) is implemented.
+    // Without ownership tracking, we can't tell which variables own their memory
+    // vs which are copies/borrows, leading to double-free errors.
+    // The infrastructure is in place - enable by uncommenting when ownership is tracked.
+    // if decl.is_mut && decl.is_own {
+    //     track_deletable_var(name, &var_type, ctx, context);
+    // }
 
     // Check if variable already declared in this function (avoid C redefinition errors)
     // Use til_name() since that's what hoisting code uses when inserting into declared_vars
