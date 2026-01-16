@@ -3322,6 +3322,12 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_i64_to_u8(context, e)
     } else if name.eq("u8_add") {
         return func_u8_add(context, e)
+    } else if name.eq("u8_div") {
+        return func_u8_div(context, e)
+    } else if name.eq("u8_mod") {
+        return func_u8_mod(context, e)
+    } else if name.eq("u8_mul") {
+        return func_u8_mul(context, e)
     } else if name.eq("u8_sub") {
         return func_u8_sub(context, e)
     } else if name.eq("eval_to_str") {

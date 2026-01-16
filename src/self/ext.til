@@ -510,6 +510,51 @@ func_u8_sub := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     return EvalResult.new(result.to_str())
 }
 
+func_u8_mul := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "U8_mul", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := I64.from_str(a_result.value)
+    b := I64.from_str(b_result.value)
+    // Wrapping mul: (a * b) mod 256
+    result := mod(a.mul(b), 256)
+    return EvalResult.new(result.to_str())
+}
+
+func_u8_div := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "U8_div", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := I64.from_str(a_result.value)
+    b := I64.from_str(b_result.value)
+    // Division returns 0 on divide by zero
+    mut result := 0
+    if not(I64.eq(b, 0)) {
+        result = div(a, b)
+    }
+    return EvalResult.new(result.to_str())
+}
+
+func_u8_mod := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "U8_mod", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := I64.from_str(a_result.value)
+    b := I64.from_str(b_result.value)
+    // Modulo returns 0 on divide by zero
+    mut result := 0
+    if not(I64.eq(b, 0)) {
+        result = mod(a, b)
+    }
+    return EvalResult.new(result.to_str())
+}
+
 // ---------- core procs implementations for eval
 
 // Note: If this prints an Array instead of a Str, check that single_print is declared

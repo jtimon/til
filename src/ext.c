@@ -52,6 +52,24 @@ til_U8 til_u8_sub(const til_U8* a, const til_U8* b)
     return (til_U8)((*a - *b) & 0xFF);
 }
 
+// U8 wrapping multiplication (mod 256)
+til_U8 til_u8_mul(const til_U8* a, const til_U8* b)
+{
+    return (til_U8)((*a * *b) & 0xFF);
+}
+
+// U8 division (returns 0 on divide by zero)
+til_U8 til_u8_div(const til_U8* a, const til_U8* b)
+{
+    return *b == 0 ? 0 : (til_U8)(*a / *b);
+}
+
+// U8 modulo (returns 0 on divide by zero)
+til_U8 til_u8_mod(const til_U8* a, const til_U8* b)
+{
+    return *b == 0 ? 0 : (til_U8)(*a % *b);
+}
+
 // Arithmetic functions
 static inline til_Bool til_lt(const til_I64* a, const til_I64* b)
 {

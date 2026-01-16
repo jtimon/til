@@ -570,6 +570,63 @@ pub fn func_u8_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     Ok(EvalResult::new(&result.to_string()))
 }
 
+pub fn func_u8_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "U8_mul", 2, false)?;
+    let a_result = eval_expr(context, e.get(1)?)?;
+    if a_result.is_throw {
+        return Ok(a_result);
+    }
+    let b_result = eval_expr(context, e.get(2)?)?;
+    if b_result.is_throw {
+        return Ok(b_result);
+    }
+    let a = a_result.value.parse::<u8>()
+        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid U8 for 'U8_mul': {}", err)))?;
+    let b = b_result.value.parse::<u8>()
+        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid U8 for 'U8_mul': {}", err)))?;
+    // Wrapping mul
+    let result = a.wrapping_mul(b);
+    Ok(EvalResult::new(&result.to_string()))
+}
+
+pub fn func_u8_div(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "U8_div", 2, false)?;
+    let a_result = eval_expr(context, e.get(1)?)?;
+    if a_result.is_throw {
+        return Ok(a_result);
+    }
+    let b_result = eval_expr(context, e.get(2)?)?;
+    if b_result.is_throw {
+        return Ok(b_result);
+    }
+    let a = a_result.value.parse::<u8>()
+        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid U8 for 'U8_div': {}", err)))?;
+    let b = b_result.value.parse::<u8>()
+        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid U8 for 'U8_div': {}", err)))?;
+    // Division returns 0 on divide by zero
+    let result = if b == 0 { 0 } else { a / b };
+    Ok(EvalResult::new(&result.to_string()))
+}
+
+pub fn func_u8_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "U8_mod", 2, false)?;
+    let a_result = eval_expr(context, e.get(1)?)?;
+    if a_result.is_throw {
+        return Ok(a_result);
+    }
+    let b_result = eval_expr(context, e.get(2)?)?;
+    if b_result.is_throw {
+        return Ok(b_result);
+    }
+    let a = a_result.value.parse::<u8>()
+        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid U8 for 'U8_mod': {}", err)))?;
+    let b = b_result.value.parse::<u8>()
+        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid U8 for 'U8_mod': {}", err)))?;
+    // Modulo returns 0 on divide by zero
+    let result = if b == 0 { 0 } else { a % b };
+    Ok(EvalResult::new(&result.to_string()))
+}
+
 // ---------- core procs implementations for eval
 
 // Note: If this prints an Array instead of a Str, check that single_print is declared

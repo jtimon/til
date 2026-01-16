@@ -78,6 +78,49 @@ U8 := struct {
         return i64_to_u8(diff)
     }
 
+    /** Multiplication that wraps on overflow (returns result mod 256).
+     *  This is the default, silent behavior - no error, no throw.
+     *  Use safe_mul() if you want to catch overflow errors. */
+    mul := func(a: U8, b: U8) returns U8 {
+        u8_mul := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_mul(a, b)
+    }
+
+    /** Multiplication that throws U8_Overflow when result > 255.
+     *  Use mul() if you want silent wrapping behavior. */
+    safe_mul := func(a: U8, b: U8) returns U8 throws U8_Overflow {
+        product := a.to_i64().mul(b.to_i64())
+        if product.gt(MAX_U8) {
+            throw U8_Overflow(msg=format(loc(), "U8 overflow: ", a.to_str(), " * ", b.to_str(), " = ", product.to_str()))
+        }
+        i64_to_u8 := ext_func(i64: I64) returns U8 {}
+        return i64_to_u8(product)
+    }
+
+    /** Division that returns 0 when dividing by zero.
+     *  This is the default, silent behavior - no error, no throw.
+     *  Use safe_div() if you want to catch division by zero errors. */
+    div := func(a: U8, b: U8) returns U8 {
+        u8_div := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_div(a, b)
+    }
+
+    /** Division that throws DivideByZero when dividing by zero.
+     *  Use div() if you want silent behavior (returns 0). */
+    safe_div := func(a: U8, b: U8) returns U8 throws DivideByZero {
+        if b.eq(ZERO_U8) {
+            throw DivideByZero()
+        }
+        u8_div := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_div(a, b)
+    }
+
+    /** Modulo operation. Returns 0 when dividing by zero. */
+    mod := func(a: U8, b: U8) returns U8 {
+        u8_mod := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_mod(a, b)
+    }
+
     from_i64 := func(self: I64) returns U8 throws U8_Overflow {
         if lt(self, 0) {
             throw U8_Overflow(msg=format(loc(), "Negative values cannot be cast into 'U8'"))
