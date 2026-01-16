@@ -99,7 +99,7 @@ fn next_mangled(ctx: &mut CodegenContext) -> String {
 
 // Issue #117: Check if a type has a delete() method
 // Returns true if Type.delete exists and takes (mut self: Type)
-#[allow(dead_code)]  // Used when auto-delete is enabled
+#[allow(dead_code)]  // Used when auto-delete is enabled (requires Issue #116)
 fn type_has_delete(type_name: &str, context: &Context) -> bool {
     let delete_method = format!("{}.delete", type_name);
     if let Some(func_def) = context.scope_stack.lookup_func(&delete_method) {
@@ -123,9 +123,39 @@ fn get_deletable_type_name(value_type: &ValueType) -> Option<String> {
     }
 }
 
+// Issue #117: Check if expression is a constructor call (Type.new pattern)
+// Only these are safe to auto-delete - copies/borrows would cause double-free
+#[allow(dead_code)]  // Used when auto-delete is enabled (requires Issue #116)
+fn is_constructor_call(expr: &Expr) -> bool {
+    if expr.node_type == NodeType::FCall && !expr.params.is_empty() {
+        // Get function name from first param (the identifier)
+        // For Vec.new(I64): params[0] is Identifier("Vec") with params containing Identifier("new")
+        if let NodeType::Identifier(base_name) = &expr.params[0].node_type {
+            // Check if there's a chained .new call
+            if expr.params[0].params.len() == 1 {
+                if let NodeType::Identifier(method_name) = &expr.params[0].params[0].node_type {
+                    return method_name == "new";
+                }
+            }
+            // Also check for Type.new where Type is already mangled in base_name
+            if base_name.ends_with(".new") {
+                return true;
+            }
+        }
+        false
+    } else {
+        false
+    }
+}
+
 // Issue #117: Track a variable for ASAP destruction if it has a delete method
-#[allow(dead_code)]  // Used when auto-delete is enabled
-fn track_deletable_var(name: &str, value_type: &ValueType, ctx: &mut CodegenContext, context: &Context) {
+// Only tracks variables initialized with constructor calls (Type.new) to avoid double-free
+#[allow(dead_code)]  // Used when auto-delete is enabled (requires Issue #116)
+fn track_deletable_var(name: &str, value_type: &ValueType, rhs_expr: &Expr, ctx: &mut CodegenContext, context: &Context) {
+    // Only auto-delete if RHS is a constructor call - copies would cause double-free
+    if !is_constructor_call(rhs_expr) {
+        return;
+    }
     if let Some(type_name) = get_deletable_type_name(value_type) {
         if type_has_delete(&type_name, context) {
             ctx.var_lifetimes.insert(name.to_string(), VarLifetime {
@@ -5093,14 +5123,14 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         SymbolInfo { value_type: var_type.clone(), is_mut: decl.is_mut, is_copy: false, is_own: false, is_comptime_const: false }
     );
 
-    // Issue #117: Track variable for ASAP destruction if it has delete()
-    // All mut local variables are considered owned. For borrowed/aliased data,
-    // users must use Ptr, c_mem functions, or implement their own delete() that
-    // handles the aliasing correctly (see Issue #116 for future borrow tracking).
-    // DISABLED: The TIL codebase has manual delete() calls that conflict with
-    // auto-delete. Need to remove manual delete() calls first.
-    // if decl.is_mut {
-    //     track_deletable_var(name, &var_type, ctx, context);
+    // Issue #117: ASAP destruction - DISABLED
+    // Auto-delete requires ownership tracking (Issue #116) to detect when values escape:
+    // - Returned from function: `return v`
+    // - Assigned to struct field: `container.field = v`
+    // - Stored in collections: `vec.push(v)`
+    // Without detecting escapes, auto-delete causes use-after-free/double-free.
+    // if decl.is_mut && !expr.params.is_empty() {
+    //     track_deletable_var(name, &var_type, &expr.params[0], ctx, context);
     // }
 
     // Check if variable already declared in this function (avoid C redefinition errors)
@@ -5532,6 +5562,16 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
 fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     let indent_str = "    ".repeat(indent);
     let is_throwing = !ctx.current_throw_types.is_empty();
+
+    // Issue #117: Mark returned variables as "escaped" so they won't be auto-deleted
+    // If returning a simple variable, mark it as deleted (escaped) to prevent auto-delete
+    if !expr.params.is_empty() {
+        if let NodeType::Identifier(var_name) = &expr.params[0].node_type {
+            if let Some(lifetime) = ctx.var_lifetimes.get_mut(var_name) {
+                lifetime.is_deleted = true;  // Mark as escaped - don't auto-delete
+            }
+        }
+    }
 
     if is_throwing {
         // Throwing function: store value through _ret pointer and return 0 (success)

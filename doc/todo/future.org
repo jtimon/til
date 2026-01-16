@@ -159,51 +159,53 @@ RegexMatch := struct {
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Fixes memory leaks automatically, Mojo-style memory management
-:STATUS: Partial (infrastructure ready, blocked on manual delete() removal)
-:DEPENDS: Bug #101 (unused warnings - FIXED)
-:RELATED: Bug #114 (memory leak documentation), Issue #116 (future borrow tracking)
+:STATUS: Blocked (requires Issue #116 for escape tracking)
+:DEPENDS: Issue #116 (ownership/escape tracking), Bug #101 (unused warnings - FIXED)
+:RELATED: Bug #114 (memory leak documentation)
 :END:
 
 *** Description
 Implement Mojo-style automatic destructor calls on last use. When a variable with
 heap data is last used, the compiler automatically inserts a ~delete()~ call.
 
-*** Current Ownership Model
-All mut local variables are considered owned. For borrowed/aliased data, users must:
-- Use Ptr or c_mem functions manually
-- Implement their own delete() that handles aliasing correctly
-See Issue #116 for future borrow tracking support.
+*** BLOCKING: Ownership/Escape Tracking Required
+Auto-delete requires knowing when a value "escapes" and should NOT be deleted:
+- Returned from function: ~return v~ - caller now owns it
+- Assigned to struct field: ~container.field = v~ - struct now owns it
+- Stored in collection: ~vec.push(v)~ - collection now owns it
+- Passed to function that stores it
 
-*** Implementation Status (2026-01-16)
-Infrastructure complete and tested. Auto-delete is DISABLED because the TIL
-codebase itself has manual delete() calls that conflict with auto-delete.
+Without escape detection, auto-delete causes use-after-free and double-free errors.
+Issue #116 must be implemented first to provide ownership/borrow tracking.
 
-**** Completed Infrastructure:
-- VarLifetime struct for tracking deletable variables (ccodegen.rs)
-- type_has_delete() helper to check if type has delete method (ccodegen.rs)
-- track_deletable_var() to register variables for cleanup (ccodegen.rs, disabled)
-- emit_auto_delete_cleanup() to emit delete calls at function end (ccodegen.rs)
-- Scavenger marks delete() methods reachable for all used types (scavenger.rs, scavenger.til)
-- var_lifetimes saved/restored for nested functions (ccodegen.rs)
+*** Correct Architecture: Precomp Phase
+Auto-delete should be implemented in precomp, NOT ccodegen:
+- Insert explicit ~var.delete()~ calls into the AST
+- Works for both interpreter AND compiler (they both use precomp output)
+- Works during constant folding too
+- Single implementation, not duplicated between interpreter and ccodegen
+- AST explicitly shows the delete calls, making debugging easier
+
+*** Current State (2026-01-16)
+Prototype infrastructure exists in ccodegen.rs (disabled) but has fundamental issues:
+- Only works for compiler, not interpreter
+- Cannot detect when values escape (return, field assignment, etc.)
+- Causes 63/80 test failures when enabled
+
+**** Prototype Infrastructure (ccodegen.rs, disabled):
+- VarLifetime struct for tracking deletable variables
+- type_has_delete() helper to check if type has delete method
+- track_deletable_var() to register variables for cleanup
+- emit_auto_delete_cleanup() to emit delete calls at function end
+- is_constructor_call() to detect ~Type.new()~ patterns
+- Scavenger marks delete() methods reachable for all used types
 
 **** Fixed Delete Functions (2026-01-16):
 All delete() functions are now idempotent (safe to call multiple times):
-
-- Array.delete (src/core/array.til): Added ~if gt(self.ptr, 0)~ check before free
-- Map.delete (src/std/map.til): Fixed to use ~self.keys.delete()~ directly instead of local copies
-- Ptr.delete (src/core/ptr.til): Added NULL check, sets data=0, takes mut self
-- List.delete (src/std/list.til): Added ~if gt(self.data, 0)~ check before free
-
-*** BLOCKING: Manual delete() Calls in TIL Codebase
-Auto-delete is disabled because when rstil compiles til.til with auto-delete enabled,
-the TIL interpreter/compiler code has manual delete() calls that conflict:
-- Manual delete() + auto-delete = double-free
-
-To enable auto-delete:
-1. Remove ALL manual delete() calls from TIL codebase (src/self/*.til, src/core/*.til, src/std/*.til)
-2. Uncomment track_deletable_var call in emit_declaration (ccodegen.rs:~2847)
-3. Port changes to ccodegen.til
-4. Run ~make benchmark~ to verify
+- Array.delete: Added ptr check before free
+- Map.delete: Use self.keys/values.delete() directly
+- Ptr.delete: Added NULL check, sets data=0, takes mut self
+- List.delete: Added data ptr check before free
 
 *** Types with delete()
 Already implemented: Vec, Array, Set, Ptr, Map, List
@@ -213,13 +215,15 @@ After Issue #116: Str
 - Method name: Use existing ~delete()~
 - Double-free prevention: delete() must set ptr to 0 after free (idempotent)
 - Destruction order: Reverse order of declaration (like C++/Rust)
-- Scope: Both compiler and interpreter for consistency
+- Implementation: In precomp (insert AST nodes), not ccodegen
 
-*** Verification
-1. Run under valgrind - no leaks
-2. Double-free tests - all delete() must be idempotent
-3. Control flow tests - returns, throws, branches, loops
-4. ~make benchmark~ must pass
+*** Future Implementation Steps (after Issue #116)
+1. Add ownership tracking to precomp (detect escapes)
+2. In precomp, insert ~var.delete()~ calls at appropriate points
+3. Handle control flow: returns, throws, branches, loops
+4. Remove prototype code from ccodegen.rs
+5. Port to precomp.til
+6. Run ~make benchmark~ to verify
 
 ** Issue #116: Refactor Str to use len/cap pattern
 :PROPERTIES:
