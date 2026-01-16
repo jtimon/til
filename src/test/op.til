@@ -27,7 +27,7 @@ test_u8_add := proc() {
     r := U8.add(p, q)
     test(loc(), r.to_i64().eq(150), "U8.add: U8.add(100, 50) == 150")
 
-    catch (err: U8_OverflowError) {
+    catch (err: U8_Overflow) {
         println("ERROR:", err.msg)
         exit(1)
     }

@@ -23,8 +23,8 @@ test_array_static_u8 := proc() {
         println(err.msg)
         exit(1)
     }
-    catch(err: U8_OverflowError) {
-        println("ERROR:", loc(), "Unexpected U8_OverflowError")
+    catch(err: U8_Overflow) {
+        println("ERROR:", loc(), "Unexpected U8_Overflow")
         println(err.msg)
         exit(1)
     }

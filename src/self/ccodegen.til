@@ -9386,8 +9386,8 @@ emit_str_literal := proc(s: Str, mut output: Str) {
             output.push_str(char_str)
         }
         i.inc()
-        catch (err: U8_OverflowError) {
-            panic(loc(), "U8_OverflowError: ASCII values are valid U8, should never happen: ", err.msg)
+        catch (err: U8_Overflow) {
+            panic(loc(), "U8_Overflow: ASCII values are valid U8, should never happen: ", err.msg)
         }
     }
     output.push_str("\", ")
@@ -9429,8 +9429,8 @@ emit_literal := proc(lit: Literal, mut output: Str, context: Context) throws Str
                     output.push_str(c.to_str())
                 }
                 j.inc()
-                catch (err: U8_OverflowError) {
-                    panic(loc(), "U8_OverflowError: ASCII values are valid U8, should never happen: ", err.msg)
+                catch (err: U8_Overflow) {
+                    panic(loc(), "U8_Overflow: ASCII values are valid U8, should never happen: ", err.msg)
                 }
             }
             output.push_str("\"")

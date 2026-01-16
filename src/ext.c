@@ -40,6 +40,12 @@ static inline til_U8 til_i64_to_u8(const til_I64* v)
     return (til_U8)*v;
 }
 
+// U8 wrapping addition (mod 256)
+til_U8 til_u8_add(const til_U8* a, const til_U8* b)
+{
+    return (til_U8)((*a + *b) & 0xFF);
+}
+
 // Arithmetic functions
 static inline til_Bool til_lt(const til_I64* a, const til_I64* b)
 {

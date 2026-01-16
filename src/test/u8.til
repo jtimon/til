@@ -14,8 +14,8 @@ test_u8 := proc() {
     // Must fail:
     mut overflow_val := 300 // REM mut so precomp doesn't catch the error at compile time
     assert_eq(loc(), 300, U8.from_i64(overflow_val).to_i64()) // Fails because 300 is greater than 255
-    catch(err: U8_OverflowError) {
-        println(loc(), "test_array_static_u8: U8_OverflowError thrown:")
+    catch(err: U8_Overflow) {
+        println(loc(), "test_array_static_u8: U8_Overflow thrown:")
         println(err.msg)
     }
 

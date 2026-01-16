@@ -89,7 +89,7 @@ string_from_context := proc(context: Context, id: Str, e: Expr) returns Str thro
         memcpy(to_ptr(byte), g_arena.get(c_string_ptr.add(i), 1), 1)
         result = format(result, byte_to_str(byte))
     }
-    catch (err: U8_OverflowError) { throw err.msg }
+    catch (err: U8_Overflow) { throw err.msg }
     return result
 }
 
@@ -149,7 +149,7 @@ func_free := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     return EvalResult.new("")
 }
 
-func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str, U8_OverflowError {
+func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str, U8_Overflow {
     validate_arg_count(context.path, e, "memset", 3, false)
 
     dest_result := eval_expr(context, e.get(1))
@@ -200,7 +200,7 @@ func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str
         g_arena.set(dest.add(i), to_ptr(src_byte), 1)
     }
 
-    catch (err: U8_OverflowError) { throw err.msg }
+    catch (err: U8_Overflow) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -237,7 +237,7 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     }
 
     // All bytes equal
-    catch (err: U8_OverflowError) { throw err.msg }
+    catch (err: U8_Overflow) { throw err.msg }
     return EvalResult.new("0")
 }
 
@@ -482,6 +482,19 @@ func_i64_to_u8 := proc(mut context: Context, e: Expr) returns EvalResult throws 
     result := eval_expr(context, e.get(1))
     if result.is_throw { return result }
     return EvalResult.new(result.value)
+}
+
+func_u8_add := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "U8_add", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := I64.from_str(a_result.value)
+    b := I64.from_str(b_result.value)
+    // Wrapping add: (a + b) mod 256
+    result := mod(a.add(b), 256)
+    return EvalResult.new(result.to_str())
 }
 
 // ---------- core procs implementations for eval

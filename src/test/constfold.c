@@ -12,7 +12,7 @@ typedef struct til_IndexOutOfBoundsError til_IndexOutOfBoundsError;
 typedef struct til_BadAlloc til_BadAlloc;
 typedef struct til_Array til_Array;
 typedef struct til_Str til_Str;
-typedef struct til_U8_OverflowError til_U8_OverflowError;
+typedef struct til_U8_Overflow til_U8_Overflow;
 typedef struct til_CfVec2 til_CfVec2;
 typedef struct til_CfRect til_CfRect;
 
@@ -31,7 +31,7 @@ struct til_Str {
     til_I64 cap;
 };
 
-struct til_U8_OverflowError {
+struct til_U8_Overflow {
     til_Str msg;
 };
 
@@ -81,7 +81,7 @@ til_Bool til_Str_eq(const til_Str* til_self, const til_Str* til_other);
 til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle);
 til_Bool til_U8_eq(const til_U8* til_self, const til_U8* til_other);
 til_I64 til_U8_to_i64(const til_U8* til_self);
-int til_U8_from_i64(til_U8* _ret, til_U8_OverflowError* _err1, const til_I64* til_self);
+int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_self);
 til_CfVec2 til_CfVec2_magic(void);
 til_CfVec2 til_CfVec2_at(const til_I64* til_x, const til_I64* til_y);
 til_CfRect til_CfRect_sample(void);
@@ -94,7 +94,7 @@ const til_I64 til_size_of_Array = sizeof(til_Array);
 const til_I64 til_size_of_Bool = sizeof(til_Bool);
 const til_I64 til_size_of_I64 = sizeof(til_I64);
 const til_I64 til_size_of_Str = sizeof(til_Str);
-const til_I64 til_size_of_U8_OverflowError = sizeof(til_U8_OverflowError);
+const til_I64 til_size_of_U8_Overflow = sizeof(til_U8_Overflow);
 const til_I64 til_size_of_U8 = sizeof(til_U8);
 const til_I64 til_size_of_Dynamic = sizeof(til_Dynamic);
 const til_I64 til_size_of_Type = sizeof(til_Type);
@@ -116,7 +116,7 @@ static inline til_I64 til_size_of(const til_Str* type_name) {
     if (strcmp((char*)type_name->c_string, "Bool") == 0) return til_size_of_Bool;
     if (strcmp((char*)type_name->c_string, "I64") == 0) return til_size_of_I64;
     if (strcmp((char*)type_name->c_string, "Str") == 0) return til_size_of_Str;
-    if (strcmp((char*)type_name->c_string, "U8_OverflowError") == 0) return til_size_of_U8_OverflowError;
+    if (strcmp((char*)type_name->c_string, "U8_Overflow") == 0) return til_size_of_U8_Overflow;
     if (strcmp((char*)type_name->c_string, "U8") == 0) return til_size_of_U8;
     if (strcmp((char*)type_name->c_string, "Dynamic") == 0) return til_size_of_Dynamic;
     if (strcmp((char*)type_name->c_string, "Type") == 0) return til_size_of_Type;
@@ -517,7 +517,7 @@ til_Array til_Array_new(til_Type til_T, const til_I64* til_capacity) {
         til_Array_delete(&_tmp_til_Array_new_2);
     }
     til_U8 _tmp_til_Array_new_6;
-    til_U8_OverflowError _err0__tmp_til_Array_new_7;
+    til_U8_Overflow _err0__tmp_til_Array_new_7;
     int _status__tmp_til_Array_new_7 = til_U8_from_i64(&_tmp_til_Array_new_6, &_err0__tmp_til_Array_new_7, &(til_I64){0});
     if (_status__tmp_til_Array_new_7 != 0) {
     }
@@ -818,7 +818,7 @@ til_I64 til_U8_to_i64(const til_U8* til_self) {
     return til_u8_to_i64(til_self);
 }
 
-int til_U8_from_i64(til_U8* _ret, til_U8_OverflowError* _err1, const til_I64* til_self) {
+int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_self) {
     if (til_lt(til_self, &(til_I64){0}).data) {
         til_Str _tmp_til_U8_from_i64_0;
         til_Array _tmp_til_U8_from_i64_1;
@@ -832,7 +832,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_OverflowError* _err1, const til_I64* ti
         _arr_status__tmp_til_U8_from_i64_2 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_2, &_tmp_til_U8_from_i64_1, &_tmp_til_U8_from_i64_6, (til_Dynamic*)&_tmp_til_U8_from_i64_3);
         if (_arr_status__tmp_til_U8_from_i64_2 != 0) {
         }
-        _tmp_til_U8_from_i64_0 = til_format(&((til_Str){(til_I64)"src/core/u8.til:51:47:", 22}), &_tmp_til_U8_from_i64_1);
+        _tmp_til_U8_from_i64_0 = til_format(&((til_Str){(til_I64)"src/core/u8.til:64:42:", 22}), &_tmp_til_U8_from_i64_1);
         til_Array_delete(&_tmp_til_U8_from_i64_1);
         til_Str _tmp_til_U8_from_i64_7;
         til_Array _tmp_til_U8_from_i64_8;
@@ -846,9 +846,9 @@ int til_U8_from_i64(til_U8* _ret, til_U8_OverflowError* _err1, const til_I64* ti
         _arr_status__tmp_til_U8_from_i64_9 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_9, &_tmp_til_U8_from_i64_8, &_tmp_til_U8_from_i64_13, (til_Dynamic*)&_tmp_til_U8_from_i64_10);
         if (_arr_status__tmp_til_U8_from_i64_9 != 0) {
         }
-        _tmp_til_U8_from_i64_7 = til_format(&((til_Str){(til_I64)"src/core/u8.til:51:47:", 22}), &_tmp_til_U8_from_i64_8);
+        _tmp_til_U8_from_i64_7 = til_format(&((til_Str){(til_I64)"src/core/u8.til:64:42:", 22}), &_tmp_til_U8_from_i64_8);
         til_Array_delete(&_tmp_til_U8_from_i64_8);
-        *_err1 = (til_U8_OverflowError){.msg = _tmp_til_U8_from_i64_7};
+        *_err1 = (til_U8_Overflow){.msg = _tmp_til_U8_from_i64_7};
         return 1;
     }
     if (til_gt(til_self, &til_MAX_U8).data) {
@@ -869,7 +869,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_OverflowError* _err1, const til_I64* ti
         _arr_status__tmp_til_U8_from_i64_16 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_16, &_tmp_til_U8_from_i64_15, &_tmp_til_U8_from_i64_22, (til_Dynamic*)&_tmp_til_U8_from_i64_18);
         if (_arr_status__tmp_til_U8_from_i64_16 != 0) {
         }
-        _tmp_til_U8_from_i64_14 = til_format(&((til_Str){(til_I64)"src/core/u8.til:54:47:", 22}), &_tmp_til_U8_from_i64_15);
+        _tmp_til_U8_from_i64_14 = til_format(&((til_Str){(til_I64)"src/core/u8.til:67:42:", 22}), &_tmp_til_U8_from_i64_15);
         til_Array_delete(&_tmp_til_U8_from_i64_15);
         til_Str _tmp_til_U8_from_i64_23;
         til_Array _tmp_til_U8_from_i64_24;
@@ -888,9 +888,9 @@ int til_U8_from_i64(til_U8* _ret, til_U8_OverflowError* _err1, const til_I64* ti
         _arr_status__tmp_til_U8_from_i64_25 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_25, &_tmp_til_U8_from_i64_24, &_tmp_til_U8_from_i64_31, (til_Dynamic*)&_tmp_til_U8_from_i64_27);
         if (_arr_status__tmp_til_U8_from_i64_25 != 0) {
         }
-        _tmp_til_U8_from_i64_23 = til_format(&((til_Str){(til_I64)"src/core/u8.til:54:47:", 22}), &_tmp_til_U8_from_i64_24);
+        _tmp_til_U8_from_i64_23 = til_format(&((til_Str){(til_I64)"src/core/u8.til:67:42:", 22}), &_tmp_til_U8_from_i64_24);
         til_Array_delete(&_tmp_til_U8_from_i64_24);
-        *_err1 = (til_U8_OverflowError){.msg = _tmp_til_U8_from_i64_23};
+        *_err1 = (til_U8_Overflow){.msg = _tmp_til_U8_from_i64_23};
         return 1;
     }
     *_ret = til_i64_to_u8(til_self);

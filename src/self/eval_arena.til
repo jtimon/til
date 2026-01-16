@@ -199,7 +199,7 @@ EvalArena := struct {
     // Core logic for insert_u8 - returns offset if caller needs to store it, throws KeyNotFoundError if already handled
     insert_u8_core := func(ctx: Context, id: Str, u8_str: Str, e: Expr) returns I64 throws Str, KeyNotFoundError {
         v := U8.from_str(u8_str)
-        catch (err: U8_OverflowError) {
+        catch (err: U8_Overflow) {
             throw e.lang_error(ctx.path, "context", err.msg)
         }
 
@@ -513,7 +513,7 @@ EvalArena := struct {
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "context", format("insert_struct_core: ", err.msg))
         }
-        catch (err: U8_OverflowError) {
+        catch (err: U8_Overflow) {
             throw e.lang_error(ctx.path, "context", err.msg)
         }
 
@@ -1341,7 +1341,7 @@ EvalArena := struct {
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "IndexOutOfBoundsError")
         }
-        catch (err: U8_OverflowError) {
+        catch (err: U8_Overflow) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", err.msg)
         }
     }

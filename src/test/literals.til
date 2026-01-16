@@ -4,9 +4,9 @@ test_u8_literals := proc() {
     x: U8 = 34
     y: U8 = 35
     r: U8 = 69
-    test(loc(), x.u8_add(y).eq(r), "u8 literals 34 + 35 = 69")
+    test(loc(), x.safe_add(y).eq(r), "u8 literals 34 + 35 = 69")
 
-    catch (err: U8_OverflowError) { panic(loc(), err.msg) }
+    catch (err: U8_Overflow) { panic(loc(), err.msg) }
 }
 
 test_i64_literals := proc() {

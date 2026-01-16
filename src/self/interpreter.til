@@ -91,7 +91,7 @@ eval_condition_to_bool := proc(context: Context, result: EvalResult, expr: Expr)
     data_field_id := format(bool_id, ".data")
     u8_val := EvalArena.get_u8(context, data_field_id, expr)
     u8_zero := U8.from_i64(0)
-    catch (err: U8_OverflowError) { throw err.msg }
+    catch (err: U8_Overflow) { throw err.msg }
     return not(u8_val.eq(u8_zero))
 }
 
@@ -549,7 +549,7 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                                         str_val = format(str_val, byte_to_str(str_byte_val))
                                         str_byte_i = add(str_byte_i, 1)
                                     }
-                                    catch (err: U8_OverflowError) {
+                                    catch (err: U8_Overflow) {
                                         throw case_expr.error(context.path, "eval", "U8 overflow while reading Str payload")
                                     }
                                     EvalArena.insert_string(context, pattern_binding, str_val, case_expr)
@@ -1218,7 +1218,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
         return eval_core_func_proc_call(last_name, context, new_fcall_e, is_proc)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: U8_OverflowError) { throw err.msg }
+    catch (err: U8_Overflow) { throw err.msg }
     catch (err: BadAlloc) { panic(loc(), "eval_func_proc_call: buy more ram") }
     return eval_user_func_proc_call(func_def, combined_name, context, new_fcall_e)
 }
@@ -3320,6 +3320,8 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_u8_to_i64(context, e)
     } else if name.eq("i64_to_u8") {
         return func_i64_to_u8(context, e)
+    } else if name.eq("u8_add") {
+        return func_u8_add(context, e)
     } else if name.eq("eval_to_str") {
         return proc_eval_to_str(context, e)
     } else if name.eq("exit") {
@@ -3367,7 +3369,7 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
             throw e.lang_error(context.path, "eval", format("Core function '", name, "' not implemented."))
         }
     }
-    catch (err: U8_OverflowError) { throw err.msg }
+    catch (err: U8_Overflow) { throw err.msg }
     return EvalResult.new("")
 }
 

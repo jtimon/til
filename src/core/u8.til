@@ -5,7 +5,8 @@ MIN_U8    := 0
 MAX_U8    := 255
 ZERO_U8   : U8 = 0
 
-U8_OverflowError := struct {
+/** Error thrown when U8 conversion fails (negative or > 255). */
+U8_Overflow := struct {
     mut msg: Str = ""
 }
 
@@ -39,19 +40,31 @@ U8 := struct {
         return u8_to_i64(self)
     }
 
-    // TODO do the rest of the operations, first fake them with i64, until real compilation
-    // TODO rename add into i64_add or something
-    // TODO rename add into I64.add directly in the rust/interpreter side, afterwards
-    u8_add := func(a: U8, b: U8) returns U8 throws U8_OverflowError {
-        return U8.from_i64(add(a.to_i64(), b.to_i64()))
+    /** Addition that wraps on overflow (returns result mod 256).
+     *  This is the default, silent behavior - no error, no throw.
+     *  Use safe_add() if you want to catch overflow errors. */
+    add := func(a: U8, b: U8) returns U8 {
+        u8_add := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_add(a, b)
     }
 
-    from_i64 := func(self: I64) returns U8 throws U8_OverflowError {
+    /** Addition that throws U8_Overflow when result > 255.
+     *  Use add() if you want silent wrapping behavior. */
+    safe_add := func(a: U8, b: U8) returns U8 throws U8_Overflow {
+        sum := a.to_i64().add(b.to_i64())
+        if sum.gt(MAX_U8) {
+            throw U8_Overflow(msg=format(loc(), "U8 overflow: ", a.to_str(), " + ", b.to_str(), " = ", sum.to_str()))
+        }
+        i64_to_u8 := ext_func(i64: I64) returns U8 {}
+        return i64_to_u8(sum)
+    }
+
+    from_i64 := func(self: I64) returns U8 throws U8_Overflow {
         if lt(self, 0) {
-            throw U8_OverflowError(msg=format(loc(), "Negative values cannot be cast into 'U8'"))
+            throw U8_Overflow(msg=format(loc(), "Negative values cannot be cast into 'U8'"))
         }
         if gt(self, MAX_U8) {
-            throw U8_OverflowError(msg=format(loc(), "U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
+            throw U8_Overflow(msg=format(loc(), "U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
         }
         i64_to_u8 := ext_func(i64: I64) returns U8 {}
         return i64_to_u8(self)
@@ -61,7 +74,7 @@ U8 := struct {
         return I64.to_str(U8.to_i64(self))
     }
 
-    from_str := func(s: Str) returns U8 throws U8_OverflowError {
+    from_str := func(s: Str) returns U8 throws U8_Overflow {
         return U8.from_i64(I64.from_str(s))
     }
 
