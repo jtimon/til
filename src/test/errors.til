@@ -35,15 +35,7 @@ test_catch_with_fields := proc() {
 }
 test_catch_with_fields()
 
-DivideByZero := struct {} // REM Apparently Roc tried this and rolled it back
-
-// Functions must explicitly declare what they can throw, like in Java
-safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
-    if I64.eq(b, 0) {
-        throw DivideByZero()
-    }
-    return div(a, b)
-}
+// DivideByZero and safe_div are now in core/i64.til
 
 unsafe_div := proc(a: I64, b: I64) returns I64 {
     result := safe_div(a, b)

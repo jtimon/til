@@ -4,11 +4,16 @@ mode lib
 lt        := ext_func(a: I64, b: I64) returns Bool {}
 gt        := ext_func(a: I64, b: I64) returns Bool {}
 
-// Minimal arithmehics are fair and necessary
+// Minimal arithmetics are fair and necessary
 add       := ext_func(a: I64, b: I64) returns I64 {}
 sub       := ext_func(a: I64, b: I64) returns I64 {}
 mul       := ext_func(a: I64, b: I64) returns I64 {}
+
+/** Division that returns 0 when dividing by zero.
+ *  This is the default, silent behavior - no error, no throw.
+ *  Use safe_div() if you want to catch division by zero errors. */
 div       := ext_func(a: I64, b: I64) returns I64 {}
+
 mod       := ext_func(a: I64, b: I64) returns I64 {}
 
 // Bitwise operations
@@ -27,7 +32,17 @@ I64_OverflowError := struct {
     mut msg: Str = ""
 }
 
-// DivideByZero := struct {} // REM Apparently Roc tried this and rolled it back
+/** Error thrown by safe_div() when dividing by zero. */
+DivideByZero := struct {}
+
+/** Division that throws DivideByZero when dividing by zero.
+ *  Use div() if you want silent behavior (returns 0). */
+safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
+    if I64.eq(b, 0) {
+        throw DivideByZero()
+    }
+    return div(a, b)
+}
 
 /** I64 - Signed 64-bit integer type. */
 // Note that I64 and U8 don't have fields because they're the "real core types"
