@@ -2822,7 +2822,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "add" => ext::func_add(context, &e),
         "i64_sub" => ext::func_sub(context, &e),
         "i64_mul" => ext::func_mul(context, &e),
-        "div" => ext::func_div(context, &e),
+        "i64_div" => ext::func_div(context, &e),
         "i64_mod" => ext::func_mod(context, &e),
         "i64_and" => ext::func_i64_and(context, &e),
         "i64_or" => ext::func_i64_or(context, &e),

@@ -3300,7 +3300,7 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_sub(context, e)
     } else if name.eq("i64_mul") {
         return func_mul(context, e)
-    } else if name.eq("div") {
+    } else if name.eq("i64_div") {
         return func_div(context, e)
     } else if name.eq("i64_mod") {
         return func_mod(context, e)

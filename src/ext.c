@@ -114,7 +114,7 @@ static inline til_I64 til_i64_mul(const til_I64* a, const til_I64* b)
     return *a * *b;
 }
 
-static inline til_I64 til_div(const til_I64* a, const til_I64* b)
+static inline til_I64 til_i64_div(const til_I64* a, const til_I64* b)
 {
     return *b == 0 ? 0 : *a / *b;
 }

@@ -7,11 +7,6 @@ gt        := ext_func(a: I64, b: I64) returns Bool {}
 // Minimal arithmetics
 add       := ext_func(a: I64, b: I64) returns I64 {}
 
-/** Division that returns 0 when dividing by zero.
- *  This is the default, silent behavior - no error, no throw.
- *  Use safe_div() if you want to catch division by zero errors. */
-div       := ext_func(a: I64, b: I64) returns I64 {}
-
 I64_SIZE  := 8
 
 /** Error thrown by safe_add when overflow occurs. */
@@ -34,7 +29,7 @@ I64 := struct {
         if I64.eq(b, 0) {
             throw DivideByZero()
         }
-        return div(a, b)
+        return a.div(b)
     }
 
     /** Addition that throws I64_Overflow when overflow occurs.
@@ -79,7 +74,7 @@ I64 := struct {
         result := a.mul(b)
         // Overflow detection: if a != 0 and result / a != b, overflow occurred
         if not(I64.eq(a, 0)) {
-            if not(I64.eq(div(result, a), b)) {
+            if not(I64.eq(result.div(a), b)) {
                 throw I64_Overflow(msg=format(loc(), "I64 overflow: ", a.to_str(), " * ", b.to_str()))
             }
         }
@@ -118,6 +113,14 @@ I64 := struct {
     mul := func(a: I64, b: I64) returns I64 {
         i64_mul := ext_func(a: I64, b: I64) returns I64 {}
         return i64_mul(a, b)
+    }
+
+    /** Division that returns 0 when dividing by zero.
+     *  This is the default, silent behavior - no error, no throw.
+     *  Use safe_div() if you want to catch division by zero errors. */
+    div := func(a: I64, b: I64) returns I64 {
+        i64_div := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_div(a, b)
     }
 
     eq := func(a: I64, b: I64) returns Bool {
