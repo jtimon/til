@@ -1,4 +1,4 @@
-#!/usr/bin/env -S ./bin/rstil interpret
+#!/usr/bin/env -S ./bin/rstil run
 // make.til - TIL build system (Issue #82)
 
 mode make
@@ -6,6 +6,10 @@ mode make
 import("std.io")
 import("std.sys")
 import("core.vec")
+
+// Global flag: set to true when compiler (bin/rstil) changed
+// Used to pass --force-rebuild to tests
+mut g_compiler_changed := false
 
 // Run command with streaming output (prints as it goes)
 run_stream_cmd := proc(cmd: Str) returns I64 {
@@ -34,8 +38,28 @@ run_repl := proc() {
     _ := run_stream_cmd("rlwrap ./bin/rstil repl")
 }
 
+/**
+ * Checks if target needs to be rebuilt based on dependency modification times.
+ * Returns true if target doesn't exist or any dependency is newer than target.
+ * Used only for non-.til dependencies (Rust files, etc.)
+ */
+needs_rebuild := proc(target: Str, deps: Vec) returns Bool {
+    target_mtime := file_mtime(target)
+    neg_one := sub(0, 1)
+    if target_mtime.eq(neg_one) {
+        return true  // target doesn't exist
+    }
+    for dep: Str in deps {
+        dep_mtime := file_mtime(dep)
+        if dep_mtime.gt(target_mtime) {
+            return true  // dependency is newer
+        }
+    }
+    return false
+}
+
 build_rstil := proc() {
-    // Check if rstil needs rebuilding
+    // Check if rstil needs rebuilding (Rust files - not tracked by til build)
     mut deps := Vec.new(Str)
     deps.push("src/rstil.rs")
     rs_files := glob_files("src/rs/*.rs")
@@ -55,53 +79,28 @@ build_rstil := proc() {
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-/**
- * Checks if target needs to be rebuilt based on dependency modification times.
- * Returns true if target doesn't exist or any dependency is newer than target.
- */
-needs_rebuild := proc(target: Str, deps: Vec) returns Bool {
-    target_mtime := file_mtime(target)
-    neg_one := sub(0, 1)
-    if target_mtime.eq(neg_one) {
-        return true  // target doesn't exist
-    }
-    for dep: Str in deps {
-        dep_mtime := file_mtime(dep)
-        if dep_mtime.gt(target_mtime) {
-            return true  // dependency is newer
-        }
-    }
-    return false
-}
-
 build_rstil_til := proc() {
-    // Collect dependencies
+    // .til dependency tracking is automatic via `rstil build`
+    // But automatic tracking only knows about .til files, not the compiler itself.
+    // If bin/rstil changed, we must force rebuild even if .til files are unchanged.
     mut deps := Vec.new(Str)
     deps.push("bin/rstil")
-    deps.push("src/til.til")
-    self_files := glob_files("src/self/*.til")
-    for f: Str in self_files { deps.push(f) }
-    core_files := glob_files("src/core/*.til")
-    for f: Str in core_files { deps.push(f) }
-    std_files := glob_files("src/std/*.til")
-    for f: Str in std_files { deps.push(f) }
-    mode_files := glob_files("src/modes/*.til")
-    for f: Str in mode_files { deps.push(f) }
-
-    if needs_rebuild("bin/rstil_til", deps).not() {
-        return
-    }
-
     mut status := 0
     status = run_stream_cmd("mkdir -p bin")
-    status = run_stream_cmd("./bin/rstil build src/til.til")
-    status = run_stream_cmd("cp gen/c/til.c bootstrap/til.c")
-    status = run_stream_cmd("cp bin/til bin/rstil_til")
+    if needs_rebuild("bin/til", deps) {
+        // Compiler changed - force rebuild (automatic tracking wouldn't catch this)
+        // Also set global flag so tests know to force rebuild
+        g_compiler_changed = true
+        status = run_stream_cmd("./bin/rstil build src/til.til --force-rebuild")
+    } else {
+        // Compiler unchanged - let automatic .til dep tracking decide
+        status = run_stream_cmd("./bin/rstil build src/til.til")
+    }
     if status.eq(0).not() {
         exit(1)
     }
-
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    _ := run_stream_cmd("cp gen/c/til.c bootstrap/til.c")
+    _ := run_stream_cmd("cp bin/til bin/rstil_til")
 }
 
 // WARNING: This target currently hangs!
@@ -119,67 +118,34 @@ build_til_til := proc() {
 
 build_test_runner := proc() {
     build_rstil_til()
-
-    // Collect dependencies - same as rstil_til plus test.til
-    mut deps := Vec.new(Str)
-    deps.push("bin/rstil")
-    deps.push("src/test_runner.til")
-    self_files := glob_files("src/self/*.til")
-    for f: Str in self_files { deps.push(f) }
-    core_files := glob_files("src/core/*.til")
-    for f: Str in core_files { deps.push(f) }
-    std_files := glob_files("src/std/*.til")
-    for f: Str in std_files { deps.push(f) }
-    mode_files := glob_files("src/modes/*.til")
-    for f: Str in mode_files { deps.push(f) }
-
-    if needs_rebuild("bin/test_runner", deps).not() {
-        return
-    }
-
+    // .til dependency tracking is automatic via `rstil build`
     mut status := 0
     status = run_stream_cmd("./bin/rstil build src/test_runner.til")
     if status.eq(0).not() {
         exit(1)
     }
-
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 build_tests := proc() {
     build_test_runner()  // tests.til spawns test_runner for each test
-
-    // Collect dependencies - same as rstil_til plus tests.til
-    mut deps := Vec.new(Str)
-    deps.push("bin/rstil")
-    deps.push("bin/test_runner")
-    deps.push("src/tests.til")
-    self_files := glob_files("src/self/*.til")
-    for f: Str in self_files { deps.push(f) }
-    core_files := glob_files("src/core/*.til")
-    for f: Str in core_files { deps.push(f) }
-    std_files := glob_files("src/std/*.til")
-    for f: Str in std_files { deps.push(f) }
-    mode_files := glob_files("src/modes/*.til")
-    for f: Str in mode_files { deps.push(f) }
-
-    if needs_rebuild("bin/tests", deps).not() {
-        return
-    }
-
+    // .til dependency tracking is automatic via `rstil build`
     mut status := 0
     status = run_stream_cmd("./bin/rstil build src/tests.til")
     if status.eq(0).not() {
         exit(1)
     }
-
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 run_tests := proc() {
     build_tests()
     mut status := 0
-    status = run_stream_cmd("./bin/tests")
+    // Pass --force-rebuild to tests if compiler changed
+    // This ensures tests rebuild when rstil changed, even if test .til files didn't
+    if g_compiler_changed {
+        status = run_stream_cmd("./bin/tests --force-rebuild")
+    } else {
+        status = run_stream_cmd("./bin/tests")
+    }
     tests_status := status
     status = run_stream_cmd("cp gen/c/test/constfold.c src/test/constfold.c")
     println("Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c")
@@ -191,7 +157,12 @@ run_tests := proc() {
 run_regen := proc() {
     build_tests()
     mut status := 0
-    status = run_stream_cmd("./bin/tests regen")
+    // Pass --force-rebuild to regen if compiler changed
+    if g_compiler_changed {
+        status = run_stream_cmd("./bin/tests --force-rebuild regen")
+    } else {
+        status = run_stream_cmd("./bin/tests regen")
+    }
     println("Regenerated all test outputs")
     if status.eq(0).not() {
         exit(1)

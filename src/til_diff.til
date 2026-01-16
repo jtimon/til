@@ -1,4 +1,4 @@
-#!/usr/bin/env -S ./bin/rstil interpret
+#!/usr/bin/env -S ./bin/rstil run
 // Compare C output from rstil vs rstil_til for any .til file
 // Usage: ./src/til_diff.til <file.til>
 

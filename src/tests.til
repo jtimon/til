@@ -1,9 +1,12 @@
-#!/usr/bin/env -S ./bin/rstil interpret
+#!/usr/bin/env -S ./bin/rstil run
 mode cli
 
 import("std.sys")
 import("std.io")
 import("modes.test")
+
+// Global flag: force rebuild for compiled tests (set by --force-rebuild arg)
+mut g_force_rebuild := false
 
 // tests.til - TIL test runner
 // Runs compiled tests and compares output against .out files
@@ -260,8 +263,12 @@ get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str {
 // test.til handles: run command, compare output, report result
 // Output is redirected to a result file for later reading
 spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns RunningTest throws SpawnError {
-    // Build command: ./bin/test_runner <mode> <out_mode> <expected_status> <file> [args...]
-    mut cmd := format("./bin/test_runner ", phase.test_mode, " ", phase.out_mode, " ", entry.expected_status.to_str(), " ", entry.path)
+    // Build command: ./bin/test_runner [--force-rebuild] <mode> <out_mode> <expected_status> <file> [args...]
+    mut force_flag := ""
+    if g_force_rebuild {
+        force_flag = "--force-rebuild "
+    }
+    mut cmd := format("./bin/test_runner ", force_flag, phase.test_mode, " ", phase.out_mode, " ", entry.expected_status.to_str(), " ", entry.path)
     if entry.cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
@@ -402,7 +409,11 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                         mut next_phase := TestPhase()
                         phases.get(next_phase_idx, next_phase)
 
-                        mut cmd := format("./bin/test_runner ", next_phase.test_mode, " ", next_phase.out_mode, " ", current.entry.expected_status.to_str(), " ", current.entry.path)
+                        mut next_force_flag := ""
+                        if g_force_rebuild {
+                            next_force_flag = "--force-rebuild "
+                        }
+                        mut cmd := format("./bin/test_runner ", next_force_flag, next_phase.test_mode, " ", next_phase.out_mode, " ", current.entry.expected_status.to_str(), " ", current.entry.path)
                         if current.entry.cmd_args.len().gt(0) {
                             cmd = cmd.concat(" ").concat(current.entry.cmd_args)
                         }
@@ -960,8 +971,9 @@ usage := proc() {
 }
 
 main := proc(args: ..Str) {
-    // Parse -j option first (before other args processing)
-    // Format: -jN (e.g., -j8, -j32) - like make
+    // Parse options first (before other args processing)
+    // -jN: parallelism (e.g., -j8, -j32) - like make
+    // --force-rebuild: force recompilation for compiled tests
     mut parallelism := get_thread_count()
     mut remaining_args := Vec.new(Str)
     for arg: Str in args {
@@ -974,6 +986,8 @@ main := proc(args: ..Str) {
                     parallelism = 1
                 }
             }
+        } else if arg.eq("--force-rebuild") {
+            g_force_rebuild = true
         } else {
             remaining_args.push(arg)
         }

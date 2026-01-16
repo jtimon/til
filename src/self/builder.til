@@ -176,6 +176,107 @@ is_import_call := func(expr: Expr) returns Bool {
     }
 }
 
+// Collect import paths from an AST without precompilation (lightweight for deps checking)
+collect_import_paths := proc(ast: Expr, mut collected: Set) {
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            switch child.node_type {
+            case NodeType.FCall:
+                if not(child.params.is_empty()) {
+                    mut first_param := Expr()
+                    child.params.get(0, first_param)
+                    switch first_param.node_type {
+                    case NodeType.Identifier(name):
+                        if name.eq("import").and(child.params.len().gt(1)) {
+                            mut second_param := Expr()
+                            child.params.get(1, second_param)
+                            switch second_param.node_type {
+                            case NodeType.LLiteral(lit):
+                                switch lit {
+                                case Literal.Str(import_path):
+                                    file_path := import_path_to_file_path(import_path)
+                                    if not(collected.contains(file_path)) {
+                                        _ := collected.insert(file_path.clone())
+                                        // Recursively collect imports from this dependency
+                                        dep_result := parse_file(file_path)
+                                        collect_import_paths(dep_result.ast, collected)
+                                        catch (err: Str) {
+                                            // Ignore parse errors for deps checking
+                                        }
+                                    }
+                                case:
+                                    // REM: not a string literal
+                                }
+                            case:
+                                // REM: not a literal
+                            }
+                        }
+                    case:
+                        // REM: not an identifier
+                    }
+                }
+            case:
+                // REM: not an FCall
+            }
+        }
+    case:
+        // REM: not a Body
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        // Ignore index errors for deps checking
+    }
+}
+
+// Collect all dependencies for a TIL source file (for rebuild checking)
+// Returns all file paths that the main file depends on, including:
+// - The main file itself
+// - core.til and its imports
+// - Mode-specific imports
+// - All transitive imports
+collect_all_deps := proc(path: Str) returns Vec throws Str {
+    mut deps := Set.new(Str)
+
+    // Add main file
+    _ := deps.insert(path.clone())
+
+    // Parse main file to get its mode and imports
+    main_result := parse_file(path)
+
+    // Add core.til and its imports (unless main file IS core.til)
+    core_path := "src/core/core.til"
+    if not(path.eq(core_path)) {
+        _ := deps.insert(core_path)
+        core_result := parse_file(core_path)
+        collect_import_paths(core_result.ast, deps)
+    }
+
+    // Add mode-specific imports
+    for import_str: Str in main_result.mode_def.imports {
+        file_path := import_path_to_file_path(import_str)
+        if not(deps.contains(file_path)) {
+            _ := deps.insert(file_path.clone())
+            mode_result := parse_file(file_path)
+            collect_import_paths(mode_result.ast, deps)
+            catch (err: Str) {
+                // Ignore parse errors for deps checking
+            }
+        }
+    }
+
+    // Collect main file's imports
+    collect_import_paths(main_result.ast, deps)
+
+    // Convert Set to Vec
+    mut result := Vec.new(Str)
+    for dep: Str in deps {
+        result.push(dep.clone())
+    }
+
+    return result
+}
+
 // Build a TIL source file with target, lang, and translate_only options
 // Returns the output path (executable or source file)
 build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) returns Str throws Str {

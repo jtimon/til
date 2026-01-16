@@ -367,32 +367,6 @@ uint64_t fnv1a(const char* str, size_t len) {
 - Load factor: resize when > 0.75 full
 - For TIL: can use ~ext_proc~ for C hash function, or implement in pure TIL
 
-** Bug #102: Automatic dependency tracking from imports
-:PROPERTIES:
-:DISCOVERED: 2026-01-12
-:IMPACT: Build performance, eliminates manual dependency lists
-:STATUS: Design needed
-:END:
-
-*** Description
-Have til translate/build/run analyze dependencies from import() calls automatically,
-instead of hardcoding them in make.til like a traditional Makefile.
-
-When a file has a shebang with ~til run~, if the binary already exists and neither
-the source nor any of its dependencies changed, run the binary directly without
-recompiling.
-
-*** Design Ideas
-- Parse imports statically to build dependency graph
-- For non-TIL dependencies, add ~ext_dep("src/ext.c")~ declaration
-- Compare mtimes: if binary newer than all deps, skip recompilation
-- Similar to how Go handles imports and incremental builds
-
-*** Open Questions
-- Where to cache the dependency graph? Recompute each time vs store in file?
-- For ext_dep files: track their includes too, or just the file itself?
-- System libraries: probably ignore (assume stable)
-
 ** Bug #101: Warn/error on unused things
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
@@ -470,7 +444,7 @@ can finally be idiomatic Til instead of "Til that looks like Rust."
   - Remove rust targets from tests.til
   - Two fewer dependencies: rustc and make gone, only gcc remains
 - [ ] Verify feature parity: all modes work (interpret, run, build, translate, repl)
-- [ ] Bug #102: Automatic dependency tracking from imports
+- [X] Bug #102: Automatic dependency tracking from imports (Fixed 2026-01-16)
 - [ ] Decide on acceptable performance and binary size criteria
   - Current state:
     - Size: til 2.3M vs rstil 6.8M
@@ -1964,6 +1938,78 @@ main := proc(args: ..Str) {
 2. The C codegen should unpack argv into individual named parameters for custom signatures.
 
 * Fixed Bugs
+
+** Bug #102: Automatic dependency tracking from imports
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:FIXED: 2026-01-16
+:IMPACT: Build performance, eliminates unnecessary recompilation
+:STATUS: Fixed
+:END:
+
+*** Description
+Have ~til run~ analyze dependencies from import() calls automatically. When the
+binary already exists and neither the source nor any of its dependencies changed,
+run the binary directly without recompiling.
+
+*** Implementation
+Added automatic dependency collection and mtime checking to the ~run~ command:
+
+1. ~collect_all_deps(path)~ in builder.rs/builder.til:
+   - Parses main file to get mode and imports
+   - Recursively collects all transitive imports
+   - Includes core.til and mode-specific imports
+   - Returns list of all .til file dependencies
+
+2. ~needs_rebuild(binary_path, deps)~ in rstil.rs/til.til:
+   - Checks if binary exists
+   - Compares binary mtime against all dependency mtimes
+   - Returns true if any dep is newer than binary
+
+3. Modified ~run_file_or_exit~ to:
+   - Compute expected binary path
+   - Collect dependencies
+   - Skip build if binary is up-to-date
+   - Execute binary directly
+
+*** Design Decisions
+- No caching: Dependencies recomputed each run (simpler, no invalidation issues)
+- No ext_dep syntax: Only tracks .til files for now
+- Lightweight parsing: Uses parse-only pass without full init/typer phases
+
+*** Results
+- ~til compiled~ test time dropped from 72s to 6s (binaries reused) when deps unchanged
+- ~rs compiled~ drops from 28s to 3s on incremental runs (binaries reused)
+- No change to build correctness (touching any dep triggers rebuild)
+
+*** Files Modified
+- src/rs/builder.rs: Added ~collect_import_paths~, ~collect_all_deps~
+- src/rstil.rs: Added ~file_mtime~, ~source_to_binary_path~, ~needs_rebuild~;
+  modified ~build_file_or_exit~ and ~run_file_or_exit~; added ~--force-rebuild~ flag
+- src/self/builder.til: Ported ~collect_import_paths~, ~collect_all_deps~
+- src/til.til: Added ~source_to_binary_path~, ~needs_rebuild~;
+  modified ~build_file_or_exit~ and ~run_file_or_exit~; added ~--force-rebuild~ flag
+- make.til: Simplified - removed manual .til dep tracking (now automatic);
+  changed shebang to ~rstil run~; tracks ~g_compiler_changed~ to pass ~--force-rebuild~ to tests
+- src/test_runner.til: Accepts ~--force-rebuild~ flag; shebang changed to ~rstil run~
+- src/tests.til: Accepts ~--force-rebuild~ flag and passes to test_runner; shebang changed to ~rstil run~
+- src/til_diff.til: Shebang changed to ~rstil run~
+
+*** --force-rebuild Flag
+Tests only force rebuild when compiler changed:
+1. make.til sets ~g_compiler_changed~ when ~bin/rstil~ is newer than ~bin/til~
+2. ~run_tests~ passes ~--force-rebuild~ to ~tests.til~ only when compiler changed
+3. ~tests.til~ passes it to ~test_runner.til~
+4. ~test_runner.til~ passes it to ~rstil run~ / ~til run~
+This ensures fresh test builds after compiler changes, while allowing binary reuse otherwise.
+
+*** Fair Benchmark Timing
+For compiled mode tests, build time is now separated from execution timing:
+1. For tests expecting success (~expected_status == 0~), ~test_runner.til~ first runs
+   ~rstil build~ or ~til build~ (with ~--force-rebuild~ if needed) before timing
+2. The timed command (~rstil run~ / ~til run~) then just executes the already-built binary
+3. Error tests (~expected_status != 0~) skip pre-building since they're designed to fail
+This ensures benchmark times are consistent whether the binary needed building or not.
 
 ** Bug #115: Map iteration using wrong pattern (len() instead of direct iteration)
 :PROPERTIES:

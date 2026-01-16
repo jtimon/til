@@ -1,97 +1,97 @@
 * Totals
-- Total rust interpreted :: 41.676s
-- Total rust compiled :: 41.930s
-- Total til interpreted :: 71.340s
-- Total til compiled :: 70.849s
-- Total :: 225.795s
+- Total rust interpreted :: 40.968s
+- Total rust compiled :: 2.899s
+- Total til interpreted :: 66.983s
+- Total til compiled :: 5.883s
+- Total :: 116.733s
 
 
 * til_common
-- src/test/panic.til :: til interpreted: 0.427s, til compiled: 0.540s (faster til interpreted)
+- src/test/panic.til :: til interpreted: 0.416s, til compiled: 0.024s (faster til compiled)
 
 * rs_interpreted
 - src/test/precomp_throw.til :: interpreted: 0.095s
-- src/test/memcmp_str_interpreted.til :: interpreted: 0.106s
-- src/examples/hello_safe_script.til :: interpreted: 0.113s
-- src/test/introspections.til :: interpreted: 0.177s
+- src/test/memcmp_str_interpreted.til :: interpreted: 0.105s
+- src/examples/hello_safe_script.til :: interpreted: 0.110s
+- src/test/introspections.til :: interpreted: 0.181s
 
 * rs_compiled
-- src/test/precomp_throw.til :: compiled: 0.113s
-- src/test/memcmp_str_compiled.til :: compiled: 0.162s
-- src/test/extra_syscalls.til :: compiled: 0.208s
+- src/test/memcmp_str_compiled.til :: compiled: 0.006s
+- src/test/extra_syscalls.til :: compiled: 0.015s
+- src/test/precomp_throw.til :: compiled: 0.117s
 
 * rs_common
-- src/test/bug50.til :: interpreted: 0.102s, compiled: 0.084s (faster compiled)
-- src/test/panic.til :: interpreted: 0.102s, compiled: 0.161s (faster interpreted)
-- src/test/bug43.til :: interpreted: 0.188s, compiled: 0.250s (faster interpreted)
-- src/test/args.til :: interpreted: 0.242s, compiled: 0.226s (faster compiled)
-- src/test/test_parser.til :: interpreted: 5.884s, compiled: 1.075s (faster compiled)
-- src/test/bug47.til :: interpreted: 3.219s, compiled: 3.986s (faster interpreted)
-- src/til.til :: interpreted: 9.582s, compiled: 13.110s (faster interpreted)
+- src/test/panic.til :: interpreted: 0.100s, compiled: 0.006s (faster compiled)
+- src/test/bug43.til :: interpreted: 0.183s, compiled: 0.007s (faster compiled)
+- src/test/bug50.til :: interpreted: 0.101s, compiled: 0.090s (faster compiled)
+- src/test/args.til :: interpreted: 0.238s, compiled: 0.008s (faster compiled)
+- src/test/bug47.til :: interpreted: 3.233s, compiled: 0.036s (faster compiled)
+- src/test/test_parser.til :: interpreted: 5.883s, compiled: 0.018s (faster compiled)
+- src/til.til :: interpreted: 9.566s, compiled: 0.088s (faster compiled)
 
 * all_common
-- src/test/bug48.til :: rs interpreted: 0.176s, rs compiled: 0.163s, til interpreted: 0.754s, til compiled: 0.719s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
-- src/test/bug49.til :: rs interpreted: 0.175s, rs compiled: 0.168s, til interpreted: 0.824s, til compiled: 0.707s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
-- src/examples/hello_pura.til :: rs interpreted: 0.167s, rs compiled: 0.250s, til interpreted: 0.718s, til compiled: 0.874s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/examples/empty.til :: rs interpreted: 0.171s, rs compiled: 0.240s, til interpreted: 0.731s, til compiled: 0.872s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/examples/hello_liba.til :: rs interpreted: 0.166s, rs compiled: 0.240s, til interpreted: 0.767s, til compiled: 0.863s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/examples/hello_pure.til :: rs interpreted: 0.167s, rs compiled: 0.232s, til interpreted: 0.762s, til compiled: 0.938s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/examples/hello_lib.til :: rs interpreted: 0.196s, rs compiled: 0.274s, til interpreted: 0.725s, til compiled: 0.926s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/examples/hello_cli.til :: rs interpreted: 0.180s, rs compiled: 0.276s, til interpreted: 0.727s, til compiled: 0.955s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/examples/hello_script.til :: rs interpreted: 0.189s, rs compiled: 0.288s, til interpreted: 0.724s, til compiled: 0.947s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/editor_mode_test.til :: rs interpreted: 0.176s, rs compiled: 0.260s, til interpreted: 0.790s, til compiled: 0.982s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/bug56.til :: rs interpreted: 0.192s, rs compiled: 0.300s, til interpreted: 0.763s, til compiled: 0.987s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/comparisons.til :: rs interpreted: 0.186s, rs compiled: 0.280s, til interpreted: 0.845s, til compiled: 1.006s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/branchless.til :: rs interpreted: 0.182s, rs compiled: 0.282s, til interpreted: 0.838s, til compiled: 1.037s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/bug41.til :: rs interpreted: 0.215s, rs compiled: 0.293s, til interpreted: 0.764s, til compiled: 1.061s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/circular_test.til :: rs interpreted: 0.191s, rs compiled: 0.280s, til interpreted: 0.825s, til compiled: 1.038s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/bug55.til :: rs interpreted: 0.198s, rs compiled: 0.307s, til interpreted: 0.822s, til compiled: 1.033s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/examples/hello_test.til :: rs interpreted: 0.197s, rs compiled: 0.280s, til interpreted: 0.846s, til compiled: 1.059s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/bug57.til :: rs interpreted: 0.199s, rs compiled: 0.299s, til interpreted: 0.862s, til compiled: 1.054s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/bug46.til :: rs interpreted: 0.221s, rs compiled: 0.291s, til interpreted: 0.895s, til compiled: 1.015s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/bug52.til :: rs interpreted: 0.193s, rs compiled: 0.328s, til interpreted: 0.846s, til compiled: 1.159s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/arithmetics.til :: rs interpreted: 0.251s, rs compiled: 0.323s, til interpreted: 0.852s, til compiled: 1.114s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/c_mem.til :: rs interpreted: 0.203s, rs compiled: 0.336s, til interpreted: 0.882s, til compiled: 1.190s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/cross_file_forward.til :: rs interpreted: 0.224s, rs compiled: 0.333s, til interpreted: 0.895s, til compiled: 1.181s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/arrays.til :: rs interpreted: 0.244s, rs compiled: 0.339s, til interpreted: 0.930s, til compiled: 1.209s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/deterministic.til :: rs interpreted: 0.230s, rs compiled: 0.334s, til interpreted: 0.993s, til compiled: 1.199s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/bools.til :: rs interpreted: 0.266s, rs compiled: 0.324s, til interpreted: 1.058s, til compiled: 1.117s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/arenas.til :: rs interpreted: 0.260s, rs compiled: 0.363s, til interpreted: 1.049s, til compiled: 1.176s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/constfold.til :: rs interpreted: 0.310s, rs compiled: 0.343s, til interpreted: 1.281s, til compiled: 1.072s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/args.til :: rs interpreted: 0.441s, rs compiled: 0.404s, til interpreted: 1.328s, til compiled: 1.483s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
-- src/test/exit.til :: rs interpreted: 0.179s, rs compiled: 0.258s, til interpreted: 0.780s, til compiled: 0.869s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/bug43.til :: rs interpreted: 0.359s, rs compiled: 0.449s, til interpreted: 1.680s, til compiled: 1.704s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/eval.til :: rs interpreted: 0.183s, rs compiled: 0.292s, til interpreted: 0.732s, til compiled: 1.003s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/function_pointers.til :: rs interpreted: 0.192s, rs compiled: 0.268s, til interpreted: 0.802s, til compiled: 0.894s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/func_purity.til :: rs interpreted: 0.196s, rs compiled: 0.295s, til interpreted: 0.802s, til compiled: 1.008s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/forward_declarations.til :: rs interpreted: 0.216s, rs compiled: 0.306s, til interpreted: 0.804s, til compiled: 1.110s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/fibonacci.til :: rs interpreted: 0.254s, rs compiled: 0.306s, til interpreted: 0.938s, til compiled: 1.045s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/literals.til :: rs interpreted: 0.190s, rs compiled: 0.319s, til interpreted: 0.801s, til compiled: 0.992s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/mut_test.til :: rs interpreted: 0.205s, rs compiled: 0.265s, til interpreted: 0.770s, til compiled: 1.039s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/flow.til :: rs interpreted: 0.237s, rs compiled: 0.331s, til interpreted: 0.930s, til compiled: 1.140s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/return_value_usage.til :: rs interpreted: 0.191s, rs compiled: 0.292s, til interpreted: 0.771s, til compiled: 0.956s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/intro.til :: rs interpreted: 0.241s, rs compiled: 0.333s, til interpreted: 0.918s, til compiled: 1.071s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/pointers.til :: rs interpreted: 0.199s, rs compiled: 0.309s, til interpreted: 0.768s, til compiled: 0.996s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/namespaces.til :: rs interpreted: 0.216s, rs compiled: 0.312s, til interpreted: 0.934s, til compiled: 1.037s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/loops.til :: rs interpreted: 0.254s, rs compiled: 0.332s, til interpreted: 0.933s, til compiled: 1.096s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/optional_args.til :: rs interpreted: 0.252s, rs compiled: 0.310s, til interpreted: 0.941s, til compiled: 1.031s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/errors.til :: rs interpreted: 0.321s, rs compiled: 0.336s, til interpreted: 1.237s, til compiled: 1.217s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/scope_isolation.til :: rs interpreted: 0.204s, rs compiled: 0.320s, til interpreted: 0.816s, til compiled: 1.031s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/u8.til :: rs interpreted: 0.197s, rs compiled: 0.258s, til interpreted: 0.806s, til compiled: 0.749s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/examples/lolalalo.til :: rs interpreted: 1.341s, rs compiled: 0.340s, til interpreted: 2.820s, til compiled: 0.871s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
-- src/test/structs.til :: rs interpreted: 0.237s, rs compiled: 0.337s, til interpreted: 0.956s, til compiled: 1.053s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/clone.til :: rs interpreted: 0.516s, rs compiled: 0.605s, til interpreted: 2.467s, til compiled: 1.871s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/underscore.til :: rs interpreted: 0.192s, rs compiled: 0.291s, til interpreted: 0.707s, til compiled: 0.624s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/undefined.til :: rs interpreted: 0.201s, rs compiled: 0.155s, til interpreted: 0.530s, til compiled: 0.434s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
-- src/test/enums.til :: rs interpreted: 0.605s, rs compiled: 0.419s, til interpreted: 2.123s, til compiled: 1.069s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
-- src/test/syscalls.til :: rs interpreted: 0.491s, rs compiled: 0.336s, til interpreted: 1.773s, til compiled: 0.680s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
-- src/test/sets.til :: rs interpreted: 0.582s, rs compiled: 0.414s, til interpreted: 1.622s, til compiled: 0.969s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
-- src/test/variadic.til :: rs interpreted: 0.314s, rs compiled: 0.334s, til interpreted: 0.629s, til compiled: 0.724s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/strings.til :: rs interpreted: 0.680s, rs compiled: 0.399s, til interpreted: 1.690s, til compiled: 1.000s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
-- src/test/ufcs.til :: rs interpreted: 0.358s, rs compiled: 0.381s, til interpreted: 0.689s, til compiled: 0.956s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/lists.til :: rs interpreted: 0.543s, rs compiled: 0.470s, til interpreted: 1.946s, til compiled: 1.502s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
-- src/test/modes.til :: rs interpreted: 0.539s, rs compiled: 0.564s, til interpreted: 1.881s, til compiled: 1.502s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/vecs.til :: rs interpreted: 0.547s, rs compiled: 0.311s, til interpreted: 1.019s, til compiled: 1.611s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
-- src/test/test_lexer.til :: rs interpreted: 1.324s, rs compiled: 0.623s, til interpreted: 2.046s, til compiled: 1.923s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
-- src/test/parallel_cmd.til :: rs interpreted: 1.491s, rs compiled: 1.669s, til interpreted: 1.787s, til compiled: 1.887s (rstil: faster interpreted, interpreted: faster rstil, compiled: faster rstil)
-- src/test/maps.til :: rs interpreted: 1.453s, rs compiled: 0.586s, til interpreted: 3.969s, til compiled: 1.672s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/examples/empty.til :: rs interpreted: 0.167s, rs compiled: 0.010s, til interpreted: 0.723s, til compiled: 0.044s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/examples/hello_script.til :: rs interpreted: 0.167s, rs compiled: 0.011s, til interpreted: 0.723s, til compiled: 0.047s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/examples/hello_cli.til :: rs interpreted: 0.170s, rs compiled: 0.012s, til interpreted: 0.768s, til compiled: 0.046s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/examples/hello_lib.til :: rs interpreted: 0.177s, rs compiled: 0.011s, til interpreted: 0.763s, til compiled: 0.042s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/examples/hello_liba.til :: rs interpreted: 0.204s, rs compiled: 0.012s, til interpreted: 0.726s, til compiled: 0.047s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/examples/hello_pure.til :: rs interpreted: 0.206s, rs compiled: 0.011s, til interpreted: 0.741s, til compiled: 0.043s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/examples/hello_pura.til :: rs interpreted: 0.176s, rs compiled: 0.009s, til interpreted: 0.778s, til compiled: 0.044s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/branchless.til :: rs interpreted: 0.181s, rs compiled: 0.011s, til interpreted: 0.780s, til compiled: 0.049s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/bug41.til :: rs interpreted: 0.180s, rs compiled: 0.011s, til interpreted: 0.814s, til compiled: 0.053s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/comparisons.til :: rs interpreted: 0.195s, rs compiled: 0.012s, til interpreted: 0.812s, til compiled: 0.045s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/bug55.til :: rs interpreted: 0.197s, rs compiled: 0.011s, til interpreted: 0.839s, til compiled: 0.048s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/bug56.til :: rs interpreted: 0.203s, rs compiled: 0.011s, til interpreted: 0.833s, til compiled: 0.051s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/examples/hello_test.til :: rs interpreted: 0.205s, rs compiled: 0.012s, til interpreted: 0.834s, til compiled: 0.047s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/circular_test.til :: rs interpreted: 0.191s, rs compiled: 0.011s, til interpreted: 0.852s, til compiled: 0.047s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/bug57.til :: rs interpreted: 0.199s, rs compiled: 0.013s, til interpreted: 0.867s, til compiled: 0.049s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/bug52.til :: rs interpreted: 0.220s, rs compiled: 0.011s, til interpreted: 0.882s, til compiled: 0.049s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/c_mem.til :: rs interpreted: 0.224s, rs compiled: 0.019s, til interpreted: 0.870s, til compiled: 0.044s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/editor_mode_test.til :: rs interpreted: 0.294s, rs compiled: 0.013s, til interpreted: 0.793s, til compiled: 0.046s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/arithmetics.til :: rs interpreted: 0.241s, rs compiled: 0.012s, til interpreted: 0.864s, til compiled: 0.049s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/bug46.til :: rs interpreted: 0.216s, rs compiled: 0.013s, til interpreted: 0.887s, til compiled: 0.047s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/cross_file_forward.til :: rs interpreted: 0.209s, rs compiled: 0.012s, til interpreted: 0.902s, til compiled: 0.056s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/deterministic.til :: rs interpreted: 0.229s, rs compiled: 0.013s, til interpreted: 0.942s, til compiled: 0.048s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/arrays.til :: rs interpreted: 0.234s, rs compiled: 0.016s, til interpreted: 1.008s, til compiled: 0.049s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/arenas.til :: rs interpreted: 0.217s, rs compiled: 0.013s, til interpreted: 1.037s, til compiled: 0.054s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/bools.til :: rs interpreted: 0.275s, rs compiled: 0.017s, til interpreted: 0.971s, til compiled: 0.046s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/constfold.til :: rs interpreted: 0.284s, rs compiled: 0.015s, til interpreted: 1.306s, til compiled: 0.048s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/bug48.til :: rs interpreted: 0.188s, rs compiled: 0.153s, til interpreted: 0.781s, til compiled: 0.750s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/bug49.til :: rs interpreted: 0.174s, rs compiled: 0.159s, til interpreted: 0.773s, til compiled: 0.774s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/args.til :: rs interpreted: 0.424s, rs compiled: 0.015s, til interpreted: 1.427s, til compiled: 0.062s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/bug43.til :: rs interpreted: 0.331s, rs compiled: 0.014s, til interpreted: 1.581s, til compiled: 0.053s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/exit.til :: rs interpreted: 0.168s, rs compiled: 0.011s, til interpreted: 0.762s, til compiled: 0.043s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/eval.til :: rs interpreted: 0.168s, rs compiled: 0.012s, til interpreted: 0.791s, til compiled: 0.046s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/function_pointers.til :: rs interpreted: 0.184s, rs compiled: 0.011s, til interpreted: 0.812s, til compiled: 0.047s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/func_purity.til :: rs interpreted: 0.194s, rs compiled: 0.021s, til interpreted: 0.766s, til compiled: 0.050s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/forward_declarations.til :: rs interpreted: 0.204s, rs compiled: 0.012s, til interpreted: 0.856s, til compiled: 0.051s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/flow.til :: rs interpreted: 0.212s, rs compiled: 0.014s, til interpreted: 0.859s, til compiled: 0.052s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/literals.til :: rs interpreted: 0.195s, rs compiled: 0.013s, til interpreted: 0.805s, til compiled: 0.046s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/mut_test.til :: rs interpreted: 0.211s, rs compiled: 0.011s, til interpreted: 0.798s, til compiled: 0.044s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/pointers.til :: rs interpreted: 0.188s, rs compiled: 0.018s, til interpreted: 0.819s, til compiled: 0.048s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/return_value_usage.til :: rs interpreted: 0.187s, rs compiled: 0.012s, til interpreted: 0.824s, til compiled: 0.045s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/fibonacci.til :: rs interpreted: 0.238s, rs compiled: 0.013s, til interpreted: 0.990s, til compiled: 0.038s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/intro.til :: rs interpreted: 0.219s, rs compiled: 0.013s, til interpreted: 0.939s, til compiled: 0.042s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/loops.til :: rs interpreted: 0.254s, rs compiled: 0.013s, til interpreted: 0.893s, til compiled: 0.047s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/optional_args.til :: rs interpreted: 0.229s, rs compiled: 0.013s, til interpreted: 0.866s, til compiled: 0.045s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/scope_isolation.til :: rs interpreted: 0.209s, rs compiled: 0.012s, til interpreted: 0.837s, til compiled: 0.030s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/namespaces.til :: rs interpreted: 0.214s, rs compiled: 0.011s, til interpreted: 0.944s, til compiled: 0.028s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/structs.til :: rs interpreted: 0.250s, rs compiled: 0.013s, til interpreted: 0.864s, til compiled: 0.034s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/errors.til :: rs interpreted: 0.338s, rs compiled: 0.014s, til interpreted: 1.211s, til compiled: 0.033s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/u8.til :: rs interpreted: 0.189s, rs compiled: 0.012s, til interpreted: 0.575s, til compiled: 0.027s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/clone.til :: rs interpreted: 0.463s, rs compiled: 0.016s, til interpreted: 2.247s, til compiled: 0.034s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/underscore.til :: rs interpreted: 0.186s, rs compiled: 0.012s, til interpreted: 0.588s, til compiled: 0.028s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/ufcs.til :: rs interpreted: 0.340s, rs compiled: 0.012s, til interpreted: 0.661s, til compiled: 0.031s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/variadic.til :: rs interpreted: 0.293s, rs compiled: 0.007s, til interpreted: 0.619s, til compiled: 0.027s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/enums.til :: rs interpreted: 0.625s, rs compiled: 0.016s, til interpreted: 1.541s, til compiled: 0.037s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/undefined.til :: rs interpreted: 0.179s, rs compiled: 0.139s, til interpreted: 0.473s, til compiled: 0.455s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/lists.til :: rs interpreted: 0.545s, rs compiled: 0.014s, til interpreted: 1.515s, til compiled: 0.032s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/examples/lolalalo.til :: rs interpreted: 1.264s, rs compiled: 0.016s, til interpreted: 2.060s, til compiled: 0.026s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/sets.til :: rs interpreted: 0.557s, rs compiled: 0.014s, til interpreted: 1.362s, til compiled: 0.029s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/modes.til :: rs interpreted: 0.526s, rs compiled: 0.020s, til interpreted: 1.557s, til compiled: 0.042s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/syscalls.til :: rs interpreted: 0.470s, rs compiled: 0.015s, til interpreted: 1.210s, til compiled: 0.028s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/strings.til :: rs interpreted: 0.684s, rs compiled: 0.020s, til interpreted: 1.393s, til compiled: 0.029s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/vecs.til :: rs interpreted: 0.391s, rs compiled: 0.014s, til interpreted: 1.001s, til compiled: 0.033s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/test_lexer.til :: rs interpreted: 1.095s, rs compiled: 0.010s, til interpreted: 1.858s, til compiled: 0.042s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/maps.til :: rs interpreted: 1.502s, rs compiled: 0.009s, til interpreted: 3.644s, til compiled: 0.034s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)
+- src/test/parallel_cmd.til :: rs interpreted: 1.424s, rs compiled: 1.262s, til interpreted: 1.750s, til compiled: 1.279s (rstil: faster compiled, interpreted: faster rstil, compiled: faster rstil)

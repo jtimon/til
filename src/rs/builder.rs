@@ -123,6 +123,72 @@ fn is_import_call(expr: &Expr) -> bool {
     false
 }
 
+// Collect import paths from an AST without precompilation (lightweight for deps checking)
+fn collect_import_paths(ast: &Expr, collected: &mut HashSet<String>) {
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if let NodeType::FCall = &child.node_type {
+                if !child.params.is_empty() {
+                    if let NodeType::Identifier(name) = &child.params[0].node_type {
+                        if name == "import" && child.params.len() > 1 {
+                            if let NodeType::LLiteral(crate::rs::parser::Literal::Str(import_path)) = &child.params[1].node_type {
+                                let file_path = import_path_to_file_path(import_path);
+                                if !collected.contains(&file_path) {
+                                    collected.insert(file_path.clone());
+                                    // Recursively collect imports from this dependency
+                                    if let Ok((dep_ast, _)) = parse_file(&file_path) {
+                                        collect_import_paths(&dep_ast, collected);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Collect all dependencies for a TIL source file (for rebuild checking)
+// Returns all file paths that the main file depends on, including:
+// - The main file itself
+// - core.til and its imports
+// - Mode-specific imports
+// - All transitive imports
+pub fn collect_all_deps(path: &str) -> Result<Vec<String>, String> {
+    let mut deps = HashSet::new();
+
+    // Add main file
+    deps.insert(path.to_string());
+
+    // Parse main file to get its mode and imports
+    let (main_ast, main_mode) = parse_file(path)?;
+
+    // Add core.til and its imports (unless main file IS core.til)
+    let core_path = "src/core/core.til";
+    if path != core_path {
+        deps.insert(core_path.to_string());
+        let (core_ast, _) = parse_file(core_path)?;
+        collect_import_paths(&core_ast, &mut deps);
+    }
+
+    // Add mode-specific imports
+    for import_str in &main_mode.imports {
+        let file_path = import_path_to_file_path(import_str);
+        if !deps.contains(&file_path) {
+            deps.insert(file_path.clone());
+            if let Ok((mode_ast, _)) = parse_file(&file_path) {
+                collect_import_paths(&mode_ast, &mut deps);
+            }
+        }
+    }
+
+    // Collect main file's imports
+    collect_import_paths(&main_ast, &mut deps);
+
+    Ok(deps.into_iter().collect())
+}
+
 // Build a TIL source file with target, lang, and translate_only options
 // Returns the output path (executable or source file)
 pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> Result<String, String> {

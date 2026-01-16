@@ -1,4 +1,6 @@
 use std::env;
+use std::fs;
+use std::time::SystemTime;
 
 mod rs {
     pub mod lexer;
@@ -21,16 +23,64 @@ use rs::lexer::LANG_NAME;
 use rs::interpreter::interpret_file;
 use rs::builder;
 use rs::eval_arena::EvalArena;
-use rs::target::{Target, Lang, target_from_str, lang_from_str, detect_current_target, default_lang_for_target};
+use rs::target::{Target, Lang, target_from_str, lang_from_str, detect_current_target, default_lang_for_target, executable_extension};
 
 const REPL_PATH            : &str = "src/modes/repl.til";
 
-// Parse --target=X and --lang=X options from args, return (remaining_args, target, lang, translate_only)
-fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, bool), String> {
+// Get file modification time as Unix timestamp, returns -1 if file doesn't exist
+fn file_mtime(path: &str) -> i64 {
+    match fs::metadata(path) {
+        Ok(meta) => {
+            match meta.modified() {
+                Ok(time) => {
+                    match time.duration_since(SystemTime::UNIX_EPOCH) {
+                        Ok(duration) => duration.as_secs() as i64,
+                        Err(_) => -1,
+                    }
+                },
+                Err(_) => -1,
+            }
+        },
+        Err(_) => -1,
+    }
+}
+
+// Compute the binary output path from a TIL source path
+// Mirrors the logic in builder.rs
+fn source_to_binary_path(path: &str, target: &Target) -> String {
+    let exe_extension = executable_extension(target);
+    let bin_filename = path.replace(".til", exe_extension);
+    if bin_filename.starts_with("src/") {
+        bin_filename.replacen("src/", "bin/", 1)
+    } else {
+        format!("bin/{}", bin_filename)
+    }
+}
+
+// Check if binary needs to be rebuilt based on source file modification times
+// Returns true if binary doesn't exist or any dependency is newer than binary
+fn needs_rebuild(binary_path: &str, deps: &[String]) -> bool {
+    let binary_mtime = file_mtime(binary_path);
+    if binary_mtime == -1 {
+        return true; // Binary doesn't exist
+    }
+
+    for dep in deps {
+        let dep_mtime = file_mtime(dep);
+        if dep_mtime > binary_mtime {
+            return true; // Dependency is newer
+        }
+    }
+    false
+}
+
+// Parse --target=X and --lang=X options from args, return (remaining_args, target, lang, translate_only, force_rebuild)
+fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, bool, bool), String> {
     let mut remaining = Vec::new();
     let mut target: Option<Target> = None;
     let mut lang: Option<Lang> = None;
     let mut translate_only = false;
+    let mut force_rebuild = false;
 
     for opt_arg in args {
         if opt_arg.starts_with("--target=") {
@@ -41,6 +91,8 @@ fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, bo
             lang = Some(lang_from_str(lang_value)?);
         } else if opt_arg == "--translate" {
             translate_only = true;
+        } else if opt_arg == "--force-rebuild" {
+            force_rebuild = true;
         } else {
             remaining.push(opt_arg.clone());
         }
@@ -51,7 +103,7 @@ fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, bo
     // Default lang is determined by target
     let final_lang = lang.unwrap_or_else(|| default_lang_for_target(&final_target));
 
-    Ok((remaining, final_target, final_lang, translate_only))
+    Ok((remaining, final_target, final_lang, translate_only, force_rebuild))
 }
 
 // ---------- main, usage, args, etc
@@ -74,7 +126,8 @@ fn usage() {
     println!("--target=TARGET   Cross-compile for target platform.");
     println!("                  Supported: linux-x64, linux-arm64, windows-x64, macos-x64, macos-arm64");
     println!("--lang=LANG       Output language for codegen (default: c).");
-    println!("                  Supported: c\n");
+    println!("                  Supported: c");
+    println!("--force-rebuild   Force rebuild even if binary is up-to-date.\n");
 }
 
 fn interpret_file_or_exit(path: &String, args: Vec<String>) {
@@ -90,7 +143,19 @@ fn interpret_file_or_exit(path: &String, args: Vec<String>) {
     }
 }
 
-fn build_file_or_exit(path: &String, target: &Target, lang: &Lang, translate_only: bool) {
+fn build_file_or_exit(path: &String, target: &Target, lang: &Lang, translate_only: bool, force_rebuild: bool) {
+    // Skip rebuild check for translate (always regenerate source)
+    if !translate_only && !force_rebuild {
+        let exe_path = source_to_binary_path(path, target);
+        let should_rebuild = match builder::collect_all_deps(path) {
+            Ok(deps) => needs_rebuild(&exe_path, &deps),
+            Err(_) => true,
+        };
+        if !should_rebuild {
+            return; // Binary is up-to-date
+        }
+    }
+
     match builder::build(path, target, lang, translate_only) {
         Ok(output_path) => {
             if translate_only {
@@ -104,14 +169,30 @@ fn build_file_or_exit(path: &String, target: &Target, lang: &Lang, translate_onl
     };
 }
 
-fn run_file_or_exit(path: &String, target: &Target, lang: &Lang, extra_args: &[String]) {
-    let exe_path = match builder::build(path, target, lang, false) {
-        Ok(exe) => exe,
-        Err(err) => {
-            println!("ERROR: {err}");
-            std::process::exit(1);
-        },
+fn run_file_or_exit(path: &String, target: &Target, lang: &Lang, extra_args: &[String], force_rebuild: bool) {
+    // Compute expected binary path
+    let exe_path = source_to_binary_path(path, target);
+
+    // Collect dependencies and check if rebuild is needed
+    let should_rebuild = if force_rebuild {
+        true
+    } else {
+        match builder::collect_all_deps(path) {
+            Ok(deps) => needs_rebuild(&exe_path, &deps),
+            Err(_) => true, // If we can't collect deps, assume rebuild needed
+        }
     };
+
+    // Only build if needed
+    if should_rebuild {
+        match builder::build(path, target, lang, false) {
+            Ok(_) => {},
+            Err(err) => {
+                println!("ERROR: {err}");
+                std::process::exit(1);
+            },
+        };
+    }
 
     // Run the compiled binary with any extra arguments
     let status = std::process::Command::new(&exe_path)
@@ -149,14 +230,14 @@ fn main() {
             "build" | "translate" => {
                 // Parse build options from remaining args
                 match parse_build_options(&remaining_args) {
-                    Ok((paths, target, lang, translate_flag)) => {
+                    Ok((paths, target, lang, translate_flag, force_rebuild)) => {
                         if paths.is_empty() {
                             println!("Error: No path specified");
                             usage();
                             std::process::exit(1);
                         }
                         let translate_only = command == "translate" || translate_flag;
-                        build_file_or_exit(&paths[0], &target, &lang, translate_only);
+                        build_file_or_exit(&paths[0], &target, &lang, translate_only, force_rebuild);
                     },
                     Err(err) => {
                         println!("Error: {}", err);
@@ -167,7 +248,7 @@ fn main() {
             "run" => {
                 // Parse build options from remaining args
                 match parse_build_options(&remaining_args) {
-                    Ok((paths, target, lang, _)) => {
+                    Ok((paths, target, lang, _, force_rebuild)) => {
                         if paths.is_empty() {
                             println!("Error: No path specified");
                             usage();
@@ -175,7 +256,7 @@ fn main() {
                         }
                         // Pass remaining paths as arguments to the compiled program
                         let extra_args = if paths.len() > 1 { &paths[1..] } else { &[] };
-                        run_file_or_exit(&paths[0], &target, &lang, extra_args);
+                        run_file_or_exit(&paths[0], &target, &lang, extra_args, force_rebuild);
                     },
                     Err(err) => {
                         println!("Error: {}", err);
