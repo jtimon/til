@@ -99,7 +99,7 @@ fn next_mangled(ctx: &mut CodegenContext) -> String {
 
 // Issue #117: Check if a type has a delete() method
 // Returns true if Type.delete exists and takes (mut self: Type)
-#[allow(dead_code)]  // Used when auto-delete is enabled (requires Issue #116)
+#[allow(dead_code)]  // Used when auto-delete is enabled
 fn type_has_delete(type_name: &str, context: &Context) -> bool {
     let delete_method = format!("{}.delete", type_name);
     if let Some(func_def) = context.scope_stack.lookup_func(&delete_method) {
@@ -124,7 +124,7 @@ fn get_deletable_type_name(value_type: &ValueType) -> Option<String> {
 }
 
 // Issue #117: Track a variable for ASAP destruction if it has a delete method
-#[allow(dead_code)]  // Used when auto-delete is enabled (requires Issue #116)
+#[allow(dead_code)]  // Used when auto-delete is enabled
 fn track_deletable_var(name: &str, value_type: &ValueType, ctx: &mut CodegenContext, context: &Context) {
     if let Some(type_name) = get_deletable_type_name(value_type) {
         if type_has_delete(&type_name, context) {
@@ -5094,11 +5094,13 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     );
 
     // Issue #117: Track variable for ASAP destruction if it has delete()
-    // DISABLED until Issue #116 (ownership tracking) is implemented.
-    // Without ownership tracking, we can't tell which variables own their memory
-    // vs which are copies/borrows, leading to double-free errors.
-    // The infrastructure is in place - enable by uncommenting when ownership is tracked.
-    // if decl.is_mut && decl.is_own {
+    // All mut local variables are considered owned. For borrowed/aliased data,
+    // users must use Ptr, c_mem functions, or implement their own delete() that
+    // handles the aliasing correctly (see Issue #116 for future borrow tracking).
+    // TEMPORARILY DISABLED: Need to fix delete() functions to be idempotent first:
+    // - Array.delete: needs to check ptr != 0 before free
+    // - Map.delete: needs to use self.keys.delete() instead of local copy
+    // if decl.is_mut {
     //     track_deletable_var(name, &var_type, ctx, context);
     // }
 

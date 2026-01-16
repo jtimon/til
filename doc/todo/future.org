@@ -159,99 +159,70 @@ RegexMatch := struct {
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Fixes memory leaks automatically, Mojo-style memory management
-:STATUS: Partial (infrastructure only, disabled until Issue #116)
-:DEPENDS: Issue #116 (Str len/cap), Bug #101 (unused warnings - shared infrastructure)
-:RELATED: Bug #114 (memory leak documentation)
+:STATUS: Partial (infrastructure ready, blocked on idempotent delete)
+:DEPENDS: Bug #101 (unused warnings - FIXED)
+:RELATED: Bug #114 (memory leak documentation), Issue #116 (future borrow tracking)
 :END:
 
 *** Description
 Implement Mojo-style automatic destructor calls on last use. When a variable with
 heap data is last used, the compiler automatically inserts a ~delete()~ call.
 
+*** Current Ownership Model
+All mut local variables are considered owned. For borrowed/aliased data, users must:
+- Use Ptr or c_mem functions manually
+- Implement their own delete() that handles aliasing correctly
+See Issue #116 for future borrow tracking support.
+
 *** Partial Implementation (2026-01-16)
-Infrastructure added but auto-delete is disabled until Issue #116 (ownership tracking)
-is implemented. Without ownership tracking, we can't determine which variables own
-their memory vs which are copies/borrows, leading to double-free errors.
+Infrastructure added and ready. Auto-delete disabled pending fixes to delete()
+functions to make them idempotent (safe to call multiple times).
 
 Completed:
 - VarLifetime struct for tracking deletable variables (ccodegen.rs)
 - type_has_delete() helper to check if type has delete method (ccodegen.rs)
 - track_deletable_var() to register variables for cleanup (ccodegen.rs, disabled)
-- emit_auto_delete_cleanup() to emit delete calls at function end (ccodegen.rs, disabled)
-- Scavenger updated to include delete() methods for all used types (scavenger.rs, scavenger.til)
+- emit_auto_delete_cleanup() to emit delete calls at function end (ccodegen.rs)
+- Scavenger marks delete() methods reachable for all used types (scavenger.rs, scavenger.til)
 - var_lifetimes saved/restored for nested functions (ccodegen.rs)
 
-To enable auto-delete (after Issue #116):
-1. Implement ownership tracking (is_own flag) in Issue #116
-2. Uncomment the track_deletable_var call in emit_declaration (ccodegen.rs:5094-5097)
-3. Port changes to ccodegen.til
+*** BLOCKING: Delete Functions Must Be Idempotent
+Before enabling auto-delete, fix these delete() functions:
 
-*** Prerequisites
-- Issue #116: Str needs len/cap refactor for ownership tracking
-- Bug #101: Unused variable warnings use similar liveness analysis (FIXED)
+**** Array.delete (src/core/array.til:69)
+Problem: calls ~free(self.ptr)~ unconditionally - crashes on double-free
+Fix: add ~if gt(self.ptr, 0)~ check before free (like Vec.delete)
+
+**** Map.delete (src/std/map.til:247)
+Problem: creates local copies that don't propagate ptr=0 back to original
+#+BEGIN_SRC til
+mut keys_arr := self.keys  // shallow copy shares ptr
+keys_arr.delete()          // sets keys_arr.ptr=0, NOT self.keys.ptr
+#+END_SRC
+Fix: use ~self.keys.delete()~ and ~self.values.delete()~ directly
+
+*** To Enable Auto-Delete
+1. Fix Array.delete to be idempotent (check ptr before free)
+2. Fix Map.delete to not use local copies
+3. Audit other delete() functions for similar issues
+4. Uncomment track_deletable_var call in emit_declaration (ccodegen.rs)
+5. Port changes to ccodegen.til
+6. Run ~make benchmark~ to verify
 
 *** Types with delete()
-Already implemented: Vec, Array, Set, Map, List, Ptr
+Already implemented: Vec, Array, Set, Ptr
+In std/: Map
 After Issue #116: Str
-
-*** Implementation Steps
-
-**** Step 1: Type System - Track has_delete
-- Check if type has ~delete~ method
-- Track in SStructDef or compute on demand
-- Files: typer.rs, typer.til
-
-**** Step 2: Liveness Analysis Infrastructure
-Track last use of variables - core algorithm.
-
-Data structure:
-#+BEGIN_SRC rust
-struct VarLifetime {
-    name: String,
-    value_type: ValueType,
-    has_delete: bool,
-    last_use_stmt_idx: Option<usize>,
-    is_deleted: bool,
-}
-#+END_SRC
-
-Algorithm:
-1. Analysis pass: Scan statements, track last use index per variable
-2. Emission pass: After emitting stmt at last_use_index, emit ~var.delete()~
-
-Files: ccodegen.rs, ccodegen.til
-
-**** Step 3: Handle Early Exits (return/throw)
-Before any exit point, delete all still-live variables with delete().
-Files: ccodegen.rs, ccodegen.til
-
-**** Step 4: Handle Branches (if/else/switch)
-Conservative: Only delete if ALL paths agree variable is dead.
-Otherwise, postpone delete to after branch.
-Files: ccodegen.rs, ccodegen.til
-
-**** Step 5: Handle Loops
-Most conservative: Variables used in loop body deleted after loop ends.
-Special case: for-in loop variable deleted at end of each iteration.
-Files: ccodegen.rs, ccodegen.til
-
-**** Step 6: Scope Exit Safety Net
-Delete any remaining live variables at function end.
-Files: ccodegen.rs, ccodegen.til
-
-**** Step 7: Interpreter Support
-Mirror same logic in interpreter for consistency.
-Files: interpreter.rs, interpreter.til
 
 *** Design Decisions
 - Method name: Use existing ~delete()~
-- Double-free prevention: Existing delete() sets ptr to 0 after free
+- Double-free prevention: delete() must set ptr to 0 after free (idempotent)
 - Destruction order: Reverse order of declaration (like C++/Rust)
 - Scope: Both compiler and interpreter for consistency
 
 *** Verification
 1. Run under valgrind - no leaks
-2. Double-free tests - delete() is idempotent
+2. Double-free tests - all delete() must be idempotent
 3. Control flow tests - returns, throws, branches, loops
 4. ~make benchmark~ must pass
 
