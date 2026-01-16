@@ -99,7 +99,7 @@ static inline til_Bool til_gt(const til_I64* a, const til_I64* b)
     return (til_Bool){*a > *b};
 }
 
-static inline til_I64 til_add(const til_I64* a, const til_I64* b)
+static inline til_I64 til_i64_add(const til_I64* a, const til_I64* b)
 {
     return *a + *b;
 }

@@ -3294,7 +3294,7 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_lt(context, e)
     } else if name.eq("gt") {
         return func_gt(context, e)
-    } else if name.eq("add") {
+    } else if name.eq("i64_add") {
         return func_add(context, e)
     } else if name.eq("i64_sub") {
         return func_sub(context, e)

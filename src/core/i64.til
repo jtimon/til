@@ -4,9 +4,6 @@ mode lib
 lt        := ext_func(a: I64, b: I64) returns Bool {}
 gt        := ext_func(a: I64, b: I64) returns Bool {}
 
-// Minimal arithmetics
-add       := ext_func(a: I64, b: I64) returns I64 {}
-
 I64_SIZE  := 8
 
 /** Error thrown by safe_add when overflow occurs. */
@@ -35,7 +32,7 @@ I64 := struct {
     /** Addition that throws I64_Overflow when overflow occurs.
      *  Use add() if you want silent wrapping behavior. */
     safe_add := func(a: I64, b: I64) returns I64 throws I64_Overflow {
-        result := add(a, b)
+        result := a.add(b)
         // Overflow detection: adding positive gave smaller, or adding negative gave larger
         if gt(b, 0) {
             if lt(result, a) {
@@ -123,6 +120,12 @@ I64 := struct {
         return i64_div(a, b)
     }
 
+    /** Addition. */
+    add := func(a: I64, b: I64) returns I64 {
+        i64_add := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_add(a, b)
+    }
+
     eq := func(a: I64, b: I64) returns Bool {
         // REM We can't use the variadic or from here without mutual recusrion and a stack overflow
         if gt(a, b) {
@@ -151,7 +154,7 @@ I64 := struct {
     }
 
     inc := proc(mut self: I64) {
-        self = add(self, 1)
+        self = self.add(1)
     }
 
     dec := proc(mut self: I64) {
@@ -180,7 +183,7 @@ I64 := struct {
 
     // TODO: implement operators and allow operator overload
     __add__ := func(self: I64, other: I64) returns I64 {
-        return add(self, other)
+        return self.add(other)
     }
 
     size := func() returns I64 {

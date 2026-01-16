@@ -10,12 +10,12 @@ c1      := 1
 cNeg2   := I64.sub(0, 2)
 cNeg42  := I64.sub(0, 42)
 
-test(loc(), c42.eq(add(40, 2)), "40 + 2 = 42")
+test(loc(), c42.eq(I64.add(40, 2)), "40 + 2 = 42")
 test(loc(), c42.eq(I64.sub(44, 2)), "44 - 2 = 42")
-test(loc(), c42.eq(mul(6, 7)), " 6 * 7 = 42")
-test(loc(), c42.eq(div(420, 10)), " 420 / 10 = 42")
-test(loc(),  c4.eq(add(2, 2)), "2 + 2 = 4")
-test(loc(),  c4.eq(mul(2, 2)), "2 * 2 = 4")
+test(loc(), c42.eq(I64.mul(6, 7)), " 6 * 7 = 42")
+test(loc(), c42.eq(I64.div(420, 10)), " 420 / 10 = 42")
+test(loc(),  c4.eq(I64.add(2, 2)), "2 + 2 = 4")
+test(loc(),  c4.eq(I64.mul(2, 2)), "2 * 2 = 4")
 
 // Testing inc and dec (UFCS: val.inc() -> inc(val))
 test_inc_dec := proc() {
@@ -28,27 +28,27 @@ test_inc_dec := proc() {
 }
 test_inc_dec()
 
-test(loc(), add(40, 2).eq(42), "40 + 2 = 42")
+test(loc(), I64.add(40, 2).eq(42), "40 + 2 = 42")
 test(loc(), I64.sub(44, 2).eq(42), "44 - 2 = 42")
-test(loc(), mul(6, 7).eq(42), "6 * 7 = 42")
-test(loc(), div(420, 10).eq(42), "420 / 10 = 42")
-test(loc(), add(2, 2).eq(4), "2 + 2 = 4")
-test(loc(), mul(2, 2).eq(4), "2 * 2 = 4")
+test(loc(), I64.mul(6, 7).eq(42), "6 * 7 = 42")
+test(loc(), I64.div(420, 10).eq(42), "420 / 10 = 42")
+test(loc(), I64.add(2, 2).eq(4), "2 + 2 = 4")
+test(loc(), I64.mul(2, 2).eq(4), "2 * 2 = 4")
 
 // Additional tests for arithmetic functions
-test(loc(), mul(0, 5).eq(0), "0 * 5 = 0")
-test(loc(), mul(1, 5).eq(5), "1 * 5 = 5")
-test(loc(), div(10, 2).eq(5), "10 / 2 = 5")
-test(loc(), div(9, 3).eq(3), "9 / 3 = 3")
+test(loc(), I64.mul(0, 5).eq(0), "0 * 5 = 0")
+test(loc(), I64.mul(1, 5).eq(5), "1 * 5 = 5")
+test(loc(), I64.div(10, 2).eq(5), "10 / 2 = 5")
+test(loc(), I64.div(9, 3).eq(3), "9 / 3 = 3")
 test(loc(), I64.sub(5, 2).eq(3), "5 - 2 = 3")
-test(loc(), add(0, 0).eq(0), "0 + 0 = 0")
-test(loc(), add(1, 1).eq(2), "1 + 1 = 2")
+test(loc(), I64.add(0, 0).eq(0), "0 + 0 = 0")
+test(loc(), I64.add(1, 1).eq(2), "1 + 1 = 2")
 
 // Negative number tests
-test(loc(), add(cNeg42, 100).eq(58), "-42 + 100 = 58")
+test(loc(), cNeg42.add(100).eq(58), "-42 + 100 = 58")
 test(loc(), cNeg42.sub(cNeg2).eq(I64.sub(0, 40)), "-42 - (-2) = -40")
-test(loc(), mul(cNeg2, 21).eq(cNeg42), "-2 * 21 = -42")
-test(loc(), div(cNeg42, cNeg2).eq(21), "-42 / -2 = 21")  // Toward zero?
+test(loc(), cNeg2.mul(21).eq(cNeg42), "-2 * 21 = -42")
+test(loc(), cNeg42.div(cNeg2).eq(21), "-42 / -2 = 21")  // Toward zero?
 test(loc(), I64.sub(0, cNeg2).eq(2), "0 - (-2) = 2")
 
 // TODO: Safe wrappers for future throws (core mul/div wrap for now; add explicit checks post-selfhost)
@@ -68,8 +68,8 @@ test_chaining := proc() {
     val = val.sub(1)
     test(loc(), val.eq(15), "(5 + 3) * 2 - 1 = 15")
 
-    test(loc(), add(2, 3).mul(4).sub(1).eq(19), "((2 + 3) * 4) - 1 = 19")
-    test(loc(), mul(10, 2).sub(5).add(3).eq(18), "((10 * 2 - 5) + 3) = 18")
+    test(loc(), I64.add(2, 3).mul(4).sub(1).eq(19), "((2 + 3) * 4) - 1 = 19")
+    test(loc(), I64.mul(10, 2).sub(5).add(3).eq(18), "((10 * 2 - 5) + 3) = 18")
 }
 test_chaining()
 
@@ -89,9 +89,9 @@ test(loc(), I64.mod(10, I64.sub(0, 3)).eq(1), "10 % -3 = 1 (toward zero)")
 // Future: Post-self-hosting may add optional DivideByZero error
 test_divmod_by_zero := proc() {
     // Division by zero returns 0
-    test(loc(), div(10, 0).eq(0), "div(10, 0) returns 0 (safe default)")
-    test(loc(), div(0, 0).eq(0), "div(0, 0) returns 0")
-    test(loc(), div(I64.sub(0, 10), 0).eq(0), "div(-10, 0) returns 0")
+    test(loc(), I64.div(10, 0).eq(0), "div(10, 0) returns 0 (safe default)")
+    test(loc(), I64.div(0, 0).eq(0), "div(0, 0) returns 0")
+    test(loc(), I64.sub(0, 10).div(0).eq(0), "div(-10, 0) returns 0")
 
     // Modulo by zero returns 0
     test(loc(), I64.mod(10, 0).eq(0), "mod(10, 0) returns 0 (safe default)")

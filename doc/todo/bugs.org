@@ -8,6 +8,51 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #123: UFCS method calls fail on recursive nested function results
+:PROPERTIES:
+:DISCOVERED: 2026-01-16
+:IMPACT: Workaround required (use explicit Type.method() syntax)
+:STATUS: Open
+:END:
+
+*** Description
+When a nested function (defined inside a proc) calls itself recursively, UFCS method
+resolution fails to find the return type. This prevents using `.add()`, `.sub()`, etc.
+on the recursive call's result.
+
+*** Example
+#+BEGIN_SRC til
+test := proc() {
+    // This FAILS - UFCS can't resolve .add() on fib() result
+    fib := func(n: I64) returns I64 {
+        if lt(n, 2) { return n }
+        return fib(n.sub(1)).add(fib(n.sub(2)))  // ERROR: Undefined symbol 'add'
+    }
+
+    // This WORKS - explicit I64.add() bypasses UFCS resolution
+    fib_ok := func(n: I64) returns I64 {
+        if lt(n, 2) { return n }
+        return I64.add(fib_ok(n.sub(1)), fib_ok(n.sub(2)))  // OK
+    }
+}
+#+END_SRC
+
+*** Root Cause
+UFCS resolution needs to know the return type of `fib(...)` to find the `.add()` method.
+For recursive calls inside the function being defined, the function's signature may not
+be fully registered in the scope at the time of UFCS resolution.
+
+Non-recursive nested functions work fine because their definitions are complete before
+their results are used with UFCS.
+
+*** Workaround
+Use explicit `I64.add(a, b)` syntax instead of `a.add(b)` when chaining methods on
+recursive nested function results.
+
+*** Note
+This bug was exposed when moving `add`, `sub`, `mul`, `div` inside the I64 struct.
+Previously these were global ext_funcs that didn't need UFCS resolution.
+
 ** Bug #118: Unreachable code error message should clarify catch blocks are statements
 :PROPERTIES:
 :DISCOVERED: 2026-01-15

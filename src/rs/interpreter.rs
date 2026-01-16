@@ -2819,7 +2819,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "memcmp" => ext::func_memcmp(context, &e),
         "lt" => ext::func_lt(context, &e),
         "gt" => ext::func_gt(context, &e),
-        "add" => ext::func_add(context, &e),
+        "i64_add" => ext::func_add(context, &e),
         "i64_sub" => ext::func_sub(context, &e),
         "i64_mul" => ext::func_mul(context, &e),
         "i64_div" => ext::func_div(context, &e),
