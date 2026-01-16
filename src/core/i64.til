@@ -6,7 +6,6 @@ gt        := ext_func(a: I64, b: I64) returns Bool {}
 
 // Minimal arithmetics
 add       := ext_func(a: I64, b: I64) returns I64 {}
-mul       := ext_func(a: I64, b: I64) returns I64 {}
 
 /** Division that returns 0 when dividing by zero.
  *  This is the default, silent behavior - no error, no throw.
@@ -77,7 +76,7 @@ I64 := struct {
     /** Multiplication that throws I64_Overflow when overflow occurs.
      *  Use mul() if you want silent wrapping behavior. */
     safe_mul := func(a: I64, b: I64) returns I64 throws I64_Overflow {
-        result := mul(a, b)
+        result := a.mul(b)
         // Overflow detection: if a != 0 and result / a != b, overflow occurred
         if not(I64.eq(a, 0)) {
             if not(I64.eq(div(result, a), b)) {
@@ -113,6 +112,12 @@ I64 := struct {
     sub := func(a: I64, b: I64) returns I64 {
         i64_sub := ext_func(a: I64, b: I64) returns I64 {}
         return i64_sub(a, b)
+    }
+
+    /** Multiplication. */
+    mul := func(a: I64, b: I64) returns I64 {
+        i64_mul := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_mul(a, b)
     }
 
     eq := func(a: I64, b: I64) returns Bool {

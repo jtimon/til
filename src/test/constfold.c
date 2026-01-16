@@ -72,6 +72,7 @@ int til_Array_get(til_IndexOutOfBoundsError* _err1, const til_Array* til_self, c
 int til_Array_set(til_IndexOutOfBoundsError* _err1, til_Array* til_self, const til_I64* til_index, const til_Dynamic* til_value);
 void til_Array_delete(til_Array* til_self);
 til_I64 til_I64_sub(const til_I64* til_a, const til_I64* til_b);
+til_I64 til_I64_mul(const til_I64* til_a, const til_I64* til_b);
 til_Bool til_I64_eq(const til_I64* til_a, const til_I64* til_b);
 til_Str til_I64_to_str(const til_I64* til_self);
 void til_I64_inc(til_I64* til_self);
@@ -426,14 +427,14 @@ void til_test_simple_add(void) {
 void til_test_nested_arithmetic(void) {
     til_I64 _tmp_test_nested_arithmetic_0 = til_add(&(til_I64){1}, &(til_I64){2});
     til_I64 _tmp_test_nested_arithmetic_1 = til_I64_sub(&(til_I64){10}, &(til_I64){5});
-    const til_I64 til_result = til_mul(&_tmp_test_nested_arithmetic_0, &_tmp_test_nested_arithmetic_1);
+    const til_I64 til_result = til_I64_mul(&_tmp_test_nested_arithmetic_0, &_tmp_test_nested_arithmetic_1);
     til_Bool _tmp_test_nested_arithmetic_2 = til_I64_eq(&til_result, &(til_I64){15});
     til_test(&((til_Str){(til_I64)"src/test/constfold.til:15:10:", 29}), &_tmp_test_nested_arithmetic_2, &((til_Str){(til_I64)"mul(add(1, 2), sub(10, 5)) should be 15", 39}));
 }
 
 void til_test_deeply_nested(void) {
-    til_I64 _tmp_test_deeply_nested_0 = til_mul(&(til_I64){2}, &(til_I64){3});
-    til_I64 _tmp_test_deeply_nested_1 = til_mul(&(til_I64){4}, &(til_I64){5});
+    til_I64 _tmp_test_deeply_nested_0 = til_I64_mul(&(til_I64){2}, &(til_I64){3});
+    til_I64 _tmp_test_deeply_nested_1 = til_I64_mul(&(til_I64){4}, &(til_I64){5});
     const til_I64 til_result = til_add(&_tmp_test_deeply_nested_0, &_tmp_test_deeply_nested_1);
     til_Bool _tmp_test_deeply_nested_2 = til_I64_eq(&til_result, &(til_I64){26});
     til_test(&((til_Str){(til_I64)"src/test/constfold.til:22:10:", 29}), &_tmp_test_deeply_nested_2, &((til_Str){(til_I64)"add(mul(2, 3), mul(4, 5)) should be 26", 38}));
@@ -500,7 +501,7 @@ til_Array til_Array_new(til_Type til_T, const til_I64* til_capacity) {
     til_Array til_arr = {.type_name = ((til_Str){(til_I64)"", 0}), .type_size = 0, .ptr = 0, ._len = 0};
     til_arr.type_name = ((til_Str){(til_I64)til_T, strlen(til_T)});
     til_arr.type_size = til_size_of(&((til_Str){(til_I64)til_T, strlen(til_T)}));
-    const til_I64 til_size_bytes = til_mul(til_capacity, &til_arr.type_size);
+    const til_I64 til_size_bytes = til_I64_mul(til_capacity, &til_arr.type_size);
     til_I64 _ret__tmp_til_Array_new_1;
     til_BadAlloc _err0__tmp_til_Array_new_1 = {};
     int _status__tmp_til_Array_new_1 = til_malloc(&_ret__tmp_til_Array_new_1, &_err0__tmp_til_Array_new_1, &til_size_bytes);
@@ -562,7 +563,7 @@ int til_Array_get(til_IndexOutOfBoundsError* _err1, const til_Array* til_self, c
         *_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_til_Array_get_7};
         return 1;
     }
-    til_I64 _tmp_til_Array_get_14 = til_mul(til_index, &til_self->type_size);
+    til_I64 _tmp_til_Array_get_14 = til_I64_mul(til_index, &til_self->type_size);
     const til_I64 til_src = til_add(&til_self->ptr, &_tmp_til_Array_get_14);
     til_I64 til_dest = (til_I64)til_T;
     til_memcpy(&til_dest, &til_src, &til_self->type_size);
@@ -604,7 +605,7 @@ int til_Array_set(til_IndexOutOfBoundsError* _err1, til_Array* til_self, const t
         *_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_til_Array_set_7};
         return 1;
     }
-    til_I64 _tmp_til_Array_set_14 = til_mul(til_index, &til_self->type_size);
+    til_I64 _tmp_til_Array_set_14 = til_I64_mul(til_index, &til_self->type_size);
     til_I64 til_dest = til_add(&til_self->ptr, &_tmp_til_Array_set_14);
     til_I64 _tmp_til_Array_set_15 = (til_I64)til_value;
     til_memcpy(&til_dest, &_tmp_til_Array_set_15, &til_self->type_size);
@@ -619,6 +620,10 @@ void til_Array_delete(til_Array* til_self) {
 
 til_I64 til_I64_sub(const til_I64* til_a, const til_I64* til_b) {
     return til_i64_sub(til_a, til_b);
+}
+
+til_I64 til_I64_mul(const til_I64* til_a, const til_I64* til_b) {
+    return til_i64_mul(til_a, til_b);
 }
 
 til_Bool til_I64_eq(const til_I64* til_a, const til_I64* til_b) {
