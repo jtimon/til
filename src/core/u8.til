@@ -59,6 +59,25 @@ U8 := struct {
         return i64_to_u8(sum)
     }
 
+    /** Subtraction that wraps on underflow (returns result mod 256).
+     *  This is the default, silent behavior - no error, no throw.
+     *  Use safe_sub() if you want to catch underflow errors. */
+    sub := func(a: U8, b: U8) returns U8 {
+        u8_sub := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_sub(a, b)
+    }
+
+    /** Subtraction that throws U8_Overflow when result < 0.
+     *  Use sub() if you want silent wrapping behavior. */
+    safe_sub := func(a: U8, b: U8) returns U8 throws U8_Overflow {
+        diff := a.to_i64().sub(b.to_i64())
+        if lt(diff, 0) {
+            throw U8_Overflow(msg=format(loc(), "U8 underflow: ", a.to_str(), " - ", b.to_str(), " = ", diff.to_str()))
+        }
+        i64_to_u8 := ext_func(i64: I64) returns U8 {}
+        return i64_to_u8(diff)
+    }
+
     from_i64 := func(self: I64) returns U8 throws U8_Overflow {
         if lt(self, 0) {
             throw U8_Overflow(msg=format(loc(), "Negative values cannot be cast into 'U8'"))

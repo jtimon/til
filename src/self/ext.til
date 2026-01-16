@@ -497,6 +497,19 @@ func_u8_add := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     return EvalResult.new(result.to_str())
 }
 
+func_u8_sub := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "U8_sub", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := I64.from_str(a_result.value)
+    b := I64.from_str(b_result.value)
+    // Wrapping sub: (a - b + 256) mod 256
+    result := mod(a.sub(b).add(256), 256)
+    return EvalResult.new(result.to_str())
+}
+
 // ---------- core procs implementations for eval
 
 // Note: If this prints an Array instead of a Str, check that single_print is declared

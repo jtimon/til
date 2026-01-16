@@ -69,6 +69,24 @@ I64 := struct {
         return result
     }
 
+    /** Subtraction that throws I64_Overflow when underflow occurs.
+     *  Use sub() if you want silent wrapping behavior. */
+    safe_sub := func(a: I64, b: I64) returns I64 throws I64_Overflow {
+        result := sub(a, b)
+        // Underflow detection: subtracting positive gave larger, or subtracting negative gave smaller
+        if gt(b, 0) {
+            if gt(result, a) {
+                throw I64_Overflow(msg=format(loc(), "I64 underflow: ", a.to_str(), " - ", b.to_str()))
+            }
+        }
+        if lt(b, 0) {
+            if lt(result, a) {
+                throw I64_Overflow(msg=format(loc(), "I64 underflow: ", a.to_str(), " - ", b.to_str()))
+            }
+        }
+        return result
+    }
+
     eq := func(a: I64, b: I64) returns Bool {
         // REM We can't use the variadic or from here without mutual recusrion and a stack overflow
         if gt(a, b) {

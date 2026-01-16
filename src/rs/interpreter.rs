@@ -2831,6 +2831,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "i64_to_str" => ext::func_i64_to_str(context, &e),
         "enum_to_str" => ext::func_enum_to_str(context, &e),
         "u8_add" => ext::func_u8_add(context, &e),
+        "u8_sub" => ext::func_u8_sub(context, &e),
         "u8_to_i64" => ext::func_u8_to_i64(context, &e),
         "i64_to_u8" => ext::func_i64_to_u8(context, &e),
         "eval_to_str" => proc_eval_to_str(context, &e),
