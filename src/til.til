@@ -62,7 +62,6 @@ parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws St
     result.translate_only = translate_only
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
 
     return result
 }
@@ -144,7 +143,6 @@ main := proc(args: ..Str) {
             i.inc()
         }
         catch (err: IndexOutOfBoundsError) { }
-        catch (err: AllocError) { }
 
         if command.eq("interpret") {
             // interpret doesn't use build options, just pass remaining args
@@ -160,7 +158,6 @@ main := proc(args: ..Str) {
             }
             interpret_file_or_exit(path, main_args)
             catch (err: IndexOutOfBoundsError) { }
-            catch (err: AllocError) { }
             return
         } else if command.eq("build") {
             // Parse build options from remaining args
@@ -224,7 +221,6 @@ main := proc(args: ..Str) {
                 exit(1)
             }
             catch (err: IndexOutOfBoundsError) { }
-            catch (err: AllocError) { }
             return
         } else if command.eq("repl") {
             usage()

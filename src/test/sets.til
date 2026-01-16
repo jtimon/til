@@ -31,7 +31,6 @@ test_set_insert := proc() {
     assert_eq(loc(), 2, s.len())
     assert(loc(), s.contains("world"))
 
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_set_insert()
 
@@ -47,7 +46,6 @@ test_set_contains := proc() {
     assert(loc(), not(s.contains("durian")))
     assert(loc(), not(s.contains("")))
 
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_set_contains()
 
@@ -80,7 +78,6 @@ test_set_remove := proc() {
     s.remove("four")
     assert_eq(loc(), 0, s.len())
 
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_set_remove()
 
@@ -107,7 +104,6 @@ test_set_i64 := proc() {
     assert_eq(loc(), 2, s.len())
     assert(loc(), not(s.contains(100)))
 
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_set_i64()
 
@@ -127,7 +123,6 @@ test_set_clone := proc() {
     assert_eq(loc(), 2, cloned.len())
     assert(loc(), cloned.contains("a"))
 
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_set_clone()
 
@@ -140,7 +135,6 @@ test_set_delete := proc() {
     s.delete()
     assert_eq(loc(), 0, s.len())
 
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_set_delete()
 
@@ -159,7 +153,6 @@ test_set_get := proc() {
     s.get(2, elem)
     assert_eq_str(loc(), "gamma", elem)
 
-    catch (err: AllocError) { panic(loc(), err.msg) }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 test_set_get()

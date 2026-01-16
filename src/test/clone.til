@@ -12,10 +12,6 @@ test_str_clone := proc() {
     assert_eq_str(loc(), "hello", cloned)
     assert_eq_str(loc(), "hello", original)
 
-    catch(err: AllocError) {
-        println(loc(), "AllocError:", err.msg)
-        exit(1)
-    }
 }
 test_str_clone()
 
@@ -48,10 +44,6 @@ test_array_clone := proc() {
     original.get(0, orig_val)
     assert_eq(loc(), 10, orig_val)
 
-    catch(err: AllocError) {
-        println(loc(), "AllocError:", err.msg)
-        exit(1)
-    }
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "IndexOutOfBoundsError:", err.msg)
         exit(1)
@@ -79,10 +71,6 @@ test_vec_clone := proc() {
     assert_eq(loc(), 4, cloned.len())
     assert_eq(loc(), 3, original.len())
 
-    catch(err: AllocError) {
-        println(loc(), "AllocError:", err.msg)
-        exit(1)
-    }
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "IndexOutOfBoundsError:", err.msg)
         exit(1)
@@ -120,10 +108,6 @@ test_list_clone := proc() {
     assert_eq(loc(), 4, cloned.len())
     assert_eq(loc(), 3, original.len())
 
-    catch(err: AllocError) {
-        println(loc(), "AllocError:", err.msg)
-        exit(1)
-    }
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "IndexOutOfBoundsError:", err.msg)
         exit(1)
@@ -154,10 +138,6 @@ test_map_clone := proc() {
     original.get("one", orig_val)
     assert_eq(loc(), 1, orig_val)
 
-    catch(err: AllocError) {
-        println(loc(), "AllocError:", err.msg)
-        exit(1)
-    }
     catch(err: DuplicatedKeyError) {
         println(loc(), "DuplicatedKeyError:", err.msg)
         exit(1)

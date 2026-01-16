@@ -77,7 +77,7 @@ ScopeFrame := struct {
     // Scope type (helps with cleanup and debugging)
     mut scope_type: ScopeType = ScopeType.Global
 
-    clone := func(self: ScopeFrame) returns ScopeFrame throws AllocError {
+    clone := func(self: ScopeFrame) returns ScopeFrame {
         return ScopeFrame(
             arena_index=self.arena_index.clone(),
             symbols=self.symbols.clone(),
@@ -109,7 +109,7 @@ ScopeStack := struct {
         return stack
     }
 
-    push := proc(mut self: ScopeStack, scope_type: ScopeType) throws Str {
+    push := proc(mut self: ScopeStack, scope_type: ScopeType) {
         mut frame := ScopeFrame()
         frame.arena_index = Map.new(Str, I64)
         frame.symbols = Map.new(Str, SymbolInfo)
@@ -118,9 +118,6 @@ ScopeStack := struct {
         frame.structs = Map.new(Str, SStructDef)
         frame.scope_type = scope_type
         self.frames.push(frame)
-        catch (err: AllocError) {
-            throw err.msg
-        }
     }
 
     pop := proc(mut self: ScopeStack) returns ScopeFrame throws Str, IndexOutOfBoundsError {
@@ -258,9 +255,6 @@ ScopeStack := struct {
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        catch (err: AllocError) {
-            throw err.msg
-        }
     }
 
     declare_symbol := proc(mut self: ScopeStack, name: Str, symbol: SymbolInfo) throws Str {
@@ -272,9 +266,6 @@ ScopeStack := struct {
             self.frames.set(last_idx, current_frame)
         }
         catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
-        catch (err: AllocError) {
             throw err.msg
         }
     }
@@ -334,9 +325,6 @@ ScopeStack := struct {
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        catch (err: AllocError) {
-            throw err.msg
-        }
     }
 
     lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
@@ -375,9 +363,6 @@ ScopeStack := struct {
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        catch (err: AllocError) {
-            throw err.msg
-        }
     }
 
     lookup_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws KeyNotFoundError {
@@ -412,9 +397,6 @@ ScopeStack := struct {
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        catch (err: AllocError) {
-            throw err.msg
-        }
     }
 
     lookup_struct := func(self: ScopeStack, name: Str) returns SStructDef throws KeyNotFoundError {
@@ -441,9 +423,6 @@ ScopeStack := struct {
     // Check if a combined name (e.g., "Color.Green") refers to an enum constructor
     is_enum_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
         mut parts := combined_name.split(".")
-        catch (err: AllocError) {
-            return false
-        }
         if parts.len().eq(2) {
             mut enum_type := Str()
             parts.get(0, enum_type)
@@ -468,9 +447,6 @@ ScopeStack := struct {
     // Check if a combined name refers to a struct constructor
     is_struct_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
         mut parts := combined_name.split(".")
-        catch (err: AllocError) {
-            return false
-        }
         if parts.len().eq(1) {
             mut struct_name := Str()
             parts.get(0, struct_name)
@@ -508,9 +484,6 @@ ScopeStack := struct {
         catch (err: IndexOutOfBoundsError) {
             throw loc().concat("IndexOutOfBoundsError in all_structs: ").concat(err.msg)
         }
-        catch (err: AllocError) {
-            throw loc().concat("AllocError in all_structs: ").concat(err.msg)
-        }
         return result
     }
 
@@ -525,12 +498,9 @@ ScopeStack := struct {
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        catch (err: AllocError) {
-            throw err.msg
-        }
     }
 
-    get_symbols_with_prefix := func(self: ScopeStack, prefix: Str) returns Vec throws Str {
+    get_symbols_with_prefix := func(self: ScopeStack, prefix: Str) returns Vec {
         // Collect all keys from all scopes that start with the given prefix
         mut keys := Vec.new(Str)
         for frame: ScopeFrame in self.frames {
@@ -540,26 +510,20 @@ ScopeStack := struct {
                 }
             }
         }
-        catch (err: AllocError) {
-            throw err.msg
-        }
         return keys
     }
 
-    get_all_struct_names := func(self: ScopeStack) returns Vec throws Str {
+    get_all_struct_names := func(self: ScopeStack) returns Vec {
         mut names := Vec.new(Str)
         for frame: ScopeFrame in self.frames {
             for key: Str in frame.structs.keys {
                 names.push(key.clone())
             }
         }
-        catch (err: AllocError) {
-            throw err.msg
-        }
         return names
     }
 
-    clone := func(self: ScopeStack) returns ScopeStack throws AllocError {
+    clone := func(self: ScopeStack) returns ScopeStack {
         return ScopeStack(frames=self.frames.clone(), function_locals=self.function_locals.clone(), used_symbols=self.used_symbols.clone())
     }
 
@@ -643,22 +607,16 @@ ScopeStack := struct {
     register_function_local := proc(mut self: ScopeStack, name: Str, line: I64, col: I64) {
         mut key := format(name, ":", line.to_str(), ":", col.to_str())
         _ := self.function_locals.insert(key)
-        catch (err: AllocError) {
-            panic(loc(), "register_function_local AllocError: ", err.msg)
-        }
     }
 
     // Bug #101: Mark a symbol as used in the current function.
     mark_symbol_used := proc(mut self: ScopeStack, name: Str) {
         _ := self.used_symbols.insert(name)
-        catch (err: AllocError) {
-            panic(loc(), "mark_symbol_used AllocError: ", err.msg)
-        }
     }
 
     // Bug #101: Get all declared symbols in function_locals that are not in used_symbols
     // and don't start with underscore.
-    get_unused_symbols := func(self: ScopeStack) returns Vec throws AllocError {
+    get_unused_symbols := func(self: ScopeStack) returns Vec {
         mut unused := Vec.new(Str)
         for key: Str in self.function_locals {
             // Extract name from "name:line:col" format
@@ -707,7 +665,6 @@ get_func_name_in_call := func(e: Expr) returns Str throws Str {
         mut param_node_type_str := enum_to_str(param.node_type)
         throw format("in get_func_name_in_call(): Identifiers can only contain identifiers, found '", param_node_type_str, "'")
     }
-    catch (err: AllocError) { throw concat("get_func_name_in_call: ", err.msg) }
     return func_name
 }
 
@@ -790,9 +747,6 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
         throw e.error(context.path, "init", format("'", f_name, "' of type '", value_type_to_str(target_type), "' doesn't support methods"))
     }
     catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: AllocError) {
         throw err.msg
     }
 }
@@ -1202,9 +1156,6 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
     throw e.error(context.path, "init", format("Undefined symbol '", f_name, "'"))
 }
 
@@ -1368,21 +1319,15 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
 }
 
 # Convert dot-based import path to OS-specific file path
 # Example: "std.io" -> "src/std/io.til" (Unix) or "src\std\io.til" (Windows)
 # Auto-prefixes with "src."
-import_path_to_file_path := func(import_path: Str) returns Str throws Str {
+import_path_to_file_path := func(import_path: Str) returns Str {
     mut full_path := format("src.", import_path)
     mut file_path := full_path.replace(".", MAIN_SEPARATOR_STR)
     mut result := format(file_path, ".til")
-    catch (err: AllocError) {
-        throw err.msg
-    }
     return result
 }
 
@@ -1404,8 +1349,8 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
 
     # Read and parse the imported file
     mut source := readfile(path)
-    catch (err: Str) {
-        throw e.error(context.path, "import", format("File '", path, "' not found or could not be read: ", err))
+    if source.is_empty() {
+        throw e.error(context.path, "import", format("File '", path, "' not found or empty"))
     }
 
     context.path = path.clone()
@@ -1487,10 +1432,6 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     # Restore context state
     context.mode_def = previous_mode
     context.path = original_path.clone()
-
-    catch (err: AllocError) {
-        throw err.msg
-    }
 }
 
 // Context priming / declaration indexing
@@ -1750,9 +1691,6 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
         }
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
     return errors
 }
 
@@ -1761,7 +1699,7 @@ EnumPayload := struct {
     mut data: Vec = Vec.new(U8)
     mut value_type: ValueType = ValueType.TCustom("")
 
-    clone := func(self: EnumPayload) returns EnumPayload throws AllocError {
+    clone := func(self: EnumPayload) returns EnumPayload {
         return EnumPayload(data=self.data.clone(), value_type=self.value_type)
     }
 }
@@ -1812,9 +1750,6 @@ Context := struct {
             imports_precomp_done=Set.new(Str),
             imports_eval_done=Set.new(Str)
         )
-        catch (err: AllocError) {
-            throw err.msg
-        }
         return result
     }
 
@@ -1836,9 +1771,6 @@ Context := struct {
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        catch (err: AllocError) {
-            throw err.msg
-        }
         throw e.lang_error(path, "context", format("Error: Enum variant '", variant_name, "' not found in variants: ", names.to_str(), "."))
     }
 
@@ -1854,9 +1786,6 @@ Context := struct {
             catch (err: IndexOutOfBoundsError) {
                 throw err.msg
             }
-            catch (err: AllocError) {
-                throw err.msg
-            }
             throw e.lang_error(path, "context", format("Error: Invalid position '", I64.to_str(position), "' for enum variant in '", err_names.to_str(), "'."))
         }
         # If position is valid, return the corresponding variant name
@@ -1864,9 +1793,6 @@ Context := struct {
         selfi.variants.get(position, pos_v)
         mut result := pos_v.name.clone()
         catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
-        catch (err: AllocError) {
             throw err.msg
         }
         return result
@@ -1964,12 +1890,9 @@ Context := struct {
 
     // Push a new function scope and switch to the function's source path
     // Returns the saved path that should be restored when popping
-    push_function_scope := proc(mut self: Context, function_path: Str) returns Str throws Str {
+    push_function_scope := proc(mut self: Context, function_path: Str) returns Str {
         self.scope_stack.push(ScopeType.Function)
         mut saved_path := self.path.clone()
-        catch (err: AllocError) {
-            throw err.msg
-        }
         self.path = function_path
         return saved_path
     }
@@ -2092,9 +2015,6 @@ Context := struct {
     // Get the absolute arena offset for a field path (e.g., "my_vec._len")
     get_field_offset := func(self: Context, field_path: Str) returns I64 throws Str {
         mut parts := field_path.split(".")
-        catch (err: AllocError) {
-            throw format("get_field_offset: alloc error splitting '", field_path, "'")
-        }
         if parts.len().eq(0) {
             throw "get_field_offset: empty field path"
         }
@@ -2173,9 +2093,6 @@ Context := struct {
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        catch (err: AllocError) {
-            throw err.msg
-        }
 
         return current_offset
     }
@@ -2183,9 +2100,6 @@ Context := struct {
     // Get the ValueType for a field path (e.g., "s.color")
     get_field_type := func(self: Context, field_path: Str) returns ValueType throws Str {
         mut parts := field_path.split(".")
-        catch (err: AllocError) {
-            throw format("get_field_type: alloc error splitting '", field_path, "'")
-        }
         if parts.len().eq(0) {
             throw "get_field_type: empty field path"
         }
@@ -2245,9 +2159,6 @@ Context := struct {
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        catch (err: AllocError) {
-            throw err.msg
-        }
 
         return current_type
     }
@@ -2287,12 +2198,9 @@ Context := struct {
                 # Not a custom type
             }
         }
-        catch (err: AllocError) {
-            throw err.msg
-        }
     }
 
-    clone := func(self: Context) returns Context throws AllocError {
+    clone := func(self: Context) returns Context {
         return Context(
             mode_def=self.mode_def,
             path=self.path,

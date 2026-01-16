@@ -13,7 +13,7 @@ pub struct ComputeReachableResult {
 }
 
 /// Types required by ext.c - these must be kept if ANY external function is reachable
-const EXT_C_TYPES: &[&str] = &["Bool", "Str", "I64", "U8", "AllocError", "Array"];
+const EXT_C_TYPES: &[&str] = &["Bool", "Str", "I64", "U8", "BadAlloc", "Array"];
 
 // ---------- Type collection helpers
 

@@ -1,8 +1,6 @@
 mode lib
 
-AllocError := struct {
-    mut msg: Str = ""
-}
+BadAlloc := struct {}
 
 // Memory operations
 NULL   := 0
@@ -10,7 +8,7 @@ size_of := ext_func(type: Type) returns I64 {}
 to_ptr := ext_func(var_identifier: Dynamic) returns I64 {}
 type_as_str := ext_func(type: Type) returns Str {}
 // TODO Use throws for memory operations, don't return 0 from malloc
-malloc := ext_func(size: I64) returns I64 throws AllocError {}
+malloc := ext_func(size: I64) returns I64 throws BadAlloc {}
 free   := ext_func(ptr: I64) {}
 memcpy := ext_func(dest: I64, src: I64, size: I64) {}
 memcmp := ext_func(ptr1: I64, ptr2: I64, size: I64) returns I64 {}

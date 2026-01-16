@@ -61,7 +61,7 @@ Vec := struct {
 
     /** Create new empty vec with pre-allocated capacity.
      *  Use when you know approximately how many elements you'll need. */
-    with_capacity := proc(T: Type, capacity: I64) returns Vec throws AllocError {
+    with_capacity := proc(T: Type, capacity: I64) returns Vec {
         mut vec := Vec()
         vec.type_name = type_as_str(T)
         vec.type_size = size_of(T)
@@ -72,9 +72,7 @@ Vec := struct {
                 panic(loc(), "Vec.with_capacity: capacity exceeded Vec.MAX_CAP")
             }
             vec.ptr = malloc(mul(capacity, vec.type_size))
-            if NULL.eq(vec.ptr) {
-                throw AllocError(msg=format(loc(), "Vec.with_capacity: malloc failed"))
-            }
+            catch (err: BadAlloc) { panic(loc(), "Vec.with_capacity: malloc failed") }
         } else {
             vec.ptr = NULL
         }
@@ -82,7 +80,7 @@ Vec := struct {
     }
 
     /** Push element to end of vec. */
-    push := proc(mut self: Vec, value: Dynamic) throws AllocError {
+    push := proc(mut self: Vec, value: Dynamic) {
         // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
         //     throw format(loc(), "Vec.push: value type mismatch")
         // }
@@ -111,6 +109,8 @@ Vec := struct {
         mut dest := add(self.ptr, mul(self._len, self.type_size))
         memcpy(dest, to_ptr(value), self.type_size)
         self._len = add(self._len, 1)
+
+        catch (err: BadAlloc) { panic(loc(), "Vec.push: malloc failed") }
     }
 
     /** Get element at index. */
@@ -167,7 +167,7 @@ Vec := struct {
     }
 
     /** Clone the vec (allocates new memory, copies elements). */
-    clone := func(self: Vec) returns Vec throws AllocError {
+    clone := func(self: Vec) returns Vec {
         mut cloned := Vec()
         cloned.type_name = self.type_name
         cloned.type_size = self.type_size
@@ -176,9 +176,7 @@ Vec := struct {
         if gt(self.cap, 0) {
             mut total_bytes := mul(self.cap, self.type_size)
             cloned.ptr = malloc(total_bytes)
-            if NULL.eq(cloned.ptr) {
-                throw AllocError(msg=format(loc(), "Vec.clone: malloc failed"))
-            }
+            catch (err: BadAlloc) { panic(loc(), "Vec.clone: malloc failed") }
             if gt(self._len, 0) {
                 mut used_bytes := mul(self._len, self.type_size)
                 memcpy(cloned.ptr, self.ptr, used_bytes)
@@ -190,7 +188,7 @@ Vec := struct {
     }
 
     /** Extend vec with all elements from another vec. */
-    extend := proc(mut self: Vec, other: Vec) throws AllocError {
+    extend := proc(mut self: Vec, other: Vec) {
         mut i := 0
         while i.lt(other._len) {
             // Copy element from other to self
@@ -206,6 +204,7 @@ Vec := struct {
                     panic(loc(), "Vec.extend: capacity exceeded Vec.MAX_CAP")
                 }
                 mut new_ptr := malloc(mul(new_cap, self.type_size))
+                catch (err: BadAlloc) { panic(loc(), "Vec.extend: malloc failed") }
                 if gt(self._len, 0) {
                     memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
                 }
@@ -224,7 +223,7 @@ Vec := struct {
     }
 
     /** Extend vec with `count` copies of `value`. */
-    extend_with := proc(mut self: Vec, value: Dynamic, count: I64) throws AllocError {
+    extend_with := proc(mut self: Vec, value: Dynamic, count: I64) {
         for _ in 0..count {
             self.push(value)
         }
@@ -275,7 +274,7 @@ Vec := struct {
 
     /** Insert element at index, shifting remaining elements right.
      *  Index must be in range [0, len] (can insert at end). */
-    insert_at := proc(mut self: Vec, index: I64, value: Dynamic) throws IndexOutOfBoundsError, AllocError {
+    insert_at := proc(mut self: Vec, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
         if index.gt(self._len) {
             throw IndexOutOfBoundsError(msg=format(loc(), "Vec.insert_at: index out of bounds"))
         }
@@ -291,6 +290,7 @@ Vec := struct {
             }
 
             mut new_ptr := malloc(mul(new_cap, self.type_size))
+            catch (err: BadAlloc) { panic(loc(), "Vec.insert_at: malloc failed") }
             if gt(self._len, 0) {
                 memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
             }

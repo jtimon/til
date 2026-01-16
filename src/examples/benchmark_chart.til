@@ -110,10 +110,6 @@ main := proc() {
         println("")
     }
 
-    catch (err: AllocError) {
-        println("AllocError:", err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("IndexOutOfBoundsError:", err.msg)
         exit(1)

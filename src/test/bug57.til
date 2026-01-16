@@ -33,10 +33,6 @@ test_continue_in_for := proc() {
 
     println("Bug #57 test passed: continue in for loops works correctly")
 
-    catch (err: AllocError) {
-        println("AllocError:", err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("IndexOutOfBoundsError:", err.msg)
         exit(1)
@@ -67,10 +63,6 @@ test_continue_in_reverse_for := proc() {
 
     println("Bug #57 test passed: continue in reverse for loops works correctly")
 
-    catch (err: AllocError) {
-        println("AllocError:", err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("IndexOutOfBoundsError:", err.msg)
         exit(1)

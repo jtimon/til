@@ -13,8 +13,4 @@ test_dynamic_param := proc() {
     v.push(10)  // Fails with til: "Source '10' not found in caller context"
     assert_eq(loc(), 1, v.len())
     v.delete()
-    catch (err: AllocError) {
-        println("ERROR:", loc(), err.msg)
-        exit(1)
-    }
 }

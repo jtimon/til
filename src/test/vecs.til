@@ -28,11 +28,6 @@ test_vec_u8 := proc() {
     assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
 
     // Catch unexpected errors at end
-    catch(err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch(err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -82,11 +77,6 @@ test_vec_str := proc() {
     assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
 
     // Catch unexpected errors at end
-    catch(err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch(err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -121,11 +111,6 @@ test_vec_bool := proc() {
     assert_eq(loc(), 0, dyn.cap)
 
     // Catch unexpected errors at end
-    catch(err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch(err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -160,11 +145,6 @@ test_vec_i64 := proc() {
     assert_eq(loc(), 0, dyn.cap)
 
     // Catch unexpected errors at end
-    catch(err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch(err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -208,11 +188,6 @@ test_vec_vec2 := proc() {
     assert_eq(loc(), 0, dyn.cap)
 
     // Catch unexpected errors at end
-    catch(err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch(err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -249,11 +224,6 @@ test_vec_growth := proc() {
     dyn.delete()
 
     // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -280,12 +250,6 @@ test_vec_get_out_of_bounds := proc() {
 
     arr.delete()
 
-    // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_vec_get_out_of_bounds()
 
@@ -305,12 +269,6 @@ test_vec_set_out_of_bounds := proc() {
 
     arr.delete()
 
-    // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_vec_set_out_of_bounds()
 
@@ -349,12 +307,6 @@ test_vec_pop := proc() {
     println("ERROR:", loc(), "Should have thrown IndexOutOfBoundsError")
     exit(1)
 
-    // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_vec_pop()
 
@@ -393,11 +345,6 @@ test_vec_extend := proc() {
     src.delete()
 
     // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -427,11 +374,6 @@ test_vec_extend_empty := proc() {
     empty.delete()
 
     // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -481,11 +423,6 @@ test_vec_remove := proc() {
     vec.delete()
 
     // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -508,12 +445,6 @@ test_vec_remove_out_of_bounds := proc() {
 
     vec.delete()
 
-    // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_vec_remove_out_of_bounds()
 
@@ -551,11 +482,6 @@ test_vec_contains := proc() {
     test(loc(), not(empty.contains(42)), "contains on empty vec should return false")
     empty.delete()
 
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_vec_contains()
 
@@ -605,11 +531,6 @@ test_vec_enum_direct_push := proc() {
 
     colors.delete()
 
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -660,11 +581,6 @@ test_vec_enum_payload := proc() {
 
     items.delete()
 
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -717,11 +633,6 @@ test_vec_with_capacity := proc() {
 
     empty.delete()
 
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -756,11 +667,6 @@ test_sort_str_vec := proc() {
 
     variants.delete()
 
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -838,11 +744,6 @@ test_vec_insert_at := proc() {
     assert_eq(loc(), 42, val)
     empty.delete()
 
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -865,10 +766,5 @@ test_vec_insert_at_out_of_bounds := proc() {
 
     vec.delete()
 
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_vec_insert_at_out_of_bounds()

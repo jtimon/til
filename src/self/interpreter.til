@@ -17,7 +17,7 @@ import("std.io")            // readfile
 RETURN_INSTANCE_NAME := "___temp_return_val_"
 
 /// Convert I64 to little-endian bytes (Vec<U8>)
-i64_to_le_bytes := func(val: I64) returns Vec throws AllocError {
+i64_to_le_bytes := func(val: I64) returns Vec {
     mut bytes := Vec.new(U8)
     // Extract 8 bytes in little-endian order using bit shifts
     for i in 0..8 {
@@ -29,7 +29,7 @@ i64_to_le_bytes := func(val: I64) returns Vec throws AllocError {
 }
 
 /// Copy bytes from arena memory into a Vec<U8>
-arena_memory_slice := func(arena: EvalArena, offset: I64, size: I64) returns Vec throws AllocError {
+arena_memory_slice := func(arena: EvalArena, offset: I64, size: I64) returns Vec {
     mut bytes := Vec.new(U8)
     for _ in 0..size {
         bytes.push(0)
@@ -170,7 +170,6 @@ read_struct_primitive_fields := proc(ctx: Context, instance_id: Str, struct_type
             }
         }
     }
-    catch (err: AllocError) { throw err.msg }
     return values
 }
 
@@ -273,7 +272,6 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
             }
         }
     }
-    catch (err: AllocError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
     return defaults
@@ -313,7 +311,6 @@ create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) ret
 
     // Cache the template offset
     g_arena.default_instances.set(struct_type, template_offset)
-    catch (err: AllocError) { throw err.msg }
 
     return template_offset
 }
@@ -796,7 +793,7 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
         throw e.lang_error(context.path, "eval", format("Not implemented yet, found node type ", enum_to_str(e.node_type), "."))
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
+    catch (err: BadAlloc) { panic(loc(), "eval_expr: buy more ram") }
     return EvalResult.new("")
 }
 
@@ -1221,8 +1218,8 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
         return eval_core_func_proc_call(last_name, context, new_fcall_e, is_proc)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
     catch (err: U8_OverflowError) { throw err.msg }
+    catch (err: BadAlloc) { panic(loc(), "eval_func_proc_call: buy more ram") }
     return eval_user_func_proc_call(func_def, combined_name, context, new_fcall_e)
 }
 
@@ -1513,7 +1510,6 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
         throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of unhandled type '", value_type_to_str(value_type), "'"))
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -1620,7 +1616,6 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
         throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of unhandled type '", value_type_to_str(value_type), "'."))
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -1794,7 +1789,7 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
         throw e.lang_error(context.path, "eval", format("'", name, "' of type: '", custom_type_name, "': custom types are supposed to be struct or enum, found '", value_type_to_str(custom_symbol.value_type), "'."))
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
+    catch (err: BadAlloc) { panic(loc(), "eval_custom_expr: buy more ram") }
     return EvalResult.new("")
 }
 
@@ -2007,7 +2002,6 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                         keys_to_copy.push(akey.clone())
                                     }
                                 }
-                                catch (err_alloc: AllocError) { throw err_alloc.msg }
                                 for ki in 0..keys_to_copy.len() {
                                     mut src_key := ""
                                     keys_to_copy.get(ki, src_key)
@@ -2039,7 +2033,6 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                         symbol_keys_to_copy.push(skey.clone())
                                     }
                                 }
-                                catch (err_alloc2: AllocError) { throw err_alloc2.msg }
                                 for si in 0..symbol_keys_to_copy.len() {
                                     mut sym_src_key := ""
                                     symbol_keys_to_copy.get(si, sym_src_key)
@@ -2174,7 +2167,6 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -3264,10 +3256,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         }
     }
 
-    catch (err: AllocError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Frame already popped above
+    catch (err: BadAlloc) { panic(loc(), "eval_user_func_proc_call: buy more ram") }
     return EvalResult.new(result_str) // CLEANUP SITE 7: Return normal value (final return)
 }
 
@@ -3389,7 +3381,6 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
     _ := context.imports_typer_done.insert(path.clone())
     _ := context.imports_precomp_done.insert(path.clone())
     _ := context.imports_eval_done.insert(path.clone())
-    catch (err: AllocError) { throw err.msg }
 
     // Lex source
     mut lexer := lexer_from_source(path, source)
@@ -3434,9 +3425,6 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
         _ := proc_import(context, import_fcall_expr)
         catch (err: Str) {
             throw format(path, ":", err)
-        }
-        catch (err: AllocError) {
-            throw err.msg
         }
     }
 
@@ -3506,8 +3494,6 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
 
         // Precomputation phase: Transform UFCS calls into regular function calls
         e = precomp_expr(context, e)
-
-        catch (err: AllocError) { throw err.msg }
     }
 
     // Evaluate the expression
@@ -3583,7 +3569,6 @@ proc_eval_file := proc(mut context: Context, e: Expr) returns EvalResult throws 
         main_args.push(arg_result.value)
     }
 
-    catch (err: AllocError) { throw err.msg }
     _ := interpret_file(path, main_args)
     return EvalResult.new("")
 }
@@ -3639,6 +3624,5 @@ proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str
         throw e.error(context.path, "eval", format(
             "While importing ", path, ":\n", eval_result.value))
     }
-    catch (err: AllocError) { throw err.msg }
     return EvalResult.new("")
 }

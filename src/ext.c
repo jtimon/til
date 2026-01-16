@@ -93,9 +93,14 @@ static inline til_I64 til_I64_or(const til_I64* a, const til_I64* b)
 }
 
 // Memory functions
-static inline int til_malloc(til_I64* _ret, til_AllocError* _err, const til_I64* size)
+static inline int til_malloc(til_I64* _ret, til_BadAlloc* _err, const til_I64* size)
 {
-    *_ret = (til_I64)malloc((size_t)*size);
+    void* ptr = malloc((size_t)*size);
+    if (ptr == NULL && *size > 0) {
+        (void)_err;  // BadAlloc has no fields
+        return 1;  // throw BadAlloc
+    }
+    *_ret = (til_I64)ptr;
     return 0;
 }
 

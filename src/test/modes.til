@@ -35,11 +35,6 @@ test_can_be_imported := proc() {
         println(err)
         exit(1)
     }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_can_be_imported()
 
@@ -58,11 +53,6 @@ test_mode_lib := proc() {
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
         exit(1)
     }
 }
@@ -85,11 +75,6 @@ test_mode_pure := proc() {
         println(err)
         exit(1)
     }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_mode_pure()
 
@@ -110,11 +95,6 @@ test_mode_script := proc() {
         println(err)
         exit(1)
     }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_mode_script()
 
@@ -133,11 +113,6 @@ test_mode_cli := proc() {
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
         exit(1)
     }
 }
@@ -165,11 +140,6 @@ test_mode_test := proc() {
         println(err)
         exit(1)
     }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -187,11 +157,6 @@ test_mode_invalid := proc() {
     catch (err: Str) {
         threw_error = true
         // Error was thrown as expected
-    }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
     }
 
     // Should have thrown an error

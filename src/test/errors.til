@@ -213,7 +213,7 @@ test_catch_error_with_str_field()
 
 // Test rethrowing error field as different type
 // Note: takes dummy arg to prevent compile-time evaluation (precomp)
-trigger_out_of_bounds := func(_dummy: I64) returns I64 throws Str, AllocError {
+trigger_out_of_bounds := func(_dummy: I64) returns I64 throws Str {
     mut arr := Array.new(I64, 2)
     mut val := 0
     arr.get(10, val)  // Intentionally out of bounds
@@ -236,18 +236,14 @@ test_rethrow_error_field := proc() {
         caught = true
         error_msg = err
     }
-    catch (err: AllocError) {
-        // Ignore AllocError for this test
-    }
-
     assert(loc(), caught)
-    assert_eq_str(loc(), "src/core/array.til:41:52:Array.get: index out of bounds", error_msg)
+    assert_eq_str(loc(), "src/core/array.til:42:52:Array.get: index out of bounds", error_msg)
 }
 test_rethrow_error_field()
 
 // Test assigning error field to variable then throwing (Bug #29 regression)
 // Note: takes dummy arg to prevent compile-time evaluation (precomp)
-trigger_out_of_bounds_assign := func(_dummy: I64) returns I64 throws Str, AllocError {
+trigger_out_of_bounds_assign := func(_dummy: I64) returns I64 throws Str {
     mut arr := Array.new(I64, 2)
     mut val := 0
     arr.get(10, val)
@@ -271,11 +267,8 @@ test_rethrow_error_field_via_assign := proc() {
         caught = true
         error_msg = err
     }
-    catch (err: AllocError) {
-    }
-
     assert(loc(), caught)
-    assert_eq_str(loc(), "src/core/array.til:41:52:Array.get: index out of bounds", error_msg)
+    assert_eq_str(loc(), "src/core/array.til:42:52:Array.get: index out of bounds", error_msg)
 }
 test_rethrow_error_field_via_assign()
 

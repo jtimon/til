@@ -8,7 +8,7 @@ import("self.init")
 // ---------- Type collection helpers
 
 /// Extract type name from a ValueType, if it's a custom or multi type
-extract_type_name := proc(vt: ValueType) returns Str throws Str {
+extract_type_name := proc(vt: ValueType) returns Str {
     switch vt {
     case ValueType.TCustom(name):
         return name.clone()
@@ -17,7 +17,6 @@ extract_type_name := proc(vt: ValueType) returns Str throws Str {
     case:
         return ""
     }
-    catch (err: AllocError) { throw err.msg }
 }
 
 /// Collect all type names used in an expression (declarations, constructors, etc.)
@@ -67,7 +66,6 @@ collect_used_types_from_expr := proc(context: Context, e: Expr, mut used_types: 
     for param: Expr in e.params {
         collect_used_types_from_expr(context, param, used_types)
     }
-    catch (err: AllocError) { throw err.msg }
 }
 
 /// Collect all type names from a function definition (args, return types, throw types, body)
@@ -102,7 +100,6 @@ collect_used_types_from_func := proc(context: Context, func_def: SFuncDef, mut u
         collect_used_types_from_expr(context, stmt, used_types)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
 }
 
 // ---------- Helper functions
@@ -151,7 +148,6 @@ rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def
     mut result_params := Vec.new(Expr)
     result_params.push(new_struct_expr)
 
-    catch (err: AllocError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
 
     return Expr(node_type=NodeType.Declaration(decl.clone()), params=result_params, line=0, col=0)
@@ -192,7 +188,6 @@ collect_called_functions := proc(e: Expr, mut called: Set) throws Str {
         }
     }
 
-    catch (err: AllocError) { throw err.msg }
 }
 
 /// Get combined name from an identifier expression (handles a.b.c chains)
@@ -230,17 +225,15 @@ get_combined_name_from_identifier := proc(e: Expr) returns Str throws Str {
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
 }
 
 /// Helper to add a function to both reachable and worklist at the same time
-mark_reachable := proc(func_name: Str, mut reachable: Set, mut worklist: Vec) throws Str {
+mark_reachable := proc(func_name: Str, mut reachable: Set, mut worklist: Vec) {
     if not(reachable.contains(func_name)) {
         _ := reachable.insert(func_name.clone())
         worklist.push(func_name.clone())
     }
 
-    catch (err: AllocError) { throw err.msg }
 }
 
 /// Recursively register all functions and structs from the AST into context.scope_stack.
@@ -300,15 +293,14 @@ register_declarations := proc(mut context: Context, e: Expr) throws Str {
 }
 
 /// Types required by ext.c - these must be kept since ext.c is always included
-get_ext_c_types := proc() returns Vec throws Str {
+get_ext_c_types := proc() returns Vec {
     mut types := Vec.new(Str)
     types.push("Bool")
     types.push("Str")
     types.push("I64")
     types.push("U8")
-    types.push("AllocError")
+    types.push("BadAlloc")
     types.push("Array")
-    catch (err: AllocError) { throw err.msg }
     return types
 }
 
@@ -509,8 +501,6 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
-
     // Always add ext.c required types since ext.c is always included in generated C
     ext_c_types := get_ext_c_types()
     for ext_type: Str in ext_c_types {
@@ -583,8 +573,6 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
-
     return ComputeReachableResult(reachable=reachable, used_types=used_types, needs_variadic_support=needs_variadic_support)
 }
 
@@ -735,14 +723,11 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
         mut result_node_type := node_type_clone(e.node_type)
 
-        catch (err: AllocError) { throw err.msg }
-
         return Expr(node_type=result_node_type, params=new_params, line=e.line, col=e.col)
     case:
     }
 
     // Not a Body node - return unchanged
     mut result := e.clone()
-    catch (err: AllocError) { throw err.msg }
     return result
 }

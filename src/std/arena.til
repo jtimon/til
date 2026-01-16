@@ -12,10 +12,6 @@ Arena := struct {
         mut a := Arena()
         a._memory = Vec.with_capacity(U8, Arena.INITIAL_CAPACITY)
         a._memory.push(0)  // REM: first address 0 is reserved (invalid), malloc always >0
-
-        catch (err: AllocError) {
-            panic(loc(), err.msg)
-        }
         return a
     }
 
@@ -30,7 +26,7 @@ Arena := struct {
     }
 
     /** Append bytes to arena, return offset where they were placed */
-    put := proc(mut self: Arena, src_ptr: I64, num_bytes: I64) returns I64 throws AllocError {
+    put := proc(mut self: Arena, src_ptr: I64, num_bytes: I64) returns I64 {
         offset := self._memory.len()
         // Extend vec to make room (Vec grows naturally)
         self._memory.extend_with(0, num_bytes)
@@ -50,7 +46,7 @@ Arena := struct {
     }
 
     /** Reserve space in arena, return offset where space was allocated */
-    reserve := proc(mut self: Arena, size: I64) returns I64 throws AllocError {
+    reserve := proc(mut self: Arena, size: I64) returns I64 {
         offset := self._memory.len()
         // Extend vec with zeros (Vec grows naturally)
         self._memory.extend_with(0, size)

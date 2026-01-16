@@ -40,7 +40,7 @@ RunningTest := struct {
 // Parse time output like "real\t0m0.042s" -> milliseconds
 // Assumes LC_ALL=C format (dot as decimal separator)
 // Returns -1 if parsing fails
-parse_time_ms := func(time_output: Str) returns I64 throws AllocError, IndexOutOfBoundsError {
+parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError {
     // Find "real" line
     lines := time_output.split("\n")
     for line: Str in lines {
@@ -126,10 +126,6 @@ run_timed := proc(mut output: Str, mut time_ms: I64, cmd: Str) returns I64 {
         output = full_output
         time_ms = sub(0, 1)
     }
-    catch (err: AllocError) {
-        output = full_output
-        time_ms = sub(0, 1)
-    }
 
     return exit_code
 }
@@ -151,7 +147,7 @@ format_time := func(ms: I64) returns Str {
 // Path transform: src/examples/foo.til -> gen/out/examples/foo.interpreted.out
 // test_mode: "interpreted" or "compiled"
 // cmd_args: "" for default, "help" for .help.out, etc.
-get_out_path := func(src_path: Str, test_mode: Str, cmd_args: Str) returns Str throws AllocError {
+get_out_path := func(src_path: Str, test_mode: Str, cmd_args: Str) returns Str {
     base := src_path.replace(".til", "").replace("src/", "gen/out/")
     mut suffix := ""
     if not(cmd_args.eq("")) {
@@ -214,8 +210,6 @@ test_with_cmd := proc(entry: TestEntry, cmd_prefix: Str, fail_label: Str, out_mo
         return true
     }
 
-    catch (err: AllocError) { panic(loc(), err.msg) }
-
     return false
 }
 
@@ -253,7 +247,7 @@ kill_running_and_panic := proc(running: Vec, msg: Str) {
 // path: src/test/foo.til -> gen/out/test/foo
 // mode: rs_interpreted, til_compiled, etc.
 // args: "help" -> ".help", "help foo" -> ".help_foo", "" -> ""
-get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str throws AllocError {
+get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str {
     base := path.replace(".til", "").replace("src/", "gen/out/")
     mut args_part := ""
     if cmd_args.len().gt(0) {
@@ -287,7 +281,7 @@ spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns Run
 // On success: "PASS <time_ms>"
 // On failure: error output (and exit code was non-zero)
 // Returns true if passed, false if failed
-parse_test_result := proc(result_file: Str, exit_status: I64, mut time_ms: I64, mut error_output: Str) returns Bool throws AllocError, IndexOutOfBoundsError {
+parse_test_result := proc(result_file: Str, exit_status: I64, mut time_ms: I64, mut error_output: Str) returns Bool throws IndexOutOfBoundsError {
     output := readfile(result_file)
 
     if exit_status.eq(0) {
@@ -562,7 +556,6 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
 
     catch (err: SpawnError) { kill_running_and_panic(running, err.msg) }
     catch (err: SleepError) { kill_running_and_panic(running, err.msg) }
-    catch (err: AllocError) { kill_running_and_panic(running, err.msg) }
     catch (err: IndexOutOfBoundsError) { kill_running_and_panic(running, err.msg) }
 
     return errors
@@ -731,7 +724,6 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
 
     _ := writefile("gen/benchmark.org", totals.concat(benchmark_content))
 
-    catch (err: AllocError) { panic(loc(), err.msg) }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     if errors_found.gt(0) {
@@ -809,12 +801,10 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec,
             }
         }
     }
-
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 
 // Ensure parent directory exists for a file path
-ensure_parent_dir := proc(file_path: Str) throws AllocError {
+ensure_parent_dir := proc(file_path: Str) {
     // Extract directory by finding last /
     mut last_slash := 0
     for i in 0..file_path.len() {
@@ -857,8 +847,6 @@ ensure_out_file := proc(path: Str, cmd_args: Str, out_path: Str, test_mode: Str)
         _ := writefile(out_path, formatted)
         println("Created: ", out_path)
     }
-
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 
 // _common tests compare both modes against same .interpreted.out file
@@ -884,7 +872,7 @@ test_til_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms:
     return errors_found
 }
 
-regen_test := proc(entry: TestEntry) throws AllocError {
+regen_test := proc(entry: TestEntry) {
     out_path := get_out_path(entry.path, "rs_interpreted", entry.cmd_args)
 
     mut output := ""
@@ -901,7 +889,7 @@ regen_test := proc(entry: TestEntry) throws AllocError {
     println("Regenerated: ", out_path)
 }
 
-regen_test_compiled := proc(entry: TestEntry) throws AllocError {
+regen_test_compiled := proc(entry: TestEntry) {
     out_path := get_out_path(entry.path, "rs_compiled", entry.cmd_args)
 
     mut output := ""
@@ -918,7 +906,7 @@ regen_test_compiled := proc(entry: TestEntry) throws AllocError {
     println("Regenerated (rs_compiled): ", out_path)
 }
 
-regen_test_til := proc(entry: TestEntry) throws AllocError {
+regen_test_til := proc(entry: TestEntry) {
     out_path := get_out_path(entry.path, "til_interpreted", entry.cmd_args)
 
     mut output := ""
@@ -935,7 +923,7 @@ regen_test_til := proc(entry: TestEntry) throws AllocError {
     println("Regenerated (til_interpreted): ", out_path)
 }
 
-regen_test_til_compiled := proc(entry: TestEntry) throws AllocError {
+regen_test_til_compiled := proc(entry: TestEntry) {
     out_path := get_out_path(entry.path, "til_compiled", entry.cmd_args)
 
     mut output := ""
@@ -1164,6 +1152,5 @@ main := proc(args: ..Str) {
         }
     }
 
-    catch (err: AllocError) { panic(loc(), err.msg) }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }

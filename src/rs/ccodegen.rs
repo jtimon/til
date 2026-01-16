@@ -1315,13 +1315,7 @@ fn hoist_variadic_args(
     output.push_str(&arr_var);
     output.push_str(";\n");
 
-    // Declare error vars for Array.new (AllocError) and Array.set (IndexOutOfBoundsError)
-    output.push_str(&indent_str);
-    output.push_str(TIL_PREFIX);
-    output.push_str("AllocError _err_alloc_");
-    output.push_str(&err_suffix);
-    output.push_str(";\n");
-
+    // Declare error var for Array.set (IndexOutOfBoundsError)
     output.push_str(&indent_str);
     output.push_str(TIL_PREFIX);
     output.push_str("IndexOutOfBoundsError _err_idx_");
@@ -1371,47 +1365,23 @@ fn hoist_variadic_args(
     output.push_str(&variadic_count.to_string());
     output.push_str(";\n");
 
-    // Emit Array.new call with error handling
-    // int _status = til_Array_new(&arr, &_err_alloc, &type_temp, &count_temp);
+    // Emit Array.new call (non-throwing, panics internally on malloc failure)
+    // til_Array arr = til_Array_new(type_temp, &count_temp);
     output.push_str(&indent_str);
-    output.push_str("int _arr_status_");
-    output.push_str(&err_suffix);
+    output.push_str(&arr_var);
     output.push_str(" = ");
     output.push_str(TIL_PREFIX);
-    output.push_str("Array_new(&");
-    output.push_str(&arr_var);
-    output.push_str(", &_err_alloc_");
-    output.push_str(&err_suffix);
-    // Bug #60: Type is already const char*, pass by value (no &)
-    output.push_str(", ");
+    output.push_str("Array_new(");
     output.push_str(&type_temp);
     output.push_str(", &");
     output.push_str(&count_temp);
     output.push_str(");\n");
 
-    // Emit error check for Array.new (AllocError -> propagate if current function throws it)
+    // Declare status variable for Array.set calls
     output.push_str(&indent_str);
-    output.push_str("if (_arr_status_");
+    output.push_str("int _arr_status_");
     output.push_str(&err_suffix);
-    output.push_str(" != 0) {\n");
-    // Propagate AllocError if current function throws it
-    for (curr_idx, curr_throw) in ctx.current_throw_types.iter().enumerate() {
-        if let ValueType::TCustom(curr_type_name) = curr_throw {
-            if curr_type_name == "AllocError" {
-                output.push_str(&indent_str);
-                output.push_str("    *_err");
-                output.push_str(&(curr_idx + 1).to_string());
-                output.push_str(" = _err_alloc_");
-                output.push_str(&err_suffix);
-                output.push_str("; return ");
-                output.push_str(&(curr_idx + 1).to_string());
-                output.push_str(";\n");
-                break;
-            }
-        }
-    }
-    output.push_str(&indent_str);
-    output.push_str("}\n");
+    output.push_str(";\n");
 
     // Emit Array.set for each variadic arg
     for (i, temp) in arg_temps.iter().enumerate() {
@@ -2209,9 +2179,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         if main_has_variadic {
             // Convert argc/argv to til_Array and pass to til_main
             // Skip argv[0] (exe path) to match interpreter behavior
-            output.push_str("    til_Array _main_args;\n");
-            output.push_str("    til_AllocError _main_args_err;\n");
-            output.push_str("    til_Array_new(&_main_args, &_main_args_err, \"Str\", &(til_I64){argc - 1});\n");
+            output.push_str("    til_Array _main_args = til_Array_new(\"Str\", &(til_I64){argc - 1});\n");
             output.push_str("    for (int i = 1; i < argc; i++) {\n");
             output.push_str("        til_Str _arg = {(til_I64)argv[i], strlen(argv[i])};\n");
             output.push_str("        til_IndexOutOfBoundsError _set_err;\n");

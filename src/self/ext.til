@@ -13,9 +13,10 @@ import("std.io")            // readfile, input_read_line
 // ---------- Helper functions
 
 /// Convert a single byte to a 1-character string
-byte_to_str := func(byte: U8) returns Str throws AllocError {
+byte_to_str := func(byte: U8) returns Str {
     mut s := Str()
     s.c_string = malloc(2)  // 1 byte + null terminator
+    catch (err: BadAlloc) { panic(loc(), "byte_to_str: malloc failed") }
     s.cap = 1
     memcpy(s.c_string, to_ptr(byte), 1)
     mut zero : U8 = 0
@@ -35,7 +36,6 @@ make_allowed_commands := proc() returns Array {
     arr.set(6, "bash")
     arr.set(7, "rm")
     arr.set(8, "cp")
-    catch (err: AllocError) { panic(loc(), err.msg) }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return arr
 }
@@ -46,7 +46,6 @@ make_safe_commands := proc() returns Array {
     mut arr := Array.new(Str, 2)
     arr.set(0, "ls")
     arr.set(1, "mkdir")
-    catch (err: AllocError) { panic(loc(), err.msg) }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return arr
 }
@@ -90,7 +89,6 @@ string_from_context := proc(context: Context, id: Str, e: Expr) returns Str thro
         memcpy(to_ptr(byte), g_arena.get(c_string_ptr.add(i), 1), 1)
         result = format(result, byte_to_str(byte))
     }
-    catch (err: AllocError) { throw err.msg }
     catch (err: U8_OverflowError) { throw err.msg }
     return result
 }
@@ -630,8 +628,6 @@ proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws St
         throw e.error(context.path, "eval", "run_cmd first argument must be an identifier")
     }
     EvalArena.insert_primitive(context, var_name, ValueType.TCustom("Str"), output, e)
-
-    catch (err: AllocError) { throw err.msg }
 
     return EvalResult.new(exit_code.to_str())
 }

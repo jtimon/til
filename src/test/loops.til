@@ -45,11 +45,6 @@ test_for_in_vec_i64 := proc() {
     assert_eq(loc(), 60, total)
     v.delete()
 
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_for_in_vec_i64()
 
@@ -65,11 +60,6 @@ test_for_in_vec_str := proc() {
     assert_eq_str(loc(), "hello world", sentence)
     words.delete()
 
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_for_in_vec_str()
 
@@ -85,11 +75,6 @@ test_for_in_array_i64 := proc() {
     assert_eq(loc(), 600, arr_total)
     arr.delete()
 
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         // This catches IndexOutOfBoundsError from arr.set() calls above
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
@@ -138,7 +123,6 @@ test_forin_simple_enum := proc() {
     }
     assert_eq(loc(), 3, count)
 
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_forin_simple_enum()
 
@@ -173,7 +157,6 @@ test_forin_payload_enum := proc() {
     }
     assert_eq(loc(), 3, count)
 
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 test_forin_payload_enum()
 

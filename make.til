@@ -53,7 +53,6 @@ build_rstil := proc() {
     }
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 
 /**
@@ -103,7 +102,6 @@ build_rstil_til := proc() {
     }
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 
 // WARNING: This target currently hangs!
@@ -146,7 +144,6 @@ build_test_runner := proc() {
     }
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 
 build_tests := proc() {
@@ -177,7 +174,6 @@ build_tests := proc() {
     }
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 
 run_tests := proc() {

@@ -10,7 +10,7 @@ import("self.precomp_ext")
 
 // Bug #57 fix: Transform continue statements to include the step expression before continue.
 // This ensures the loop variable is incremented even when continue is used in for-in loops.
-precomp_transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr throws AllocError, IndexOutOfBoundsError {
+precomp_transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr throws IndexOutOfBoundsError {
     switch expr.node_type {
     case NodeType.Continue:
         // Replace continue with { step_expr; continue }
@@ -274,10 +274,6 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
     catch (err: IndexOutOfBoundsError) {
         throw format("reorder_named_args: ", err.msg)
     }
-    catch (err: AllocError) {
-        throw format("reorder_named_args: ", err.msg)
-    }
-
     return final_result
 }
 
@@ -352,9 +348,6 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         for p: Expr in e.params {
             new_params.push(precomp_expr(context, p))
         }
-        catch (err: AllocError) {
-            throw format("precomp_expr NamedArg: ", err.msg)
-        }
         return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
     // ForIn desugaring: for VAR: TYPE in COLLECTION { body } -> while loop
     // After desugaring, recursively precomp the result to resolve UFCS and loc()
@@ -407,9 +400,6 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
 
         // Use get_func_def_for_fcall_with_expr like interpreter does
         mut e_clone := e.clone()
-        catch (err: AllocError) {
-            return false  // Can't clone expression
-        }
         mut func_def := SFuncDef()
         mut func_def_found := false
         func_def = get_func_def_for_fcall_with_expr(context, e_clone)
@@ -557,36 +547,25 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
         return e.clone()
     }
 
-    catch (err: AllocError) {
-        throw err.msg
-    }
 }
 
 // ---------- AST transformation
 
 /// Transform Body node - recursively transform all statements
-precomp_body := proc(mut context: Context, e: Expr) returns Expr throws Str {
+precomp_body := proc(mut context: Context, e: Expr) returns Expr {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
         new_params.push(precomp_expr(context, p))
-    }
-
-    catch (err: AllocError) {
-        throw format("precomp_body: ", err.msg)
     }
 
     return Expr.new_clone(e.node_type, e, new_params)
 }
 
 /// Transform node params - recursively transform all child expressions
-precomp_params := proc(mut context: Context, e: Expr) returns Expr throws Str {
+precomp_params := proc(mut context: Context, e: Expr) returns Expr {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
         new_params.push(precomp_expr(context, p))
-    }
-
-    catch (err: AllocError) {
-        throw format("precomp_params: ", err.msg)
     }
 
     return Expr.new_clone(e.node_type, e, new_params)
@@ -696,10 +675,6 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     catch (err: IndexOutOfBoundsError) {
         throw format("precomp_switch: ", err.msg)
     }
-    catch (err: AllocError) {
-        throw format("precomp_switch: ", err.msg)
-    }
-
     return Expr.new_clone(NodeType.Switch, e, new_params)
 }
 
@@ -707,7 +682,7 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 /// Used when generating placeholder values for enum variant payloads in for-in loops.
 /// Bug #33: for-in loops don't work with enum collections
 /// Bug #86: Handle enum payload types recursively
-build_default_value_for_forin := func(context: Context, vt: ValueType, line: I64, col: I64) returns Expr throws AllocError {
+build_default_value_for_forin := func(context: Context, vt: ValueType, line: I64, col: I64) returns Expr {
     switch vt {
     case ValueType.TCustom(type_name):
         if type_name.eq("I64") {
@@ -999,9 +974,6 @@ precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     catch (err: IndexOutOfBoundsError) {
         throw format("precomp_forin: ", err.msg)
     }
-    catch (err: AllocError) {
-        throw format("precomp_forin: ", err.msg)
-    }
 
     return Expr.new_explicit(NodeType.Body, outer_body_params, e.line, e.col)
 }
@@ -1047,9 +1019,6 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
     catch (err: IndexOutOfBoundsError) {
         throw format("precomp_struct_def: ", err.msg)
     }
-    catch (err: AllocError) {
-        throw format("precomp_struct_def: ", err.msg)
-    }
     catch (err: KeyNotFoundError) {
         throw format("precomp_struct_def: ", err.msg)
     }
@@ -1084,9 +1053,6 @@ precomp_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) retu
     new_func_def.source_path = func_def.source_path.clone()
 
     catch (err: IndexOutOfBoundsError) {
-        throw format("precomp_func_def: ", err.msg)
-    }
-    catch (err: AllocError) {
         throw format("precomp_func_def: ", err.msg)
     }
 
@@ -1281,9 +1247,6 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     catch (err: IndexOutOfBoundsError) {
         throw format("precomp_declaration: ", err.msg)
     }
-    catch (err: AllocError) {
-        throw format("precomp_declaration: ", err.msg)
-    }
 
     return Expr.new_clone(e.node_type, e, new_params)
 }
@@ -1344,9 +1307,6 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     new_params.push(new_body)
 
     catch (err: IndexOutOfBoundsError) {
-        throw format("precomp_catch: ", err.msg)
-    }
-    catch (err: AllocError) {
         throw format("precomp_catch: ", err.msg)
     }
 
@@ -1601,9 +1561,6 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     }
 
     catch (err: IndexOutOfBoundsError) {
-        throw format("precomp_fcall: ", err.msg)
-    }
-    catch (err: AllocError) {
         throw format("precomp_fcall: ", err.msg)
     }
 

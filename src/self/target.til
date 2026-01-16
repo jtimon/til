@@ -157,7 +157,7 @@ default_lang_for_target := func(target: Target) returns Lang {
     }
 }
 
-supported_langs_for_target := func(target: Target) returns Vec throws AllocError {
+supported_langs_for_target := func(target: Target) returns Vec {
     mut result := Vec.new(Lang)
     switch target {
     case Target.TempleosX86:
@@ -178,9 +178,6 @@ is_lang_supported_for_target := func(lang: Lang, target: Target) returns Bool {
             return true
         }
     }
-    catch (err: AllocError) {
-        // REM: supported_langs_for_target threw, should not happen
-    }
     return false
 }
 
@@ -192,10 +189,6 @@ validate_lang_for_target := func(lang: Lang, target: Target) throws Str {
     mut supported_strs := Vec.new(Str)
     for l: Lang in supported {
         supported_strs.push(lang_to_str(l))
-    }
-
-    catch (err: AllocError) {
-        throw err.msg
     }
 
     throw format(
@@ -263,7 +256,7 @@ toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
     )
 }
 
-toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec throws AllocError {
+toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec {
     // Bug #99: -Werror to forbid warnings.
     // -Wno-return-type: clang is stricter than gcc about missing returns (Step 3e)
     mut result := Vec.new(Str)

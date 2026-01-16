@@ -23,12 +23,13 @@ EnumVariant := struct {
     mut name: Str = ""
     mut payload_type: Ptr = Ptr()  // Ptr to ValueType, NULL = None (no payload)
 
-    clone := func(self: EnumVariant) returns EnumVariant throws AllocError {
+    clone := func(self: EnumVariant) returns EnumVariant {
         mut result := EnumVariant()
         result.name = self.name.clone()
         if not(NULL.eq(self.payload_type.data)) {
             // Bug #67 fix: allocate heap memory for ValueType (stack ptr would be dangling)
             result.payload_type.data = malloc(size_of(ValueType))
+            catch (err: BadAlloc) { panic(loc(), "EnumVariant.clone: malloc failed") }
             memcpy(result.payload_type.data, self.payload_type.data, size_of(ValueType))
         }
         return result
@@ -38,7 +39,7 @@ EnumVariant := struct {
 SEnumDef := struct {
     mut variants: Vec = Vec.new(EnumVariant)
 
-    clone := func(self: SEnumDef) returns SEnumDef throws AllocError {
+    clone := func(self: SEnumDef) returns SEnumDef {
         mut result := SEnumDef()
         // Deep clone: iterate and clone each element
         for i in 0..self.variants.len() {
@@ -91,7 +92,7 @@ Declaration := struct {
     mut is_own: Bool = false
     mut default_value: Ptr = Ptr()  // Ptr to Expr, NULL = None (for optional function arguments)
 
-    clone := func(self: Declaration) returns Declaration throws AllocError {
+    clone := func(self: Declaration) returns Declaration {
         mut result := Declaration()
         result.name = self.name.clone()
         result.value_type = value_type_clone(self.value_type)
@@ -104,6 +105,7 @@ Declaration := struct {
             memcpy(to_ptr(default_expr), self.default_value.data, size_of(Expr))
             mut cloned_expr := default_expr.clone()
             result.default_value.data = malloc(size_of(Expr))
+            catch (err: BadAlloc) { panic(loc(), "Declaration.clone: malloc failed") }
             memcpy(result.default_value.data, to_ptr(cloned_expr), size_of(Expr))
         }
         return result
@@ -117,7 +119,7 @@ PatternInfo := struct {
     mut variant_name: Str = ""
     mut binding_var: Str = ""
 
-    clone := func(self: PatternInfo) returns PatternInfo throws AllocError {
+    clone := func(self: PatternInfo) returns PatternInfo {
         return PatternInfo(variant_name=self.variant_name.clone(), binding_var=self.binding_var.clone())
     }
 }
@@ -138,7 +140,7 @@ SFuncDef := struct {
     mut body: Vec = Vec.new(Expr)
     mut source_path: Str = ""  // Path to the file where this function was defined
 
-    clone := func(self: SFuncDef) returns SFuncDef throws AllocError {
+    clone := func(self: SFuncDef) returns SFuncDef {
         mut result := SFuncDef()
         result.function_type = self.function_type
         // Deep clone args
@@ -199,7 +201,7 @@ SStructDef := struct {
     mut members: Vec = Vec.new(Declaration)
     mut default_values: Map = Map.new(Str, Expr)
 
-    clone := func(self: SStructDef) returns SStructDef throws AllocError {
+    clone := func(self: SStructDef) returns SStructDef {
         mut result := SStructDef()
         // Deep clone members
         for member_idx in 0..self.members.len() {
@@ -250,7 +252,7 @@ Literal := enum {
     List: Str,  // TODO You can call it tupple too. who cares? it's not even tested yet, just parsed
 }
 
-literal_clone := func(lit: Literal) returns Literal throws AllocError {
+literal_clone := func(lit: Literal) returns Literal {
     switch lit {
     case Literal.Number(s):
         // TODO Bug #56: inline s.clone() should work here
@@ -294,7 +296,7 @@ NodeType := enum {
 
 // Deep clone a NodeType, including all payloads
 // TODO Bug #56: inline clone calls should work in enum payloads
-node_type_clone := func(nt: NodeType) returns NodeType throws AllocError {
+node_type_clone := func(nt: NodeType) returns NodeType {
     switch nt {
     case NodeType.LLiteral(lit):
         lit_cloned := literal_clone(lit)
@@ -395,7 +397,7 @@ Expr := struct {
         throw self.lang_error("<internal>", "assert", format("Expr index ", i.to_str(), " out of bounds (len: ", self.params.len().to_str(), ")."))
     }
 
-    clone := func(self: Expr) returns Expr throws AllocError {
+    clone := func(self: Expr) returns Expr {
         // Deep clone: clone node_type and each element in params
         mut cloned_params := Vec.new(Expr)
         for i in 0..self.params.len() {
@@ -451,7 +453,6 @@ Expr := struct {
             self.params.get(i, elem)
             cloned.push(elem)
         }
-        catch (err: AllocError) { throw concat("Expr.params_clone: ", err.msg) }
         catch (err: IndexOutOfBoundsError) { throw concat("Expr.params_clone: ", err.msg) }
         return cloned
     }
@@ -483,7 +484,7 @@ ValueType := enum {
 
 // Deep clone a ValueType, including string payloads
 // TODO Bug #56: inline clone calls should work in enum payloads
-value_type_clone := func(vt: ValueType) returns ValueType throws AllocError {
+value_type_clone := func(vt: ValueType) returns ValueType {
     switch vt {
     case ValueType.TCustom(s):
         custom_cloned := s.clone()
@@ -560,9 +561,6 @@ parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str {
 
     e := Expr.new_parse(node_type, t.clone(), params)
     lexer.advance(1)
-    catch (err: AllocError) {
-        throw err.msg
-    }
     return e
 }
 
@@ -626,17 +624,10 @@ parse_args := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsEr
         }
     }
 
-    catch (err: AllocError) {
-        throw concat("parse_args: ", err.msg)
-    }
-
     switch list_t.token_type {
     case TokenType.RightParen:
         // TODO properly parse lists besides function definition arguments
         initial_token := lexer.get_token(initial_current).clone()
-        catch (err: AllocError) {
-            throw concat("parse_args: ", err.msg)
-        }
         return Expr.new_parse(NodeType.LLiteral(Literal.List("")), initial_token, params)
     case:
         throw list_t.error(lexer.path, "Expected closing parentheses.")
@@ -649,9 +640,6 @@ parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr thr
     value := parse_primary(lexer)
     params.push(value)
     result := Expr.new_parse(NodeType.Assignment(name), t.clone(), params)
-    catch (err: AllocError) {
-        throw concat("parse_assignment: ", err.msg)
-    }
     return result
 }
 
@@ -792,6 +780,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                     mut default_expr := parse_primary(lexer)
                     // Must allocate heap memory - to_ptr(default_expr) would create dangling pointer
                     decl.default_value.data = malloc(size_of(Expr))
+                    catch (err: BadAlloc) { panic(loc(), "parse_func_proc_args: malloc failed") }
                     memcpy(decl.default_value.data, to_ptr(default_expr), size_of(Expr))
                 case:
                     // No default value
@@ -834,9 +823,6 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
         }
     }
 
-    catch (err: AllocError) {
-        throw concat("parse_func_proc_args: ", err.msg)
-    }
 
     final_tt := t.token_type
     switch final_tt {
@@ -892,9 +878,6 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
         }
     }
 
-    catch (err: AllocError) {
-        throw concat("func_proc_returns: ", err.msg)
-    }
 
     if end_found {
         return return_types
@@ -945,9 +928,6 @@ func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
         }
     }
 
-    catch (err: AllocError) {
-        throw concat("func_proc_throws: ", err.msg)
-    }
 
     if end_found {
         return return_types
@@ -1000,9 +980,6 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
 
     params := Vec.new(Expr)
     e := Expr.new_parse(NodeType.FuncDef(func_def), t.clone(), params)
-    catch (err: AllocError) {
-        throw err.msg
-    }
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
@@ -1051,6 +1028,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
                     mut payload_type := str_to_value_type(enum_val_type)
                     mut payload_ptr := Ptr()
                     payload_ptr.data = malloc(size_of(ValueType))
+                    catch (err: BadAlloc) { panic(loc(), "enum_definition: malloc failed") }
                     memcpy(payload_ptr.data, to_ptr(payload_type), size_of(ValueType))
                     mut variant := EnumVariant()
                     variant.name = enum_val_name
@@ -1089,9 +1067,6 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
     enum_def.variants = variants
     initial_token := lexer.get_token(initial_current).clone()
     e := Expr.new_parse(NodeType.EnumDef(enum_def), initial_token, params)
-    catch (err: AllocError) {
-        throw err.msg
-    }
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
@@ -1145,9 +1120,6 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
     struct_def.default_values = default_values
     params := Vec.new(Expr)
     result := Expr.new_parse(NodeType.StructDef(struct_def), t.clone(), params)
-    catch (err: AllocError) {
-        throw concat("parse_struct_definition: ", err.msg)
-    }
     catch (err: IndexOutOfBoundsError) {
         throw concat("parse_struct_definition: ", err.msg)
     }
@@ -1323,9 +1295,6 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
     case:
         result = e
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
@@ -1359,7 +1328,6 @@ get_combined_name := func(path: Str, e: Expr) returns Str throws Str {
     // Remove the last '.'
     to_return = to_return.get_substr(0, to_return.len().sub(1))
     catch (err: IndexOutOfBoundsError) { throw concat("get_combined_name: ", err.msg) }
-    catch (err: AllocError) { throw concat("get_combined_name: ", err.msg) }
     return to_return
 }
 
@@ -1496,9 +1464,6 @@ return_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBo
 
     initial_token := lexer.get_token(initial_current).clone()
 
-    catch (err: AllocError) {
-        throw concat("return_statement: ", err.msg)
-    }
 
     return Expr.new_parse(NodeType.Return, initial_token, params)
 }
@@ -1508,9 +1473,6 @@ parse_break_statement := func(mut lexer: Lexer) returns Expr throws Str {
     lexer.advance(1) // consume 'break'
     initial_token := lexer.get_token(initial_current).clone()
     mut params := Vec.new(Expr)
-    catch (err: AllocError) {
-        throw concat("parse_break_statement: ", err.msg)
-    }
     return Expr.new_parse(NodeType.Break, initial_token, params)
 }
 
@@ -1519,9 +1481,6 @@ parse_continue_statement := func(mut lexer: Lexer) returns Expr throws Str {
     lexer.advance(1) // consume 'continue'
     initial_token := lexer.get_token(initial_current).clone()
     mut params := Vec.new(Expr)
-    catch (err: AllocError) {
-        throw concat("parse_continue_statement: ", err.msg)
-    }
     return Expr.new_parse(NodeType.Continue, initial_token, params)
 }
 
@@ -1551,9 +1510,6 @@ parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
 
     initial_token := lexer.get_token(initial_current).clone()
 
-    catch (err: AllocError) {
-        throw concat("parse_throw_statement: ", err.msg)
-    }
 
     return Expr.new_parse(NodeType.Throw, initial_token, params)
 }
@@ -1593,9 +1549,6 @@ parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
 
     initial_token := lexer.get_token(initial_current).clone()
 
-    catch (err: AllocError) {
-        throw concat("parse_catch_statement: ", err.msg)
-    }
 
     return Expr.new_parse(NodeType.Catch, initial_token, params)
 }
@@ -1644,9 +1597,6 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBounds
 
     initial_token := lexer.get_token(initial_current).clone()
 
-    catch (err: AllocError) {
-        throw concat("if_statement: ", err.msg)
-    }
 
     return Expr.new_parse(NodeType.If, initial_token, params)
 }
@@ -1673,9 +1623,6 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
 
     initial_token := lexer.get_token(initial_current).clone()
 
-    catch (err: AllocError) {
-        throw concat("while_statement: ", err.msg)
-    }
 
     return Expr.new_parse(NodeType.While, initial_token, params)
 }
@@ -1683,7 +1630,7 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
 // Bug #57 fix: Transform continue statements to include the step expression before continue.
 // This ensures the loop variable is incremented/decremented even when continue is used.
 // Transforms: continue -> { step_expr; continue }
-transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr throws AllocError, IndexOutOfBoundsError {
+transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr throws IndexOutOfBoundsError {
     switch expr.node_type {
     case NodeType.Continue:
         // Replace continue with { step_expr; continue }
@@ -1749,9 +1696,6 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         forin_params.push(collection_expr)
         forin_params.push(forin_body_expr)
 
-        catch (err: AllocError) {
-            throw concat("parse_for_statement: ", err.msg)
-        }
 
         return Expr.new_explicit(NodeType.ForIn(var_type_name), forin_params, initial_token.line, initial_token.col)
     case:
@@ -1845,7 +1789,6 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         while_params.push(cond)
         while_params.push(while_body)
 
-        catch (err: AllocError) { throw err.msg }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
     }
@@ -1879,7 +1822,6 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         while_params.push(cond)
         while_params.push(while_body)
 
-        catch (err: AllocError) { throw err.msg }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
     }
@@ -1924,9 +1866,6 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     final_params.push(decl_expr)
     final_params.push(loop_expr)
 
-    catch (err: AllocError) {
-        throw concat("parse_for_statement: ", err.msg)
-    }
 
     return Expr.new_explicit(NodeType.Body, final_params, initial_token.line, initial_token.col)
 }
@@ -1961,7 +1900,6 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str {
         case:
     }
     catch (err: IndexOutOfBoundsError) { throw concat("get_full_identifier_name: ", err.msg) }
-    catch (err: AllocError) { throw concat("get_full_identifier_name: ", err.msg) }
     return result
 }
 
@@ -2024,9 +1962,6 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
         case:
     }
 
-    catch (err: AllocError) {
-        throw concat("parse_case_expr: ", err.msg)
-    }
 
     return left
 }
@@ -2111,15 +2046,9 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
         }
     }
 
-    catch (err: AllocError) {
-        throw concat("parse_switch_statement: ", err.msg)
-    }
 
     if end_found {
         initial_token := lexer.get_token(initial_current).clone()
-        catch (err: AllocError) {
-            throw concat("parse_switch_statement: ", err.msg)
-        }
         return Expr.new_parse(NodeType.Switch, initial_token, params)
     }
     throw t.error(lexer.path, "Expected '}}' to end switch.")
@@ -2148,9 +2077,6 @@ parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explici
 
     initial_token := lexer.get_token(initial_current).clone()
 
-    catch (err: AllocError) {
-        throw concat("parse_declaration: ", err.msg)
-    }
 
     return Expr.new_parse(NodeType.Declaration(decl), initial_token, params)
 }
@@ -2258,15 +2184,9 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
         }
     }
 
-    catch (err: AllocError) {
-        throw concat("parse_body: ", err.msg)
-    }
 
     if end_found {
         initial_token := lexer.get_token(initial_current).clone()
-        catch (err: AllocError) {
-            throw concat("parse_body: ", err.msg)
-        }
         return Expr.new_parse(NodeType.Body, initial_token, params)
     }
     throw t.error(lexer.path, format("Expected '", token_type_to_str(end_token), "' to end body."))

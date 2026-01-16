@@ -26,7 +26,7 @@ Set := struct {
      * Returns true if element was inserted (not already present)
      * Returns false if element already exists
      */
-    insert := proc(mut self: Set, elem: Dynamic) returns Bool throws AllocError {
+    insert := proc(mut self: Set, elem: Dynamic) returns Bool {
         // Check if element already exists
         mut i := 0
         mut elems_arr := self.elements
@@ -165,7 +165,7 @@ Set := struct {
         self._size = 0
     }
 
-    clone := func(self: Set) returns Set throws AllocError {
+    clone := func(self: Set) returns Set {
         mut cloned := Set()
         cloned.elem_type_name = self.elem_type_name
         cloned.elem_type_size = self.elem_type_size

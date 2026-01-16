@@ -135,8 +135,5 @@ test_strings := proc() {
     empty_hash := Str.hash("")
     test(loc(), empty_hash.eq(Str.hash("")), "empty string consistent hash")
 
-    catch(err: AllocError) {
-        panic(loc(), "Unexpected AllocError")
-    }
 }
 test_strings()

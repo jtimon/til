@@ -24,12 +24,13 @@ Array := struct {
     }
 
     /** Create new array with specified element type and capacity. */
-    new := proc(T: Type, capacity: I64) returns Array throws AllocError {
+    new := proc(T: Type, capacity: I64) returns Array {
         mut arr := Array()
         arr.type_name = type_as_str(T)
         arr.type_size = size_of(T)
         size_bytes := mul(capacity, arr.type_size)
         arr.ptr = malloc(size_bytes)
+        catch (err: BadAlloc) { panic(loc(), "Array.new: malloc failed") }
         memset(arr.ptr, U8.from_i64(0), size_bytes)
         arr._len = capacity
         return arr
@@ -72,16 +73,14 @@ Array := struct {
     }
 
     /** Clone the array. */
-    clone := func(self: Array) returns Array throws AllocError {
+    clone := func(self: Array) returns Array {
         mut cloned := Array()
         cloned.type_name = self.type_name
         cloned.type_size = self.type_size
         cloned._len = self._len
         mut total_bytes := mul(self._len, self.type_size)
         cloned.ptr = malloc(total_bytes)
-        if NULL.eq(cloned.ptr) {
-            throw AllocError(msg=format(loc(), "Array.clone: malloc failed for ", I64.to_str(total_bytes), " bytes"))
-        }
+        catch (err: BadAlloc) { panic(loc(), "Array.clone: malloc failed") }
         memcpy(cloned.ptr, self.ptr, total_bytes)
         return cloned
     }

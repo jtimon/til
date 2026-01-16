@@ -3,7 +3,7 @@ mode test
 import("modes.modes")
 import("self.interpreter")
 
-test_self_hosting := proc() throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
+test_self_hosting := proc() throws Str, IndexOutOfBoundsError, I64_OverflowError {
     // Simple test: just run hello_script.til directly
     println("Self-hosted compiler test: Running hello_script.til...")
 
@@ -95,9 +95,6 @@ run_test := proc() {
     test_self_hosting()
     catch (err: Str) {
         println("Error occurred (Str exception - cannot print error due to TIL bug)")
-    }
-    catch (err: AllocError) {
-        println("AllocError during test")
     }
     catch (err: IndexOutOfBoundsError) {
         println("IndexOutOfBoundsError during test")

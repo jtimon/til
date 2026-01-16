@@ -132,7 +132,7 @@ Map := struct {
     /** Insert new key-value pair.
      *  Throws DuplicatedKeyError if key already exists.
      *  Use set() instead if you want to overwrite existing keys. */
-    insert := proc(mut self: Map, key: Dynamic, value: Dynamic) throws AllocError, DuplicatedKeyError {
+    insert := proc(mut self: Map, key: Dynamic, value: Dynamic) throws DuplicatedKeyError {
         search := self.binary_search(key)
 
         if search.found {
@@ -152,7 +152,7 @@ Map := struct {
     /** Set key-value pair.
      *  Overwrites value if key already exists.
      *  Creates new entry if key doesn't exist. */
-    set := proc(mut self: Map, key: Dynamic, value: Dynamic) throws AllocError {
+    set := proc(mut self: Map, key: Dynamic, value: Dynamic) {
         search := self.binary_search(key)
 
         if search.found {
@@ -255,7 +255,7 @@ Map := struct {
     }
 
     // Bug #36 fix: Now we can inline throwing functions in struct literal params
-    clone := func(self: Map) returns Map throws AllocError {
+    clone := func(self: Map) returns Map {
         return Map(
             key_type_name=self.key_type_name,
             key_type_size=self.key_type_size,

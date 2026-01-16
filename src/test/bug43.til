@@ -35,7 +35,6 @@ test_map_get_in_struct := proc() {
 
     frame.funcs.delete()
 
-    catch (err: AllocError) { println("AllocError: ", err.msg); exit(1) }
     catch (err: DuplicatedKeyError) { println("DuplicatedKeyError: ", err.msg); exit(1) }
     catch (err: KeyNotFoundError) { println("KeyNotFoundError: ", err.msg); exit(1) }
 }

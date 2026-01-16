@@ -140,7 +140,6 @@ translate_fn := proc(mut state: TranslatorState) returns Str throws Str {
 
     // Generate TIL: name := proc() {}
     result := format(name_token.token_str, " := proc() {}\n")
-    catch (err: AllocError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
     return result
@@ -150,7 +149,6 @@ translate_fn := proc(mut state: TranslatorState) returns Str throws Str {
 translate := proc(source: Str) returns Str throws Str {
     reserved := get_reserved_words()
     tokens := scan_tokens(source, reserved)
-    catch (err: AllocError) { throw err.msg }
 
     mut state := TranslatorState()
     state.tokens = tokens

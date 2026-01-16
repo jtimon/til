@@ -17,7 +17,7 @@ import("std.io")
 // Example: gen/out/til.rs_interpreted.help.actual.out
 
 // Parse time output like "real\t0m0.042s" -> milliseconds
-parse_time_ms := func(time_output: Str) returns I64 throws AllocError, IndexOutOfBoundsError {
+parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError {
     lines := time_output.split("\n")
     for line: Str in lines {
         if line.starts_with("real") {
@@ -65,7 +65,7 @@ format_time := func(ms: I64) returns Str {
 // path: src/test/foo.til -> gen/out/test/foo
 // mode: rs_interpreted, til_compiled, etc.
 // args: "help" -> ".help", "help foo" -> ".help_foo", "" -> ""
-get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str throws AllocError {
+get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str {
     // Convert src/test/foo.til -> gen/out/test/foo
     base := path.replace(".til", "").replace("src/", "gen/out/")
 
@@ -80,7 +80,7 @@ get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str th
 
 // Get expected .out file path (same as tests.til's get_out_path)
 // For common tests, both modes compare against .interpreted.out
-get_expected_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str throws AllocError {
+get_expected_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str {
     base := path.replace(".til", "").replace("src/", "gen/out/")
     mut suffix := ""
     if not(cmd_args.eq("")) {
@@ -116,7 +116,7 @@ get_cmd_prefix := func(test_mode: Str) returns Str {
 }
 
 // Ensure parent directory exists
-ensure_parent_dir := proc(file_path: Str) throws AllocError {
+ensure_parent_dir := proc(file_path: Str) {
     mut last_slash := 0
     for i in 0..file_path.len() {
         if file_path.get_char(i).eq("/") {
@@ -254,6 +254,5 @@ main := proc(args: ..Str) {
     // Format: PASS <time_ms>
     println("PASS ", time_ms.to_str())
 
-    catch (err: AllocError) { panic(loc(), err.msg) }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }

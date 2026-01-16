@@ -24,14 +24,11 @@ List := struct {
     }
 
     /** Create new empty list. */
-    new := proc() returns List throws AllocError {
+    new := proc() returns List {
         mut list := List()
         // Allocate enough for reasonable number of elements
         list.data = malloc(1024)
-
-        if I64.eq(list.data, 0) {
-            throw AllocError(msg="List.new: malloc failed")
-        }
+        catch (err: BadAlloc) { panic(loc(), "List.new: malloc failed") }
 
         list._len = 0
         list.type_names = Vec.new(Str)
@@ -61,7 +58,7 @@ List := struct {
     /** Append element to list.
      *  Takes the type as first parameter (like Vec.new) and value as second.
      *  Example: list.push(I64, 42), list.push(Str, "hello") */
-    push := proc(mut self: List, T: Type, value: Dynamic) throws AllocError, IndexOutOfBoundsError {
+    push := proc(mut self: List, T: Type, value: Dynamic) throws IndexOutOfBoundsError {
         mut type_name := type_as_str(T)
         mut type_size := size_of(T)
 
@@ -204,7 +201,7 @@ List := struct {
     }
 
     /** Clone the list. */
-    clone := func(self: List) returns List throws AllocError, IndexOutOfBoundsError {
+    clone := func(self: List) returns List throws IndexOutOfBoundsError {
         mut cloned := List()
         cloned._len = self._len
         cloned.type_names = self.type_names.clone()
@@ -213,9 +210,7 @@ List := struct {
         // Calculate total bytes used and allocate data buffer
         mut total_bytes := self.calc_used()
         cloned.data = malloc(total_bytes)
-        if NULL.eq(cloned.data) {
-            throw AllocError(msg=format(loc(), "List.clone: malloc failed for ", I64.to_str(total_bytes), " bytes"))
-        }
+        catch (err: BadAlloc) { panic(loc(), "List.clone: malloc failed") }
         memcpy(cloned.data, self.data, total_bytes)
         return cloned
     }

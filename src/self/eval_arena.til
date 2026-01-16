@@ -60,11 +60,8 @@ EvalArena := struct {
     }
 
     /// Append bytes to arena, return offset where they were placed
-    put := proc(mut self: EvalArena, src_ptr: I64, num_bytes: I64) returns I64 throws Str {
+    put := proc(mut self: EvalArena, src_ptr: I64, num_bytes: I64) returns I64 {
         offset := self._arena.put(src_ptr, num_bytes)
-        catch (err: AllocError) {
-            throw err.msg
-        }
         return offset
     }
 
@@ -79,11 +76,8 @@ EvalArena := struct {
     }
 
     /// Reserve space in arena, return offset where space was allocated
-    reserve := proc(mut self: EvalArena, size: I64) returns I64 throws Str {
+    reserve := proc(mut self: EvalArena, size: I64) returns I64 {
         offset := self._arena.reserve(size)
-        catch (err: AllocError) {
-            throw err.msg
-        }
         return offset
     }
 
@@ -110,9 +104,6 @@ EvalArena := struct {
             return false
         }
         catch (err: IndexOutOfBoundsError) {
-            return false
-        }
-        catch (err: AllocError) {
             return false
         }
     }
@@ -203,9 +194,6 @@ EvalArena := struct {
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
         }
-        catch (err: AllocError) {
-            throw err.msg
-        }
     }
 
     // Core logic for insert_u8 - returns offset if caller needs to store it, throws KeyNotFoundError if already handled
@@ -247,9 +235,6 @@ EvalArena := struct {
         frame.arena_index.set(id, offset)
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
-        }
-        catch (err: AllocError) {
-            throw err.msg
         }
     }
 
@@ -528,9 +513,6 @@ EvalArena := struct {
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "context", format("insert_struct_core: ", err.msg))
         }
-        catch (err: AllocError) {
-            throw e.lang_error(ctx.path, "context", "insert_struct_core: AllocError")
-        }
         catch (err: U8_OverflowError) {
             throw e.lang_error(ctx.path, "context", err.msg)
         }
@@ -621,9 +603,6 @@ EvalArena := struct {
                 }
             }
         }
-        catch (err: AllocError) {
-            throw e.lang_error(ctx.path, "generate_struct_mappings", "AllocError")
-        }
 
         return result
     }
@@ -655,8 +634,8 @@ EvalArena := struct {
             ctx.scope_stack.declare_symbol(s.name, s.info)
         }
 
-        catch (err: AllocError) {
-            throw e.lang_error(ctx.path, "insert_struct", "AllocError")
+        catch (err: BadAlloc) {
+            panic(loc(), "insert_struct: buy more ram")
         }
     }
 
@@ -697,8 +676,8 @@ EvalArena := struct {
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "insert_struct_into_frame", "IndexOutOfBoundsError")
         }
-        catch (err: AllocError) {
-            throw e.lang_error(ctx.path, "insert_struct_into_frame", "AllocError")
+        catch (err: BadAlloc) {
+            panic(loc(), "insert_struct_into_frame: buy more ram")
         }
     }
 
@@ -922,8 +901,8 @@ EvalArena := struct {
             }
         }
 
-        catch (err: AllocError) {
-            throw e.lang_error(ctx.path, "get_enum_at_offset", "AllocError")
+        catch (err: BadAlloc) {
+            panic(loc(), "get_enum_at_offset: buy more ram")
         }
 
         return result
@@ -1103,8 +1082,8 @@ EvalArena := struct {
             }
         }
 
-        catch (err: AllocError) {
-            throw e.lang_error(ctx.path, "get_enum", "AllocError")
+        catch (err: BadAlloc) {
+            panic(loc(), "get_enum: buy more ram")
         }
 
         return result
@@ -1208,14 +1187,13 @@ EvalArena := struct {
         result.enum_val.enum_type = enum_type
         result.enum_val.enum_name = enum_name
         // Store payload as Ptr (Option pattern: NULL = None)
+        // Note: Must store clone in variable - can't take address of function return value
         if payload_data.len().gt(0) {
-            result.enum_val.payload.data = to_ptr(payload_data.clone())
+            mut cloned_payload := payload_data.clone()
+            result.enum_val.payload.data = to_ptr(cloned_payload)
             result.enum_val.payload_type.data = to_ptr(payload_type)
         }
 
-        catch (err: AllocError) {
-            throw e.lang_error(ctx.path, "insert_enum_core", "AllocError")
-        }
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "insert_enum_core", "IndexOutOfBoundsError while processing payload")
         }
@@ -1247,9 +1225,6 @@ EvalArena := struct {
             frame.arena_index.set(result.mapping_name, result.mapping_offset)
         }
 
-        catch (err: AllocError) {
-            throw e.lang_error(ctx.path, "insert_enum_into_frame", "AllocError")
-        }
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "insert_enum_into_frame", "IndexOutOfBoundsError")
         }
@@ -1366,9 +1341,6 @@ EvalArena := struct {
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "IndexOutOfBoundsError")
         }
-        catch (err: AllocError) {
-            throw e.lang_error(ctx.path, "insert_array_into_frame", "AllocError")
-        }
         catch (err: U8_OverflowError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", err.msg)
         }
@@ -1405,9 +1377,6 @@ EvalArena := struct {
 
         result := Expr.new_explicit(NodeType.FCall, params, 0, 0)
 
-        catch (err: AllocError) {
-            throw e.lang_error(ctx.path, "arena", "to_struct_literal: AllocError")
-        }
 
         return result
     }

@@ -39,9 +39,6 @@ test_cross_file_circular_imports := proc() {
 
     println("Cross-file forward declaration test PASSED!")
 
-    catch (err: AllocError) {
-        panic(loc(), "Unexpected AllocError")
-    }
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), "Unexpected IndexOutOfBoundsError")
     }

@@ -24,7 +24,7 @@ ThrownType := struct {
 // Type-check an imported file's AST.
 // Called when the typer encounters an import() call.
 // The AST was stored during init phase; we just run type checking on it.
-typer_import_declarations := proc(mut context: Context, import_path_str: Str) returns Vec throws Str {
+typer_import_declarations := proc(mut context: Context, import_path_str: Str) returns Vec {
     mut errors := Vec.new(Str)
     mut path := import_path_to_file_path(import_path_str)
 
@@ -66,10 +66,6 @@ typer_import_declarations := proc(mut context: Context, import_path_str: Str) re
 
     context.path = original_path
     context.mode_def = original_mode
-
-    catch (err: AllocError) {
-        throw err.msg
-    }
 
     return errors
 }
@@ -127,9 +123,6 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
         // else: NULL means None (no payload), nothing to check
     }
     catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: AllocError) {
         throw err.msg
     }
     return errors
@@ -305,10 +298,6 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
-
     return errors
 }
 
@@ -402,9 +391,6 @@ check_if_statement := proc(mut context: Context, e: Expr) returns Vec throws Str
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
     return errors
 }
 
@@ -443,9 +429,6 @@ check_while_statement := proc(mut context: Context, e: Expr) returns Vec throws 
         errors.extend(check_types_with_context(context, p, ctx))
     }
     catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: AllocError) {
         throw err.msg
     }
     return errors
@@ -604,9 +587,6 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
     _ := context.scope_stack.pop()
 
     catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: AllocError) {
         throw err.msg
     }
     return errors
@@ -909,10 +889,6 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
         }
     }
 
-    catch (err: AllocError) {
-        throw err.msg
-    }
-
     return errors
 }
 
@@ -956,10 +932,6 @@ check_fcall_return_usage := proc(context: Context, e: Expr, expr_context: ExprCo
         errors.push(e.error(context.path, "type", format(
             "Function '", f_name, "' returns a value that is not being used.\nHint: Capture the return value with '_ := ", f_name, "(...)' or use it in an expression."
         )))
-    }
-
-    catch (err: AllocError) {
-        throw err.msg
     }
 
     return errors
@@ -1117,9 +1089,6 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
     context.scope_stack.function_locals = saved_function_locals
     context.scope_stack.used_symbols = saved_used_symbols
 
-    catch (err: AllocError) {
-        throw err.msg
-    }
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
@@ -1740,10 +1709,6 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
-
     return errors
 }
 
@@ -1812,10 +1777,6 @@ check_catch_statement := proc(mut context: Context, e: Expr) returns Vec throws 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
-
     return errors
 }
 
@@ -1917,10 +1878,6 @@ check_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retu
 
     // The RHS of a declaration is being used (assigned to the variable)
     errors.extend(check_types_with_context(context, inner_e, ExprContext.ValueUsed))
-
-    catch (err: AllocError) {
-        throw err.msg
-    }
 
     return errors
 }
@@ -2045,10 +2002,6 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
-
     return errors
 }
 
@@ -2242,9 +2195,6 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
     case:
     }
 
-    catch (err: AllocError) {
-        throw err.msg
-    }
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
@@ -2553,9 +2503,6 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
     catch (err: KeyNotFoundError) {
         throw err.msg
     }
@@ -2784,9 +2731,6 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
     }
 
     catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: AllocError) {
         throw err.msg
     }
 
@@ -3039,10 +2983,6 @@ basic_mode_checks := proc(context: Context, e: Expr) returns Vec throws Str {
         } else {
             errors.push(e.error(context.path, "mode", format("mode ", context.mode_def.name, " requires 'main' to be defined as a proc.")))
         }
-    }
-
-    catch (err: AllocError) {
-        throw err.msg
     }
 
     return errors

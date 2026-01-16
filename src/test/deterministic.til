@@ -47,9 +47,6 @@ test_forin_declaration := proc() {
 
     assert_eq(loc(), 6, sum)
 
-    catch (err: AllocError) {
-        panic(loc(), err.msg)
-    }
 }
 
 // Test nested for-in loops - tests counter increments correctly
@@ -72,9 +69,6 @@ test_forin_nested := proc() {
     // (1*10 + 1*20) + (2*10 + 2*20) = 30 + 60 = 90
     assert_eq(loc(), 90, sum)
 
-    catch (err: AllocError) {
-        panic(loc(), err.msg)
-    }
 }
 
 // Test for-in in struct methods - tests precomp_struct_def fix
@@ -87,9 +81,6 @@ test_forin_struct_method := proc() {
     result := TestHelper.sum_items(items)
     assert_eq(loc(), 6, result)
 
-    catch (err: AllocError) {
-        panic(loc(), err.msg)
-    }
 }
 
 // Test nested for-in in struct methods
@@ -106,9 +97,6 @@ test_forin_struct_nested := proc() {
     // (1*10 + 1*20) + (2*10 + 2*20) = 30 + 60 = 90
     assert_eq(loc(), 90, result)
 
-    catch (err: AllocError) {
-        panic(loc(), err.msg)
-    }
 }
 
 // Test multiple functions with for-in to verify counter resets per function
@@ -130,9 +118,6 @@ test_forin_counter_reset := proc() {
 
     assert_eq(loc(), 5, sum)
 
-    catch (err: AllocError) {
-        panic(loc(), err.msg)
-    }
 }
 
 main := proc() {

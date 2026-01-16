@@ -59,9 +59,5 @@ test_vec_iteration := proc() {
 
     // Verify global wasn't corrupted
     assert_eq(loc(), 1, GLOBAL_COUNT)
-
-    catch (err: AllocError) {
-        panic(loc(), err.msg)
-    }
 }
 test_vec_iteration()

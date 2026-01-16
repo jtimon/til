@@ -221,11 +221,6 @@ test_non_mut_isolation()
 
 push_value := proc(mut arr: Vec, value: I64) {
     arr.push(value)
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 
 test_mut_array := proc() {

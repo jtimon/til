@@ -81,7 +81,7 @@ Token := struct {
             .concat(": parse ERROR: ").concat(msg)
     }
 
-    clone := func(self: Token) returns Token throws AllocError {
+    clone := func(self: Token) returns Token {
         return Token(
             token_type = self.token_type,
             token_str = self.token_str.clone(),
@@ -139,9 +139,6 @@ Lexer := struct {
         mut t := Token()
         self.tokens.get(self.current, t)
         result := t.clone()
-        catch (err: AllocError) {
-            panic(loc(), err.msg)
-        }
         return result
     }
 
@@ -158,9 +155,6 @@ Lexer := struct {
         self.tokens.get(self.current.sub(1), t)
         result := t.clone()
         catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
-        catch (err: AllocError) {
             throw err.msg
         }
         return result
@@ -188,9 +182,6 @@ Lexer := struct {
         self.tokens.get(peek_idx, t)
         result := t.clone()
         catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
-        catch (err: AllocError) {
             throw err.msg
         }
         return result
@@ -284,9 +275,6 @@ is_digit := func(source: Str, pos: I64) returns Bool throws Str {
     catch (err: IndexOutOfBoundsError) {
         throw format("is_digit: ", err.msg)
     }
-    catch (err: AllocError) {
-        throw format("is_digit: ", err.msg)
-    }
 }
 
 is_id_start := func(source: Str, pos: I64) returns Bool throws Str {
@@ -298,9 +286,6 @@ is_id_start := func(source: Str, pos: I64) returns Bool throws Str {
     case:
     }
     catch (err: IndexOutOfBoundsError) {
-        throw format("is_id_start: ", err.msg)
-    }
-    catch (err: AllocError) {
         throw format("is_id_start: ", err.msg)
     }
     return false
@@ -373,12 +358,9 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
     return TokenType.Identifier
 }
 
-scan_push_token := proc(mut tokens: Vec, token_type: TokenType, token_str: Str, line: I64, col: I64) throws Str {
+scan_push_token := proc(mut tokens: Vec, token_type: TokenType, token_str: Str, line: I64, col: I64) {
     t := Token(token_type=token_type, token_str=token_str, line=line, col=col)
     tokens.push(t)
-    catch (err: AllocError) {
-        throw format(line.to_str(), ":", col.to_str(), ": scan_tokens: AllocError while pushing token: ", err.msg)
-    }
 }
 
 scan_tokens := proc(source: Str) returns Vec throws Str {
@@ -666,9 +648,6 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
     catch (err: IndexOutOfBoundsError) {
         throw format(loc(), "scan_tokens: IndexOutOfBoundsError: ", err.msg)
     }
-    catch (err: AllocError) {
-        throw format(loc(), "scan_tokens: AllocError: ", err.msg)
-    }
     return tokens
 }
 
@@ -829,10 +808,6 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, Inde
     errors := print_lex_errors(tokens, path)
     if errors.gt(0) {
         throw format(loc(), "Compiler errors: ", I64.to_str(errors), " lexical errors found")
-    }
-
-    catch (err: AllocError) {
-        throw err.msg
     }
 
     return l

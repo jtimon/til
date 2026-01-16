@@ -15,7 +15,7 @@ ModeDef := struct {
     mut imports: Vec = Vec.new(Str)
     mut allowed_procs_in_funcs: Vec = Vec.new(Str)
 
-    clone := func(self: ModeDef) returns ModeDef throws AllocError {
+    clone := func(self: ModeDef) returns ModeDef {
         return ModeDef(
             name = self.name.clone(),
             allows_procs = self.allows_procs,
@@ -37,7 +37,7 @@ can_be_imported := func(mode_def: ModeDef) returns Bool {
 }
 
 // TODO: Add Vec literals so we can use vec!["panic"] instead of creating a Vec and pushing
-mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef throws Str, AllocError {
+mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef throws Str {
     switch mode_name {
     case "lib":
         mut lib_allowed := Vec.new(Str)
@@ -175,9 +175,6 @@ parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str {
     _ := lexer.expect(TokenType.Identifier)  // Add one for the identifier of the mode
 
     catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: AllocError) {
         throw err.msg
     }
 

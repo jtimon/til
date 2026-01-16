@@ -175,7 +175,7 @@ fs_mkdir_p := ext_proc(path: Str) returns I64 {}
  * Returns filenames only (not full paths), excluding "." and "..".
  * Returns empty vector (of Str) if directory doesn't exist.
  */
-list_dir := proc(path: Str) returns Vec throws AllocError, IndexOutOfBoundsError {
+list_dir := proc(path: Str) returns Vec throws IndexOutOfBoundsError {
     raw := list_dir_raw(path)
     if raw.len().eq(0) {
         return Vec.new(Str)
@@ -188,7 +188,7 @@ list_dir := proc(path: Str) returns Vec throws AllocError, IndexOutOfBoundsError
  * Only supports patterns like "path/to/dir/\*.suffix".
  * Returns full paths (dir + "/" + filename).
  */
-glob_files := proc(pattern: Str) returns Vec throws AllocError, IndexOutOfBoundsError {
+glob_files := proc(pattern: Str) returns Vec throws IndexOutOfBoundsError {
     // Find last slash to split dir/pattern
     mut last_slash := 0
     for i in 0..pattern.len() {

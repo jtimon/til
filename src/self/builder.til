@@ -112,13 +112,10 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: AllocError) {
-        throw err.msg
-    }
 }
 
 // Merge multiple ASTs into one, filtering out import statements
-merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr throws Str {
+merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr {
     mut all_params := Vec.new(Expr)
 
     // Add dependencies first (in order they were collected)
@@ -153,10 +150,6 @@ merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr throws Str {
     result.params = all_params
     result.line = main_ast.line
     result.col = main_ast.col
-
-    catch (err: AllocError) {
-        throw err.msg
-    }
 
     return result
 }
@@ -417,9 +410,6 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     full_cmd = full_cmd.concat(" 2>&1")  // Capture stderr like Rust does
     mut output := ""
     exit_code := output.run_cmd("bash", "-c", full_cmd)
-    catch (err: AllocError) {
-        throw concat("Failed to run ", compiler).concat(": ").concat(err.msg)
-    }
 
     if exit_code.eq(0) {
         return exe_path_str

@@ -63,7 +63,6 @@ peek_char := func(state: LexerState) returns Str {
     }
     result := state.source.get_substr(state.pos, state.pos.add(1))
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: AllocError) { panic(loc(), err.msg) }
     return result
 }
 
@@ -74,7 +73,6 @@ advance := proc(mut state: LexerState) returns Str {
     }
     c := state.source.get_substr(state.pos, state.pos.add(1))
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    catch (err: AllocError) { panic(loc(), err.msg) }
     state.pos = state.pos.add(1)
     if c.eq("\n") {
         state.line = state.line.add(1)
@@ -221,7 +219,7 @@ scan_token := proc(mut state: LexerState) returns Token {
 }
 
 // Scan all tokens from source
-scan_tokens := proc(source: Str, reserved_words: Vec) returns Vec throws AllocError {
+scan_tokens := proc(source: Str, reserved_words: Vec) returns Vec {
     mut state := LexerState()
     state.source = source
     state.reserved_words = reserved_words
