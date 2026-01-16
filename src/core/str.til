@@ -458,7 +458,7 @@ Str := struct {
             mut byte_val : U8 = 0
             memcpy(to_ptr(byte_val), add(self.c_string, i), 1)
             // h = h XOR byte
-            h = I64_xor(h, U8.to_i64(byte_val))
+            h = I64.xor(h, U8.to_i64(byte_val))
             // h = h * FNV_PRIME (overflow is fine, we want wrapping multiplication)
             h = mul(h, FNV_PRIME)
         }

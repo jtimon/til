@@ -3296,20 +3296,20 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_gt(context, e)
     } else if name.eq("add") {
         return func_add(context, e)
-    } else if name.eq("sub") {
+    } else if name.eq("i64_sub") {
         return func_sub(context, e)
     } else if name.eq("mul") {
         return func_mul(context, e)
     } else if name.eq("div") {
         return func_div(context, e)
-    } else if name.eq("mod") {
+    } else if name.eq("i64_mod") {
         return func_mod(context, e)
-    } else if name.eq("I64_xor") {
-        return func_i64_xor(context, e)
-    } else if name.eq("I64_and") {
+    } else if name.eq("i64_and") {
         return func_i64_and(context, e)
-    } else if name.eq("I64_or") {
+    } else if name.eq("i64_or") {
         return func_i64_or(context, e)
+    } else if name.eq("i64_xor") {
+        return func_i64_xor(context, e)
     } else if name.eq("str_to_i64") {
         return func_str_to_i64(context, e)
     } else if name.eq("i64_to_str") {

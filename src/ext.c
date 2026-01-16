@@ -70,6 +70,24 @@ til_U8 til_u8_mod(const til_U8* a, const til_U8* b)
     return *b == 0 ? 0 : (til_U8)(*a % *b);
 }
 
+// U8 bitwise xor
+til_U8 til_u8_xor(const til_U8* a, const til_U8* b)
+{
+    return (til_U8)(*a ^ *b);
+}
+
+// U8 bitwise and
+til_U8 til_u8_and(const til_U8* a, const til_U8* b)
+{
+    return (til_U8)(*a & *b);
+}
+
+// U8 bitwise or
+til_U8 til_u8_or(const til_U8* a, const til_U8* b)
+{
+    return (til_U8)(*a | *b);
+}
+
 // Arithmetic functions
 static inline til_Bool til_lt(const til_I64* a, const til_I64* b)
 {
@@ -86,7 +104,7 @@ static inline til_I64 til_add(const til_I64* a, const til_I64* b)
     return *a + *b;
 }
 
-static inline til_I64 til_sub(const til_I64* a, const til_I64* b)
+static inline til_I64 til_i64_sub(const til_I64* a, const til_I64* b)
 {
     return *a - *b;
 }
@@ -101,23 +119,23 @@ static inline til_I64 til_div(const til_I64* a, const til_I64* b)
     return *b == 0 ? 0 : *a / *b;
 }
 
-static inline til_I64 til_mod(const til_I64* a, const til_I64* b)
+static inline til_I64 til_i64_mod(const til_I64* a, const til_I64* b)
 {
     return *b == 0 ? 0 : *a % *b;
 }
 
-// Bitwise operations - don't really belong in arithmetics, but here for now
-static inline til_I64 til_I64_xor(const til_I64* a, const til_I64* b)
+// Bitwise operations
+static inline til_I64 til_i64_xor(const til_I64* a, const til_I64* b)
 {
     return *a ^ *b;
 }
 
-static inline til_I64 til_I64_and(const til_I64* a, const til_I64* b)
+static inline til_I64 til_i64_and(const til_I64* a, const til_I64* b)
 {
     return *a & *b;
 }
 
-static inline til_I64 til_I64_or(const til_I64* a, const til_I64* b)
+static inline til_I64 til_i64_or(const til_I64* a, const til_I64* b)
 {
     return *a | *b;
 }

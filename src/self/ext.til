@@ -415,36 +415,36 @@ func_mod := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
 
 // Bitwise operations - don't really belong in arithmetics, but here for now
 func_i64_xor := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "I64_xor", 2, false)
+    validate_arg_count(context.path, e, "i64_xor", 2, false)
     a_result := eval_expr(context, e.get(1))
     if a_result.is_throw { return a_result }
     b_result := eval_expr(context, e.get(2))
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
-    return EvalResult.new(I64_xor(a, b).to_str())
+    return EvalResult.new(I64.xor(a, b).to_str())
 }
 
 func_i64_and := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "I64_and", 2, false)
+    validate_arg_count(context.path, e, "i64_and", 2, false)
     a_result := eval_expr(context, e.get(1))
     if a_result.is_throw { return a_result }
     b_result := eval_expr(context, e.get(2))
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
-    return EvalResult.new(I64_and(a, b).to_str())
+    return EvalResult.new(I64.and(a, b).to_str())
 }
 
 func_i64_or := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "I64_or", 2, false)
+    validate_arg_count(context.path, e, "i64_or", 2, false)
     a_result := eval_expr(context, e.get(1))
     if a_result.is_throw { return a_result }
     b_result := eval_expr(context, e.get(2))
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
-    return EvalResult.new(I64_or(a, b).to_str())
+    return EvalResult.new(I64.or(a, b).to_str())
 }
 
 func_str_to_i64 := proc(mut context: Context, e: Expr) returns EvalResult throws Str {

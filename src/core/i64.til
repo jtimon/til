@@ -4,9 +4,8 @@ mode lib
 lt        := ext_func(a: I64, b: I64) returns Bool {}
 gt        := ext_func(a: I64, b: I64) returns Bool {}
 
-// Minimal arithmetics are fair and necessary
+// Minimal arithmetics
 add       := ext_func(a: I64, b: I64) returns I64 {}
-sub       := ext_func(a: I64, b: I64) returns I64 {}
 mul       := ext_func(a: I64, b: I64) returns I64 {}
 
 /** Division that returns 0 when dividing by zero.
@@ -14,19 +13,7 @@ mul       := ext_func(a: I64, b: I64) returns I64 {}
  *  Use safe_div() if you want to catch division by zero errors. */
 div       := ext_func(a: I64, b: I64) returns I64 {}
 
-mod       := ext_func(a: I64, b: I64) returns I64 {}
-
-// Bitwise operations
-I64_xor   := ext_func(a: I64, b: I64) returns I64 {}
-I64_and   := ext_func(a: I64, b: I64) returns I64 {}
-I64_or    := ext_func(a: I64, b: I64) returns I64 {}
-
 I64_SIZE  := 8
-// TODO we can't declare negative constants before declaring ext sub()
-// TODO negative literal number support
-MIN_I64   := sub(0, 922337203)
-MAX_I64   := 9223372036854775807 // REM This is a lie, see bellow.
-// MIN_I64   := sub(0, 9223372036854775808) // FIX Invalid number literal '9223372036854775808': number too large to fit in target t
 
 /** Error thrown by safe_add when overflow occurs. */
 I64_Overflow := struct {
@@ -72,7 +59,7 @@ I64 := struct {
     /** Subtraction that throws I64_Overflow when underflow occurs.
      *  Use sub() if you want silent wrapping behavior. */
     safe_sub := func(a: I64, b: I64) returns I64 throws I64_Overflow {
-        result := sub(a, b)
+        result := a.sub(b)
         // Underflow detection: subtracting positive gave larger, or subtracting negative gave smaller
         if gt(b, 0) {
             if gt(result, a) {
@@ -98,6 +85,34 @@ I64 := struct {
             }
         }
         return result
+    }
+
+    // Bitwise operations
+    xor := func(a: I64, b: I64) returns I64 {
+        i64_xor := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_xor(a, b)
+    }
+
+    and := func(a: I64, b: I64) returns I64 {
+        i64_and := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_and(a, b)
+    }
+
+    or := func(a: I64, b: I64) returns I64 {
+        i64_or := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_or(a, b)
+    }
+
+    /** Modulo operation. Returns 0 when dividing by zero. */
+    mod := func(a: I64, b: I64) returns I64 {
+        i64_mod := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_mod(a, b)
+    }
+
+    /** Subtraction. */
+    sub := func(a: I64, b: I64) returns I64 {
+        i64_sub := ext_func(a: I64, b: I64) returns I64 {}
+        return i64_sub(a, b)
     }
 
     eq := func(a: I64, b: I64) returns Bool {
@@ -132,7 +147,7 @@ I64 := struct {
     }
 
     dec := proc(mut self: I64) {
-        self = sub(self, 1)
+        self = self.sub(1)
     }
 
     gteq := func(a: I64, b: I64) returns Bool {
@@ -164,3 +179,7 @@ I64 := struct {
         return 8
     }
 }
+
+// Constants defined after struct so I64.sub is available
+MIN_I64   := I64.sub(0, 922337203)
+MAX_I64   := 9223372036854775807

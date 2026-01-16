@@ -71,6 +71,7 @@ til_Array til_Array_new(til_Type til_T, const til_I64* til_capacity);
 int til_Array_get(til_IndexOutOfBoundsError* _err1, const til_Array* til_self, const til_I64* til_index, til_Dynamic* til_T);
 int til_Array_set(til_IndexOutOfBoundsError* _err1, til_Array* til_self, const til_I64* til_index, const til_Dynamic* til_value);
 void til_Array_delete(til_Array* til_self);
+til_I64 til_I64_sub(const til_I64* til_a, const til_I64* til_b);
 til_Bool til_I64_eq(const til_I64* til_a, const til_I64* til_b);
 til_Str til_I64_to_str(const til_I64* til_self);
 void til_I64_inc(til_I64* til_self);
@@ -424,7 +425,7 @@ void til_test_simple_add(void) {
 
 void til_test_nested_arithmetic(void) {
     til_I64 _tmp_test_nested_arithmetic_0 = til_add(&(til_I64){1}, &(til_I64){2});
-    til_I64 _tmp_test_nested_arithmetic_1 = til_sub(&(til_I64){10}, &(til_I64){5});
+    til_I64 _tmp_test_nested_arithmetic_1 = til_I64_sub(&(til_I64){10}, &(til_I64){5});
     const til_I64 til_result = til_mul(&_tmp_test_nested_arithmetic_0, &_tmp_test_nested_arithmetic_1);
     til_Bool _tmp_test_nested_arithmetic_2 = til_I64_eq(&til_result, &(til_I64){15});
     til_test(&((til_Str){(til_I64)"src/test/constfold.til:15:10:", 29}), &_tmp_test_nested_arithmetic_2, &((til_Str){(til_I64)"mul(add(1, 2), sub(10, 5)) should be 15", 39}));
@@ -616,6 +617,10 @@ void til_Array_delete(til_Array* til_self) {
     til_self->_len = 0;
 }
 
+til_I64 til_I64_sub(const til_I64* til_a, const til_I64* til_b) {
+    return til_i64_sub(til_a, til_b);
+}
+
 til_Bool til_I64_eq(const til_I64* til_a, const til_I64* til_b) {
     if (til_gt(til_a, til_b).data) {
         return false;
@@ -641,7 +646,7 @@ void til_I64_inc(til_I64* til_self) {
 }
 
 void til_I64_dec(til_I64* til_self) {
-    *til_self = til_sub(til_self, &(til_I64){1});
+    *til_self = til_I64_sub(til_self, &(til_I64){1});
 }
 
 til_Bool til_I64_gteq(const til_I64* til_a, const til_I64* til_b) {
@@ -712,7 +717,7 @@ til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle) {
     }
     til_I64 _tmp_til_Str_contains_0 = til_Str_len(til_self);
     til_I64 _tmp_til_Str_contains_1 = til_Str_len(til_needle);
-    til_I64 til_max_start = til_sub(&_tmp_til_Str_contains_0, &_tmp_til_Str_contains_1);
+    til_I64 til_max_start = til_I64_sub(&_tmp_til_Str_contains_0, &_tmp_til_Str_contains_1);
     til_I64 til_start_idx = 0;
     til_Bool til_matches;
     til_I64 til_needle_idx;
@@ -832,7 +837,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_sel
         _arr_status__tmp_til_U8_from_i64_2 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_2, &_tmp_til_U8_from_i64_1, &_tmp_til_U8_from_i64_6, (til_Dynamic*)&_tmp_til_U8_from_i64_3);
         if (_arr_status__tmp_til_U8_from_i64_2 != 0) {
         }
-        _tmp_til_U8_from_i64_0 = til_format(&((til_Str){(til_I64)"src/core/u8.til:126:42:", 23}), &_tmp_til_U8_from_i64_1);
+        _tmp_til_U8_from_i64_0 = til_format(&((til_Str){(til_I64)"src/core/u8.til:142:42:", 23}), &_tmp_til_U8_from_i64_1);
         til_Array_delete(&_tmp_til_U8_from_i64_1);
         til_Str _tmp_til_U8_from_i64_7;
         til_Array _tmp_til_U8_from_i64_8;
@@ -846,7 +851,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_sel
         _arr_status__tmp_til_U8_from_i64_9 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_9, &_tmp_til_U8_from_i64_8, &_tmp_til_U8_from_i64_13, (til_Dynamic*)&_tmp_til_U8_from_i64_10);
         if (_arr_status__tmp_til_U8_from_i64_9 != 0) {
         }
-        _tmp_til_U8_from_i64_7 = til_format(&((til_Str){(til_I64)"src/core/u8.til:126:42:", 23}), &_tmp_til_U8_from_i64_8);
+        _tmp_til_U8_from_i64_7 = til_format(&((til_Str){(til_I64)"src/core/u8.til:142:42:", 23}), &_tmp_til_U8_from_i64_8);
         til_Array_delete(&_tmp_til_U8_from_i64_8);
         *_err1 = (til_U8_Overflow){.msg = _tmp_til_U8_from_i64_7};
         return 1;
@@ -869,7 +874,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_sel
         _arr_status__tmp_til_U8_from_i64_16 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_16, &_tmp_til_U8_from_i64_15, &_tmp_til_U8_from_i64_22, (til_Dynamic*)&_tmp_til_U8_from_i64_18);
         if (_arr_status__tmp_til_U8_from_i64_16 != 0) {
         }
-        _tmp_til_U8_from_i64_14 = til_format(&((til_Str){(til_I64)"src/core/u8.til:129:42:", 23}), &_tmp_til_U8_from_i64_15);
+        _tmp_til_U8_from_i64_14 = til_format(&((til_Str){(til_I64)"src/core/u8.til:145:42:", 23}), &_tmp_til_U8_from_i64_15);
         til_Array_delete(&_tmp_til_U8_from_i64_15);
         til_Str _tmp_til_U8_from_i64_23;
         til_Array _tmp_til_U8_from_i64_24;
@@ -888,7 +893,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_sel
         _arr_status__tmp_til_U8_from_i64_25 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_25, &_tmp_til_U8_from_i64_24, &_tmp_til_U8_from_i64_31, (til_Dynamic*)&_tmp_til_U8_from_i64_27);
         if (_arr_status__tmp_til_U8_from_i64_25 != 0) {
         }
-        _tmp_til_U8_from_i64_23 = til_format(&((til_Str){(til_I64)"src/core/u8.til:129:42:", 23}), &_tmp_til_U8_from_i64_24);
+        _tmp_til_U8_from_i64_23 = til_format(&((til_Str){(til_I64)"src/core/u8.til:145:42:", 23}), &_tmp_til_U8_from_i64_24);
         til_Array_delete(&_tmp_til_U8_from_i64_24);
         *_err1 = (til_U8_Overflow){.msg = _tmp_til_U8_from_i64_23};
         return 1;

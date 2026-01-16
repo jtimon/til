@@ -121,6 +121,22 @@ U8 := struct {
         return u8_mod(a, b)
     }
 
+    // Bitwise operations
+    xor := func(a: U8, b: U8) returns U8 {
+        u8_xor := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_xor(a, b)
+    }
+
+    and := func(a: U8, b: U8) returns U8 {
+        u8_and := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_and(a, b)
+    }
+
+    or := func(a: U8, b: U8) returns U8 {
+        u8_or := ext_func(a: U8, b: U8) returns U8 {}
+        return u8_or(a, b)
+    }
+
     from_i64 := func(self: I64) returns U8 throws U8_Overflow {
         if lt(self, 0) {
             throw U8_Overflow(msg=format(loc(), "Negative values cannot be cast into 'U8'"))
