@@ -187,17 +187,15 @@ List := struct {
         self._len = last_index
     }
 
-    /** Free list memory. */
+    /** Free list memory. Idempotent - safe to call multiple times. */
     delete := proc(mut self: List) {
-        free(self.data)
+        if gt(self.data, 0) {
+            free(self.data)
+        }
         self.data = 0
         self._len = 0
-
-        mut names := self.type_names
-        names.delete()
-
-        mut sizes := self.type_sizes
-        sizes.delete()
+        self.type_names.delete()
+        self.type_sizes.delete()
     }
 
     /** Clone the list. */

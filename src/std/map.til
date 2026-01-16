@@ -243,14 +243,10 @@ Map := struct {
         return add(keys_size, values_size)
     }
 
-    /** Free map memory and reset. */
+    /** Free map memory and reset. Idempotent - safe to call multiple times. */
     delete := proc(mut self: Map) {
-        mut keys_arr := self.keys
-        keys_arr.delete()
-
-        mut values_arr := self.values
-        values_arr.delete()
-
+        self.keys.delete()
+        self.values.delete()
         self._size = 0
     }
 

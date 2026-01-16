@@ -159,7 +159,7 @@ RegexMatch := struct {
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Fixes memory leaks automatically, Mojo-style memory management
-:STATUS: Partial (infrastructure ready, blocked on idempotent delete)
+:STATUS: Partial (infrastructure ready, blocked on manual delete() removal)
 :DEPENDS: Bug #101 (unused warnings - FIXED)
 :RELATED: Bug #114 (memory leak documentation), Issue #116 (future borrow tracking)
 :END:
@@ -174,11 +174,11 @@ All mut local variables are considered owned. For borrowed/aliased data, users m
 - Implement their own delete() that handles aliasing correctly
 See Issue #116 for future borrow tracking support.
 
-*** Partial Implementation (2026-01-16)
-Infrastructure added and ready. Auto-delete disabled pending fixes to delete()
-functions to make them idempotent (safe to call multiple times).
+*** Implementation Status (2026-01-16)
+Infrastructure complete and tested. Auto-delete is DISABLED because the TIL
+codebase itself has manual delete() calls that conflict with auto-delete.
 
-Completed:
+**** Completed Infrastructure:
 - VarLifetime struct for tracking deletable variables (ccodegen.rs)
 - type_has_delete() helper to check if type has delete method (ccodegen.rs)
 - track_deletable_var() to register variables for cleanup (ccodegen.rs, disabled)
@@ -186,32 +186,27 @@ Completed:
 - Scavenger marks delete() methods reachable for all used types (scavenger.rs, scavenger.til)
 - var_lifetimes saved/restored for nested functions (ccodegen.rs)
 
-*** BLOCKING: Delete Functions Must Be Idempotent
-Before enabling auto-delete, fix these delete() functions:
+**** Fixed Delete Functions (2026-01-16):
+All delete() functions are now idempotent (safe to call multiple times):
 
-**** Array.delete (src/core/array.til:69)
-Problem: calls ~free(self.ptr)~ unconditionally - crashes on double-free
-Fix: add ~if gt(self.ptr, 0)~ check before free (like Vec.delete)
+- Array.delete (src/core/array.til): Added ~if gt(self.ptr, 0)~ check before free
+- Map.delete (src/std/map.til): Fixed to use ~self.keys.delete()~ directly instead of local copies
+- Ptr.delete (src/core/ptr.til): Added NULL check, sets data=0, takes mut self
+- List.delete (src/std/list.til): Added ~if gt(self.data, 0)~ check before free
 
-**** Map.delete (src/std/map.til:247)
-Problem: creates local copies that don't propagate ptr=0 back to original
-#+BEGIN_SRC til
-mut keys_arr := self.keys  // shallow copy shares ptr
-keys_arr.delete()          // sets keys_arr.ptr=0, NOT self.keys.ptr
-#+END_SRC
-Fix: use ~self.keys.delete()~ and ~self.values.delete()~ directly
+*** BLOCKING: Manual delete() Calls in TIL Codebase
+Auto-delete is disabled because when rstil compiles til.til with auto-delete enabled,
+the TIL interpreter/compiler code has manual delete() calls that conflict:
+- Manual delete() + auto-delete = double-free
 
-*** To Enable Auto-Delete
-1. Fix Array.delete to be idempotent (check ptr before free)
-2. Fix Map.delete to not use local copies
-3. Audit other delete() functions for similar issues
-4. Uncomment track_deletable_var call in emit_declaration (ccodegen.rs)
-5. Port changes to ccodegen.til
-6. Run ~make benchmark~ to verify
+To enable auto-delete:
+1. Remove ALL manual delete() calls from TIL codebase (src/self/*.til, src/core/*.til, src/std/*.til)
+2. Uncomment track_deletable_var call in emit_declaration (ccodegen.rs:~2847)
+3. Port changes to ccodegen.til
+4. Run ~make benchmark~ to verify
 
 *** Types with delete()
-Already implemented: Vec, Array, Set, Ptr
-In std/: Map
+Already implemented: Vec, Array, Set, Ptr, Map, List
 After Issue #116: Str
 
 *** Design Decisions

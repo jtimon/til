@@ -614,7 +614,9 @@ int til_Array_set(til_IndexOutOfBoundsError* _err1, til_Array* til_self, const t
 }
 
 void til_Array_delete(til_Array* til_self) {
-    til_free(&til_self->ptr);
+    if (til_gt(&til_self->ptr, &(til_I64){0}).data) {
+        til_free(&til_self->ptr);
+    }
     til_self->ptr = 0;
     til_self->_len = 0;
 }

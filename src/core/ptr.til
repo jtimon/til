@@ -27,11 +27,12 @@ Ptr := struct {
         return Ptr.new_by_size(size_of(T))
     }
 
-    delete := proc(self: Ptr) {
-        if NULL.eq(self.data) {
-            panic(loc(), "Ptr.delete: trying to free a NULL pointer")
+    /** Free pointer memory. Idempotent - safe to call multiple times. */
+    delete := proc(mut self: Ptr) {
+        if not(NULL.eq(self.data)) {
+            free(self.data)
         }
-        free(self.data)
+        self.data = 0
     }
 
     /** Ptr.offset is danger-ous, also known as "pointer arythmetics". */

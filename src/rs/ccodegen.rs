@@ -5097,9 +5097,8 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     // All mut local variables are considered owned. For borrowed/aliased data,
     // users must use Ptr, c_mem functions, or implement their own delete() that
     // handles the aliasing correctly (see Issue #116 for future borrow tracking).
-    // TEMPORARILY DISABLED: Need to fix delete() functions to be idempotent first:
-    // - Array.delete: needs to check ptr != 0 before free
-    // - Map.delete: needs to use self.keys.delete() instead of local copy
+    // DISABLED: The TIL codebase has manual delete() calls that conflict with
+    // auto-delete. Need to remove manual delete() calls first.
     // if decl.is_mut {
     //     track_deletable_var(name, &var_type, ctx, context);
     // }

@@ -65,9 +65,11 @@ Array := struct {
         memcpy(dest, to_ptr(value), self.type_size)
     }
 
-    /** Free array memory. */
+    /** Free array memory. Idempotent - safe to call multiple times. */
     delete := proc(mut self: Array) {
-        free(self.ptr)
+        if gt(self.ptr, 0) {
+            free(self.ptr)
+        }
         self.ptr = 0
         self._len = 0
     }
