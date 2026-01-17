@@ -135,5 +135,41 @@ test_strings := proc() {
     empty_hash := Str.hash("")
     test(loc(), empty_hash.eq(Str.hash("")), "empty string consistent hash")
 
+    // Comparison tests (lt, gt, lteq, gteq, eq)
+    test(loc(), Str.eq("hello", "hello"), "Str.eq: equal strings")
+    test(loc(), not(Str.eq("hello", "world")), "Str.eq: different strings")
+    test(loc(), Str.eq("", ""), "Str.eq: empty strings")
+
+    test(loc(), Str.lt("a", "b"), "Str.lt: a < b")
+    test(loc(), Str.lt("apple", "banana"), "Str.lt: apple < banana")
+    test(loc(), Str.lt("", "a"), "Str.lt: empty < non-empty")
+    test(loc(), Str.lt("ab", "abc"), "Str.lt: shorter < longer prefix")
+    test(loc(), not(Str.lt("b", "a")), "Str.lt: not(b < a)")
+    test(loc(), not(Str.lt("hello", "hello")), "Str.lt: not(hello < hello)")
+
+    test(loc(), Str.gt("b", "a"), "Str.gt: b > a")
+    test(loc(), Str.gt("banana", "apple"), "Str.gt: banana > apple")
+    test(loc(), Str.gt("a", ""), "Str.gt: non-empty > empty")
+    test(loc(), Str.gt("abc", "ab"), "Str.gt: longer > shorter prefix")
+    test(loc(), not(Str.gt("a", "b")), "Str.gt: not(a > b)")
+    test(loc(), not(Str.gt("hello", "hello")), "Str.gt: not(hello > hello)")
+
+    test(loc(), Str.lteq("a", "b"), "Str.lteq: a <= b")
+    test(loc(), Str.lteq("hello", "hello"), "Str.lteq: hello <= hello")
+    test(loc(), Str.lteq("", ""), "Str.lteq: empty <= empty")
+    test(loc(), Str.lteq("apple", "banana"), "Str.lteq: apple <= banana")
+    test(loc(), not(Str.lteq("b", "a")), "Str.lteq: not(b <= a)")
+
+    test(loc(), Str.gteq("b", "a"), "Str.gteq: b >= a")
+    test(loc(), Str.gteq("hello", "hello"), "Str.gteq: hello >= hello")
+    test(loc(), Str.gteq("", ""), "Str.gteq: empty >= empty")
+    test(loc(), Str.gteq("banana", "apple"), "Str.gteq: banana >= apple")
+    test(loc(), not(Str.gteq("a", "b")), "Str.gteq: not(a >= b)")
+
+    // Test lexicographic ordering
+    test(loc(), Str.lt("A", "a"), "Str.lt: A < a (uppercase before lowercase)")
+    test(loc(), Str.lt("9", "A"), "Str.lt: 9 < A (digits before uppercase)")
+    test(loc(), Str.lt("Zoo", "aardvark"), "Str.lt: Zoo < aardvark (Z < a)")
+
 }
 test_strings()

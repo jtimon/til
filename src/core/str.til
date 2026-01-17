@@ -333,6 +333,26 @@ Str := struct {
         return sub(self.len(), other.len())
     }
 
+    /** Less than comparison */
+    lt := func(self: Str, other: Str) returns Bool {
+        return self.cmp(other).lt(0)
+    }
+
+    /** Greater than comparison */
+    gt := func(self: Str, other: Str) returns Bool {
+        return self.cmp(other).gt(0)
+    }
+
+    /** Less than or equal comparison */
+    lteq := func(self: Str, other: Str) returns Bool {
+        return self.cmp(other).lteq(0)
+    }
+
+    /** Greater than or equal comparison */
+    gteq := func(self: Str, other: Str) returns Bool {
+        return self.cmp(other).gteq(0)
+    }
+
     /** Replace first n occurrences of 'from' with 'to' */
     replacen := func(self: Str, from: Str, to: Str, n: I64) returns Str {
         if from.len().eq(0) {

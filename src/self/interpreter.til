@@ -740,9 +740,7 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                     is_match = val.gteq(start_val).and(val.lteq(end_val))
                 } else {
                     // Lexicographic string comparison
-                    cmp_start := result_to_switch.value.cmp(start.value)
-                    cmp_end := result_to_switch.value.cmp(end.value)
-                    is_match = cmp_start.gteq(0).and(cmp_end.lteq(0))
+                    is_match = result_to_switch.value.gteq(start.value).and(result_to_switch.value.lteq(end.value))
                 }
             } else {
                 result_case := eval_expr(context, case_expr)
