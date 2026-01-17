@@ -89,12 +89,22 @@ til_U8 til_u8_or(const til_U8* a, const til_U8* b)
 }
 
 // Arithmetic functions
-static inline til_Bool til_lt(const til_I64* a, const til_I64* b)
+static inline til_Bool til_i64_lt(const til_I64* a, const til_I64* b)
 {
     return (til_Bool){*a < *b};
 }
 
-static inline til_Bool til_gt(const til_I64* a, const til_I64* b)
+static inline til_Bool til_i64_gt(const til_I64* a, const til_I64* b)
+{
+    return (til_Bool){*a > *b};
+}
+
+static inline til_Bool til_u8_lt(const til_U8* a, const til_U8* b)
+{
+    return (til_Bool){*a < *b};
+}
+
+static inline til_Bool til_u8_gt(const til_U8* a, const til_U8* b)
 {
     return (til_Bool){*a > *b};
 }

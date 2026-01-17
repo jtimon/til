@@ -22,16 +22,30 @@ U8 := struct {
         return 1
     }
 
-    eq := func(self: U8, other: U8) returns Bool {
-        return U8.to_i64(self).eq(U8.to_i64(other))
-    }
-
     lt := func(self: U8, other: U8) returns Bool {
-        return U8.to_i64(self).lt(U8.to_i64(other))
+        u8_lt := ext_func(a: U8, b: U8) returns Bool {}
+        return u8_lt(self, other)
     }
 
     gt := func(self: U8, other: U8) returns Bool {
-        return U8.to_i64(self).gt(U8.to_i64(other))
+        u8_gt := ext_func(a: U8, b: U8) returns Bool {}
+        return u8_gt(self, other)
+    }
+
+    eq := func(a: U8, b: U8) returns Bool {
+        if a.gt(b) {
+            return false
+        }
+        if b.gt(a) {
+            return false
+        }
+        if a.lt(b) {
+            return false
+        }
+        if b.lt(a) {
+            return false
+        }
+        return true
     }
 
     to_i64 := func(self: U8) returns I64 {
@@ -71,7 +85,7 @@ U8 := struct {
      *  Use sub() if you want silent wrapping behavior. */
     safe_sub := func(a: U8, b: U8) returns U8 throws U8_Overflow {
         diff := a.to_i64().sub(b.to_i64())
-        if lt(diff, 0) {
+        if diff.lt(0) {
             throw U8_Overflow(msg=format(loc(), "U8 underflow: ", a.to_str(), " - ", b.to_str(), " = ", diff.to_str()))
         }
         i64_to_u8 := ext_func(i64: I64) returns U8 {}
@@ -138,22 +152,52 @@ U8 := struct {
     }
 
     from_i64 := func(self: I64) returns U8 throws U8_Overflow {
-        if lt(self, 0) {
+        if self.lt(0) {
             throw U8_Overflow(msg=format(loc(), "Negative values cannot be cast into 'U8'"))
         }
-        if gt(self, MAX_U8) {
-            throw U8_Overflow(msg=format(loc(), "U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
+        if self.gt(MAX_U8) {
+            throw U8_Overflow(msg=format(loc(), "U8: cannot be casted from an I64 greater than: ", MAX_U8.to_str()))
         }
         i64_to_u8 := ext_func(i64: I64) returns U8 {}
         return i64_to_u8(self)
     }
 
     to_str := func(self: U8) returns Str {
-        return I64.to_str(U8.to_i64(self))
+        return self.to_i64().to_str()
     }
 
     from_str := func(s: Str) returns U8 throws U8_Overflow {
         return U8.from_i64(I64.from_str(s))
+    }
+
+    inc := proc(mut self: U8) {
+        one : U8 = 1
+        self = self.add(one)
+    }
+
+    dec := proc(mut self: U8) {
+        one : U8 = 1
+        self = self.sub(one)
+    }
+
+    gteq := func(a: U8, b: U8) returns Bool {
+        if a.gt(b) {
+            return true
+        }
+        if a.lt(b) {
+            return false
+        }
+        return true  // equal
+    }
+
+    lteq := func(a: U8, b: U8) returns Bool {
+        if a.lt(b) {
+            return true
+        }
+        if a.gt(b) {
+            return false
+        }
+        return true  // equal
     }
 
     size := func() returns I64 {

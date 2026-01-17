@@ -1,11 +1,40 @@
 mode test
 
-// comparisons:
+// I64 comparisons
+test(loc(), I64.eq(0, 0), "I64: 0 == 0")
+test(loc(), I64.eq(2, 2), "I64: 2 == 2")
+test(loc(), I64.lt(0, 1), "I64: 0 < 1")
+test(loc(), I64.gt(2, 1), "I64: 2 > 1")
+test(loc(), I64.lteq(2, 2), "I64: 2 <= 2")
+test(loc(), I64.lteq(1, 2), "I64: 1 <= 2")
+test(loc(), I64.gteq(2, 2), "I64: 2 >= 2")
+test(loc(), I64.gteq(2, 1), "I64: 2 >= 1")
+test(loc(), not(I64.lt(2, 1)), "I64: not(2 < 1)")
+test(loc(), not(I64.gt(1, 2)), "I64: not(1 > 2)")
 
-test(loc(), I64.eq(0, 0), "0 == 0")
-test(loc(), I64.eq(2, 2), "2 == 2")
-test(loc(), lt(0, 1), "0 is less than 1")
-test(loc(), gt(2, 1), "2 is greater than 1")
-test(loc(), lteq(2, 2), "2 is gt-equal to 2")
-test(loc(), gteq(2, 2), "2 is lt-equal to 2")
+// U8 comparisons
+test_u8_comparisons := proc() {
+    a : U8 = 10
+    b : U8 = 20
+    c : U8 = 10
+
+    test(loc(), U8.eq(a, c), "U8: 10 == 10")
+    test(loc(), U8.lt(a, b), "U8: 10 < 20")
+    test(loc(), U8.gt(b, a), "U8: 20 > 10")
+    test(loc(), U8.lteq(a, b), "U8: 10 <= 20")
+    test(loc(), U8.lteq(a, c), "U8: 10 <= 10")
+    test(loc(), U8.gteq(b, a), "U8: 20 >= 10")
+    test(loc(), U8.gteq(a, c), "U8: 10 >= 10")
+    test(loc(), not(U8.lt(b, a)), "U8: not(20 < 10)")
+    test(loc(), not(U8.gt(a, b)), "U8: not(10 > 20)")
+}
+test_u8_comparisons()
+
+// Global comparison functions (legacy)
+test(loc(), lt(0, 1), "lt: 0 is less than 1")
+test(loc(), gt(2, 1), "gt: 2 is greater than 1")
+test(loc(), lteq(2, 2), "lteq: 2 is lt-equal to 2")
+test(loc(), gteq(2, 2), "gteq: 2 is gt-equal to 2")
+
+// Str comparisons
 test(loc(), Str.eq("aa", "aa"), "Str.eq('aa', 'aa') is true")

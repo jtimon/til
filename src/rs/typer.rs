@@ -515,6 +515,10 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
         },
     };
 
+    // Update f_name after UFCS transformation (Bug #TODO)
+    // The transformation may have changed e.g. "val.eq" -> "U8.eq"
+    let f_name = get_func_name_in_call(&e);
+
     if let Some(err) = validate_func_arg_count(&context.path, &e, &f_name, &func_def) {
         errors.push(err);
         return errors;

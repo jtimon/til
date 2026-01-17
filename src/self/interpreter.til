@@ -3290,10 +3290,20 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_memcpy(context, e)
     } else if name.eq("memcmp") {
         return func_memcmp(context, e)
-    } else if name.eq("lt") {
+    } else if name.eq("i64_lt") {
         return func_lt(context, e)
-    } else if name.eq("gt") {
+    } else if name.eq("i64_gt") {
         return func_gt(context, e)
+    } else if name.eq("u8_lt") {
+        return func_u8_lt(context, e)
+    } else if name.eq("u8_gt") {
+        return func_u8_gt(context, e)
+    } else if name.eq("u8_xor") {
+        return func_u8_xor(context, e)
+    } else if name.eq("u8_and") {
+        return func_u8_and(context, e)
+    } else if name.eq("u8_or") {
+        return func_u8_or(context, e)
     } else if name.eq("i64_add") {
         return func_add(context, e)
     } else if name.eq("i64_sub") {

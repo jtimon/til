@@ -89,3 +89,79 @@ test(loc(), false.to_i64().eq(0), "Bool.to_i64: false.to_i64() == 0")
 
 test(loc(), true.to_str().eq("true"), "Bool.to_str: true.to_str() == 'true'")
 test(loc(), false.to_str().eq("false"), "Bool.to_str: false.to_str() == 'false'")
+
+// ============================================================
+// I64 bitwise operations
+// ============================================================
+
+test_i64_bitwise := proc() {
+    // XOR tests
+    test(loc(), I64.xor(0, 0).eq(0), "I64: 0 XOR 0 = 0")
+    test(loc(), I64.xor(1, 0).eq(1), "I64: 1 XOR 0 = 1")
+    test(loc(), I64.xor(0, 1).eq(1), "I64: 0 XOR 1 = 1")
+    test(loc(), I64.xor(1, 1).eq(0), "I64: 1 XOR 1 = 0")
+    test(loc(), I64.xor(12, 10).eq(6), "I64: 12 XOR 10 = 6 (1100 XOR 1010 = 0110)")
+    test(loc(), I64.xor(255, 15).eq(240), "I64: 255 XOR 15 = 240")
+
+    // AND tests
+    test(loc(), I64.and(0, 0).eq(0), "I64: 0 AND 0 = 0")
+    test(loc(), I64.and(1, 0).eq(0), "I64: 1 AND 0 = 0")
+    test(loc(), I64.and(0, 1).eq(0), "I64: 0 AND 1 = 0")
+    test(loc(), I64.and(1, 1).eq(1), "I64: 1 AND 1 = 1")
+    test(loc(), I64.and(12, 10).eq(8), "I64: 12 AND 10 = 8 (1100 AND 1010 = 1000)")
+    test(loc(), I64.and(255, 15).eq(15), "I64: 255 AND 15 = 15")
+    test(loc(), I64.and(16, 15).eq(0), "I64: 16 AND 15 = 0 (power of 2 mask)")
+
+    // OR tests
+    test(loc(), I64.or(0, 0).eq(0), "I64: 0 OR 0 = 0")
+    test(loc(), I64.or(1, 0).eq(1), "I64: 1 OR 0 = 1")
+    test(loc(), I64.or(0, 1).eq(1), "I64: 0 OR 1 = 1")
+    test(loc(), I64.or(1, 1).eq(1), "I64: 1 OR 1 = 1")
+    test(loc(), I64.or(12, 10).eq(14), "I64: 12 OR 10 = 14 (1100 OR 1010 = 1110)")
+    test(loc(), I64.or(255, 15).eq(255), "I64: 255 OR 15 = 255")
+}
+test_i64_bitwise()
+
+// ============================================================
+// U8 bitwise operations
+// ============================================================
+
+test_u8_bitwise := proc() {
+    u8_0 : U8 = 0
+    u8_1 : U8 = 1
+    u8_6 : U8 = 6
+    u8_8 : U8 = 8
+    u8_10 : U8 = 10
+    u8_12 : U8 = 12
+    u8_14 : U8 = 14
+    u8_15 : U8 = 15
+    u8_16 : U8 = 16
+    u8_240 : U8 = 240
+    u8_255 : U8 = 255
+
+    // XOR tests
+    test(loc(), U8.xor(u8_0, u8_0).eq(u8_0), "U8: 0 XOR 0 = 0")
+    test(loc(), U8.xor(u8_1, u8_0).eq(u8_1), "U8: 1 XOR 0 = 1")
+    test(loc(), U8.xor(u8_0, u8_1).eq(u8_1), "U8: 0 XOR 1 = 1")
+    test(loc(), U8.xor(u8_1, u8_1).eq(u8_0), "U8: 1 XOR 1 = 0")
+    test(loc(), U8.xor(u8_12, u8_10).eq(u8_6), "U8: 12 XOR 10 = 6")
+    test(loc(), U8.xor(u8_255, u8_15).eq(u8_240), "U8: 255 XOR 15 = 240")
+
+    // AND tests
+    test(loc(), U8.and(u8_0, u8_0).eq(u8_0), "U8: 0 AND 0 = 0")
+    test(loc(), U8.and(u8_1, u8_0).eq(u8_0), "U8: 1 AND 0 = 0")
+    test(loc(), U8.and(u8_0, u8_1).eq(u8_0), "U8: 0 AND 1 = 0")
+    test(loc(), U8.and(u8_1, u8_1).eq(u8_1), "U8: 1 AND 1 = 1")
+    test(loc(), U8.and(u8_12, u8_10).eq(u8_8), "U8: 12 AND 10 = 8")
+    test(loc(), U8.and(u8_255, u8_15).eq(u8_15), "U8: 255 AND 15 = 15")
+    test(loc(), U8.and(u8_16, u8_15).eq(u8_0), "U8: 16 AND 15 = 0")
+
+    // OR tests
+    test(loc(), U8.or(u8_0, u8_0).eq(u8_0), "U8: 0 OR 0 = 0")
+    test(loc(), U8.or(u8_1, u8_0).eq(u8_1), "U8: 1 OR 0 = 1")
+    test(loc(), U8.or(u8_0, u8_1).eq(u8_1), "U8: 0 OR 1 = 1")
+    test(loc(), U8.or(u8_1, u8_1).eq(u8_1), "U8: 1 OR 1 = 1")
+    test(loc(), U8.or(u8_12, u8_10).eq(u8_14), "U8: 12 OR 10 = 14")
+    test(loc(), U8.or(u8_255, u8_15).eq(u8_255), "U8: 255 OR 15 = 255")
+}
+test_u8_bitwise()

@@ -100,31 +100,97 @@ test_divmod_by_zero := proc() {
 }
 test_divmod_by_zero()
 
-// Bitwise operations - don't really belong in arithmetics, but here for now
-test_bitwise := proc() {
-    // XOR tests
-    test(loc(), I64.xor(0, 0).eq(0), "0 XOR 0 = 0")
-    test(loc(), I64.xor(1, 0).eq(1), "1 XOR 0 = 1")
-    test(loc(), I64.xor(0, 1).eq(1), "0 XOR 1 = 1")
-    test(loc(), I64.xor(1, 1).eq(0), "1 XOR 1 = 0")
-    test(loc(), I64.xor(12, 10).eq(6), "12 XOR 10 = 6 (1100 XOR 1010 = 0110)")
-    test(loc(), I64.xor(255, 15).eq(240), "255 XOR 15 = 240")
+// U8 increment and decrement tests
+test_u8_inc_dec := proc() {
+    mut val : U8 = 41
+    val.inc()
+    u8_42 : U8 = 42
+    test(loc(), val.eq(u8_42), "U8: 41.inc() == 42")
 
-    // AND tests
-    test(loc(), I64.and(0, 0).eq(0), "0 AND 0 = 0")
-    test(loc(), I64.and(1, 0).eq(0), "1 AND 0 = 0")
-    test(loc(), I64.and(0, 1).eq(0), "0 AND 1 = 0")
-    test(loc(), I64.and(1, 1).eq(1), "1 AND 1 = 1")
-    test(loc(), I64.and(12, 10).eq(8), "12 AND 10 = 8 (1100 AND 1010 = 1000)")
-    test(loc(), I64.and(255, 15).eq(15), "255 AND 15 = 15")
-    test(loc(), I64.and(16, 15).eq(0), "16 AND 15 = 0 (power of 2 mask)")
+    val.dec()
+    u8_41 : U8 = 41
+    test(loc(), val.eq(u8_41), "U8: 42.dec() == 41")
 
-    // OR tests
-    test(loc(), I64.or(0, 0).eq(0), "0 OR 0 = 0")
-    test(loc(), I64.or(1, 0).eq(1), "1 OR 0 = 1")
-    test(loc(), I64.or(0, 1).eq(1), "0 OR 1 = 1")
-    test(loc(), I64.or(1, 1).eq(1), "1 OR 1 = 1")
-    test(loc(), I64.or(12, 10).eq(14), "12 OR 10 = 14 (1100 OR 1010 = 1110)")
-    test(loc(), I64.or(255, 15).eq(255), "255 OR 15 = 255")
+    // Test wrapping behavior
+    mut wrap_val : U8 = 255
+    wrap_val.inc()
+    u8_0 : U8 = 0
+    test(loc(), wrap_val.eq(u8_0), "U8: 255.inc() wraps to 0")
+
+    mut unwrap_val : U8 = 0
+    unwrap_val.dec()
+    u8_255 : U8 = 255
+    test(loc(), unwrap_val.eq(u8_255), "U8: 0.dec() wraps to 255")
 }
-test_bitwise()
+test_u8_inc_dec()
+
+// U8 comparison tests (gteq, lteq)
+test_u8_comparisons := proc() {
+    a : U8 = 10
+    b : U8 = 20
+    c : U8 = 10
+
+    // gteq tests
+    test(loc(), U8.gteq(b, a), "U8: 20 >= 10")
+    test(loc(), U8.gteq(a, c), "U8: 10 >= 10")
+    test(loc(), not(U8.gteq(a, b)), "U8: not(10 >= 20)")
+
+    // lteq tests
+    test(loc(), U8.lteq(a, b), "U8: 10 <= 20")
+    test(loc(), U8.lteq(a, c), "U8: 10 <= 10")
+    test(loc(), not(U8.lteq(b, a)), "U8: not(20 <= 10)")
+
+    // Edge cases
+    zero : U8 = 0
+    max : U8 = 255
+    test(loc(), U8.lteq(zero, max), "U8: 0 <= 255")
+    test(loc(), U8.gteq(max, zero), "U8: 255 >= 0")
+    test(loc(), U8.gteq(zero, zero), "U8: 0 >= 0")
+    test(loc(), U8.lteq(max, max), "U8: 255 <= 255")
+}
+test_u8_comparisons()
+
+// U8 arithmetic tests
+test_u8_arithmetic := proc() {
+    u8_2 : U8 = 2
+    u8_4 : U8 = 4
+    u8_42 : U8 = 42
+    u8_6 : U8 = 6
+    u8_7 : U8 = 7
+    u8_10 : U8 = 10
+    u8_40 : U8 = 40
+    u8_44 : U8 = 44
+
+    // Addition
+    test(loc(), U8.add(u8_40, u8_2).eq(u8_42), "U8: 40 + 2 = 42")
+    test(loc(), U8.add(u8_2, u8_2).eq(u8_4), "U8: 2 + 2 = 4")
+
+    // Subtraction
+    test(loc(), U8.sub(u8_44, u8_2).eq(u8_42), "U8: 44 - 2 = 42")
+
+    // Multiplication
+    test(loc(), U8.mul(u8_6, u8_7).eq(u8_42), "U8: 6 * 7 = 42")
+    test(loc(), U8.mul(u8_2, u8_2).eq(u8_4), "U8: 2 * 2 = 4")
+
+    // Division
+    u8_420_mod : U8 = 164  // 420 % 256 = 164
+    u8_16 : U8 = 16
+    u8_5 : U8 = 5
+    test(loc(), U8.div(u8_420_mod, u8_10).eq(u8_16), "U8: 164 / 10 = 16")
+    test(loc(), U8.div(u8_10, u8_2).eq(u8_5), "U8: 10 / 2 = 5")
+
+    // Modulo
+    u8_3 : U8 = 3
+    u8_1 : U8 = 1
+    test(loc(), U8.mod(u8_10, u8_3).eq(u8_1), "U8: 10 % 3 = 1")
+
+    // Wrapping behavior
+    u8_200 : U8 = 200
+    u8_100 : U8 = 100
+    u8_255 : U8 = 255
+    u8_0 : U8 = 0
+    test(loc(), U8.add(u8_200, u8_100).eq(u8_44), "U8: 200 + 100 wraps to 44")
+    test(loc(), U8.add(u8_255, u8_1).eq(u8_0), "U8: 255 + 1 wraps to 0")
+    test(loc(), U8.sub(u8_0, u8_1).eq(u8_255), "U8: 0 - 1 wraps to 255")
+}
+test_u8_arithmetic()

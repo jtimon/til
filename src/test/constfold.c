@@ -75,6 +75,8 @@ til_I64 til_I64_sub(const til_I64* til_a, const til_I64* til_b);
 til_I64 til_I64_mul(const til_I64* til_a, const til_I64* til_b);
 til_I64 til_I64_add(const til_I64* til_a, const til_I64* til_b);
 til_Bool til_I64_eq(const til_I64* til_a, const til_I64* til_b);
+til_Bool til_I64_lt(const til_I64* til_a, const til_I64* til_b);
+til_Bool til_I64_gt(const til_I64* til_a, const til_I64* til_b);
 til_Str til_I64_to_str(const til_I64* til_self);
 void til_I64_inc(til_I64* til_self);
 void til_I64_dec(til_I64* til_self);
@@ -82,8 +84,9 @@ til_Bool til_I64_gteq(const til_I64* til_a, const til_I64* til_b);
 til_I64 til_Str_len(const til_Str* til_self);
 til_Bool til_Str_eq(const til_Str* til_self, const til_Str* til_other);
 til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle);
-til_Bool til_U8_eq(const til_U8* til_self, const til_U8* til_other);
-til_I64 til_U8_to_i64(const til_U8* til_self);
+til_Bool til_U8_lt(const til_U8* til_self, const til_U8* til_other);
+til_Bool til_U8_gt(const til_U8* til_self, const til_U8* til_other);
+til_Bool til_U8_eq(const til_U8* til_a, const til_U8* til_b);
 int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_self);
 til_CfVec2 til_CfVec2_magic(void);
 til_CfVec2 til_CfVec2_at(const til_I64* til_x, const til_I64* til_y);
@@ -141,7 +144,7 @@ void til_panic(const til_Str* til_loc_str, const til_Str* til_msg, til_Array* ti
     til_single_print(til_msg);
     til_I64 _for_i_panic_0 = 0;
     til_Str til_extra_msg;
-    while (til_lt(&_for_i_panic_0, &(til_I64){til_Array_len(til_extra_msgs)}).data) {
+    while (til_I64_lt(&_for_i_panic_0, &(til_I64){til_Array_len(til_extra_msgs)}).data) {
         til_IndexOutOfBoundsError _thrown_IndexOutOfBoundsError__tmp_panic_0;
         til_extra_msg = (til_Str){.c_string = 0, .cap = 0};
         til_IndexOutOfBoundsError _err0__tmp_panic_1 = {};
@@ -197,7 +200,7 @@ void til_assertm(const til_Str* til_loc_str, const til_Bool* til_cond, const til
 void til_println(til_Array* til_args) {
     til_I64 _for_i_println_0 = 0;
     til_Str til_print_arg;
-    while (til_lt(&_for_i_println_0, &(til_I64){til_Array_len(til_args)}).data) {
+    while (til_I64_lt(&_for_i_println_0, &(til_I64){til_Array_len(til_args)}).data) {
         til_IndexOutOfBoundsError _thrown_IndexOutOfBoundsError__tmp_println_0;
         til_print_arg = (til_Str){.c_string = 0, .cap = 0};
         til_IndexOutOfBoundsError _err0__tmp_println_1 = {};
@@ -225,7 +228,7 @@ til_Str til_concat(const til_Str* til_a, const til_Str* til_b) {
     til_BadAlloc _thrown_BadAlloc__tmp_concat_0;
     til_Str til_result = {.c_string = 0, .cap = 0};
     til_result.cap = til_I64_add(&til_a->cap, &til_b->cap);
-    if (til_lt(&til_result.cap, &til_a->cap).data) {
+    if (til_I64_lt(&til_result.cap, &til_a->cap).data) {
         til_Array _tmp_concat_1;
         til_IndexOutOfBoundsError _err_idx__tmp_concat_2;
         til_Type _tmp_concat_3 = "Str";
@@ -269,13 +272,13 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
     til_result.cap = til_prefix->cap;
     til_I64 til_i = 0;
     til_Str til_arg;
-    if (til_lt(&(til_I64){0}, &(til_I64){til_Array_len(til_args)}).data) {
-        while (til_lt(&til_i, &(til_I64){til_Array_len(til_args)}).data) {
+    if (til_I64_lt(&(til_I64){0}, &(til_I64){til_Array_len(til_args)}).data) {
+        while (til_I64_lt(&til_i, &(til_I64){til_Array_len(til_args)}).data) {
             til_arg = ((til_Str){(til_I64)"", 0});
             til_IndexOutOfBoundsError _err0__tmp_format_2 = {};
             int _status__tmp_format_2 = til_Array_get(&_err0__tmp_format_2, til_args, &til_i, (til_Dynamic*)&til_arg);
             til_result.cap = til_I64_add(&til_result.cap, &til_arg.cap);
-            if (til_lt(&til_result.cap, &til_arg.cap).data) {
+            if (til_I64_lt(&til_result.cap, &til_arg.cap).data) {
                 til_Array _tmp_format_3;
                 til_IndexOutOfBoundsError _err_idx__tmp_format_4;
                 til_Type _tmp_format_5 = "Str";
@@ -288,12 +291,12 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
             til_I64_inc(&til_i);
         }
     } else {
-        while (til_gt(&til_i, &(til_I64){til_Array_len(til_args)}).data) {
+        while (til_I64_gt(&til_i, &(til_I64){til_Array_len(til_args)}).data) {
             til_arg = ((til_Str){(til_I64)"", 0});
             til_IndexOutOfBoundsError _err0__tmp_format_7 = {};
             int _status__tmp_format_7 = til_Array_get(&_err0__tmp_format_7, til_args, &til_i, (til_Dynamic*)&til_arg);
             til_result.cap = til_I64_add(&til_result.cap, &til_arg.cap);
-            if (til_lt(&til_result.cap, &til_arg.cap).data) {
+            if (til_I64_lt(&til_result.cap, &til_arg.cap).data) {
                 til_Array _tmp_format_8;
                 til_IndexOutOfBoundsError _err_idx__tmp_format_9;
                 til_Type _tmp_format_10 = "Str";
@@ -328,7 +331,7 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
     til_offset = til_prefix->cap;
     til_I64 _for_i_format_0 = 0;
     til_Str til_s;
-    while (til_lt(&_for_i_format_0, &(til_I64){til_Array_len(til_args)}).data) {
+    while (til_I64_lt(&_for_i_format_0, &(til_I64){til_Array_len(til_args)}).data) {
         til_IndexOutOfBoundsError _thrown_IndexOutOfBoundsError__tmp_format_18;
         til_s = (til_Str){.c_string = 0, .cap = 0};
         til_IndexOutOfBoundsError _err0__tmp_format_19 = {};
@@ -632,19 +635,27 @@ til_I64 til_I64_add(const til_I64* til_a, const til_I64* til_b) {
 }
 
 til_Bool til_I64_eq(const til_I64* til_a, const til_I64* til_b) {
-    if (til_gt(til_a, til_b).data) {
+    if (til_I64_gt(til_a, til_b).data) {
         return false;
     }
-    if (til_gt(til_b, til_a).data) {
+    if (til_I64_gt(til_b, til_a).data) {
         return false;
     }
-    if (til_lt(til_a, til_b).data) {
+    if (til_I64_lt(til_a, til_b).data) {
         return false;
     }
-    if (til_lt(til_b, til_a).data) {
+    if (til_I64_lt(til_b, til_a).data) {
         return false;
     }
     return true;
+}
+
+til_Bool til_I64_lt(const til_I64* til_a, const til_I64* til_b) {
+    return til_i64_lt(til_a, til_b);
+}
+
+til_Bool til_I64_gt(const til_I64* til_a, const til_I64* til_b) {
+    return til_i64_gt(til_a, til_b);
 }
 
 til_Str til_I64_to_str(const til_I64* til_self) {
@@ -660,10 +671,10 @@ void til_I64_dec(til_I64* til_self) {
 }
 
 til_Bool til_I64_gteq(const til_I64* til_a, const til_I64* til_b) {
-    if (til_gt(til_a, til_b).data) {
+    if (til_I64_gt(til_a, til_b).data) {
         return true;
     }
-    if (til_lt(til_a, til_b).data) {
+    if (til_I64_lt(til_a, til_b).data) {
         return false;
     }
     return true;
@@ -680,8 +691,8 @@ til_Bool til_Str_eq(const til_Str* til_self, const til_Str* til_other) {
     til_I64 til_i = 0;
     til_U8 til_self_byte;
     til_U8 til_other_byte;
-    if (til_lt(&(til_I64){0}, &til_self->cap).data) {
-        while (til_lt(&til_i, &til_self->cap).data) {
+    if (til_I64_lt(&(til_I64){0}, &til_self->cap).data) {
+        while (til_I64_lt(&til_i, &til_self->cap).data) {
             til_self_byte = 0;
             til_other_byte = 0;
             til_I64 _tmp_til_Str_eq_1 = (til_I64)&til_self_byte;
@@ -698,7 +709,7 @@ til_Bool til_Str_eq(const til_Str* til_self, const til_Str* til_other) {
             til_I64_inc(&til_i);
         }
     } else {
-        while (til_gt(&til_i, &til_self->cap).data) {
+        while (til_I64_gt(&til_i, &til_self->cap).data) {
             til_self_byte = 0;
             til_other_byte = 0;
             til_I64 _tmp_til_Str_eq_8 = (til_I64)&til_self_byte;
@@ -719,7 +730,7 @@ til_Bool til_Str_eq(const til_Str* til_self, const til_Str* til_other) {
 }
 
 til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle) {
-    if (til_gt(&(til_I64){til_Str_len(til_needle)}, &(til_I64){til_Str_len(til_self)}).data) {
+    if (til_I64_gt(&(til_I64){til_Str_len(til_needle)}, &(til_I64){til_Str_len(til_self)}).data) {
         return false;
     }
     if (til_I64_eq(&(til_I64){til_Str_len(til_needle)}, &(til_I64){0}).data) {
@@ -733,12 +744,12 @@ til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle) {
     til_I64 til_needle_idx;
     til_U8 til_self_byte;
     til_U8 til_needle_byte;
-    if (til_lt(&(til_I64){0}, &(til_I64){til_I64_add(&til_max_start, &(til_I64){1})}).data) {
-        while (til_lt(&til_start_idx, &(til_I64){til_I64_add(&til_max_start, &(til_I64){1})}).data) {
+    if (til_I64_lt(&(til_I64){0}, &(til_I64){til_I64_add(&til_max_start, &(til_I64){1})}).data) {
+        while (til_I64_lt(&til_start_idx, &(til_I64){til_I64_add(&til_max_start, &(til_I64){1})}).data) {
             til_matches = true;
             til_needle_idx = 0;
-            if (til_lt(&(til_I64){0}, &(til_I64){til_Str_len(til_needle)}).data) {
-                while (til_lt(&til_needle_idx, &(til_I64){til_Str_len(til_needle)}).data) {
+            if (til_I64_lt(&(til_I64){0}, &(til_I64){til_Str_len(til_needle)}).data) {
+                while (til_I64_lt(&til_needle_idx, &(til_I64){til_Str_len(til_needle)}).data) {
                     til_self_byte = 0;
                     til_needle_byte = 0;
                     til_I64 _tmp_til_Str_contains_2 = (til_I64)&til_self_byte;
@@ -755,7 +766,7 @@ til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle) {
                     til_I64_inc(&til_needle_idx);
                 }
             } else {
-                while (til_gt(&til_needle_idx, &(til_I64){til_Str_len(til_needle)}).data) {
+                while (til_I64_gt(&til_needle_idx, &(til_I64){til_Str_len(til_needle)}).data) {
                     til_self_byte = 0;
                     til_needle_byte = 0;
                     til_I64 _tmp_til_Str_contains_9 = (til_I64)&til_self_byte;
@@ -778,11 +789,11 @@ til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle) {
             til_I64_inc(&til_start_idx);
         }
     } else {
-        while (til_gt(&til_start_idx, &(til_I64){til_I64_add(&til_max_start, &(til_I64){1})}).data) {
+        while (til_I64_gt(&til_start_idx, &(til_I64){til_I64_add(&til_max_start, &(til_I64){1})}).data) {
             til_matches = true;
             til_needle_idx = 0;
-            if (til_lt(&(til_I64){0}, &(til_I64){til_Str_len(til_needle)}).data) {
-                while (til_lt(&til_needle_idx, &(til_I64){til_Str_len(til_needle)}).data) {
+            if (til_I64_lt(&(til_I64){0}, &(til_I64){til_Str_len(til_needle)}).data) {
+                while (til_I64_lt(&til_needle_idx, &(til_I64){til_Str_len(til_needle)}).data) {
                     til_self_byte = 0;
                     til_needle_byte = 0;
                     til_I64 _tmp_til_Str_contains_16 = (til_I64)&til_self_byte;
@@ -799,7 +810,7 @@ til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle) {
                     til_I64_inc(&til_needle_idx);
                 }
             } else {
-                while (til_gt(&til_needle_idx, &(til_I64){til_Str_len(til_needle)}).data) {
+                while (til_I64_gt(&til_needle_idx, &(til_I64){til_Str_len(til_needle)}).data) {
                     til_self_byte = 0;
                     til_needle_byte = 0;
                     til_I64 _tmp_til_Str_contains_23 = (til_I64)&til_self_byte;
@@ -825,16 +836,32 @@ til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle) {
     return false;
 }
 
-til_Bool til_U8_eq(const til_U8* til_self, const til_U8* til_other) {
-    return til_I64_eq(&(til_I64){til_U8_to_i64(til_self)}, &(til_I64){til_U8_to_i64(til_other)});
+til_Bool til_U8_lt(const til_U8* til_self, const til_U8* til_other) {
+    return til_u8_lt(til_self, til_other);
 }
 
-til_I64 til_U8_to_i64(const til_U8* til_self) {
-    return til_u8_to_i64(til_self);
+til_Bool til_U8_gt(const til_U8* til_self, const til_U8* til_other) {
+    return til_u8_gt(til_self, til_other);
+}
+
+til_Bool til_U8_eq(const til_U8* til_a, const til_U8* til_b) {
+    if (til_U8_gt(til_a, til_b).data) {
+        return false;
+    }
+    if (til_U8_gt(til_b, til_a).data) {
+        return false;
+    }
+    if (til_U8_lt(til_a, til_b).data) {
+        return false;
+    }
+    if (til_U8_lt(til_b, til_a).data) {
+        return false;
+    }
+    return true;
 }
 
 int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_self) {
-    if (til_lt(til_self, &(til_I64){0}).data) {
+    if (til_I64_lt(til_self, &(til_I64){0}).data) {
         til_Str _tmp_til_U8_from_i64_0;
         til_Array _tmp_til_U8_from_i64_1;
         til_IndexOutOfBoundsError _err_idx__tmp_til_U8_from_i64_2;
@@ -847,7 +874,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_sel
         _arr_status__tmp_til_U8_from_i64_2 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_2, &_tmp_til_U8_from_i64_1, &_tmp_til_U8_from_i64_6, (til_Dynamic*)&_tmp_til_U8_from_i64_3);
         if (_arr_status__tmp_til_U8_from_i64_2 != 0) {
         }
-        _tmp_til_U8_from_i64_0 = til_format(&((til_Str){(til_I64)"src/core/u8.til:142:42:", 23}), &_tmp_til_U8_from_i64_1);
+        _tmp_til_U8_from_i64_0 = til_format(&((til_Str){(til_I64)"src/core/u8.til:156:42:", 23}), &_tmp_til_U8_from_i64_1);
         til_Array_delete(&_tmp_til_U8_from_i64_1);
         til_Str _tmp_til_U8_from_i64_7;
         til_Array _tmp_til_U8_from_i64_8;
@@ -861,12 +888,12 @@ int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_sel
         _arr_status__tmp_til_U8_from_i64_9 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_9, &_tmp_til_U8_from_i64_8, &_tmp_til_U8_from_i64_13, (til_Dynamic*)&_tmp_til_U8_from_i64_10);
         if (_arr_status__tmp_til_U8_from_i64_9 != 0) {
         }
-        _tmp_til_U8_from_i64_7 = til_format(&((til_Str){(til_I64)"src/core/u8.til:142:42:", 23}), &_tmp_til_U8_from_i64_8);
+        _tmp_til_U8_from_i64_7 = til_format(&((til_Str){(til_I64)"src/core/u8.til:156:42:", 23}), &_tmp_til_U8_from_i64_8);
         til_Array_delete(&_tmp_til_U8_from_i64_8);
         *_err1 = (til_U8_Overflow){.msg = _tmp_til_U8_from_i64_7};
         return 1;
     }
-    if (til_gt(til_self, &til_MAX_U8).data) {
+    if (til_I64_gt(til_self, &til_MAX_U8).data) {
         til_Str _tmp_til_U8_from_i64_14;
         til_Array _tmp_til_U8_from_i64_15;
         til_IndexOutOfBoundsError _err_idx__tmp_til_U8_from_i64_16;
@@ -884,7 +911,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_sel
         _arr_status__tmp_til_U8_from_i64_16 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_16, &_tmp_til_U8_from_i64_15, &_tmp_til_U8_from_i64_22, (til_Dynamic*)&_tmp_til_U8_from_i64_18);
         if (_arr_status__tmp_til_U8_from_i64_16 != 0) {
         }
-        _tmp_til_U8_from_i64_14 = til_format(&((til_Str){(til_I64)"src/core/u8.til:145:42:", 23}), &_tmp_til_U8_from_i64_15);
+        _tmp_til_U8_from_i64_14 = til_format(&((til_Str){(til_I64)"src/core/u8.til:159:42:", 23}), &_tmp_til_U8_from_i64_15);
         til_Array_delete(&_tmp_til_U8_from_i64_15);
         til_Str _tmp_til_U8_from_i64_23;
         til_Array _tmp_til_U8_from_i64_24;
@@ -903,7 +930,7 @@ int til_U8_from_i64(til_U8* _ret, til_U8_Overflow* _err1, const til_I64* til_sel
         _arr_status__tmp_til_U8_from_i64_25 = til_Array_set(&_err_idx__tmp_til_U8_from_i64_25, &_tmp_til_U8_from_i64_24, &_tmp_til_U8_from_i64_31, (til_Dynamic*)&_tmp_til_U8_from_i64_27);
         if (_arr_status__tmp_til_U8_from_i64_25 != 0) {
         }
-        _tmp_til_U8_from_i64_23 = til_format(&((til_Str){(til_I64)"src/core/u8.til:145:42:", 23}), &_tmp_til_U8_from_i64_24);
+        _tmp_til_U8_from_i64_23 = til_format(&((til_Str){(til_I64)"src/core/u8.til:159:42:", 23}), &_tmp_til_U8_from_i64_24);
         til_Array_delete(&_tmp_til_U8_from_i64_24);
         *_err1 = (til_U8_Overflow){.msg = _tmp_til_U8_from_i64_23};
         return 1;

@@ -350,6 +350,91 @@ func_gt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     return EvalResult.new(a.gt(b).to_str())
 }
 
+func_u8_lt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "u8_lt", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := U8.from_str(a_result.value)
+    b := U8.from_str(b_result.value)
+    result := EvalResult.new(U8.lt(a, b).to_str())
+
+    catch (err: U8_Overflow) {
+        throw e.lang_error(context.path, "eval", format("Invalid u8 for 'u8_lt': ", err.msg))
+    }
+
+    return result
+}
+
+func_u8_gt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "u8_gt", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := U8.from_str(a_result.value)
+    b := U8.from_str(b_result.value)
+    result := EvalResult.new(U8.gt(a, b).to_str())
+
+    catch (err: U8_Overflow) {
+        throw e.lang_error(context.path, "eval", format("Invalid u8 for 'u8_gt': ", err.msg))
+    }
+
+    return result
+}
+
+func_u8_xor := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "u8_xor", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := U8.from_str(a_result.value)
+    b := U8.from_str(b_result.value)
+    result := EvalResult.new(U8.xor(a, b).to_str())
+
+    catch (err: U8_Overflow) {
+        throw e.lang_error(context.path, "eval", format("Invalid u8 for 'u8_xor': ", err.msg))
+    }
+
+    return result
+}
+
+func_u8_and := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "u8_and", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := U8.from_str(a_result.value)
+    b := U8.from_str(b_result.value)
+    result := EvalResult.new(U8.and(a, b).to_str())
+
+    catch (err: U8_Overflow) {
+        throw e.lang_error(context.path, "eval", format("Invalid u8 for 'u8_and': ", err.msg))
+    }
+
+    return result
+}
+
+func_u8_or := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "u8_or", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := U8.from_str(a_result.value)
+    b := U8.from_str(b_result.value)
+    result := EvalResult.new(U8.or(a, b).to_str())
+
+    catch (err: U8_Overflow) {
+        throw e.lang_error(context.path, "eval", format("Invalid u8 for 'u8_or': ", err.msg))
+    }
+
+    return result
+}
+
 func_add := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "add", 2, false)
     a_result := eval_expr(context, e.get(1))

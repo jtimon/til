@@ -594,7 +594,7 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
 
 check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
     mut errors := Vec.new(Str)
-    f_name := get_func_name_in_call(e)
+    mut f_name := get_func_name_in_call(e)
     // Bug #101: Mark the function name as used (for local function declarations)
     context.scope_stack.mark_symbol_used(f_name)
     mut e_clone := e  // Clone for potential modification
@@ -649,6 +649,10 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
     if not(func_def_found) {
         return errors
     }
+
+    // Update f_name after UFCS transformation (Bug #TODO)
+    // The transformation may have changed e.g. "val.eq" -> "U8.eq"
+    f_name = get_func_name_in_call(e_clone)
 
     err := validate_func_arg_count(context.path, e_clone, f_name, func_def)
     if not(err.eq("")) {

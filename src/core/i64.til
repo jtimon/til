@@ -1,9 +1,5 @@
 mode lib
 
-// Comparisons are hateful, plus two of them are probably enough for now:
-lt        := ext_func(a: I64, b: I64) returns Bool {}
-gt        := ext_func(a: I64, b: I64) returns Bool {}
-
 I64_SIZE  := 8
 
 /** Error thrown by safe_add when overflow occurs. */
@@ -34,13 +30,13 @@ I64 := struct {
     safe_add := func(a: I64, b: I64) returns I64 throws I64_Overflow {
         result := a.add(b)
         // Overflow detection: adding positive gave smaller, or adding negative gave larger
-        if gt(b, 0) {
-            if lt(result, a) {
+        if b.gt(0) {
+            if result.lt(a) {
                 throw I64_Overflow(msg=format(loc(), "I64 overflow: ", a.to_str(), " + ", b.to_str()))
             }
         }
-        if lt(b, 0) {
-            if gt(result, a) {
+        if b.lt(0) {
+            if result.gt(a) {
                 throw I64_Overflow(msg=format(loc(), "I64 overflow: ", a.to_str(), " + ", b.to_str()))
             }
         }
@@ -52,13 +48,13 @@ I64 := struct {
     safe_sub := func(a: I64, b: I64) returns I64 throws I64_Overflow {
         result := a.sub(b)
         // Underflow detection: subtracting positive gave larger, or subtracting negative gave smaller
-        if gt(b, 0) {
-            if gt(result, a) {
+        if b.gt(0) {
+            if result.gt(a) {
                 throw I64_Overflow(msg=format(loc(), "I64 underflow: ", a.to_str(), " - ", b.to_str()))
             }
         }
-        if lt(b, 0) {
-            if lt(result, a) {
+        if b.lt(0) {
+            if result.lt(a) {
                 throw I64_Overflow(msg=format(loc(), "I64 underflow: ", a.to_str(), " - ", b.to_str()))
             }
         }
@@ -70,8 +66,8 @@ I64 := struct {
     safe_mul := func(a: I64, b: I64) returns I64 throws I64_Overflow {
         result := a.mul(b)
         // Overflow detection: if a != 0 and result / a != b, overflow occurred
-        if not(I64.eq(a, 0)) {
-            if not(I64.eq(result.div(a), b)) {
+        if not(a.eq(0)) {
+            if not(result.div(a).eq(b)) {
                 throw I64_Overflow(msg=format(loc(), "I64 overflow: ", a.to_str(), " * ", b.to_str()))
             }
         }
@@ -128,19 +124,29 @@ I64 := struct {
 
     eq := func(a: I64, b: I64) returns Bool {
         // REM We can't use the variadic or from here without mutual recusrion and a stack overflow
-        if gt(a, b) {
+        if a.gt(b) {
             return false
         }
-        if gt(b, a) {
+        if b.gt(a) {
             return false
         }
-        if lt(a, b) {
+        if a.lt(b) {
             return false
         }
-        if lt(b, a) {
+        if b.lt(a) {
             return false
         }
         return true
+    }
+
+    lt := func(a: I64, b: I64) returns Bool {
+        i64_lt := ext_func(a: I64, b: I64) returns Bool {}
+        return i64_lt(a, b)
+    }
+
+    gt := func(a: I64, b: I64) returns Bool {
+        i64_gt := ext_func(a: I64, b: I64) returns Bool {}
+        return i64_gt(a, b)
     }
 
     to_str := func(self: I64) returns Str {
@@ -162,28 +168,23 @@ I64 := struct {
     }
 
     gteq := func(a: I64, b: I64) returns Bool {
-        if gt(a, b) {
+        if a.gt(b) {
             return true
         }
-        if lt(a, b) {
+        if a.lt(b) {
             return false
         }
         return true  // equal
     }
 
     lteq := func(a: I64, b: I64) returns Bool {
-        if lt(a, b) {
+        if a.lt(b) {
             return true
         }
-        if gt(a, b) {
+        if a.gt(b) {
             return false
         }
         return true  // equal
-    }
-
-    // TODO: implement operators and allow operator overload
-    __add__ := func(self: I64, other: I64) returns I64 {
-        return self.add(other)
     }
 
     size := func() returns I64 {
