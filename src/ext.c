@@ -7,6 +7,9 @@
 #ifndef TIL_EXT_C
 #define TIL_EXT_C
 
+// Forward declarations
+static inline til_I64 til_size_of(const til_Str* type_name);
+
 // Bool constants
 #define true ((til_Bool){1})
 #define false ((til_Bool){0})
@@ -27,6 +30,17 @@ static inline void til_print_flush(void)
 static inline til_I64 til_to_ptr(til_I64* p)
 {
     return (til_I64)p;
+}
+
+// enum_get_payload: extract enum payload into out parameter
+// Takes enum as Dynamic*, payload type name as Str*, out as Dynamic*
+static inline void til_enum_get_payload(til_Dynamic* enum_ptr, const til_Str* payload_type, til_Dynamic* out_ptr)
+{
+    // Get payload size from type name
+    til_I64 payload_size = til_size_of(payload_type);
+    // Copy payload bytes from enum to out
+    // Enum layout: first 8 bytes = tag, rest = payload union
+    memcpy(out_ptr, (char*)enum_ptr + 8, (size_t)payload_size);
 }
 
 // Type conversion helpers

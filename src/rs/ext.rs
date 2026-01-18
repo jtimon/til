@@ -593,7 +593,38 @@ pub fn func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, S
     Ok(EvalResult::new(&val))
 }
 
-
+pub fn func_enum_get_payload(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "enum_get_payload", 3, false)?;
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result);
+    }
+    // Get payload type from second argument
+    let type_arg = e.get(2)?;
+    let type_name = if let NodeType::Identifier(name) = &type_arg.node_type {
+        name.clone()
+    } else {
+        return Err(e.lang_error(&context.path, "eval", "enum_get_payload: type argument must be a type name"));
+    };
+    // Get type size
+    let type_size = context.get_type_size(&type_name)?;
+    // After eval_expr, context.temp_enum_payload should contain the payload data
+    if let Some(payload) = &context.temp_enum_payload {
+        let payload_bytes = &payload.data;
+        let out_arg = e.get(3)?;
+        if let NodeType::Identifier(out_name) = &out_arg.node_type {
+            if payload_bytes.len() >= type_size {
+                // Get out variable offset
+                let offset = context.scope_stack.lookup_var(out_name)
+                    .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Variable '{}' not found", out_name)))?;
+                // Copy payload bytes to out variable
+                EvalArena::g().set(offset, &payload_bytes[0..type_size])?;
+                return Ok(EvalResult::new(""));
+            }
+        }
+    }
+    Err(e.lang_error(&context.path, "eval", "enum_get_payload: enum has no payload or unsupported payload type"))
+}
 
 pub fn func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "u8_to_i64", 1, false)?;

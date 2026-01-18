@@ -554,6 +554,53 @@ func_enum_to_str := proc(mut context: Context, e: Expr) returns EvalResult throw
     return EvalResult.new(result.value)
 }
 
+func_enum_get_payload := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "enum_get_payload", 3, false)
+    result := eval_expr(context, e.get(1))
+    if result.is_throw { return result }
+
+    // Get payload type from second argument
+    type_arg := e.get(2)
+    mut type_name := ""
+    switch type_arg.node_type {
+    case NodeType.Identifier(name):
+        type_name = name
+    case:
+        throw e.lang_error(context.path, "eval", "enum_get_payload: type argument must be a type name")
+    }
+    // Get type size
+    type_size := context.get_type_size(type_name)
+    catch (err: Str) {
+        throw e.lang_error(context.path, "eval", err)
+    }
+    // After eval_expr, context.temp_enum_payload should contain the payload data
+    if not(context.temp_enum_payload.is_null()) {
+        // Read EnumPayload from heap
+        mut payload := EnumPayload(data=Vec.new(U8), value_type=ValueType.TCustom(""))
+        memcpy(to_ptr(payload), context.temp_enum_payload.data, size_of(EnumPayload))
+
+        payload_bytes := payload.data
+        out_arg := e.get(3)
+
+        switch out_arg.node_type {
+        case NodeType.Identifier(out_name):
+            if payload_bytes.len().gteq(type_size) {
+                // Get out variable offset
+                offset := context.scope_stack.lookup_var(out_name)
+                catch (err: KeyNotFoundError) {
+                    throw e.lang_error(context.path, "eval", format("Variable '", out_name, "' not found"))
+                }
+                // Copy payload bytes to out variable
+                g_arena.set(offset, payload_bytes.ptr, type_size)
+                return EvalResult.new("")
+            }
+        case:
+            // Not an identifier
+        }
+    }
+    throw e.lang_error(context.path, "eval", "enum_get_payload: enum has no payload or unsupported payload type")
+}
+
 func_u8_to_i64 := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "u8_to_i64", 1, false)
     result := eval_expr(context, e.get(1))

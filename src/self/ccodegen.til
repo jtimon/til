@@ -8878,6 +8878,68 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         case:
             throw "ccodegen: enum_to_str argument has non-custom type"
         }
+    } else if orig_func_name.eq("enum_get_payload") {
+        // enum_get_payload(e, payload_type, out) - extract enum payload into out parameter
+        // Emits call to til_enum_get_payload runtime function
+        if expr.params.len().lt(4) {
+            throw "ccodegen: enum_get_payload requires 3 arguments"
+        }
+        mut payload_enum_arg := Expr()
+        expr.params.get(1, payload_enum_arg)
+        mut payload_type_arg := Expr()
+        expr.params.get(2, payload_type_arg)
+        mut payload_out_arg := Expr()
+        expr.params.get(3, payload_out_arg)
+
+        output.push_str(TIL_PREFIX)
+        output.push_str("enum_get_payload((")
+        output.push_str(TIL_PREFIX)
+        output.push_str("Dynamic*)&")
+        emit_expr(payload_enum_arg, output, 0, ctx, context)
+        output.push_str(", &")
+        // Emit type argument as Str (similar to size_of handling)
+        switch payload_type_arg.node_type {
+        case NodeType.Identifier(payload_type_name):
+            // Check if this is a Type variable or a literal type name
+            mut payload_is_type_var := false
+            payload_sym := context.scope_stack.lookup_symbol(payload_type_name)
+            switch payload_sym.value_type {
+            case ValueType.TCustom(t):
+                if t.eq("Type") {
+                    payload_is_type_var = true
+                }
+            case:
+                // REM: not Type
+            }
+            catch (err: KeyNotFoundError) {
+                // REM: symbol not found
+            }
+            if payload_is_type_var {
+                // Type variable - wrap in Str struct literal
+                output.push_str("((")
+                output.push_str(TIL_PREFIX)
+                output.push_str("Str){(")
+                output.push_str(TIL_PREFIX)
+                output.push_str("I64)")
+                output.push_str(TIL_PREFIX)
+                output.push_str(payload_type_name)
+                output.push_str(", strlen(")
+                output.push_str(TIL_PREFIX)
+                output.push_str(payload_type_name)
+                output.push_str(")})")
+            } else {
+                // Literal type name - create Str compound literal
+                emit_str_literal(payload_type_name, output)
+            }
+        case:
+            throw "ccodegen: enum_get_payload type argument must be a type name"
+        }
+        output.push_str(", (")
+        output.push_str(TIL_PREFIX)
+        output.push_str("Dynamic*)&")
+        emit_expr(payload_out_arg, output, 0, ctx, context)
+        output.push_str(");")
+        return
     } else if orig_func_name.eq("size_of") {
         // size_of(T) - runtime type size lookup via til_size_of function
         if expr.params.len().lt(2) {

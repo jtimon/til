@@ -150,8 +150,8 @@ test_color_match := proc(to_switch: Color) returns Str {
             return "positive color code"
         }
         return "negative color code"
-    case Color.Name:
-        return "color with name"
+    case Color.Name(name):
+        return format("color named ", name)
     case:
         return "should not reach here"
     }
@@ -161,6 +161,40 @@ assert_eq_str(loc(), test_color_match(Color.Unknown), "unknown color")
 assert_eq_str(loc(), test_color_match(bbb), "olive green")
 assert_eq_str(loc(), test_color_match(green_false), "dark green")
 assert_eq_str(loc(), test_color_match(ccc), "positive color code")
+assert_eq_str(loc(), test_color_match(Color.Name("crimson")), "color named crimson")
+
+// Same as test_color_match but using if/else with enum_to_str and enum_get_payload
+test_color_match_if := proc(to_switch: Color) returns Str {
+    variant := enum_to_str(to_switch)
+    if variant.eq("Color.Unknown") {
+        return "unknown color"
+    } else if variant.eq("Color.Green") {
+        mut is_olive := false
+        enum_get_payload(to_switch, Bool, is_olive)
+        if is_olive {
+            return "olive green"
+        }
+        return "dark green"
+    } else if variant.eq("Color.Number") {
+        mut code := 0
+        enum_get_payload(to_switch, I64, code)
+        if code.gt(0) {
+            return "positive color code"
+        }
+        return "negative color code"
+    } else if variant.eq("Color.Name") {
+        mut name := ""
+        enum_get_payload(to_switch, Str, name)
+        return format("color named ", name)
+    }
+    return "should not reach here"
+}
+
+assert_eq_str(loc(), test_color_match_if(Color.Unknown), "unknown color")
+assert_eq_str(loc(), test_color_match_if(bbb), "olive green")
+assert_eq_str(loc(), test_color_match_if(green_false), "dark green")
+assert_eq_str(loc(), test_color_match_if(ccc), "positive color code")
+assert_eq_str(loc(), test_color_match_if(Color.Name("crimson")), "color named crimson")
 
 // Test Str payloads
 test_str_payloads := proc() {
