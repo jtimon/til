@@ -3377,7 +3377,15 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::FuncDef(func_def) => emit_funcdef(func_def, expr, output, indent, ctx, context),
         NodeType::Assignment(name) => emit_assignment(name, expr, output, indent, ctx, context),
         NodeType::Return => emit_return(expr, output, indent, ctx, context),
-        NodeType::If => emit_if(expr, output, indent, ctx, context),
+        NodeType::If => {
+            // Check if this If is being used as an expression (indent 0 means it's inline, not a statement)
+            // and it has an else branch (making it an if-expression)
+            if indent == 0 && expr.params.len() >= 3 {
+                emit_if_expr(expr, output, ctx, context)
+            } else {
+                emit_if(expr, output, indent, ctx, context)
+            }
+        },
         NodeType::While => emit_while(expr, output, indent, ctx, context),
         NodeType::Break => emit_break(expr, output, indent),
         NodeType::Continue => emit_continue(expr, output, indent),
@@ -3385,10 +3393,10 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::Throw => emit_throw(expr, output, indent, ctx, context),
         NodeType::StructDef(_) => Err("ccodegen: StructDef should be handled at top level, not in emit_expr".to_string()),
         NodeType::EnumDef(_) => Err("ccodegen: EnumDef should be handled at top level, not in emit_expr".to_string()),
-        NodeType::Switch => emit_switch(expr, output, indent, ctx, context),
-        NodeType::DefaultCase => Err("ccodegen: DefaultCase should be handled inside emit_switch".to_string()),
+        NodeType::Switch => Err("ccodegen: Switch should be desugared in precomp before reaching ccodegen".to_string()),
+        NodeType::DefaultCase => Err("ccodegen: DefaultCase should be desugared in precomp before reaching ccodegen".to_string()),
         NodeType::Range => Err("ccodegen: Range not yet supported".to_string()),
-        NodeType::Pattern(_) => Err("ccodegen: Pattern should be handled inside emit_switch".to_string()),
+        NodeType::Pattern(_) => Err("ccodegen: Pattern should be desugared in precomp before reaching ccodegen".to_string()),
         NodeType::NamedArg(_) => Err(expr.error(&context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")),
         NodeType::ForIn(_) => Err(expr.lang_error(&context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")),
     }
@@ -6011,6 +6019,12 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
 
     // Else branch (optional)
     if expr.params.len() > 2 {
+        // Save hoisted_exprs before processing else branch
+        // The outer if's condition hoisting should not affect the else branch's
+        // condition hoisting (fixes range switch desugaring bug)
+        let saved_hoisted = ctx.hoisted_exprs.clone();
+        ctx.hoisted_exprs.clear();
+
         // Check if it's an else-if (nested If) or else block
         if let NodeType::If = &expr.params[2].node_type {
             // Always wrap else-if in braces to ensure hoisted temp vars
@@ -6025,9 +6039,109 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
             output.push_str(&indent_str);
             output.push_str("}\n");
         }
+
+        // Restore hoisted_exprs (in case of further processing)
+        ctx.hoisted_exprs = saved_hoisted;
     } else {
         output.push_str("\n");
     }
+
+    Ok(())
+}
+
+/// Emit an if-expression as a GCC statement expression.
+/// Used when an If node appears in expression context (e.g., as condition of another if).
+/// Generates: ({ type decl; bool _result; if (cond) { stmts; _result = last_expr; } else { _result = else_expr; } _result; })
+fn emit_if_expr(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+    if expr.params.len() < 3 {
+        return Err("ccodegen: If expression requires condition, then, and else branches".to_string());
+    }
+
+    let temp_result = next_mangled(ctx);
+
+    // Collect declarations from then-branch to hoist before the if
+    // (TIL has function-level scoping, so declarations need to be visible outside the if block)
+    let then_branch = &expr.params[1];
+    let then_decls = collect_declarations_in_body(then_branch, context);
+
+    // Start statement expression
+    output.push_str("({ ");
+
+    // Hoist declarations from then-branch
+    // NOTE: Always emit declarations here because each statement expression has its own
+    // block scope in C. Variables declared inside ({ ... }) are not visible outside,
+    // so we can't rely on ctx.declared_vars to track them across statement expressions.
+    for decl in &then_decls {
+        let c_var_name = til_name(&decl.name);
+        if let Ok(c_type) = til_type_to_c(&decl.value_type) {
+            output.push_str(&c_type);
+            output.push_str(" ");
+            output.push_str(&c_var_name);
+            output.push_str("; ");
+            // Register in scope_stack so get_value_type can find it
+            context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
+                value_type: decl.value_type.clone(),
+                is_mut: false,
+                is_copy: false,
+                is_own: false,
+                is_comptime_const: false,
+            });
+        }
+    }
+
+    output.push_str(TIL_PREFIX);
+    output.push_str("Bool ");
+    output.push_str(&temp_result);
+    output.push_str(" = (");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Bool){0}; ");
+
+    // Emit the if condition
+    output.push_str("if (");
+    emit_expr(&expr.params[0], output, 0, ctx, context)?;
+    // Bool is a struct with .data field - extract for C truthiness
+    if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, &expr.params[0]) {
+        if type_name == "Bool" {
+            output.push_str(".data");
+        }
+    }
+    output.push_str(") { ");
+
+    // Emit then-branch statements, with the last one assigned to _result
+    // Declarations have already been hoisted, so emit_expr will just emit the assignment
+    if let NodeType::Body = &then_branch.node_type {
+        // Body with multiple statements - emit all but last as statements, last as assignment
+        for (i, stmt) in then_branch.params.iter().enumerate() {
+            if i == then_branch.params.len() - 1 {
+                // Last statement is the result value
+                output.push_str(&temp_result);
+                output.push_str(" = ");
+                emit_expr(stmt, output, 0, ctx, context)?;
+                output.push_str("; ");
+            } else {
+                // Non-last statements - emit as regular statements
+                emit_expr(stmt, output, 0, ctx, context)?;
+                output.push_str("; ");
+            }
+        }
+    } else {
+        // Single expression - assign to result
+        output.push_str(&temp_result);
+        output.push_str(" = ");
+        emit_expr(then_branch, output, 0, ctx, context)?;
+        output.push_str("; ");
+    }
+    output.push_str("} else { ");
+
+    // Emit else-branch - assign to result
+    output.push_str(&temp_result);
+    output.push_str(" = ");
+    emit_expr(&expr.params[2], output, 0, ctx, context)?;
+    output.push_str("; ");
+
+    output.push_str("} ");
+    output.push_str(&temp_result);
+    output.push_str(".data; })");
 
     Ok(())
 }
@@ -6146,12 +6260,6 @@ struct HoistedArg {
     temp_var: String,
 }
 
-// Result struct for variant info extraction
-struct VariantInfo {
-    type_name: String,
-    variant_name: String,
-}
-
 // Info about a catch block for code generation
 // Note: TIL version also has catch_block field, but Rust accesses stmts[i] directly
 struct CatchLabelInfoEntry {
@@ -6186,56 +6294,6 @@ struct CollectedDeclaration {
 struct VariadicFCallInfo {
     elem_type: String,
     regular_count: usize,
-}
-
-// Extract enum type and variant names from a case pattern expression
-// For FCall: Type.Variant -> VariantInfo { type_name: "Type", variant_name: "Variant" }
-fn get_case_variant_info(expr: &Expr) -> VariantInfo {
-    match &expr.node_type {
-        NodeType::FCall => {
-            // FCall for Type.Variant (without payload extraction)
-            if !expr.params.is_empty() {
-                if let NodeType::Identifier(type_name) = &expr.params[0].node_type {
-                    if !expr.params[0].params.is_empty() {
-                        if let NodeType::Identifier(variant_name) = &expr.params[0].params[0].node_type {
-                            return VariantInfo {
-                                type_name: type_name.clone(),
-                                variant_name: variant_name.clone(),
-                            };
-                        }
-                    }
-                }
-            }
-            VariantInfo { type_name: String::new(), variant_name: String::new() }
-        },
-        NodeType::Identifier(name) => {
-            // Identifier with nested params: Type.Variant
-            if !expr.params.is_empty() {
-                if let NodeType::Identifier(variant_name) = &expr.params[0].node_type {
-                    return VariantInfo {
-                        type_name: name.clone(),
-                        variant_name: variant_name.clone(),
-                    };
-                }
-            }
-            // Plain identifier without nested params - NOT an enum variant pattern
-            // Return empty to let emit_switch fall through to regular value comparison
-            VariantInfo { type_name: String::new(), variant_name: String::new() }
-        },
-        _ => VariantInfo { type_name: String::new(), variant_name: String::new() },
-    }
-}
-
-// Extract type name and variant name from a Pattern's variant_name (e.g., "Color.Green")
-fn parse_pattern_variant_name(variant_name: &str) -> VariantInfo {
-    if let Some(dot_pos) = variant_name.rfind('.') {
-        let type_name = variant_name[..dot_pos].to_string();
-        let var_name = variant_name[dot_pos + 1..].to_string();
-        VariantInfo { type_name, variant_name: var_name }
-    } else {
-        // No dot - just variant name (shouldn't happen in practice)
-        VariantInfo { type_name: String::new(), variant_name: variant_name.to_string() }
-    }
 }
 
 /// Collect all variable declarations in a body (recursively) for hoisting
@@ -6319,360 +6377,6 @@ fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<CollectedDeclarat
         }
         _ => {}
     }
-}
-
-fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
-    // Switch: params[0] = switch expression
-    // params[1..] = alternating (case_pattern, body) pairs
-    // We emit if/else chains instead of C switch because:
-    // 1. C switch only works with integer types, not Str
-    // 2. Avoids GCC-specific case range extension
-    // 3. More portable and easier to handle all TIL switch patterns
-    if expr.params.is_empty() {
-        return Err("ccodegen: Switch requires expression".to_string());
-    }
-
-    let indent_str = "    ".repeat(indent);
-    let body_indent = "    ".repeat(indent + 1);
-
-    // Get the switch expression
-    let switch_expr = &expr.params[0];
-
-    // Hoist any throwing function calls in the switch expression
-    hoist_throwing_expr(switch_expr, output, indent, ctx, context)?;
-
-    // Determine the type of the switch expression for proper comparison
-    // Type inference may fail - that's okay, we'll use None (default)
-    let switch_type = get_value_type(context, switch_expr).ok();
-    let is_str_switch = matches!(&switch_type, Some(ValueType::TCustom(t)) if t == "Str");
-
-    // Determine if this is an enum switch and if it has payloads
-    let mut is_enum_switch = false;
-    let mut enum_has_payloads_flag = false;
-    let mut i = 1;
-    while i < expr.params.len() {
-        let case_pattern = &expr.params[i];
-        match &case_pattern.node_type {
-            NodeType::Pattern(_) => {
-                is_enum_switch = true;
-            },
-            NodeType::Identifier(name) => {
-                if !case_pattern.params.is_empty() || name.contains('.') {
-                    is_enum_switch = true;
-                }
-            },
-            NodeType::FCall => {
-                is_enum_switch = true;
-                // FCall with arguments (e.g., ValueType.TType(TTypeDef.TEnumDef))
-                // implies the enum has payloads
-                if case_pattern.params.len() > 1 {
-                    enum_has_payloads_flag = true;
-                }
-            },
-            _ => {}
-        }
-        i += 2;
-    }
-    if is_enum_switch {
-        if let Some(ValueType::TCustom(enum_name)) = &switch_type {
-            if let Some(enum_def) = context.scope_stack.lookup_enum(enum_name) {
-                enum_has_payloads_flag = enum_has_payloads(&enum_def);
-            }
-        }
-    }
-
-    // Store switch expression in a temp variable to avoid re-evaluation
-    let switch_var = next_mangled(ctx);
-    output.push_str(&indent_str);
-    output.push_str("__auto_type ");
-    output.push_str(&switch_var);
-    output.push_str(" = ");
-    emit_expr(switch_expr, output, 0, ctx, context)?;
-    output.push_str(";\n");
-
-    // Hoist declarations from all case bodies to before the if/else chain
-    // This ensures variables declared in switch cases are visible after the switch
-    // (TIL has function-level scoping, not block-level scoping)
-    let mut i = 1;
-    while i + 1 < expr.params.len() {
-        let body = &expr.params[i + 1];
-        let decls = collect_declarations_in_body(body, context);
-        for decl in decls {
-            let c_var_name = til_name(&decl.name);
-            if !ctx.declared_vars.contains(&c_var_name) {
-                if let Ok(c_type) = til_type_to_c(&decl.value_type) {
-                    output.push_str(&indent_str);
-                    output.push_str(&c_type);
-                    output.push_str(" ");
-                    output.push_str(&c_var_name);
-                    output.push_str(";\n");
-                    ctx.declared_vars.insert(c_var_name);
-                    // Also register in scope_stack so get_value_type can find it
-                    context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
-                        value_type: decl.value_type.clone(),
-                        is_mut: false,
-                        is_copy: false,
-                        is_own: false,
-                        is_comptime_const: false,
-                    });
-                }
-            }
-        }
-        i += 2;
-    }
-
-    // Emit if/else if chain for cases
-    // Default case (if present) is guaranteed to be last by parser
-    let mut i = 1;
-    let mut first_case = true;
-    let mut has_cases = false;
-    while i + 1 < expr.params.len() {
-        let case_pattern = &expr.params[i];
-        let case_body = &expr.params[i + 1];
-        has_cases = true;
-
-        // Check if this is the default case (guaranteed last by parser)
-        if matches!(case_pattern.node_type, NodeType::DefaultCase) {
-            // Default case - emit as else block
-            if !first_case {
-                output.push_str(&indent_str);
-                output.push_str("} else {\n");
-            }
-            let saved_declared_vars = ctx.declared_vars.clone();
-            emit_body(case_body, output, indent + 1, ctx, context)?;
-            ctx.declared_vars = saved_declared_vars;
-            i += 2;
-            continue;
-        }
-
-        // Regular case - emit if/else if
-        output.push_str(&indent_str);
-        if first_case {
-            output.push_str("if (");
-            first_case = false;
-        } else {
-            output.push_str("} else if (");
-        }
-
-        // Emit the condition based on pattern type
-        match &case_pattern.node_type {
-            NodeType::Pattern(pattern_info) => {
-                // Enum pattern with payload binding: compare tag
-                let mut info = parse_pattern_variant_name(&pattern_info.variant_name);
-                // If no type prefix (shorthand syntax), use the switch expression's type
-                if info.type_name.is_empty() {
-                    if let Some(ValueType::TCustom(enum_name)) = &switch_type {
-                        info.type_name = enum_name.clone();
-                    }
-                }
-                output.push_str(&switch_var);
-                output.push_str(".tag == til_");
-                output.push_str(&info.type_name);
-                output.push_str("_");
-                output.push_str(&info.variant_name);
-                output.push_str(") {\n");
-
-                // Extract payload into binding variable
-                output.push_str(&body_indent);
-                output.push_str("__auto_type ");
-                output.push_str(&til_name(&pattern_info.binding_var));
-                output.push_str(" = ");
-                output.push_str(&switch_var);
-                output.push_str(".payload.");
-                output.push_str(&info.variant_name);
-                output.push_str(";\n");
-            },
-            NodeType::Range => {
-                // Range: low <= val && val <= high
-                if case_pattern.params.len() < 2 {
-                    return Err("ccodegen: Range requires start and end values".to_string());
-                }
-                if is_str_switch {
-                    // For string ranges, use strcmp: strcmp(low, val) <= 0 && strcmp(val, high) <= 0
-                    output.push_str("strcmp((char*)");
-                    emit_expr(&case_pattern.params[0], output, 0, ctx, context)?;
-                    output.push_str(".c_string, (char*)");
-                    output.push_str(&switch_var);
-                    output.push_str(".c_string) <= 0 && strcmp((char*)");
-                    output.push_str(&switch_var);
-                    output.push_str(".c_string, (char*)");
-                    emit_expr(&case_pattern.params[1], output, 0, ctx, context)?;
-                    output.push_str(".c_string) <= 0");
-                } else {
-                    emit_expr(&case_pattern.params[0], output, 0, ctx, context)?;
-                    output.push_str(" <= ");
-                    output.push_str(&switch_var);
-                    output.push_str(" && ");
-                    output.push_str(&switch_var);
-                    output.push_str(" <= ");
-                    emit_expr(&case_pattern.params[1], output, 0, ctx, context)?;
-                }
-                output.push_str(") {\n");
-            },
-            NodeType::Identifier(_name) => {
-                let info = get_case_variant_info(case_pattern);
-                if !info.variant_name.is_empty() {
-                    // Enum variant without payload
-                    output.push_str(&switch_var);
-                    if enum_has_payloads_flag {
-                        output.push_str(".tag");
-                    }
-                    output.push_str(" == ");
-                    if !info.type_name.is_empty() {
-                        output.push_str("til_");
-                        output.push_str(&info.type_name);
-                        output.push_str("_");
-                    }
-                    output.push_str(&info.variant_name);
-                } else if is_str_switch {
-                    // String comparison - pass by pointer
-                    output.push_str("til_Str_eq(&");
-                    output.push_str(&switch_var);
-                    output.push_str(", &");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                    output.push_str(").data");
-                } else {
-                    // Regular value comparison
-                    output.push_str(&switch_var);
-                    output.push_str(" == ");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                }
-                output.push_str(") {\n");
-            },
-            NodeType::LLiteral(_) => {
-                if is_str_switch {
-                    // String literal comparison - pass by pointer
-                    output.push_str("til_Str_eq(&");
-                    output.push_str(&switch_var);
-                    output.push_str(", &");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                    output.push_str(").data");
-                } else {
-                    // Regular literal comparison
-                    output.push_str(&switch_var);
-                    output.push_str(" == ");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                }
-                output.push_str(") {\n");
-            },
-            NodeType::FCall => {
-                // FCall pattern: Type.Variant(payload) - enum variant with payload argument
-                // For example: ValueType.TType(TTypeDef.TEnumDef)
-                let info = get_case_variant_info(case_pattern);
-                if !info.variant_name.is_empty() && enum_has_payloads_flag {
-                    // Compare tag first
-                    output.push_str(&switch_var);
-                    output.push_str(".tag == til_");
-                    output.push_str(&info.type_name);
-                    output.push_str("_");
-                    output.push_str(&info.variant_name);
-
-                    // Check if there's a payload argument to compare
-                    // params[0] is Type.Variant identifier, params[1+] are arguments
-                    if case_pattern.params.len() > 1 {
-                        let payload_expr = &case_pattern.params[1];
-                        // Check if payload is also an enum variant (Type.Variant pattern)
-                        let payload_info = get_case_variant_info(payload_expr);
-                        if !payload_info.variant_name.is_empty() {
-                            // Payload is an enum variant - compare payload field
-                            output.push_str(" && ");
-                            output.push_str(&switch_var);
-                            output.push_str(".payload.");
-                            output.push_str(&info.variant_name);
-                            output.push_str(" == til_");
-                            output.push_str(&payload_info.type_name);
-                            output.push_str("_");
-                            output.push_str(&payload_info.variant_name);
-                        }
-                        // TODO: handle non-enum payloads if needed
-                    }
-                    output.push_str(") {\n");
-                } else if !info.variant_name.is_empty() {
-                    // Enum without payloads - simple tag comparison
-                    output.push_str(&switch_var);
-                    output.push_str(" == til_");
-                    output.push_str(&info.type_name);
-                    output.push_str("_");
-                    output.push_str(&info.variant_name);
-                    output.push_str(") {\n");
-                } else {
-                    // Not an enum pattern - fall through to generic comparison
-                    output.push_str(&switch_var);
-                    output.push_str(" == ");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                    output.push_str(") {\n");
-                }
-            },
-            _ => {
-                // Generic case: emit equality comparison
-                // TODO: Should emit proper FCall through normal path instead of hardcoding
-                if is_str_switch {
-                    output.push_str("til_Str_eq(&");
-                    output.push_str(&switch_var);
-                    output.push_str(", &");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                    output.push_str(").data");
-                } else {
-                    output.push_str(&switch_var);
-                    output.push_str(" == ");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                }
-                output.push_str(") {\n");
-            },
-        }
-
-        // Emit case body
-        // For pattern matching with binding variables, we need to add the binding to scope
-        // so that get_value_type can resolve it during body emission
-        // Save declared_vars for block scope - variables declared in this case body
-        // should not affect other case bodies
-        let saved_declared_vars = ctx.declared_vars.clone();
-
-        if let NodeType::Pattern(pattern_info) = &case_pattern.node_type {
-            // Get the payload type from the enum definition
-            let info = parse_pattern_variant_name(&pattern_info.variant_name);
-            let payload_type_opt: Option<ValueType> = if let Some(ValueType::TCustom(ref enum_name)) = switch_type {
-                context.scope_stack.lookup_enum(enum_name)
-                    .and_then(|enum_def| enum_def.get(&info.variant_name).cloned())
-                    .flatten()
-            } else {
-                None
-            };
-
-            if let Some(payload_type) = payload_type_opt {
-                // Push scope and declare binding variable
-                context.scope_stack.push(ScopeType::Block);
-                context.scope_stack.declare_symbol(
-                    pattern_info.binding_var.clone(),
-                    SymbolInfo {
-                        value_type: payload_type,
-                        is_mut: false,
-                        is_copy: false,
-                        is_own: false,
-                        is_comptime_const: false,
-                    }
-                );
-                emit_body(case_body, output, indent + 1, ctx, context)?;
-                context.scope_stack.pop().ok();
-            } else {
-                emit_body(case_body, output, indent + 1, ctx, context)?;
-            }
-        } else {
-            emit_body(case_body, output, indent + 1, ctx, context)?;
-        }
-
-        // Restore declared_vars after case body
-        ctx.declared_vars = saved_declared_vars;
-        i += 2;
-    }
-
-    // Close the if/else chain
-    if has_cases {
-        output.push_str(&indent_str);
-        output.push_str("}\n");
-    }
-
-    Ok(())
 }
 
 fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
@@ -6870,6 +6574,34 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             } else {
                 Err(format!("ccodegen: enum_to_str argument has non-custom type: {:?}", value_type))
             }
+        },
+        // enum_get_payload(enum_val, variant_name, dest) - extract payload from enum
+        // Emits: indent + dest = enum_val.payload.VariantName;\n
+        // This is a statement (not expression), so needs full formatting.
+        "enum_get_payload" => {
+            if expr.params.len() < 4 {
+                return Err("ccodegen: enum_get_payload requires 3 arguments".to_string());
+            }
+            let enum_arg = &expr.params[1];
+            let variant_arg = &expr.params[2];
+            let dest_arg = &expr.params[3];
+
+            // Get variant name from string literal
+            let variant_name = match &variant_arg.node_type {
+                NodeType::LLiteral(Literal::Str(s)) => s.clone(),
+                _ => return Err("ccodegen: enum_get_payload variant_name must be a string literal".to_string()),
+            };
+
+            // Emit: indent + dest = enum_val.payload.VariantName;\n
+            let indent_str = "    ".repeat(indent);
+            output.push_str(&indent_str);
+            emit_expr(dest_arg, output, 0, ctx, context)?;
+            output.push_str(" = ");
+            emit_expr(enum_arg, output, 0, ctx, context)?;
+            output.push_str(".payload.");
+            output.push_str(&variant_name);
+            output.push_str(";\n");
+            Ok(())
         },
         // size_of(T) - runtime type size lookup via til_size_of function
         // Can be called with a literal type name (size_of(Str)) or a Type variable (size_of(T))

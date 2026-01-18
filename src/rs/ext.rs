@@ -593,6 +593,43 @@ pub fn func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, S
     Ok(EvalResult::new(&val))
 }
 
+/// Extract payload from enum and copy it to the destination variable.
+/// enum_get_payload(enum_val: Dynamic, variant_name: Str, mut dest: Dynamic)
+/// The variant_name is used by ccodegen to access the correct union field.
+/// The dest variable must already be declared with the correct type.
+pub fn func_enum_get_payload(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "enum_get_payload", 3, false)?;
+
+    // Get enum identifier from first argument
+    let enum_expr = e.get(1)?;
+    let enum_name = get_combined_name(&context.path, enum_expr)?;
+
+    // Get variant name from second argument (not used by interpreter, but needed for ccodegen)
+    // We just evaluate it to validate it's there
+    let _variant_result = eval_expr(context, e.get(2)?)?;
+
+    // Get destination identifier from third argument
+    let dest_expr = e.get(3)?;
+    let dest_name = get_combined_name(&context.path, dest_expr)?;
+
+    // Get the enum value with its payload
+    let enum_val = EvalArena::get_enum(context, &enum_name, e)?;
+
+    // Check if enum has a payload
+    let payload_bytes = match &enum_val.payload {
+        Some(bytes) => bytes,
+        None => return Ok(EvalResult::new("")), // No payload, nothing to copy
+    };
+
+    // Get destination offset in arena
+    let dest_offset = context.scope_stack.lookup_var(&dest_name)
+        .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("enum_get_payload: destination '{}' not found in arena", dest_name)))?;
+
+    // Copy payload bytes to destination
+    EvalArena::g().set(dest_offset, payload_bytes)?;
+
+    Ok(EvalResult::new(""))
+}
 
 
 pub fn func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {

@@ -4,7 +4,7 @@ use std::io::ErrorKind;
 use crate::rs::init::{Context, SymbolInfo, EnumVal, EnumPayload, ScopeFrame, ScopeType, get_value_type, get_func_name_in_call, init_import_declarations, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
+    Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, FunctionType, SFuncDef,
     value_type_to_str, get_combined_name, parse_tokens,
 };
 use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg, basic_mode_checks, check_types, check_body_returns_throws, typer_import_declarations, ThrownType};
@@ -458,311 +458,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             Ok(EvalResult::new(""))
         },
         NodeType::Switch => {
-            if e.params.len() < 3 {
-                return Err(e.lang_error(&context.path, "eval", "switch nodes must have at least 3 parameters."));
-            }
-            let to_switch = e.get(0)?;
-            let value_type = get_value_type(&context, &to_switch)?;
-            let result_to_switch = eval_expr(context, &to_switch)?;
-            if result_to_switch.is_throw {
-                return Ok(result_to_switch);
-            }
-
-            let mut param_it = 1;
-            while param_it < e.params.len() {
-                let case = e.get(param_it)?;
-                if case.node_type == NodeType::DefaultCase {
-                    param_it += 1;
-                    return eval_expr(context, e.get(param_it)?);
-                }
-
-                let case_type = get_value_type(&context, &case)?;
-                let vt_str = value_type_to_str(&value_type);
-                let ct_str = value_type_to_str(&case_type);
-                if ct_str != vt_str && ct_str != format!("{}Range", vt_str) {
-                    return Err(e.lang_error(&context.path, "eval", &format!("switch value type {:?}, case value type {:?}", value_type, case_type)));
-                }
-
-                // Handle pattern matching with payload extraction
-                if let NodeType::Pattern(PatternInfo { variant_name, binding_var }) = &case.node_type {
-                    // Check if the switch value's enum variant matches the pattern
-                    // The switch value should be an enum stored as EnumVal
-                    // We need to extract the enum value - get the identifier name from to_switch
-                    // For field access (e.g., s.color), construct the full path
-                    let enum_var_name = if let NodeType::Identifier(name) = &to_switch.node_type {
-                        // Check if this is a field access (has params that are identifiers)
-                        if !to_switch.params.is_empty() {
-                            let mut full_path = name.clone();
-                            for param in &to_switch.params {
-                                if let NodeType::Identifier(field_name) = &param.node_type {
-                                    full_path.push('.');
-                                    full_path.push_str(field_name);
-                                }
-                            }
-                            full_path
-                        } else {
-                            name.clone()
-                        }
-                    } else {
-                        return Err(case.error(&context.path, "eval", "Pattern matching requires switch value to be a variable"));
-                    };
-
-                    let enum_val = EvalArena::get_enum(context, &enum_var_name, &case)?;
-
-                    // Check if variant matches (enum_val.enum_name should match variant_name)
-                    let full_variant = format!("{}.{}", enum_val.enum_type, enum_val.enum_name);
-                    if full_variant == *variant_name || enum_val.enum_name == *variant_name {
-                        // Match! Extract the payload and bind it to the variable
-                        param_it += 1;
-
-                        // Extract payload into the binding variable
-                        if let Some(payload_type) = &enum_val.payload_type {
-                            if let Some(payload_bytes) = &enum_val.payload {
-                                // Extract payload and bind to variable
-                                match payload_type {
-                                    ValueType::TCustom(type_name) if type_name == "I64" => {
-                                        if payload_bytes.len() != 8 {
-                                            return Err(case.error(&context.path, "eval", "Invalid I64 payload size"));
-                                        }
-                                        let mut bytes = [0u8; 8];
-                                        bytes.copy_from_slice(&payload_bytes[0..8]);
-                                        let i64_val = i64::from_le_bytes(bytes);
-
-                                        // First add the symbol to context
-                                        context.scope_stack.declare_symbol(
-                                            binding_var.clone(),
-                                            SymbolInfo {
-                                                value_type: ValueType::TCustom("I64".to_string()),
-                                                is_mut: false,
-                                                is_copy: false,
-                                                is_own: false,
-                                                is_comptime_const: false,
-                                            }
-                                        );
-
-                                        EvalArena::insert_i64(context, binding_var, &i64_val.to_string(), &case)?;
-                                    }
-                                    ValueType::TCustom(type_name) if type_name == "Str" => {
-                                        // For Str, the payload contains pointer + size (16 bytes total)
-                                        // We need to reconstruct the string from the arena
-                                        if payload_bytes.len() != 16 {
-                                            return Err(case.error(&context.path, "eval", &format!("Invalid Str payload size: expected 16, got {}", payload_bytes.len())));
-                                        }
-                                        // Extract the c_string pointer (first 8 bytes)
-                                        let mut ptr_bytes = [0u8; 8];
-                                        ptr_bytes.copy_from_slice(&payload_bytes[0..8]);
-                                        let ptr_offset = i64::from_le_bytes(ptr_bytes);
-
-                                        // Extract size (next 8 bytes)
-                                        let mut size_bytes = [0u8; 8];
-                                        size_bytes.copy_from_slice(&payload_bytes[8..16]);
-                                        let size = i64::from_le_bytes(size_bytes);
-
-                                        // First add the symbol to context
-                                        context.scope_stack.declare_symbol(
-                                            binding_var.clone(),
-                                            SymbolInfo {
-                                                value_type: ValueType::TCustom("Str".to_string()),
-                                                is_mut: false,
-                                                is_copy: false,
-                                                is_own: false,
-                                                is_comptime_const: false,
-                                            }
-                                        );
-
-                                        if size > 0 && ptr_offset > 0 {
-                                            // Read the actual string from the global arena
-                                            let ptr = ptr_offset as usize;
-                                            let len = size as usize;
-                                            if ptr + len > EvalArena::g().len() {
-                                                return Err(case.error(&context.path, "eval", "String payload pointer out of bounds"));
-                                            }
-                                            let str_bytes = EvalArena::g().get(ptr, len);
-                                            let string_value = String::from_utf8_lossy(str_bytes).to_string();
-                                            EvalArena::insert_string(context, binding_var, &string_value, &case)?;
-                                        } else {
-                                            let empty_string = String::new();
-                                            EvalArena::insert_string(context, binding_var, &empty_string, &case)?;
-                                        }
-                                    }
-                                    ValueType::TCustom(type_name) => {
-                                        // Handle custom types (structs and enums)
-                                        let type_symbol = context.scope_stack.lookup_symbol(type_name).ok_or_else(|| {
-                                            case.error(&context.path, "eval", &format!("Unknown type '{}'", type_name))
-                                        })?;
-
-                                        match &type_symbol.value_type {
-                                            ValueType::TType(TTypeDef::TStructDef) => {
-                                                // Handle struct payloads
-                                                // First add the symbol to context
-                                                context.scope_stack.declare_symbol(
-                                                    binding_var.clone(),
-                                                    SymbolInfo {
-                                                        value_type: payload_type.clone(),
-                                                        is_mut: false,
-                                                        is_copy: false,
-                                                        is_own: false,
-                                                        is_comptime_const: false,
-                                                    }
-                                                );
-
-                                                // Allocate destination struct in arena (from cached template)
-                                                insert_struct_instance(context, binding_var, type_name, &case)?;
-
-                                                // Get destination offset
-                                                let dest_offset = context.scope_stack.lookup_var(binding_var).ok_or_else(|| {
-                                                    case.error(&context.path, "eval", &format!("Struct '{}' not found in arena", binding_var))
-                                                })?;
-
-                                                // Validate payload size
-                                                let struct_size = context.get_type_size( type_name)
-                                                    .map_err(|err| case.error(&context.path, "eval", &err))?;
-                                                if payload_bytes.len() != struct_size {
-                                                    return Err(case.error(&context.path, "eval", &format!(
-                                                        "Payload size mismatch: expected {}, got {}",
-                                                        struct_size, payload_bytes.len()
-                                                    )));
-                                                }
-
-                                                // Copy payload bytes directly into arena
-                                                EvalArena::g().set(dest_offset, &payload_bytes)?;
-                                            },
-                                            ValueType::TType(TTypeDef::TEnumDef) => {
-                                                // Handle enum payloads
-                                                // The payload_bytes contains: [8 bytes variant tag][N bytes enum's payload]
-
-                                                if payload_bytes.len() < 8 {
-                                                    return Err(case.error(&context.path, "eval", "Invalid enum payload: too small"));
-                                                }
-
-                                                // Extract variant tag (first 8 bytes)
-                                                let mut variant_bytes = [0u8; 8];
-                                                variant_bytes.copy_from_slice(&payload_bytes[0..8]);
-                                                let variant_pos = i64::from_le_bytes(variant_bytes);
-
-                                                // Extract enum's own payload (rest of bytes)
-                                                let inner_payload = if payload_bytes.len() > 8 {
-                                                    Some(payload_bytes[8..].to_vec())
-                                                } else {
-                                                    None
-                                                };
-
-                                                // Get the enum definition to find variant name
-                                                let enum_def = context.scope_stack.lookup_enum(type_name).ok_or_else(|| {
-                                                    case.error(&context.path, "eval", &format!("Enum definition for '{}' not found", type_name))
-                                                })?;
-
-                                                // Find variant name by matching the variant position
-                                                let mut found_variant = None;
-                                                let mut found = false;
-                                                for v in &enum_def.variants {
-                                                    if !found {
-                                                        let pos = Context::get_variant_pos(enum_def, &v.name, &context.path, &case)?;
-                                                        if pos == variant_pos {
-                                                            found_variant = Some(v.name.clone());
-                                                            found = true;
-                                                        }
-                                                    }
-                                                }
-
-                                                let variant_name = found_variant.ok_or_else(|| {
-                                                    case.error(&context.path, "eval", &format!("Variant position {} not found in enum {}", variant_pos, type_name))
-                                                })?;
-
-                                                // Get the inner payload type
-                                                let inner_payload_type = enum_def.get(&variant_name)
-                                                    .and_then(|opt| opt.clone());
-
-                                                // Add symbol to context first
-                                                context.scope_stack.declare_symbol(
-                                                    binding_var.clone(),
-                                                    SymbolInfo {
-                                                        value_type: payload_type.clone(),
-                                                        is_mut: false,
-                                                        is_copy: false,
-                                                        is_own: false,
-                                                        is_comptime_const: false,
-                                                    }
-                                                );
-
-                                                // Now reconstruct the enum and insert it
-                                                let enum_val_str = format!("{}.{}", type_name, variant_name);
-
-                                                // Set temp_enum_payload if there's an inner payload
-                                                if let Some(payload_data) = inner_payload {
-                                                    context.temp_enum_payload = Some(EnumPayload { data: payload_data, value_type: inner_payload_type.unwrap() });
-                                                }
-
-                                                // Insert the enum
-                                                EvalArena::insert_enum(context, binding_var, type_name, &enum_val_str, &case)?;
-                                            },
-                                            _ => {
-                                                // Other types not yet implemented
-                                                return Err(case.error(&context.path, "eval", &format!("Pattern matching not yet implemented for payload type: {:?}", payload_type)));
-                                            }
-                                        }
-                                    },
-                                    _ => {
-                                        // Unknown types
-                                        return Err(case.error(&context.path, "eval", &format!("Pattern matching not yet implemented for payload type: {:?}", payload_type)));
-                                    }
-                                }
-                            }
-                        }
-
-                        // Execute the case body with the bound variable available
-                        return eval_expr(context, e.get(param_it)?);
-                    } else {
-                        // No match, continue to next case
-                        param_it += 2;
-                        continue;
-                    }
-                }
-
-                let is_match = match &case.node_type {
-                    NodeType::Range => {
-                        let start = eval_expr(context, &case.params[0])?;
-                        if start.is_throw {
-                            return Ok(start);
-                        }
-                        let end = eval_expr(context, &case.params[1])?;
-                        if end.is_throw {
-                            return Ok(end);
-                        }
-                        match &value_type {
-                            ValueType::TCustom(s) if s == "I64" || s == "U8" => {
-                                let val = result_to_switch.value.parse::<i64>();
-                                let start_val = start.value.parse::<i64>();
-                                let end_val = end.value.parse::<i64>();
-
-                                if let (Ok(val), Ok(start_val), Ok(end_val)) = (val, start_val, end_val) {
-                                    val >= start_val && val <= end_val
-                                } else {
-                                    false
-                                }
-                            }
-                            _ => {
-                                // Lexicographical comparisons for Str
-                                result_to_switch.value >= start.value && result_to_switch.value <= end.value
-                            }
-                        }
-                    }
-                    _ => {
-                        let result_case = eval_expr(context, &case)?;
-                        if result_case.is_throw {
-                            return Ok(result_case);
-                        }
-                        result_to_switch.value == result_case.value
-                    }
-                };
-
-                param_it += 1;
-                if is_match {
-                    return eval_expr(context, e.get(param_it)?);
-                }
-                param_it += 1;
-            }
-            return Ok(EvalResult::new(""))
+            return Err(e.lang_error(&context.path, "eval", "Switch should be desugared in precomp before reaching interpreter"))
         },
         NodeType::Return => {
             if e.params.len() == 0 {
@@ -814,13 +510,13 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::Range => {
             return Err(e.lang_error(&context.path, "eval", "Range should be desugared in parser before reaching interpreter"))
         },
-        // Pattern is handled inside Switch
+        // Pattern should be desugared in precomp
         NodeType::Pattern(_) => {
-            return Err(e.lang_error(&context.path, "eval", "Pattern should only appear inside Switch"))
+            return Err(e.lang_error(&context.path, "eval", "Pattern should be desugared in precomp before reaching interpreter"))
         },
-        // DefaultCase is handled inside Switch
+        // DefaultCase should be desugared in precomp
         NodeType::DefaultCase => {
-            return Err(e.lang_error(&context.path, "eval", "DefaultCase should only appear inside Switch"))
+            return Err(e.lang_error(&context.path, "eval", "DefaultCase should be desugared in precomp before reaching interpreter"))
         },
     }
 }
@@ -2835,6 +2531,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "str_to_i64" => ext::func_str_to_i64(context, &e),
         "i64_to_str" => ext::func_i64_to_str(context, &e),
         "enum_to_str" => ext::func_enum_to_str(context, &e),
+        "enum_get_payload" => ext::func_enum_get_payload(context, &e),
         "u8_add" => ext::func_u8_add(context, &e),
         "u8_div" => ext::func_u8_div(context, &e),
         "u8_mod" => ext::func_u8_mod(context, &e),

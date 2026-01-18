@@ -554,6 +554,56 @@ func_enum_to_str := proc(mut context: Context, e: Expr) returns EvalResult throw
     return EvalResult.new(result.value)
 }
 
+func_enum_get_payload := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "enum_get_payload", 3, false)
+
+    // Get enum identifier from first argument
+    enum_expr := e.get(1)
+    enum_name := get_combined_name(context.path, enum_expr)
+
+    // Get variant name from second argument (not used by interpreter, but needed for ccodegen)
+    // We just evaluate it to validate it's there
+    _variant_result := eval_expr(context, e.get(2))
+    if _variant_result.is_throw { return _variant_result }
+
+    // Get destination identifier from third argument
+    dest_expr := e.get(3)
+    dest_name := get_combined_name(context.path, dest_expr)
+
+    // Get the enum value with its payload
+    enum_val := EvalArena.get_enum(context, enum_name, e)
+
+    // Check if enum has a payload (NULL means no payload)
+    if NULL.eq(enum_val.payload.data) {
+        return EvalResult.new("")  // No payload, nothing to copy
+    }
+
+    // Get payload bytes from the Ptr
+    mut payload_bytes := Vec.new(U8)
+    memcpy(to_ptr(payload_bytes), enum_val.payload.data, size_of(Vec))
+
+    // Get destination offset in arena
+    dest_offset := context.scope_stack.lookup_var(dest_name)
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(context.path, "eval", format("enum_get_payload: destination '", dest_name, "' not found in arena"))
+    }
+
+    // Copy payload bytes to destination
+    mut pi := 0
+    while pi.lt(payload_bytes.len()) {
+        mut byte_val : U8 = 0
+        payload_bytes.get(pi, byte_val)
+        g_arena.set(add(dest_offset, pi), to_ptr(byte_val), 1)
+        pi = add(pi, 1)
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw e.lang_error(context.path, "eval", format("enum_get_payload: ", err.msg))
+    }
+
+    return EvalResult.new("")
+}
+
 func_u8_to_i64 := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "u8_to_i64", 1, false)
     result := eval_expr(context, e.get(1))

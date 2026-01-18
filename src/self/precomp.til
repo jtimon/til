@@ -571,111 +571,675 @@ precomp_params := proc(mut context: Context, e: Expr) returns Expr {
     return Expr.new_clone(e.node_type, e, new_params)
 }
 
-/// Transform Switch - handle pattern binding variables by adding them to scope
-/// before processing the case body. This mirrors the typer's handling of Bug #28.
-precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
-    // Switch structure: params[0] is switch expression, then pairs of (case, body)
-    if e.params.len().eq(0) {
-        return e.clone()
-    }
-
-    mut new_params := Vec.new(Expr)
-
-    // Transform switch expression
-    mut switch_expr := Expr()
-    e.params.get(0, switch_expr)
-    new_params.push(precomp_expr(context, switch_expr))
-
-    // Get the type of the switch expression for pattern binding resolution
-    mut switch_expr_type := ValueType.TCustom("")
-    mut got_switch_type := true
-    switch_expr_type = get_value_type(context, switch_expr)
-    catch (err: Str) {
-        got_switch_type = false
-    }
-
-    // Process case/body pairs
-    mut i := 1
-    while i.add(1).lt(e.params.len().add(1)) {
-        mut case_expr := Expr()
-        mut body_expr := Expr()
-        e.params.get(i, case_expr)
-        e.params.get(i.add(1), body_expr)
-
-        // Transform case expression (no scope change needed for case itself)
-        new_params.push(precomp_expr(context, case_expr))
-
-        // For pattern matching with binding variable, add binding to scope before processing body
-        switch case_expr.node_type {
-        case NodeType.Pattern(pattern_info):
-            mut handled := false
-            if got_switch_type {
-                switch switch_expr_type {
-                case ValueType.TCustom(enum_name):
-                    // Extract variant name (after the last dot)
-                    variant_name := pattern_info.variant_name
-                    mut variant := variant_name
-                    dot_pos := variant_name.rfind(".")
-                    if dot_pos.gteq(0) {
-                        variant = get_substr(variant_name, dot_pos.add(1), variant_name.len())
-                    }
-
-                    // Get payload type from enum definition
-                    mut enum_found := true
-                    mut enum_def := context.scope_stack.lookup_enum(enum_name)
-                    catch (err: KeyNotFoundError) {
-                        enum_found = false
-                    }
-
-                    if enum_found {
-                        mut payload_type := ValueType.TCustom("")
-                        mut got_payload := false
-                        // Bug #38 fix: use helper method
-                        payload_ptr := enum_def.get(variant)
-                        if not(NULL.eq(payload_ptr.data)) {
-                            memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
-                            got_payload = true
-                        }
-                        catch (err: KeyNotFoundError) {
-                            // Variant not found or no payload
-                        }
-
-                        if got_payload {
-                            // Push block scope, declare binding variable, transform body, pop scope
-                            context.scope_stack.push(ScopeType.Block)
-                            sym := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
-                            context.scope_stack.declare_symbol(pattern_info.binding_var, sym)
-                            new_params.push(precomp_expr(context, body_expr))
-                            _ := context.scope_stack.pop()
-                            handled = true
+/// Build the full dotted name from an identifier chain expression.
+/// For example, for an Identifier("ValueType") with params [Identifier("TType")],
+/// this returns "ValueType.TType".
+build_identifier_chain_name := func(expr: Expr) returns Str {
+    switch expr.node_type {
+    case NodeType.Identifier(name):
+        if expr.params.len().eq(0) {
+            return name
+        } else {
+            // Build full name from nested identifiers
+            mut full_name := name
+            for p: Expr in expr.params {
+                switch p.node_type {
+                case NodeType.Identifier(sub):
+                    full_name = format(full_name, ".", sub)
+                    // Recursively add any deeper nested names
+                    for pp: Expr in p.params {
+                        switch pp.node_type {
+                        case NodeType.Identifier(subsub):
+                            full_name = format(full_name, ".", subsub)
+                        case:
                         }
                     }
                 case:
                 }
             }
-            if not(handled) {
-                // No payload type found or switch type not found, transform body without binding
-                new_params.push(precomp_expr(context, body_expr))
-            }
-        case:
-            // Not a pattern, transform body normally
-            new_params.push(precomp_expr(context, body_expr))
+            return full_name
         }
+    case:
+        return ""
+    }
+}
 
-        i = i.add(2)
+/// Rename all occurrences of an identifier in an expression tree.
+/// Used by switch desugaring to rename binding variables to mangled names.
+/// IMPORTANT: Don't rename field access params - those are field names, not variables.
+rename_identifier := func(expr: Expr, old_name: Str, new_name: Str) returns Expr {
+    switch expr.node_type {
+    case NodeType.Identifier(name):
+        if name.eq(old_name) {
+            // Replace this identifier with the new name
+            // DON'T recurse into params - those are field accesses
+            return Expr.new_explicit(NodeType.Identifier(new_name), expr.params.clone(), expr.line, expr.col)
+        } else {
+            // Different identifier - don't rename
+            return expr.clone()
+        }
+    case NodeType.Declaration(decl):
+        if decl.name.eq(old_name) {
+            // Don't rename declaration names - those create new bindings that shadow
+            // Just recurse into params (the initializer expression)
+            mut decl_new_params := Vec.new(Expr)
+            for p: Expr in expr.params {
+                decl_new_params.push(rename_identifier(p, old_name, new_name))
+            }
+            return Expr.new_clone(expr.node_type, expr, decl_new_params)
+        }
+    case NodeType.Assignment(aname):
+        if aname.eq(old_name) {
+            // Rename assignment target
+            mut assign_new_params := Vec.new(Expr)
+            for p: Expr in expr.params {
+                assign_new_params.push(rename_identifier(p, old_name, new_name))
+            }
+            return Expr.new_explicit(NodeType.Assignment(new_name), assign_new_params, expr.line, expr.col)
+        }
+    case:
+    }
+    // Default: recurse into params
+    mut default_new_params := Vec.new(Expr)
+    for p: Expr in expr.params {
+        default_new_params.push(rename_identifier(p, old_name, new_name))
+    }
+    return Expr.new_clone(expr.node_type, expr, default_new_params)
+}
+
+/// Desugar Switch to if/else chain (Issue #110)
+precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    if e.params.len().eq(0) {
+        return e.clone()
     }
 
-    // Handle odd trailing element (default case body without case expression)
-    if i.lt(e.params.len()) {
-        mut trailing := Expr()
-        e.params.get(i, trailing)
-        new_params.push(precomp_expr(context, trailing))
+    mut sw_expr := Expr()
+    e.params.get(0, sw_expr)
+    mut sw_expr_type := ValueType.TCustom("")
+    mut got_sw_type := true
+    sw_expr_type = get_value_type(context, sw_expr)
+    catch (err: Str) {
+        got_sw_type = false
     }
+    sw_line := e.line
+    sw_col := e.col
 
+    // Collect case/body pairs
+    mut sw_cases := Vec.new(Expr)
+    mut sw_default_body := Expr()
+    mut sw_has_default := false
+
+    mut sw_i := 1
+    while sw_i.lt(e.params.len()) {
+        mut sw_ce := Expr()
+        e.params.get(sw_i, sw_ce)
+        switch sw_ce.node_type {
+        case NodeType.DefaultCase:
+            if sw_i.add(1).lt(e.params.len()) {
+                e.params.get(sw_i.add(1), sw_default_body)
+                sw_has_default = true
+            }
+            sw_i = sw_i.add(2)
+        case:
+            if sw_i.add(1).lt(e.params.len()) {
+                mut sw_be := Expr()
+                e.params.get(sw_i.add(1), sw_be)
+                sw_cases.push(sw_ce)
+                sw_cases.push(sw_be)
+            }
+            sw_i = sw_i.add(2)
+        }
+    }
     catch (err: IndexOutOfBoundsError) {
         throw format("precomp_switch: ", err.msg)
     }
-    return Expr.new_clone(NodeType.Switch, e, new_params)
+
+    // Build if/else chain from bottom up
+    mut sw_current_else := Expr()
+    mut sw_has_else := false
+    if sw_has_default {
+        sw_current_else = precomp_expr(context, sw_default_body)
+        sw_has_else = true
+    }
+
+    mut sw_idx := sw_cases.len()
+    while sw_idx.gt(0) {
+        sw_idx = sw_idx.sub(2)
+        mut sw_case := Expr()
+        mut sw_body := Expr()
+        sw_cases.get(sw_idx, sw_case)
+        sw_cases.get(sw_idx.add(1), sw_body)
+
+        mut sw_cond := Expr()
+        mut sw_prefix := Vec.new(Expr)
+        mut sw_rename_old := ""
+        mut sw_rename_new := ""
+        mut sw_has_rename := false
+        mut sw_push_scope := false
+
+        switch sw_case.node_type {
+        case NodeType.Pattern(pinfo):
+            sw_cond = build_pattern_condition(context, sw_expr, sw_case, pinfo, sw_expr_type, got_sw_type, sw_line, sw_col, sw_prefix, sw_rename_old, sw_rename_new, sw_has_rename, sw_push_scope)
+        case NodeType.Range:
+            sw_cond = build_range_condition(sw_expr, sw_case, sw_expr_type, got_sw_type, sw_line, sw_col)
+        case NodeType.Identifier(idname):
+            sw_cond = build_identifier_condition(context, sw_expr, sw_case, idname, sw_expr_type, got_sw_type, sw_line, sw_col)
+        case NodeType.LLiteral(_):
+            sw_cond = build_literal_condition(sw_expr, sw_case, sw_expr_type, got_sw_type, sw_line, sw_col)
+        case NodeType.FCall:
+            sw_cond = build_fcall_condition(context, sw_expr, sw_case, sw_expr_type, got_sw_type, sw_line, sw_col)
+        case:
+            sw_cond = build_default_condition(sw_expr, sw_case, sw_expr_type, got_sw_type, sw_line, sw_col)
+        }
+
+        mut sw_transformed := sw_body
+        if sw_has_rename {
+            sw_transformed = rename_identifier(sw_body, sw_rename_old, sw_rename_new)
+        }
+        sw_transformed = precomp_expr(context, sw_transformed)
+
+        if sw_push_scope {
+            _ := context.scope_stack.pop()
+        }
+
+        mut sw_stmts := Vec.new(Expr)
+        for sw_pf: Expr in sw_prefix {
+            sw_stmts.push(sw_pf)
+        }
+        switch sw_transformed.node_type {
+        case NodeType.Body:
+            for sw_s: Expr in sw_transformed.params {
+                sw_stmts.push(sw_s)
+            }
+        case:
+            sw_stmts.push(sw_transformed)
+        }
+        sw_final := Expr.new_explicit(NodeType.Body, sw_stmts, sw_body.line, sw_body.col)
+
+        mut sw_if_params := Vec.new(Expr)
+        sw_if_params.push(sw_cond)
+        sw_if_params.push(sw_final)
+        if sw_has_else {
+            sw_if_params.push(sw_current_else)
+        }
+        sw_current_else = Expr.new_explicit(NodeType.If, sw_if_params, sw_line, sw_col)
+        sw_has_else = true
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw format("precomp_switch cases: ", err.msg)
+    }
+
+    if sw_has_else {
+        return precomp_expr(context, sw_current_else)
+    } else {
+        return Expr.new_explicit(NodeType.Body, Vec.new(Expr), sw_line, sw_col)
+    }
+}
+
+// Helper: Build condition for Pattern case
+build_pattern_condition := proc(mut context: Context, sw_expr: Expr, case_e: Expr, pinfo: PatternInfo, sw_type: ValueType, got_type: Bool, ln: I64, cl: I64, mut prefix: Vec, mut ren_old: Str, mut ren_new: Str, mut has_ren: Bool, mut do_push: Bool) returns Expr throws Str {
+    vname := pinfo.variant_name
+    bvar := pinfo.binding_var
+
+    mut etype := ""
+    mut vshort := ""
+    dpos := vname.rfind(".")
+    if dpos.gteq(0) {
+        etype = get_substr(vname, 0, dpos)
+        vshort = get_substr(vname, dpos.add(1), vname.len())
+    } else {
+        if got_type {
+            switch sw_type {
+            case ValueType.TCustom(en):
+                etype = en
+            case:
+            }
+        }
+        vshort = vname
+    }
+    fvar := format(etype, ".", vshort)
+
+    // Build: Str.eq(enum_to_str(sw_expr), fvar)
+    mut ets_p := Vec.new(Expr)
+    ets_p.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+    ets_p.push(sw_expr.clone())
+    ets_call := Expr.new_explicit(NodeType.FCall, ets_p, ln, cl)
+
+    slit := Expr.new_explicit(NodeType.LLiteral(Literal.Str(fvar)), Vec.new(Expr), ln, cl)
+    mut eqp := Vec.new(Expr)
+    eqp.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+    mut cp := Vec.new(Expr)
+    cp.push(Expr.new_explicit(NodeType.Identifier("Str"), eqp, ln, cl))
+    cp.push(ets_call)
+    cp.push(slit)
+    mut cond := Expr.new_explicit(NodeType.FCall, cp, ln, cl)
+
+    // Get payload type
+    mut ptype := ValueType.TCustom("")
+    mut has_pl := false
+    mut edef := context.scope_stack.lookup_enum(etype)
+    pp := edef.get(vshort)
+    if not(NULL.eq(pp.data)) {
+        memcpy(to_ptr(ptype), pp.data, size_of(ValueType))
+        has_pl = true
+    }
+    catch (err: KeyNotFoundError) {
+        // No payload
+    }
+
+    if has_pl {
+        is_nested := bvar.find(".").gteq(0)
+        if is_nested {
+            tname := format("_sw", I64.to_str(case_e.line), "_", I64.to_str(case_e.col), "payload")
+            vdecl := Declaration(name=tname, value_type=ptype, is_mut=true, is_copy=false, is_own=false, default_value=NULL)
+            dval := build_default_value_for_forin(context, ptype, ln, cl)
+            mut dp := Vec.new(Expr)
+            dp.push(dval)
+            dexpr := Expr.new_explicit(NodeType.Declaration(vdecl), dp, ln, cl)
+
+            mut pcp := Vec.new(Expr)
+            pcp.push(Expr.new_explicit(NodeType.Identifier("enum_get_payload"), Vec.new(Expr), ln, cl))
+            pcp.push(sw_expr.clone())
+            pcp.push(Expr.new_explicit(NodeType.LLiteral(Literal.Str(vshort)), Vec.new(Expr), ln, cl))
+            pcp.push(Expr.new_explicit(NodeType.Identifier(tname), Vec.new(Expr), ln, cl))
+            pcall := Expr.new_explicit(NodeType.FCall, pcp, ln, cl)
+
+            mut iep := Vec.new(Expr)
+            iep.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+            iep.push(Expr.new_explicit(NodeType.Identifier(tname), Vec.new(Expr), ln, cl))
+            iets := Expr.new_explicit(NodeType.FCall, iep, ln, cl)
+
+            istr := Expr.new_explicit(NodeType.LLiteral(Literal.Str(bvar)), Vec.new(Expr), ln, cl)
+            mut ieqp := Vec.new(Expr)
+            ieqp.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+            mut icp := Vec.new(Expr)
+            icp.push(Expr.new_explicit(NodeType.Identifier("Str"), ieqp, ln, cl))
+            icp.push(iets)
+            icp.push(istr)
+            icond := Expr.new_explicit(NodeType.FCall, icp, ln, cl)
+
+            mut ibp := Vec.new(Expr)
+            ibp.push(dexpr)
+            ibp.push(pcall)
+            ibp.push(icond)
+            ibody := Expr.new_explicit(NodeType.Body, ibp, ln, cl)
+
+            flit := Expr.new_explicit(NodeType.Identifier("false"), Vec.new(Expr), ln, cl)
+            mut combp := Vec.new(Expr)
+            combp.push(cond)
+            combp.push(ibody)
+            combp.push(flit)
+            cond = Expr.new_explicit(NodeType.If, combp, ln, cl)
+        } else if not(bvar.eq("_")) {
+            mname := format("_sw", I64.to_str(case_e.line), "_", I64.to_str(case_e.col), bvar)
+            vdecl2 := Declaration(name=mname, value_type=ptype, is_mut=true, is_copy=false, is_own=false, default_value=NULL)
+            dval2 := build_default_value_for_forin(context, ptype, ln, cl)
+            mut dp2 := Vec.new(Expr)
+            dp2.push(dval2)
+            dexpr2 := Expr.new_explicit(NodeType.Declaration(vdecl2), dp2, ln, cl)
+            prefix.push(dexpr2)
+
+            mut pcp2 := Vec.new(Expr)
+            pcp2.push(Expr.new_explicit(NodeType.Identifier("enum_get_payload"), Vec.new(Expr), ln, cl))
+            pcp2.push(sw_expr.clone())
+            pcp2.push(Expr.new_explicit(NodeType.LLiteral(Literal.Str(vshort)), Vec.new(Expr), ln, cl))
+            pcp2.push(Expr.new_explicit(NodeType.Identifier(mname), Vec.new(Expr), ln, cl))
+            pcall2 := Expr.new_explicit(NodeType.FCall, pcp2, ln, cl)
+            prefix.push(pcall2)
+
+            ren_old = bvar
+            ren_new = mname
+            has_ren = true
+
+            context.scope_stack.push(ScopeType.Block)
+            context.scope_stack.declare_symbol(mname, SymbolInfo(value_type=ptype, is_mut=true, is_copy=false, is_own=false))
+            do_push = true
+        }
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw format("build_pattern_condition: ", err.msg)
+    }
+    return cond
+}
+
+// Helper: Build condition for Range case
+build_range_condition := proc(sw_expr: Expr, case_e: Expr, sw_type: ValueType, got_type: Bool, ln: I64, cl: I64) returns Expr throws Str {
+    if case_e.params.len().lt(2) {
+        throw case_e.lang_error("", "precomp", "Range requires start and end")
+    }
+    mut se := Expr()
+    mut ee := Expr()
+    case_e.params.get(0, se)
+    case_e.params.get(1, ee)
+    catch (err: IndexOutOfBoundsError) {
+        throw format("Range: ", err.msg)
+    }
+
+    mut tp := "I64"
+    if got_type {
+        switch sw_type {
+        case ValueType.TCustom(t):
+            if t.eq("Str") {
+                tp = "Str"
+            } else if t.eq("U8") {
+                tp = "U8"
+            }
+        case:
+        }
+    }
+
+    mut gip := Vec.new(Expr)
+    gip.push(Expr.new_explicit(NodeType.Identifier("gteq"), Vec.new(Expr), ln, cl))
+    mut gp := Vec.new(Expr)
+    gp.push(Expr.new_explicit(NodeType.Identifier(tp), gip, ln, cl))
+    gp.push(sw_expr.clone())
+    gp.push(se)
+    gc := Expr.new_explicit(NodeType.FCall, gp, ln, cl)
+
+    mut lip := Vec.new(Expr)
+    lip.push(Expr.new_explicit(NodeType.Identifier("lteq"), Vec.new(Expr), ln, cl))
+    mut lp := Vec.new(Expr)
+    lp.push(Expr.new_explicit(NodeType.Identifier(tp), lip, ln, cl))
+    lp.push(sw_expr.clone())
+    lp.push(ee)
+    lc := Expr.new_explicit(NodeType.FCall, lp, ln, cl)
+
+    mut ap := Vec.new(Expr)
+    ap.push(Expr.new_explicit(NodeType.Identifier("and"), Vec.new(Expr), ln, cl))
+    ap.push(gc)
+    ap.push(lc)
+    return Expr.new_explicit(NodeType.FCall, ap, ln, cl)
+}
+
+// Helper: Build condition for Identifier case
+build_identifier_condition := proc(mut context: Context, sw_expr: Expr, case_e: Expr, idname: Str, sw_type: ValueType, got_type: Bool, ln: I64, cl: I64) returns Expr {
+    mut is_enum := false
+    if got_type {
+        switch sw_type {
+        case ValueType.TCustom(tn):
+            mut _ed := context.scope_stack.lookup_enum(tn)
+            is_enum = true
+            catch (err: KeyNotFoundError) {
+                // Not enum
+            }
+        case:
+        }
+    }
+
+    mut is_var := false
+    mut si := context.scope_stack.lookup_symbol(idname)
+    switch si.value_type {
+    case ValueType.TCustom(_):
+        is_var = true
+    case:
+    }
+    catch (err: KeyNotFoundError) {
+        // Not in scope
+    }
+
+    if is_var.and(is_enum) {
+        // Runtime enum comparison
+        mut esp := Vec.new(Expr)
+        esp.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+        esp.push(sw_expr.clone())
+        es1 := Expr.new_explicit(NodeType.FCall, esp, ln, cl)
+
+        mut ecp := Vec.new(Expr)
+        ecp.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+        ecp.push(case_e.clone())
+        es2 := Expr.new_explicit(NodeType.FCall, ecp, ln, cl)
+
+        mut eqp1 := Vec.new(Expr)
+        eqp1.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+        mut cp1 := Vec.new(Expr)
+        cp1.push(Expr.new_explicit(NodeType.Identifier("Str"), eqp1, ln, cl))
+        cp1.push(es1)
+        cp1.push(es2)
+        return Expr.new_explicit(NodeType.FCall, cp1, ln, cl)
+    }
+
+    is_variant := idname.find(".").gteq(0).or(case_e.params.len().gt(0)).or(is_enum)
+    if is_variant {
+        mut vstr := ""
+        if idname.find(".").gteq(0) {
+            vstr = idname
+        } else if got_type {
+            switch sw_type {
+            case ValueType.TCustom(en):
+                mut fname := idname
+                for p: Expr in case_e.params {
+                    switch p.node_type {
+                    case NodeType.Identifier(sub):
+                        fname = format(fname, ".", sub)
+                    case:
+                    }
+                }
+                if fname.find(".").lt(0) {
+                    vstr = format(en, ".", fname)
+                } else {
+                    vstr = fname
+                }
+            case:
+                vstr = idname
+            }
+        } else {
+            vstr = idname
+        }
+
+        mut ep := Vec.new(Expr)
+        ep.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+        ep.push(sw_expr.clone())
+        ec := Expr.new_explicit(NodeType.FCall, ep, ln, cl)
+
+        sl := Expr.new_explicit(NodeType.LLiteral(Literal.Str(vstr)), Vec.new(Expr), ln, cl)
+        mut eqp2 := Vec.new(Expr)
+        eqp2.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+        mut cp2 := Vec.new(Expr)
+        cp2.push(Expr.new_explicit(NodeType.Identifier("Str"), eqp2, ln, cl))
+        cp2.push(ec)
+        cp2.push(sl)
+        return Expr.new_explicit(NodeType.FCall, cp2, ln, cl)
+    }
+
+    // Simple value comparison
+    mut tp := "I64"
+    if got_type {
+        switch sw_type {
+        case ValueType.TCustom(t):
+            tp = t
+        case:
+        }
+    }
+    mut eqp3 := Vec.new(Expr)
+    eqp3.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+    mut cp3 := Vec.new(Expr)
+    cp3.push(Expr.new_explicit(NodeType.Identifier(tp), eqp3, ln, cl))
+    cp3.push(sw_expr.clone())
+    cp3.push(case_e.clone())
+    return Expr.new_explicit(NodeType.FCall, cp3, ln, cl)
+}
+
+// Helper: Build condition for LLiteral case
+build_literal_condition := proc(sw_expr: Expr, case_e: Expr, sw_type: ValueType, got_type: Bool, ln: I64, cl: I64) returns Expr {
+    mut tp := "I64"
+    if got_type {
+        switch sw_type {
+        case ValueType.TCustom(t):
+            tp = t
+        case:
+        }
+    }
+    mut eqp := Vec.new(Expr)
+    eqp.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+    mut cp := Vec.new(Expr)
+    cp.push(Expr.new_explicit(NodeType.Identifier(tp), eqp, ln, cl))
+    cp.push(sw_expr.clone())
+    cp.push(case_e.clone())
+    return Expr.new_explicit(NodeType.FCall, cp, ln, cl)
+}
+
+// Helper: Build condition for FCall case
+build_fcall_condition := proc(mut context: Context, sw_expr: Expr, case_e: Expr, sw_type: ValueType, got_type: Bool, ln: I64, cl: I64) returns Expr throws Str {
+    mut is_enum := false
+    if got_type {
+        switch sw_type {
+        case ValueType.TCustom(tn):
+            mut _ed := context.scope_stack.lookup_enum(tn)
+            is_enum = true
+            catch (err: KeyNotFoundError) {
+                // Not enum
+            }
+        case:
+        }
+    }
+
+    if not(is_enum) {
+        // Computed value comparison
+        mut tp := "I64"
+        if got_type {
+            switch sw_type {
+            case ValueType.TCustom(t):
+                tp = t
+            case:
+            }
+        }
+        mut eqp1 := Vec.new(Expr)
+        eqp1.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+        mut cp := Vec.new(Expr)
+        cp.push(Expr.new_explicit(NodeType.Identifier(tp), eqp1, ln, cl))
+        cp.push(sw_expr.clone())
+        cp.push(case_e.clone())
+        return Expr.new_explicit(NodeType.FCall, cp, ln, cl)
+    }
+
+    // Enum variant with payload
+    mut vne := Expr()
+    case_e.params.get(0, vne)
+    catch (err: IndexOutOfBoundsError) {
+        // Empty params
+    }
+    fvn := build_identifier_chain_name(vne)
+
+    has_nested := case_e.params.len().gt(1)
+
+    // Build outer condition
+    mut ep := Vec.new(Expr)
+    ep.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+    ep.push(sw_expr.clone())
+    ec := Expr.new_explicit(NodeType.FCall, ep, ln, cl)
+
+    sl := Expr.new_explicit(NodeType.LLiteral(Literal.Str(fvn)), Vec.new(Expr), ln, cl)
+    mut eqp2 := Vec.new(Expr)
+    eqp2.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+    mut ocp := Vec.new(Expr)
+    ocp.push(Expr.new_explicit(NodeType.Identifier("Str"), eqp2, ln, cl))
+    ocp.push(ec)
+    ocp.push(sl)
+    outer_cond := Expr.new_explicit(NodeType.FCall, ocp, ln, cl)
+
+    if has_nested {
+        mut ipe := Expr()
+        case_e.params.get(1, ipe)
+        catch (err: IndexOutOfBoundsError) {
+            // Empty
+        }
+        ivn := build_identifier_chain_name(ipe)
+
+        mut vs := fvn
+        vdp := fvn.rfind(".")
+        if vdp.gteq(0) {
+            vs = get_substr(fvn, vdp.add(1), fvn.len())
+        }
+
+        mut etn := ""
+        if vdp.gteq(0) {
+            etn = get_substr(fvn, 0, vdp)
+        } else if got_type {
+            switch sw_type {
+            case ValueType.TCustom(en):
+                etn = en
+            case:
+            }
+        }
+
+        mut pt := ValueType.TCustom("")
+        mut hpl := false
+        mut edf := context.scope_stack.lookup_enum(etn)
+        pptr := edf.get(vs)
+        if not(NULL.eq(pptr.data)) {
+            memcpy(to_ptr(pt), pptr.data, size_of(ValueType))
+            hpl = true
+        }
+        catch (err: KeyNotFoundError) {
+            // No payload
+        }
+
+        if hpl {
+            tn := format("_sw", I64.to_str(case_e.line), "_", I64.to_str(case_e.col), "payload")
+            vd := Declaration(name=tn, value_type=pt, is_mut=true, is_copy=false, is_own=false, default_value=NULL)
+            dv := build_default_value_for_forin(context, pt, ln, cl)
+            mut dp := Vec.new(Expr)
+            dp.push(dv)
+            de := Expr.new_explicit(NodeType.Declaration(vd), dp, ln, cl)
+
+            mut pcp := Vec.new(Expr)
+            pcp.push(Expr.new_explicit(NodeType.Identifier("enum_get_payload"), Vec.new(Expr), ln, cl))
+            pcp.push(sw_expr.clone())
+            pcp.push(Expr.new_explicit(NodeType.LLiteral(Literal.Str(vs)), Vec.new(Expr), ln, cl))
+            pcp.push(Expr.new_explicit(NodeType.Identifier(tn), Vec.new(Expr), ln, cl))
+            pc := Expr.new_explicit(NodeType.FCall, pcp, ln, cl)
+
+            mut iep := Vec.new(Expr)
+            iep.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+            iep.push(Expr.new_explicit(NodeType.Identifier(tn), Vec.new(Expr), ln, cl))
+            iec := Expr.new_explicit(NodeType.FCall, iep, ln, cl)
+
+            ist := Expr.new_explicit(NodeType.LLiteral(Literal.Str(ivn)), Vec.new(Expr), ln, cl)
+            mut ieqp := Vec.new(Expr)
+            ieqp.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+            mut icp := Vec.new(Expr)
+            icp.push(Expr.new_explicit(NodeType.Identifier("Str"), ieqp, ln, cl))
+            icp.push(iec)
+            icp.push(ist)
+            ic := Expr.new_explicit(NodeType.FCall, icp, ln, cl)
+
+            mut ibp := Vec.new(Expr)
+            ibp.push(de)
+            ibp.push(pc)
+            ibp.push(ic)
+            ib := Expr.new_explicit(NodeType.Body, ibp, ln, cl)
+
+            fl := Expr.new_explicit(NodeType.Identifier("false"), Vec.new(Expr), ln, cl)
+            mut cbp := Vec.new(Expr)
+            cbp.push(outer_cond)
+            cbp.push(ib)
+            cbp.push(fl)
+            return Expr.new_explicit(NodeType.If, cbp, ln, cl)
+        }
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw format("build_fcall_condition: ", err.msg)
+    }
+    return outer_cond
+}
+
+// Helper: Build default condition
+build_default_condition := proc(sw_expr: Expr, case_e: Expr, sw_type: ValueType, got_type: Bool, ln: I64, cl: I64) returns Expr {
+    mut tp := "I64"
+    if got_type {
+        switch sw_type {
+        case ValueType.TCustom(t):
+            tp = t
+        case:
+        }
+    }
+    mut eqp := Vec.new(Expr)
+    eqp.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+    mut cp := Vec.new(Expr)
+    cp.push(Expr.new_explicit(NodeType.Identifier(tp), eqp, ln, cl))
+    cp.push(sw_expr.clone())
+    cp.push(case_e.clone())
+    return Expr.new_explicit(NodeType.FCall, cp, ln, cl)
 }
 
 /// Build a default value expression for a given ValueType.

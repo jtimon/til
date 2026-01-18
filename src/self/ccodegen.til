@@ -546,6 +546,19 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
     // Check if this expression itself is a throwing call
     switch expr.node_type {
     case NodeType.FCall:
+        // Skip hoisting for compile-time intrinsics that get special handling in emit_fcall_expr
+        // These are handled with inline code, not actual function calls
+        if not(expr.params.is_empty()) {
+            mut hte_first_param := Expr()
+            expr.params.get(0, hte_first_param)
+            hte_func_name := get_til_func_name_string(hte_first_param)
+            catch (err: Str) { }
+            if hte_func_name.eq("enum_get_payload") {
+                // Don't hoist - this is a compile-time intrinsic
+                return ""
+            }
+        }
+
         // Bug #80: Use flag pattern for if-let-Some translation
         mut throwing_fd := SFuncDef()
         mut throwing_fd_found := false
@@ -4375,13 +4388,13 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     case NodeType.EnumDef(ed):
         throw "ccodegen: EnumDef should be handled at top level, not in emit_expr"
     case NodeType.Switch:
-        emit_switch(expr, output, indent, ctx, context)
+        throw expr.lang_error(context.path, "ccodegen", "Switch should be desugared in precomp before reaching ccodegen")
     case NodeType.DefaultCase:
-        throw "ccodegen: DefaultCase should be handled inside emit_switch"
+        throw expr.lang_error(context.path, "ccodegen", "DefaultCase should be desugared in precomp before reaching ccodegen")
     case NodeType.Range:
-        throw "ccodegen: Range not yet supported"
+        throw expr.lang_error(context.path, "ccodegen", "Range should be desugared in precomp before reaching ccodegen")
     case NodeType.Pattern(p):
-        throw "ccodegen: Pattern should be handled inside emit_switch"
+        throw expr.lang_error(context.path, "ccodegen", "Pattern should be desugared in precomp before reaching ccodegen")
     case NodeType.NamedArg(na):
         throw expr.error(context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")
     case NodeType.ForIn(fi):
@@ -7801,6 +7814,12 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
 
     // Else branch (optional)
     if expr.params.len().gt(2) {
+        // Save hoisted_exprs before processing else branch
+        // The outer if's condition hoisting should not affect the else branch's
+        // condition hoisting (fixes range switch desugaring bug)
+        saved_hoisted := ctx.hoisted_exprs.clone()
+        ctx.hoisted_exprs.clear()
+
         mut emit_else_body := Expr()
         expr.params.get(2, emit_else_body)
         // Check if it's an else-if (nested If) or else block
@@ -7818,6 +7837,9 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
             output.push_str(indent_str)
             output.push_str("}\n")
         }
+
+        // Restore hoisted_exprs (in case of further processing)
+        ctx.hoisted_exprs = saved_hoisted
     } else {
         output.push_str("\n")
     }
@@ -7967,12 +7989,6 @@ HoistedArg := struct {
     mut temp_var: Str = ""
 }
 
-// Result struct for variant info extraction
-VariantInfo := struct {
-    mut type_name: Str = ""
-    mut variant_name: Str = ""
-}
-
 // Info about a catch block for code generation
 // Note: TIL version also has catch_block field, but Rust accesses stmts[i] directly
 CatchLabelInfoEntry := struct {
@@ -8005,82 +8021,6 @@ CollectedDeclaration := struct {
 VariadicFCallInfo := struct {
     mut elem_type: Str = ""
     mut regular_count: I64 = 0
-}
-
-// Extract enum type and variant names from a case pattern expression
-// For FCall: Type.Variant -> VariantInfo { type_name: "Type", variant_name: "Variant" }
-get_case_variant_info := proc(expr: Expr) returns VariantInfo {
-    switch expr.node_type {
-    case NodeType.FCall:
-        // FCall for Type.Variant (without payload extraction)
-        if not(expr.params.is_empty()) {
-            mut first_param := Expr()
-            expr.params.get(0, first_param)
-            switch first_param.node_type {
-            case NodeType.Identifier(type_name):
-                if not(first_param.params.is_empty()) {
-                    mut nested_param := Expr()
-                    first_param.params.get(0, nested_param)
-                    switch nested_param.node_type {
-                    case NodeType.Identifier(variant_name):
-                        mut result := VariantInfo()
-                        result.type_name = type_name.clone()
-                        result.variant_name = variant_name.clone()
-                        return result
-                    case:
-                        // REM: not identifier
-                    }
-                }
-            case:
-                // REM: not identifier
-            }
-        }
-        return VariantInfo()
-    case NodeType.Identifier(name):
-        // Identifier with nested params: Type.Variant
-        if not(expr.params.is_empty()) {
-            mut ident_first_param := Expr()
-            expr.params.get(0, ident_first_param)
-            switch ident_first_param.node_type {
-            case NodeType.Identifier(variant_name):
-                mut ident_result := VariantInfo()
-                ident_result.type_name = name.clone()
-                ident_result.variant_name = variant_name.clone()
-                return ident_result
-            case:
-                // REM: not identifier
-            }
-        }
-        // Plain identifier without nested params - NOT an enum variant pattern
-        // Return empty to let emit_switch fall through to regular value comparison
-        return VariantInfo()
-    case:
-        return VariantInfo()
-    }
-
-    catch (err: IndexOutOfBoundsError) {
-        return VariantInfo()
-    }
-}
-
-// Extract type name and variant name from a Pattern's variant_name (e.g., "Color.Green")
-parse_pattern_variant_name := proc(variant_name: Str) returns VariantInfo throws Str {
-    dot_pos := variant_name.rfind(".")
-    if dot_pos.gteq(0) {
-        type_name := variant_name.get_substr(0, dot_pos)
-        var_name := variant_name.get_substr(dot_pos.add(1), variant_name.len())
-        mut result := VariantInfo()
-        result.type_name = type_name
-        result.variant_name = var_name
-        return result
-    } else {
-        // No dot - just variant name (shouldn't happen in practice)
-        mut else_result := VariantInfo()
-        else_result.variant_name = variant_name.clone()
-        return else_result
-    }
-
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
 }
 
 /// Collect all variable declarations in a body (recursively) for hoisting
@@ -8185,434 +8125,6 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
 
     catch (err: IndexOutOfBoundsError) {
         // REM: ignore
-    }
-}
-
-emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
-    // Switch: params[0] = switch expression
-    // params[1..] = alternating (case_pattern, body) pairs
-    // We emit if/else chains instead of C switch because:
-    // 1. C switch only works with integer types, not Str
-    // 2. Avoids GCC-specific case range extension
-    // 3. More portable and easier to handle all TIL switch patterns
-    if expr.params.is_empty() {
-        throw "ccodegen: Switch requires expression"
-    }
-
-    indent_str := repeat("    ", indent)
-    body_indent := repeat("    ", indent.add(1))
-
-    // Get the switch expression
-    mut switch_expr := Expr()
-    expr.params.get(0, switch_expr)
-
-    // Hoist any throwing function calls in the switch expression
-    _ := hoist_throwing_expr(switch_expr, output, indent, ctx, context)
-    catch (err: KeyNotFoundError) {
-        // REM: Rust's Ok(None) case - not propagated by ?, just ignored
-    }
-
-    // Determine the type of the switch expression for proper comparison
-    // Type inference may fail - that's okay, we'll use default
-    mut switch_type := ValueType.TCustom("")
-    mut has_switch_type := false
-    switch_type = get_value_type(context, switch_expr)
-    has_switch_type = true
-    catch (err: Str) {
-        // REM: type inference failed, that's ok
-    }
-
-    mut is_str_switch := false
-    if has_switch_type {
-        switch switch_type {
-        case ValueType.TCustom(t):
-            if t.eq("Str") {
-                is_str_switch = true
-            }
-        case:
-            // REM: not a custom type
-        }
-    }
-
-    // Determine if this is an enum switch and if it has payloads
-    mut is_enum_switch := false
-    mut enum_has_payloads_flag := false
-    mut i := 1
-    while i.lt(expr.params.len()) {
-        mut check_case_pattern := Expr()
-        expr.params.get(i, check_case_pattern)
-        switch check_case_pattern.node_type {
-        case NodeType.Pattern(_):
-            is_enum_switch = true
-        case NodeType.Identifier(name):
-            if not(check_case_pattern.params.is_empty()).or(name.contains(".")) {
-                is_enum_switch = true
-            }
-        case NodeType.FCall:
-            is_enum_switch = true
-            // FCall with arguments (e.g., ValueType.TType(TTypeDef.TEnumDef))
-            // implies the enum has payloads
-            if check_case_pattern.params.len().gt(1) {
-                enum_has_payloads_flag = true
-            }
-        case:
-            // REM: not an enum case
-        }
-        i = i.add(2)
-    }
-    if is_enum_switch {
-        if has_switch_type {
-            switch switch_type {
-            case ValueType.TCustom(enum_name):
-                mut have_enum_def := true
-                enum_def := context.scope_stack.lookup_enum(enum_name)
-                catch (err: KeyNotFoundError) {
-                    have_enum_def = false
-                }
-                if have_enum_def {
-                    enum_has_payloads_flag = enum_has_payloads(enum_def)
-                }
-            case:
-                // REM: not a custom type
-            }
-        }
-    }
-
-    // Store switch expression in a temp variable to avoid re-evaluation
-    switch_var := next_mangled(ctx)
-    output.push_str(indent_str)
-    output.push_str("__auto_type ")
-    output.push_str(switch_var)
-    output.push_str(" = ")
-    emit_expr(switch_expr, output, 0, ctx, context)
-    output.push_str(";\n")
-
-    // Hoist declarations from all case bodies to before the if/else chain
-    // This ensures variables declared in switch cases are visible after the switch
-    // (TIL has function-level scoping, not block-level scoping)
-    mut j := 1
-    while j.add(1).lt(expr.params.len()) {
-        mut body := Expr()
-        expr.params.get(j.add(1), body)
-        decls := collect_declarations_in_body(body, context)
-        for decl: CollectedDeclaration in decls {
-            c_var_name := til_name(decl.name)
-            if not(ctx.declared_vars.contains(c_var_name)) {
-                mut have_c_type := true
-                c_type := til_type_to_c(decl.value_type)
-                catch (err: Str) {
-                    have_c_type = false
-                }
-                if have_c_type {
-                    output.push_str(indent_str)
-                    output.push_str(c_type)
-                    output.push_str(" ")
-                    output.push_str(c_var_name)
-                    output.push_str(";\n")
-                    _ := ctx.declared_vars.insert(c_var_name)
-                    // Also register in scope_stack so get_value_type can find it
-                    mut symbol_info := SymbolInfo()
-                    symbol_info.value_type = decl.value_type
-                    symbol_info.is_mut = false
-                    symbol_info.is_copy = false
-                    symbol_info.is_own = false
-                    symbol_info.is_comptime_const = false
-                    context.scope_stack.declare_symbol(decl.name.clone(), symbol_info)
-                }
-            }
-        }
-        j = j.add(2)
-    }
-
-    // Emit if/else if chain for cases
-    // Default case (if present) is guaranteed to be last by parser
-    mut k := 1
-    mut first_case := true
-    mut has_cases := false
-    while k.add(1).lt(expr.params.len()) {
-        mut case_pattern := Expr()
-        expr.params.get(k, case_pattern)
-        mut case_body := Expr()
-        expr.params.get(k.add(1), case_body)
-        has_cases = true
-
-        // Check if this is the default case (guaranteed last by parser)
-        switch case_pattern.node_type {
-        case NodeType.DefaultCase:
-            // Default case - emit as else block
-            if not(first_case) {
-                output.push_str(indent_str)
-                output.push_str("} else {\n")
-            }
-            saved_declared_vars := ctx.declared_vars.clone()
-            emit_body(case_body, output, indent.add(1), ctx, context)
-            ctx.declared_vars = saved_declared_vars
-            k = k.add(2)
-            continue
-        case:
-            // REM: not default case, continue below
-        }
-
-        // Regular case - emit if/else if
-        output.push_str(indent_str)
-        if first_case {
-            output.push_str("if (")
-            first_case = false
-        } else {
-            output.push_str("} else if (")
-        }
-
-        // Emit the condition based on pattern type
-        switch case_pattern.node_type {
-        case NodeType.Pattern(pattern_info):
-            // Enum pattern with payload binding: compare tag
-            mut info := parse_pattern_variant_name(pattern_info.variant_name)
-            // If no type prefix (shorthand syntax), use the switch expression's type
-            if info.type_name.is_empty() {
-                if has_switch_type {
-                    switch switch_type {
-                    case ValueType.TCustom(enum_name):
-                        info.type_name = enum_name.clone()
-                    case:
-                        // REM: not a custom type
-                    }
-                }
-            }
-            output.push_str(switch_var)
-            output.push_str(".tag == til_")
-            output.push_str(info.type_name)
-            output.push_str("_")
-            output.push_str(info.variant_name)
-            output.push_str(") {\n")
-
-            // Extract payload into binding variable
-            output.push_str(body_indent)
-            output.push_str("__auto_type ")
-            output.push_str(til_name(pattern_info.binding_var))
-            output.push_str(" = ")
-            output.push_str(switch_var)
-            output.push_str(".payload.")
-            output.push_str(info.variant_name)
-            output.push_str(";\n")
-        case NodeType.Range:
-            // Range: low <= val && val <= high
-            if case_pattern.params.len().lt(2) {
-                throw "ccodegen: Range requires start and end values"
-            }
-            if is_str_switch {
-                // For string ranges, use strcmp: strcmp(low, val) <= 0 && strcmp(val, high) <= 0
-                output.push_str("strcmp((char*)")
-                mut range_start := Expr()
-            case_pattern.params.get(0, range_start)
-                emit_expr(range_start, output, 0, ctx, context)
-                output.push_str(".c_string, (char*)")
-                output.push_str(switch_var)
-                output.push_str(".c_string) <= 0 && strcmp((char*)")
-                output.push_str(switch_var)
-                output.push_str(".c_string, (char*)")
-                mut range_end := Expr()
-            case_pattern.params.get(1, range_end)
-                emit_expr(range_end, output, 0, ctx, context)
-                output.push_str(".c_string) <= 0")
-            } else {
-                mut else_range_start := Expr()
-            case_pattern.params.get(0, else_range_start)
-                emit_expr(else_range_start, output, 0, ctx, context)
-                output.push_str(" <= ")
-                output.push_str(switch_var)
-                output.push_str(" && ")
-                output.push_str(switch_var)
-                output.push_str(" <= ")
-                mut else_range_end := Expr()
-            case_pattern.params.get(1, else_range_end)
-                emit_expr(else_range_end, output, 0, ctx, context)
-            }
-            output.push_str(") {\n")
-        case NodeType.Identifier(_name):
-            ident_info := get_case_variant_info(case_pattern)
-            if not(ident_info.variant_name.is_empty()) {
-                // Enum variant without payload
-                output.push_str(switch_var)
-                if enum_has_payloads_flag {
-                    output.push_str(".tag")
-                }
-                output.push_str(" == ")
-                if not(ident_info.type_name.is_empty()) {
-                    output.push_str("til_")
-                    output.push_str(ident_info.type_name)
-                    output.push_str("_")
-                }
-                output.push_str(ident_info.variant_name)
-            } else if is_str_switch {
-                // String comparison - pass by pointer
-                output.push_str("til_Str_eq(&")
-                output.push_str(switch_var)
-                output.push_str(", &")
-                emit_expr(case_pattern, output, 0, ctx, context)
-                output.push_str(").data")
-            } else {
-                // Regular value comparison
-                output.push_str(switch_var)
-                output.push_str(" == ")
-                emit_expr(case_pattern, output, 0, ctx, context)
-            }
-            output.push_str(") {\n")
-        case NodeType.LLiteral(_):
-            if is_str_switch {
-                // String literal comparison - pass by pointer
-                output.push_str("til_Str_eq(&")
-                output.push_str(switch_var)
-                output.push_str(", &")
-                emit_expr(case_pattern, output, 0, ctx, context)
-                output.push_str(").data")
-            } else {
-                // Regular literal comparison
-                output.push_str(switch_var)
-                output.push_str(" == ")
-                emit_expr(case_pattern, output, 0, ctx, context)
-            }
-            output.push_str(") {\n")
-        case NodeType.FCall:
-            // FCall pattern: Type.Variant(payload) - enum variant with payload argument
-            // For example: ValueType.TType(TTypeDef.TEnumDef)
-            fcall_info := get_case_variant_info(case_pattern)
-            if not(fcall_info.variant_name.is_empty()).and(enum_has_payloads_flag) {
-                // Compare tag first
-                output.push_str(switch_var)
-                output.push_str(".tag == til_")
-                output.push_str(fcall_info.type_name)
-                output.push_str("_")
-                output.push_str(fcall_info.variant_name)
-
-                // Check if there's a payload argument to compare
-                // params[0] is Type.Variant identifier, params[1+] are arguments
-                if case_pattern.params.len().gt(1) {
-                    mut payload_expr := Expr()
-                case_pattern.params.get(1, payload_expr)
-                    // Check if payload is also an enum variant (Type.Variant pattern)
-                    payload_info := get_case_variant_info(payload_expr)
-                    if not(payload_info.variant_name.is_empty()) {
-                        // Payload is an enum variant - compare payload field
-                        output.push_str(" && ")
-                        output.push_str(switch_var)
-                        output.push_str(".payload.")
-                        output.push_str(fcall_info.variant_name)
-                        output.push_str(" == til_")
-                        output.push_str(payload_info.type_name)
-                        output.push_str("_")
-                        output.push_str(payload_info.variant_name)
-                    }
-                    // TODO: handle non-enum payloads if needed
-                }
-                output.push_str(") {\n")
-            } else if not(fcall_info.variant_name.is_empty()) {
-                // Enum without payloads - simple tag comparison
-                output.push_str(switch_var)
-                output.push_str(" == til_")
-                output.push_str(fcall_info.type_name)
-                output.push_str("_")
-                output.push_str(fcall_info.variant_name)
-                output.push_str(") {\n")
-            } else {
-                // Not an enum pattern - fall through to generic comparison
-                output.push_str(switch_var)
-                output.push_str(" == ")
-                emit_expr(case_pattern, output, 0, ctx, context)
-                output.push_str(") {\n")
-            }
-        case:
-            // Generic case: emit equality comparison
-            // TODO: Should emit proper FCall through normal path instead of hardcoding
-            if is_str_switch {
-                output.push_str("til_Str_eq(&")
-                output.push_str(switch_var)
-                output.push_str(", &")
-                emit_expr(case_pattern, output, 0, ctx, context)
-                output.push_str(").data")
-            } else {
-                output.push_str(switch_var)
-                output.push_str(" == ")
-                emit_expr(case_pattern, output, 0, ctx, context)
-            }
-            output.push_str(") {\n")
-        }
-
-        // Emit case body
-        // For pattern matching with binding variables, we need to add the binding to scope
-        // so that get_value_type can resolve it during body emission
-        // Save declared_vars for block scope - variables declared in this case body
-        // should not affect other case bodies
-        case_saved_declared_vars := ctx.declared_vars.clone()
-
-        switch case_pattern.node_type {
-        case NodeType.Pattern(pattern_info):
-            // Get the payload type from the enum definition
-            parsed_info := parse_pattern_variant_name(pattern_info.variant_name)
-            mut payload_type_opt := ValueType.TCustom("")
-            mut has_payload_type := false
-            if has_switch_type {
-                switch switch_type {
-                case ValueType.TCustom(enum_name):
-                    mut have_payload_enum_def := true
-                    payload_enum_def := context.scope_stack.lookup_enum(enum_name)
-                    catch (err: KeyNotFoundError) {
-                        have_payload_enum_def = false
-                    }
-                    if have_payload_enum_def {
-                        mut have_payload_ptr := true
-                        payload_ptr := payload_enum_def.get(parsed_info.variant_name)
-                        catch (err: KeyNotFoundError) {
-                            have_payload_ptr = false
-                        }
-                        catch (err: IndexOutOfBoundsError) {
-                            throw err.msg
-                        }
-                        // Now check if we got a payload type (Ptr not NULL)
-                        if have_payload_ptr.and(not(payload_ptr.is_null())) {
-                            memcpy(to_ptr(payload_type_opt), payload_ptr.data, size_of(ValueType))
-                            has_payload_type = true
-                        }
-                    }
-                case:
-                    // REM: not a custom type
-                }
-            }
-
-            if has_payload_type {
-                // Push scope and declare binding variable
-                context.scope_stack.push(ScopeType.Block)
-                mut binding_symbol_info := SymbolInfo()
-                binding_symbol_info.value_type = payload_type_opt
-                binding_symbol_info.is_mut = false
-                binding_symbol_info.is_copy = false
-                binding_symbol_info.is_own = false
-                binding_symbol_info.is_comptime_const = false
-                context.scope_stack.declare_symbol(pattern_info.binding_var.clone(), binding_symbol_info)
-                emit_body(case_body, output, indent.add(1), ctx, context)
-                _ := context.scope_stack.pop()
-                catch (err: Str) {
-                    // REM: pop failed
-                }
-            } else {
-                emit_body(case_body, output, indent.add(1), ctx, context)
-            }
-        case:
-            emit_body(case_body, output, indent.add(1), ctx, context)
-        }
-
-        // Restore declared_vars after case body
-        ctx.declared_vars = case_saved_declared_vars
-        k = k.add(2)
-    }
-
-    // Close the if/else chain
-    if has_cases {
-        output.push_str(indent_str)
-        output.push_str("}\n")
-    }
-
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
     }
 }
 
@@ -8878,6 +8390,44 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         case:
             throw "ccodegen: enum_to_str argument has non-custom type"
         }
+    } else if orig_func_name.eq("enum_get_payload") {
+        // enum_get_payload(enum_val, variant_name, dest) - extract payload from enum
+        // Emits: indent + dest = enum_val.payload.VariantName;\n
+        // This is a statement (not expression), so needs full formatting.
+        if expr.params.len().lt(4) {
+            throw "ccodegen: enum_get_payload requires 3 arguments"
+        }
+        mut egp_enum_arg := Expr()
+        expr.params.get(1, egp_enum_arg)
+        mut egp_variant_arg := Expr()
+        expr.params.get(2, egp_variant_arg)
+        mut egp_dest_arg := Expr()
+        expr.params.get(3, egp_dest_arg)
+
+        // Get variant name from string literal
+        mut egp_variant_name := ""
+        switch egp_variant_arg.node_type {
+        case NodeType.LLiteral(lit):
+            switch lit {
+            case Literal.Str(s):
+                egp_variant_name = s
+            case:
+                throw "ccodegen: enum_get_payload variant_name must be a string literal"
+            }
+        case:
+            throw "ccodegen: enum_get_payload variant_name must be a string literal"
+        }
+
+        // Emit: indent + dest = enum_val.payload.VariantName;\n
+        egp_indent := repeat("    ", indent)
+        output.push_str(egp_indent)
+        emit_expr(egp_dest_arg, output, 0, ctx, context)
+        output.push_str(" = ")
+        emit_expr(egp_enum_arg, output, 0, ctx, context)
+        output.push_str(".payload.")
+        output.push_str(egp_variant_name)
+        output.push_str(";\n")
+        return
     } else if orig_func_name.eq("size_of") {
         // size_of(T) - runtime type size lookup via til_size_of function
         if expr.params.len().lt(2) {
