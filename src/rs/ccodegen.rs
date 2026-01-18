@@ -223,7 +223,7 @@ fn get_field_type_dependency(value_type: &ValueType) -> Option<String> {
             // I64 and U8 are primitives, not struct dependencies
             match name.as_str() {
                 "I64" | "U8" => None,
-                s if s == INFER_TYPE => panic!("INFER_TYPE in ccodegen - should have been resolved by typer"),
+                s if s == INFER_TYPE => None,
                 _ => Some(name.clone()),
             }
         },
@@ -402,7 +402,7 @@ fn hoist_throwing_expr(
     let indent_str = "    ".repeat(indent);
 
     // Check if this expression itself is a throwing call
-    if let NodeType::FCall(_) = &expr.node_type {
+    if let NodeType::FCall = &expr.node_type {
     if let Some(throwing_fd) = get_fcall_func_def(context, expr) {
     if !throwing_fd.throw_types.is_empty() {
         // First, recursively hoist any throwing calls in this call's arguments
@@ -459,7 +459,7 @@ fn hoist_throwing_expr(
 
         // Emit the function call with output pointers
         output.push_str(&indent_str);
-        output.push_str("int __attribute__((unused)) _status_");
+        output.push_str("int _status_");
         output.push_str(&temp_suffix);
         output.push_str(" = ");
 
@@ -556,7 +556,7 @@ fn hoist_throwing_expr(
     }}}
 
     // Check if this is a non-throwing variadic call - also needs hoisting
-    if let NodeType::FCall(_) = &expr.node_type {
+    if let NodeType::FCall = &expr.node_type {
         if let Some(variadic_fcall_info) = detect_variadic_fcall(expr, ctx) {
             // Recursively hoist any throwing/variadic calls in this call's arguments first
             let ntv_nested_hoisted: std::collections::HashMap<usize, String> = if expr.params.len() > 1 {
@@ -650,7 +650,7 @@ fn hoist_throwing_expr(
     }
 
     // Check if this is a struct literal with throwing default values
-    if let NodeType::FCall(_) = &expr.node_type {
+    if let NodeType::FCall = &expr.node_type {
         if let Some(sl_func_name) = get_func_name_string(&expr.params[0]) {
             let has_named_args = expr.params.iter().skip(1).any(|sl_arg| matches!(&sl_arg.node_type, NodeType::NamedArg(_)));
             if let Some(sl_struct_def) = context.scope_stack.lookup_struct(&sl_func_name).cloned() {
@@ -707,7 +707,7 @@ fn hoist_throwing_expr(
 
     // Not a throwing call or variadic call - recursively check sub-expressions
     // For FCall, check all arguments
-    if let NodeType::FCall(_) = &expr.node_type {
+    if let NodeType::FCall = &expr.node_type {
         if expr.params.len() > 1 {
             for arg in &expr.params[1..] {
                 hoist_throwing_expr(arg, output, indent, ctx, context)?;
@@ -738,7 +738,7 @@ fn hoist_throwing_args(
 
     for (idx, arg) in args.iter().enumerate() {
         // Check if it's a throwing call
-        let throwing_fd_opt = if let NodeType::FCall(_) = &arg.node_type {
+        let throwing_fd_opt = if let NodeType::FCall = &arg.node_type {
             get_fcall_func_def(context, arg).filter(|fd| !fd.throw_types.is_empty())
         } else {
             None
@@ -802,7 +802,7 @@ fn hoist_throwing_args(
 
             // Emit the function call with output pointers
             output.push_str(&indent_str);
-            output.push_str("int __attribute__((unused)) _status_");
+            output.push_str("int _status_");
             output.push_str(&thr_temp_suffix);
             output.push_str(" = ");
 
@@ -957,7 +957,7 @@ fn hoist_throwing_args(
         // Handle non-throwing, non-variadic FCalls - still need to recurse into their arguments
         // to find deeply nested variadic/throwing calls (e.g., not(or(false)))
         // and also to hoist Dynamic params (e.g., Vec.contains(v, "bar"))
-        else if matches!(arg.node_type, NodeType::FCall(_)) && arg.params.len() > 1 {
+        else if matches!(arg.node_type, NodeType::FCall) && arg.params.len() > 1 {
             let nested_args = &arg.params[1..];
             // Recurse to hoist any nested throwing/variadic calls
             let _ = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
@@ -982,7 +982,7 @@ fn hoist_throwing_args(
         // Handle struct literal arguments (no args, or only named args) - need to hoist their throwing defaults
         // For struct literals like Expr() passed as arguments, their throwing default field values
         // (e.g., params = Vec.new(Expr)) need to be hoisted BEFORE the struct literal is created
-        else if matches!(arg.node_type, NodeType::FCall(_)) {
+        else if matches!(arg.node_type, NodeType::FCall) {
             if let Some(func_name) = get_fcall_func_name(arg) {
                 if context.scope_stack.lookup_struct(&func_name).is_some() {
                     // This is a struct literal - hoist its throwing defaults
@@ -1039,7 +1039,7 @@ fn hoist_for_dynamic_params(
                 !arg.params.is_empty()
             },
             NodeType::LLiteral(Literal::Str(_)) => true,  // String literals need hoisting
-            NodeType::FCall(_) => true,    // Function calls need hoisting
+            NodeType::FCall => true,    // Function calls need hoisting
             _ => true,  // Default to hoisting for safety
         };
 
@@ -1050,8 +1050,8 @@ fn hoist_for_dynamic_params(
         // Determine the C type of the arg based on what it is
         let c_type: Result<String, String> = match &arg.node_type {
             NodeType::LLiteral(Literal::Str(_)) => Ok(format!("{}Str", TIL_PREFIX)),
-            NodeType::LLiteral(Literal::Number(_)) => Ok("til_I64".to_string()),
-            NodeType::LLiteral(Literal::List(_)) => Ok("til_I64".to_string()), // TODO: proper list type
+            NodeType::LLiteral(Literal::Number(_)) => Ok("int64_t".to_string()),
+            NodeType::LLiteral(Literal::List(_)) => Ok("int64_t".to_string()), // TODO: proper list type
             NodeType::Identifier(var_name) if !arg.params.is_empty() => {
                 // Could be: enum constructor (Type.Variant), field access (var.field), or method call
                 let first_param = arg.params.first()
@@ -1096,7 +1096,7 @@ fn hoist_for_dynamic_params(
                     Err(arg.lang_error(&context.path, "ccodegen", &format!("Unknown type: {}", type_name)))
                 }
             }
-            NodeType::FCall(_) => {
+            NodeType::FCall => {
                 // For function calls, try to determine return type
                 if let Some(fd) = get_fcall_func_def(context, arg) {
                     if !fd.throw_types.is_empty() {
@@ -1215,7 +1215,7 @@ fn hoist_for_ref_params(
             },
             NodeType::LLiteral(Literal::Str(_)) => false,  // Compound literal, can use &
             NodeType::LLiteral(Literal::Number(_)) => true,  // Can't take address of integer literal
-            NodeType::FCall(_) => {
+            NodeType::FCall => {
                 // Check if this is an enum or struct constructor - those become compound literals
                 // which CAN have & taken directly, so no hoisting needed
                 if let Some(first) = arg.params.first() {
@@ -1235,7 +1235,7 @@ fn hoist_for_ref_params(
         // Determine the C type based on what the arg evaluates to
         let c_type: Result<String, String> = match &arg.node_type {
             NodeType::LLiteral(Literal::Number(_)) => Ok(format!("{}I64", TIL_PREFIX)),
-            NodeType::FCall(_) => {
+            NodeType::FCall => {
                 // Look up the function's return type
                 if let Some(fd) = get_fcall_func_def(context, arg) {
                     if let Some(ret_type) = fd.return_types.first() {
@@ -1318,7 +1318,7 @@ fn hoist_variadic_args(
     // Declare error var for Array.set (IndexOutOfBoundsError)
     output.push_str(&indent_str);
     output.push_str(TIL_PREFIX);
-    output.push_str("IndexOutOfBoundsError __attribute__((unused)) _err_idx_");
+    output.push_str("IndexOutOfBoundsError _err_idx_");
     output.push_str(&err_suffix);
     output.push_str(";\n");
 
@@ -1379,7 +1379,7 @@ fn hoist_variadic_args(
 
     // Declare status variable for Array.set calls
     output.push_str(&indent_str);
-    output.push_str("int __attribute__((unused)) _arr_status_");
+    output.push_str("int _arr_status_");
     output.push_str(&err_suffix);
     output.push_str(";\n");
 
@@ -1834,7 +1834,7 @@ fn emit_arg_with_param_type(
         if matches!(&arg.node_type, NodeType::LLiteral(Literal::Str(_))) {
             output.push_str("&");
             emit_expr(arg, output, 0, ctx, context)?;
-        } else if matches!(&arg.node_type, NodeType::FCall(_)) {
+        } else if matches!(&arg.node_type, NodeType::FCall) {
             // Bug #60: FCall result is rvalue, can't take address directly
             // For simple typedefs like I64: use compound literal &(Type){fcall()}
             // For struct types: use GCC statement expression ({ Type _t = fcall(); &_t; })
@@ -2247,7 +2247,7 @@ fn is_constant_declaration(expr: &Expr) -> bool {
 // Check if an expression is a function call that uses out-params (i.e., the function throws)
 // Such calls cannot be used inline in struct initializers - they need separate statements
 fn is_throwing_fcall(expr: &Expr, context: &Context) -> bool {
-    if let NodeType::FCall(_) = &expr.node_type {
+    if let NodeType::FCall = &expr.node_type {
         if let Some(fd) = get_fcall_func_def(context, expr) {
             return !fd.throw_types.is_empty();
         }
@@ -2274,10 +2274,11 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &mut Codegen
                     Literal::Number(_) => {
                         // Check if declaration has explicit type annotation
                         if let ValueType::TCustom(type_name) = &decl.value_type {
-                            if type_name == INFER_TYPE {
-                                return Err(expr.lang_error(&context.path, "ccodegen", &format!("Declaration '{}' has INFER_TYPE - should have been resolved by typer", decl.name)));
+                            if type_name != INFER_TYPE {
+                                format!("{}{}", TIL_PREFIX, type_name)
+                            } else {
+                                format!("{}I64", TIL_PREFIX)
                             }
-                            format!("{}{}", TIL_PREFIX, type_name)
                         } else {
                             format!("{}I64", TIL_PREFIX)
                         }
@@ -3294,7 +3295,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
 
     match &expr.node_type {
         NodeType::Body => emit_body(expr, output, indent, ctx, context),
-        NodeType::FCall(_) => emit_fcall(expr, output, indent, ctx, context),
+        NodeType::FCall => emit_fcall(expr, output, indent, ctx, context),
         NodeType::LLiteral(lit) => emit_literal(lit, output, context),
         NodeType::Declaration(decl) => emit_declaration(decl, expr, output, indent, ctx, context),
         NodeType::Identifier(name) => {
@@ -3376,7 +3377,15 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::FuncDef(func_def) => emit_funcdef(func_def, expr, output, indent, ctx, context),
         NodeType::Assignment(name) => emit_assignment(name, expr, output, indent, ctx, context),
         NodeType::Return => emit_return(expr, output, indent, ctx, context),
-        NodeType::If => emit_if(expr, output, indent, ctx, context),
+        NodeType::If => {
+            // Check if this If is being used as an expression (indent 0 means it's inline, not a statement)
+            // and it has an else branch (making it an if-expression)
+            if indent == 0 && expr.params.len() >= 3 {
+                emit_if_expr(expr, output, ctx, context)
+            } else {
+                emit_if(expr, output, indent, ctx, context)
+            }
+        },
         NodeType::While => emit_while(expr, output, indent, ctx, context),
         NodeType::Break => emit_break(expr, output, indent),
         NodeType::Continue => emit_continue(expr, output, indent),
@@ -3384,10 +3393,10 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::Throw => emit_throw(expr, output, indent, ctx, context),
         NodeType::StructDef(_) => Err("ccodegen: StructDef should be handled at top level, not in emit_expr".to_string()),
         NodeType::EnumDef(_) => Err("ccodegen: EnumDef should be handled at top level, not in emit_expr".to_string()),
-        NodeType::Switch => emit_switch(expr, output, indent, ctx, context),
-        NodeType::DefaultCase => Err("ccodegen: DefaultCase should be handled inside emit_switch".to_string()),
+        NodeType::Switch => Err("ccodegen: Switch should be desugared in precomp before reaching ccodegen".to_string()),
+        NodeType::DefaultCase => Err("ccodegen: DefaultCase should be desugared in precomp before reaching ccodegen".to_string()),
         NodeType::Range => Err("ccodegen: Range not yet supported".to_string()),
-        NodeType::Pattern(_) => Err("ccodegen: Pattern should be handled inside emit_switch".to_string()),
+        NodeType::Pattern(_) => Err("ccodegen: Pattern should be desugared in precomp before reaching ccodegen".to_string()),
         NodeType::NamedArg(_) => Err(expr.error(&context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")),
         NodeType::ForIn(_) => Err(expr.lang_error(&context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")),
     }
@@ -3588,11 +3597,11 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         // Check if this statement is followed by catch blocks
         // And if it's a call to a throwing function (FCall, Declaration with FCall, or Assignment with FCall)
         let (maybe_fcall, maybe_decl_name, maybe_assign_name) = match &stmt.node_type {
-            NodeType::FCall(_) => (Some(stmt), None, None),
+            NodeType::FCall => (Some(stmt), None, None),
             NodeType::Declaration(decl) => {
                 // Check if declaration has an FCall as initializer
                 if !stmt.params.is_empty() {
-                    if let NodeType::FCall(_) = stmt.params[0].node_type {
+                    if let NodeType::FCall = stmt.params[0].node_type {
                         (Some(&stmt.params[0]), Some(decl.name.clone()), None)
                     } else {
                         (None, None, None)
@@ -3604,7 +3613,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
             NodeType::Assignment(name) => {
                 // Check if assignment has an FCall as RHS
                 if !stmt.params.is_empty() {
-                    if let NodeType::FCall(_) = stmt.params[0].node_type {
+                    if let NodeType::FCall = stmt.params[0].node_type {
                         (Some(&stmt.params[0]), None, Some(name.clone()))
                     } else {
                         (None, None, None)
@@ -4100,7 +4109,7 @@ fn emit_throwing_call(
 
     // Generate the function call with output parameters
     output.push_str(&indent_str);
-    output.push_str("int __attribute__((unused)) _status_");
+    output.push_str("int _status_");
     output.push_str(&temp_suffix.to_string());
     output.push_str(" = ");
     output.push_str(&til_func_name(&func_name));
@@ -4412,7 +4421,7 @@ fn emit_throwing_call_propagate(
 
     // Generate the function call with output parameters
     output.push_str(&indent_str);
-    output.push_str("int __attribute__((unused)) _status_");
+    output.push_str("int _status_");
     output.push_str(&temp_suffix);
     output.push_str(" = ");
     output.push_str(&til_func_name(&func_name));
@@ -4683,7 +4692,7 @@ fn emit_throwing_call_with_goto(
 
     // Generate the function call with output parameters
     output.push_str(&indent_str);
-    output.push_str("int __attribute__((unused)) _status_");
+    output.push_str("int _status_");
     output.push_str(&temp_suffix);
     output.push_str(" = ");
     output.push_str(&til_func_name(&func_name));
@@ -4948,7 +4957,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             output.push_str(&indent_str);
             // FCall at statement level (indent > 0) adds ";\n" itself
             // Other expressions need semicolon added explicitly
-            let is_fcall = matches!(&expr.params[0].node_type, NodeType::FCall(_));
+            let is_fcall = matches!(&expr.params[0].node_type, NodeType::FCall);
             if is_fcall {
                 emit_expr(&expr.params[0], output, indent, ctx, context)?;
             } else {
@@ -5163,7 +5172,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     } else if is_mut {
         // Hoist Dynamic and ref params in RHS if it's an FCall
         if !expr.params.is_empty() {
-            if let NodeType::FCall(_) = &expr.params[0].node_type {
+            if let NodeType::FCall = &expr.params[0].node_type {
                 let rhs_fcall = &expr.params[0];
                 if rhs_fcall.params.len() > 1 {
                     if let Some(fd) = get_fcall_func_def(context, rhs_fcall) {
@@ -5197,11 +5206,16 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         }
         output.push_str(&indent_str);
         if !already_declared {
-            // INFER_TYPE should have been resolved by typer
-            if matches!(&decl.value_type, ValueType::TCustom(s) if s == INFER_TYPE) {
-                return Err(expr.lang_error(&context.path, "ccodegen", &format!("Declaration '{}' has INFER_TYPE - should have been resolved by typer", decl.name)));
-            }
-            let c_type = til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
+            // Determine C type - use explicit type annotation if present, otherwise infer
+            let is_infer = matches!(&decl.value_type, ValueType::TCustom(s) if s == INFER_TYPE);
+            let c_type = if is_infer {
+                // INFER_TYPE - infer from RHS
+                let vt = get_value_type(context, &expr.params[0]).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
+                til_type_to_c(&vt).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
+            } else {
+                // Explicit type annotation - use it
+                til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
+            };
             output.push_str(&c_type);
             output.push_str(" ");
             ctx.declared_vars.insert(til_name(name));
@@ -5216,7 +5230,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         // const declaration
         // Hoist Dynamic and ref params in RHS if it's an FCall
         if !expr.params.is_empty() {
-            if let NodeType::FCall(_) = &expr.params[0].node_type {
+            if let NodeType::FCall = &expr.params[0].node_type {
                 let rhs_fcall = &expr.params[0];
                 if rhs_fcall.params.len() > 1 {
                     if let Some(fd) = get_fcall_func_def(context, rhs_fcall) {
@@ -5250,11 +5264,16 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         }
         output.push_str(&indent_str);
         if !already_declared {
-            // INFER_TYPE should have been resolved by typer
-            if matches!(&decl.value_type, ValueType::TCustom(s) if s == INFER_TYPE) {
-                return Err(expr.lang_error(&context.path, "ccodegen", &format!("Declaration '{}' has INFER_TYPE - should have been resolved by typer", decl.name)));
-            }
-            let c_type = til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
+            // Determine C type - use explicit type annotation if present, otherwise infer
+            let is_infer = matches!(&decl.value_type, ValueType::TCustom(s) if s == INFER_TYPE);
+            let c_type = if is_infer {
+                // INFER_TYPE - infer from RHS
+                let vt = get_value_type(context, &expr.params[0]).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
+                til_type_to_c(&vt).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
+            } else {
+                // Explicit type annotation - use it
+                til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
+            };
             output.push_str("const ");
             output.push_str(&c_type);
             output.push_str(" ");
@@ -5273,7 +5292,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 // Check if an expression is a struct construction call (TypeName() or TypeName(x=1, y=2))
 // Returns the type name if it is, None otherwise
 fn get_struct_construction_type(expr: &Expr, context: &Context) -> Option<String> {
-    if let NodeType::FCall(_) = &expr.node_type {
+    if let NodeType::FCall = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::Identifier(name) = &expr.params[0].node_type {
                 // Use lookup_struct to check if this is a known struct type
@@ -5297,7 +5316,7 @@ fn get_struct_construction_type(expr: &Expr, context: &Context) -> Option<String
 // AST structure for Color.Unknown: Identifier("Color") -> [Identifier("Unknown")]
 fn get_enum_construction_type(expr: &Expr, context: &Context) -> Option<String> {
     // Check FCall case: Type.Variant(value) or Type.Variant()
-    if let NodeType::FCall(_) = &expr.node_type {
+    if let NodeType::FCall = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::Identifier(type_name) = &expr.params[0].node_type {
                 // Use lookup_enum to check if this is a known enum type
@@ -5355,7 +5374,7 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
         let rhs_expr = &expr.params[0];
 
         // Check if RHS is a call to a throwing function
-        if let NodeType::FCall(_) = rhs_expr.node_type {
+        if let NodeType::FCall = rhs_expr.node_type {
             if let Some(throw_types) = get_fcall_func_def(context, rhs_expr).map(|fd| fd.throw_types).filter(|t| !t.is_empty()) {
                 // RHS is a throwing function call - emit with error propagation
                 // (typer should ensure non-throwing context doesn't call throwing functions without catch)
@@ -5420,7 +5439,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
             let return_expr = &expr.params[0];
 
             // Check if return expression is a call to a throwing function
-            if let NodeType::FCall(_) = return_expr.node_type {
+            if let NodeType::FCall = return_expr.node_type {
                 if let Some(throw_types) = get_fcall_func_def(context, return_expr).map(|fd| fd.throw_types).filter(|t| !t.is_empty()) {
                     // Return expression is a throwing function call - emit with error propagation
                     // The result will be stored via the assign_name "*_ret"
@@ -5447,7 +5466,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         // Check if return expression is a variadic function call
         if !expr.params.is_empty() {
             let return_expr = &expr.params[0];
-            if let NodeType::FCall(_) = return_expr.node_type {
+            if let NodeType::FCall = return_expr.node_type {
                 if let Some(variadic_fcall_info) = detect_variadic_fcall(return_expr, ctx) {
                     // Variadic call in return - need to hoist it
                     // First, hoist any nested throwing/variadic calls in the arguments
@@ -5610,7 +5629,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // 1. A constructor like DivideByZero() - use the type name
     // 2. A function that returns an error type like format() - use the return type
     let nh_thrown_type_name = match &thrown_expr.node_type {
-        NodeType::FCall(_) => {
+        NodeType::FCall => {
             if !thrown_expr.params.is_empty() {
                 if let NodeType::Identifier(name) = &thrown_expr.params[0].node_type {
                     // Check if this is a constructor (struct/enum) or a function call
@@ -5668,7 +5687,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         let nh_label = nh_catch_info.label.clone();
         let nh_temp_var = nh_catch_info.temp_var.clone();
         // Hoist any throwing function calls in the thrown expression
-        let nh_hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall(_) = &thrown_expr.node_type {
+        let nh_hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall = &thrown_expr.node_type {
             if thrown_expr.params.len() > 1 {
                 let nh_args = &thrown_expr.params[1..];
                 let nh_hoisted_vec = hoist_throwing_args(nh_args, output, indent, ctx, context)?;
@@ -5686,7 +5705,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         output.push_str(" = ");
 
         // Emit the thrown expression
-        if let NodeType::FCall(_) = &thrown_expr.node_type {
+        if let NodeType::FCall = &thrown_expr.node_type {
             emit_fcall_with_hoisted(thrown_expr, &nh_hoisted, output, ctx, context)?;
         } else {
             emit_expr(thrown_expr, output, 0, ctx, context)?;
@@ -5717,7 +5736,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         Some(idx) => {
             // Hoist throwing function calls from arguments of the thrown expression
             // E.g., throw Error.new(format(...)) needs to hoist format() first
-            let nh_prop_hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall(_) = &thrown_expr.node_type {
+            let nh_prop_hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall = &thrown_expr.node_type {
                 if thrown_expr.params.len() > 1 {
                     let nh_prop_args = &thrown_expr.params[1..];
                     let nh_prop_hoisted_vec = hoist_throwing_args(nh_prop_args, output, indent, ctx, context)?;
@@ -5735,7 +5754,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             output.push_str(&format!("*_err{} = ", idx + 1));
 
             // Emit the thrown expression, using hoisted temp vars for arguments
-            if let NodeType::FCall(_) = &thrown_expr.node_type {
+            if let NodeType::FCall = &thrown_expr.node_type {
                 emit_fcall_with_hoisted(thrown_expr, &nh_prop_hoisted, output, ctx, context)?;
             } else {
                 emit_expr(thrown_expr, output, 0, ctx, context)?;
@@ -6000,6 +6019,12 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
 
     // Else branch (optional)
     if expr.params.len() > 2 {
+        // Save hoisted_exprs before processing else branch
+        // The outer if's condition hoisting should not affect the else branch's
+        // condition hoisting (fixes range switch desugaring bug)
+        let saved_hoisted = ctx.hoisted_exprs.clone();
+        ctx.hoisted_exprs.clear();
+
         // Check if it's an else-if (nested If) or else block
         if let NodeType::If = &expr.params[2].node_type {
             // Always wrap else-if in braces to ensure hoisted temp vars
@@ -6014,9 +6039,109 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
             output.push_str(&indent_str);
             output.push_str("}\n");
         }
+
+        // Restore hoisted_exprs (in case of further processing)
+        ctx.hoisted_exprs = saved_hoisted;
     } else {
         output.push_str("\n");
     }
+
+    Ok(())
+}
+
+/// Emit an if-expression as a GCC statement expression.
+/// Used when an If node appears in expression context (e.g., as condition of another if).
+/// Generates: ({ type decl; bool _result; if (cond) { stmts; _result = last_expr; } else { _result = else_expr; } _result; })
+fn emit_if_expr(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+    if expr.params.len() < 3 {
+        return Err("ccodegen: If expression requires condition, then, and else branches".to_string());
+    }
+
+    let temp_result = next_mangled(ctx);
+
+    // Collect declarations from then-branch to hoist before the if
+    // (TIL has function-level scoping, so declarations need to be visible outside the if block)
+    let then_branch = &expr.params[1];
+    let then_decls = collect_declarations_in_body(then_branch, context);
+
+    // Start statement expression
+    output.push_str("({ ");
+
+    // Hoist declarations from then-branch
+    // NOTE: Always emit declarations here because each statement expression has its own
+    // block scope in C. Variables declared inside ({ ... }) are not visible outside,
+    // so we can't rely on ctx.declared_vars to track them across statement expressions.
+    for decl in &then_decls {
+        let c_var_name = til_name(&decl.name);
+        if let Ok(c_type) = til_type_to_c(&decl.value_type) {
+            output.push_str(&c_type);
+            output.push_str(" ");
+            output.push_str(&c_var_name);
+            output.push_str("; ");
+            // Register in scope_stack so get_value_type can find it
+            context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
+                value_type: decl.value_type.clone(),
+                is_mut: false,
+                is_copy: false,
+                is_own: false,
+                is_comptime_const: false,
+            });
+        }
+    }
+
+    output.push_str(TIL_PREFIX);
+    output.push_str("Bool ");
+    output.push_str(&temp_result);
+    output.push_str(" = (");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Bool){0}; ");
+
+    // Emit the if condition
+    output.push_str("if (");
+    emit_expr(&expr.params[0], output, 0, ctx, context)?;
+    // Bool is a struct with .data field - extract for C truthiness
+    if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, &expr.params[0]) {
+        if type_name == "Bool" {
+            output.push_str(".data");
+        }
+    }
+    output.push_str(") { ");
+
+    // Emit then-branch statements, with the last one assigned to _result
+    // Declarations have already been hoisted, so emit_expr will just emit the assignment
+    if let NodeType::Body = &then_branch.node_type {
+        // Body with multiple statements - emit all but last as statements, last as assignment
+        for (i, stmt) in then_branch.params.iter().enumerate() {
+            if i == then_branch.params.len() - 1 {
+                // Last statement is the result value
+                output.push_str(&temp_result);
+                output.push_str(" = ");
+                emit_expr(stmt, output, 0, ctx, context)?;
+                output.push_str("; ");
+            } else {
+                // Non-last statements - emit as regular statements
+                emit_expr(stmt, output, 0, ctx, context)?;
+                output.push_str("; ");
+            }
+        }
+    } else {
+        // Single expression - assign to result
+        output.push_str(&temp_result);
+        output.push_str(" = ");
+        emit_expr(then_branch, output, 0, ctx, context)?;
+        output.push_str("; ");
+    }
+    output.push_str("} else { ");
+
+    // Emit else-branch - assign to result
+    output.push_str(&temp_result);
+    output.push_str(" = ");
+    emit_expr(&expr.params[2], output, 0, ctx, context)?;
+    output.push_str("; ");
+
+    output.push_str("} ");
+    output.push_str(&temp_result);
+    output.push_str(".data; })");
 
     Ok(())
 }
@@ -6135,12 +6260,6 @@ struct HoistedArg {
     temp_var: String,
 }
 
-// Result struct for variant info extraction
-struct VariantInfo {
-    type_name: String,
-    variant_name: String,
-}
-
 // Info about a catch block for code generation
 // Note: TIL version also has catch_block field, but Rust accesses stmts[i] directly
 struct CatchLabelInfoEntry {
@@ -6177,56 +6296,6 @@ struct VariadicFCallInfo {
     regular_count: usize,
 }
 
-// Extract enum type and variant names from a case pattern expression
-// For FCall: Type.Variant -> VariantInfo { type_name: "Type", variant_name: "Variant" }
-fn get_case_variant_info(expr: &Expr) -> VariantInfo {
-    match &expr.node_type {
-        NodeType::FCall(_) => {
-            // FCall for Type.Variant (without payload extraction)
-            if !expr.params.is_empty() {
-                if let NodeType::Identifier(type_name) = &expr.params[0].node_type {
-                    if !expr.params[0].params.is_empty() {
-                        if let NodeType::Identifier(variant_name) = &expr.params[0].params[0].node_type {
-                            return VariantInfo {
-                                type_name: type_name.clone(),
-                                variant_name: variant_name.clone(),
-                            };
-                        }
-                    }
-                }
-            }
-            VariantInfo { type_name: String::new(), variant_name: String::new() }
-        },
-        NodeType::Identifier(name) => {
-            // Identifier with nested params: Type.Variant
-            if !expr.params.is_empty() {
-                if let NodeType::Identifier(variant_name) = &expr.params[0].node_type {
-                    return VariantInfo {
-                        type_name: name.clone(),
-                        variant_name: variant_name.clone(),
-                    };
-                }
-            }
-            // Plain identifier without nested params - NOT an enum variant pattern
-            // Return empty to let emit_switch fall through to regular value comparison
-            VariantInfo { type_name: String::new(), variant_name: String::new() }
-        },
-        _ => VariantInfo { type_name: String::new(), variant_name: String::new() },
-    }
-}
-
-// Extract type name and variant name from a Pattern's variant_name (e.g., "Color.Green")
-fn parse_pattern_variant_name(variant_name: &str) -> VariantInfo {
-    if let Some(dot_pos) = variant_name.rfind('.') {
-        let type_name = variant_name[..dot_pos].to_string();
-        let var_name = variant_name[dot_pos + 1..].to_string();
-        VariantInfo { type_name, variant_name: var_name }
-    } else {
-        // No dot - just variant name (shouldn't happen in practice)
-        VariantInfo { type_name: String::new(), variant_name: variant_name.to_string() }
-    }
-}
-
 /// Collect all variable declarations in a body (recursively) for hoisting
 /// Returns Vec of CollectedDeclaration structs
 fn collect_declarations_in_body(body: &Expr, context: &mut Context) -> Vec<CollectedDeclaration> {
@@ -6248,13 +6317,17 @@ fn collect_declarations_in_body(body: &Expr, context: &mut Context) -> Vec<Colle
 fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<CollectedDeclaration>, collected: &mut std::collections::HashMap<String, ValueType>, context: &mut Context) {
     match &expr.node_type {
         NodeType::Declaration(decl) => {
-            // INFER_TYPE should have been resolved by typer
-            if let ValueType::TCustom(name) = &decl.value_type {
-                if name == INFER_TYPE {
-                    panic!("Declaration '{}' has INFER_TYPE in ccodegen - should have been resolved by typer", decl.name);
+            // Add this declaration
+            // If type is INFER_TYPE, try to infer from the expression
+            let value_type = if let ValueType::TCustom(name) = &decl.value_type {
+                if name == INFER_TYPE && !expr.params.is_empty() {
+                    get_value_type(context, &expr.params[0]).ok().unwrap_or(decl.value_type.clone())
+                } else {
+                    decl.value_type.clone()
                 }
-            }
-            let value_type = decl.value_type.clone();
+            } else {
+                decl.value_type.clone()
+            };
             // Track this declaration for future lookups (both in collected and scope_stack)
             collected.insert(decl.name.clone(), value_type.clone());
             // Also add to scope_stack so get_value_type can find it for subsequent declarations
@@ -6304,360 +6377,6 @@ fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<CollectedDeclarat
         }
         _ => {}
     }
-}
-
-fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
-    // Switch: params[0] = switch expression
-    // params[1..] = alternating (case_pattern, body) pairs
-    // We emit if/else chains instead of C switch because:
-    // 1. C switch only works with integer types, not Str
-    // 2. Avoids GCC-specific case range extension
-    // 3. More portable and easier to handle all TIL switch patterns
-    if expr.params.is_empty() {
-        return Err("ccodegen: Switch requires expression".to_string());
-    }
-
-    let indent_str = "    ".repeat(indent);
-    let body_indent = "    ".repeat(indent + 1);
-
-    // Get the switch expression
-    let switch_expr = &expr.params[0];
-
-    // Hoist any throwing function calls in the switch expression
-    hoist_throwing_expr(switch_expr, output, indent, ctx, context)?;
-
-    // Determine the type of the switch expression for proper comparison
-    // Type inference may fail - that's okay, we'll use None (default)
-    let switch_type = get_value_type(context, switch_expr).ok();
-    let is_str_switch = matches!(&switch_type, Some(ValueType::TCustom(t)) if t == "Str");
-
-    // Determine if this is an enum switch and if it has payloads
-    let mut is_enum_switch = false;
-    let mut enum_has_payloads_flag = false;
-    let mut i = 1;
-    while i < expr.params.len() {
-        let case_pattern = &expr.params[i];
-        match &case_pattern.node_type {
-            NodeType::Pattern(_) => {
-                is_enum_switch = true;
-            },
-            NodeType::Identifier(name) => {
-                if !case_pattern.params.is_empty() || name.contains('.') {
-                    is_enum_switch = true;
-                }
-            },
-            NodeType::FCall(_) => {
-                is_enum_switch = true;
-                // FCall with arguments (e.g., ValueType.TType(TTypeDef.TEnumDef))
-                // implies the enum has payloads
-                if case_pattern.params.len() > 1 {
-                    enum_has_payloads_flag = true;
-                }
-            },
-            _ => {}
-        }
-        i += 2;
-    }
-    if is_enum_switch {
-        if let Some(ValueType::TCustom(enum_name)) = &switch_type {
-            if let Some(enum_def) = context.scope_stack.lookup_enum(enum_name) {
-                enum_has_payloads_flag = enum_has_payloads(&enum_def);
-            }
-        }
-    }
-
-    // Store switch expression in a temp variable to avoid re-evaluation
-    let switch_var = next_mangled(ctx);
-    output.push_str(&indent_str);
-    output.push_str("__auto_type ");
-    output.push_str(&switch_var);
-    output.push_str(" = ");
-    emit_expr(switch_expr, output, 0, ctx, context)?;
-    output.push_str(";\n");
-
-    // Hoist declarations from all case bodies to before the if/else chain
-    // This ensures variables declared in switch cases are visible after the switch
-    // (TIL has function-level scoping, not block-level scoping)
-    let mut i = 1;
-    while i + 1 < expr.params.len() {
-        let body = &expr.params[i + 1];
-        let decls = collect_declarations_in_body(body, context);
-        for decl in decls {
-            let c_var_name = til_name(&decl.name);
-            if !ctx.declared_vars.contains(&c_var_name) {
-                if let Ok(c_type) = til_type_to_c(&decl.value_type) {
-                    output.push_str(&indent_str);
-                    output.push_str(&c_type);
-                    output.push_str(" ");
-                    output.push_str(&c_var_name);
-                    output.push_str(";\n");
-                    ctx.declared_vars.insert(c_var_name);
-                    // Also register in scope_stack so get_value_type can find it
-                    context.scope_stack.declare_symbol(decl.name.clone(), SymbolInfo {
-                        value_type: decl.value_type.clone(),
-                        is_mut: false,
-                        is_copy: false,
-                        is_own: false,
-                        is_comptime_const: false,
-                    });
-                }
-            }
-        }
-        i += 2;
-    }
-
-    // Emit if/else if chain for cases
-    // Default case (if present) is guaranteed to be last by parser
-    let mut i = 1;
-    let mut first_case = true;
-    let mut has_cases = false;
-    while i + 1 < expr.params.len() {
-        let case_pattern = &expr.params[i];
-        let case_body = &expr.params[i + 1];
-        has_cases = true;
-
-        // Check if this is the default case (guaranteed last by parser)
-        if matches!(case_pattern.node_type, NodeType::DefaultCase) {
-            // Default case - emit as else block
-            if !first_case {
-                output.push_str(&indent_str);
-                output.push_str("} else {\n");
-            }
-            let saved_declared_vars = ctx.declared_vars.clone();
-            emit_body(case_body, output, indent + 1, ctx, context)?;
-            ctx.declared_vars = saved_declared_vars;
-            i += 2;
-            continue;
-        }
-
-        // Regular case - emit if/else if
-        output.push_str(&indent_str);
-        if first_case {
-            output.push_str("if (");
-            first_case = false;
-        } else {
-            output.push_str("} else if (");
-        }
-
-        // Emit the condition based on pattern type
-        match &case_pattern.node_type {
-            NodeType::Pattern(pattern_info) => {
-                // Enum pattern with payload binding: compare tag
-                let mut info = parse_pattern_variant_name(&pattern_info.variant_name);
-                // If no type prefix (shorthand syntax), use the switch expression's type
-                if info.type_name.is_empty() {
-                    if let Some(ValueType::TCustom(enum_name)) = &switch_type {
-                        info.type_name = enum_name.clone();
-                    }
-                }
-                output.push_str(&switch_var);
-                output.push_str(".tag == til_");
-                output.push_str(&info.type_name);
-                output.push_str("_");
-                output.push_str(&info.variant_name);
-                output.push_str(") {\n");
-
-                // Extract payload into binding variable
-                output.push_str(&body_indent);
-                output.push_str("__auto_type ");
-                output.push_str(&til_name(&pattern_info.binding_var));
-                output.push_str(" = ");
-                output.push_str(&switch_var);
-                output.push_str(".payload.");
-                output.push_str(&info.variant_name);
-                output.push_str(";\n");
-            },
-            NodeType::Range => {
-                // Range: low <= val && val <= high
-                if case_pattern.params.len() < 2 {
-                    return Err("ccodegen: Range requires start and end values".to_string());
-                }
-                if is_str_switch {
-                    // For string ranges, use strcmp: strcmp(low, val) <= 0 && strcmp(val, high) <= 0
-                    output.push_str("strcmp((char*)");
-                    emit_expr(&case_pattern.params[0], output, 0, ctx, context)?;
-                    output.push_str(".c_string, (char*)");
-                    output.push_str(&switch_var);
-                    output.push_str(".c_string) <= 0 && strcmp((char*)");
-                    output.push_str(&switch_var);
-                    output.push_str(".c_string, (char*)");
-                    emit_expr(&case_pattern.params[1], output, 0, ctx, context)?;
-                    output.push_str(".c_string) <= 0");
-                } else {
-                    emit_expr(&case_pattern.params[0], output, 0, ctx, context)?;
-                    output.push_str(" <= ");
-                    output.push_str(&switch_var);
-                    output.push_str(" && ");
-                    output.push_str(&switch_var);
-                    output.push_str(" <= ");
-                    emit_expr(&case_pattern.params[1], output, 0, ctx, context)?;
-                }
-                output.push_str(") {\n");
-            },
-            NodeType::Identifier(_name) => {
-                let info = get_case_variant_info(case_pattern);
-                if !info.variant_name.is_empty() {
-                    // Enum variant without payload
-                    output.push_str(&switch_var);
-                    if enum_has_payloads_flag {
-                        output.push_str(".tag");
-                    }
-                    output.push_str(" == ");
-                    if !info.type_name.is_empty() {
-                        output.push_str("til_");
-                        output.push_str(&info.type_name);
-                        output.push_str("_");
-                    }
-                    output.push_str(&info.variant_name);
-                } else if is_str_switch {
-                    // String comparison - pass by pointer
-                    output.push_str("til_Str_eq(&");
-                    output.push_str(&switch_var);
-                    output.push_str(", &");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                    output.push_str(").data");
-                } else {
-                    // Regular value comparison
-                    output.push_str(&switch_var);
-                    output.push_str(" == ");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                }
-                output.push_str(") {\n");
-            },
-            NodeType::LLiteral(_) => {
-                if is_str_switch {
-                    // String literal comparison - pass by pointer
-                    output.push_str("til_Str_eq(&");
-                    output.push_str(&switch_var);
-                    output.push_str(", &");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                    output.push_str(").data");
-                } else {
-                    // Regular literal comparison
-                    output.push_str(&switch_var);
-                    output.push_str(" == ");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                }
-                output.push_str(") {\n");
-            },
-            NodeType::FCall(_) => {
-                // FCall pattern: Type.Variant(payload) - enum variant with payload argument
-                // For example: ValueType.TType(TTypeDef.TEnumDef)
-                let info = get_case_variant_info(case_pattern);
-                if !info.variant_name.is_empty() && enum_has_payloads_flag {
-                    // Compare tag first
-                    output.push_str(&switch_var);
-                    output.push_str(".tag == til_");
-                    output.push_str(&info.type_name);
-                    output.push_str("_");
-                    output.push_str(&info.variant_name);
-
-                    // Check if there's a payload argument to compare
-                    // params[0] is Type.Variant identifier, params[1+] are arguments
-                    if case_pattern.params.len() > 1 {
-                        let payload_expr = &case_pattern.params[1];
-                        // Check if payload is also an enum variant (Type.Variant pattern)
-                        let payload_info = get_case_variant_info(payload_expr);
-                        if !payload_info.variant_name.is_empty() {
-                            // Payload is an enum variant - compare payload field
-                            output.push_str(" && ");
-                            output.push_str(&switch_var);
-                            output.push_str(".payload.");
-                            output.push_str(&info.variant_name);
-                            output.push_str(" == til_");
-                            output.push_str(&payload_info.type_name);
-                            output.push_str("_");
-                            output.push_str(&payload_info.variant_name);
-                        }
-                        // TODO: handle non-enum payloads if needed
-                    }
-                    output.push_str(") {\n");
-                } else if !info.variant_name.is_empty() {
-                    // Enum without payloads - simple tag comparison
-                    output.push_str(&switch_var);
-                    output.push_str(" == til_");
-                    output.push_str(&info.type_name);
-                    output.push_str("_");
-                    output.push_str(&info.variant_name);
-                    output.push_str(") {\n");
-                } else {
-                    // Not an enum pattern - fall through to generic comparison
-                    output.push_str(&switch_var);
-                    output.push_str(" == ");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                    output.push_str(") {\n");
-                }
-            },
-            _ => {
-                // Generic case: emit equality comparison
-                // TODO: Should emit proper FCall through normal path instead of hardcoding
-                if is_str_switch {
-                    output.push_str("til_Str_eq(&");
-                    output.push_str(&switch_var);
-                    output.push_str(", &");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                    output.push_str(").data");
-                } else {
-                    output.push_str(&switch_var);
-                    output.push_str(" == ");
-                    emit_expr(case_pattern, output, 0, ctx, context)?;
-                }
-                output.push_str(") {\n");
-            },
-        }
-
-        // Emit case body
-        // For pattern matching with binding variables, we need to add the binding to scope
-        // so that get_value_type can resolve it during body emission
-        // Save declared_vars for block scope - variables declared in this case body
-        // should not affect other case bodies
-        let saved_declared_vars = ctx.declared_vars.clone();
-
-        if let NodeType::Pattern(pattern_info) = &case_pattern.node_type {
-            // Get the payload type from the enum definition
-            let info = parse_pattern_variant_name(&pattern_info.variant_name);
-            let payload_type_opt: Option<ValueType> = if let Some(ValueType::TCustom(ref enum_name)) = switch_type {
-                context.scope_stack.lookup_enum(enum_name)
-                    .and_then(|enum_def| enum_def.get(&info.variant_name).cloned())
-                    .flatten()
-            } else {
-                None
-            };
-
-            if let Some(payload_type) = payload_type_opt {
-                // Push scope and declare binding variable
-                context.scope_stack.push(ScopeType::Block);
-                context.scope_stack.declare_symbol(
-                    pattern_info.binding_var.clone(),
-                    SymbolInfo {
-                        value_type: payload_type,
-                        is_mut: false,
-                        is_copy: false,
-                        is_own: false,
-                        is_comptime_const: false,
-                    }
-                );
-                emit_body(case_body, output, indent + 1, ctx, context)?;
-                context.scope_stack.pop().ok();
-            } else {
-                emit_body(case_body, output, indent + 1, ctx, context)?;
-            }
-        } else {
-            emit_body(case_body, output, indent + 1, ctx, context)?;
-        }
-
-        // Restore declared_vars after case body
-        ctx.declared_vars = saved_declared_vars;
-        i += 2;
-    }
-
-    // Close the if/else chain
-    if has_cases {
-        output.push_str(&indent_str);
-        output.push_str("}\n");
-    }
-
-    Ok(())
 }
 
 fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
@@ -6856,46 +6575,32 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 Err(format!("ccodegen: enum_to_str argument has non-custom type: {:?}", value_type))
             }
         },
-        // enum_get_payload(e, payload_type, out) - extract enum payload into out parameter
-        // Emits call to til_enum_get_payload runtime function
+        // enum_get_payload(enum_val, variant_name, dest) - extract payload from enum
+        // Emits: indent + dest = enum_val.payload.VariantName;\n
+        // This is a statement (not expression), so needs full formatting.
         "enum_get_payload" => {
             if expr.params.len() < 4 {
                 return Err("ccodegen: enum_get_payload requires 3 arguments".to_string());
             }
-            let payload_enum_arg = &expr.params[1];
-            let payload_type_arg = &expr.params[2];
-            let payload_out_arg = &expr.params[3];
+            let enum_arg = &expr.params[1];
+            let variant_arg = &expr.params[2];
+            let dest_arg = &expr.params[3];
 
-            output.push_str(TIL_PREFIX);
-            output.push_str("enum_get_payload((");
-            output.push_str(TIL_PREFIX);
-            output.push_str("Dynamic*)&");
-            emit_expr(payload_enum_arg, output, 0, ctx, context)?;
-            output.push_str(", &");
-            // Emit type argument as Str (similar to size_of handling)
-            if let NodeType::Identifier(payload_type_name) = &payload_type_arg.node_type {
-                // Check if this is a Type variable or a literal type name
-                let payload_is_type_var = if let Some(payload_sym) = context.scope_stack.lookup_symbol(payload_type_name) {
-                    matches!(&payload_sym.value_type, ValueType::TCustom(t) if t == "Type")
-                } else {
-                    false
-                };
-                if payload_is_type_var {
-                    // Type variable - wrap in Str struct literal
-                    output.push_str(&format!("(({}Str){{({}I64){}{}, strlen({}{})}})",
-                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, payload_type_name, TIL_PREFIX, payload_type_name));
-                } else {
-                    // Literal type name - create Str compound literal
-                    emit_str_literal(payload_type_name, output);
-                }
-            } else {
-                return Err("ccodegen: enum_get_payload type argument must be a type name".to_string());
-            }
-            output.push_str(", (");
-            output.push_str(TIL_PREFIX);
-            output.push_str("Dynamic*)&");
-            emit_expr(payload_out_arg, output, 0, ctx, context)?;
-            output.push_str(");");
+            // Get variant name from string literal
+            let variant_name = match &variant_arg.node_type {
+                NodeType::LLiteral(Literal::Str(s)) => s.clone(),
+                _ => return Err("ccodegen: enum_get_payload variant_name must be a string literal".to_string()),
+            };
+
+            // Emit: indent + dest = enum_val.payload.VariantName;\n
+            let indent_str = "    ".repeat(indent);
+            output.push_str(&indent_str);
+            emit_expr(dest_arg, output, 0, ctx, context)?;
+            output.push_str(" = ");
+            emit_expr(enum_arg, output, 0, ctx, context)?;
+            output.push_str(".payload.");
+            output.push_str(&variant_name);
+            output.push_str(";\n");
             Ok(())
         },
         // size_of(T) - runtime type size lookup via til_size_of function
@@ -6994,7 +6699,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // Parser produces: FCall { params: [Identifier("eq"), FCall { ... }, LLiteral(0)] }
             // Only check this for simple func names (no nested identifiers)
             if expr.params[0].params.is_empty() && expr.params.len() >= 2 {
-                if let NodeType::FCall(_) = &expr.params[1].node_type {
+                if let NodeType::FCall = &expr.params[1].node_type {
                     // The second param is an FCall result - use get_value_type to get its return type
                     if let Ok(fcall_ret_type) = get_value_type(context, &expr.params[1]) {
                         if let ValueType::TCustom(type_name) = &fcall_ret_type {

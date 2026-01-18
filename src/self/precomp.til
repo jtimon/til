@@ -4,28 +4,302 @@ import("self.init")
 import("self.interpreter")
 import("self.precomp_ext")
 
-// Precomputation phase: Performs compile-time constant folding for pure functions
-// and handles struct/enum constructors and import().
-// This phase runs after ufcs, before interpreter/builder.
+// Precomputation phase: Transforms UFCS calls into regular function calls
+// and performs compile-time constant folding for pure functions.
+// This phase runs after typer, before interpreter/builder.
+
+// Bug #57 fix: Transform continue statements to include the step expression before continue.
+// This ensures the loop variable is incremented even when continue is used in for-in loops.
+precomp_transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr throws IndexOutOfBoundsError {
+    switch expr.node_type {
+    case NodeType.Continue:
+        // Replace continue with { step_expr; continue }
+        mut body_params := Vec.new(Expr)
+        body_params.push(step_expr.clone())
+        body_params.push(expr.clone())
+        return Expr.new_explicit(NodeType.Body, body_params, expr.line, expr.col)
+    case NodeType.While:
+        // Don't recurse into nested loops - their continues are for their own loop
+        return expr.clone()
+    case NodeType.ForIn(_):
+        // Don't recurse into nested loops
+        return expr.clone()
+    case:
+        // Recurse into other nodes
+        mut new_params := Vec.new(Expr)
+        for i in 0..expr.params.len() {
+            mut p := Expr()
+            expr.params.get(i, p)
+            new_params.push(precomp_transform_continue_with_step(p, step_expr))
+        }
+        return Expr(node_type=expr.node_type, params=new_params, line=expr.line, col=expr.col)
+    }
+}
+
+// ---------- Named argument reordering
+
+/// Reorder named arguments to match function parameter order.
+/// Transforms: func(b=3, a=10) -> func(10, 3) (for func(a, b))
+/// This runs during precomp so both interpreter and builder share the work.
+reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str {
+    // params[0] is the function identifier, params[1..] are the arguments
+    // Calculate call_args_len (number of arguments, not counting function identifier)
+    mut call_args_len := 0
+    if e.params.len().gt(1) {
+        call_args_len = e.params.len().sub(1)
+    }
+
+    // Check if function is variadic - named args and default filling not supported
+    is_variadic := func_proc_has_multi_arg(func_def)
+
+    // Check if there are any named args
+    mut has_named_args := false
+    mut i := 1
+    while i.lt(e.params.len()) {
+        mut arg := e.get(i)
+        switch arg.node_type {
+        case NodeType.NamedArg(_):
+            has_named_args = true
+        case:
+        }
+        i.inc()
+    }
+
+    // Named args are not supported for variadic functions
+    if has_named_args.and(is_variadic) {
+        throw e.error(context.path, "precomp", "Named arguments are not supported for variadic functions")
+    }
+
+    // Bug #61: Check if there are optional args before variadic that might need defaults
+    // This happens when the provided arg type doesn't match the optional arg type
+    mut has_optional_before_variadic := false
+    if is_variadic.and(func_def.args.len().gt(1)) {
+        mut check_j := 0
+        while check_j.lt(func_def.args.len().sub(1)) {
+            mut check_def_arg := Declaration()
+            func_def.args.get(check_j, check_def_arg)
+            if not(NULL.eq(check_def_arg.default_value.data)) {
+                has_optional_before_variadic = true
+            }
+            check_j.inc()
+        }
+    }
+
+    // Check if we need to fill in default values (fewer args than params)
+    // Don't apply to variadic functions (unless they have optional args before the variadic)
+    mut needs_defaults := false
+    if not(is_variadic).and(call_args_len.lt(func_def.args.len())) {
+        needs_defaults = true
+    }
+    if has_optional_before_variadic {
+        needs_defaults = true
+    }
+
+    // If no named args and no defaults needed, return unchanged
+    if not(has_named_args).and(not(needs_defaults)) {
+        return e.clone()
+    }
+
+    mut result := Vec.new(Expr)
+    result.push(e.get(0)) // Keep function identifier
+
+    // Bug #61: Handle variadic functions with optional args before the variadic
+    // Need to insert defaults for skipped optional args, then include all provided args
+    if has_optional_before_variadic {
+        mut def_arg_idx: I64 = 0
+        mut call_arg_idx: I64 = 0
+
+        // Process optional args before the variadic
+        while def_arg_idx.lt(func_def.args.len().sub(1)) {
+            mut opt_def_arg := Declaration()
+            func_def.args.get(def_arg_idx, opt_def_arg)
+
+            // Check if we have a provided arg that matches this def arg's type
+            mut matches := false
+            if call_arg_idx.lt(call_args_len) {
+                mut provided_arg := e.get(call_arg_idx.add(1))
+                mut found_type := ValueType.TCustom("")
+                found_type = get_value_type(context, provided_arg)
+                catch (type_err: Str) {}
+                expected := opt_def_arg.value_type
+                switch expected {
+                case ValueType.TCustom(tn):
+                    if tn.eq("Dynamic").or(tn.eq("Type")) {
+                        matches = true
+                    } else {
+                        matches = value_type_to_str(expected).eq(value_type_to_str(found_type))
+                    }
+                case:
+                    matches = value_type_to_str(expected).eq(value_type_to_str(found_type))
+                }
+            }
+
+            if matches {
+                // Use provided arg
+                result.push(e.get(call_arg_idx.add(1)))
+                call_arg_idx.inc()
+            } else if not(NULL.eq(opt_def_arg.default_value.data)) {
+                // Use default - dereference the Ptr to Expr
+                mut opt_default_expr := Expr()
+                memcpy(to_ptr(opt_default_expr), opt_def_arg.default_value.data, size_of(Expr))
+                result.push(opt_default_expr.clone())
+            } else {
+                throw e.error(context.path, "precomp", format("Missing argument for non-optional parameter '", opt_def_arg.name, "'"))
+            }
+            def_arg_idx.inc()
+        }
+
+        // Add remaining provided args (for variadic)
+        while call_arg_idx.lt(call_args_len) {
+            result.push(e.get(call_arg_idx.add(1)))
+            call_arg_idx.inc()
+        }
+
+        return Expr.new_clone(NodeType.FCall, e, result)
+    }
+
+    // Count positional args (before first named arg)
+    mut positional_count := 0
+    for count_i in 1..e.params.len() {
+        mut count_arg := e.get(count_i)
+        switch count_arg.node_type {
+        case NodeType.NamedArg(_):
+            break
+        case:
+            positional_count.inc()
+        }
+    }
+
+    // Check that all named args come after positional args
+    mut seen_named := false
+    i = 1
+    while i.lt(e.params.len()) {
+        mut check_arg := e.get(i)
+        switch check_arg.node_type {
+        case NodeType.NamedArg(_):
+            seen_named = true
+        case:
+            if seen_named {
+                throw e.error(context.path, "precomp", "Positional arguments cannot appear after named arguments")
+            }
+        }
+        i.inc()
+    }
+
+    // Build result: first positional args, then fill in from named args
+    // Use a Vec of Option-like values (empty string = None, otherwise = Some)
+    mut final_args := Vec.new(Expr)
+    mut final_args_set := Vec.new(Bool)
+    i = 0
+    while i.lt(func_def.args.len()) {
+        final_args.push(Expr())
+        final_args_set.push(false)
+        i.inc()
+    }
+
+    // Place positional arguments
+    i = 0
+    while i.lt(positional_count) {
+        if i.gteq(func_def.args.len()) {
+            throw e.error(context.path, "precomp", format("Too many positional arguments: expected at most ", func_def.args.len().to_str()))
+        }
+        final_args.set(i, e.get(i.add(1)))
+        final_args_set.set(i, true)
+        i.inc()
+    }
+
+    // Place named arguments
+    i = positional_count.add(1)
+    while i.lt(e.params.len()) {
+        mut named_arg := e.get(i)
+        switch named_arg.node_type {
+        case NodeType.NamedArg(arg_name):
+            // Find the parameter index by name
+            mut param_idx := sub(0, 1)
+            mut search_j := 0
+            while search_j.lt(func_def.args.len()) {
+                mut search_arg_decl := Declaration()
+                func_def.args.get(search_j, search_arg_decl)
+                if search_arg_decl.name.eq(arg_name) {
+                    param_idx = search_j
+                    search_j = func_def.args.len() // break
+                } else {
+                    search_j.inc()
+                }
+            }
+            if param_idx.lt(0) {
+                throw named_arg.error(context.path, "precomp", format("Unknown parameter name '", arg_name, "'"))
+            }
+            mut already_set := false
+            final_args_set.get(param_idx, already_set)
+            if already_set {
+                throw named_arg.error(context.path, "precomp", format("Argument '", arg_name, "' specified multiple times"))
+            }
+            if named_arg.params.len().eq(0) {
+                throw named_arg.error(context.path, "precomp", format("Named argument '", arg_name, "' has no value"))
+            }
+            final_args.set(param_idx, named_arg.get(0))
+            final_args_set.set(param_idx, true)
+        case:
+        }
+        i.inc()
+    }
+
+    // Check all required args are present and build final result
+    i = 0
+    while i.lt(final_args.len()) {
+        mut is_set := false
+        final_args_set.get(i, is_set)
+        if is_set {
+            mut final_arg := Expr()
+            final_args.get(i, final_arg)
+            result.push(final_arg)
+        } else {
+            // Check if this parameter has a default value
+            mut final_arg_decl := Declaration()
+            func_def.args.get(i, final_arg_decl)
+            if not(NULL.eq(final_arg_decl.default_value.data)) {
+                mut final_default_expr := Expr()
+                memcpy(to_ptr(final_default_expr), final_arg_decl.default_value.data, size_of(Expr))
+                result.push(final_default_expr.clone())
+            } else {
+                throw e.error(context.path, "precomp", format("Missing argument for parameter '", final_arg_decl.name, "'"))
+            }
+        }
+        i.inc()
+    }
+
+    final_result := Expr.new_clone(NodeType.FCall, e, result)
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("reorder_named_args: ", err.msg)
+    }
+    return final_result
+}
 
 // ---------- Main entry point
 
-/// Precomputation phase: Perform compile-time constant folding and handle
-/// struct/enum constructors and import().
-/// Takes an AST that has already passed type checking and UFCS resolution.
+/// Precomputation phase: Transform UFCS calls into regular function calls.
+/// Takes an AST that has already passed type checking and returns a semantically
+/// equivalent AST with all UFCS calls resolved.
+///
+/// Examples:
+///   a.add(b)         -> I64.add(a, b)     (where a is I64)
+///   obj.items.len()  -> Vec.len(obj.items)
+///   add(1, 2).mul(3) -> I64.mul(add(1, 2), 3)
 precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     switch e.node_type {
     case NodeType.Body:
         return precomp_body(context, e)
-    case NodeType.FCall(_):
-        mut const_folded := precomp_fcall(context, e)?
+    case NodeType.FCall:
+        mut const_folded := precomp_fcall(context, e)
         // Try compile-time constant folding for pure functions with literal args.
         // Only fold at global scope - inside function definitions, values from other
         // modules may not be available yet (import ordering). Interpreter doesn't
         // evaluate function bodies during import either.
         at_global_scope := context.scope_stack.frames.len().eq(1)
         if at_global_scope.and(is_comptime_evaluable(context, const_folded)) {
-            const_folded = eval_comptime(context, const_folded)?
+            const_folded = eval_comptime(context, const_folded)
         }
         return const_folded
     case NodeType.If:
@@ -33,11 +307,11 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.While:
         return precomp_params(context, e)
     case NodeType.Switch:
-        return precomp_switch(context, e)?
+        return precomp_switch(context, e)
     case NodeType.FuncDef(func_def):
-        return precomp_func_def(context, e, func_def)?
+        return precomp_func_def(context, e, func_def)
     case NodeType.Declaration(decl):
-        return precomp_declaration(context, e, decl)?
+        return precomp_declaration(context, e, decl)
     case NodeType.Assignment:
         return precomp_params(context, e)
     case NodeType.Return:
@@ -45,12 +319,12 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.Throw:
         return precomp_params(context, e)
     case NodeType.Catch:
-        return precomp_catch(context, e)?
+        return precomp_catch(context, e)
     case NodeType.Range:
         return precomp_params(context, e)
     // Struct/enum definitions - need to process default values (which may contain function defs)
     case NodeType.StructDef(struct_def):
-        return precomp_struct_def(context, e, struct_def)?
+        return precomp_struct_def(context, e, struct_def)
     case NodeType.EnumDef:
         return e.clone()
     // Identifiers can have nested params (e.g., a.b.c for field access chains)
@@ -72,12 +346,18 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.NamedArg(name):
         mut new_params := Vec.new(Expr)
         for p: Expr in e.params {
-            new_params.push(precomp_expr(context, p)?)
+            new_params.push(precomp_expr(context, p))
         }
         return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
-    // ForIn should have been desugared in desugarer phase
-    case NodeType.ForIn(_):
-        panic(loc(), "ForIn should have been desugared in desugarer phase")
+    // ForIn desugaring: for VAR: TYPE in COLLECTION { body } -> while loop
+    // After desugaring, recursively precomp the result to resolve UFCS and loc()
+    case NodeType.ForIn(var_type_name):
+        desugared := precomp_forin(context, e, var_type_name)
+        catch (forin_err: Str) {
+            throw forin_err
+        }
+        result := precomp_expr(context, desugared)
+        return result
     }
 }
 
@@ -102,13 +382,13 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
             return false  // Field access chains not supported
         }
         // Look up the symbol and check if it's a comptime const
-        mut symbol := context.scope_stack.lookup_symbol(name)?
+        mut symbol := context.scope_stack.lookup_symbol(name)
         catch (err: KeyNotFoundError) {
             return false
         }
         return symbol.is_comptime_const
-    case NodeType.FCall(_):
-        f_name := get_func_name_in_call(e)?
+    case NodeType.FCall:
+        f_name := get_func_name_in_call(e)
         catch (err: Str) {
             return false  // Can't get function name
         }
@@ -122,17 +402,17 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         mut e_clone := e.clone()
         mut func_def := SFuncDef()
         mut func_def_found := false
-        func_def = get_func_def_for_fcall_with_expr(context, e_clone)?
+        func_def = get_func_def_for_fcall_with_expr(context, e_clone)
         func_def_found = true
         catch (err: KeyNotFoundError) {
             // Could be a struct constructor - check if all args are comptime
-            combined_name := get_combined_name(context.path, e.get(0)?)?
+            combined_name := get_combined_name(context.path, e.get(0))
             catch (err2: Str) {
                 return false
             }
             // Try to look up as struct
             mut is_struct := false
-            _ := context.scope_stack.lookup_struct(combined_name)?
+            _ := context.scope_stack.lookup_struct(combined_name)
             is_struct = true
             catch (err3: KeyNotFoundError) {
                 // REM: Not a struct
@@ -142,7 +422,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                 mut struct_j := 1
                 while struct_j.lt(e.params.len()) {
                     mut struct_arg := Expr()
-                    e.params.get(struct_j, struct_arg)?
+                    e.params.get(struct_j, struct_arg)
                     catch (err4: IndexOutOfBoundsError) {
                         return false
                     }
@@ -151,7 +431,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                     switch struct_arg.node_type {
                     case NodeType.NamedArg(_):
                         if struct_arg.params.len().gt(0) {
-                            struct_arg.params.get(0, arg_to_check)?
+                            struct_arg.params.get(0, arg_to_check)
                             catch (err5: IndexOutOfBoundsError) {
                                 return false
                             }
@@ -171,7 +451,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                 mut k := 1
                 while k.lt(e.params.len()) {
                     mut arg := Expr()
-                    e.params.get(k, arg)?
+                    e.params.get(k, arg)
                     catch (err_arg: IndexOutOfBoundsError) {
                         return false
                     }
@@ -204,7 +484,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         mut fcall_i := 1
         while fcall_i.lt(e.params.len()) {
             mut fcall_arg := Expr()
-            e.params.get(fcall_i, fcall_arg)?
+            e.params.get(fcall_i, fcall_arg)
             catch (err: IndexOutOfBoundsError) {
                 return false
             }
@@ -223,7 +503,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
 eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Save and restore context.path - interpreter may change it during function calls
     saved_path := context.path
-    result := eval_expr(context, e)?
+    result := eval_expr(context, e)
     context.path = saved_path
 
     // Check if the function threw an exception during evaluation
@@ -237,7 +517,7 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     // EvalResult.value is a String representation of the value
     // Convert back to LLiteral based on the result type
-    value_type := get_value_type(context, e)?
+    value_type := get_value_type(context, e)
     switch value_type {
     case ValueType.TCustom(type_name):
         if type_name.eq("I64") {
@@ -250,14 +530,14 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
             return Expr.new_clone(NodeType.LLiteral(Literal.Str(result.value)), e, Vec.new(Expr))
         }
         // Check if it's a struct type - result.value is the instance name
-        _struct_def := context.scope_stack.lookup_struct(type_name)?
+        _struct_def := context.scope_stack.lookup_struct(type_name)
         catch (err: KeyNotFoundError) {
             // For enums and other types: eval_expr was called (catching any errors),
             // but we can't convert the result back to AST literal, so return original
             return e.clone()
         }
         // Try to convert struct back to literal, fall back to original expr if unsupported
-        mut struct_literal := EvalArena.to_struct_literal(context, result.value, type_name, e)?
+        mut struct_literal := EvalArena.to_struct_literal(context, result.value, type_name, e)
         catch (err: Str) {
             return e.clone()
         }
@@ -275,7 +555,7 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
 precomp_body := proc(mut context: Context, e: Expr) returns Expr {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
-        new_params.push(precomp_expr(context, p)?)
+        new_params.push(precomp_expr(context, p))
     }
 
     return Expr.new_clone(e.node_type, e, new_params)
@@ -285,117 +565,981 @@ precomp_body := proc(mut context: Context, e: Expr) returns Expr {
 precomp_params := proc(mut context: Context, e: Expr) returns Expr {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
-        new_params.push(precomp_expr(context, p)?)
+        new_params.push(precomp_expr(context, p))
     }
 
     return Expr.new_clone(e.node_type, e, new_params)
 }
 
-/// Transform Switch - handle pattern binding variables by adding them to scope
-/// before processing the case body. This mirrors the typer's handling of Bug #28.
-precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
-    // Switch structure: params[0] is switch expression, then pairs of (case, body)
-    if e.params.len().eq(0) {
-        return e.clone()
-    }
-
-    mut new_params := Vec.new(Expr)
-
-    // Transform switch expression
-    mut switch_expr := Expr()
-    e.params.get(0, switch_expr)?
-    new_params.push(precomp_expr(context, switch_expr)?)
-
-    // Get the type of the switch expression for pattern binding resolution
-    mut switch_expr_type := ValueType.TCustom("")
-    mut got_switch_type := true
-    switch_expr_type = get_value_type(context, switch_expr)?
-    catch (err: Str) {
-        got_switch_type = false
-    }
-
-    // Process case/body pairs
-    mut i := 1
-    while i.add(1).lt(e.params.len().add(1)) {
-        mut case_expr := Expr()
-        mut body_expr := Expr()
-        e.params.get(i, case_expr)?
-        e.params.get(i.add(1), body_expr)?
-
-        // Transform case expression (no scope change needed for case itself)
-        new_params.push(precomp_expr(context, case_expr)?)
-
-        // For pattern matching with binding variable, add binding to scope before processing body
-        switch case_expr.node_type {
-        case NodeType.Pattern(pattern_info):
-            mut handled := false
-            if got_switch_type {
-                switch switch_expr_type {
-                case ValueType.TCustom(enum_name):
-                    // Extract variant name (after the last dot)
-                    variant_name := pattern_info.variant_name
-                    mut variant := variant_name
-                    dot_pos := variant_name.rfind(".")
-                    if dot_pos.gteq(0) {
-                        variant = get_substr(variant_name, dot_pos.add(1), variant_name.len())?
-                    }
-
-                    // Get payload type from enum definition
-                    mut enum_found := true
-                    mut enum_def := context.scope_stack.lookup_enum(enum_name)?
-                    catch (err: KeyNotFoundError) {
-                        enum_found = false
-                    }
-
-                    if enum_found {
-                        mut payload_type := ValueType.TCustom("")
-                        mut got_payload := false
-                        // Bug #38 fix: use helper method
-                        payload_ptr := enum_def.get(variant)?
-                        if not(NULL.eq(payload_ptr.data)) {
-                            memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
-                            got_payload = true
-                        }
-                        catch (err: KeyNotFoundError) {
-                            // Variant not found or no payload
-                        }
-
-                        if got_payload {
-                            // Push block scope, declare binding variable, transform body, pop scope
-                            context.scope_stack.push(ScopeType.Block)
-                            sym := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
-                            context.scope_stack.declare_symbol(pattern_info.binding_var, sym)?
-                            new_params.push(precomp_expr(context, body_expr)?)
-                            _ := context.scope_stack.pop()?
-                            handled = true
+/// Build the full dotted name from an identifier chain expression.
+/// For example, for an Identifier("ValueType") with params [Identifier("TType")],
+/// this returns "ValueType.TType".
+build_identifier_chain_name := func(expr: Expr) returns Str {
+    switch expr.node_type {
+    case NodeType.Identifier(name):
+        if expr.params.len().eq(0) {
+            return name
+        } else {
+            // Build full name from nested identifiers
+            mut full_name := name
+            for p: Expr in expr.params {
+                switch p.node_type {
+                case NodeType.Identifier(sub):
+                    full_name = format(full_name, ".", sub)
+                    // Recursively add any deeper nested names
+                    for pp: Expr in p.params {
+                        switch pp.node_type {
+                        case NodeType.Identifier(subsub):
+                            full_name = format(full_name, ".", subsub)
+                        case:
                         }
                     }
                 case:
                 }
             }
-            if not(handled) {
-                // No payload type found or switch type not found, transform body without binding
-                new_params.push(precomp_expr(context, body_expr)?)
-            }
-        case:
-            // Not a pattern, transform body normally
-            new_params.push(precomp_expr(context, body_expr)?)
+            return full_name
         }
+    case:
+        return ""
+    }
+}
 
-        i = i.add(2)
+/// Rename all occurrences of an identifier in an expression tree.
+/// Used by switch desugaring to rename binding variables to mangled names.
+/// IMPORTANT: Don't rename field access params - those are field names, not variables.
+rename_identifier := func(expr: Expr, old_name: Str, new_name: Str) returns Expr {
+    switch expr.node_type {
+    case NodeType.Identifier(name):
+        if name.eq(old_name) {
+            // Replace this identifier with the new name
+            // DON'T recurse into params - those are field accesses
+            return Expr.new_explicit(NodeType.Identifier(new_name), expr.params.clone(), expr.line, expr.col)
+        } else {
+            // Different identifier - don't rename
+            return expr.clone()
+        }
+    case NodeType.Declaration(decl):
+        if decl.name.eq(old_name) {
+            // Don't rename declaration names - those create new bindings that shadow
+            // Just recurse into params (the initializer expression)
+            mut decl_new_params := Vec.new(Expr)
+            for p: Expr in expr.params {
+                decl_new_params.push(rename_identifier(p, old_name, new_name))
+            }
+            return Expr.new_clone(expr.node_type, expr, decl_new_params)
+        }
+    case NodeType.Assignment(aname):
+        if aname.eq(old_name) {
+            // Rename assignment target
+            mut assign_new_params := Vec.new(Expr)
+            for p: Expr in expr.params {
+                assign_new_params.push(rename_identifier(p, old_name, new_name))
+            }
+            return Expr.new_explicit(NodeType.Assignment(new_name), assign_new_params, expr.line, expr.col)
+        }
+    case:
+    }
+    // Default: recurse into params
+    mut default_new_params := Vec.new(Expr)
+    for p: Expr in expr.params {
+        default_new_params.push(rename_identifier(p, old_name, new_name))
+    }
+    return Expr.new_clone(expr.node_type, expr, default_new_params)
+}
+
+/// Desugar Switch to if/else chain (Issue #110)
+precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    if e.params.len().eq(0) {
+        return e.clone()
     }
 
-    // Handle odd trailing element (default case body without case expression)
-    if i.lt(e.params.len()) {
-        mut trailing := Expr()
-        e.params.get(i, trailing)?
-        new_params.push(precomp_expr(context, trailing)?)
+    mut sw_expr := Expr()
+    e.params.get(0, sw_expr)
+    mut sw_expr_type := ValueType.TCustom("")
+    mut got_sw_type := true
+    sw_expr_type = get_value_type(context, sw_expr)
+    catch (err: Str) {
+        got_sw_type = false
     }
+    sw_line := e.line
+    sw_col := e.col
 
+    // Collect case/body pairs
+    mut sw_cases := Vec.new(Expr)
+    mut sw_default_body := Expr()
+    mut sw_has_default := false
+
+    mut sw_i := 1
+    while sw_i.lt(e.params.len()) {
+        mut sw_ce := Expr()
+        e.params.get(sw_i, sw_ce)
+        switch sw_ce.node_type {
+        case NodeType.DefaultCase:
+            if sw_i.add(1).lt(e.params.len()) {
+                e.params.get(sw_i.add(1), sw_default_body)
+                sw_has_default = true
+            }
+            sw_i = sw_i.add(2)
+        case:
+            if sw_i.add(1).lt(e.params.len()) {
+                mut sw_be := Expr()
+                e.params.get(sw_i.add(1), sw_be)
+                sw_cases.push(sw_ce)
+                sw_cases.push(sw_be)
+            }
+            sw_i = sw_i.add(2)
+        }
+    }
     catch (err: IndexOutOfBoundsError) {
         throw format("precomp_switch: ", err.msg)
     }
-    return Expr.new_clone(NodeType.Switch, e, new_params)
+
+    // Build if/else chain from bottom up
+    mut sw_current_else := Expr()
+    mut sw_has_else := false
+    if sw_has_default {
+        sw_current_else = precomp_expr(context, sw_default_body)
+        sw_has_else = true
+    }
+
+    mut sw_idx := sw_cases.len()
+    while sw_idx.gt(0) {
+        sw_idx = sw_idx.sub(2)
+        mut sw_case := Expr()
+        mut sw_body := Expr()
+        sw_cases.get(sw_idx, sw_case)
+        sw_cases.get(sw_idx.add(1), sw_body)
+
+        mut sw_cond := Expr()
+        mut sw_prefix := Vec.new(Expr)
+        mut sw_rename_old := ""
+        mut sw_rename_new := ""
+        mut sw_has_rename := false
+        mut sw_push_scope := false
+
+        switch sw_case.node_type {
+        case NodeType.Pattern(pinfo):
+            sw_cond = build_pattern_condition(context, sw_expr, sw_case, pinfo, sw_expr_type, got_sw_type, sw_line, sw_col, sw_prefix, sw_rename_old, sw_rename_new, sw_has_rename, sw_push_scope)
+        case NodeType.Range:
+            sw_cond = build_range_condition(sw_expr, sw_case, sw_expr_type, got_sw_type, sw_line, sw_col)
+        case NodeType.Identifier(idname):
+            sw_cond = build_identifier_condition(context, sw_expr, sw_case, idname, sw_expr_type, got_sw_type, sw_line, sw_col)
+        case NodeType.LLiteral(_):
+            sw_cond = build_literal_condition(sw_expr, sw_case, sw_expr_type, got_sw_type, sw_line, sw_col)
+        case NodeType.FCall:
+            sw_cond = build_fcall_condition(context, sw_expr, sw_case, sw_expr_type, got_sw_type, sw_line, sw_col)
+        case:
+            sw_cond = build_default_condition(sw_expr, sw_case, sw_expr_type, got_sw_type, sw_line, sw_col)
+        }
+
+        mut sw_transformed := sw_body
+        if sw_has_rename {
+            sw_transformed = rename_identifier(sw_body, sw_rename_old, sw_rename_new)
+        }
+        sw_transformed = precomp_expr(context, sw_transformed)
+
+        if sw_push_scope {
+            _ := context.scope_stack.pop()
+        }
+
+        mut sw_stmts := Vec.new(Expr)
+        for sw_pf: Expr in sw_prefix {
+            sw_stmts.push(sw_pf)
+        }
+        switch sw_transformed.node_type {
+        case NodeType.Body:
+            for sw_s: Expr in sw_transformed.params {
+                sw_stmts.push(sw_s)
+            }
+        case:
+            sw_stmts.push(sw_transformed)
+        }
+        sw_final := Expr.new_explicit(NodeType.Body, sw_stmts, sw_body.line, sw_body.col)
+
+        mut sw_if_params := Vec.new(Expr)
+        sw_if_params.push(sw_cond)
+        sw_if_params.push(sw_final)
+        if sw_has_else {
+            sw_if_params.push(sw_current_else)
+        }
+        sw_current_else = Expr.new_explicit(NodeType.If, sw_if_params, sw_line, sw_col)
+        sw_has_else = true
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw format("precomp_switch cases: ", err.msg)
+    }
+
+    if sw_has_else {
+        return precomp_expr(context, sw_current_else)
+    } else {
+        return Expr.new_explicit(NodeType.Body, Vec.new(Expr), sw_line, sw_col)
+    }
+}
+
+// Helper: Build condition for Pattern case
+build_pattern_condition := proc(mut context: Context, sw_expr: Expr, case_e: Expr, pinfo: PatternInfo, sw_type: ValueType, got_type: Bool, ln: I64, cl: I64, mut prefix: Vec, mut ren_old: Str, mut ren_new: Str, mut has_ren: Bool, mut do_push: Bool) returns Expr throws Str {
+    vname := pinfo.variant_name
+    bvar := pinfo.binding_var
+
+    mut etype := ""
+    mut vshort := ""
+    dpos := vname.rfind(".")
+    if dpos.gteq(0) {
+        etype = get_substr(vname, 0, dpos)
+        vshort = get_substr(vname, dpos.add(1), vname.len())
+    } else {
+        if got_type {
+            switch sw_type {
+            case ValueType.TCustom(en):
+                etype = en
+            case:
+            }
+        }
+        vshort = vname
+    }
+    fvar := format(etype, ".", vshort)
+
+    // Build: Str.eq(enum_to_str(sw_expr), fvar)
+    mut ets_p := Vec.new(Expr)
+    ets_p.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+    ets_p.push(sw_expr.clone())
+    ets_call := Expr.new_explicit(NodeType.FCall, ets_p, ln, cl)
+
+    slit := Expr.new_explicit(NodeType.LLiteral(Literal.Str(fvar)), Vec.new(Expr), ln, cl)
+    mut eqp := Vec.new(Expr)
+    eqp.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+    mut cp := Vec.new(Expr)
+    cp.push(Expr.new_explicit(NodeType.Identifier("Str"), eqp, ln, cl))
+    cp.push(ets_call)
+    cp.push(slit)
+    mut cond := Expr.new_explicit(NodeType.FCall, cp, ln, cl)
+
+    // Get payload type
+    mut ptype := ValueType.TCustom("")
+    mut has_pl := false
+    mut edef := context.scope_stack.lookup_enum(etype)
+    pp := edef.get(vshort)
+    if not(NULL.eq(pp.data)) {
+        memcpy(to_ptr(ptype), pp.data, size_of(ValueType))
+        has_pl = true
+    }
+    catch (err: KeyNotFoundError) {
+        // No payload
+    }
+
+    if has_pl {
+        is_nested := bvar.find(".").gteq(0)
+        if is_nested {
+            tname := format("_sw", I64.to_str(case_e.line), "_", I64.to_str(case_e.col), "payload")
+            vdecl := Declaration(name=tname, value_type=ptype, is_mut=true, is_copy=false, is_own=false, default_value=NULL)
+            dval := build_default_value_for_forin(context, ptype, ln, cl)
+            mut dp := Vec.new(Expr)
+            dp.push(dval)
+            dexpr := Expr.new_explicit(NodeType.Declaration(vdecl), dp, ln, cl)
+
+            mut pcp := Vec.new(Expr)
+            pcp.push(Expr.new_explicit(NodeType.Identifier("enum_get_payload"), Vec.new(Expr), ln, cl))
+            pcp.push(sw_expr.clone())
+            pcp.push(Expr.new_explicit(NodeType.LLiteral(Literal.Str(vshort)), Vec.new(Expr), ln, cl))
+            pcp.push(Expr.new_explicit(NodeType.Identifier(tname), Vec.new(Expr), ln, cl))
+            pcall := Expr.new_explicit(NodeType.FCall, pcp, ln, cl)
+
+            mut iep := Vec.new(Expr)
+            iep.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+            iep.push(Expr.new_explicit(NodeType.Identifier(tname), Vec.new(Expr), ln, cl))
+            iets := Expr.new_explicit(NodeType.FCall, iep, ln, cl)
+
+            istr := Expr.new_explicit(NodeType.LLiteral(Literal.Str(bvar)), Vec.new(Expr), ln, cl)
+            mut ieqp := Vec.new(Expr)
+            ieqp.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+            mut icp := Vec.new(Expr)
+            icp.push(Expr.new_explicit(NodeType.Identifier("Str"), ieqp, ln, cl))
+            icp.push(iets)
+            icp.push(istr)
+            icond := Expr.new_explicit(NodeType.FCall, icp, ln, cl)
+
+            mut ibp := Vec.new(Expr)
+            ibp.push(dexpr)
+            ibp.push(pcall)
+            ibp.push(icond)
+            ibody := Expr.new_explicit(NodeType.Body, ibp, ln, cl)
+
+            flit := Expr.new_explicit(NodeType.Identifier("false"), Vec.new(Expr), ln, cl)
+            mut combp := Vec.new(Expr)
+            combp.push(cond)
+            combp.push(ibody)
+            combp.push(flit)
+            cond = Expr.new_explicit(NodeType.If, combp, ln, cl)
+        } else if not(bvar.eq("_")) {
+            mname := format("_sw", I64.to_str(case_e.line), "_", I64.to_str(case_e.col), bvar)
+            vdecl2 := Declaration(name=mname, value_type=ptype, is_mut=true, is_copy=false, is_own=false, default_value=NULL)
+            dval2 := build_default_value_for_forin(context, ptype, ln, cl)
+            mut dp2 := Vec.new(Expr)
+            dp2.push(dval2)
+            dexpr2 := Expr.new_explicit(NodeType.Declaration(vdecl2), dp2, ln, cl)
+            prefix.push(dexpr2)
+
+            mut pcp2 := Vec.new(Expr)
+            pcp2.push(Expr.new_explicit(NodeType.Identifier("enum_get_payload"), Vec.new(Expr), ln, cl))
+            pcp2.push(sw_expr.clone())
+            pcp2.push(Expr.new_explicit(NodeType.LLiteral(Literal.Str(vshort)), Vec.new(Expr), ln, cl))
+            pcp2.push(Expr.new_explicit(NodeType.Identifier(mname), Vec.new(Expr), ln, cl))
+            pcall2 := Expr.new_explicit(NodeType.FCall, pcp2, ln, cl)
+            prefix.push(pcall2)
+
+            ren_old = bvar
+            ren_new = mname
+            has_ren = true
+
+            context.scope_stack.push(ScopeType.Block)
+            context.scope_stack.declare_symbol(mname, SymbolInfo(value_type=ptype, is_mut=true, is_copy=false, is_own=false))
+            do_push = true
+        }
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw format("build_pattern_condition: ", err.msg)
+    }
+    return cond
+}
+
+// Helper: Build condition for Range case
+build_range_condition := proc(sw_expr: Expr, case_e: Expr, sw_type: ValueType, got_type: Bool, ln: I64, cl: I64) returns Expr throws Str {
+    if case_e.params.len().lt(2) {
+        throw case_e.lang_error("", "precomp", "Range requires start and end")
+    }
+    mut se := Expr()
+    mut ee := Expr()
+    case_e.params.get(0, se)
+    case_e.params.get(1, ee)
+    catch (err: IndexOutOfBoundsError) {
+        throw format("Range: ", err.msg)
+    }
+
+    mut tp := "I64"
+    if got_type {
+        switch sw_type {
+        case ValueType.TCustom(t):
+            if t.eq("Str") {
+                tp = "Str"
+            } else if t.eq("U8") {
+                tp = "U8"
+            }
+        case:
+        }
+    }
+
+    mut gip := Vec.new(Expr)
+    gip.push(Expr.new_explicit(NodeType.Identifier("gteq"), Vec.new(Expr), ln, cl))
+    mut gp := Vec.new(Expr)
+    gp.push(Expr.new_explicit(NodeType.Identifier(tp), gip, ln, cl))
+    gp.push(sw_expr.clone())
+    gp.push(se)
+    gc := Expr.new_explicit(NodeType.FCall, gp, ln, cl)
+
+    mut lip := Vec.new(Expr)
+    lip.push(Expr.new_explicit(NodeType.Identifier("lteq"), Vec.new(Expr), ln, cl))
+    mut lp := Vec.new(Expr)
+    lp.push(Expr.new_explicit(NodeType.Identifier(tp), lip, ln, cl))
+    lp.push(sw_expr.clone())
+    lp.push(ee)
+    lc := Expr.new_explicit(NodeType.FCall, lp, ln, cl)
+
+    mut ap := Vec.new(Expr)
+    ap.push(Expr.new_explicit(NodeType.Identifier("and"), Vec.new(Expr), ln, cl))
+    ap.push(gc)
+    ap.push(lc)
+    return Expr.new_explicit(NodeType.FCall, ap, ln, cl)
+}
+
+// Helper: Build condition for Identifier case
+build_identifier_condition := proc(mut context: Context, sw_expr: Expr, case_e: Expr, idname: Str, sw_type: ValueType, got_type: Bool, ln: I64, cl: I64) returns Expr {
+    mut is_enum := false
+    if got_type {
+        switch sw_type {
+        case ValueType.TCustom(tn):
+            mut _ed := context.scope_stack.lookup_enum(tn)
+            is_enum = true
+            catch (err: KeyNotFoundError) {
+                // Not enum
+            }
+        case:
+        }
+    }
+
+    mut is_var := false
+    mut si := context.scope_stack.lookup_symbol(idname)
+    switch si.value_type {
+    case ValueType.TCustom(_):
+        is_var = true
+    case:
+    }
+    catch (err: KeyNotFoundError) {
+        // Not in scope
+    }
+
+    if is_var.and(is_enum) {
+        // Runtime enum comparison
+        mut esp := Vec.new(Expr)
+        esp.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+        esp.push(sw_expr.clone())
+        es1 := Expr.new_explicit(NodeType.FCall, esp, ln, cl)
+
+        mut ecp := Vec.new(Expr)
+        ecp.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+        ecp.push(case_e.clone())
+        es2 := Expr.new_explicit(NodeType.FCall, ecp, ln, cl)
+
+        mut eqp1 := Vec.new(Expr)
+        eqp1.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+        mut cp1 := Vec.new(Expr)
+        cp1.push(Expr.new_explicit(NodeType.Identifier("Str"), eqp1, ln, cl))
+        cp1.push(es1)
+        cp1.push(es2)
+        return Expr.new_explicit(NodeType.FCall, cp1, ln, cl)
+    }
+
+    is_variant := idname.find(".").gteq(0).or(case_e.params.len().gt(0)).or(is_enum)
+    if is_variant {
+        mut vstr := ""
+        if idname.find(".").gteq(0) {
+            vstr = idname
+        } else if got_type {
+            switch sw_type {
+            case ValueType.TCustom(en):
+                mut fname := idname
+                for p: Expr in case_e.params {
+                    switch p.node_type {
+                    case NodeType.Identifier(sub):
+                        fname = format(fname, ".", sub)
+                    case:
+                    }
+                }
+                if fname.find(".").lt(0) {
+                    vstr = format(en, ".", fname)
+                } else {
+                    vstr = fname
+                }
+            case:
+                vstr = idname
+            }
+        } else {
+            vstr = idname
+        }
+
+        mut ep := Vec.new(Expr)
+        ep.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+        ep.push(sw_expr.clone())
+        ec := Expr.new_explicit(NodeType.FCall, ep, ln, cl)
+
+        sl := Expr.new_explicit(NodeType.LLiteral(Literal.Str(vstr)), Vec.new(Expr), ln, cl)
+        mut eqp2 := Vec.new(Expr)
+        eqp2.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+        mut cp2 := Vec.new(Expr)
+        cp2.push(Expr.new_explicit(NodeType.Identifier("Str"), eqp2, ln, cl))
+        cp2.push(ec)
+        cp2.push(sl)
+        return Expr.new_explicit(NodeType.FCall, cp2, ln, cl)
+    }
+
+    // Simple value comparison
+    mut tp := "I64"
+    if got_type {
+        switch sw_type {
+        case ValueType.TCustom(t):
+            tp = t
+        case:
+        }
+    }
+    mut eqp3 := Vec.new(Expr)
+    eqp3.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+    mut cp3 := Vec.new(Expr)
+    cp3.push(Expr.new_explicit(NodeType.Identifier(tp), eqp3, ln, cl))
+    cp3.push(sw_expr.clone())
+    cp3.push(case_e.clone())
+    return Expr.new_explicit(NodeType.FCall, cp3, ln, cl)
+}
+
+// Helper: Build condition for LLiteral case
+build_literal_condition := proc(sw_expr: Expr, case_e: Expr, sw_type: ValueType, got_type: Bool, ln: I64, cl: I64) returns Expr {
+    mut tp := "I64"
+    if got_type {
+        switch sw_type {
+        case ValueType.TCustom(t):
+            tp = t
+        case:
+        }
+    }
+    mut eqp := Vec.new(Expr)
+    eqp.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+    mut cp := Vec.new(Expr)
+    cp.push(Expr.new_explicit(NodeType.Identifier(tp), eqp, ln, cl))
+    cp.push(sw_expr.clone())
+    cp.push(case_e.clone())
+    return Expr.new_explicit(NodeType.FCall, cp, ln, cl)
+}
+
+// Helper: Build condition for FCall case
+build_fcall_condition := proc(mut context: Context, sw_expr: Expr, case_e: Expr, sw_type: ValueType, got_type: Bool, ln: I64, cl: I64) returns Expr throws Str {
+    mut is_enum := false
+    if got_type {
+        switch sw_type {
+        case ValueType.TCustom(tn):
+            mut _ed := context.scope_stack.lookup_enum(tn)
+            is_enum = true
+            catch (err: KeyNotFoundError) {
+                // Not enum
+            }
+        case:
+        }
+    }
+
+    if not(is_enum) {
+        // Computed value comparison
+        mut tp := "I64"
+        if got_type {
+            switch sw_type {
+            case ValueType.TCustom(t):
+                tp = t
+            case:
+            }
+        }
+        mut eqp1 := Vec.new(Expr)
+        eqp1.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+        mut cp := Vec.new(Expr)
+        cp.push(Expr.new_explicit(NodeType.Identifier(tp), eqp1, ln, cl))
+        cp.push(sw_expr.clone())
+        cp.push(case_e.clone())
+        return Expr.new_explicit(NodeType.FCall, cp, ln, cl)
+    }
+
+    // Enum variant with payload
+    mut vne := Expr()
+    case_e.params.get(0, vne)
+    catch (err: IndexOutOfBoundsError) {
+        // Empty params
+    }
+    fvn := build_identifier_chain_name(vne)
+
+    has_nested := case_e.params.len().gt(1)
+
+    // Build outer condition
+    mut ep := Vec.new(Expr)
+    ep.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+    ep.push(sw_expr.clone())
+    ec := Expr.new_explicit(NodeType.FCall, ep, ln, cl)
+
+    sl := Expr.new_explicit(NodeType.LLiteral(Literal.Str(fvn)), Vec.new(Expr), ln, cl)
+    mut eqp2 := Vec.new(Expr)
+    eqp2.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+    mut ocp := Vec.new(Expr)
+    ocp.push(Expr.new_explicit(NodeType.Identifier("Str"), eqp2, ln, cl))
+    ocp.push(ec)
+    ocp.push(sl)
+    outer_cond := Expr.new_explicit(NodeType.FCall, ocp, ln, cl)
+
+    if has_nested {
+        mut ipe := Expr()
+        case_e.params.get(1, ipe)
+        catch (err: IndexOutOfBoundsError) {
+            // Empty
+        }
+        ivn := build_identifier_chain_name(ipe)
+
+        mut vs := fvn
+        vdp := fvn.rfind(".")
+        if vdp.gteq(0) {
+            vs = get_substr(fvn, vdp.add(1), fvn.len())
+        }
+
+        mut etn := ""
+        if vdp.gteq(0) {
+            etn = get_substr(fvn, 0, vdp)
+        } else if got_type {
+            switch sw_type {
+            case ValueType.TCustom(en):
+                etn = en
+            case:
+            }
+        }
+
+        mut pt := ValueType.TCustom("")
+        mut hpl := false
+        mut edf := context.scope_stack.lookup_enum(etn)
+        pptr := edf.get(vs)
+        if not(NULL.eq(pptr.data)) {
+            memcpy(to_ptr(pt), pptr.data, size_of(ValueType))
+            hpl = true
+        }
+        catch (err: KeyNotFoundError) {
+            // No payload
+        }
+
+        if hpl {
+            tn := format("_sw", I64.to_str(case_e.line), "_", I64.to_str(case_e.col), "payload")
+            vd := Declaration(name=tn, value_type=pt, is_mut=true, is_copy=false, is_own=false, default_value=NULL)
+            dv := build_default_value_for_forin(context, pt, ln, cl)
+            mut dp := Vec.new(Expr)
+            dp.push(dv)
+            de := Expr.new_explicit(NodeType.Declaration(vd), dp, ln, cl)
+
+            mut pcp := Vec.new(Expr)
+            pcp.push(Expr.new_explicit(NodeType.Identifier("enum_get_payload"), Vec.new(Expr), ln, cl))
+            pcp.push(sw_expr.clone())
+            pcp.push(Expr.new_explicit(NodeType.LLiteral(Literal.Str(vs)), Vec.new(Expr), ln, cl))
+            pcp.push(Expr.new_explicit(NodeType.Identifier(tn), Vec.new(Expr), ln, cl))
+            pc := Expr.new_explicit(NodeType.FCall, pcp, ln, cl)
+
+            mut iep := Vec.new(Expr)
+            iep.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), ln, cl))
+            iep.push(Expr.new_explicit(NodeType.Identifier(tn), Vec.new(Expr), ln, cl))
+            iec := Expr.new_explicit(NodeType.FCall, iep, ln, cl)
+
+            ist := Expr.new_explicit(NodeType.LLiteral(Literal.Str(ivn)), Vec.new(Expr), ln, cl)
+            mut ieqp := Vec.new(Expr)
+            ieqp.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+            mut icp := Vec.new(Expr)
+            icp.push(Expr.new_explicit(NodeType.Identifier("Str"), ieqp, ln, cl))
+            icp.push(iec)
+            icp.push(ist)
+            ic := Expr.new_explicit(NodeType.FCall, icp, ln, cl)
+
+            mut ibp := Vec.new(Expr)
+            ibp.push(de)
+            ibp.push(pc)
+            ibp.push(ic)
+            ib := Expr.new_explicit(NodeType.Body, ibp, ln, cl)
+
+            fl := Expr.new_explicit(NodeType.Identifier("false"), Vec.new(Expr), ln, cl)
+            mut cbp := Vec.new(Expr)
+            cbp.push(outer_cond)
+            cbp.push(ib)
+            cbp.push(fl)
+            return Expr.new_explicit(NodeType.If, cbp, ln, cl)
+        }
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw format("build_fcall_condition: ", err.msg)
+    }
+    return outer_cond
+}
+
+// Helper: Build default condition
+build_default_condition := proc(sw_expr: Expr, case_e: Expr, sw_type: ValueType, got_type: Bool, ln: I64, cl: I64) returns Expr {
+    mut tp := "I64"
+    if got_type {
+        switch sw_type {
+        case ValueType.TCustom(t):
+            tp = t
+        case:
+        }
+    }
+    mut eqp := Vec.new(Expr)
+    eqp.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), ln, cl))
+    mut cp := Vec.new(Expr)
+    cp.push(Expr.new_explicit(NodeType.Identifier(tp), eqp, ln, cl))
+    cp.push(sw_expr.clone())
+    cp.push(case_e.clone())
+    return Expr.new_explicit(NodeType.FCall, cp, ln, cl)
+}
+
+/// Build a default value expression for a given ValueType.
+/// Used when generating placeholder values for enum variant payloads in for-in loops.
+/// Bug #33: for-in loops don't work with enum collections
+/// Bug #86: Handle enum payload types recursively
+build_default_value_for_forin := func(context: Context, vt: ValueType, line: I64, col: I64) returns Expr {
+    switch vt {
+    case ValueType.TCustom(type_name):
+        if type_name.eq("I64") {
+            return Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), line, col)
+        }
+        if type_name.eq("U8") {
+            return Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), line, col)
+        }
+        if type_name.eq("Bool") {
+            return Expr.new_explicit(NodeType.Identifier("false"), Vec.new(Expr), line, col)
+        }
+        if type_name.eq("Str") {
+            return Expr.new_explicit(NodeType.LLiteral(Literal.Str("")), Vec.new(Expr), line, col)
+        }
+        // For other types (structs, other enums), check if it's an enum
+        // Bug #86: Check if this type is an enum - enums need special constructor syntax
+        mut is_enum := false
+        mut enum_def := context.scope_stack.lookup_enum(type_name)
+        is_enum = true
+        catch (err: KeyNotFoundError) {
+            // Not an enum
+        }
+        if is_enum {
+            // Build proper enum constructor: EnumType.FirstVariant or EnumType.FirstVariant(payload)
+            if enum_def.variants.len().gt(0) {
+                mut first_v := EnumVariant()
+                enum_def.variants.get(0, first_v)
+                first_variant := first_v.name
+                payload_type_ptr := first_v.payload_type
+                catch (err: IndexOutOfBoundsError) {
+                    // Shouldn't happen since we checked len > 0
+                }
+                variant_id := Expr.new_explicit(NodeType.Identifier(first_variant), Vec.new(Expr), line, col)
+                mut variant_id_params := Vec.new(Expr)
+                variant_id_params.push(variant_id)
+                enum_id := Expr.new_explicit(NodeType.Identifier(type_name), variant_id_params, line, col)
+                if not(NULL.eq(payload_type_ptr.data)) {
+                    // Variant has a payload - need FCall with default value (recursive)
+                    mut payload_vt := ValueType.TCustom("")
+                    memcpy(to_ptr(payload_vt), payload_type_ptr.data, size_of(ValueType))
+                    default_arg := build_default_value_for_forin(context, payload_vt, line, col)
+                    mut enum_payload_fcall_params := Vec.new(Expr)
+                    enum_payload_fcall_params.push(enum_id)
+                    enum_payload_fcall_params.push(default_arg)
+                    return Expr.new_explicit(NodeType.FCall, enum_payload_fcall_params, line, col)
+                } else {
+                    // Variant has no payload - just the identifier chain
+                    return enum_id
+                }
+            } else {
+                // Empty enum - fall back to struct-like constructor (shouldn't happen)
+                mut empty_enum_fcall_params := Vec.new(Expr)
+                empty_enum_fcall_params.push(Expr.new_explicit(NodeType.Identifier(type_name), Vec.new(Expr), line, col))
+                return Expr.new_explicit(NodeType.FCall, empty_enum_fcall_params, line, col)
+            }
+        } else {
+            // Not an enum - use struct-like constructor: TYPE()
+            mut struct_fcall_params := Vec.new(Expr)
+            struct_fcall_params.push(Expr.new_explicit(NodeType.Identifier(type_name), Vec.new(Expr), line, col))
+            return Expr.new_explicit(NodeType.FCall, struct_fcall_params, line, col)
+        }
+    case:
+        // For function types and other types, use a placeholder (shouldn't typically happen)
+        return Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), line, col)
+    }
+}
+
+/// Desugar ForIn to a range-based for loop with get() calls
+// for VAR: TYPE in COLLECTION { body }
+// becomes:
+/// for _for_i in 0..collection.len() {
+//     mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
+///     collection.get(_for_i, VAR)
+//     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+///     body
+/// }
+precomp_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns Expr throws Str {
+    // Extract var_name from params[0]
+    if e.params.len().lt(1) {
+        throw e.lang_error(context.path, "precomp", "ForIn: missing loop variable")
+    }
+    mut var_expr := e.get(0)
+    mut var_name := ""
+    switch var_expr.node_type {
+    case NodeType.Identifier(name):
+        var_name = name
+    case:
+        throw e.lang_error(context.path, "precomp", "ForIn: expected identifier for loop variable")
+    }
+
+    // Declare loop variable in scope BEFORE processing body (body references it)
+    context.scope_stack.declare_symbol(var_name, SymbolInfo(
+        value_type=ValueType.TCustom(var_type_name),
+        is_mut=true
+    ))
+
+    // Get collection expression (params[1])
+    if e.params.len().lt(2) {
+        throw e.lang_error(context.path, "precomp", "ForIn: missing collection expression")
+    }
+    collection_expr := precomp_expr(context, e.get(1))
+
+    // Get body (params[2])
+    if e.params.len().lt(3) {
+        throw e.lang_error(context.path, "precomp", "ForIn: missing body")
+    }
+    body_expr := precomp_expr(context, e.get(2))
+
+    // Build: mut _for_i_funcname_N := 0 (unique name to avoid conflicts with nested loops)
+    // Bug #40 fix: Use per-function counter and include function name for deterministic output
+    forin_id := context.precomp_forin_counter
+    context.precomp_forin_counter.inc()
+    mut index_var_name := ""
+    if context.current_precomp_func.len().gt(0) {
+        index_var_name = format("_for_i_", context.current_precomp_func, "_", I64.to_str(forin_id))
+    } else {
+        index_var_name = format("_for_i_", I64.to_str(forin_id))
+    }
+    index_decl := Declaration(name=index_var_name, value_type=str_to_value_type(INFER_TYPE), is_mut=true, is_copy=false, is_own=false, default_value=NULL)
+    mut zero_params := Vec.new(Expr)
+    zero_literal := Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), zero_params, e.line, e.col)
+    mut decl_params := Vec.new(Expr)
+    decl_params.push(zero_literal)
+    index_decl_expr := Expr.new_explicit(NodeType.Declaration(index_decl), decl_params, e.line, e.col)
+
+    // Build len(collection) - already desugared form
+    mut len_params := Vec.new(Expr)
+    len_params.push(Expr.new_explicit(NodeType.Identifier("len"), Vec.new(Expr), e.line, e.col))
+    len_params.push(collection_expr.clone())
+    len_call_expr := Expr.new_explicit(NodeType.FCall, len_params, e.line, e.col)
+
+    // Build lt(_for_i, len_result) - already desugared form
+    mut cond_params := Vec.new(Expr)
+    cond_params.push(Expr.new_explicit(NodeType.Identifier("lt"), Vec.new(Expr), e.line, e.col))
+    cond_params.push(Expr.new_explicit(NodeType.Identifier(index_var_name), Vec.new(Expr), e.line, e.col))
+    cond_params.push(len_call_expr)
+    cond_expr := Expr.new_explicit(NodeType.FCall, cond_params, e.line, e.col)
+
+    // Build: mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
+    var_decl := Declaration(name=var_name, value_type=ValueType.TCustom(var_type_name), is_mut=true, is_copy=false, is_own=false, default_value=NULL)
+
+    // Check if this is an enum type - enums need special handling since they don't have
+    // a parameterless constructor. We need to use the first variant as a placeholder.
+    // Bug #33: for-in loops don't work with enum collections
+    mut type_call := Expr()
+    mut is_enum := false
+    mut enum_def := context.scope_stack.lookup_enum(var_type_name)
+    is_enum = true
+    catch (err: KeyNotFoundError) {
+        // Not an enum
+    }
+
+    if is_enum {
+        // Get the first variant from the enum (arbitrary choice - value will be overwritten by get())
+        // Bug #38 fix: use variants Vec
+        if enum_def.variants.len().gt(0) {
+            mut first_v := EnumVariant()
+            enum_def.variants.get(0, first_v)
+            first_variant := first_v.name
+            payload_type_ptr := first_v.payload_type
+            catch (err: IndexOutOfBoundsError) {
+                // Shouldn't happen since we checked len > 0
+            }
+
+            // Build the enum constructor:
+            // - For variants WITHOUT payload: EnumType.Variant (just identifier chain)
+            // - For variants WITH payload: EnumType.Variant(default_payload) (FCall)
+            variant_id := Expr.new_explicit(NodeType.Identifier(first_variant), Vec.new(Expr), e.line, e.col)
+            mut variant_id_params := Vec.new(Expr)
+            variant_id_params.push(variant_id)
+            enum_id := Expr.new_explicit(NodeType.Identifier(var_type_name), variant_id_params, e.line, e.col)
+
+            if not(NULL.eq(payload_type_ptr.data)) {
+                // Variant has a payload - need FCall with default value
+                mut payload_vt := ValueType.TCustom("")
+                memcpy(to_ptr(payload_vt), payload_type_ptr.data, size_of(ValueType))
+                default_arg := build_default_value_for_forin(context, payload_vt, e.line, e.col)
+                mut fcall_params := Vec.new(Expr)
+                fcall_params.push(enum_id)
+                fcall_params.push(default_arg)
+                type_call = Expr.new_explicit(NodeType.FCall, fcall_params, e.line, e.col)
+            } else {
+                // Variant has no payload - just the identifier chain (NOT an FCall)
+                type_call = enum_id
+            }
+        } else {
+            // Empty enum - shouldn't happen, fall back to struct-like constructor
+            mut empty_enum_type_call_params := Vec.new(Expr)
+            empty_enum_type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
+            type_call = Expr.new_explicit(NodeType.FCall, empty_enum_type_call_params, e.line, e.col)
+        }
+    } else {
+        // Not an enum - use struct-like constructor: TYPE()
+        mut struct_type_call_params := Vec.new(Expr)
+        struct_type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
+        type_call = Expr.new_explicit(NodeType.FCall, struct_type_call_params, e.line, e.col)
+    }
+
+    mut var_decl_params := Vec.new(Expr)
+    var_decl_params.push(type_call)
+    var_decl_expr := Expr.new_explicit(NodeType.Declaration(var_decl), var_decl_params, e.line, e.col)
+
+    // Build: get(collection, _for_i, VAR) - already desugared form
+    mut get_params := Vec.new(Expr)
+    get_params.push(Expr.new_explicit(NodeType.Identifier("get"), Vec.new(Expr), e.line, e.col))
+    get_params.push(collection_expr.clone())
+    get_params.push(Expr.new_explicit(NodeType.Identifier(index_var_name), Vec.new(Expr), e.line, e.col))
+    get_params.push(Expr.new_explicit(NodeType.Identifier(var_name), Vec.new(Expr), e.line, e.col))
+    get_call := Expr.new_explicit(NodeType.FCall, get_params, e.line, e.col)
+
+    // Build: catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    // Build err.msg (identifier with field access)
+    mut msg_field := Vec.new(Expr)
+    msg_field.push(Expr.new_explicit(NodeType.Identifier("msg"), Vec.new(Expr), e.line, e.col))
+    err_msg_expr := Expr.new_explicit(NodeType.Identifier("err"), msg_field, e.line, e.col)
+
+    // Build loc() call
+    mut loc_params := Vec.new(Expr)
+    loc_params.push(Expr.new_explicit(NodeType.Identifier("loc"), Vec.new(Expr), e.line, e.col))
+    loc_call := Expr.new_explicit(NodeType.FCall, loc_params, e.line, e.col)
+
+    // Build panic(loc(), err.msg)
+    mut panic_params := Vec.new(Expr)
+    panic_params.push(Expr.new_explicit(NodeType.Identifier("panic"), Vec.new(Expr), e.line, e.col))
+    panic_params.push(loc_call)
+    panic_params.push(err_msg_expr)
+    panic_call := Expr.new_explicit(NodeType.FCall, panic_params, e.line, e.col)
+
+    // Build catch body
+    mut catch_body_params := Vec.new(Expr)
+    catch_body_params.push(panic_call)
+    catch_body := Expr.new_explicit(NodeType.Body, catch_body_params, e.line, e.col)
+
+    // Catch structure: [name_expr, type_expr, body_expr]
+    mut catch_params := Vec.new(Expr)
+    catch_params.push(Expr.new_explicit(NodeType.Identifier("err"), Vec.new(Expr), e.line, e.col))
+    catch_params.push(Expr.new_explicit(NodeType.Identifier("IndexOutOfBoundsError"), Vec.new(Expr), e.line, e.col))
+    catch_params.push(catch_body)
+    catch_expr := Expr.new_explicit(NodeType.Catch, catch_params, e.line, e.col)
+
+    // Build: _for_i = add(_for_i, 1)
+    // Already desugared form - no UFCS resolution needed
+    mut add_params := Vec.new(Expr)
+    add_params.push(Expr.new_explicit(NodeType.Identifier("add"), Vec.new(Expr), e.line, e.col))
+    add_params.push(Expr.new_explicit(NodeType.Identifier(index_var_name), Vec.new(Expr), e.line, e.col))
+    mut one_params := Vec.new(Expr)
+    add_params.push(Expr.new_explicit(NodeType.LLiteral(Literal.Number("1")), one_params, e.line, e.col))
+    add_call := Expr.new_explicit(NodeType.FCall, add_params, e.line, e.col)
+
+    mut inc_params := Vec.new(Expr)
+    inc_params.push(add_call)
+    inc_stmt := Expr.new_explicit(NodeType.Assignment(index_var_name), inc_params, e.line, e.col)
+
+    // Build while body: var_decl, get_call + catch (together), original body statements, inc
+    // The catch must be right after get_call so it only catches IndexOutOfBoundsError from get,
+    // not from user code in the loop body
+    mut while_body_params := Vec.new(Expr)
+    while_body_params.push(var_decl_expr)
+    while_body_params.push(get_call)
+    while_body_params.push(catch_expr)
+
+    // Bug #57 fix: Transform continue statements to include increment before continue
+    transformed_body := precomp_transform_continue_with_step(body_expr, inc_stmt)
+    // Add original body statements (transformed)
+    switch transformed_body.node_type {
+    case NodeType.Body:
+        for i in 0..transformed_body.params.len() {
+            mut p := Expr()
+            transformed_body.params.get(i, p)
+            while_body_params.push(p.clone())
+        }
+    case:
+        while_body_params.push(transformed_body)
+    }
+    while_body_params.push(inc_stmt.clone())
+    while_body := Expr.new_explicit(NodeType.Body, while_body_params, e.line, e.col)
+
+    // Build while: while _for_i.lt(collection.len()) { ... }
+    mut while_params := Vec.new(Expr)
+    while_params.push(cond_expr)
+    while_params.push(while_body)
+    while_expr := Expr.new_explicit(NodeType.While, while_params, e.line, e.col)
+
+    // Build outer body: index_decl, while
+    mut outer_body_params := Vec.new(Expr)
+    outer_body_params.push(index_decl_expr)
+    outer_body_params.push(while_expr)
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("precomp_forin: ", err.msg)
+    }
+
+    return Expr.new_explicit(NodeType.Body, outer_body_params, e.line, e.col)
 }
 
 /// Transform StructDef - recursively transform default values (which contain function defs)
@@ -404,9 +1548,9 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
     mut i := 0
     while i.lt(struct_def.default_values.keys.len()) {
         mut name := ""
-        struct_def.default_values.keys.get(i, name)?
+        struct_def.default_values.keys.get(i, name)
         mut value_expr := Expr()
-        struct_def.default_values.get(name, value_expr)?
+        struct_def.default_values.get(name, value_expr)
 
         // Bug #40 fix: For method definitions, set function name context
         mut is_func := false
@@ -422,7 +1566,7 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
             context.precomp_forin_counter = 0
         }
 
-        new_default_values.set(name, precomp_expr(context, value_expr)?)
+        new_default_values.set(name, precomp_expr(context, value_expr))
 
         // Bug #40 fix: Restore previous function context
         if is_func {
@@ -452,17 +1596,17 @@ precomp_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) retu
     context.scope_stack.push(ScopeType.Function)
     for arg: Declaration in func_def.args {
         sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
-        context.scope_stack.declare_symbol(arg.name, sym)?
+        context.scope_stack.declare_symbol(arg.name, sym)
     }
 
     // Transform the function body
     mut new_body := Vec.new(Expr)
     for stmt: Expr in func_def.body {
-        new_body.push(precomp_expr(context, stmt)?)
+        new_body.push(precomp_expr(context, stmt))
     }
 
     // Pop the function scope frame
-    _ := context.scope_stack.pop()?
+    _ := context.scope_stack.pop()
 
     mut new_func_def := SFuncDef()
     new_func_def.function_type = func_def.function_type
@@ -482,43 +1626,46 @@ precomp_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) retu
 /// Transform Declaration - register the declared variable in scope, then transform value
 precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str {
     // Eagerly create default instance template for this struct type
-    inner_e := e.get(0)?
-    mut value_type := get_value_type(context, inner_e)?
+    inner_e := e.get(0)
+    mut value_type := get_value_type(context, inner_e)
     catch (err: Str) {
         throw e.lang_error(context.path, "precomp", err)
     }
 
-    // Error if INFER_TYPE reaches precomp - typer should have resolved all types
+    // Type validation - check declared type matches inferred type
+    mut is_infer := false
     switch decl.value_type {
     case ValueType.TCustom(decl_type_name):
         if decl_type_name.eq(INFER_TYPE) {
-            throw e.lang_error(context.path, "precomp", format("Declaration '", decl.name, "' has INFER_TYPE - should have been resolved by typer"))
+            is_infer = true
         }
     case:
     }
-    // Type checking - check for U8/I64 coercion
-    mut is_u8_decl := false
-    mut is_i64_value := false
-    switch decl.value_type {
-    case ValueType.TCustom(decl_type_name):
-        if decl_type_name.eq("U8") {
-            is_u8_decl = true
+    if not(is_infer) {
+        // Check for U8/I64 coercion
+        mut is_u8_decl := false
+        mut is_i64_value := false
+        switch decl.value_type {
+        case ValueType.TCustom(decl_type_name):
+            if decl_type_name.eq("U8") {
+                is_u8_decl = true
+            }
+        case:
         }
-    case:
-    }
-    switch value_type {
-    case ValueType.TCustom(val_type_name):
-        if val_type_name.eq("I64") {
-            is_i64_value = true
+        switch value_type {
+        case ValueType.TCustom(val_type_name):
+            if val_type_name.eq("I64") {
+                is_i64_value = true
+            }
+        case:
         }
-    case:
-    }
-    if is_u8_decl.and(is_i64_value) {
-        value_type = decl.value_type
-    } else {
-        // Check types match
-        if not(value_type_to_str(decl.value_type).eq(value_type_to_str(value_type))) {
-            throw e.lang_error(context.path, "precomp", format("'", decl.name, "' declared of type ", value_type_to_str(decl.value_type), " but initialized to type ", value_type_to_str(value_type), "."))
+        if is_u8_decl.and(is_i64_value) {
+            value_type = decl.value_type
+        } else {
+            // Check types match
+            if not(value_type_to_str(decl.value_type).eq(value_type_to_str(value_type))) {
+                throw e.lang_error(context.path, "precomp", format("'", decl.name, "' declared of type ", value_type_to_str(decl.value_type), " but initialized to type ", value_type_to_str(value_type), "."))
+            }
         }
     }
 
@@ -527,8 +1674,8 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case ValueType.TType(TTypeDef.TEnumDef):
         switch inner_e.node_type {
         case NodeType.EnumDef(enum_def):
-            context.scope_stack.declare_enum(decl.name, enum_def)?
-            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+            context.scope_stack.declare_enum(decl.name, enum_def)
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
             return e.clone()
         case:
             throw e.lang_error(context.path, "precomp", format("Cannot declare '", decl.name, "' of type '", value_type_to_str(decl.value_type), "', expected enum definition."))
@@ -541,9 +1688,9 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case ValueType.TType(TTypeDef.TStructDef):
         switch inner_e.node_type {
         case NodeType.StructDef(struct_def):
-            context.scope_stack.declare_struct(decl.name, struct_def)?
+            context.scope_stack.declare_struct(decl.name, struct_def)
             saved_path := context.path
-            _ := eval_declaration(decl, context, e)?
+            _ := eval_declaration(decl, context, e)
             context.path = saved_path
         case:
         }
@@ -571,7 +1718,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     mut new_params := Vec.new(Expr)
     if e.params.len().gt(0) {
         for p: Expr in e.params {
-            new_params.push(precomp_expr(context, p)?)
+            new_params.push(precomp_expr(context, p))
         }
     }
 
@@ -591,23 +1738,23 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     // Only mut matters for constantness - copy/own are about ownership, orthogonal to comptime.
     // Any type can be comptime - the type doesn't matter, only how the value is computed.
     mut first_param := Expr()
-    new_params.get(0, first_param)?
+    new_params.get(0, first_param)
     is_comptime_const := not(decl.is_mut)
         .and(is_comptime_evaluable(context, first_param))
 
     // Register the declared variable in scope
     sym := SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=is_comptime_const)
-    context.scope_stack.declare_symbol(decl.name, sym)?
+    context.scope_stack.declare_symbol(decl.name, sym)
 
     // Also register function definitions so UFCS can resolve their return types
     switch value_type {
     case ValueType.TFunction:
         if new_params.len().gt(0) {
             mut fp := Expr()
-            new_params.get(0, fp)?
+            new_params.get(0, fp)
             switch fp.node_type {
             case NodeType.FuncDef(func_def):
-                context.scope_stack.declare_func(decl.name, func_def)?
+                context.scope_stack.declare_func(decl.name, func_def)
             case:
             }
         }
@@ -626,9 +1773,9 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
         case ValueType.TCustom(custom_type_name):
             if custom_type_name.eq("I64").or(custom_type_name.eq("U8")).or(custom_type_name.eq("Str")) {
                 if is_comptime_evaluable(context, first_param) {
-                    result := eval_expr(context, first_param)?
+                    result := eval_expr(context, first_param)
                     if not(result.is_throw) {
-                        EvalArena.insert_primitive(context, decl.name, value_type, result.value, e)?
+                        EvalArena.insert_primitive(context, decl.name, value_type, result.value, e)
                     }
                 }
             }
@@ -645,14 +1792,14 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
             // Skip primitives (I64, U8) - handled above. Skip Str - needs special handling.
             if not(custom_type_name.eq("I64")).and(not(custom_type_name.eq("U8"))).and(not(custom_type_name.eq("Str"))) {
                 // Check if this is a struct type (not a struct definition)
-                mut instance_sym := context.scope_stack.lookup_symbol(custom_type_name)?
+                mut instance_sym := context.scope_stack.lookup_symbol(custom_type_name)
                 catch (err: KeyNotFoundError) {
                     // Type not found, skip
                 }
                 switch instance_sym.value_type {
                 case ValueType.TType(TTypeDef.TStructDef):
                     instance_saved_path := context.path
-                    _ := eval_declaration(decl, context, e)?
+                    _ := eval_declaration(decl, context, e)
                     context.path = instance_saved_path
                 case:
                 }
@@ -680,8 +1827,8 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Get the catch variable name and type
     mut name_expr := Expr()
     mut type_expr := Expr()
-    e.params.get(0, name_expr)?
-    e.params.get(1, type_expr)?
+    e.params.get(0, name_expr)
+    e.params.get(1, type_expr)
     mut var_name := ""
     mut type_name := ""
     switch name_expr.node_type {
@@ -707,15 +1854,15 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     sym.is_copy = false
     sym.is_own = false
     sym.is_comptime_const = false
-    context.scope_stack.declare_symbol(var_name, sym)?
+    context.scope_stack.declare_symbol(var_name, sym)
 
     // Transform the catch body (params[2])
     mut body_expr := Expr()
-    e.params.get(2, body_expr)?
-    new_body := precomp_expr(context, body_expr)?
+    e.params.get(2, body_expr)
+    new_body := precomp_expr(context, body_expr)
 
     // Pop the scope frame
-    _ := context.scope_stack.pop()?
+    _ := context.scope_stack.pop()
 
     // Return the transformed catch with original var_name, type, and new body
     mut new_params := Vec.new(Expr)
@@ -730,11 +1877,11 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     return Expr.new_clone(NodeType.Catch, e, new_params)
 }
 
-/// Transform FCall node - handles compile-time intrinsics, struct/enum constructors, and import()
+/// Transform FCall node - this is where UFCS resolution happens
 precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // 1. Check for compile-time intrinsics (loc, _file, _line, _col)
     mut was_replaced := false
-    replaced := try_replace_comptime_intrinsic(context, e, was_replaced)?
+    replaced := try_replace_comptime_intrinsic(context, e, was_replaced)
     if was_replaced {
         return replaced
     }
@@ -744,36 +1891,36 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // Empty FCall, shouldn't happen but just return as-is
         return e.clone()
     }
-    mut func_expr := e.get(0)?
+    mut func_expr := e.get(0)
 
     mut combined_name := ""
     switch func_expr.node_type {
     case NodeType.Identifier:
-        combined_name = get_combined_name(context.path, func_expr)?
+        combined_name = get_combined_name(context.path, func_expr)
     case:
     }
 
     // 3. Struct constructor - create instance like eval does (before arg transform)
     if not(combined_name.eq("")) {
         mut struct_found := false
-        _dummy_struct := context.scope_stack.lookup_struct(combined_name)?
+        _dummy_struct := context.scope_stack.lookup_struct(combined_name)
         struct_found = true
         catch (err: KeyNotFoundError) {
             // Not found
         }
         if struct_found {
-            _ := create_default_instance(context, combined_name, e)?
+            _ := create_default_instance(context, combined_name, e)
             switch func_expr.node_type {
             case NodeType.Identifier(id_name):
                 if func_expr.params.len().eq(0) {
-                    insert_struct_instance(context, id_name, combined_name, e)?
+                    insert_struct_instance(context, id_name, combined_name, e)
                 }
             case:
             }
             // Transform arguments for struct constructor
             mut struct_params := Vec.new(Expr)
             for p: Expr in e.params {
-                struct_params.push(precomp_expr(context, p)?)
+                struct_params.push(precomp_expr(context, p))
             }
             return Expr.new_clone(e.node_type, e, struct_params)
         }
@@ -784,7 +1931,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // Transform arguments for enum constructor
         mut enum_params := Vec.new(Expr)
         for p: Expr in e.params {
-            enum_params.push(precomp_expr(context, p)?)
+            enum_params.push(precomp_expr(context, p))
         }
         return Expr.new_clone(e.node_type, e, enum_params)
     }
@@ -792,7 +1939,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // 5. Transform all arguments
     mut transformed_params := Vec.new(Expr)
     for p: Expr in e.params {
-        transformed_params.push(precomp_expr(context, p)?)
+        transformed_params.push(precomp_expr(context, p))
     }
     mut new_e := Expr.new_clone(e.node_type, e, transformed_params)
 
@@ -800,15 +1947,15 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     if new_e.params.len().eq(0) {
         return new_e
     }
-    func_expr = new_e.get(0)?
+    func_expr = new_e.get(0)
 
     switch func_expr.node_type {
     case NodeType.Identifier:
-        combined_name = get_combined_name(context.path, func_expr)?
+        combined_name = get_combined_name(context.path, func_expr)
 
-        // 6. Handle ext functions and import()
+        // 6. Regular function call - check if it exists
         mut func_found := false
-        mut func_def := context.scope_stack.lookup_func(combined_name)?
+        mut func_def := context.scope_stack.lookup_func(combined_name)
         func_found = true
         catch (err: KeyNotFoundError) {
             // Not found
@@ -817,14 +1964,161 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
             // Ext functions: evaluation happens through eval_comptime path (see doc/precomp.org)
             // Exception: import() must run during precomp to load code
             if func_def.is_ext() {
-                mut parts := combined_name.split(".")?
+                mut parts := combined_name.split(".")
                 if parts.len().gt(0) {
                     mut last_part := ""
-                    parts.get(parts.len().sub(1), last_part)?
+                    parts.get(parts.len().sub(1), last_part)
                     if last_part.eq("import") {
-                        _ := eval_expr(context, new_e)?
+                        _ := eval_expr(context, new_e)
                     }
                 }
+                return new_e.clone()
+            }
+            // Reorder named arguments to positional order before constant folding
+            reordered := reorder_named_args(context, new_e, func_def)
+            return reordered
+        }
+
+        // UFCS for chained calls: func(result, args) -> Type.func(result, args)
+        // e.g., add(1, 2).mul(3) becomes mul(add(1,2), 3) which transforms to I64.mul(add(1,2), 3)
+        // This only applies when no standalone function with this name exists (checked above).
+        if new_e.params.len().gteq(2) {
+            mut first_arg := Expr()
+            new_e.params.get(1, first_arg)
+            mut got_type := true
+            mut target_type := get_value_type(context, first_arg)
+            catch (err: Str) {
+                got_type = false
+            }
+            if got_type {
+                // Get type name from value_type - TCustom or TMulti (variadic params become Array)
+                mut type_name := ""
+                mut has_type_name := false
+                switch target_type {
+                case ValueType.TCustom(custom_type_name):
+                    type_name = custom_type_name
+                    has_type_name = true
+                case ValueType.TMulti(variadic_type_name):
+                    type_name = "Array"
+                    has_type_name = true
+                case:
+                }
+                if has_type_name {
+                    mut method_name := format(type_name, ".", combined_name)
+                    mut method_found := false
+                    _dummy := context.scope_stack.lookup_func(method_name)
+                    method_found = true
+                    catch (err: KeyNotFoundError) {
+                        // Not found
+                    }
+                    if method_found {
+                        // Transform: func(target, args...) -> Type.func(target, args...)
+                        mut new_id_e := Expr.new_clone(NodeType.Identifier(method_name), func_expr, Vec.new(Expr))
+                        mut new_args := Vec.new(Expr)
+                        new_args.push(new_id_e)
+                        // Add remaining args from outer new_e (the transformed FCall)
+                        mut j := 1
+                        while j.lt(new_e.params.len()) {
+                            mut arg := Expr()
+                            new_e.params.get(j, arg)
+                            new_args.push(arg)
+                            j.inc()
+                        }
+                        return Expr.new_clone(NodeType.FCall, func_expr, new_args)
+                    }
+                }
+            }
+        }
+
+        // UFCS with dot notation (e.g., a.method(b) or a.field.method())
+        if func_expr.params.len().gt(0) {
+            mut func_name_expr := Expr()
+            func_expr.params.get(func_expr.params.len().sub(1), func_name_expr)
+
+            switch func_name_expr.node_type {
+            case NodeType.Identifier(ufcs_func_name):
+                mut parts2 := combined_name.split(".")
+                // Remove the method name (last element)
+                if parts2.len().gt(0) {
+                    parts2.remove(parts2.len().sub(1))
+                }
+
+                // Create identifier expression for the receiver (everything except the method name)
+                mut id_params := func_expr.params.clone()
+                if id_params.len().gt(0) {
+                    id_params.remove(id_params.len().sub(1))
+                }
+                mut receiver_expr := Expr.new_clone(func_expr.node_type, new_e, id_params)
+
+                // Try as an associated method (Type.method) first - this takes priority over standalone functions
+                // because x.and(y) should resolve to Bool.and(x, y) not and(x, y) when both exist
+                mut got_type2 := true
+                mut value_type := get_value_type(context, receiver_expr)
+                catch (err: Str) {
+                    got_type2 = false
+                }
+                if got_type2 {
+                    // Get type name from value_type - TCustom or TMulti (variadic params become Array)
+                    mut custom_type_name := ""
+                    mut assoc_has_type_name := false
+                    switch value_type {
+                    case ValueType.TCustom(type_name):
+                        custom_type_name = type_name
+                        assoc_has_type_name = true
+                    case ValueType.TMulti:
+                        custom_type_name = "Array"
+                        assoc_has_type_name = true
+                    case:
+                    }
+                    if assoc_has_type_name {
+                        mut assoc_method_name := format(custom_type_name, ".", ufcs_func_name)
+                        mut assoc_method_found := false
+                        _dummy5 := context.scope_stack.lookup_func(assoc_method_name)
+                        assoc_method_found = true
+                        catch (err: KeyNotFoundError) {
+                            // Not found
+                        }
+                        if assoc_method_found {
+                            mut assoc_new_id_e := Expr.new_clone(NodeType.Identifier(assoc_method_name), func_expr, Vec.new(Expr))
+                            mut assoc_new_args := Vec.new(Expr)
+                            assoc_new_args.push(assoc_new_id_e)
+                            assoc_new_args.push(receiver_expr)
+                            // Add remaining args from outer new_e
+                            mut assoc_j := 1
+                            while assoc_j.lt(new_e.params.len()) {
+                                mut assoc_arg := Expr()
+                                new_e.params.get(assoc_j, assoc_arg)
+                                assoc_new_args.push(assoc_arg)
+                                assoc_j.inc()
+                            }
+                            return Expr.new_clone(NodeType.FCall, func_expr, assoc_new_args)
+                        }
+                    }
+                }
+
+                // Fall back to standalone function
+                mut standalone_found := false
+                _dummy4 := context.scope_stack.lookup_func(ufcs_func_name)
+                standalone_found = true
+                catch (err: KeyNotFoundError) {
+                    // Not found
+                }
+                if standalone_found {
+                    mut standalone_new_id_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), func_expr, Vec.new(Expr))
+                    mut standalone_new_args := Vec.new(Expr)
+                    standalone_new_args.push(standalone_new_id_e)
+                    standalone_new_args.push(receiver_expr)
+                    // Add remaining args from outer new_e
+                    mut standalone_j := 1
+                    while standalone_j.lt(new_e.params.len()) {
+                        mut standalone_arg := Expr()
+                        new_e.params.get(standalone_j, standalone_arg)
+                        standalone_new_args.push(standalone_arg)
+                        standalone_j.inc()
+                    }
+                    return Expr.new_clone(NodeType.FCall, func_expr, standalone_new_args)
+                }
+            case:
             }
         }
     case:
@@ -834,6 +2128,6 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
         throw format("precomp_fcall: ", err.msg)
     }
 
-    // No transformation needed (UFCS already resolved in ufcs phase)
+    // No transformation needed
     return new_e
 }
