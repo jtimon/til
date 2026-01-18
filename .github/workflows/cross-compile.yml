@@ -20,7 +20,7 @@ jobs:
         run: make tests
       - name: Test build
         run: |
-          ./bin/rstil build src/examples/hello_script.til --target=linux-x64
+          ./bin/rstil build src/examples/hello_script.til --target=linux-x64 --force-rebuild
           ./bin/examples/hello_script
 
   linux-arm64:
@@ -38,7 +38,7 @@ jobs:
         run: make tests
       - name: Test cross-compile
         run: |
-          ./bin/rstil build src/examples/hello_script.til --target=linux-arm64
+          ./bin/rstil build src/examples/hello_script.til --target=linux-arm64 --force-rebuild
           file bin/examples/hello_script | grep -q "aarch64"
 
   linux-riscv64:
@@ -56,7 +56,7 @@ jobs:
         run: make tests
       - name: Test cross-compile
         run: |
-          ./bin/rstil build src/examples/hello_script.til --target=linux-riscv64
+          ./bin/rstil build src/examples/hello_script.til --target=linux-riscv64 --force-rebuild
           file bin/examples/hello_script | grep -q "RISC-V"
 
   windows-x64:
@@ -74,7 +74,7 @@ jobs:
         run: make tests
       - name: Test cross-compile
         run: |
-          ./bin/rstil build src/examples/hello_script.til --target=windows-x64
+          ./bin/rstil build src/examples/hello_script.til --target=windows-x64 --force-rebuild
           test -f bin/examples/hello_script.exe
 
   macos-x64:
@@ -90,7 +90,7 @@ jobs:
         run: make tests
       - name: Test build
         run: |
-          ./bin/rstil build src/examples/hello_script.til --target=macos-x64
+          ./bin/rstil build src/examples/hello_script.til --target=macos-x64 --force-rebuild
           ./bin/examples/hello_script
 
   macos-arm64:
@@ -106,6 +106,6 @@ jobs:
         run: make tests
       - name: Test build
         run: |
-          ./bin/rstil build src/examples/hello_script.til --target=macos-arm64
+          ./bin/rstil build src/examples/hello_script.til --target=macos-arm64 --force-rebuild
           ./bin/examples/hello_script
 
