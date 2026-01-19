@@ -1,6 +1,7 @@
 * TIL Compilation Pipeline
 
-This document describes the phases in the TIL compiler/interpreter pipeline.
+This document describes the TARGET phases for the TIL compiler/interpreter pipeline.
+NOTE: This is the goal, not current reality. See Issue #127 for migration status.
 
 ** Phases Overview
 
@@ -12,8 +13,10 @@ The pipeline processes source code through these phases in order:
 | Parser    | Tokens         | AST            | Build abstract syntax tree                 |
 | Mode      | Lexer          | ModeDef        | Parse mode declaration (test, script, etc) |
 | Init      | AST, Context   | Context        | Register declarations in scope             |
-| Typer     | AST, Context   | Errors or OK   | Type checking and validation               |
-| Precomp   | AST, Context   | AST            | Desugaring transformations                 |
+| Typer     | AST, Context   | AST            | Type checking, validation, type completion |
+| Sugar     | AST, Context   | AST            | Desugar syntactic sugar constructs         |
+| UFCS      | AST, Context   | AST            | Desugar uniform function call syntax       |
+| Precomp   | AST, Context   | AST            | Const-folding, macros                      |
 | Scavenger | AST, Context   | AST            | Remove unused declarations (build only)    |
 | Build     | AST, Context   | C source       | Generate C code (ccodegen)                 |
 | Interpret | AST, Context   | EvalResult     | Execute program (eval)                     |
@@ -27,6 +30,7 @@ The pipeline processes source code through these phases in order:
 
 *** Parser (src/rs/parser.rs, src/self/parser.til)
 - Builds AST from token stream
+- Parses all for-in variants as ForIn node (desugared later in Sugar)
 - Entry: parse_tokens()
 
 *** Mode (src/rs/mode.rs, src/self/mode.til)
@@ -48,13 +52,28 @@ The pipeline processes source code through these phases in order:
 - Verifies function calls match signatures
 - Checks type compatibility in assignments
 - Validates enum variant usage
+- Completes type inference in AST (annotates nodes with resolved types)
+- No later phase should need to infer types
 - Entry: check_types(), basic_mode_checks()
 
+*** Sugar (src/rs/sugar.rs, src/self/sugar.til)
+- Desugars syntactic sugar constructs:
+  - range for: for i in 0..10 -> while loop (type from AST annotation)
+  - forin: for x: T in collection -> while loop with len/get calls
+  - switch: switch/case on enums -> if/else chains with enum_to_str/enum_get_payload
+- Runs after typer because AST is annotated with resolved types
+- Entry: sugar_expr()
+
+*** UFCS (src/rs/ufcs.rs, src/self/ufcs.til)
+- Desugars uniform function call syntax:
+  - x.method(y) -> Type.method(x, y)
+- Runs after sugar because sugar may generate UFCS calls
+- Entry: ufcs_expr()
+
 *** Precomp (src/rs/precomp.rs, src/self/precomp.til)
-- AST-to-AST transformations (desugaring):
-  - UFCS: x.method(y) -> Type.method(x, y)
-  - forin: for x in collection -> while loop with len/get calls
-  - switch: switch/case -> if/else chains (Issue #110, in progress)
+- Constant folding
+- Macro expansion
+- Other compile-time computations
 - Entry: precomp_expr()
 
 *** Scavenger (src/rs/scavenger.rs, src/self/scavenger.til)
@@ -73,22 +92,24 @@ The pipeline processes source code through these phases in order:
 - Manages eval arena for memory
 - Entry: eval_expr()
 
-** Builder vs Interpreter
+** Build vs Interpret
 
 The builder (src/rs/builder.rs) and interpreter (src/rs/interpreter.rs) share
-the same phases up through precomp, but diverge afterward:
+the same phases up through scavenger, but diverge afterward:
 
 Build pipeline:
-  Lexer -> Parser -> Mode -> Init -> Typer -> Precomp -> Scavenger -> Build -> GCC
+  Lexer -> Parser -> Mode -> Init -> Typer -> Sugar -> UFCS -> Precomp -> Scavenger -> Build -> GCC
 
 Interpret pipeline:
-  Lexer -> Parser -> Mode -> Init -> Typer -> Precomp -> Interpret
+  Lexer -> Parser -> Mode -> Init -> Typer -> Sugar -> UFCS -> Precomp -> Interpret
 
 ** Import Processing
 
 Imports are processed in multiple phases with tracking to handle circular imports:
 - context.imports_init_done - Files that completed init phase
 - context.imports_typer_done - Files that completed typer phase
+- context.imports_sugar_done - Files that completed sugar phase
+- context.imports_ufcs_done - Files that completed ufcs phase
 - context.imports_precomp_done - Files that completed precomp phase
 - context.imports_eval_done - Files that completed eval phase
 
@@ -100,3 +121,61 @@ from circular imports.
 - interpret_file() - Main entry for interpreter
 - main_interpret() - Core interpret logic
 - build() - Main entry for builder
+
+** Current vs Target State
+
+*** Current Pipeline (what exists now)
+
+Lexer -> Parser -> Mode -> Init -> Typer -> Precomp -> Scavenger -> Build/Interpret
+
+Problems:
+- Parser desugars range for directly (should just build AST)
+- Typer only validates, doesn't annotate AST with resolved types
+- Precomp is overloaded: UFCS + forin + switch + const-folding + macros
+- Later phases (interpreter, ccodegen) re-infer types repeatedly
+- No Sugar phase
+- No UFCS phase
+
+*** Target Pipeline (described above)
+
+Lexer -> Parser -> Mode -> Init -> Typer -> Sugar -> UFCS -> Precomp -> Scavenger -> Build/Interpret
+
+Benefits:
+- Parser just builds AST, no transformations
+- Typer annotates AST with resolved types (one-time inference)
+- Sugar handles all syntactic sugar (range for, forin, switch)
+- UFCS is isolated in its own phase
+- Precomp is clean: only const-folding and macros
+- No phase after typer needs to infer types
+
+*** Migration TODOs (Issue #127)
+
+1. Typer annotates AST with resolved types
+   - Add type annotation field to AST nodes
+   - Typer fills in resolved types during validation
+   - All later phases read types from AST, never infer
+
+2. Create Sugar phase
+   - New files: sugar.rs, sugar.til
+   - Move forin desugaring from precomp
+   - Move switch desugaring from precomp (Issue #110)
+   - Move range for desugaring from parser
+   - Entry: sugar_expr()
+
+3. Create UFCS phase
+   - New files: ufcs.rs, ufcs.til
+   - Move UFCS desugaring from precomp
+   - Entry: ufcs_expr()
+
+4. Update orchestration
+   - builder.rs: call Sugar -> UFCS -> Precomp
+   - interpreter.rs: call Sugar -> UFCS -> Precomp
+   - Add context.imports_sugar_done, imports_ufcs_done
+
+5. Clean up Precomp
+   - Remove forin, switch, UFCS code
+   - Keep only const-folding, macros
+
+6. Parser cleanup
+   - Parse range for as RangeFor node (don't desugar)
+   - Add NodeType::RangeFor if not exists

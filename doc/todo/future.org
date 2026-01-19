@@ -12,6 +12,38 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #127: Pipeline refactoring - Add Sugar and UFCS phases
+:PROPERTIES:
+:DISCOVERED: 2026-01-19
+:IMPACT: Cleaner architecture, single-pass type inference, easier maintenance
+:STATUS: Open
+:END:
+
+*** Description
+Refactor the compilation pipeline to separate concerns. See doc/pipeline.org
+for full details including current vs target state and migration TODOs.
+
+*** Current Problems
+- Precomp is overloaded: UFCS + forin + switch + const-folding + macros
+- Typer only validates, doesn't annotate AST with resolved types
+- Later phases re-infer types repeatedly
+- Parser desugars range for directly (should just build AST)
+
+*** Target Pipeline
+Lexer -> Parser -> Mode -> Init -> Typer -> Sugar -> UFCS -> Precomp -> Scavenger -> Build/Interpret
+
+Where:
+- Typer: validates AND annotates AST with resolved types (no later phase infers)
+- Sugar: desugar forin, switch, range for (needs type info)
+- UFCS: desugar x.method(y) -> Type.method(x, y)
+- Precomp: const-folding, macros only
+
+*** Migration TODOs
+See doc/pipeline.org "Migration TODOs" section for detailed steps.
+
+*** Related Issues
+- Issue #110: Switch desugaring (will move to Sugar phase)
+
 ** Issue #122: Add regex support to standard library
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
