@@ -1,0 +1,102 @@
+* TIL Compilation Pipeline
+
+This document describes the phases in the TIL compiler/interpreter pipeline.
+
+** Phases Overview
+
+The pipeline processes source code through these phases in order:
+
+| Phase     | Input          | Output         | Purpose                                    |
+|-----------+----------------+----------------+--------------------------------------------|
+| Lexer     | Source string  | Tokens         | Tokenize source code                       |
+| Parser    | Tokens         | AST            | Build abstract syntax tree                 |
+| Mode      | Lexer          | ModeDef        | Parse mode declaration (test, script, etc) |
+| Init      | AST, Context   | Context        | Register declarations in scope             |
+| Typer     | AST, Context   | Errors or OK   | Type checking and validation               |
+| Precomp   | AST, Context   | AST            | Desugaring transformations                 |
+| Scavenger | AST, Context   | AST            | Remove unused declarations (build only)    |
+| Build     | AST, Context   | C source       | Generate C code (ccodegen)                 |
+| Interpret | AST, Context   | EvalResult     | Execute program (eval)                     |
+
+** Phase Details
+
+*** Lexer (src/rs/lexer.rs, src/self/lexer.til)
+- Converts source string into stream of tokens
+- Handles string literals, numbers, identifiers, operators
+- Entry: lexer_from_source()
+
+*** Parser (src/rs/parser.rs, src/self/parser.til)
+- Builds AST from token stream
+- Entry: parse_tokens()
+
+*** Mode (src/rs/mode.rs, src/self/mode.til)
+- Parses the mode declaration at start of file
+- Sets imports, permissions, and behavior flags
+- Entry: parse_mode()
+
+*** Init (src/rs/init.rs, src/self/init.til)
+- Registers all declarations into scope stack:
+  - Structs and their fields
+  - Enums and their variants
+  - Functions and procedures
+  - Type aliases
+- Processes imports recursively
+- Entry: init_context()
+
+*** Typer (src/rs/typer.rs, src/self/typer.til)
+- Type checking and semantic validation
+- Verifies function calls match signatures
+- Checks type compatibility in assignments
+- Validates enum variant usage
+- Entry: check_types(), basic_mode_checks()
+
+*** Precomp (src/rs/precomp.rs, src/self/precomp.til)
+- AST-to-AST transformations (desugaring):
+  - UFCS: x.method(y) -> Type.method(x, y)
+  - forin: for x in collection -> while loop with len/get calls
+  - switch: switch/case -> if/else chains (Issue #110, in progress)
+- Entry: precomp_expr()
+
+*** Scavenger (src/rs/scavenger.rs, src/self/scavenger.til)
+- Removes unused function declarations
+- Only used by builder (code size matters for compiled output)
+- Disabled for interpreter (modules not merged)
+- Entry: scavenger_expr()
+
+*** Build (src/rs/ccodegen.rs, src/self/ccodegen.til)
+- Generates C source code from AST
+- Handles memory management, struct layouts
+- Entry: emit()
+
+*** Interpret (src/rs/interpreter.rs, src/self/interpreter.til)
+- Executes the program directly
+- Manages eval arena for memory
+- Entry: eval_expr()
+
+** Builder vs Interpreter
+
+The builder (src/rs/builder.rs) and interpreter (src/rs/interpreter.rs) share
+the same phases up through precomp, but diverge afterward:
+
+Build pipeline:
+  Lexer -> Parser -> Mode -> Init -> Typer -> Precomp -> Scavenger -> Build -> GCC
+
+Interpret pipeline:
+  Lexer -> Parser -> Mode -> Init -> Typer -> Precomp -> Interpret
+
+** Import Processing
+
+Imports are processed in multiple phases with tracking to handle circular imports:
+- context.imports_init_done - Files that completed init phase
+- context.imports_typer_done - Files that completed typer phase
+- context.imports_precomp_done - Files that completed precomp phase
+- context.imports_eval_done - Files that completed eval phase
+
+Each file is marked "done" at the START of processing to prevent infinite loops
+from circular imports.
+
+** Entry Points
+
+- interpret_file() - Main entry for interpreter
+- main_interpret() - Core interpret logic
+- build() - Main entry for builder
