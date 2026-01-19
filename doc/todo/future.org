@@ -1304,7 +1304,7 @@ Final syntax may evolve as we address all Python import patterns.
 :DISCOVERED: 2025-12-31
 :IMPACT: Test infrastructure, rstil/til output validation
 :STATUS: Implemented
-:RELATED: bug50 (rstil vs til prefix mismatch)
+:RELATED: Bug #126 (error message divergence), bug50 (rstil vs til prefix)
 :END:
 
 *** Background
@@ -1319,17 +1319,22 @@ Added ~all_common~ category in tests.til that runs 4 modes:
 - til_interpreted (til interpret)
 - til_compiled (til run)
 
-Currently empty - ~til run~ segfaults on all tests (self-hosted compiler broken).
-When ~til run~ starts working, tests can be promoted from ~rs_common~.
-
 *** Test Categorization Strategy
-- ~all_common~: Tests producing identical output across all 4 modes (currently empty)
-- ~rs_common~: Tests that pass with rstil (67 tests)
-- ~til_interpreted~: Tests that pass with til interpret (47 tests)
-  - 46 tests are in BOTH rs_common and til_interpreted (duplicated for validation)
-  - 1 test (empty.til) is til-only
+- ~all_common~: Tests producing identical output across all 4 modes (65 tests)
+- ~rs_common~: Tests that pass with rstil but have different output from til
+- ~til_common~: Tests that pass with til but have different output from rstil
 - ~rs_interpreted~, ~rs_compiled~: Mode-specific tests
 - Empty categories are skipped in benchmark output
+
+*** Error Message Divergence (Bug #126)
+Tests with expected failures (expected_status != 0) often can't go in all_common
+because rstil and til produce different error messages. Common divergences:
+- Debug markers (" b", " c", " d") in Rust not ported to TIL
+- Different code paths triggered between implementations
+- Different error collection/reporting order
+
+Such tests must go in BOTH rs_common AND til_common with separate expected
+output files. See sugar.til for an example.
 
 *** Example: bug50
 bug50.til produces ~rstil type ERROR~ vs ~til type ERROR~ (binary name in output).

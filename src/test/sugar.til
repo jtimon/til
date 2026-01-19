@@ -27,24 +27,25 @@ test_forin_no_len := proc() {
 }
 
 // Test 2: Calling eq on struct without eq method
+// TODO Bug #125: Using _t1/_t2 to avoid non-deterministic "Unused variable" errors
 test_eq_missing := proc() {
-    t1 := Thing(value=5)
-    t2 := Thing(value=5)
-    _result := t1.eq(t2)
+    _t1 := Thing(value=5)
+    _t2 := Thing(value=5)
+    _result := _t1.eq(_t2)
 }
 
 // Test 3: Calling gteq on struct without gteq method
 test_gteq_missing := proc() {
-    t1 := Thing(value=5)
-    t2 := Thing(value=3)
-    _result := t1.gteq(t2)
+    _t1 := Thing(value=5)
+    _t2 := Thing(value=3)
+    _result := _t1.gteq(_t2)
 }
 
 // Test 4: Calling lteq on struct without lteq method
 test_lteq_missing := proc() {
-    t1 := Thing(value=5)
-    t2 := Thing(value=10)
-    _result := t1.lteq(t2)
+    _t1 := Thing(value=5)
+    _t2 := Thing(value=10)
+    _result := _t1.lteq(_t2)
 }
 
 // Run all tests - each should generate typer errors

@@ -8,6 +8,67 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #126: Error message divergence between rstil and til
+:PROPERTIES:
+:DISCOVERED: 2026-01-19
+:IMPACT: Tests must be in rs_common/til_common separately, not all_common
+:STATUS: Open
+:RELATED: Issue #69 (test organization), Bug #125 (non-deterministic errors)
+:END:
+
+*** Description
+When the same code produces errors in both rstil and til, the error messages
+differ in content, format, and/or order. This prevents tests from being in
+all_common (which requires identical output across all 4 modes).
+
+*** Examples (from src/test/sugar.til)
+
+rstil produces extra errors that til doesn't:
+- "Type 'Thing' has no method 'eq'" (init ERROR)
+
+rstil has debug markers that til doesn't:
+- "struct 'Thing' has no member 'eq' c" (trailing " c")
+- See src/rs/init.rs:530 (" b"), 708 (" c"), 716 (" d")
+
+*** Root Cause
+1. Debug markers (" b", " c", " d") in Rust error messages not ported to TIL
+2. Different code paths triggered between Rust and TIL implementations
+3. Error collection/reporting order differs
+
+*** Workaround
+Tests with error output divergence go in rs_common AND til_common separately
+(per Issue #69), with separate expected output files for each.
+
+For sugar.til specifically, underscore-prefixed variables (_t1, _t2) avoid
+Bug #125's non-deterministic unused variable errors.
+
+*** Fix
+Align error messages between src/rs/ and src/self/:
+1. Remove debug markers from Rust or add them to TIL
+2. Ensure same code paths produce same errors in same order
+3. Port any error message changes bidirectionally
+
+** Bug #125: Non-deterministic order of "Unused variable" errors
+:PROPERTIES:
+:DISCOVERED: 2026-01-19
+:IMPACT: Test output comparison fails intermittently
+:STATUS: Open
+:END:
+
+*** Description
+When multiple unused variables are declared in the same function, the order of
+"Unused variable" errors is non-deterministic between runs. This causes test
+failures when comparing expected vs actual output.
+
+*** Root Cause
+In src/rs/init.rs:79, `function_locals` is a `HashSet<(String, usize, usize)>`.
+The `get_unused_symbols()` function at line 140 iterates over this HashSet,
+and HashSet iteration order is non-deterministic in Rust.
+
+*** Fix
+Sort the unused symbols before returning them from `get_unused_symbols()`,
+e.g. by name, or by (line, col, name) for consistent ordering.
+
 ** Bug #124: I64 literals cannot be passed to U8 parameters in method calls
 :PROPERTIES:
 :DISCOVERED: 2026-01-17
