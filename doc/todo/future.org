@@ -483,6 +483,118 @@ enum_payload := ext_func(e: Dynamic, payload_type: Type) returns Dynamic {}
 - We prefer switch->if/else since payload hoisting is already in ccodegen
 - Just move that logic earlier (to precomp)
 
+*** Prerequisite [DONE]
+Merged commit ~08865594~ (enum_get_payload branch) providing:
+- ~enum_get_payload(e: Dynamic, payload_type: Type, mut out: Dynamic)~ ext_func
+- ~test_color_match_if~ in enums.til - working reference implementation
+
+*** Implementation Plan
+
+**** Commit 1: Switch desugaring in precomp
+
+***** Files to modify
+- ~src/rs/precomp.rs~ - add desugar_switch, modify Switch case
+- ~src/self/precomp.til~ - port same changes (follow ~doc/rs2til.org~ translation rules)
+
+***** Desugaring pattern (from test_color_match_if)
+Input:
+#+BEGIN_SRC til
+switch to_switch {
+case Color.Unknown: return "unknown color"
+case Color.Green(is_olive):
+    if is_olive { return "olive green" }
+    return "dark green"
+case Color.Number(code):
+    if code.gt(0) { return "positive" }
+    return "negative"
+case:
+    return "default"
+}
+#+END_SRC
+
+Output:
+#+BEGIN_SRC til
+{
+    _switch_variant_funcname_N := enum_to_str(to_switch)
+    if Str.eq(_switch_variant_funcname_N, "Color.Unknown") {
+        return "unknown color"
+    } else if Str.eq(_switch_variant_funcname_N, "Color.Green") {
+        mut is_olive := false
+        enum_get_payload(to_switch, Bool, is_olive)
+        if is_olive { return "olive green" }
+        return "dark green"
+    } else if Str.eq(_switch_variant_funcname_N, "Color.Number") {
+        mut code := 0
+        enum_get_payload(to_switch, I64, code)
+        if code.gt(0) { return "positive" }
+        return "negative"
+    } else {
+        return "default"
+    }
+}
+#+END_SRC
+
+***** Switch AST structure
+- ~params[0]~ = switch expression
+- ~params[1..n]~ = pairs of (case_expr, body_expr)
+- Trailing odd element = default case body
+
+***** Case expression types
+- ~NodeType::Pattern(PatternInfo { variant_name, binding_var })~ - e.g., Color.Green(is_olive)
+- ~NodeType::Identifier(...)~ - e.g., Color.Unknown
+- ~NodeType::DefaultCase~ - the ~case:~ default
+
+***** Key implementation details
+1. Reuse ~context.precomp_forin_counter~ for unique temp var names
+2. Use prefix form ~Str.eq(a, b)~ - precomp_expr handles UFCS
+3. Use ~build_default_value()~ for payload defaults (Bool/I64/Str/enums)
+4. Flatten Body nodes when adding original body statements
+5. Build if chain from end to beginning (reverse iteration)
+
+***** precomp.rs changes
+Line 240: Change ~NodeType::Switch => precomp_switch(context, e)~ to:
+#+BEGIN_SRC rust
+NodeType::Switch => {
+    let desugared = desugar_switch(context, e)?;
+    precomp_expr(context, &desugared)
+},
+#+END_SRC
+
+Add ~desugar_switch~ function (~line 770) with helpers:
+- ~build_switch_if_chain~ - collect cases, build if chain
+- ~build_variant_eq_condition~ - build Str.eq(var, "Variant") call
+- ~build_payload_extraction_body~ - build {mut var := default; enum_get_payload(...); ...body...}
+- ~build_if_chain_from_cases~ - build If nodes from end to beginning
+
+Delete old ~precomp_switch~ function (lines 776-852).
+
+***** precomp.til changes
+Line 310: Change to call desugar_switch and recurse.
+Add equivalent functions using TIL idioms (~Vec.new(Expr)~, ~Expr.new_explicit~).
+Delete old ~precomp_switch~ function (lines 576-679).
+IMPORTANT: Follow ~doc/rs2til.org~ translation rules when porting.
+
+**** Commit 2: Replace eval_Switch/emit_switch with panics
+
+After desugaring works, Switch nodes never reach interpreter/ccodegen.
+
+***** Files to modify
+- ~src/rs/interpreter.rs~ - replace NodeType::Switch arm with panic
+- ~src/rs/ccodegen.rs~ - replace NodeType::Switch arm with panic
+- ~src/self/interpreter.til~ - replace with panic
+- ~src/self/ccodegen.til~ - replace with panic
+
+**** Verification
+#+BEGIN_SRC bash
+make benchmark
+#+END_SRC
+
+All tests should pass. ~src/test/enums.til~ tests both:
+- ~test_color_match~ (switch - now desugared)
+- ~test_color_match_if~ (manual if/else - reference)
+
+Both should produce identical behavior.
+
 ** Issue #66: Variable Shadowing Policy
 :PROPERTIES:
 :DISCOVERED: 2025-12-31
