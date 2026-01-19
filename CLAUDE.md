@@ -109,7 +109,16 @@ Don't ask where tests go - they're organized by collection type:
 - `make benchmark` - Full test suite (slower, for final verification)
 - Use `rstil interpret my_test.til` to test single files with the interpreter
 - Use `rstil run my_test.til` to test single files with the compiler (builds and runs)
-- use `rstil repl` (using echo, not cat) for fast doubts about til syntax and functionality (call exit(0) at the end to quit the repl cli)
+
+## Testing TIL Code
+- `rstil repl` is fine for quick syntax checks
+- For testing new functionality, write to `tmp/` instead:
+  1. Write test code to a file (e.g., `tmp/test_foo.til`)
+  2. Run with `rstil interpret tmp/test_foo.til`
+  3. Can also test with `rstil run tmp/test_foo.til` (compiled mode)
+  4. Can also test with `rstil_til interpret` or `til interpret` (self-hosted)
+  5. Can extend to more modes, upgrade to `src/test/` if useful
+- Benefits of tmp/ files: re-testable, extendable, promotable to real tests
 
 ## Permissions Already Granted
 Don't ask permission for:
