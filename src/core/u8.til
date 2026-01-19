@@ -48,14 +48,6 @@ U8 := struct {
         return true
     }
 
-    gteq := func(a: U8, b: U8) returns Bool {
-        return U8.to_i64(a).gteq(U8.to_i64(b))
-    }
-
-    lteq := func(a: U8, b: U8) returns Bool {
-        return U8.to_i64(a).lteq(U8.to_i64(b))
-    }
-
     to_i64 := func(self: U8) returns I64 {
         // return cast("I64", self) // TODO implement cast, start easy with U8 to I64
         u8_to_i64 := ext_func(u8: U8) returns I64 {}
@@ -186,6 +178,26 @@ U8 := struct {
     dec := proc(mut self: U8) {
         one : U8 = 1
         self = self.sub(one)
+    }
+
+    gteq := func(a: U8, b: U8) returns Bool {
+        if a.gt(b) {
+            return true
+        }
+        if a.lt(b) {
+            return false
+        }
+        return true  // equal
+    }
+
+    lteq := func(a: U8, b: U8) returns Bool {
+        if a.lt(b) {
+            return true
+        }
+        if a.gt(b) {
+            return false
+        }
+        return true  // equal
     }
 
     size := func() returns I64 {

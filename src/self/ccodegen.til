@@ -4372,7 +4372,13 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     case NodeType.Return:
         emit_return(expr, output, indent, ctx, context)
     case NodeType.If:
-        emit_if(expr, output, indent, ctx, context)
+        // Check if this If is being used as an expression (indent 0 means it's inline, not a statement)
+        // and it has an else branch (making it an if-expression)
+        if indent.eq(0).and(expr.params.len().gteq(3)) {
+            emit_if_expr(expr, output, ctx, context)
+        } else {
+            emit_if(expr, output, indent, ctx, context)
+        }
     case NodeType.While:
         emit_while(expr, output, indent, ctx, context)
     case NodeType.Break:
@@ -7707,6 +7713,122 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, mut output: Str, mut c
         arg_idx2.inc()
     }
     output.push_str(")")
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+}
+
+/// Emit an if-expression as a GCC statement expression.
+/// Used when an If node appears in expression context (e.g., as condition of another if).
+/// Generates: ({ type decl; bool _result; if (cond) { stmts; _result = last_expr; } else { _result = else_expr; } _result; })
+emit_if_expr := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
+    if expr.params.len().lt(3) {
+        throw "ccodegen: If expression requires condition, then, and else branches"
+    }
+
+    temp_result := next_mangled(ctx)
+
+    // Collect declarations from then-branch to hoist before the if
+    // (TIL has function-level scoping, so declarations need to be visible outside the if block)
+    mut then_branch := Expr()
+    expr.params.get(1, then_branch)
+    then_decls := collect_declarations_in_body(then_branch, context)
+
+    // Start statement expression
+    output.push_str("({ ")
+
+    // Hoist declarations from then-branch
+    // NOTE: Always emit declarations here because each statement expression has its own
+    // block scope in C. Variables declared inside ({ ... }) are not visible outside,
+    // so we can't rely on ctx.declared_vars to track them across statement expressions.
+    for decl: CollectedDeclaration in then_decls {
+        c_var_name := til_name(decl.name)
+        c_type := til_type_to_c(decl.value_type)
+        catch (err: Str) {
+            // REM: Rust's Ok/Err pattern - skip if type conversion fails
+            continue
+        }
+        output.push_str(c_type)
+        output.push_str(" ")
+        output.push_str(c_var_name)
+        output.push_str("; ")
+        // Register in scope_stack so get_value_type can find it
+        mut sym_info := SymbolInfo()
+        sym_info.value_type = decl.value_type
+        sym_info.is_mut = false
+        sym_info.is_copy = false
+        sym_info.is_own = false
+        sym_info.is_comptime_const = false
+        context.scope_stack.declare_symbol(decl.name.clone(), sym_info)
+    }
+
+    output.push_str(TIL_PREFIX)
+    output.push_str("Bool ")
+    output.push_str(temp_result)
+    output.push_str(" = (")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Bool){0}; ")
+
+    // Emit the if condition
+    output.push_str("if (")
+    mut cond_expr := Expr()
+    expr.params.get(0, cond_expr)
+    emit_expr(cond_expr, output, 0, ctx, context)
+    // Bool is a struct with .data field - extract for C truthiness
+    cond_type := get_value_type(context, cond_expr)
+    switch cond_type {
+        case ValueType.TCustom(type_name):
+            if type_name.eq("Bool") {
+                output.push_str(".data")
+            }
+        case:
+    }
+    catch (err: Str) {
+        // REM: Rust's if let Ok pattern - ignore if get_value_type fails
+    }
+    output.push_str(") { ")
+
+    // Emit then-branch statements, with the last one assigned to _result
+    // Declarations have already been hoisted, so emit_expr will just emit the assignment
+    switch then_branch.node_type {
+        case NodeType.Body:
+            // Body with multiple statements - emit all but last as statements, last as assignment
+            mut stmt_i : I64 = 0
+            for stmt: Expr in then_branch.params {
+                if stmt_i.eq(then_branch.params.len().sub(1)) {
+                    // Last statement is the result value
+                    output.push_str(temp_result)
+                    output.push_str(" = ")
+                    emit_expr(stmt, output, 0, ctx, context)
+                    output.push_str("; ")
+                } else {
+                    // Non-last statements - emit as regular statements
+                    emit_expr(stmt, output, 0, ctx, context)
+                    output.push_str("; ")
+                }
+                stmt_i.inc()
+            }
+        case:
+            // Single expression - assign to result
+            output.push_str(temp_result)
+            output.push_str(" = ")
+            emit_expr(then_branch, output, 0, ctx, context)
+            output.push_str("; ")
+    }
+    output.push_str("} else { ")
+
+    // Emit else-branch - assign to result
+    output.push_str(temp_result)
+    output.push_str(" = ")
+    mut else_branch := Expr()
+    expr.params.get(2, else_branch)
+    emit_expr(else_branch, output, 0, ctx, context)
+    output.push_str("; ")
+
+    output.push_str("} ")
+    output.push_str(temp_result)
+    output.push_str(".data; })")
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
