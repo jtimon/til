@@ -606,21 +606,42 @@ pub fn func_enum_get_payload(context: &mut Context, e: &Expr) -> Result<EvalResu
     } else {
         return Err(e.lang_error(&context.path, "eval", "enum_get_payload: type argument must be a type name"));
     };
-    // Get type size
+    // Check if payload type is an enum (for nested enums)
+    let is_enum_payload = context.scope_stack.lookup_enum(&type_name).is_some();
+    // Get expected type size
     let type_size = context.get_type_size(&type_name)?;
     // After eval_expr, context.temp_enum_payload should contain the payload data
     if let Some(payload) = &context.temp_enum_payload {
         let payload_bytes = &payload.data;
         let out_arg = e.get(3)?;
         if let NodeType::Identifier(out_name) = &out_arg.node_type {
-            if payload_bytes.len() >= type_size {
-                // Get out variable offset
-                let offset = context.scope_stack.lookup_var(out_name)
-                    .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Variable '{}' not found", out_name)))?;
-                // Copy payload bytes to out variable
-                EvalArena::g().set(offset, &payload_bytes[0..type_size])?;
-                return Ok(EvalResult::new(""));
-            }
+            // For enum payloads, the actual bytes may be less than max type size
+            // (e.g., Option.None is just 8 bytes tag, Option.Some(x) is 8 + payload)
+            // For struct payloads, bytes should match type size exactly
+            let bytes_to_copy = if is_enum_payload {
+                // For enums, copy what we have (must have at least 8 bytes for tag)
+                if payload_bytes.len() >= 8 {
+                    payload_bytes.len()
+                } else {
+                    return Err(e.lang_error(&context.path, "eval", "enum_get_payload: enum payload too small"));
+                }
+            } else {
+                // For structs/primitives, must have at least type_size bytes
+                if payload_bytes.len() >= type_size {
+                    type_size
+                } else {
+                    return Err(e.lang_error(&context.path, "eval", &format!(
+                        "enum_get_payload: payload size {} < expected type size {}",
+                        payload_bytes.len(), type_size
+                    )));
+                }
+            };
+            // Get out variable offset
+            let offset = context.scope_stack.lookup_var(out_name)
+                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Variable '{}' not found", out_name)))?;
+            // Copy payload bytes to out variable
+            EvalArena::g().set(offset, &payload_bytes[0..bytes_to_copy])?;
+            return Ok(EvalResult::new(""));
         }
     }
     Err(e.lang_error(&context.path, "eval", "enum_get_payload: enum has no payload or unsupported payload type"))

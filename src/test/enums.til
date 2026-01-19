@@ -76,11 +76,18 @@ test_enum_variant_resolution := proc() {
 test_enum_variant_resolution()
 
 // Test tagged unions
+RGB := struct {
+    mut r: U8 = 0
+    mut g: U8 = 0
+    mut b: U8 = 0
+}
+
 Color := enum {
     Unknown,
     Green: Bool,
     Number: I64,
     Name: Str,
+    Rgb: RGB,
 }
 
 aaa := Color.Unknown
@@ -152,6 +159,8 @@ test_color_match := proc(to_switch: Color) returns Str {
         return "negative color code"
     case Color.Name(name):
         return format("color named ", name)
+    case Color.Rgb(rgb):
+        return format("rgb(", rgb.r.to_str(), ",", rgb.g.to_str(), ",", rgb.b.to_str(), ")")
     case:
         return "should not reach here"
     }
@@ -162,6 +171,8 @@ assert_eq_str(loc(), test_color_match(bbb), "olive green")
 assert_eq_str(loc(), test_color_match(green_false), "dark green")
 assert_eq_str(loc(), test_color_match(ccc), "positive color code")
 assert_eq_str(loc(), test_color_match(Color.Name("crimson")), "color named crimson")
+test_rgb := RGB(r=255, g=128, b=0)
+assert_eq_str(loc(), test_color_match(Color.Rgb(test_rgb)), "rgb(255,128,0)")
 
 // Same as test_color_match but using if/else with enum_to_str and enum_get_payload
 test_color_match_if := proc(to_switch: Color) returns Str {
@@ -186,6 +197,10 @@ test_color_match_if := proc(to_switch: Color) returns Str {
         mut name := ""
         enum_get_payload(to_switch, Str, name)
         return format("color named ", name)
+    } else if variant.eq("Color.Rgb") {
+        mut rgb := RGB()
+        enum_get_payload(to_switch, RGB, rgb)
+        return format("rgb(", rgb.r.to_str(), ",", rgb.g.to_str(), ",", rgb.b.to_str(), ")")
     }
     return "should not reach here"
 }
@@ -195,6 +210,7 @@ assert_eq_str(loc(), test_color_match_if(bbb), "olive green")
 assert_eq_str(loc(), test_color_match_if(green_false), "dark green")
 assert_eq_str(loc(), test_color_match_if(ccc), "positive color code")
 assert_eq_str(loc(), test_color_match_if(Color.Name("crimson")), "color named crimson")
+assert_eq_str(loc(), test_color_match_if(Color.Rgb(test_rgb)), "rgb(255,128,0)")
 
 // Test Str payloads
 test_str_payloads := proc() {

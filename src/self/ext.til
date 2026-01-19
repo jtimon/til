@@ -568,7 +568,14 @@ func_enum_get_payload := proc(mut context: Context, e: Expr) returns EvalResult 
     case:
         throw e.lang_error(context.path, "eval", "enum_get_payload: type argument must be a type name")
     }
-    // Get type size
+    // Check if payload type is an enum (for nested enums)
+    mut is_enum_payload := false
+    _ := context.scope_stack.lookup_enum(type_name)
+    is_enum_payload = true
+    catch (err: KeyNotFoundError) {
+        is_enum_payload = false
+    }
+    // Get expected type size
     type_size := context.get_type_size(type_name)
     catch (err: Str) {
         throw e.lang_error(context.path, "eval", err)
@@ -584,16 +591,35 @@ func_enum_get_payload := proc(mut context: Context, e: Expr) returns EvalResult 
 
         switch out_arg.node_type {
         case NodeType.Identifier(out_name):
-            if payload_bytes.len().gteq(type_size) {
-                // Get out variable offset
-                offset := context.scope_stack.lookup_var(out_name)
-                catch (err: KeyNotFoundError) {
-                    throw e.lang_error(context.path, "eval", format("Variable '", out_name, "' not found"))
+            // For enum payloads, the actual bytes may be less than max type size
+            // (e.g., Option.None is just 8 bytes tag, Option.Some(x) is 8 + payload)
+            // For struct payloads, bytes should match type size exactly
+            mut bytes_to_copy := 0
+            if is_enum_payload {
+                // For enums, copy what we have (must have at least 8 bytes for tag)
+                if payload_bytes.len().gteq(8) {
+                    bytes_to_copy = payload_bytes.len()
+                } else {
+                    throw e.lang_error(context.path, "eval", "enum_get_payload: enum payload too small")
                 }
-                // Copy payload bytes to out variable
-                g_arena.set(offset, payload_bytes.ptr, type_size)
-                return EvalResult.new("")
+            } else {
+                // For structs/primitives, must have at least type_size bytes
+                if payload_bytes.len().gteq(type_size) {
+                    bytes_to_copy = type_size
+                } else {
+                    throw e.lang_error(context.path, "eval", format(
+                        "enum_get_payload: payload size ", payload_bytes.len().to_str(), " < expected type size ", type_size.to_str()
+                    ))
+                }
             }
+            // Get out variable offset
+            offset := context.scope_stack.lookup_var(out_name)
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(context.path, "eval", format("Variable '", out_name, "' not found"))
+            }
+            // Copy payload bytes to out variable
+            g_arena.set(offset, payload_bytes.ptr, bytes_to_copy)
+            return EvalResult.new("")
         case:
             // Not an identifier
         }

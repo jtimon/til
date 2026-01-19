@@ -488,6 +488,18 @@ Merged commit ~08865594~ (enum_get_payload branch) providing:
 - ~enum_get_payload(e: Dynamic, payload_type: Type, mut out: Dynamic)~ ext_func
 - ~test_color_match_if~ in enums.til - working reference implementation
 
+*** enum_get_payload fix for nested enums [DONE]
+The original ~enum_get_payload~ implementation only worked for primitives (Bool, I64, Str)
+and structs. For nested enum payloads (e.g., ~Result.Ok(Option.None)~), it failed because:
+- The check ~payload_bytes.len() >= type_size~ used max enum size
+- But actual payload bytes only contain the specific variant's data
+- For ~Option.None~, payload is just 8 bytes (tag), not max size (tag + Some payload)
+
+Fix: For enum payload types, copy all available bytes (must have >= 8 for tag) instead
+of comparing against max type size.
+
+Also added RGB struct (with U8 r,g,b fields) test case to verify struct payloads work.
+
 *** Implementation Plan
 
 **** Commit 1: Switch desugaring in precomp
