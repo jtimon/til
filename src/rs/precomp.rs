@@ -7,7 +7,7 @@ use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::HashMap;
 use crate::rs::parser::{
     Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal, TTypeDef, PatternInfo,
-    value_type_to_str, INFER_TYPE,
+    value_type_to_str, INFER_TYPE, Declaration, str_to_value_type, transform_continue_with_step,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
 use crate::rs::eval_arena::EvalArena;
@@ -230,14 +230,407 @@ fn precomp_params(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
 }
 
-/// Transform Switch - handle pattern binding variables by adding them to scope
-/// before processing the case body. This mirrors the typer's handling of Bug #28.
+/// Build a default value expression for a given ValueType.
+/// Used when generating placeholder values for enum variant payloads in for-in loops.
+/// Bug #33: for-in loops don't work with enum collections
+/// Bug #86: Handle enum payload types recursively
+#[allow(dead_code)]
+fn build_default_value(context: &Context, vt: &ValueType, line: usize, col: usize) -> Expr {
+    match vt {
+        ValueType::TCustom(type_name) => {
+            match type_name.as_str() {
+                "I64" => Expr::new_explicit(
+                    NodeType::LLiteral(Literal::Number("0".to_string())),
+                    vec![],
+                    line,
+                    col,
+                ),
+                "U8" => Expr::new_explicit(
+                    NodeType::LLiteral(Literal::Number("0".to_string())),
+                    vec![],
+                    line,
+                    col,
+                ),
+                "Bool" => Expr::new_explicit(
+                    NodeType::Identifier("false".to_string()),
+                    vec![],
+                    line,
+                    col,
+                ),
+                "Str" => Expr::new_explicit(
+                    NodeType::LLiteral(Literal::Str(String::new())),
+                    vec![],
+                    line,
+                    col,
+                ),
+                // For other types (structs, other enums), check if it's an enum
+                _ => {
+                    // Bug #86: Check if this type is an enum - enums need special constructor syntax
+                    if let Some(enum_def) = context.scope_stack.lookup_enum(type_name) {
+                        // Build proper enum constructor: EnumType.FirstVariant or EnumType.FirstVariant(payload)
+                        if let Some(first_v) = enum_def.variants.first() {
+                            let first_variant = &first_v.name;
+                            let payload_type = &first_v.payload_type;
+                            let variant_id = Expr::new_explicit(
+                                NodeType::Identifier(first_variant.clone()),
+                                vec![],
+                                line,
+                                col,
+                            );
+                            let enum_id = Expr::new_explicit(
+                                NodeType::Identifier(type_name.clone()),
+                                vec![variant_id],
+                                line,
+                                col,
+                            );
+                            if let Some(payload_vt) = payload_type {
+                                // Variant has a payload - need FCall with default value (recursive)
+                                let default_arg = build_default_value(context, payload_vt, line, col);
+                                let enum_payload_fcall_params = vec![enum_id, default_arg];
+                                Expr::new_explicit(
+                                    NodeType::FCall(false),
+                                    enum_payload_fcall_params,
+                                    line,
+                                    col,
+                                )
+                            } else {
+                                // Variant has no payload - just the identifier chain
+                                enum_id
+                            }
+                        } else {
+                            // Empty enum - fall back to struct-like constructor (shouldn't happen)
+                            let empty_enum_fcall_params = vec![Expr::new_explicit(NodeType::Identifier(type_name.clone()), vec![], line, col)];
+                            Expr::new_explicit(
+                                NodeType::FCall(false),
+                                empty_enum_fcall_params,
+                                line,
+                                col,
+                            )
+                        }
+                    } else {
+                        // Not an enum - use struct-like constructor: TYPE()
+                        let struct_fcall_params = vec![Expr::new_explicit(NodeType::Identifier(type_name.clone()), vec![], line, col)];
+                        Expr::new_explicit(
+                            NodeType::FCall(false),
+                            struct_fcall_params,
+                            line,
+                            col,
+                        )
+                    }
+                }
+            }
+        }
+        // For function types and other types, use a placeholder (shouldn't typically happen)
+        _ => Expr::new_explicit(
+            NodeType::LLiteral(Literal::Number("0".to_string())),
+            vec![],
+            line,
+            col,
+        ),
+    }
+}
+
+/// Desugar ForIn to a range-based for loop with get() calls
+/// for VAR: TYPE in COLLECTION { body }
+/// becomes:
+/// for _for_i in 0..collection.len() {
+///     mut VAR := TYPE()
+///     collection.get(_for_i, VAR)
+///     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+///     body
+/// }
+#[allow(dead_code)]
+fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result<Expr, String> {
+    // Extract var_name from params[0]
+    let var_name = match e.params.get(0) {
+        Some(var_expr) => match &var_expr.node_type {
+            NodeType::Identifier(name) => name.clone(),
+            _ => return Err(e.lang_error(&context.path, "precomp", "ForIn: expected identifier for loop variable")),
+        },
+        None => return Err(e.lang_error(&context.path, "precomp", "ForIn: missing loop variable")),
+    };
+
+    // Get collection expression (params[1])
+    let collection_expr = match e.params.get(1) {
+        Some(expr) => precomp_expr(context, expr)?,
+        None => return Err(e.lang_error(&context.path, "precomp", "ForIn: missing collection expression")),
+    };
+
+    // Declare loop variable in scope BEFORE processing body (body references it)
+    context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+        value_type: ValueType::TCustom(var_type_name.to_string()),
+        is_mut: true,
+        is_copy: false,
+        is_own: false,
+        is_comptime_const: false,
+    });
+
+    // Get body (params[2])
+    let body_expr = match e.params.get(2) {
+        Some(expr) => precomp_expr(context, expr)?,
+        None => return Err(e.lang_error(&context.path, "precomp", "ForIn: missing body")),
+    };
+
+    // Build: mut _for_i_funcname_N := 0 (unique name to avoid conflicts with nested loops)
+    // Bug #40 fix: Use per-function counter and include function name for deterministic output
+    let forin_id = context.precomp_forin_counter;
+    context.precomp_forin_counter += 1;
+    let func_name = &context.current_precomp_func;
+    let index_var_name = if !func_name.is_empty() {
+        format!("_for_i_{}_{}", func_name, forin_id)
+    } else {
+        format!("_for_i_{}", forin_id)
+    };
+    let index_decl = Declaration {
+        name: index_var_name.clone(),
+        value_type: str_to_value_type(INFER_TYPE),
+        is_mut: true,
+        is_copy: false,
+        is_own: false,
+        default_value: None,
+    };
+    let zero_literal = Expr::new_explicit(NodeType::LLiteral(Literal::Number("0".to_string())), vec![], e.line, e.col);
+    let index_decl_expr = Expr::new_explicit(NodeType::Declaration(index_decl), vec![zero_literal], e.line, e.col);
+
+    // Build len(collection) - already desugared form
+    let len_call_expr = Expr::new_explicit(
+        NodeType::FCall(false),
+        vec![
+            Expr::new_explicit(NodeType::Identifier("len".to_string()), vec![], e.line, e.col),
+            collection_expr.clone(),
+        ],
+        e.line,
+        e.col,
+    );
+
+    // Build lt(_for_i, len_result) - already desugared form
+    let cond_expr = Expr::new_explicit(
+        NodeType::FCall(false),
+        vec![
+            Expr::new_explicit(NodeType::Identifier("lt".to_string()), vec![], e.line, e.col),
+            Expr::new_explicit(NodeType::Identifier(index_var_name.clone()), vec![], e.line, e.col),
+            len_call_expr,
+        ],
+        e.line,
+        e.col,
+    );
+
+    // Build: mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
+    let var_decl = Declaration {
+        name: var_name.clone(),
+        value_type: ValueType::TCustom(var_type_name.to_string()),
+        is_mut: true,
+        is_copy: false,
+        is_own: false,
+        default_value: None,
+    };
+
+    // Check if this is an enum type - enums need special handling since they don't have
+    // a parameterless constructor. We need to use the first variant as a placeholder.
+    // Bug #33: for-in loops don't work with enum collections
+    let type_call = if let Some(enum_def) = context.scope_stack.lookup_enum(var_type_name) {
+        // Get the first variant from the enum (arbitrary choice - value will be overwritten by get())
+        if let Some(first_v) = enum_def.variants.first() {
+            let first_variant = &first_v.name;
+            let payload_type = &first_v.payload_type;
+            // Build the enum constructor:
+            // - For variants WITHOUT payload: EnumType.Variant (just identifier chain)
+            // - For variants WITH payload: EnumType.Variant(default_payload) (FCall)
+            let variant_id = Expr::new_explicit(
+                NodeType::Identifier(first_variant.clone()),
+                vec![],
+                e.line,
+                e.col,
+            );
+            let enum_id = Expr::new_explicit(
+                NodeType::Identifier(var_type_name.to_string()),
+                vec![variant_id],
+                e.line,
+                e.col,
+            );
+
+            if let Some(payload_vt) = payload_type {
+                // Variant has a payload - need FCall with default value
+                let default_arg = build_default_value(context, payload_vt, e.line, e.col);
+                Expr::new_explicit(
+                    NodeType::FCall(false),
+                    vec![enum_id, default_arg],
+                    e.line,
+                    e.col,
+                )
+            } else {
+                // Variant has no payload - just the identifier chain (NOT an FCall)
+                enum_id
+            }
+        } else {
+            // Empty enum - shouldn't happen, fall back to struct-like constructor
+            Expr::new_explicit(
+                NodeType::FCall(false),
+                vec![Expr::new_explicit(NodeType::Identifier(var_type_name.to_string()), vec![], e.line, e.col)],
+                e.line,
+                e.col,
+            )
+        }
+    } else {
+        // Not an enum - use struct-like constructor: TYPE()
+        Expr::new_explicit(
+            NodeType::FCall(false),
+            vec![Expr::new_explicit(NodeType::Identifier(var_type_name.to_string()), vec![], e.line, e.col)],
+            e.line,
+            e.col,
+        )
+    };
+    let var_decl_expr = Expr::new_explicit(NodeType::Declaration(var_decl), vec![type_call], e.line, e.col);
+
+    // Build: get(collection, _for_i, VAR) - already desugared form
+    let get_call = Expr::new_explicit(
+        NodeType::FCall(false),
+        vec![
+            Expr::new_explicit(NodeType::Identifier("get".to_string()), vec![], e.line, e.col),
+            collection_expr.clone(),
+            Expr::new_explicit(NodeType::Identifier(index_var_name.clone()), vec![], e.line, e.col),
+            Expr::new_explicit(NodeType::Identifier(var_name.clone()), vec![], e.line, e.col),
+        ],
+        e.line,
+        e.col,
+    );
+
+    // Build: catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    // Catch structure: params[0]=error type identifier, params[1]=error var name, params[2]=body
+    let panic_call = Expr::new_explicit(
+        NodeType::FCall(false),
+        vec![
+            Expr::new_explicit(NodeType::Identifier("panic".to_string()), vec![], e.line, e.col),
+            Expr::new_explicit(
+                NodeType::FCall(false),
+                vec![Expr::new_explicit(NodeType::Identifier("loc".to_string()), vec![], e.line, e.col)],
+                e.line,
+                e.col,
+            ),
+            Expr::new_explicit(
+                NodeType::Identifier("err".to_string()),
+                vec![Expr::new_explicit(NodeType::Identifier("msg".to_string()), vec![], e.line, e.col)],
+                e.line,
+                e.col,
+            ),
+        ],
+        e.line,
+        e.col,
+    );
+    let catch_body = Expr::new_explicit(NodeType::Body, vec![panic_call], e.line, e.col);
+    // Catch structure: [name_expr, type_expr, body_expr]
+    let catch_expr = Expr::new_explicit(
+        NodeType::Catch,
+        vec![
+            Expr::new_explicit(NodeType::Identifier("err".to_string()), vec![], e.line, e.col),
+            Expr::new_explicit(NodeType::Identifier("IndexOutOfBoundsError".to_string()), vec![], e.line, e.col),
+            catch_body,
+        ],
+        e.line,
+        e.col,
+    );
+
+    // Build: _for_i = add(_for_i, 1)
+    // Already desugared form - no UFCS resolution needed
+    let add_call = Expr::new_explicit(
+        NodeType::FCall(false),
+        vec![
+            Expr::new_explicit(NodeType::Identifier("add".to_string()), vec![], e.line, e.col),
+            Expr::new_explicit(NodeType::Identifier(index_var_name.clone()), vec![], e.line, e.col),
+            Expr::new_explicit(NodeType::LLiteral(Literal::Number("1".to_string())), vec![], e.line, e.col),
+        ],
+        e.line,
+        e.col,
+    );
+    let inc_stmt = Expr::new_explicit(
+        NodeType::Assignment(index_var_name.clone()),
+        vec![add_call],
+        e.line,
+        e.col,
+    );
+
+    // Build while body: var_decl, get_call + catch (together), original body statements, inc
+    // The catch must be right after get_call so it only catches IndexOutOfBoundsError from get,
+    // not from user code in the loop body
+    let mut while_body_params = vec![var_decl_expr, get_call, catch_expr];
+    // Bug #57 fix: Transform continue statements to include increment before continue
+    let transformed_body = transform_continue_with_step(&body_expr, &inc_stmt);
+    // Add original body statements (transformed)
+    match &transformed_body.node_type {
+        NodeType::Body => {
+            while_body_params.extend(transformed_body.params.clone());
+        },
+        _ => {
+            while_body_params.push(transformed_body);
+        }
+    }
+    while_body_params.push(inc_stmt.clone());
+    let while_body = Expr::new_explicit(NodeType::Body, while_body_params, e.line, e.col);
+
+    // Build while: while _for_i.lt(collection.len()) { ... }
+    let while_expr = Expr::new_explicit(NodeType::While, vec![cond_expr, while_body], e.line, e.col);
+
+    // Build outer body: index_decl, while
+    Ok(Expr::new_explicit(NodeType::Body, vec![index_decl_expr, while_expr], e.line, e.col))
+}
+
+/// Check if a switch can be desugared to if/else.
+/// Only switches with qualified enum variant cases (EnumType.Variant) can be desugared.
+/// Cases with variables, patterns, ranges, etc. cannot be desugared.
+#[allow(dead_code)]
+fn switch_can_desugar(e: &Expr) -> bool {
+    let mut i = 1;
+    while i + 1 < e.params.len() {
+        let case_expr = &e.params[i];
+        match &case_expr.node_type {
+            // Check if this is a qualified enum variant (has dot, e.g., EnumType.Variant)
+            // vs a simple variable (no dot, e.g., expected)
+            NodeType::Identifier(_) => {
+                // An identifier is a qualified enum variant only if it has params
+                // (i.e., EnumType has .Variant as a param)
+                // If no params, it's a variable - can't desugar
+                if case_expr.params.is_empty() {
+                    return false;
+                }
+            },
+            // Default case: case:
+            NodeType::DefaultCase => {
+                // This is fine for desugaring
+            },
+            // Any pattern means we can't desugar (payload binding, nested patterns, etc.)
+            NodeType::Pattern(_) => {
+                return false;
+            },
+            // Ranges, literals, etc. - can't desugar
+            _ => {
+                return false;
+            }
+        }
+        i += 2;
+    }
+    true
+}
+
+/// Transform Switch - desugar to if/else chain when no payload bindings exist.
+/// Issue #110: Desugar switch statements to if/else chains in precomp phase.
+/// For switches WITH payload binding, keep the Switch node for interpreter/ccodegen.
 fn precomp_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     // Switch structure: params[0] is switch expression, then pairs of (case, body)
     if e.params.is_empty() {
         return Ok(e.clone());
     }
 
+    // Only desugar switches with simple identifier cases (no patterns, ranges, etc.)
+    if !switch_can_desugar(e) {
+        return precomp_switch_with_payload(context, e);
+    }
+
+    // Desugar to if/else chain
+    precomp_switch_desugar(context, e)
+}
+
+/// Handle switches with payload binding (keep as Switch node)
+fn precomp_switch_with_payload(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     let mut new_params = Vec::new();
 
     // Transform switch expression
@@ -268,7 +661,7 @@ fn precomp_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
                 // Get payload type from enum definition
                 let payload_type = context.scope_stack.lookup_enum(enum_name)
-                    .and_then(|e| e.get(variant).cloned())
+                    .and_then(|ed| ed.get(variant).cloned())
                     .flatten();
 
                 if let Some(payload_type) = payload_type {
@@ -308,6 +701,183 @@ fn precomp_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     }
 
     Ok(Expr::new_clone(NodeType::Switch, e, new_params))
+}
+
+/// Desugar switch to if/else chain (no payload bindings)
+/// switch expr { case A: body1 case B: body2 case: default_body }
+/// becomes:
+/// if Str.eq(enum_to_str(expr), "EnumType.A") { body1 }
+/// else if Str.eq(enum_to_str(expr), "EnumType.B") { body2 }
+/// else { default_body }
+#[allow(dead_code)]
+fn precomp_switch_desugar(context: &mut Context, e: &Expr) -> Result<Expr, String> {
+    let switch_expr = &e.params[0];
+    let transformed_switch_expr = precomp_expr(context, switch_expr)?;
+
+    // Get the enum type name from the switch expression
+    // If type inference fails, fall back to not desugaring
+    let switch_type = match get_value_type(context, switch_expr) {
+        Ok(vt) => vt,
+        Err(_) => return precomp_switch_with_payload(context, e),
+    };
+    let enum_type_name = match &switch_type {
+        ValueType::TCustom(name) => {
+            // Check if this is actually an enum type (not a primitive like Str, I64, Bool, U8)
+            if name == "Str" || name == "I64" || name == "Bool" || name == "U8" {
+                // Not an enum - keep as Switch node, don't desugar
+                return precomp_switch_with_payload(context, e);
+            }
+            // TEMP DEBUG: Skip TokenType to find which switches cause issues
+            if name == "TokenType" {
+                return precomp_switch_with_payload(context, e);
+            }
+            // Note: We don't check lookup_enum here because the enum might not be registered
+            // yet during precomp (import ordering). The desugaring will still work correctly
+            // as enum_to_str handles any enum type.
+            name.clone()
+        },
+        _ => return precomp_switch_with_payload(context, e),
+    };
+
+    // Generate a unique temp variable name to avoid evaluating switch_expr multiple times
+    let temp_var_id = context.precomp_forin_counter;
+    context.precomp_forin_counter += 1;
+    let temp_var_name = if context.current_precomp_func.is_empty() {
+        format!("_switch_tmp_{}", temp_var_id)
+    } else {
+        format!("_switch_tmp_{}_{}", context.current_precomp_func, temp_var_id)
+    };
+
+    // Build: _switch_tmp := switch_expr
+    // Use the actual type (switch_type) instead of INFER_TYPE since precomp runs after typer
+    let temp_decl = Expr::new_explicit(
+        NodeType::Declaration(Declaration {
+            name: temp_var_name.clone(),
+            value_type: switch_type.clone(),
+            is_mut: false,
+            is_copy: false,
+            is_own: false,
+            default_value: None,
+        }),
+        vec![transformed_switch_expr],
+        e.line,
+        e.col,
+    );
+
+    // Use the temp variable for all comparisons
+    let temp_var_expr = Expr::new_explicit(
+        NodeType::Identifier(temp_var_name),
+        vec![],
+        e.line,
+        e.col,
+    );
+
+    // Collect cases and bodies
+    let mut cases: Vec<(Option<String>, Expr)> = Vec::new(); // (variant_name or None for default, body)
+    let mut i = 1;
+    while i + 1 < e.params.len() {
+        let case_expr = &e.params[i];
+        let body_expr = &e.params[i + 1];
+        let transformed_body = precomp_expr(context, body_expr)?;
+
+        match &case_expr.node_type {
+            NodeType::Identifier(_) => {
+                // Get the full variant name including enum type
+                let ident_variant_name = crate::rs::parser::get_combined_name(&context.path, case_expr)?;
+                cases.push((Some(ident_variant_name), transformed_body));
+            },
+            NodeType::Pattern(PatternInfo { variant_name: pattern_variant_name, binding_var }) => {
+                // Pattern with "_" binding (no actual binding)
+                if binding_var == "_" {
+                    cases.push((Some(pattern_variant_name.clone()), transformed_body));
+                } else {
+                    // This shouldn't happen - we checked for payload bindings earlier
+                    return Err(e.lang_error(&context.path, "precomp", "Unexpected payload binding in switch desugaring"));
+                }
+            },
+            NodeType::DefaultCase => {
+                cases.push((None, transformed_body));
+            },
+            _ => {
+                // For other case types (like ranges), keep the case expression
+                // But for now, treat as a variant match
+                let other_variant_name = crate::rs::parser::get_combined_name(&context.path, case_expr)?;
+                cases.push((Some(other_variant_name), transformed_body));
+            }
+        }
+        i += 2;
+    }
+
+    // Handle trailing default body
+    if i < e.params.len() {
+        let default_body = precomp_expr(context, &e.params[i])?;
+        cases.push((None, default_body));
+    }
+
+    // Build if/else chain from the end (innermost first)
+    let mut result: Option<Expr> = None;
+
+    for (variant_opt, body) in cases.into_iter().rev() {
+        match variant_opt {
+            None => {
+                // Default case becomes the else branch
+                result = Some(body);
+            },
+            Some(curr_variant_name) => {
+                // Build: Str.eq(enum_to_str(_switch_tmp), "EnumType.Variant")
+                let enum_to_str_call = Expr::new_explicit(
+                    NodeType::FCall(false),
+                    vec![
+                        Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], e.line, e.col),
+                        temp_var_expr.clone(),
+                    ],
+                    e.line,
+                    e.col,
+                );
+
+                // Full variant string: "EnumType.Variant"
+                let variant_str = format!("{}.{}", enum_type_name,
+                    curr_variant_name.rfind('.').map(|p| &curr_variant_name[p+1..]).unwrap_or(&curr_variant_name));
+                let variant_literal = Expr::new_explicit(
+                    NodeType::LLiteral(Literal::Str(variant_str)),
+                    vec![],
+                    e.line,
+                    e.col,
+                );
+
+                let condition = Expr::new_explicit(
+                    NodeType::FCall(false),
+                    vec![
+                        Expr::new_explicit(NodeType::Identifier("Str.eq".to_string()), vec![], e.line, e.col),
+                        enum_to_str_call,
+                        variant_literal,
+                    ],
+                    e.line,
+                    e.col,
+                );
+
+                // Build if node
+                let if_params = if let Some(else_branch) = result {
+                    vec![condition, body, else_branch]
+                } else {
+                    vec![condition, body]
+                };
+
+                result = Some(Expr::new_explicit(NodeType::If, if_params, e.line, e.col));
+            }
+        }
+    }
+
+    // If no cases at all, return an empty body
+    let if_else_chain = result.ok_or_else(|| e.lang_error(&context.path, "precomp", "Switch has no cases"))?;
+
+    // Wrap in a Body with the temp variable declaration
+    Ok(Expr::new_explicit(
+        NodeType::Body,
+        vec![temp_decl, if_else_chain],
+        e.line,
+        e.col,
+    ))
 }
 
 /// Transform StructDef - recursively transform default values (which contain function defs)
