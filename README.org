@@ -1,5 +1,4 @@
-
-|   |   |   |   |   |   |   |   |   |   | [[https://github.com/jtimon/til/raw/master/img/logo.png"]] |   |   |   |   |   |   |   |   |   |   |
+[[https://github.com/jtimon/til/raw/master/img/logo.svg]]
 
 * Translatable Interpretable Language
 
