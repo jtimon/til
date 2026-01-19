@@ -353,6 +353,42 @@ Str := struct {
         return self.cmp(other).gteq(0)
     }
 
+    /** Increment single-character string (e.g., "a" -> "b").
+     *  Only works on single-character strings. Wraps on overflow.
+     *  Allocates new memory to handle string literals in read-only memory. */
+    inc := proc(mut self: Str) {
+        if self.len().eq(1) {
+            mut byte_val : U8 = 0
+            memcpy(to_ptr(byte_val), self.c_string, 1)
+            one : U8 = 1
+            byte_val = U8.add(byte_val, one)
+            // Allocate new memory for the result
+            new_ptr := malloc(2)
+            catch (err: BadAlloc) { panic(loc(), "Str.inc: malloc failed") }
+            memcpy(new_ptr, to_ptr(byte_val), 1)
+            memset(new_ptr.add(1), ZERO_U8, 1)
+            self.c_string = new_ptr
+        }
+    }
+
+    /** Decrement single-character string (e.g., "b" -> "a").
+     *  Only works on single-character strings. Wraps on underflow.
+     *  Allocates new memory to handle string literals in read-only memory. */
+    dec := proc(mut self: Str) {
+        if self.len().eq(1) {
+            mut byte_val : U8 = 0
+            memcpy(to_ptr(byte_val), self.c_string, 1)
+            one : U8 = 1
+            byte_val = U8.sub(byte_val, one)
+            // Allocate new memory for the result
+            new_ptr := malloc(2)
+            catch (err: BadAlloc) { panic(loc(), "Str.dec: malloc failed") }
+            memcpy(new_ptr, to_ptr(byte_val), 1)
+            memset(new_ptr.add(1), ZERO_U8, 1)
+            self.c_string = new_ptr
+        }
+    }
+
     /** Replace first n occurrences of 'from' with 'to' */
     replacen := func(self: Str, from: Str, to: Str, n: I64) returns Str {
         if from.len().eq(0) {

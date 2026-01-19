@@ -171,5 +171,38 @@ test_strings := proc() {
     test(loc(), Str.lt("9", "A"), "Str.lt: 9 < A (digits before uppercase)")
     test(loc(), Str.lt("Zoo", "aardvark"), "Str.lt: Zoo < aardvark (Z < a)")
 
+    // Str.inc tests
+    mut inc_a := "a"
+    inc_a.inc()
+    assert_eq_str(loc(), "b", inc_a)
+
+    mut inc_z := "z"
+    inc_z.inc()
+    assert_eq_str(loc(), "{", inc_z)  // z (122) + 1 = { (123)
+
+    mut inc_multi := "ab"
+    inc_multi.inc()
+    assert_eq_str(loc(), "ab", inc_multi)  // multi-char strings unchanged
+
+    // Str.dec tests
+    mut dec_b := "b"
+    dec_b.dec()
+    assert_eq_str(loc(), "a", dec_b)
+
+    mut dec_a := "a"
+    dec_a.dec()
+    assert_eq_str(loc(), "`", dec_a)  // a (97) - 1 = ` (96)
+
+    mut dec_multi := "ab"
+    dec_multi.dec()
+    assert_eq_str(loc(), "ab", dec_multi)  // multi-char strings unchanged
+
+    // Test range for with strings (uses inc/dec internally)
+    mut alphabet := ""
+    for c in "a".."f" {
+        alphabet = alphabet.concat(c)
+    }
+    assert_eq_str(loc(), "abcde", alphabet)  // range is exclusive of end
+
 }
 test_strings()
