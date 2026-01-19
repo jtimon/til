@@ -1,0 +1,54 @@
+mode test
+
+// Tests for syntactic sugar validation errors
+// This test expects to FAIL with typer errors (expected_status=1 in tests.til)
+
+// Struct WITHOUT required methods
+Thing := struct {
+    mut value: I64 = 0
+}
+
+// Struct to use as item type
+Item := struct {
+    mut name: Str = ""
+}
+
+// "Collection" struct WITHOUT len/get methods
+Things := struct {
+    mut count: I64 = 0
+}
+
+// Test 1: forin on struct without len method
+test_forin_no_len := proc() {
+    things := Things(count=5)
+    for item: Item in things {
+        println(item.name)
+    }
+}
+
+// Test 2: Calling eq on struct without eq method
+test_eq_missing := proc() {
+    t1 := Thing(value=5)
+    t2 := Thing(value=5)
+    _result := t1.eq(t2)
+}
+
+// Test 3: Calling gteq on struct without gteq method
+test_gteq_missing := proc() {
+    t1 := Thing(value=5)
+    t2 := Thing(value=3)
+    _result := t1.gteq(t2)
+}
+
+// Test 4: Calling lteq on struct without lteq method
+test_lteq_missing := proc() {
+    t1 := Thing(value=5)
+    t2 := Thing(value=10)
+    _result := t1.lteq(t2)
+}
+
+// Run all tests - each should generate typer errors
+test_forin_no_len()
+test_eq_missing()
+test_gteq_missing()
+test_lteq_missing()

@@ -546,15 +546,145 @@ Output:
 }
 #+END_SRC
 
+***** Non-enum switch example (Str)
+Input:
+#+BEGIN_SRC til
+switch name {
+case "alice": return "found alice"
+case "bob": return "found bob"
+case: return "unknown"
+}
+#+END_SRC
+
+Output:
+#+BEGIN_SRC til
+if name.eq("alice") {
+    return "found alice"
+} else if name.eq("bob") {
+    return "found bob"
+} else {
+    return "unknown"
+}
+#+END_SRC
+
+***** Non-enum switch with range example (I64)
+Input:
+#+BEGIN_SRC til
+switch score {
+case 90..100: return "A"
+case 80..89: return "B"
+case 0..79: return "C"
+case: return "invalid"
+}
+#+END_SRC
+
+Output:
+#+BEGIN_SRC til
+if score.gteq(90) && score.lteq(100) {
+    return "A"
+} else if score.gteq(80) && score.lteq(89) {
+    return "B"
+} else if score.gteq(0) && score.lteq(79) {
+    return "C"
+} else {
+    return "invalid"
+}
+#+END_SRC
+
 ***** Switch AST structure
 - ~params[0]~ = switch expression
 - ~params[1..n]~ = pairs of (case_expr, body_expr)
 - Trailing odd element = default case body
 
+***** Switch types: Enum vs Non-enum
+The desugaring differs based on switch expression type:
+
+****** Enum switch
+- Uses ~enum_to_str(val)~ to get tag as string (e.g., "Color.Green")
+- Compares with ~Str.eq(variant_str, "EnumName.Variant")~
+- For payload patterns, uses ~enum_get_payload(val, Type, binding_var)~
+
+****** Non-enum switch (Str, I64, U8, custom structs)
+- Uses direct method calls on the value: ~val.eq(case_val)~
+- No enum_to_str wrapper needed
+- Typer validates that ~eq~ method exists for the type
+
 ***** Case expression types
-- ~NodeType::Pattern(PatternInfo { variant_name, binding_var })~ - e.g., Color.Green(is_olive)
-- ~NodeType::Identifier(...)~ - e.g., Color.Unknown
+- ~NodeType::Pattern(PatternInfo { variant_name, binding_var })~ - e.g., Color.Green(is_olive) [enum only]
+- ~NodeType::Identifier(...)~ - e.g., Color.Unknown (enum variant) or literal value
+- ~NodeType::Range~ - e.g., 1..10
 - ~NodeType::DefaultCase~ - the ~case:~ default
+
+***** Range case desugaring
+Range cases use ~gteq~ and ~lteq~ methods:
+#+BEGIN_SRC til
+// Input:
+switch val {
+case 1..10: handle_range()
+}
+
+// Output:
+if val.gteq(1) && val.lteq(10) {
+    handle_range()
+}
+#+END_SRC
+
+***** Method requirements (typer validates)
+The desugaring relies on these methods existing for the switch expression type:
+- Simple case: ~eq(other: T) returns Bool~
+- Range case: ~gteq(other: T) returns Bool~ and ~lteq(other: T) returns Bool~
+
+If a struct is used in switch without implementing required methods, typer emits
+an error (same as forin loops requiring ~get~ method on iterables).
+
+No hardcoding of I64/Str/U8 - just call the methods and let typer validate.
+
+****** TODO: Typer validation (like forin)
+The forin loop validates ~len~ and ~get~ methods in typer.rs (lines 415-458) with
+clear error messages showing required signatures:
+#+BEGIN_SRC
+for-in loop: type 'Things' does not have a 'get()' method.
+Required: Things.get(self, index: I64, mut item: Dynamic) throws IndexOutOfBoundsError
+#+END_SRC
+
+Switch desugaring should add similar validation in typer for context-specific errors:
+#+BEGIN_SRC
+switch case: type 'Point' does not have an 'eq()' method.
+Required: Point.eq(self, other: Point) returns Bool
+
+switch range case: type 'Point' does not have a 'gteq()' method.
+Required: Point.gteq(self, other: Point) returns Bool
+#+END_SRC
+
+Without explicit typer validation, the desugared code will fail with generic
+errors like ~Type 'Point' has no method 'eq'~ which lacks switch context.
+
+******* Current behavior (no validation)
+Tested: struct without eq/gteq/lteq used in switch currently WORKS because
+the interpreter uses string comparison, not method calls:
+#+BEGIN_SRC til
+Point := struct { mut x: I64 = 0  mut y: I64 = 0 }
+
+// Simple case - works now (string compare), will fail after desugaring
+switch p1 { case Point(x=5, y=10): ... }
+
+// Range case - works now (lexicographic), will fail after desugaring
+switch p1 { case Point(x=0, y=0)..Point(x=10, y=20): ... }
+#+END_SRC
+
+******* Implementation steps
+1. Add validation in typer.rs for Switch nodes (copy pattern from forin at lines 415-458)
+2. For non-enum simple cases: check ~TypeName.eq(self, other: TypeName) returns Bool~
+3. For range cases: check ~TypeName.gteq~ and ~TypeName.lteq~ with same pattern
+4. Create ~src/test/sugar.til~ with expected failures (forin + switch method checks)
+5. Add to ~all_common~ in tests.til with ~expected_status=1~
+
+****** Tested behaviors
+- Struct without ~eq~ method calling ~p1.eq(p2)~: ~Type 'Point' has no method 'eq'~ (generic error)
+- Struct without ~gteq~ method calling ~p1.gteq(p2)~: ~Type 'Point' has no method 'gteq'~ (generic error)
+- Struct with ~eq~ method: works correctly (~p1.eq(p2)~ returns Bool)
+- forin on struct without ~len~/~get~: clear context-specific error with required signature
+- switch on struct without ~eq~: currently works (string compare) - will break after desugaring
 
 ***** Key implementation details
 1. Reuse ~context.precomp_forin_counter~ for unique temp var names
@@ -574,8 +704,11 @@ NodeType::Switch => {
 
 Add ~desugar_switch~ function (~line 770) with helpers:
 - ~build_switch_if_chain~ - collect cases, build if chain
-- ~build_variant_eq_condition~ - build Str.eq(var, "Variant") call
-- ~build_payload_extraction_body~ - build {mut var := default; enum_get_payload(...); ...body...}
+- ~build_case_condition~ - build condition based on case type:
+  - Simple case: ~val.eq(case_val)~
+  - Range case: ~val.gteq(start) && val.lteq(end)~
+  - Enum variant: ~enum_to_str(val).eq("Type.Variant")~
+- ~build_payload_extraction_body~ - for enum patterns: {mut var := default; enum_get_payload(...); ...body...}
 - ~build_if_chain_from_cases~ - build If nodes from end to beginning
 
 Delete old ~precomp_switch~ function (lines 776-852).

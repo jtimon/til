@@ -1092,6 +1092,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/sets.til"))
     all_common.push(TestEntry(path="src/test/strings.til"))
     all_common.push(TestEntry(path="src/test/structs.til"))
+    all_common.push(TestEntry(path="src/test/sugar.til", expected_status=1))  // Tests for missing method errors (eq/gteq/lteq/len/get)
     all_common.push(TestEntry(path="src/test/syscalls.til"))
     all_common.push(TestEntry(path="src/test/test_lexer.til"))
     all_common.push(TestEntry(path="src/test/u8.til"))
