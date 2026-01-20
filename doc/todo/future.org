@@ -41,12 +41,19 @@ Where:
 *** Related Issues
 - Issue #110: Switch desugaring (will move to Desugarer phase)
 
-*** Commit 1: Separate Desugarer phase from Precomp
+*** Commit 1: Separate Desugarer phase from Precomp [DONE]
 
 **** Overview
 Create new desugarer phase that handles ForIn desugaring. Currently precomp
 does desugaring inline during its recursive pass. The new design runs desugarer
 as a separate pass before precomp.
+
+**** Completion Notes
+- Key fix: Do NOT declare loop variable in scope_stack during desugaring.
+  The desugarer just transforms AST; declaring variables was leaking type
+  information across files during batch compilation (caused custom_type_name
+  in interpreter.til to be incorrectly typed as SymbolEntry from eval_arena.til's
+  for-in loop over SymbolEntry).
 
 **** Files to create
 - src/rs/desugarer.rs - Rust implementation

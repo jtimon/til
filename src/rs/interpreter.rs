@@ -10,6 +10,7 @@ use crate::rs::parser::{
 use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg, basic_mode_checks, type_check, check_body_returns_throws, typer_import_declarations, ThrownType};
 use crate::rs::lexer::lexer_from_source;
 use crate::rs::mode::{can_be_imported, parse_mode, DEFAULT_MODE};
+use crate::rs::desugarer::desugar_expr;
 use crate::rs::precomp::precomp_expr;
 use crate::rs::ext;
 
@@ -2979,6 +2980,9 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
         // No need to clear import cache - we use separate per-phase tracking now
         e = resolved_e;
 
+        // Desugarer phase: Desugar ForIn loops to while loops
+        e = desugar_expr(context, &e)?;
+
         // Precomputation phase: Transform UFCS calls into regular function calls
         e = precomp_expr(context, &e)?;
 
@@ -3096,6 +3100,9 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     };
 
     context.path = path.clone();
+
+    // Run desugar on the imported AST (always - no separate tracking)
+    let ast = desugar_expr(context, &ast)?;
 
     // Run precomp on the imported AST if not already done
     let ast = if !context.imports_precomp_done.contains(&path) {

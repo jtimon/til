@@ -1207,7 +1207,7 @@ fn while_statement(lexer: &mut Lexer) -> Result<Expr, String> {
 // Bug #57 fix: Transform continue statements to include the step expression before continue.
 // This ensures the loop variable is incremented/decremented even when continue is used.
 // Transforms: continue -> { step_expr; continue }
-fn transform_continue_with_step(expr: &Expr, step_expr: &Expr) -> Expr {
+pub fn transform_continue_with_step(expr: &Expr, step_expr: &Expr) -> Expr {
     match &expr.node_type {
         NodeType::Continue => {
             // Replace continue with { step_expr; continue }

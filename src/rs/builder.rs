@@ -11,6 +11,7 @@ use crate::rs::mode::{parse_mode, ModeDef};
 use crate::rs::ccodegen;
 use crate::rs::init::{import_path_to_file_path, init_import_declarations, Context};
 use crate::rs::typer::{type_check, basic_mode_checks, typer_import_declarations, resolve_inferred_types};
+use crate::rs::desugarer::desugar_expr;
 use crate::rs::target::{Target, Lang, toolchain_command, toolchain_extra_args, executable_extension, validate_lang_for_target, lang_to_str};
 
 // Parse a single file and return its AST (and mode for main file)
@@ -60,10 +61,11 @@ fn collect_imports(ast: &Expr, imported: &mut HashSet<String>, all_asts: &mut Ve
                                     context.imported_asts.insert(file_path.clone(), dep_ast.clone());
                                     // Recursively collect imports from this dependency
                                     collect_imports(&dep_ast, imported, all_asts, context)?;
-                                    // Resolve types + Precomp with the correct path for this file
+                                    // Resolve types + Desugar + Precomp with the correct path for this file
                                     let saved_path = context.path.clone();
                                     context.path = file_path.clone();
                                     let dep_ast = resolve_inferred_types(context, &dep_ast)?;
+                                    let dep_ast = desugar_expr(context, &dep_ast)?;
                                     let dep_ast = crate::rs::precomp::precomp_expr(context, &dep_ast)?;
                                     // Update with precompiled version
                                     context.imported_asts.insert(file_path, dep_ast.clone());
@@ -307,10 +309,11 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
         let (codegen_core_ast, _) = parse_file(core_path)?;
         imported.insert(core_path.to_string());
         collect_imports(&codegen_core_ast, &mut imported, &mut dep_asts, &mut context)?;
-        // Resolve types + Precomp core.til with its own path
+        // Resolve types + Desugar + Precomp core.til with its own path
         let core_saved_path = context.path.clone();
         context.path = core_path.to_string();
         let core_ast = resolve_inferred_types(&mut context, &codegen_core_ast)?;
+        let core_ast = desugar_expr(&mut context, &core_ast)?;
         let core_precomp_ast = crate::rs::precomp::precomp_expr(&mut context, &core_ast)?;
         context.path = core_saved_path;
         dep_asts.push(core_precomp_ast);
@@ -323,10 +326,11 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
             imported.insert(file_path.clone());
             let (mode_ast, _) = parse_file(&file_path)?;
             collect_imports(&mode_ast, &mut imported, &mut dep_asts, &mut context)?;
-            // Resolve types + Precomp mode file with its own path
+            // Resolve types + Desugar + Precomp mode file with its own path
             let mode_saved_path = context.path.clone();
             context.path = file_path.clone();
             let mode_ast = resolve_inferred_types(&mut context, &mode_ast)?;
+            let mode_ast = desugar_expr(&mut context, &mode_ast)?;
             let mode_precomp_ast = crate::rs::precomp::precomp_expr(&mut context, &mode_ast)?;
             context.path = mode_saved_path;
             dep_asts.push(mode_precomp_ast);
@@ -336,8 +340,9 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     // Collect main file's imports
     collect_imports(&resolved_main_ast, &mut imported, &mut dep_asts, &mut context)?;
 
-    // Precomp main file (already resolved by type_check above)
-    let main_ast = crate::rs::precomp::precomp_expr(&mut context, &resolved_main_ast)?;
+    // Desugar + Precomp main file (already resolved by type_check above)
+    let main_ast = desugar_expr(&mut context, &resolved_main_ast)?;
+    let main_ast = crate::rs::precomp::precomp_expr(&mut context, &main_ast)?;
 
     // Merge all precompiled ASTs for codegen
     let merged_ast = merge_asts(main_ast, dep_asts);

@@ -9,6 +9,7 @@ import("self.mode")
 import("self.ccodegen")
 import("self.init")
 import("self.typer")
+import("self.desugarer")
 import("self.precomp")
 import("self.scavenger")
 import("self.target")
@@ -81,10 +82,11 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
                                         context.imported_asts.set(file_path.clone(), dep_result.ast.clone())
                                         // Recursively collect imports from this dependency
                                         collect_imports(dep_result.ast, imported, all_asts, context)
-                                        // Precomp with the correct path for this file
+                                        // Desugar + Precomp with the correct path for this file
                                         saved_path := context.path.clone()
                                         context.path = file_path.clone()
-                                        dep_ast := precomp_expr(context, dep_result.ast)
+                                        dep_desugared := desugar_expr(context, dep_result.ast)
+                                        dep_ast := precomp_expr(context, dep_desugared)
                                         // Update with precompiled version
                                         context.imported_asts.set(file_path.clone(), dep_ast.clone())
                                         context.path = saved_path
@@ -410,10 +412,11 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         codegen_core_result := parse_file(core_path)
         _ := imported.insert(core_path)
         collect_imports(codegen_core_result.ast, imported, dep_asts, context)
-        // Precomp core.til with its own path
+        // Desugar + Precomp core.til with its own path
         core_saved_path := context.path.clone()
         context.path = core_path
-        core_precomp_ast := precomp_expr(context, codegen_core_result.ast)
+        core_desugared := desugar_expr(context, codegen_core_result.ast)
+        core_precomp_ast := precomp_expr(context, core_desugared)
         context.path = core_saved_path
         dep_asts.push(core_precomp_ast)
     }
@@ -425,10 +428,11 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
             _ := imported.insert(file_path.clone())
             mode_result := parse_file(file_path)
             collect_imports(mode_result.ast, imported, dep_asts, context)
-            // Precomp mode file with its own path
+            // Desugar + Precomp mode file with its own path
             mode_saved_path := context.path.clone()
             context.path = file_path.clone()
-            mode_precomp_ast := precomp_expr(context, mode_result.ast)
+            mode_desugared := desugar_expr(context, mode_result.ast)
+            mode_precomp_ast := precomp_expr(context, mode_desugared)
             context.path = mode_saved_path
             dep_asts.push(mode_precomp_ast)
         }
@@ -437,8 +441,9 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     // Collect main file's imports
     collect_imports(main_result.ast, imported, dep_asts, context)
 
-    // Precomp main file with its own path (context.path should already be correct)
-    main_ast := precomp_expr(context, main_result.ast)
+    // Desugar + Precomp main file with its own path (context.path should already be correct)
+    main_desugared := desugar_expr(context, main_result.ast)
+    main_ast := precomp_expr(context, main_desugared)
 
     // Merge all precompiled ASTs for codegen
     merged_ast := merge_asts(main_ast, dep_asts)
