@@ -1292,3 +1292,4 @@ The translation is mechanical:
 20. HashMap iteration: ~for (k, v) in &map~ -> ~for k: T in map.keys { map.get(k, v) }~
 21. ~Option<T>~ struct fields/params -> ~Ptr~ (NULL = None); read with ~memcpy(to_ptr(local), ptr.data, size_of(T))~
 22. Variable shadowing: TIL doesn't allow it. Rename in BOTH Rust and TIL to use unique names (see dedicated section)
+23. Tuples: TIL doesn't have tuples. Use structs instead (e.g., ~HashSet<(String, usize, usize)>~ -> struct with fields)

@@ -46,6 +46,26 @@ EnumVal := struct {
     }
 }
 
+// Bug #97: Track variable declarations by (name, line, col).
+// Using a struct instead of tuple for TIL compatibility (TIL doesn't have tuples).
+FunctionLocal := struct {
+    mut name: Str = ""
+    mut line: I64 = 0
+    mut col: I64 = 0
+
+    new := func(name_: Str, line_: I64, col_: I64) returns FunctionLocal {
+        return FunctionLocal(name=name_, line=line_, col=col_)
+    }
+
+    eq := func(self: FunctionLocal, other: FunctionLocal) returns Bool {
+        return self.name.eq(other.name).and(self.line.eq(other.line)).and(self.col.eq(other.col))
+    }
+
+    clone := func(self: FunctionLocal) returns FunctionLocal {
+        return FunctionLocal(name=self.name.clone(), line=self.line, col=self.col)
+    }
+}
+
 // Scope stack for proper lexical scoping
 ScopeType := enum {
     Global,      // Top-level module scope
@@ -95,8 +115,8 @@ ScopeStack := struct {
     // Bug #97: Track all variable declarations in the current function by (name, line, col).
     // Using location allows handling AST duplication from transformations like for-in desugaring,
     // while still catching actual shadowing (same name at different source location).
-    // Stored as "name:line:col" strings in a Set.
-    mut function_locals: Set = Set.new(Str)
+    // Uses Vec<FunctionLocal> with helper methods for equality comparison.
+    mut function_locals: Vec = Vec.new(FunctionLocal)
     // Bug #101: Track which symbols have been used in the current function.
     mut used_symbols: Set = Set.new(Str)
 
@@ -104,7 +124,7 @@ ScopeStack := struct {
     new := func() returns ScopeStack {
         mut stack := ScopeStack()
         stack.frames = Vec.new(ScopeFrame)
-        stack.function_locals = Set.new(Str)
+        stack.function_locals = Vec.new(FunctionLocal)
         stack.used_symbols = Set.new(Str)
         return stack
     }
@@ -581,15 +601,9 @@ ScopeStack := struct {
     // Returns false if same (name, line, col) exists - indicating AST duplication, not shadowing.
     is_shadowing_in_function := func(self: ScopeStack, name: Str, line: I64, col: I64) returns Bool {
         // Check if any entry with same name but different location exists
-        // We encode as "name:line:col" strings
-        mut name_prefix := name.concat(":")
-        for existing_key: Str in self.function_locals {
-            if existing_key.starts_with(name_prefix) {
-                // Same name found - check if different location
-                mut expected_key := format(name, ":", line.to_str(), ":", col.to_str())
-                if not(existing_key.eq(expected_key)) {
-                    return true  // Same name at different location = shadowing
-                }
+        for local: FunctionLocal in self.function_locals {
+            if local.name.eq(name).and(local.line.eq(line).not().or(local.col.eq(col).not())) {
+                return true  // Same name at different location = shadowing
             }
         }
         return false
@@ -598,15 +612,30 @@ ScopeStack := struct {
     // Bug #97: Check if this exact declaration (name, line, col) was already processed.
     // Used to detect AST duplication from transformations like for-in desugaring.
     is_already_processed := func(self: ScopeStack, name: Str, line: I64, col: I64) returns Bool {
-        mut key := format(name, ":", line.to_str(), ":", col.to_str())
-        return self.function_locals.contains(key)
+        mut target := FunctionLocal.new(name, line, col)
+        for local: FunctionLocal in self.function_locals {
+            if local.eq(target) {
+                return true
+            }
+        }
+        return false
     }
 
     // Bug #97: Register a variable declaration in the current function.
     // Call this when declaring a new variable.
     register_function_local := proc(mut self: ScopeStack, name: Str, line: I64, col: I64) {
-        mut key := format(name, ":", line.to_str(), ":", col.to_str())
-        _ := self.function_locals.insert(key)
+        mut local := FunctionLocal.new(name, line, col)
+        // Only insert if not already present (set semantics)
+        mut already_exists := false
+        for existing: FunctionLocal in self.function_locals {
+            if existing.eq(local) {
+                already_exists = true
+                break
+            }
+        }
+        if not(already_exists) {
+            self.function_locals.push(local)
+        }
     }
 
     // Bug #101: Mark a symbol as used in the current function.
@@ -618,27 +647,19 @@ ScopeStack := struct {
     // and don't start with underscore.
     get_unused_symbols := func(self: ScopeStack) returns Vec {
         mut unused := Vec.new(Str)
-        for key: Str in self.function_locals {
-            // Extract name from "name:line:col" format
-            mut parts := key.split(":")
-            mut name := ""
-            parts.get(0, name)
-            catch (err: IndexOutOfBoundsError) {
-                // Skip malformed keys
-                continue
-            }
-            if not(name.starts_with("_")) {
-                if not(self.used_symbols.contains(name)) {
-                    // Avoid duplicates
+        for local: FunctionLocal in self.function_locals {
+            if not(local.name.starts_with("_")) {
+                if not(self.used_symbols.contains(local.name)) {
+                    // Avoid duplicates (same name at multiple locations)
                     mut already_added := false
                     for existing: Str in unused {
-                        if existing.eq(name) {
+                        if existing.eq(local.name) {
                             already_added = true
                             break
                         }
                     }
                     if not(already_added) {
-                        unused.push(name)
+                        unused.push(local.name.clone())
                     }
                 }
             }

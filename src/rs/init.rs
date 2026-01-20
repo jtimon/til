@@ -14,6 +14,21 @@ use crate::rs::parser::{
 // This module handles the "context priming" phase that runs before type checking.
 // No eval, no arena access - declarations only.
 
+// Bug #97: Track variable declarations by (name, line, col).
+// Using a struct instead of tuple for TIL compatibility (TIL doesn't have tuples).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FunctionLocal {
+    pub name: String,
+    pub line: usize,
+    pub col: usize,
+}
+
+impl FunctionLocal {
+    pub fn new(name: String, line: usize, col: usize) -> Self {
+        FunctionLocal { name, line, col }
+    }
+}
+
 #[derive(Clone)]
 pub struct SymbolInfo {
     pub value_type: ValueType,
@@ -76,7 +91,8 @@ pub struct ScopeStack {
     /// Bug #97: Track all variable declarations in the current function by (name, line, col).
     /// Using location allows handling AST duplication from transformations like for-in desugaring,
     /// while still catching actual shadowing (same name at different source location).
-    pub function_locals: HashSet<(String, usize, usize)>,
+    /// Uses FunctionLocal struct instead of tuple for TIL compatibility.
+    pub function_locals: HashSet<FunctionLocal>,
     /// Bug #101: Track which symbols have been used in the current function.
     pub used_symbols: HashSet<String>,
 }
@@ -139,11 +155,11 @@ impl ScopeStack {
     /// and don't start with underscore.
     pub fn get_unused_symbols(&self) -> Vec<String> {
         let mut unused: Vec<String> = Vec::new();
-        for (name, _line, _col) in &self.function_locals {
-            if !name.starts_with('_') && !self.used_symbols.contains(name) {
+        for local in &self.function_locals {
+            if !local.name.starts_with('_') && !self.used_symbols.contains(&local.name) {
                 // Avoid duplicates (same name at multiple locations)
-                if !unused.contains(name) {
-                    unused.push(name.clone());
+                if !unused.contains(&local.name) {
+                    unused.push(local.name.clone());
                 }
             }
         }
@@ -182,8 +198,8 @@ impl ScopeStack {
     /// Returns false if same (name, line, col) exists - indicating AST duplication, not shadowing.
     pub fn is_shadowing_in_function(&self, name: &str, line: usize, col: usize) -> bool {
         // Check if any entry with same name but different location exists
-        for (existing_name, existing_line, existing_col) in &self.function_locals {
-            if existing_name == name && (*existing_line != line || *existing_col != col) {
+        for local in &self.function_locals {
+            if local.name == name && (local.line != line || local.col != col) {
                 return true; // Same name at different location = shadowing
             }
         }
@@ -193,13 +209,13 @@ impl ScopeStack {
     /// Bug #97: Check if this exact declaration (name, line, col) was already processed.
     /// Used to detect AST duplication from transformations like for-in desugaring.
     pub fn is_already_processed(&self, name: &str, line: usize, col: usize) -> bool {
-        self.function_locals.contains(&(name.to_string(), line, col))
+        self.function_locals.contains(&FunctionLocal::new(name.to_string(), line, col))
     }
 
     /// Bug #97: Register a variable declaration in the current function.
     /// Call this when declaring a new variable.
     pub fn register_function_local(&mut self, name: &str, line: usize, col: usize) {
-        self.function_locals.insert((name.to_string(), line, col));
+        self.function_locals.insert(FunctionLocal::new(name.to_string(), line, col));
     }
 
     /// Bug #50: Check if accessing this symbol would require closure capture.
