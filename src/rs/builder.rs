@@ -10,7 +10,7 @@ use crate::rs::parser::{parse_tokens, Expr, NodeType};
 use crate::rs::mode::{parse_mode, ModeDef};
 use crate::rs::ccodegen;
 use crate::rs::init::{import_path_to_file_path, init_import_declarations, Context};
-use crate::rs::typer::{check_types, basic_mode_checks, typer_import_declarations, resolve_inferred_types};
+use crate::rs::typer::{type_check, basic_mode_checks, typer_import_declarations, resolve_inferred_types};
 use crate::rs::target::{Target, Lang, toolchain_command, toolchain_extra_args, executable_extension, validate_lang_for_target, lang_to_str};
 
 // Parse a single file and return its AST (and mode for main file)
@@ -229,12 +229,14 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
             }
             return Err(format!("Compiler errors: {} init errors in core.til", errors.len()));
         }
-        errors = check_types(&mut context, &core_ast);
-        if !errors.is_empty() {
-            for err in &errors {
+        // Bug #128: type_check does both validation and INFER_TYPE resolution
+        // We discard the resolved AST here since core.til is re-parsed later for codegen
+        let (_, type_errors) = type_check(&mut context, &core_ast)?;
+        if !type_errors.is_empty() {
+            for err in &type_errors {
                 println!("{}", err);
             }
-            return Err(format!("Compiler errors: {} type errors in core.til", errors.len()));
+            return Err(format!("Compiler errors: {} type errors in core.til", type_errors.len()));
         }
         context.imports_init_done.insert(core_path.to_string());
         context.imports_typer_done.insert(core_path.to_string());
@@ -280,8 +282,10 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
 
     tmp_errors = basic_mode_checks(&context, &main_ast);
     errors.extend(tmp_errors);
-    tmp_errors = check_types(&mut context, &main_ast);
-    errors.extend(tmp_errors);
+    // Bug #128: type_check does both validation and INFER_TYPE resolution
+    // Save resolved_main_ast for precomp later
+    let (resolved_main_ast, type_errors) = type_check(&mut context, &main_ast)?;
+    errors.extend(type_errors);
     if !errors.is_empty() {
         for err in &errors {
             println!("{}", err);
@@ -294,8 +298,8 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     // Each file is precompiled with its own path before merging
     let mut imported = HashSet::new();
     imported.insert(path.to_string());
-    // Store main file AST so circular imports can find it during precomp
-    context.imported_asts.insert(path.to_string(), main_ast.clone());
+    // Store resolved main file AST so circular imports can find it during precomp
+    context.imported_asts.insert(path.to_string(), resolved_main_ast.clone());
     let mut dep_asts = Vec::new();
 
     // Collect core.til and its imports
@@ -330,11 +334,10 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     }
 
     // Collect main file's imports
-    collect_imports(&main_ast, &mut imported, &mut dep_asts, &mut context)?;
+    collect_imports(&resolved_main_ast, &mut imported, &mut dep_asts, &mut context)?;
 
-    // Resolve types + Precomp main file with its own path (context.path should already be correct)
-    let main_ast = resolve_inferred_types(&mut context, &main_ast)?;
-    let main_ast = crate::rs::precomp::precomp_expr(&mut context, &main_ast)?;
+    // Precomp main file (already resolved by type_check above)
+    let main_ast = crate::rs::precomp::precomp_expr(&mut context, &resolved_main_ast)?;
 
     // Merge all precompiled ASTs for codegen
     let merged_ast = merge_asts(main_ast, dep_asts);

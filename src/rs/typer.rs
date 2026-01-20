@@ -118,8 +118,19 @@ fn check_enum_def(context: &Context, e: &Expr, enum_def: &SEnumDef) -> Vec<Strin
 }
 
 // Public entry point: assumes Body-level context (return values discarded at statement level)
-pub fn check_types(context: &mut Context, e: &Expr) -> Vec<String> {
+// Note: Prefer type_check() which also resolves INFER_TYPE in the AST.
+fn check_types(context: &mut Context, e: &Expr) -> Vec<String> {
     return check_types_with_context(context, e, ExprContext::ValueDiscarded);
+}
+
+/// Bug #128: Unified type checking entry point.
+/// Runs type checking and resolves all INFER_TYPE references in the AST.
+/// Returns the resolved AST and any type errors found.
+/// After this function, no INFER_TYPE should remain in the returned AST.
+pub fn type_check(context: &mut Context, e: &Expr) -> Result<(Expr, Vec<String>), String> {
+    let errors = check_types(context, e);
+    let resolved = resolve_inferred_types(context, e)?;
+    Ok((resolved, errors))
 }
 
 // Internal type checker with context tracking for return value usage

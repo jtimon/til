@@ -7,7 +7,7 @@ use crate::rs::parser::{
     Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
     value_type_to_str, get_combined_name, parse_tokens,
 };
-use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg, basic_mode_checks, check_types, check_body_returns_throws, typer_import_declarations, ThrownType, resolve_inferred_types};
+use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg, basic_mode_checks, type_check, check_body_returns_throws, typer_import_declarations, ThrownType};
 use crate::rs::lexer::lexer_from_source;
 use crate::rs::mode::{can_be_imported, parse_mode, DEFAULT_MODE};
 use crate::rs::precomp::precomp_expr;
@@ -2952,16 +2952,18 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
             }
             e.params.push(Expr{node_type: NodeType::FCall, line: 0, col: 0, params: main_params});
         }
-        errors.extend(check_types(context, &e));
+        // Bug #128: Unified type checking - runs check_types and resolves INFER_TYPE in one call
+        let (resolved_e, type_errors) = type_check(context, &e)?;
+        errors.extend(type_errors);
 
         // Check throw/catch and return things in the root body of the file (for modes script and test, for example)
         let func_def = SFuncDef{args: vec![], body: vec![], function_type: FunctionType::FTProc, return_types: vec![], throw_types: vec![], source_path: path.clone()};
         let mut thrown_types: Vec<ThrownType> = vec![];
         let mut return_found = false;
-        errors.extend(check_body_returns_throws(context, &e, &func_def, e.params.as_slice(), &mut thrown_types, &mut return_found));
+        errors.extend(check_body_returns_throws(context, &resolved_e, &func_def, resolved_e.params.as_slice(), &mut thrown_types, &mut return_found));
 
         if return_found {
-            errors.push(e.error(&path, "type", "Cannot return from the root of the file"));
+            errors.push(resolved_e.error(&path, "type", "Cannot return from the root of the file"));
         }
         for t in &thrown_types {
             errors.push(t.msg.clone());
@@ -2975,9 +2977,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
         }
 
         // No need to clear import cache - we use separate per-phase tracking now
-
-        // Bug #128: Resolve INFER_TYPE in AST - replace with concrete types from scope stack
-        e = resolve_inferred_types(context, &e)?;
+        e = resolved_e;
 
         // Precomputation phase: Transform UFCS calls into regular function calls
         e = precomp_expr(context, &e)?;
