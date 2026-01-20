@@ -3494,11 +3494,12 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
             e.params.push(main_call_expr)
         }
 
-        type_errors := check_types(context, e)
+        // Bug #128: Unified type checking - runs check_types and resolves INFER_TYPE in one call
+        type_result := type_check(context, e)
         catch (err: Str) {
             throw format(path, ":", err)
         }
-        for type_err: Str in type_errors {
+        for type_err: Str in type_result.errors {
             errors.push(type_err)
         }
 
@@ -3511,6 +3512,8 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
             }
             throw format("Compiler errors: ", errors.len().to_str(), " type errors found")
         }
+
+        e = type_result.resolved_ast
 
         // Precomputation phase: Transform UFCS calls into regular function calls
         e = precomp_expr(context, e)

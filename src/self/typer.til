@@ -128,7 +128,8 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
     return errors
 }
 
-// Public entry point: assumes Body-level context (return values discarded at statement level)
+// Internal entry point: assumes Body-level context (return values discarded at statement level)
+// Note: Prefer type_check() which also resolves INFER_TYPE in the AST.
 check_types := proc(mut context: Context, e: Expr) returns Vec throws Str {
     return check_types_with_context(context, e, ExprContext.ValueDiscarded)
 }
@@ -2990,4 +2991,198 @@ basic_mode_checks := proc(context: Context, e: Expr) returns Vec throws Str {
     }
 
     return errors
+}
+
+// ---------- Bug #128: Resolve INFER_TYPE in AST after type checking ----------
+
+// Result struct for type_check - contains resolved AST and any errors
+TypeCheckResult := struct {
+    mut resolved_ast: Expr = Expr()
+    mut errors: Vec = Vec.new(Str)
+}
+
+// Bug #128: Unified type checking entry point.
+// Runs type checking and resolves all INFER_TYPE references in the AST.
+// Returns the resolved AST and any type errors found.
+// After this function, no INFER_TYPE should remain in the returned AST.
+type_check := proc(mut context: Context, e: Expr) returns TypeCheckResult throws Str {
+    mut result := TypeCheckResult()
+    result.errors = check_types(context, e)
+    result.resolved_ast = resolve_inferred_types(context, e)
+    return result
+}
+
+// Helper: recurse into params and return new params vec
+resolve_params := proc(mut context: Context, e: Expr) returns Vec throws Str {
+    mut result := Vec.new(Expr)
+    for idx in 0..e.params.len() {
+        mut param := Expr()
+        e.params.get(idx, param)
+        result.push(resolve_inferred_types(context, param))
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw e.lang_error(context.path, "resolve_types", format("IndexOutOfBoundsError: ", err.msg))
+    }
+    return result
+}
+
+// Resolve all INFER_TYPE references in the AST after type checking.
+// This replaces Declaration.value_type = INFER_TYPE with the resolved type
+// from the scope stack (which typer populated during check_types).
+//
+// After this pass, no INFER_TYPE should remain in the AST, allowing
+// post-typer phases (sugar, precomp, ccodegen) to read types directly
+// without needing type inference.
+resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    switch e.node_type {
+    case NodeType.Declaration(decl):
+        return resolve_declaration(context, e, decl)
+
+    case NodeType.FuncDef(func_def):
+        return resolve_funcdef(context, e, func_def)
+
+    case NodeType.Body:
+        // Body - push block scope
+        context.scope_stack.push(ScopeType.Block)
+        resolved_params := resolve_params(context, e)
+        _ := context.scope_stack.pop()
+        return Expr.new_clone(e.node_type, e, resolved_params)
+
+    case NodeType.If:
+        // If - push block scope
+        context.scope_stack.push(ScopeType.Block)
+        if_params := resolve_params(context, e)
+        _ := context.scope_stack.pop()
+        return Expr.new_clone(e.node_type, e, if_params)
+
+    case NodeType.While:
+        // While - push block scope
+        context.scope_stack.push(ScopeType.Block)
+        while_params := resolve_params(context, e)
+        _ := context.scope_stack.pop()
+        return Expr.new_clone(e.node_type, e, while_params)
+
+    case NodeType.ForIn(for_in_info):
+        // ForIn - the loop variable type is in the node_type itself, not INFER_TYPE
+        // Just recurse into params
+        forin_params := resolve_params(context, e)
+        return Expr.new_clone(e.node_type, e, forin_params)
+
+    case:
+        // Default: recurse into all params
+        if e.params.is_empty() {
+            return e
+        }
+        default_params := resolve_params(context, e)
+        return Expr.new_clone(e.node_type, e, default_params)
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw e.lang_error(context.path, "resolve_types", format("IndexOutOfBoundsError: ", err.msg))
+    }
+}
+
+// Helper: resolve Declaration node
+resolve_declaration := proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str {
+    // Check if this declaration has INFER_TYPE
+    mut resolved_type := decl.value_type
+    mut decl_type_name := ""
+    switch decl.value_type {
+    case ValueType.TCustom(name):
+        decl_type_name = name
+    case:
+        decl_type_name = ""
+    }
+
+    if decl_type_name.eq(INFER_TYPE) {
+        // Look up the resolved type from scope stack
+        mut symbol_found := false
+        mut symbol_info := SymbolInfo()
+        symbol_info = context.scope_stack.lookup_symbol(decl.name)
+        symbol_found = true
+        catch (err: KeyNotFoundError) {
+            symbol_found = false
+        }
+
+        if symbol_found {
+            resolved_type = symbol_info.value_type
+        } else {
+            // Symbol not found - this shouldn't happen after typer
+            // Fall back to inferring from the value expression
+            if e.params.len().gt(0) {
+                mut inner_e := Expr()
+                e.params.get(0, inner_e)
+                resolved_type = get_value_type(context, inner_e)
+            } else {
+                throw e.lang_error(context.path, "resolve_types", format("Cannot resolve type for '", decl.name, "': no value expression"))
+            }
+        }
+    }
+
+    // Create new Declaration with resolved type
+    mut new_decl := Declaration(
+        name=decl.name,
+        value_type=resolved_type,
+        is_mut=decl.is_mut,
+        is_copy=decl.is_copy,
+        is_own=decl.is_own,
+        default_value=decl.default_value
+    )
+
+    // Recurse into params
+    decl_params := resolve_params(context, e)
+
+    // Register the symbol with resolved type (in case it wasn't already)
+    mut already_registered := false
+    mut existing := SymbolInfo()
+    existing = context.scope_stack.lookup_symbol(new_decl.name)
+    already_registered = true
+    catch (err: KeyNotFoundError) {
+        already_registered = false
+    }
+
+    if not(already_registered) {
+        context.scope_stack.declare_symbol(new_decl.name, SymbolInfo(
+            value_type=new_decl.value_type,
+            is_mut=new_decl.is_mut,
+            is_copy=new_decl.is_copy,
+            is_own=new_decl.is_own,
+            is_comptime_const=false
+        ))
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw e.lang_error(context.path, "resolve_types", format("IndexOutOfBoundsError: ", err.msg))
+    }
+
+    return Expr.new_explicit(NodeType.Declaration(new_decl), decl_params, e.line, e.col)
+}
+
+// Helper: resolve FuncDef node
+resolve_funcdef := proc(mut context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str {
+    // FuncDef - push function scope
+    context.scope_stack.push(ScopeType.Function)
+
+    // Register function parameters in scope
+    for arg_idx in 0..func_def.args.len() {
+        mut arg := Declaration()
+        func_def.args.get(arg_idx, arg)
+        context.scope_stack.declare_symbol(arg.name, SymbolInfo(
+            value_type=arg.value_type,
+            is_mut=arg.is_mut,
+            is_copy=arg.is_copy,
+            is_own=arg.is_own,
+            is_comptime_const=false
+        ))
+    }
+
+    func_params := resolve_params(context, e)
+
+    _ := context.scope_stack.pop()
+
+    catch (err: IndexOutOfBoundsError) {
+        throw e.lang_error(context.path, "resolve_types", format("IndexOutOfBoundsError in FuncDef: ", err.msg))
+    }
+
+    return Expr.new_clone(e.node_type, e, func_params)
 }
