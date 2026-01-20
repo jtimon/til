@@ -2652,8 +2652,8 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
 
                 // Regular functions used with UFCS
                 mut ufcs_found := false
-                mut ufcs_func_def := SFuncDef()
-                ufcs_func_def = context.scope_stack.lookup_func(ufcs_func_name)
+                mut ufcs_fn_def := SFuncDef()
+                ufcs_fn_def = context.scope_stack.lookup_func(ufcs_func_name)
                 ufcs_found = true
                 catch (err: KeyNotFoundError) {
                     // Regular function not found with UFCS, try associated function
@@ -2672,7 +2672,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                         ufcs_k.inc()
                     }
                     fcall_expr = Expr.new_clone(NodeType.FCall, fcall_expr.get(0), ufcs_new_args)
-                    return ufcs_func_def
+                    return ufcs_fn_def
                 }
 
                 // Associated functions used with UFCS (aka methods)

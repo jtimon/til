@@ -1,0 +1,835 @@
+// UFCS phase: Resolves Uniform Function Call Syntax into regular function calls
+// and reorders named arguments to positional order.
+// This phase runs after desugarer, before precomp.
+
+mode liba
+
+import("self.init")
+import("self.typer")
+
+// ---------- Named argument reordering
+
+/// Reorder named arguments to match function parameter order.
+/// Transforms: func(b=3, a=10) -> func(10, 3) (for func(a, b))
+/// This runs during ufcs so both interpreter and builder share the work.
+reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str {
+    // params[0] is the function identifier, params[1..] are the arguments
+    // Calculate call_args_len (number of arguments, not counting function identifier)
+    mut call_args_len := 0
+    if e.params.len().gt(1) {
+        call_args_len = e.params.len().sub(1)
+    }
+
+    // Check if function is variadic - named args and default filling not supported
+    is_variadic := func_proc_has_multi_arg(func_def)
+
+    // Check if there are any named args
+    mut has_named_args := false
+    mut i := 1
+    while i.lt(e.params.len()) {
+        mut arg := e.get(i)
+        switch arg.node_type {
+        case NodeType.NamedArg(_):
+            has_named_args = true
+        case:
+        }
+        i.inc()
+    }
+
+    // Named args are not supported for variadic functions
+    if has_named_args.and(is_variadic) {
+        throw e.error(context.path, "ufcs", "Named arguments are not supported for variadic functions")
+    }
+
+    // Bug #61: Check if there are optional args before variadic that might need defaults
+    // This happens when the provided arg type doesn't match the optional arg type
+    mut has_optional_before_variadic := false
+    if is_variadic.and(func_def.args.len().gt(1)) {
+        mut check_j := 0
+        while check_j.lt(func_def.args.len().sub(1)) {
+            mut check_def_arg := Declaration()
+            func_def.args.get(check_j, check_def_arg)
+            if not(NULL.eq(check_def_arg.default_value.data)) {
+                has_optional_before_variadic = true
+            }
+            check_j.inc()
+        }
+    }
+
+    // Check if we need to fill in default values (fewer args than params)
+    // Don't apply to variadic functions (unless they have optional args before the variadic)
+    mut needs_defaults := false
+    if not(is_variadic).and(call_args_len.lt(func_def.args.len())) {
+        needs_defaults = true
+    }
+    if has_optional_before_variadic {
+        needs_defaults = true
+    }
+
+    // If no named args and no defaults needed, return unchanged
+    if not(has_named_args).and(not(needs_defaults)) {
+        return e.clone()
+    }
+
+    mut result := Vec.new(Expr)
+    result.push(e.get(0)) // Keep function identifier
+
+    // Bug #61: Handle variadic functions with optional args before the variadic
+    // Need to insert defaults for skipped optional args, then include all provided args
+    if has_optional_before_variadic {
+        mut def_arg_idx: I64 = 0
+        mut call_arg_idx: I64 = 0
+
+        // Process optional args before the variadic
+        while def_arg_idx.lt(func_def.args.len().sub(1)) {
+            mut opt_def_arg := Declaration()
+            func_def.args.get(def_arg_idx, opt_def_arg)
+
+            // Check if we have a provided arg that matches this def arg's type
+            mut matches := false
+            if call_arg_idx.lt(call_args_len) {
+                mut provided_arg := e.get(call_arg_idx.add(1))
+                mut found_type := ValueType.TCustom("")
+                found_type = get_value_type(context, provided_arg)
+                catch (type_err: Str) {}
+                expected := opt_def_arg.value_type
+                switch expected {
+                case ValueType.TCustom(tn):
+                    if tn.eq("Dynamic").or(tn.eq("Type")) {
+                        matches = true
+                    } else {
+                        matches = value_type_to_str(expected).eq(value_type_to_str(found_type))
+                    }
+                case:
+                    matches = value_type_to_str(expected).eq(value_type_to_str(found_type))
+                }
+            }
+
+            if matches {
+                // Use provided arg
+                result.push(e.get(call_arg_idx.add(1)))
+                call_arg_idx.inc()
+            } else if not(NULL.eq(opt_def_arg.default_value.data)) {
+                // Use default - dereference the Ptr to Expr
+                mut opt_default_expr := Expr()
+                memcpy(to_ptr(opt_default_expr), opt_def_arg.default_value.data, size_of(Expr))
+                result.push(opt_default_expr.clone())
+            } else {
+                throw e.error(context.path, "ufcs", format("Missing argument for non-optional parameter '", opt_def_arg.name, "'"))
+            }
+            def_arg_idx.inc()
+        }
+
+        // Add remaining provided args (for variadic)
+        while call_arg_idx.lt(call_args_len) {
+            result.push(e.get(call_arg_idx.add(1)))
+            call_arg_idx.inc()
+        }
+
+        return Expr.new_clone(NodeType.FCall, e, result)
+    }
+
+    // Count positional args (before first named arg)
+    mut positional_count := 0
+    for count_i in 1..e.params.len() {
+        mut count_arg := e.get(count_i)
+        switch count_arg.node_type {
+        case NodeType.NamedArg(_):
+            break
+        case:
+            positional_count.inc()
+        }
+    }
+
+    // Check that all named args come after positional args
+    mut seen_named := false
+    i = 1
+    while i.lt(e.params.len()) {
+        mut check_arg := e.get(i)
+        switch check_arg.node_type {
+        case NodeType.NamedArg(_):
+            seen_named = true
+        case:
+            if seen_named {
+                throw e.error(context.path, "ufcs", "Positional arguments cannot appear after named arguments")
+            }
+        }
+        i.inc()
+    }
+
+    // Build result: first positional args, then fill in from named args
+    // Use a Vec of Option-like values (empty string = None, otherwise = Some)
+    mut final_args := Vec.new(Expr)
+    mut final_args_set := Vec.new(Bool)
+    i = 0
+    while i.lt(func_def.args.len()) {
+        final_args.push(Expr())
+        final_args_set.push(false)
+        i.inc()
+    }
+
+    // Place positional arguments
+    i = 0
+    while i.lt(positional_count) {
+        if i.gteq(func_def.args.len()) {
+            throw e.error(context.path, "ufcs", format("Too many positional arguments: expected at most ", func_def.args.len().to_str()))
+        }
+        final_args.set(i, e.get(i.add(1)))
+        final_args_set.set(i, true)
+        i.inc()
+    }
+
+    // Place named arguments
+    i = positional_count.add(1)
+    while i.lt(e.params.len()) {
+        mut named_arg := e.get(i)
+        switch named_arg.node_type {
+        case NodeType.NamedArg(arg_name):
+            // Find the parameter index by name
+            mut param_idx := sub(0, 1)
+            mut search_j := 0
+            while search_j.lt(func_def.args.len()) {
+                mut search_arg_decl := Declaration()
+                func_def.args.get(search_j, search_arg_decl)
+                if search_arg_decl.name.eq(arg_name) {
+                    param_idx = search_j
+                    search_j = func_def.args.len() // break
+                } else {
+                    search_j.inc()
+                }
+            }
+            if param_idx.lt(0) {
+                throw named_arg.error(context.path, "ufcs", format("Unknown parameter name '", arg_name, "'"))
+            }
+            mut already_set := false
+            final_args_set.get(param_idx, already_set)
+            if already_set {
+                throw named_arg.error(context.path, "ufcs", format("Argument '", arg_name, "' specified multiple times"))
+            }
+            if named_arg.params.len().eq(0) {
+                throw named_arg.error(context.path, "ufcs", format("Named argument '", arg_name, "' has no value"))
+            }
+            final_args.set(param_idx, named_arg.get(0))
+            final_args_set.set(param_idx, true)
+        case:
+        }
+        i.inc()
+    }
+
+    // Check all required args are present and build final result
+    i = 0
+    while i.lt(final_args.len()) {
+        mut is_set := false
+        final_args_set.get(i, is_set)
+        if is_set {
+            mut final_arg := Expr()
+            final_args.get(i, final_arg)
+            result.push(final_arg)
+        } else {
+            // Check if this parameter has a default value
+            mut final_arg_decl := Declaration()
+            func_def.args.get(i, final_arg_decl)
+            if not(NULL.eq(final_arg_decl.default_value.data)) {
+                mut final_default_expr := Expr()
+                memcpy(to_ptr(final_default_expr), final_arg_decl.default_value.data, size_of(Expr))
+                result.push(final_default_expr.clone())
+            } else {
+                throw e.error(context.path, "ufcs", format("Missing argument for parameter '", final_arg_decl.name, "'"))
+            }
+        }
+        i.inc()
+    }
+
+    final_result := Expr.new_clone(NodeType.FCall, e, result)
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("reorder_named_args: ", err.msg)
+    }
+    return final_result
+}
+
+// ---------- Main entry point
+
+/// UFCS phase: Transform UFCS calls into regular function calls.
+/// Takes an AST that has already passed type checking and desugaring.
+///
+/// Examples:
+///   a.add(b)         -> I64.add(a, b)     (where a is I64)
+///   obj.items.len()  -> Vec.len(obj.items)
+///   add(1, 2).mul(3) -> I64.mul(add(1, 2), 3)
+ufcs_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    switch e.node_type {
+    case NodeType.Body:
+        return ufcs_body(context, e)
+    case NodeType.FCall:
+        return ufcs_fcall(context, e)
+    case NodeType.If:
+        return ufcs_params(context, e)
+    case NodeType.While:
+        return ufcs_params(context, e)
+    case NodeType.Switch:
+        return ufcs_switch(context, e)
+    case NodeType.FuncDef(func_def):
+        return ufcs_func_def(context, e, func_def)
+    case NodeType.Declaration(decl):
+        return ufcs_declaration(context, e, decl)
+    case NodeType.Assignment:
+        return ufcs_params(context, e)
+    case NodeType.Return:
+        return ufcs_params(context, e)
+    case NodeType.Throw:
+        return ufcs_params(context, e)
+    case NodeType.Catch:
+        return ufcs_catch(context, e)
+    case NodeType.Range:
+        return ufcs_params(context, e)
+    // Struct/enum definitions - need to process default values (which may contain function defs)
+    case NodeType.StructDef(struct_def):
+        return ufcs_struct_def(context, e, struct_def)
+    case NodeType.EnumDef:
+        return e.clone()
+    // Identifiers can have nested params (e.g., a.b.c for field access chains)
+    case NodeType.Identifier:
+        return ufcs_params(context, e)
+    // Leaf nodes - no transformation needed
+    case NodeType.LLiteral:
+        return e.clone()
+    case NodeType.DefaultCase:
+        return e.clone()
+    case NodeType.Pattern:
+        return e.clone()
+    // Break and Continue are leaf nodes (no params) - no transformation needed
+    case NodeType.Break:
+        return e.clone()
+    case NodeType.Continue:
+        return e.clone()
+    // Named arguments - transform the value expression
+    case NodeType.NamedArg(name):
+        mut new_params := Vec.new(Expr)
+        for p: Expr in e.params {
+            new_params.push(ufcs_expr(context, p))
+        }
+        return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
+    // ForIn should have been desugared in desugarer phase
+    case NodeType.ForIn(_):
+        panic(loc(), "ForIn should have been desugared in desugarer phase")
+    }
+}
+
+// ---------- AST transformation
+
+/// Transform Body node - recursively transform all statements
+ufcs_body := proc(mut context: Context, e: Expr) returns Expr {
+    mut new_params := Vec.new(Expr)
+    for p: Expr in e.params {
+        new_params.push(ufcs_expr(context, p))
+    }
+    return Expr.new_clone(e.node_type, e, new_params)
+}
+
+/// Transform node params - recursively transform all child expressions
+ufcs_params := proc(mut context: Context, e: Expr) returns Expr {
+    mut new_params := Vec.new(Expr)
+    for p: Expr in e.params {
+        new_params.push(ufcs_expr(context, p))
+    }
+    return Expr.new_clone(e.node_type, e, new_params)
+}
+
+/// Transform Switch - handle pattern binding variables by adding them to scope
+/// before processing the case body.
+ufcs_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    // Switch structure: params[0] is switch expression, then pairs of (case, body)
+    if e.params.len().eq(0) {
+        return e.clone()
+    }
+
+    mut new_params := Vec.new(Expr)
+
+    // Transform switch expression
+    mut switch_expr := Expr()
+    e.params.get(0, switch_expr)
+    new_params.push(ufcs_expr(context, switch_expr))
+
+    // Get the type of the switch expression for pattern binding resolution
+    mut switch_expr_type := ValueType.TCustom("")
+    mut got_switch_type := true
+    switch_expr_type = get_value_type(context, switch_expr)
+    catch (err: Str) {
+        got_switch_type = false
+    }
+
+    // Process case/body pairs
+    mut i := 1
+    while i.add(1).lt(e.params.len().add(1)) {
+        mut case_expr := Expr()
+        mut body_expr := Expr()
+        e.params.get(i, case_expr)
+        e.params.get(i.add(1), body_expr)
+
+        // Transform case expression (no scope change needed for case itself)
+        new_params.push(ufcs_expr(context, case_expr))
+
+        // For pattern matching with binding variable, add binding to scope before processing body
+        switch case_expr.node_type {
+        case NodeType.Pattern(pattern_info):
+            mut handled := false
+            if got_switch_type {
+                switch switch_expr_type {
+                case ValueType.TCustom(enum_name):
+                    // Extract variant name (after the last dot)
+                    variant_name := pattern_info.variant_name
+                    mut variant := variant_name
+                    dot_pos := variant_name.rfind(".")
+                    if dot_pos.gteq(0) {
+                        variant = get_substr(variant_name, dot_pos.add(1), variant_name.len())
+                    }
+
+                    // Get payload type from enum definition
+                    mut enum_found := true
+                    mut enum_def := context.scope_stack.lookup_enum(enum_name)
+                    catch (err: KeyNotFoundError) {
+                        enum_found = false
+                    }
+
+                    if enum_found {
+                        mut payload_type := ValueType.TCustom("")
+                        mut got_payload := false
+                        // Bug #38 fix: use helper method
+                        payload_ptr := enum_def.get(variant)
+                        if not(NULL.eq(payload_ptr.data)) {
+                            memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
+                            got_payload = true
+                        }
+                        catch (err: KeyNotFoundError) {
+                            // Variant not found or no payload
+                        }
+
+                        if got_payload {
+                            // Push block scope, declare binding variable, transform body, pop scope
+                            context.scope_stack.push(ScopeType.Block)
+                            sym := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
+                            context.scope_stack.declare_symbol(pattern_info.binding_var, sym)
+                            new_params.push(ufcs_expr(context, body_expr))
+                            _ := context.scope_stack.pop()
+                            handled = true
+                        }
+                    }
+                case:
+                }
+            }
+            if not(handled) {
+                // No payload type found or switch type not found, transform body without binding
+                new_params.push(ufcs_expr(context, body_expr))
+            }
+        case:
+            // Not a pattern, transform body normally
+            new_params.push(ufcs_expr(context, body_expr))
+        }
+
+        i = i.add(2)
+    }
+
+    // Handle odd trailing element (default case body without case expression)
+    if i.lt(e.params.len()) {
+        mut trailing := Expr()
+        e.params.get(i, trailing)
+        new_params.push(ufcs_expr(context, trailing))
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("ufcs_switch: ", err.msg)
+    }
+    return Expr.new_clone(NodeType.Switch, e, new_params)
+}
+
+/// Transform StructDef - recursively transform default values (which contain function defs)
+ufcs_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) returns Expr throws Str {
+    mut new_default_values := Map.new(Str, Expr)
+    mut i := 0
+    while i.lt(struct_def.default_values.keys.len()) {
+        mut name := ""
+        struct_def.default_values.keys.get(i, name)
+        mut value_expr := Expr()
+        struct_def.default_values.get(name, value_expr)
+        new_default_values.set(name, ufcs_expr(context, value_expr))
+        i.inc()
+    }
+    mut new_struct_def := SStructDef()
+    new_struct_def.members = struct_def.members.clone()
+    new_struct_def.default_values = new_default_values
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("ufcs_struct_def: ", err.msg)
+    }
+    catch (err: KeyNotFoundError) {
+        throw format("ufcs_struct_def: ", err.msg)
+    }
+
+    return Expr.new_clone(NodeType.StructDef(new_struct_def), e, e.params.clone())
+}
+
+/// Transform FuncDef - push scope frame for function args, transform body, pop frame
+ufcs_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str {
+    // Push a new scope frame with the function's parameters
+    context.scope_stack.push(ScopeType.Function)
+    for arg: Declaration in func_def.args {
+        sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own, is_comptime_const=false)
+        context.scope_stack.declare_symbol(arg.name, sym)
+    }
+
+    // Transform the function body
+    mut new_body := Vec.new(Expr)
+    for stmt: Expr in func_def.body {
+        new_body.push(ufcs_expr(context, stmt))
+    }
+
+    // Pop the function scope frame
+    _ := context.scope_stack.pop()
+
+    mut new_func_def := SFuncDef()
+    new_func_def.function_type = func_def.function_type
+    new_func_def.args = func_def.args.clone()
+    new_func_def.return_types = func_def.return_types.clone()
+    new_func_def.throw_types = func_def.throw_types.clone()
+    new_func_def.body = new_body
+    new_func_def.source_path = func_def.source_path.clone()
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("ufcs_func_def: ", err.msg)
+    }
+
+    return Expr.new_clone(NodeType.FuncDef(new_func_def), e, e.params.clone())
+}
+
+/// Transform Declaration - register the declared variable in scope, then transform value
+ufcs_declaration := proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str {
+    // Get value type for the declared variable
+    inner_e := e.get(0)
+    mut value_type := ValueType.TCustom("Dynamic")
+    value_type = get_value_type(context, inner_e)
+    catch (err: Str) {
+        // Fallback for unresolved types
+        value_type = ValueType.TCustom("Dynamic")
+    }
+
+    // Handle explicit type annotation (e.g., `mut val : U8 = 41`)
+    // When declaration has explicit type and it differs from inferred type, use the explicit type
+    mut is_infer := false
+    switch decl.value_type {
+    case ValueType.TCustom(decl_type_name):
+        if decl_type_name.eq(INFER_TYPE) {
+            is_infer = true
+        }
+    case:
+    }
+    if not(is_infer) {
+        mut is_u8_decl := false
+        mut is_i64_value := false
+        switch decl.value_type {
+        case ValueType.TCustom(decl_type_name):
+            if decl_type_name.eq("U8") {
+                is_u8_decl = true
+            }
+        case:
+        }
+        switch value_type {
+        case ValueType.TCustom(val_type_name):
+            if val_type_name.eq("I64") {
+                is_i64_value = true
+            }
+        case:
+        }
+        if is_u8_decl.and(is_i64_value) {
+            value_type = decl.value_type
+        }
+    }
+
+    // For struct definitions, register the struct so methods can be resolved
+    switch inner_e.node_type {
+    case NodeType.StructDef(struct_def):
+        context.scope_stack.declare_struct(decl.name, struct_def)
+    case:
+    }
+
+    // For enum definitions, register the enum
+    switch inner_e.node_type {
+    case NodeType.EnumDef(enum_def):
+        context.scope_stack.declare_enum(decl.name, enum_def)
+    case:
+    }
+
+    // Transform the value expression
+    mut new_params := Vec.new(Expr)
+    if e.params.len().gt(0) {
+        for p: Expr in e.params {
+            new_params.push(ufcs_expr(context, p))
+        }
+    }
+
+    // Register the declared variable in scope
+    sym := SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=false)
+    context.scope_stack.declare_symbol(decl.name, sym)
+
+    // Also register function definitions so UFCS can resolve their return types
+    if new_params.len().gt(0) {
+        mut first_param := Expr()
+        new_params.get(0, first_param)
+        switch first_param.node_type {
+        case NodeType.FuncDef(func_def):
+            context.scope_stack.declare_func(decl.name, func_def)
+        case:
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("ufcs_declaration: ", err.msg)
+    }
+
+    return Expr.new_clone(e.node_type, e, new_params)
+}
+
+/// Transform Catch node - register the catch variable in scope before processing body
+ufcs_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    if e.params.len().lt(3) {
+        // Malformed catch - just use default handling
+        return ufcs_params(context, e)
+    }
+
+    // Get the catch variable name and type
+    mut name_expr := Expr()
+    mut type_expr := Expr()
+    e.params.get(0, name_expr)
+    e.params.get(1, type_expr)
+    mut var_name := ""
+    mut type_name := ""
+    switch name_expr.node_type {
+    case NodeType.Identifier(n):
+        var_name = n
+    case:
+        return ufcs_params(context, e)  // Not a simple identifier, use default handling
+    }
+    switch type_expr.node_type {
+    case NodeType.Identifier(t):
+        type_name = t
+    case:
+        return ufcs_params(context, e)  // Not a simple type, use default handling
+    }
+
+    // Push a scope frame for the catch block
+    context.scope_stack.push(ScopeType.Catch)
+
+    // Register the catch variable in the scope
+    mut sym := SymbolInfo()
+    sym.value_type = ValueType.TCustom(type_name)
+    sym.is_mut = false
+    sym.is_copy = false
+    sym.is_own = false
+    sym.is_comptime_const = false
+    context.scope_stack.declare_symbol(var_name, sym)
+
+    // Transform the catch body (params[2])
+    mut body_expr := Expr()
+    e.params.get(2, body_expr)
+    new_body := ufcs_expr(context, body_expr)
+
+    // Pop the scope frame
+    _ := context.scope_stack.pop()
+
+    // Return the transformed catch with original var_name, type, and new body
+    mut new_params := Vec.new(Expr)
+    new_params.push(name_expr)
+    new_params.push(type_expr)
+    new_params.push(new_body)
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("ufcs_catch: ", err.msg)
+    }
+
+    return Expr.new_clone(NodeType.Catch, e, new_params)
+}
+
+/// Transform FCall node - this is where UFCS resolution happens
+ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    // Transform all arguments first
+    mut transformed_params := Vec.new(Expr)
+    for p: Expr in e.params {
+        transformed_params.push(ufcs_expr(context, p))
+    }
+    mut new_e := Expr.new_clone(e.node_type, e, transformed_params)
+
+    // Get func_expr from transformed expression
+    if new_e.params.len().eq(0) {
+        return new_e
+    }
+    mut func_expr := new_e.get(0)
+
+    switch func_expr.node_type {
+    case NodeType.Identifier:
+        combined_name := get_combined_name(context.path, func_expr)
+
+        // Regular function call - check if it exists
+        mut func_found := false
+        mut func_def := context.scope_stack.lookup_func(combined_name)
+        func_found = true
+        catch (err: KeyNotFoundError) {
+            // Not found
+        }
+        if func_found {
+            // Reorder named arguments to positional order
+            reordered := reorder_named_args(context, new_e, func_def)
+            return reordered
+        }
+
+        // UFCS for chained calls: func(result, args) -> Type.func(result, args)
+        // e.g., add(1, 2).mul(3) becomes mul(add(1,2), 3) which transforms to I64.mul(add(1,2), 3)
+        // This only applies when no standalone function with this name exists (checked above).
+        if new_e.params.len().gteq(2) {
+            mut first_arg := Expr()
+            new_e.params.get(1, first_arg)
+            mut got_type := true
+            mut target_type := get_value_type(context, first_arg)
+            catch (err: Str) {
+                got_type = false
+            }
+            if got_type {
+                // Get type name from value_type - TCustom or TMulti (variadic params become Array)
+                mut type_name := ""
+                mut has_type_name := false
+                switch target_type {
+                case ValueType.TCustom(custom_type_name):
+                    type_name = custom_type_name
+                    has_type_name = true
+                case ValueType.TMulti(variadic_type_name):
+                    type_name = "Array"
+                    has_type_name = true
+                case:
+                }
+                if has_type_name {
+                    mut method_name := format(type_name, ".", combined_name)
+                    mut method_found := false
+                    _dummy := context.scope_stack.lookup_func(method_name)
+                    method_found = true
+                    catch (err: KeyNotFoundError) {
+                        // Not found
+                    }
+                    if method_found {
+                        // Transform: func(target, args...) -> Type.func(target, args...)
+                        mut new_id_e := Expr.new_clone(NodeType.Identifier(method_name), func_expr, Vec.new(Expr))
+                        mut new_args := Vec.new(Expr)
+                        new_args.push(new_id_e)
+                        // Add remaining args from outer new_e (the transformed FCall)
+                        mut j := 1
+                        while j.lt(new_e.params.len()) {
+                            mut arg := Expr()
+                            new_e.params.get(j, arg)
+                            new_args.push(arg)
+                            j.inc()
+                        }
+                        return Expr.new_clone(NodeType.FCall, func_expr, new_args)
+                    }
+                }
+            }
+        }
+
+        // UFCS with dot notation (e.g., a.method(b) or a.field.method())
+        if func_expr.params.len().gt(0) {
+            mut func_name_expr := Expr()
+            func_expr.params.get(func_expr.params.len().sub(1), func_name_expr)
+
+            switch func_name_expr.node_type {
+            case NodeType.Identifier(ufcs_func_name):
+                mut parts := combined_name.split(".")
+                // Remove the method name (last element)
+                if parts.len().gt(0) {
+                    parts.remove(parts.len().sub(1))
+                }
+
+                // Create identifier expression for the receiver (everything except the method name)
+                mut id_params := func_expr.params.clone()
+                if id_params.len().gt(0) {
+                    id_params.remove(id_params.len().sub(1))
+                }
+                mut receiver_expr := Expr.new_clone(func_expr.node_type, new_e, id_params)
+
+                // Try as an associated method (Type.method) first - this takes priority over standalone functions
+                // because x.and(y) should resolve to Bool.and(x, y) not and(x, y) when both exist
+                mut got_type2 := true
+                mut value_type := get_value_type(context, receiver_expr)
+                catch (err: Str) {
+                    got_type2 = false
+                }
+                if got_type2 {
+                    // Get type name from value_type - TCustom or TMulti (variadic params become Array)
+                    mut custom_type_name := ""
+                    mut assoc_has_type_name := false
+                    switch value_type {
+                    case ValueType.TCustom(tn):
+                        custom_type_name = tn
+                        assoc_has_type_name = true
+                    case ValueType.TMulti:
+                        custom_type_name = "Array"
+                        assoc_has_type_name = true
+                    case:
+                    }
+                    if assoc_has_type_name {
+                        mut assoc_method_name := format(custom_type_name, ".", ufcs_func_name)
+                        mut assoc_method_found := false
+                        _dummy2 := context.scope_stack.lookup_func(assoc_method_name)
+                        assoc_method_found = true
+                        catch (err: KeyNotFoundError) {
+                            // Not found
+                        }
+                        if assoc_method_found {
+                            mut assoc_new_id_e := Expr.new_clone(NodeType.Identifier(assoc_method_name), func_expr, Vec.new(Expr))
+                            mut assoc_new_args := Vec.new(Expr)
+                            assoc_new_args.push(assoc_new_id_e)
+                            assoc_new_args.push(receiver_expr)
+                            // Add remaining args from outer new_e
+                            mut assoc_j := 1
+                            while assoc_j.lt(new_e.params.len()) {
+                                mut assoc_arg := Expr()
+                                new_e.params.get(assoc_j, assoc_arg)
+                                assoc_new_args.push(assoc_arg)
+                                assoc_j.inc()
+                            }
+                            return Expr.new_clone(NodeType.FCall, func_expr, assoc_new_args)
+                        }
+                    }
+                }
+
+                // Fall back to standalone function
+                mut standalone_found := false
+                _dummy3 := context.scope_stack.lookup_func(ufcs_func_name)
+                standalone_found = true
+                catch (err: KeyNotFoundError) {
+                    // Not found
+                }
+                if standalone_found {
+                    mut standalone_new_id_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), func_expr, Vec.new(Expr))
+                    mut standalone_new_args := Vec.new(Expr)
+                    standalone_new_args.push(standalone_new_id_e)
+                    standalone_new_args.push(receiver_expr)
+                    // Add remaining args from outer new_e
+                    mut standalone_j := 1
+                    while standalone_j.lt(new_e.params.len()) {
+                        mut standalone_arg := Expr()
+                        new_e.params.get(standalone_j, standalone_arg)
+                        standalone_new_args.push(standalone_arg)
+                        standalone_j.inc()
+                    }
+                    return Expr.new_clone(NodeType.FCall, func_expr, standalone_new_args)
+                }
+            case:
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("ufcs_fcall: ", err.msg)
+    }
+
+    // No transformation needed
+    return new_e
+}
