@@ -8,6 +8,34 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #128: INFER_TYPE should not exist in AST after typer phase
+:PROPERTIES:
+:DISCOVERED: 2026-01-20
+:IMPACT: Phases after typer require type inference machinery they shouldn't need
+:STATUS: Open
+:RELATED: Issue #127 (pipeline refactoring)
+:END:
+
+*** Description
+After typer completes, no INFER_TYPE references should remain in the AST.
+Currently, Declaration nodes may still have value_type=INFER_TYPE after typer,
+requiring later phases (precomp, sugar, ccodegen) to re-infer types.
+
+*** Problem
+This causes architectural issues:
+1. Precomp calls get_value_type() to look up types that should already be resolved
+2. Sugar phase (Issue #127) needs type info but can't rely on AST having it
+3. Each phase duplicates type inference logic instead of reading resolved types
+
+*** Expected Behavior
+Typer should mutate the AST to replace all INFER_TYPE with the resolved concrete type.
+Post-typer phases should be able to assert/panic if they encounter INFER_TYPE.
+
+*** Fix
+1. Typer: When inferring a Declaration's type, write it back to decl.value_type
+2. Post-typer phases: Add assertions that INFER_TYPE never appears
+3. This enables cleaner phase separation (sugar/precomp read types, don't infer)
+
 ** Bug #126: Error message divergence between rstil and til
 :PROPERTIES:
 :DISCOVERED: 2026-01-19
