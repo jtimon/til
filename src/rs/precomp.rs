@@ -771,6 +771,83 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     Ok(Expr::new_explicit(NodeType::Body, vec![index_decl_expr, while_expr], e.line, e.col))
 }
 
+/// Desugar switch statement to if/else chain.
+/// Uses enum_to_str() for tag comparison and enum_get_payload() for extraction.
+/// Only desugars enum switches - non-enum switches (e.g., Str) are kept as-is.
+#[allow(dead_code)]
+fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
+    if e.params.is_empty() {
+        return Ok(e.clone());
+    }
+
+    let switch_expr = &e.params[0];
+    let line = e.line;
+    let col = e.col;
+
+    // Check if switch expression is an enum type
+    // Only desugar enum switches - non-enum switches (e.g., Str) are kept as-is
+    let switch_expr_type = get_value_type(context, switch_expr).ok();
+    let enum_name = match &switch_expr_type {
+        Some(ValueType::TCustom(type_name)) if context.scope_stack.lookup_enum(type_name).is_some() => {
+            type_name.clone()
+        },
+        _ => {
+            // Not an enum switch - keep original Switch node, just precomp the children
+            return precomp_switch(context, e);
+        }
+    };
+
+    // Check if enum_to_str and enum_get_payload are available (from meta.til import)
+    // If not, keep the switch node for interpreter/ccodegen to handle directly
+    let has_enum_to_str = context.scope_stack.lookup_symbol("enum_to_str").is_some();
+    let has_enum_get_payload = context.scope_stack.lookup_symbol("enum_get_payload").is_some();
+    if !has_enum_to_str || !has_enum_get_payload {
+        return precomp_switch(context, e);
+    }
+
+    // Get unique counter (reuse forin counter)
+    let counter = context.precomp_forin_counter;
+    context.precomp_forin_counter += 1;
+    let func_name = &context.current_precomp_func;
+    let variant_var = if !func_name.is_empty() {
+        format!("_switch_variant_str_{}_{}", func_name, counter)
+    } else {
+        format!("_switch_variant_str_{}", counter)
+    };
+
+    // Build: variant_var := enum_to_str(switch_expr)
+    let enum_to_str_call = Expr::new_explicit(
+        NodeType::FCall,
+        vec![
+            Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
+            switch_expr.clone(),
+        ],
+        line, col,
+    );
+    let variant_decl = Declaration {
+        name: variant_var.clone(),
+        value_type: str_to_value_type(INFER_TYPE),
+        is_mut: false,
+        is_copy: false,
+        is_own: false,
+        default_value: None,
+    };
+    let variant_decl_expr = Expr::new_explicit(
+        NodeType::Declaration(variant_decl),
+        vec![enum_to_str_call],
+        line, col,
+    );
+
+    // Build if/else-if chain from case pairs
+    let if_chain = build_switch_if_chain(context, e, &variant_var, switch_expr, &enum_name)?;
+
+    // Wrap in Body and precomp the result
+    let body_params = vec![variant_decl_expr, if_chain];
+    let desugared_body = Expr::new_explicit(NodeType::Body, body_params, line, col);
+
+    precomp_expr(context, &desugared_body)
+}
+
 /// Transform Switch - handle pattern binding variables by adding them to scope
 /// before processing the case body. This mirrors the typer's handling of Bug #28.
 fn precomp_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
@@ -849,6 +926,193 @@ fn precomp_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     }
 
     Ok(Expr::new_clone(NodeType::Switch, e, new_params))
+}
+
+#[allow(dead_code)]
+fn build_switch_if_chain(
+    context: &mut Context,
+    e: &Expr,
+    variant_var: &str,
+    switch_expr: &Expr,
+    enum_name: &str,
+) -> Result<Expr, String> {
+    let line = e.line;
+    let col = e.col;
+
+    // Collect cases: (condition_expr, body_expr) pairs, plus optional default
+    let mut cases: Vec<(Option<Expr>, Expr)> = vec![];
+    let mut default_body: Option<Expr> = None;
+
+    let mut i = 1;
+    while i + 1 < e.params.len() {
+        let case_expr = &e.params[i];
+        let body_expr = &e.params[i + 1];
+
+        match &case_expr.node_type {
+            NodeType::DefaultCase => {
+                default_body = Some(body_expr.clone());
+            }
+            NodeType::Pattern(pattern_info) => {
+                let condition = build_variant_eq_condition(variant_var, &pattern_info.variant_name, enum_name, line, col);
+                let body = build_payload_extraction_body(context, e, pattern_info, switch_expr, body_expr, enum_name)?;
+                cases.push((Some(condition), body));
+            }
+            NodeType::Identifier(_) => {
+                // Get full variant name from identifier chain
+                let variant_name = crate::rs::parser::get_combined_name(&context.path, case_expr)?;
+                let condition = build_variant_eq_condition(variant_var, &variant_name, enum_name, line, col);
+                cases.push((Some(condition), body_expr.clone()));
+            }
+            _ => {
+                // Unknown case type - just copy as-is for now
+                cases.push((None, body_expr.clone()));
+            }
+        }
+        i += 2;
+    }
+
+    // Handle trailing default body (odd element)
+    if i < e.params.len() {
+        default_body = Some(e.params[i].clone());
+    }
+
+    // Build if/else-if chain from bottom up
+    build_if_chain_from_cases(cases, default_body, line, col)
+}
+
+#[allow(dead_code)]
+fn build_variant_eq_condition(variant_var: &str, variant_name: &str, enum_name: &str, line: usize, col: usize) -> Expr {
+    // Extract just the variant part (like typer does at typer.rs:1250-1254)
+    let variant = if let Some(dot_pos) = variant_name.rfind('.') {
+        &variant_name[dot_pos + 1..]
+    } else {
+        variant_name
+    };
+    // Build full variant name using enum_name from switch expression type
+    let full_variant_name = format!("{}.{}", enum_name, variant);
+
+    // Build: variant_var.eq("EnumName.Variant")
+    // AST: FCall { Identifier(variant_var) { Identifier("eq") }, LLiteral(full_variant_name) }
+    let variant_var_with_eq = Expr::new_explicit(
+        NodeType::Identifier(variant_var.to_string()),
+        vec![Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col)],
+        line, col,
+    );
+    Expr::new_explicit(
+        NodeType::FCall,
+        vec![
+            variant_var_with_eq,
+            Expr::new_explicit(NodeType::LLiteral(Literal::Str(full_variant_name)), vec![], line, col),
+        ],
+        line, col,
+    )
+}
+
+#[allow(dead_code)]
+fn build_payload_extraction_body(
+    context: &Context,
+    e: &Expr,
+    pattern_info: &PatternInfo,
+    switch_expr: &Expr,
+    original_body: &Expr,
+    enum_name: &str,
+) -> Result<Expr, String> {
+    let line = e.line;
+    let col = e.col;
+    let binding_var = &pattern_info.binding_var;
+    let variant_name = &pattern_info.variant_name;
+
+    // Extract just the variant part (like typer does at typer.rs:1250-1254)
+    let variant = if let Some(dot_pos) = variant_name.rfind('.') {
+        &variant_name[dot_pos + 1..]
+    } else {
+        variant_name.as_str()
+    };
+
+    let payload_type = context.scope_stack.lookup_enum(enum_name)
+        .and_then(|e| e.get(variant).cloned())
+        .flatten()
+        .ok_or_else(|| format!("Cannot find payload type for {}.{}", enum_name, variant))?;
+
+    // Build: mut binding_var := default_value
+    let default_value = build_default_value(context, &payload_type, line, col);
+    let binding_decl = Declaration {
+        name: binding_var.clone(),
+        value_type: payload_type.clone(),
+        is_mut: true,
+        is_copy: false,
+        is_own: false,
+        default_value: None,
+    };
+    let binding_decl_expr = Expr::new_explicit(
+        NodeType::Declaration(binding_decl),
+        vec![default_value],
+        line, col,
+    );
+
+    // Build: enum_get_payload(switch_expr, PayloadType, binding_var)
+    let type_expr = Expr::new_explicit(
+        NodeType::Identifier(value_type_to_str(&payload_type)),
+        vec![],
+        line, col,
+    );
+    let get_payload_call = Expr::new_explicit(
+        NodeType::FCall,
+        vec![
+            Expr::new_explicit(NodeType::Identifier("enum_get_payload".to_string()), vec![], line, col),
+            switch_expr.clone(),
+            type_expr,
+            Expr::new_explicit(NodeType::Identifier(binding_var.clone()), vec![], line, col),
+        ],
+        line, col,
+    );
+
+    // Build body: [binding_decl, get_payload_call, ...original_body_statements...]
+    let mut body_params = vec![binding_decl_expr, get_payload_call];
+
+    // Add original body statements (no renaming needed - use binding_var directly)
+    if let NodeType::Body = &original_body.node_type {
+        for stmt in &original_body.params {
+            body_params.push(stmt.clone());
+        }
+    } else {
+        body_params.push(original_body.clone());
+    }
+
+    Ok(Expr::new_explicit(NodeType::Body, body_params, line, col))
+}
+
+#[allow(dead_code)]
+fn build_if_chain_from_cases(
+    cases: Vec<(Option<Expr>, Expr)>,
+    default_body: Option<Expr>,
+    line: usize,
+    col: usize,
+) -> Result<Expr, String> {
+    if cases.is_empty() {
+        // No cases - just return default or empty body
+        return Ok(default_body.unwrap_or_else(||
+            Expr::new_explicit(NodeType::Body, vec![], line, col)
+        ));
+    }
+
+    // Build from end to beginning
+    let mut current_else = default_body;
+
+    for (condition, body) in cases.into_iter().rev() {
+        if let Some(cond) = condition {
+            let mut if_params = vec![cond, body];
+            if let Some(else_branch) = current_else {
+                if_params.push(else_branch);
+            }
+            current_else = Some(Expr::new_explicit(NodeType::If, if_params, line, col));
+        } else {
+            // No condition (shouldn't happen normally)
+            current_else = Some(body);
+        }
+    }
+
+    Ok(current_else.unwrap())
 }
 
 /// Transform StructDef - recursively transform default values (which contain function defs)
