@@ -1987,24 +1987,18 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                 context.scope_stack.frames.set(lf_idx, lf)
 
                                 // Copy ALL field mappings (including nested) from thrown instance to catch variable
+                                // This handles both mutable and immutable fields, and nested struct fields
                                 source_prefix := format(throw_result.value, ".")
                                 dest_prefix := format(var_name, ".")
 
                                 lf2 := context.scope_stack.last_frame()
-                                // Build list of keys with prefix by iterating map.keys Vec
-                                // Bug #115: Use keys._len not len() to iterate all keys including lazy-deleted ones
                                 mut keys_to_copy := Vec.new(Str)
-                                mut lf2_arena_keys := lf2.arena_index.keys
-                                for ai in 0..lf2_arena_keys._len {
-                                    mut akey := ""
-                                    lf2_arena_keys.get(ai, akey)
+                                for akey: Str in lf2.arena_index.keys {
                                     if akey.starts_with(source_prefix) {
                                         keys_to_copy.push(akey.clone())
                                     }
                                 }
-                                for ki in 0..keys_to_copy.len() {
-                                    mut src_key := ""
-                                    keys_to_copy.get(ki, src_key)
+                                for src_key: Str in keys_to_copy {
                                     mut src_offset := 0
                                     mut found_key := false
                                     src_offset = context.scope_stack.lookup_var(src_key)
@@ -2013,7 +2007,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                         // found_key stays false - var not found
                                     }
                                     if found_key {
-                                        mut dest_key := src_key.replace(source_prefix, dest_prefix)
+                                        dest_key := src_key.replacen(source_prefix, dest_prefix, 1)
                                         mut lf3_idx := context.scope_stack.frames.len().sub(1)
                                         mut lf3 := ScopeFrame()
                                         context.scope_stack.frames.get(lf3_idx, lf3)
@@ -2022,20 +2016,9 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                     }
                                 }
 
-                                // Also copy symbol mappings for all fields - build list with prefix
-                                // Bug #115: Use keys._len not len() to iterate all keys including lazy-deleted ones
-                                mut symbol_keys_to_copy := Vec.new(Str)
-                                mut lf2_sym_keys := lf2.symbols.keys
-                                for sai in 0..lf2_sym_keys._len {
-                                    mut skey := ""
-                                    lf2_sym_keys.get(sai, skey)
-                                    if skey.starts_with(source_prefix) {
-                                        symbol_keys_to_copy.push(skey.clone())
-                                    }
-                                }
-                                for si in 0..symbol_keys_to_copy.len() {
-                                    mut sym_src_key := ""
-                                    symbol_keys_to_copy.get(si, sym_src_key)
+                                // Also copy symbol mappings for all fields
+                                symbol_keys_to_copy := context.scope_stack.get_symbols_with_prefix(source_prefix)
+                                for sym_src_key: Str in symbol_keys_to_copy {
                                     mut src_symbol := SymbolInfo()
                                     mut found_sym := false
                                     src_symbol = context.scope_stack.lookup_symbol(sym_src_key)
@@ -2044,7 +2027,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                         // found_sym stays false - symbol not found
                                     }
                                     if found_sym {
-                                        sym_dest_key := sym_src_key.replace(source_prefix, dest_prefix)
+                                        sym_dest_key := sym_src_key.replacen(source_prefix, dest_prefix, 1)
                                         context.scope_stack.declare_symbol(sym_dest_key, src_symbol.clone())
                                     }
                                 }
@@ -2367,29 +2350,22 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
                             // Transfer all related entries (for structs with fields, strings with metadata, etc.)
                             own_prefix := format(source_var, ".")
-                            lf6 := context.scope_stack.last_frame()
                             mut keys_to_transfer := Vec.new(Str)
-                            // Bug #115: Use keys._len not len() to iterate all keys including lazy-deleted ones
-                            mut own_arena_keys := lf6.arena_index.keys
-                            for own_ki in 0..own_arena_keys._len {
-                                mut collect_key := ""
-                                own_arena_keys.get(own_ki, collect_key)
-                                if collect_key.starts_with(own_prefix) {
-                                    keys_to_transfer.push(collect_key.clone())
+                            for own_key: Str in context.scope_stack.last_frame().arena_index.keys {
+                                if own_key.starts_with(own_prefix) {
+                                    keys_to_transfer.push(own_key.clone())
                                 }
                             }
 
-                            for own_ki2 in 0..keys_to_transfer.len() {
-                                mut transfer_key := ""
-                                keys_to_transfer.get(own_ki2, transfer_key)
-                                mut transfer_field_offset := 0
-                                transfer_field_offset = context.scope_stack.lookup_var(transfer_key)
-                                mut own_new_key := transfer_key.replace(source_var, arg.name)
-                                function_frame.arena_index.set(own_new_key, transfer_field_offset)
+                            for transfer_key: Str in keys_to_transfer {
+                                mut field_offset := 0
+                                field_offset = context.scope_stack.lookup_var(transfer_key)
+                                own_new_key := transfer_key.replace(source_var, arg.name)
+                                function_frame.arena_index.set(own_new_key.clone(), field_offset)
                                 // Also transfer symbol info for fields
                                 mut field_sym := SymbolInfo()
                                 field_sym = context.scope_stack.lookup_symbol(transfer_key)
-                                function_frame.symbols.set(own_new_key, field_sym.clone())
+                                function_frame.symbols.set(own_new_key.clone(), field_sym.clone())
                                 catch (err_sym: KeyNotFoundError) { }
                             }
                             catch (err_var: KeyNotFoundError) { }
@@ -2399,9 +2375,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             // Remove from caller's context (ownership transferred)
                             _ := context.scope_stack.remove_var(source_var)
                             _ := context.scope_stack.remove_symbol(source_var)
-                            for own_ki3 in 0..keys_to_transfer.len() {
-                                mut remove_key := ""
-                                keys_to_transfer.get(own_ki3, remove_key)
+                            for remove_key: Str in keys_to_transfer {
                                 _ := context.scope_stack.remove_var(remove_key)
                                 _ := context.scope_stack.remove_symbol(remove_key)
                             }
@@ -2444,49 +2418,29 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 ref_replacement_prefix := format(arg.name, ".")
                                 mut ref_field_offsets_to_copy := Vec.new(EvalArenaMapping)
                                 mut ref_field_symbols_to_copy := Vec.new(SymbolEntry)
-                                for ref_fi in 0..context.scope_stack.frames.len() {
-                                    mut caller_frame := ScopeFrame()
-                                    context.scope_stack.frames.get(ref_fi, caller_frame)
-                                    // Copy arena_index entries
-                                    ref_arena_keys := caller_frame.arena_index.keys
-                                    for ref_aki in 0..ref_arena_keys.len() {
-                                        mut ref_key := ""
-                                        ref_arena_keys.get(ref_aki, ref_key)
+                                for ref_caller_frame: ScopeFrame in context.scope_stack.frames {
+                                    for ref_key: Str in ref_caller_frame.arena_index.keys {
                                         if ref_key.starts_with(ref_prefix) {
                                             mut ref_value := 0
-                                            caller_frame.arena_index.get(ref_key, ref_value)
-                                            mut ref_new_key := ref_key.replace(ref_prefix, ref_replacement_prefix)
-                                            mut ref_mapping := EvalArenaMapping()
-                                            ref_mapping.name = ref_new_key
-                                            ref_mapping.offset = ref_value
-                                            ref_field_offsets_to_copy.push(ref_mapping)
+                                            ref_caller_frame.arena_index.get(ref_key, ref_value)
+                                            ref_new_key := ref_key.replacen(ref_prefix, ref_replacement_prefix, 1)
+                                            ref_field_offsets_to_copy.push(EvalArenaMapping(name=ref_new_key, offset=ref_value))
                                         }
                                     }
-                                    // Copy symbols entries
-                                    symbol_keys := caller_frame.symbols.keys
-                                    for ref_ski in 0..symbol_keys.len() {
-                                        mut skey := ""
-                                        symbol_keys.get(ref_ski, skey)
-                                        if skey.starts_with(ref_prefix) {
-                                            mut svalue := SymbolInfo()
-                                            caller_frame.symbols.get(skey, svalue)
-                                            new_skey := skey.replace(ref_prefix, ref_replacement_prefix)
-                                            mut ref_entry := SymbolEntry()
-                                            ref_entry.name = new_skey
-                                            ref_entry.info = svalue.clone()
-                                            ref_field_symbols_to_copy.push(ref_entry)
+                                    for ref_skey: Str in ref_caller_frame.symbols.keys {
+                                        if ref_skey.starts_with(ref_prefix) {
+                                            mut ref_svalue := SymbolInfo()
+                                            ref_caller_frame.symbols.get(ref_skey, ref_svalue)
+                                            ref_new_skey := ref_skey.replacen(ref_prefix, ref_replacement_prefix, 1)
+                                            ref_field_symbols_to_copy.push(SymbolEntry(name=ref_new_skey, info=ref_svalue.clone()))
                                         }
                                     }
                                 }
-                                for ref_foi in 0..ref_field_offsets_to_copy.len() {
-                                    mut apply_mapping := EvalArenaMapping()
-                                    ref_field_offsets_to_copy.get(ref_foi, apply_mapping)
-                                    function_frame.arena_index.set(apply_mapping.name, apply_mapping.offset)
+                                for ref_mapping: EvalArenaMapping in ref_field_offsets_to_copy {
+                                    function_frame.arena_index.set(ref_mapping.name, ref_mapping.offset)
                                 }
-                                for ref_fsi in 0..ref_field_symbols_to_copy.len() {
-                                    mut apply_entry := SymbolEntry()
-                                    ref_field_symbols_to_copy.get(ref_fsi, apply_entry)
-                                    function_frame.symbols.set(apply_entry.name, apply_entry.info)
+                                for ref_entry: SymbolEntry in ref_field_symbols_to_copy {
+                                    function_frame.symbols.set(ref_entry.name, ref_entry.info)
                                 }
 
                                 // Track that this parameter was passed by reference
@@ -2584,31 +2538,19 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     mut saved_offsets := SavedOffsets()
                                     mut has_saved_offsets := false
                                     if id_.eq(arg.name) {
-                                        mut offsets := Vec.new(EvalArenaMapping)
+                                        mut save_offsets := Vec.new(EvalArenaMapping)
                                         // Save all arena_index entries that start with the struct name
                                         // This includes the base offset and all nested field offsets
-                                        prefix := format(id_, ".")
-                                        last_frame := context.scope_stack.last_frame()
-                                        arena_keys := last_frame.arena_index.keys
-                                        for ki in 0..arena_keys.len() {
-                                            mut key := ""
-                                            arena_keys.get(ki, key)
-                                            mut should_copy := false
-                                            if key.eq(id_) {
-                                                should_copy = true
-                                            } else if key.starts_with(prefix) {
-                                                should_copy = true
-                                            }
-                                            if should_copy {
-                                                mut offset_val := 0
-                                                last_frame.arena_index.get(key, offset_val)
-                                                mut mapping := EvalArenaMapping()
-                                                mapping.name = key.clone()
-                                                mapping.offset = offset_val
-                                                offsets.push(mapping)
+                                        save_prefix := format(id_, ".")
+                                        save_last_frame := context.scope_stack.last_frame()
+                                        for save_key: Str in save_last_frame.arena_index.keys {
+                                            if save_key.eq(id_).or(save_key.starts_with(save_prefix)) {
+                                                mut save_offset := 0
+                                                save_last_frame.arena_index.get(save_key, save_offset)
+                                                save_offsets.push(EvalArenaMapping(name=save_key.clone(), offset=save_offset))
                                             }
                                         }
-                                        saved_offsets.offsets = offsets
+                                        saved_offsets.offsets = save_offsets
                                         saved_offsets.temp_src_key = format("__temp_src_", id_)
                                         has_saved_offsets = true
                                     }
@@ -2649,51 +2591,29 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         pbr_replacement_prefix := format(arg.name, ".")
                                         mut pbr_field_offsets_to_copy := Vec.new(EvalArenaMapping)
                                         mut pbr_field_symbols_to_copy := Vec.new(SymbolEntry)
-                                        for pbr_fi in 0..context.scope_stack.frames.len() {
-                                            mut pbr_caller_frame := ScopeFrame()
-                                            context.scope_stack.frames.get(pbr_fi, pbr_caller_frame)
-                                            // Copy arena_index entries
-                                            pbr_arena_keys := pbr_caller_frame.arena_index.keys
-                                            for pbr_aki in 0..pbr_arena_keys.len() {
-                                                mut pbr_key := ""
-                                                pbr_arena_keys.get(pbr_aki, pbr_key)
+                                        for pbr_caller_frame: ScopeFrame in context.scope_stack.frames {
+                                            for pbr_key: Str in pbr_caller_frame.arena_index.keys {
                                                 if pbr_key.starts_with(pbr_prefix) {
                                                     mut pbr_value := 0
                                                     pbr_caller_frame.arena_index.get(pbr_key, pbr_value)
-                                                    mut pbr_new_key := pbr_key.replace(pbr_prefix, pbr_replacement_prefix)
-                                                    mut pbr_mapping := EvalArenaMapping()
-                                                    pbr_mapping.name = pbr_new_key
-                                                    pbr_mapping.offset = pbr_value
-                                                    pbr_field_offsets_to_copy.push(pbr_mapping)
+                                                    pbr_new_key := pbr_key.replacen(pbr_prefix, pbr_replacement_prefix, 1)
+                                                    pbr_field_offsets_to_copy.push(EvalArenaMapping(name=pbr_new_key, offset=pbr_value))
                                                 }
                                             }
-                                            // Copy symbols entries
-                                            pbr_symbol_keys := pbr_caller_frame.symbols.keys
-                                            for pbr_ski in 0..pbr_symbol_keys.len() {
-                                                mut pbr_skey := ""
-                                                pbr_symbol_keys.get(pbr_ski, pbr_skey)
+                                            for pbr_skey: Str in pbr_caller_frame.symbols.keys {
                                                 if pbr_skey.starts_with(pbr_prefix) {
                                                     mut pbr_svalue := SymbolInfo()
                                                     pbr_caller_frame.symbols.get(pbr_skey, pbr_svalue)
-                                                    pbr_new_skey := pbr_skey.replace(pbr_prefix, pbr_replacement_prefix)
-                                                    mut pbr_entry := SymbolEntry()
-                                                    pbr_entry.name = pbr_new_skey
-                                                    pbr_entry.info = pbr_svalue.clone()
-                                                    pbr_field_symbols_to_copy.push(pbr_entry)
+                                                    pbr_new_skey := pbr_skey.replacen(pbr_prefix, pbr_replacement_prefix, 1)
+                                                    pbr_field_symbols_to_copy.push(SymbolEntry(name=pbr_new_skey, info=pbr_svalue.clone()))
                                                 }
                                             }
                                         }
-                                        // Insert collected offsets
-                                        for pbr_foi in 0..pbr_field_offsets_to_copy.len() {
-                                            mut pbr_apply_mapping := EvalArenaMapping()
-                                            pbr_field_offsets_to_copy.get(pbr_foi, pbr_apply_mapping)
-                                            function_frame.arena_index.set(pbr_apply_mapping.name, pbr_apply_mapping.offset)
+                                        for pbr_mapping: EvalArenaMapping in pbr_field_offsets_to_copy {
+                                            function_frame.arena_index.set(pbr_mapping.name, pbr_mapping.offset)
                                         }
-                                        // Insert collected symbols
-                                        for pbr_fsi in 0..pbr_field_symbols_to_copy.len() {
-                                            mut pbr_apply_entry := SymbolEntry()
-                                            pbr_field_symbols_to_copy.get(pbr_fsi, pbr_apply_entry)
-                                            function_frame.symbols.set(pbr_apply_entry.name, pbr_apply_entry.info)
+                                        for pbr_entry: SymbolEntry in pbr_field_symbols_to_copy {
+                                            function_frame.symbols.set(pbr_entry.name, pbr_entry.info)
                                         }
 
                                         // Track that this was passed by reference
@@ -2819,20 +2739,14 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         // Also remove field entries
                                         cleanup_prefix := format(source_id, ".")
                                         mut cleanup_keys_to_remove := Vec.new(Str)
-                                        lf7 := context.scope_stack.last_frame()
-                                        cleanup_arena_keys := lf7.arena_index.keys
-                                        for cleanup_ki in 0..cleanup_arena_keys.len() {
-                                            mut cleanup_key := ""
-                                            cleanup_arena_keys.get(cleanup_ki, cleanup_key)
+                                        for cleanup_key: Str in context.scope_stack.last_frame().arena_index.keys {
                                             if cleanup_key.starts_with(cleanup_prefix) {
                                                 cleanup_keys_to_remove.push(cleanup_key.clone())
                                             }
                                         }
-                                        for cleanup_ri in 0..cleanup_keys_to_remove.len() {
-                                            mut remove_cleanup_key := ""
-                                            cleanup_keys_to_remove.get(cleanup_ri, remove_cleanup_key)
-                                            _ := context.scope_stack.remove_var(remove_cleanup_key)
-                                            _ := context.scope_stack.remove_symbol(remove_cleanup_key)
+                                        for cleanup_remove_key: Str in cleanup_keys_to_remove {
+                                            _ := context.scope_stack.remove_var(cleanup_remove_key)
+                                            _ := context.scope_stack.remove_symbol(cleanup_remove_key)
                                         }
                                     }
                                 }
@@ -2897,50 +2811,42 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     }
 
                     // Copy arena_index and symbol entries for the thrown instance's fields
-                    source_prefix := format(result.value, ".")
+                    throw_source_prefix := format(result.value, ".")
 
                     // Copy arena_index entries (including nested fields like .msg.c_string)
-                    mut keys_to_copy := Vec.new(Str)
-                    lf8 := context.scope_stack.last_frame()
-                    thrown_arena_keys := lf8.arena_index.keys
-                    for thrown_ki in 0..thrown_arena_keys.len() {
-                        mut thrown_key := ""
-                        thrown_arena_keys.get(thrown_ki, thrown_key)
-                        if thrown_key.starts_with(source_prefix) {
-                            keys_to_copy.push(thrown_key.clone())
+                    mut throw_keys_to_copy := Vec.new(Str)
+                    for throw_key: Str in context.scope_stack.last_frame().arena_index.keys {
+                        if throw_key.starts_with(throw_source_prefix) {
+                            throw_keys_to_copy.push(throw_key.clone())
                         }
                     }
-                    copy_frame_count := context.scope_stack.frames.len()
-                    for kci in 0..keys_to_copy.len() {
-                        mut arena_src_key := ""
-                        keys_to_copy.get(kci, arena_src_key)
-                        mut arena_src_offset := 0
-                        mut arena_src_offset_found := false
-                        arena_src_offset = context.scope_stack.lookup_var(arena_src_key)
-                        arena_src_offset_found = true
+                    throw_frame_count := context.scope_stack.frames.len()
+                    for throw_src_key: Str in throw_keys_to_copy {
+                        mut throw_src_offset := 0
+                        mut throw_src_offset_found := false
+                        throw_src_offset = context.scope_stack.lookup_var(throw_src_key)
+                        throw_src_offset_found = true
                         catch (err: KeyNotFoundError) { }
-                        if arena_src_offset_found {
-                            if copy_frame_count.gteq(2) {
-                                mut arena_caller_frame := ScopeFrame()
-                                context.scope_stack.frames.get(copy_frame_count.sub(2), arena_caller_frame)
-                                arena_caller_frame.arena_index.set(arena_src_key.clone(), arena_src_offset)
-                                context.scope_stack.frames.set(copy_frame_count.sub(2), arena_caller_frame)
+                        if throw_src_offset_found {
+                            if throw_frame_count.gteq(2) {
+                                mut throw_caller_frame := ScopeFrame()
+                                context.scope_stack.frames.get(throw_frame_count.sub(2), throw_caller_frame)
+                                throw_caller_frame.arena_index.set(throw_src_key, throw_src_offset)
+                                context.scope_stack.frames.set(throw_frame_count.sub(2), throw_caller_frame)
                             }
                         }
                     }
 
                     // Copy symbol entries for fields
-                    symbol_keys_to_copy := context.scope_stack.get_symbols_with_prefix(source_prefix)
-                    for ski in 0..symbol_keys_to_copy.len() {
-                        mut sym_src_key := ""
-                        symbol_keys_to_copy.get(ski, sym_src_key)
-                        mut src_symbol := SymbolInfo()
-                        mut src_symbol_found := false
-                        src_symbol = context.scope_stack.lookup_symbol(sym_src_key)
-                        src_symbol_found = true
+                    throw_symbol_keys_to_copy := context.scope_stack.get_symbols_with_prefix(throw_source_prefix)
+                    for throw_sym_key: Str in throw_symbol_keys_to_copy {
+                        mut throw_src_symbol := SymbolInfo()
+                        mut throw_src_symbol_found := false
+                        throw_src_symbol = context.scope_stack.lookup_symbol(throw_sym_key)
+                        throw_src_symbol_found = true
                         catch (err: KeyNotFoundError) { }
-                        if src_symbol_found {
-                            context.scope_stack.declare_symbol(sym_src_key.clone(), src_symbol.clone())
+                        if throw_src_symbol_found {
+                            context.scope_stack.declare_symbol(throw_sym_key, throw_src_symbol.clone())
                         }
                     }
                 }

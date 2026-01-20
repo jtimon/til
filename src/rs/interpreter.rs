@@ -1831,7 +1831,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                 let dest_prefix = format!("{}.", var_name);
 
                                 let keys_to_copy: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
-                                    .filter(|k| k.starts_with(&source_prefix))
+                                    .filter(|akey| akey.starts_with(&source_prefix))
                                     .cloned()
                                     .collect();
                                 for src_key in keys_to_copy {
@@ -1843,10 +1843,10 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
 
                                 // Also copy symbol mappings for all fields
                                 let symbol_keys_to_copy = context.scope_stack.get_symbols_with_prefix(&source_prefix);
-                                for src_key in symbol_keys_to_copy {
-                                    if let Some(src_symbol) = context.scope_stack.lookup_symbol(&src_key) {
-                                        let dest_key = src_key.replacen(&source_prefix, &dest_prefix, 1);
-                                        context.scope_stack.declare_symbol(dest_key, src_symbol.clone());
+                                for sym_src_key in symbol_keys_to_copy {
+                                    if let Some(src_symbol) = context.scope_stack.lookup_symbol(&sym_src_key) {
+                                        let sym_dest_key = sym_src_key.replacen(&source_prefix, &dest_prefix, 1);
+                                        context.scope_stack.declare_symbol(sym_dest_key, src_symbol.clone());
                                     }
                                 }
                             } else {
@@ -2149,19 +2149,19 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             function_frame.arena_index.insert(arg.name.clone(), offset);
 
                             // Transfer all related entries (for structs with fields, strings with metadata, etc.)
-                            let prefix = format!("{}.", source_var);
+                            let own_prefix = format!("{}.", source_var);
                             let keys_to_transfer: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
-                                .filter(|k| k.starts_with(&prefix))
+                                .filter(|own_key| own_key.starts_with(&own_prefix))
                                 .cloned()
                                 .collect();
 
-                            for key in &keys_to_transfer {
-                                if let Some(field_offset) = context.scope_stack.lookup_var(key) {
-                                    let new_key = key.replace(source_var, &arg.name);
-                                    function_frame.arena_index.insert(new_key.clone(), field_offset);
+                            for transfer_key in &keys_to_transfer {
+                                if let Some(field_offset) = context.scope_stack.lookup_var(transfer_key) {
+                                    let own_new_key = transfer_key.replace(source_var, &arg.name);
+                                    function_frame.arena_index.insert(own_new_key.clone(), field_offset);
                                     // Also transfer symbol info for fields
-                                    if let Some(field_sym) = context.scope_stack.lookup_symbol(key) {
-                                        function_frame.symbols.insert(new_key.clone(), field_sym.clone());
+                                    if let Some(field_sym) = context.scope_stack.lookup_symbol(transfer_key) {
+                                        function_frame.symbols.insert(own_new_key.clone(), field_sym.clone());
                                     }
                                 }
                             }
@@ -2171,9 +2171,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             // Remove from caller's context (ownership transferred)
                             context.scope_stack.remove_var(source_var);
                             context.scope_stack.remove_symbol(source_var);
-                            for key in &keys_to_transfer {
-                                context.scope_stack.remove_var(key);
-                                context.scope_stack.remove_symbol(key);
+                            for remove_key in &keys_to_transfer {
+                                context.scope_stack.remove_var(remove_key);
+                                context.scope_stack.remove_symbol(remove_key);
                             }
 
                             param_index += 1;
@@ -2214,29 +2214,29 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             // insert_struct registers nested field offsets (e.g., "l.start.x")
                             // We need to copy these so field access works in the callee
                             // Must search ALL frames because globals like `true` are in frame 0
-                            let prefix = format!("{}.", source_var);
-                            let replacement_prefix = format!("{}.", arg.name);
-                            let mut field_offsets_to_copy: Vec<EvalArenaMapping> = Vec::new();
-                            let mut field_symbols_to_copy: Vec<SymbolEntry> = Vec::new();
-                            for caller_frame in context.scope_stack.frames.iter() {
-                                for (key, &value) in caller_frame.arena_index.iter() {
-                                    if key.starts_with(&prefix) {
-                                        let new_key = key.replacen(&prefix, &replacement_prefix, 1);
-                                        field_offsets_to_copy.push(EvalArenaMapping { name: new_key, offset: value });
+                            let ref_prefix = format!("{}.", source_var);
+                            let ref_replacement_prefix = format!("{}.", arg.name);
+                            let mut ref_field_offsets_to_copy: Vec<EvalArenaMapping> = Vec::new();
+                            let mut ref_field_symbols_to_copy: Vec<SymbolEntry> = Vec::new();
+                            for ref_caller_frame in context.scope_stack.frames.iter() {
+                                for (ref_key, &ref_value) in ref_caller_frame.arena_index.iter() {
+                                    if ref_key.starts_with(&ref_prefix) {
+                                        let ref_new_key = ref_key.replacen(&ref_prefix, &ref_replacement_prefix, 1);
+                                        ref_field_offsets_to_copy.push(EvalArenaMapping { name: ref_new_key, offset: ref_value });
                                     }
                                 }
-                                for (key, value) in caller_frame.symbols.iter() {
-                                    if key.starts_with(&prefix) {
-                                        let new_key = key.replacen(&prefix, &replacement_prefix, 1);
-                                        field_symbols_to_copy.push(SymbolEntry { name: new_key, info: value.clone() });
+                                for (ref_skey, ref_svalue) in ref_caller_frame.symbols.iter() {
+                                    if ref_skey.starts_with(&ref_prefix) {
+                                        let ref_new_skey = ref_skey.replacen(&ref_prefix, &ref_replacement_prefix, 1);
+                                        ref_field_symbols_to_copy.push(SymbolEntry { name: ref_new_skey, info: ref_svalue.clone() });
                                     }
                                 }
                             }
-                            for mapping in field_offsets_to_copy {
-                                function_frame.arena_index.insert(mapping.name, mapping.offset);
+                            for ref_mapping in ref_field_offsets_to_copy {
+                                function_frame.arena_index.insert(ref_mapping.name, ref_mapping.offset);
                             }
-                            for entry in field_symbols_to_copy {
-                                function_frame.symbols.insert(entry.name, entry.info);
+                            for ref_entry in ref_field_symbols_to_copy {
+                                function_frame.symbols.insert(ref_entry.name, ref_entry.info);
                             }
 
                             // Track that this parameter was passed by reference
@@ -2313,18 +2313,19 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                         // If source and dest have the same name, we need to save the source offsets
                                         // before insert_struct overwrites them
                                         let saved_offsets: Option<SavedOffsets> = if id_ == &arg.name {
-                                            let mut offsets = Vec::new();
+                                            let mut save_offsets = Vec::new();
 
                                             // Save all arena_index entries that start with the struct name
                                             // This includes the base offset and all nested field offsets
-                                            let prefix = format!("{}.", id_);
-                                            for (key, offset) in context.scope_stack.frames.last().unwrap().arena_index.iter() {
-                                                if key == id_ || key.starts_with(&prefix) {
-                                                    offsets.push(EvalArenaMapping { name: key.clone(), offset: *offset });
+                                            let save_prefix = format!("{}.", id_);
+                                            let save_last_frame = context.scope_stack.frames.last().unwrap();
+                                            for (save_key, save_offset) in save_last_frame.arena_index.iter() {
+                                                if save_key == id_ || save_key.starts_with(&save_prefix) {
+                                                    save_offsets.push(EvalArenaMapping { name: save_key.clone(), offset: *save_offset });
                                                 }
                                             }
 
-                                            Some(SavedOffsets { offsets, temp_src_key: format!("__temp_src_{}", id_) })
+                                            Some(SavedOffsets { offsets: save_offsets, temp_src_key: format!("__temp_src_{}", id_) })
                                         } else {
                                             None
                                         };
@@ -2355,29 +2356,29 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                                             // Copy nested field offsets (e.g., "o1.inner_vec._len" -> "self._len")
                                             // Must search ALL frames because globals like `true` are in frame 0
-                                            let prefix = format!("{}.", id_);
-                                            let replacement_prefix = format!("{}.", arg.name);
-                                            let mut field_offsets_to_copy: Vec<EvalArenaMapping> = Vec::new();
-                                            let mut field_symbols_to_copy: Vec<SymbolEntry> = Vec::new();
-                                            for caller_frame in context.scope_stack.frames.iter() {
-                                                for (key, &value) in caller_frame.arena_index.iter() {
-                                                    if key.starts_with(&prefix) {
-                                                        let new_key = key.replacen(&prefix, &replacement_prefix, 1);
-                                                        field_offsets_to_copy.push(EvalArenaMapping { name: new_key, offset: value });
+                                            let pbr_prefix = format!("{}.", id_);
+                                            let pbr_replacement_prefix = format!("{}.", arg.name);
+                                            let mut pbr_field_offsets_to_copy: Vec<EvalArenaMapping> = Vec::new();
+                                            let mut pbr_field_symbols_to_copy: Vec<SymbolEntry> = Vec::new();
+                                            for pbr_caller_frame in context.scope_stack.frames.iter() {
+                                                for (pbr_key, &pbr_value) in pbr_caller_frame.arena_index.iter() {
+                                                    if pbr_key.starts_with(&pbr_prefix) {
+                                                        let pbr_new_key = pbr_key.replacen(&pbr_prefix, &pbr_replacement_prefix, 1);
+                                                        pbr_field_offsets_to_copy.push(EvalArenaMapping { name: pbr_new_key, offset: pbr_value });
                                                     }
                                                 }
-                                                for (key, value) in caller_frame.symbols.iter() {
-                                                    if key.starts_with(&prefix) {
-                                                        let new_key = key.replacen(&prefix, &replacement_prefix, 1);
-                                                        field_symbols_to_copy.push(SymbolEntry { name: new_key, info: value.clone() });
+                                                for (pbr_skey, pbr_svalue) in pbr_caller_frame.symbols.iter() {
+                                                    if pbr_skey.starts_with(&pbr_prefix) {
+                                                        let pbr_new_skey = pbr_skey.replacen(&pbr_prefix, &pbr_replacement_prefix, 1);
+                                                        pbr_field_symbols_to_copy.push(SymbolEntry { name: pbr_new_skey, info: pbr_svalue.clone() });
                                                     }
                                                 }
                                             }
-                                            for mapping in field_offsets_to_copy {
-                                                function_frame.arena_index.insert(mapping.name, mapping.offset);
+                                            for pbr_mapping in pbr_field_offsets_to_copy {
+                                                function_frame.arena_index.insert(pbr_mapping.name, pbr_mapping.offset);
                                             }
-                                            for entry in field_symbols_to_copy {
-                                                function_frame.symbols.insert(entry.name, entry.info);
+                                            for pbr_entry in pbr_field_symbols_to_copy {
+                                                function_frame.symbols.insert(pbr_entry.name, pbr_entry.info);
                                             }
 
                                             // Track that this was passed by reference
@@ -2469,14 +2470,14 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             context.scope_stack.remove_var(&source_id);
                                             context.scope_stack.remove_symbol(&source_id);
                                             // Also remove field entries
-                                            let prefix = format!("{}.", &source_id);
-                                            let keys_to_remove: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
-                                                .filter(|k| k.starts_with(&prefix))
+                                            let cleanup_prefix = format!("{}.", &source_id);
+                                            let cleanup_keys_to_remove: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
+                                                .filter(|cleanup_key| cleanup_key.starts_with(&cleanup_prefix))
                                                 .cloned()
                                                 .collect();
-                                            for key in keys_to_remove {
-                                                context.scope_stack.remove_var(&key);
-                                                context.scope_stack.remove_symbol(&key);
+                                            for cleanup_remove_key in cleanup_keys_to_remove {
+                                                context.scope_stack.remove_var(&cleanup_remove_key);
+                                                context.scope_stack.remove_symbol(&cleanup_remove_key);
                                             }
                                         }
                                     },
@@ -2528,27 +2529,27 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     }
 
                     // Copy arena_index and symbol entries for the thrown instance's fields
-                    let source_prefix = format!("{}.", &result.value);
+                    let throw_source_prefix = format!("{}.", &result.value);
 
                     // Copy arena_index entries (including nested fields like .msg.c_string)
-                    let keys_to_copy: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
-                        .filter(|k| k.starts_with(&source_prefix))
+                    let throw_keys_to_copy: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
+                        .filter(|throw_key| throw_key.starts_with(&throw_source_prefix))
                         .cloned()
                         .collect();
-                    let frame_count = context.scope_stack.frames.len();
-                    for src_key in keys_to_copy {
-                        if let Some(src_offset) = context.scope_stack.lookup_var(&src_key) {
-                            if frame_count >= 2 {
-                                context.scope_stack.frames[frame_count - 2].arena_index.insert(src_key, src_offset);
+                    let throw_frame_count = context.scope_stack.frames.len();
+                    for throw_src_key in throw_keys_to_copy {
+                        if let Some(throw_src_offset) = context.scope_stack.lookup_var(&throw_src_key) {
+                            if throw_frame_count >= 2 {
+                                context.scope_stack.frames[throw_frame_count - 2].arena_index.insert(throw_src_key, throw_src_offset);
                             }
                         }
                     }
 
                     // Copy symbol entries for fields
-                    let symbol_keys_to_copy = context.scope_stack.get_symbols_with_prefix(&source_prefix);
-                    for src_key in symbol_keys_to_copy {
-                        if let Some(src_symbol) = context.scope_stack.lookup_symbol(&src_key) {
-                            context.scope_stack.declare_symbol(src_key, src_symbol.clone());
+                    let throw_symbol_keys_to_copy = context.scope_stack.get_symbols_with_prefix(&throw_source_prefix);
+                    for throw_sym_key in throw_symbol_keys_to_copy {
+                        if let Some(throw_src_symbol) = context.scope_stack.lookup_symbol(&throw_sym_key) {
+                            context.scope_stack.declare_symbol(throw_sym_key, throw_src_symbol.clone());
                         }
                     }
                 }

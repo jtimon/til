@@ -1035,6 +1035,58 @@ all_structs := func(self: ScopeStack) returns Vec throws Str {
 This provides the location where the error was thrown (the catch block), which is
 helpful for debugging internal errors.
 
+* Variable Shadowing (not allowed in TIL)
+
+TIL does not allow variable shadowing within a function. When Rust code reuses variable
+names in different blocks (which Rust allows), you must rename them to be unique.
+
+*CRITICAL*: When renaming variables in TIL to avoid shadowing, port the renames BACK to
+Rust so both versions use the same names. The goal is to minimize divergences.
+
+Rust (before - uses shadowing):
+#+begin_src rust
+fn process() {
+    let prefix = format!("{}.", source_var);  // first use
+    for key in keys { ... }
+
+    // Later in same function, different block:
+    let prefix = format!("{}.", id_);  // shadows first prefix
+    for key in other_keys { ... }  // shadows first key
+}
+#+end_src
+
+Rust (after - no shadowing, unique names):
+#+begin_src rust
+fn process() {
+    let own_prefix = format!("{}.", source_var);
+    for own_key in keys { ... }
+
+    // Later in same function:
+    let ref_prefix = format!("{}.", id_);
+    for ref_key in other_keys { ... }
+}
+#+end_src
+
+TIL (matches Rust after):
+#+begin_src til
+process := proc() {
+    own_prefix := format(source_var, ".")
+    for own_key: Str in keys { ... }
+
+    // Later in same function:
+    ref_prefix := format(id_, ".")
+    for ref_key: Str in other_keys { ... }
+}
+#+end_src
+
+*Workflow*:
+1. Port Rust to TIL using the same variable names
+2. If TIL compiler complains about shadowing, rename to unique names in TIL
+3. Port the renames BACK to Rust immediately
+4. Both versions should have identical variable names
+
+See also: doc/rs.org rule "Don't use variable shadowing"
+
 * Clone Methods (derive(Clone) -> manual implementation)
 
 Rust uses ~#[derive(Clone)]~ to auto-generate clone methods. TIL has no derive macros,
@@ -1239,3 +1291,4 @@ The translation is mechanical:
 19. Prefer method chaining: ~x.gt(0)~ over ~gt(x, 0)~, ~a.and(b)~ over ~and(a, b)~
 20. HashMap iteration: ~for (k, v) in &map~ -> ~for k: T in map.keys { map.get(k, v) }~
 21. ~Option<T>~ struct fields/params -> ~Ptr~ (NULL = None); read with ~memcpy(to_ptr(local), ptr.data, size_of(T))~
+22. Variable shadowing: TIL doesn't allow it. Rename in BOTH Rust and TIL to use unique names (see dedicated section)
