@@ -12,143 +12,6 @@ are open questions about language direction.
 
 * Open Issues
 
-** Issue #127: Pipeline refactoring - Add Desugarer and UFCS phases
-:PROPERTIES:
-:DISCOVERED: 2026-01-19
-:IMPACT: Cleaner architecture, single-pass type inference, easier maintenance
-:STATUS: In Progress
-:END:
-
-*** Description
-Refactor the compilation pipeline to separate concerns. See doc/pipeline.org
-for full details including current vs target state and migration TODOs.
-
-*** Current Problems
-- Precomp is overloaded: UFCS + forin + switch + const-folding + macros
-- Typer only validates, doesn't annotate AST with resolved types
-- Later phases re-infer types repeatedly
-- Parser desugars range for directly (should just build AST)
-
-*** Target Pipeline
-Lexer -> Parser -> Mode -> Init -> Typer -> Desugarer -> UFCS -> Precomp -> Scavenger -> Build/Interpret
-
-Where:
-- Typer: validates AND annotates AST with resolved types (no later phase infers)
-- Desugarer: desugar forin, switch, range for (needs type info)
-- UFCS: desugar x.method(y) -> Type.method(x, y)
-- Precomp: const-folding, macros only
-
-*** Related Issues
-- Issue #110: Switch desugaring (will move to Desugarer phase)
-
-*** Commit 1: Separate Desugarer phase from Precomp [DONE]
-
-**** Overview
-Create new desugarer phase that handles ForIn desugaring. Currently precomp
-does desugaring inline during its recursive pass. The new design runs desugarer
-as a separate pass before precomp.
-
-**** Completion Notes
-- Key fix: Do NOT declare loop variable in scope_stack during desugaring.
-  The desugarer just transforms AST; declaring variables was leaking type
-  information across files during batch compilation (caused custom_type_name
-  in interpreter.til to be incorrectly typed as SymbolEntry from eval_arena.til's
-  for-in loop over SymbolEntry).
-
-**** Files to create
-- src/rs/desugarer.rs - Rust implementation
-- src/self/desugarer.til - TIL implementation (port from Rust)
-
-**** Code to move from precomp.rs to desugarer.rs
-1. transform_continue_with_step() - Bug #57 fix for continue in for-in loops
-2. build_default_value() - Creates default values for enum payloads
-3. precomp_forin() -> desugar_forin() - The actual ForIn desugaring logic
-
-**** New entry point: desugar_expr()
-Recursive function that:
-- Handles NodeType::ForIn by calling desugar_forin()
-- Recurses into FuncDef bodies (methods need desugaring too)
-- Recurses into StructDef default values (may contain function defs)
-- For all other nodes, recurses into params
-
-**** Changes to precomp.rs
-- Remove transform_continue_with_step, build_default_value, precomp_forin
-- Replace ForIn case with panic:
-  NodeType::ForIn(_) => panic!("ForIn should have been desugared")
-
-**** Changes to interpreter.rs
-- Add: use crate::rs::desugarer::desugar_expr;
-- Before each precomp_expr call, add: e = desugar_expr(context, &e)?;
-
-**** Changes to builder.rs
-- Before each precomp_expr call, add desugar_expr call
-
-**** Changes to rstil.rs
-- Add: pub mod desugarer; (between typer and precomp)
-
-**** TIL port (desugarer.til)
-- Port all functions following doc/rs2til.org translation rules
-- Import: import("self.init")
-- Entry: desugar_expr proc
-
-**** Changes to precomp.til
-- Remove desugar-related functions
-- Replace ForIn case with panic
-
-**** Changes to interpreter.til, builder.til
-- Add: import("self.desugarer")
-- Call desugar_expr before precomp_expr
-
-**** Verification
-Run: make benchmark
-All tests must pass.
-
-*** Commit 2: Separate UFCS phase from Precomp
-
-**** Overview
-Create new ufcs phase that handles UFCS desugaring. Currently precomp does
-UFCS resolution inline in precomp_fcall. The new design runs ufcs as a
-separate pass after desugarer, before precomp.
-
-**** Files to create
-- src/rs/ufcs.rs - Rust implementation
-- src/self/ufcs.til - TIL implementation (port from Rust)
-
-**** Code to move from precomp.rs to ufcs.rs
-From precomp_fcall():
-1. UFCS for chained calls (lines ~1176-1200): func(result, args) -> Type.func(result, args)
-2. UFCS with dot notation (lines ~1202-1250): a.method(b) -> Type.method(a, b)
-3. Named argument reordering (reorder_named_args function)
-
-**** New entry point: ufcs_expr()
-Recursive function that:
-- Handles NodeType::FCall by resolving UFCS and reordering named args
-- Recurses into FuncDef bodies
-- Recurses into StructDef default values
-- For all other nodes, recurses into params
-
-**** Changes to precomp.rs
-- Remove UFCS resolution code from precomp_fcall
-- Remove reorder_named_args function
-- precomp_fcall only handles: comptime intrinsics, struct/enum constructors, import()
-
-**** Changes to interpreter.rs
-- Add: use crate::rs::ufcs::ufcs_expr;
-- Pipeline becomes: typer -> desugarer -> ufcs -> precomp
-
-**** Changes to builder.rs
-- Pipeline becomes: typer -> desugarer -> ufcs -> precomp
-
-**** Changes to rstil.rs
-- Add: pub mod ufcs; (between desugarer and precomp)
-
-**** TIL port (ufcs.til)
-- Port all functions following doc/rs2til.org translation rules
-
-**** Verification
-Run: make benchmark
-All tests must pass.
-
 ** Issue #122: Add regex support to standard library
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
@@ -1435,6 +1298,151 @@ This is a multi-step issue. Priorities A and B are sufficient for now.
 Final syntax may evolve as we address all Python import patterns.
 
 * Implemented Issues
+
+** Issue #127: Pipeline refactoring - Add Desugarer and UFCS phases [DONE]
+:PROPERTIES:
+:DISCOVERED: 2026-01-19
+:COMPLETED: 2026-01-20
+:IMPACT: Cleaner architecture, single-pass type inference, easier maintenance
+:STATUS: Done
+:END:
+
+*** Description
+Refactor the compilation pipeline to separate concerns. See doc/pipeline.org
+for full details including current vs target state and migration TODOs.
+
+*** Current Problems
+- Precomp is overloaded: UFCS + forin + switch + const-folding + macros
+- Typer only validates, doesn't annotate AST with resolved types
+- Later phases re-infer types repeatedly
+- Parser desugars range for directly (should just build AST)
+
+*** Target Pipeline
+Lexer -> Parser -> Mode -> Init -> Typer -> Desugarer -> UFCS -> Precomp -> Scavenger -> Build/Interpret
+
+Where:
+- Typer: validates AND annotates AST with resolved types (no later phase infers)
+- Desugarer: desugar forin, switch, range for (needs type info)
+- UFCS: desugar x.method(y) -> Type.method(x, y)
+- Precomp: const-folding, macros only
+
+*** Related Issues
+- Issue #110: Switch desugaring (will move to Desugarer phase)
+
+*** Commit 1: Separate Desugarer phase from Precomp [DONE]
+
+**** Overview
+Create new desugarer phase that handles ForIn desugaring. Currently precomp
+does desugaring inline during its recursive pass. The new design runs desugarer
+as a separate pass before precomp.
+
+**** Completion Notes
+- Key fix: Do NOT declare loop variable in scope_stack during desugaring.
+  The desugarer just transforms AST; declaring variables was leaking type
+  information across files during batch compilation (caused custom_type_name
+  in interpreter.til to be incorrectly typed as SymbolEntry from eval_arena.til's
+  for-in loop over SymbolEntry).
+
+**** Files to create
+- src/rs/desugarer.rs - Rust implementation
+- src/self/desugarer.til - TIL implementation (port from Rust)
+
+**** Code to move from precomp.rs to desugarer.rs
+1. transform_continue_with_step() - Bug #57 fix for continue in for-in loops
+2. build_default_value() - Creates default values for enum payloads
+3. precomp_forin() -> desugar_forin() - The actual ForIn desugaring logic
+
+**** New entry point: desugar_expr()
+Recursive function that:
+- Handles NodeType::ForIn by calling desugar_forin()
+- Recurses into FuncDef bodies (methods need desugaring too)
+- Recurses into StructDef default values (may contain function defs)
+- For all other nodes, recurses into params
+
+**** Changes to precomp.rs
+- Remove transform_continue_with_step, build_default_value, precomp_forin
+- Replace ForIn case with panic:
+  NodeType::ForIn(_) => panic!("ForIn should have been desugared")
+
+**** Changes to interpreter.rs
+- Add: use crate::rs::desugarer::desugar_expr;
+- Before each precomp_expr call, add: e = desugar_expr(context, &e)?;
+
+**** Changes to builder.rs
+- Before each precomp_expr call, add desugar_expr call
+
+**** Changes to rstil.rs
+- Add: pub mod desugarer; (between typer and precomp)
+
+**** TIL port (desugarer.til)
+- Port all functions following doc/rs2til.org translation rules
+- Import: import("self.init")
+- Entry: desugar_expr proc
+
+**** Changes to precomp.til
+- Remove desugar-related functions
+- Replace ForIn case with panic
+
+**** Changes to interpreter.til, builder.til
+- Add: import("self.desugarer")
+- Call desugar_expr before precomp_expr
+
+**** Verification
+Run: make benchmark
+All tests must pass.
+
+*** Commit 2: Separate UFCS phase from Precomp [DONE]
+
+**** Overview
+Create new ufcs phase that handles UFCS desugaring. Currently precomp does
+UFCS resolution inline in precomp_fcall. The new design runs ufcs as a
+separate pass after desugarer, before precomp.
+
+**** Completion Notes
+- Key fix: U8 type annotation handling must be in ufcs_declaration, not just
+  precomp_declaration. When `mut val : U8 = 41`, the literal 41 infers as I64
+  but must be registered as U8 so UFCS transforms `val.inc()` to `U8.inc(val)`.
+- TIL port required renaming `ufcs_func_def` variable in typer.til to `ufcs_fn_def`
+  to avoid collision with the new ufcs_func_def function (TIL has global scope).
+
+**** Files to create
+- src/rs/ufcs.rs - Rust implementation
+- src/self/ufcs.til - TIL implementation (port from Rust)
+
+**** Code to move from precomp.rs to ufcs.rs
+From precomp_fcall():
+1. UFCS for chained calls (lines ~1176-1200): func(result, args) -> Type.func(result, args)
+2. UFCS with dot notation (lines ~1202-1250): a.method(b) -> Type.method(a, b)
+3. Named argument reordering (reorder_named_args function)
+
+**** New entry point: ufcs_expr()
+Recursive function that:
+- Handles NodeType::FCall by resolving UFCS and reordering named args
+- Recurses into FuncDef bodies
+- Recurses into StructDef default values
+- For all other nodes, recurses into params
+
+**** Changes to precomp.rs
+- Remove UFCS resolution code from precomp_fcall
+- Remove reorder_named_args function
+- precomp_fcall only handles: comptime intrinsics, struct/enum constructors, import()
+
+**** Changes to interpreter.rs
+- Add: use crate::rs::ufcs::ufcs_expr;
+- Pipeline becomes: typer -> desugarer -> ufcs -> precomp
+
+**** Changes to builder.rs
+- Pipeline becomes: typer -> desugarer -> ufcs -> precomp
+
+**** Changes to rstil.rs
+- Add: pub mod ufcs; (between desugarer and precomp)
+
+**** TIL port (ufcs.til)
+- Port all functions following doc/rs2til.org translation rules
+
+**** Verification
+Run: make benchmark
+All tests must pass.
 
 ** Issue #69: Test Organization - all_common category
 :PROPERTIES:

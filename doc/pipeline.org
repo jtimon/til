@@ -1,7 +1,6 @@
 * TIL Compilation Pipeline
 
-This document describes the TARGET phases for the TIL compiler/interpreter pipeline.
-NOTE: This is the goal, not current reality. See Issue #127 for migration status.
+This document describes the phases for the TIL compiler/interpreter pipeline.
 
 ** Phases Overview
 
@@ -60,7 +59,7 @@ The pipeline processes source code through these phases in order:
 - Desugars syntactic sugar constructs:
   - range for: for i in 0..10 -> while loop (type from AST annotation)
   - forin: for x: T in collection -> while loop with len/get calls
-  - switch: switch/case on enums -> if/else chains with enum_to_str/enum_get_payload
+  - switch: (TODO Issue #110) switch/case on enums -> if/else chains
 - Runs after typer because AST is annotated with resolved types
 - Entry: desugar_expr()
 
