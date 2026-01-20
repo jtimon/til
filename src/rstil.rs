@@ -10,6 +10,7 @@ mod rs {
     pub mod init;
     pub mod typer;
     pub mod desugarer;
+    pub mod ufcs;
     pub mod precomp;
     pub mod precomp_ext;
     pub mod scavenger;

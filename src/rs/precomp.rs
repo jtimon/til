@@ -3,7 +3,7 @@
 // This phase runs after typer, before interpreter/builder.
 
 use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType};
-use crate::rs::typer::{func_proc_has_multi_arg, get_func_def_for_fcall_with_expr};
+use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::HashMap;
 use crate::rs::parser::{
     Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal, TTypeDef, PatternInfo,
@@ -12,173 +12,6 @@ use crate::rs::parser::{
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
 use crate::rs::eval_arena::EvalArena;
 use crate::rs::precomp_ext::try_replace_comptime_intrinsic;
-
-// ---------- Named argument reordering
-
-/// Reorder named arguments to match function parameter order.
-/// Transforms: func(b=3, a=10) -> func(10, 3) (for func(a, b))
-/// This runs during precomp so both interpreter and builder share the work.
-fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Result<Expr, String> {
-    // params[0] is the function identifier, params[1..] are the arguments
-    let call_args = if e.params.len() <= 1 {
-        &[][..] // No arguments
-    } else {
-        &e.params[1..]
-    };
-
-    // Check if function is variadic - named args and default filling not supported
-    let is_variadic = func_proc_has_multi_arg(func_def);
-
-    // Check if there are any named args
-    let mut has_named_args = false;
-    for arg in call_args {
-        if matches!(&arg.node_type, NodeType::NamedArg(_)) {
-            has_named_args = true;
-            break;
-        }
-    }
-
-    // Named args are not supported for variadic functions
-    if has_named_args && is_variadic {
-        return Err(e.error(&context.path, "precomp", "Named arguments are not supported for variadic functions"));
-    }
-
-    // Bug #61: Check if there are optional args before variadic that might need defaults
-    // This happens when the provided arg type doesn't match the optional arg type
-    let has_optional_before_variadic = is_variadic && func_def.args.len() > 1 &&
-        func_def.args.iter().take(func_def.args.len() - 1).any(|a| a.default_value.is_some());
-
-    // Check if we need to fill in default values (fewer args than params)
-    // Don't apply to variadic functions (unless they have optional args before the variadic)
-    let needs_defaults = (!is_variadic && call_args.len() < func_def.args.len()) || has_optional_before_variadic;
-
-    // If no named args and no defaults needed, return unchanged
-    if !has_named_args && !needs_defaults {
-        return Ok(e.clone());
-    }
-
-    let mut result = vec![e.params[0].clone()]; // Keep function identifier
-
-    // Bug #61: Handle variadic functions with optional args before the variadic
-    // Need to insert defaults for skipped optional args, then include all provided args
-    if has_optional_before_variadic {
-        let mut def_arg_idx: usize = 0;
-        let mut call_arg_idx: usize = 0;
-
-        // Process optional args before the variadic
-        while def_arg_idx < func_def.args.len() - 1 {  // -1 to stop before variadic
-            let opt_def_arg = &func_def.args[def_arg_idx];
-
-            // Check if we have a provided arg that matches this def arg's type
-            let mut matches = false;
-            if call_arg_idx < call_args.len() {
-                let provided_arg = &call_args[call_arg_idx];
-                if let Ok(found_type) = get_value_type(&context, provided_arg) {
-                    let expected = &opt_def_arg.value_type;
-                    matches = match expected {
-                        ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => true,
-                        _ => expected == &found_type,
-                    };
-                }
-            }
-
-            if matches {
-                // Use provided arg
-                result.push(call_args[call_arg_idx].clone());
-                call_arg_idx += 1;
-            } else if let Some(opt_default_expr) = &opt_def_arg.default_value {
-                // Use default
-                result.push((**opt_default_expr).clone());
-            } else {
-                return Err(e.error(&context.path, "precomp", &format!("Missing argument for non-optional parameter '{}'", opt_def_arg.name)));
-            }
-            def_arg_idx += 1;
-        }
-
-        // Add remaining provided args (for variadic)
-        for i in call_arg_idx..call_args.len() {
-            result.push(call_args[i].clone());
-        }
-
-        return Ok(Expr::new_clone(NodeType::FCall, e, result));
-    }
-
-    // Count positional args (before first named arg)
-    let mut positional_count = 0;
-    for arg in call_args {
-        if let NodeType::NamedArg(_) = &arg.node_type {
-            break;
-        }
-        positional_count += 1;
-    }
-
-    // Check that all named args come after positional args
-    let mut seen_named = false;
-    for arg in call_args {
-        if let NodeType::NamedArg(_) = &arg.node_type {
-            seen_named = true;
-        } else if seen_named {
-            return Err(e.error(&context.path, "precomp", "Positional arguments cannot appear after named arguments"));
-        }
-    }
-
-    // Build result: first positional args, then fill in from named args
-    let mut final_args: Vec<Option<Expr>> = vec![None; func_def.args.len()];
-
-    // Place positional arguments
-    for (i, arg) in call_args.iter().take(positional_count).enumerate() {
-        if i >= func_def.args.len() {
-            return Err(e.error(&context.path, "precomp", &format!("Too many positional arguments: expected at most {}", func_def.args.len())));
-        }
-        final_args[i] = Some(arg.clone());
-    }
-
-    // Place named arguments
-    for arg in call_args.iter().skip(positional_count) {
-        if let NodeType::NamedArg(arg_name) = &arg.node_type {
-            // Find the parameter index by name
-            let mut param_idx: Option<usize> = None;
-            for (i, p) in func_def.args.iter().enumerate() {
-                if &p.name == arg_name {
-                    param_idx = Some(i);
-                    break;
-                }
-            }
-            match param_idx {
-                Some(idx) => {
-                    if final_args[idx].is_some() {
-                        return Err(arg.error(&context.path, "precomp", &format!("Argument '{}' specified multiple times", arg_name)));
-                    }
-                    // Extract the value from the NamedArg
-                    if arg.params.is_empty() {
-                        return Err(arg.error(&context.path, "precomp", &format!("Named argument '{}' has no value", arg_name)));
-                    }
-                    final_args[idx] = Some(arg.params[0].clone());
-                },
-                None => {
-                    return Err(arg.error(&context.path, "precomp", &format!("Unknown parameter name '{}'", arg_name)));
-                }
-            }
-        }
-    }
-
-    // Check all required args are present and build final result
-    for (i, maybe_arg) in final_args.into_iter().enumerate() {
-        match maybe_arg {
-            Some(arg) => result.push(arg),
-            None => {
-                // Check if this parameter has a default value
-                if let Some(default_expr) = &func_def.args[i].default_value {
-                    result.push((**default_expr).clone());
-                } else {
-                    return Err(e.error(&context.path, "precomp", &format!("Missing argument for parameter '{}'", func_def.args[i].name)));
-                }
-            }
-        }
-    }
-
-    Ok(Expr::new_clone(NodeType::FCall, e, result))
-}
 
 // ---------- Main entry point
 
@@ -722,7 +555,8 @@ fn precomp_catch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     ))
 }
 
-/// Transform FCall node - this is where UFCS resolution happens
+/// Transform FCall node - handles comptime intrinsics, struct/enum constructors, and import()
+/// UFCS resolution and named argument reordering happen in the ufcs phase (before precomp)
 fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     // 1. Check for compile-time intrinsics (loc, _file, _line, _col)
     if let Some(replaced) = try_replace_comptime_intrinsic(context, e) {
@@ -741,7 +575,7 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         String::new()
     };
 
-    // 3. Struct constructor - create instance like eval does (before arg transform)
+    // 2. Struct constructor - create instance like eval does (before arg transform)
     if !combined_name.is_empty() && context.scope_stack.lookup_struct(&combined_name).is_some() {
         create_default_instance(context, &combined_name, &e)?;
         if let NodeType::Identifier(id_name) = &func_expr.node_type {
@@ -757,7 +591,7 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         return Ok(Expr::new_clone(e.node_type.clone(), &e, transformed_params));
     }
 
-    // 4. Enum constructor (e.g., Color.Green(true)) - before arg transform
+    // 3. Enum constructor (e.g., Color.Green(true)) - before arg transform
     if context.scope_stack.is_enum_constructor(&combined_name) {
         // Transform arguments for enum constructor
         let mut transformed_params = Vec::new();
@@ -767,7 +601,7 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         return Ok(Expr::new_clone(e.node_type.clone(), &e, transformed_params));
     }
 
-    // 5. Transform all arguments
+    // 4. Transform all arguments
     let mut transformed_params = Vec::new();
     for p in &e.params {
         transformed_params.push(precomp_expr(context, p)?);
@@ -783,7 +617,7 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     if let NodeType::Identifier(_id_name) = &func_expr.node_type {
         let combined_name = crate::rs::parser::get_combined_name(&context.path, func_expr)?;
 
-        // 6. Regular function call - check if it exists
+        // 5. Handle ext functions and import()
         if let Some(func_def) = context.scope_stack.lookup_func(&combined_name) {
             // Ext functions: evaluation happens through eval_comptime path (see doc/precomp.org)
             // Exception: import() must run during precomp to load code
@@ -792,91 +626,10 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 if let Some(&"import") = parts.last() {
                     eval_expr(context, &e)?;
                 }
-                return Ok(e.clone());
-            }
-            // Reorder named arguments to positional order before constant folding
-            let e = reorder_named_args(context, &e, &func_def)?;
-            return Ok(e);
-        }
-
-        // UFCS for chained calls: func(result, args) -> Type.func(result, args)
-        // e.g., add(1, 2).mul(3) becomes mul(add(1,2), 3) which transforms to I64.mul(add(1,2), 3)
-        // This only applies when no standalone function with this name exists (checked above).
-        if e.params.len() >= 2 {
-            let first_arg = e.get(1)?;
-            if let Ok(target_type) = get_value_type(context, first_arg) {
-                // Get type name from value_type - TCustom or TMulti (variadic params become Array)
-                let custom_type_name = match &target_type {
-                    ValueType::TCustom(name) => Some(name.clone()),
-                    ValueType::TMulti(_) => Some("Array".to_string()),
-                    _ => None,
-                };
-                if let Some(type_name) = custom_type_name {
-                    let method_name = format!("{}.{}", type_name, combined_name);
-                    if context.scope_stack.lookup_func(&method_name).is_some() {
-                        // Transform: func(target, args...) -> Type.func(target, args...)
-                        let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), e.get(0)?, Vec::new());
-                        let mut new_args = Vec::new();
-                        new_args.push(new_e);
-                        new_args.extend(e.params[1..].to_vec());
-                        return Ok(Expr::new_clone(NodeType::FCall, e.get(0)?, new_args));
-                    }
-                }
-            }
-        }
-
-        // UFCS with dot notation (e.g., a.method(b) or a.field.method())
-        if let Some(func_name_expr) = func_expr.params.last() {
-            if let NodeType::Identifier(ufcs_func_name) = &func_name_expr.node_type {
-                let mut parts: Vec<&str> = combined_name.split('.').collect();
-                parts.pop(); // Remove the method name
-                let _new_combined_name = parts.join(".");
-
-                // Create identifier expression for the receiver (everything except the method name)
-                let mut id_params = func_expr.params.clone();
-                id_params.pop(); // Remove the method name
-                let receiver_expr = Expr::new_clone(func_expr.node_type.clone(), &e, id_params);
-
-                // Try as an associated method (Type.method) first - this takes priority over standalone functions
-                // because x.and(y) should resolve to Bool.and(x, y) not and(x, y) when both exist
-                match get_value_type(context, &receiver_expr) {
-                    Ok(value_type) => {
-                        // Get type name from value_type - TCustom or TMulti (variadic params become Array)
-                        let custom_type_name = match &value_type {
-                            ValueType::TCustom(name) => Some(name.clone()),
-                            ValueType::TMulti(_) => Some("Array".to_string()),
-                            _ => None,
-                        };
-                        if let Some(ref type_name) = custom_type_name {
-                            let assoc_method_name = format!("{}.{}", type_name, ufcs_func_name);
-                            if context.scope_stack.lookup_func(&assoc_method_name).is_some() {
-                                let assoc_new_id_e = Expr::new_clone(NodeType::Identifier(assoc_method_name.clone()), e.get(0)?, Vec::new());
-                                let mut assoc_new_args = Vec::new();
-                                assoc_new_args.push(assoc_new_id_e);
-                                assoc_new_args.push(receiver_expr);
-                                assoc_new_args.extend(e.params[1..].to_vec());
-                                return Ok(Expr::new_clone(NodeType::FCall, e.get(0)?, assoc_new_args));
-                            }
-                        }
-                    }
-                    Err(_err) => {
-                        // Type could not be determined - fall through to standalone function check
-                    }
-                }
-
-                // Fall back to standalone function
-                if context.scope_stack.lookup_func(&ufcs_func_name.to_string()).is_some() {
-                    let standalone_new_id_e = Expr::new_clone(NodeType::Identifier(ufcs_func_name.clone()), e.get(0)?, Vec::new());
-                    let mut standalone_new_args = Vec::new();
-                    standalone_new_args.push(standalone_new_id_e);
-                    standalone_new_args.push(receiver_expr);
-                    standalone_new_args.extend(e.params[1..].to_vec());
-                    return Ok(Expr::new_clone(NodeType::FCall, e.get(0)?, standalone_new_args));
-                }
             }
         }
     }
 
-    // No transformation needed
+    // No transformation needed (UFCS already resolved in ufcs phase)
     Ok(e)
 }
