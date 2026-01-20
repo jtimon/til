@@ -7,7 +7,7 @@ use crate::rs::parser::{
     Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
     value_type_to_str, get_combined_name, parse_tokens,
 };
-use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg, basic_mode_checks, check_types, check_body_returns_throws, typer_import_declarations, ThrownType};
+use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg, basic_mode_checks, check_types, check_body_returns_throws, typer_import_declarations, ThrownType, resolve_inferred_types};
 use crate::rs::lexer::lexer_from_source;
 use crate::rs::mode::{can_be_imported, parse_mode, DEFAULT_MODE};
 use crate::rs::precomp::precomp_expr;
@@ -2975,6 +2975,9 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
         }
 
         // No need to clear import cache - we use separate per-phase tracking now
+
+        // Bug #128: Resolve INFER_TYPE in AST - replace with concrete types from scope stack
+        e = resolve_inferred_types(context, &e)?;
 
         // Precomputation phase: Transform UFCS calls into regular function calls
         e = precomp_expr(context, &e)?;

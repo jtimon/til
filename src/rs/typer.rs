@@ -2380,3 +2380,135 @@ pub fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
     return errors;
 }
 
+// ---------- Bug #128: Resolve INFER_TYPE in AST after type checking ----------
+
+/// Resolve all INFER_TYPE references in the AST after type checking.
+/// This replaces Declaration.value_type = INFER_TYPE with the resolved type
+/// from the scope stack (which typer populated during check_types).
+///
+/// After this pass, no INFER_TYPE should remain in the AST, allowing
+/// post-typer phases (sugar, precomp, ccodegen) to read types directly
+/// without needing type inference.
+pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, String> {
+    match &e.node_type {
+        NodeType::Declaration(decl) => {
+            // Check if this declaration has INFER_TYPE
+            let resolved_type = if decl.value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
+                // Look up the resolved type from scope stack
+                match context.scope_stack.lookup_symbol(&decl.name) {
+                    Some(symbol_info) => symbol_info.value_type.clone(),
+                    None => {
+                        // Symbol not found - this shouldn't happen after typer
+                        // Fall back to inferring from the value expression
+                        if let Some(inner_e) = e.params.first() {
+                            get_value_type(context, inner_e)?
+                        } else {
+                            return Err(e.lang_error(&context.path, "resolve_types",
+                                &format!("Cannot resolve type for '{}': no value expression", decl.name)));
+                        }
+                    }
+                }
+            } else {
+                decl.value_type.clone()
+            };
+
+            // Create new Declaration with resolved type
+            let new_decl = Declaration {
+                name: decl.name.clone(),
+                value_type: resolved_type,
+                is_mut: decl.is_mut,
+                is_copy: decl.is_copy,
+                is_own: decl.is_own,
+                default_value: decl.default_value.clone(),
+            };
+
+            // Recurse into params
+            let mut new_params = Vec::with_capacity(e.params.len());
+            for p in &e.params {
+                new_params.push(resolve_inferred_types(context, p)?);
+            }
+
+            // Register the symbol with resolved type (in case it wasn't already)
+            if context.scope_stack.lookup_symbol(&new_decl.name).is_none() {
+                context.scope_stack.declare_symbol(new_decl.name.clone(), SymbolInfo {
+                    value_type: new_decl.value_type.clone(),
+                    is_mut: new_decl.is_mut,
+                    is_copy: new_decl.is_copy,
+                    is_own: new_decl.is_own,
+                    is_comptime_const: false,
+                });
+            }
+
+            Ok(Expr::new_explicit(NodeType::Declaration(new_decl), new_params, e.line, e.col))
+        }
+
+        // FuncDef - push function scope
+        NodeType::FuncDef(func_def) => {
+            context.scope_stack.push(ScopeType::Function);
+
+            // Register function parameters in scope
+            for arg in &func_def.args {
+                context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo {
+                    value_type: arg.value_type.clone(),
+                    is_mut: arg.is_mut,
+                    is_copy: arg.is_copy,
+                    is_own: arg.is_own,
+                    is_comptime_const: false,
+                });
+            }
+
+            let mut new_params = Vec::with_capacity(e.params.len());
+            for p in &e.params {
+                new_params.push(resolve_inferred_types(context, p)?);
+            }
+
+            let _ = context.scope_stack.pop();
+            Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+        }
+
+        // Body - push block scope
+        NodeType::Body => {
+            context.scope_stack.push(ScopeType::Block);
+            let mut new_params = Vec::with_capacity(e.params.len());
+            for p in &e.params {
+                new_params.push(resolve_inferred_types(context, p)?);
+            }
+            let _ = context.scope_stack.pop();
+            Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+        }
+
+        // If/While - push block scope
+        NodeType::If | NodeType::While => {
+            context.scope_stack.push(ScopeType::Block);
+            let mut new_params = Vec::with_capacity(e.params.len());
+            for p in &e.params {
+                new_params.push(resolve_inferred_types(context, p)?);
+            }
+            let _ = context.scope_stack.pop();
+            Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+        }
+
+        // ForIn - the loop variable type is in the node_type itself, not INFER_TYPE
+        // Just recurse into params
+        NodeType::ForIn(_) => {
+            let mut new_params = Vec::with_capacity(e.params.len());
+            for p in &e.params {
+                new_params.push(resolve_inferred_types(context, p)?);
+            }
+            Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+        }
+
+        // Default: recurse into all params
+        _ => {
+            if e.params.is_empty() {
+                Ok(e.clone())
+            } else {
+                let mut new_params = Vec::with_capacity(e.params.len());
+                for p in &e.params {
+                    new_params.push(resolve_inferred_types(context, p)?);
+                }
+                Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+            }
+        }
+    }
+}

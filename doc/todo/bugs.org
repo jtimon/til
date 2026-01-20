@@ -12,7 +12,7 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :PROPERTIES:
 :DISCOVERED: 2026-01-20
 :IMPACT: Phases after typer require type inference machinery they shouldn't need
-:STATUS: Open
+:STATUS: Partial
 :RELATED: Issue #127 (pipeline refactoring)
 :END:
 
@@ -30,6 +30,44 @@ This causes architectural issues:
 *** Expected Behavior
 Typer should mutate the AST to replace all INFER_TYPE with the resolved concrete type.
 Post-typer phases should be able to assert/panic if they encounter INFER_TYPE.
+
+*** Partial Fix (2026-01-20)
+Added resolve_inferred_types() function in typer.rs that walks AST after
+check_types and replaces INFER_TYPE with resolved types from scope_stack.
+Called from interpreter.rs and builder.rs after check_types.
+
+**** Current approach issues
+- resolve_inferred_types is called from multiple places (interpreter.rs, builder.rs)
+- Scattered calls instead of integrated into typer phase
+- TIL port not yet done (typer.til, interpreter.til, builder.til)
+
+**** Better approach (TODO)
+Integrate into check_types itself:
+1. Change check_types signature to return (Expr, Vec<String>) or Result<Expr, String>
+2. Make check_types take mut Expr and modify in place, OR return modified AST
+3. Single entry point - callers just call check_types and get resolved AST back
+4. This aligns with Issue #127 pipeline refactoring
+
+*** Post-typer INFER_TYPE usage to remove after full fix
+
+**** interpreter.rs/til - Can remove after #128 complete
+- Line 1187: if decl.value_type != INFER_TYPE check
+- Line 1200, 1231, 1243, 1416, 1749: Pattern matches on INFER_TYPE
+- TIL: Lines 1236, 1271, 1433, 1449, 1548, 1902
+
+**** precomp.rs/til - Creates new INFER_TYPE (review needed)
+- Line 583: Creates Declaration with INFER_TYPE for for-in index variable
+- Line 926: Checks for INFER_TYPE
+- TIL: Lines 804, 1075
+- Note: precomp creates NEW declarations (for-in desugaring) that need types
+- These may need to infer from iterator, or precomp should be after resolve
+
+**** ccodegen.rs/til - Many INFER_TYPE references (biggest cleanup)
+- Line 226: s if s == INFER_TYPE => None
+- Line 2277, 3023: Checks for INFER_TYPE
+- Lines 5202, 5260, 6265: Infers type from RHS when INFER_TYPE
+- TIL: Lines 268, 2987, 3924, 5202+, 6616, 6718, 8109-8113, many more
+- Uses INFER_TYPE as "unknown/default" placeholder throughout
 
 *** Fix
 1. Typer: When inferring a Declaration's type, write it back to decl.value_type
