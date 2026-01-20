@@ -463,7 +463,7 @@ val: I64 = vec.get(0)  // direct return
 :PROPERTIES:
 :DISCOVERED: 2026-01-13
 :IMPACT: Simplify interpreter and ccodegen, reduce internal complexity
-:STATUS: Open
+:STATUS: Open - WIP in branch 110_attempt2
 :RELATED: ccodegen payload hoisting, Issue #111 (enum_payload nicer with returns Dynamic)
 :END:
 
