@@ -32,21 +32,36 @@ Typer should mutate the AST to replace all INFER_TYPE with the resolved concrete
 Post-typer phases should be able to assert/panic if they encounter INFER_TYPE.
 
 *** Partial Fix (2026-01-20)
-Added resolve_inferred_types() function in typer.rs that walks AST after
-check_types and replaces INFER_TYPE with resolved types from scope_stack.
-Called from interpreter.rs and builder.rs after check_types.
+Changed approach: typer now mutates AST directly during type checking.
+- check_types takes &mut Expr
+- When check_declaration resolves INFER_TYPE, it writes back to decl.value_type
+- Removed separate resolve_inferred_types() function
+- AST mutation happens at the moment of type inference
 
-**** Current approach issues
-- resolve_inferred_types is called from multiple places (interpreter.rs, builder.rs)
-- Scattered calls instead of integrated into typer phase
-- TIL port not yet done (typer.til, interpreter.til, builder.til)
+**** Changes made
+- typer.rs: check_types_with_context takes &mut Expr
+- typer.rs: check_declaration mutates Declaration.value_type when inferring
+- typer.rs: check_struct_def mutates FuncDef methods within struct
+- builder.rs: type_check called with &mut ast, adds to imports_typer_done
+- Removed resolved_infer_types field from Context (no longer needed)
 
-**** Better approach (TODO)
-Integrate into check_types itself:
-1. Change check_types signature to return (Expr, Vec<String>) or Result<Expr, String>
-2. Make check_types take mut Expr and modify in place, OR return modified AST
-3. Single entry point - callers just call check_types and get resolved AST back
-4. This aligns with Issue #127 pipeline refactoring
+**** Remaining issue (WIP)
+Files being type-checked twice in build mode:
+1. builder.rs collect_imports calls type_check on dependencies
+2. Then type_check on main file triggers typer_import_declarations
+3. Scope_stack symbols from first pass leak into second pass
+4. Variables like `result` found "already in scope" with INFER_TYPE
+
+Root cause: scope_stack not isolated between file type-checks. When
+processing imports, function-local variables are added to scope_stack
+but when the file changes, those symbols persist in the global scope_stack.
+
+Workaround needed: clear or isolate scope_stack between file boundaries,
+or ensure only one code path does type-checking (not both builder.rs
+and typer_import_declarations).
+
+**** TIL port
+Not yet done - must port to typer.til after Rust version works
 
 *** Post-typer INFER_TYPE usage to remove after full fix
 
