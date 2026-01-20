@@ -55,6 +55,24 @@ test_strings := proc() {
     test(loc(), empty_str.ends_with(""), "ends_with: ''.ends_with('') = true")
     test(loc(), not(empty_str.ends_with("a")), "ends_with: ''.ends_with('a') = false")
 
+    // strip_prefix tests
+    assert_eq_str(loc(), "llo", hello.strip_prefix("he"))
+    assert_eq_str(loc(), "", hello.strip_prefix("hello"))
+    assert_eq_str(loc(), "hello", hello.strip_prefix(""))
+    assert_eq_str(loc(), "", hello.strip_prefix("world"))  // no match returns empty
+    assert_eq_str(loc(), "", hello.strip_prefix("helloworld"))  // prefix longer than string
+    assert_eq_str(loc(), "", empty_str.strip_prefix(""))
+    assert_eq_str(loc(), "", empty_str.strip_prefix("a"))
+
+    // strip_suffix tests
+    assert_eq_str(loc(), "hel", hello.strip_suffix("lo"))
+    assert_eq_str(loc(), "", hello.strip_suffix("hello"))
+    assert_eq_str(loc(), "hello", hello.strip_suffix(""))
+    assert_eq_str(loc(), "", hello.strip_suffix("world"))  // no match returns empty
+    assert_eq_str(loc(), "", hello.strip_suffix("helloworld"))  // suffix longer than string
+    assert_eq_str(loc(), "", empty_str.strip_suffix(""))
+    assert_eq_str(loc(), "", empty_str.strip_suffix("a"))
+
     // find tests
     find_str := "hello"
     assert_eq(loc(), 0, find_str.find("h"))

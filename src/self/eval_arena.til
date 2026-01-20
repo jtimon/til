@@ -470,7 +470,7 @@ EvalArena := struct {
                                         default_keys := defaults.keys
                                         for dk: Str in default_keys {
                                             if dk.starts_with(prefix) {
-                                                rest := dk.get_substr(prefix.len(), dk.len())
+                                                rest := dk.strip_prefix(prefix)
                                                 mut dv := ""
                                                 defaults.get(dk, dv)
                                                 catch (err: KeyNotFoundError) {

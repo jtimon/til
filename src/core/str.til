@@ -598,6 +598,30 @@ ends_with := func(s: Str, suffix: Str) returns Bool {
     return true
 }
 
+/** Returns rest of string after prefix, or empty string if no match. */
+strip_prefix := func(s: Str, prefix: Str) returns Str {
+    if not(starts_with(s, prefix)) {
+        return ""
+    }
+    result := get_substr(s, prefix.len(), s.len())
+    catch (err: IndexOutOfBoundsError) {
+        return ""
+    }
+    return result
+}
+
+/** Returns rest of string before suffix, or empty string if no match. */
+strip_suffix := func(s: Str, suffix: Str) returns Str {
+    if not(ends_with(s, suffix)) {
+        return ""
+    }
+    result := get_substr(s, 0, s.len().sub(suffix.len()))
+    catch (err: IndexOutOfBoundsError) {
+        return ""
+    }
+    return result
+}
+
 /**
  * Simple 2-argument string concatenation that panics on error.
  * Use this in catch blocks where throwing is not allowed.
