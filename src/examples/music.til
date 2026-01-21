@@ -1,0 +1,332 @@
+// music.til  - CLI for diatonic modes (EN/ES/PT)
+// Generates scale from given mode + root (with accidentals)
+// Output shows the 7 notes + octave repeat in parentheses
+
+mode cli
+
+chromatic := Vec.new()
+chromatic = chromatic.push("do")
+chromatic = chromatic.push("do#")
+chromatic = chromatic.push("re")
+chromatic = chromatic.push("re#")
+chromatic = chromatic.push("mi")
+chromatic = chromatic.push("fa")
+chromatic = chromatic.push("fa#")
+chromatic = chromatic.push("sol")
+chromatic = chromatic.push("sol#")
+chromatic = chromatic.push("la")
+chromatic = chromatic.push("la#")
+chromatic = chromatic.push("si")
+
+base_notes := Vec.new()
+base_notes = base_notes.push("do")
+base_notes = base_notes.push("re")
+base_notes = base_notes.push("mi")
+base_notes = base_notes.push("fa")
+base_notes = base_notes.push("sol")
+base_notes = base_notes.push("la")
+base_notes = base_notes.push("si")
+
+create_mode_intervals := func() -> Vec<Vec<Int>> {
+    mut all := Vec.new()
+
+    mut ionian := Vec.new()
+    ionian = ionian.push(2).push(2).push(1).push(2).push(2).push(2).push(1)
+    all = all.push(ionian)
+
+    mut dorian := Vec.new()
+    dorian = dorian.push(2).push(1).push(2).push(2).push(2).push(1).push(2)
+    all = all.push(dorian)
+
+    mut phrygian := Vec.new()
+    phrygian = phrygian.push(1).push(2).push(2).push(2).push(1).push(2).push(2)
+    all = all.push(phrygian)
+
+    mut lydian := Vec.new()
+    lydian = lydian.push(2).push(2).push(2).push(1).push(2).push(2).push(1)
+    all = all.push(lydian)
+
+    mut mixolydian := Vec.new()
+    mixolydian = mixolydian.push(2).push(2).push(1).push(2).push(2).push(1).push(2)
+    all = all.push(mixolydian)
+
+    mut aeolian := Vec.new()
+    aeolian = aeolian.push(2).push(1).push(2).push(2).push(1).push(2).push(2)
+    all = all.push(aeolian)
+
+    mut locrian := Vec.new()
+    locrian = locrian.push(1).push(2).push(2).push(1).push(2).push(2).push(2)
+    all = all.push(locrian)
+
+    return all
+}
+
+mode_intervals := create_mode_intervals()
+
+get_base_index := proc(note_base: Str) -> Int {
+    mut i := 0
+    while i.lt(base_notes.len()) {
+        if base_notes.get(i).eq(note_base.lower()) {
+            return i
+        }
+        i = i.add(1)
+    }
+    return -1
+}
+
+apply_accidentals := proc(base_idx: Int, acc_str: Str) -> Int {
+    mut semitones := 0
+    mut j := 0
+    while j.lt(acc_str.len()) {
+        mut ch := acc_str.get(j)
+        if ch.eq("#") {
+            semitones = semitones.add(1)
+        } else if ch.eq("b") {
+            semitones = semitones.sub(1)
+        }
+        j = j.add(1)
+    }
+    mut idx := base_idx.add(semitones).mod(12)
+    if idx.lt(0) {
+        idx = idx.add(12)
+    }
+    return idx
+}
+
+generate_scale := proc(root_idx: Int, steps: Vec<Int>) -> Str {
+    mut result := ""
+    mut pos := root_idx
+    mut k := 0
+    while k.lt(steps.len()) {
+        if k.gt(0) {
+            result = result.concat(" ")
+        }
+        result = result.concat(chromatic.get(pos))
+        pos = pos.add(steps.get(k)).mod(12)
+        k = k.add(1)
+    }
+    result = result.concat(" (").concat(chromatic.get(root_idx)).concat(")")
+    return result
+}
+
+canonical_mode := proc(mode_arg: Str) -> Str {
+    mut lower := mode_arg.lower()
+
+    switch lower {
+    case "ionian":      return "ionian"
+    case "jónico":      return "ionian"
+    case "jonico":      return "ionian"
+    case "jônio":       return "ionian"
+    case "jonio":       return "ionian"
+
+    case "dorian":      return "dorian"
+    case "dórico":      return "dorian"
+    case "dorico":      return "dorian"
+
+    case "phrygian":    return "phrygian"
+    case "frigio":      return "phrygian"
+    case "frígio":      return "phrygian"
+
+    case "lydian":      return "lydian"
+    case "lidio":       return "lydian"
+    case "lídio":       return "lydian"
+
+    case "mixolydian":  return "mixolydian"
+    case "mixolidio":   return "mixolydian"
+    case "mixolídio":   return "mixolydian"
+
+    case "aeolian":     return "aeolian"
+    case "eólico":      return "aeolian"
+    case "eolico":      return "aeolian"
+    case "eólio":       return "aeolian"
+    case "eolio":       return "aeolian"
+
+    case "locrian":     return "locrian"
+    case "locrio":      return "locrian"
+    case "lócrio":      return "locrian"
+
+    case:
+        return ""
+    }
+}
+
+mode_index_from_canonical := proc(canonical: Str) -> Int {
+    switch canonical {
+    case "ionian":     return 0
+    case "dorian":     return 1
+    case "phrygian":   return 2
+    case "lydian":     return 3
+    case "mixolydian": return 4
+    case "aeolian":    return 5
+    case "locrian":    return 6
+    case:              return -1
+    }
+}
+
+localized_mode_name := proc(canonical: Str, lang: Str) -> Str {
+    mut lower_lang := lang.lower()
+
+    switch canonical {
+    case "ionian":
+        switch lower_lang {
+        case "en": return "Ionian (Major)"
+        case "es": return "Jónico (Mayor)"
+        case "pt": return "Jônio (Maior)"
+        case:      return "Jônio (Maior)"
+        }
+
+    case "dorian":
+        switch lower_lang {
+        case "en": return "Dorian"
+        case "es": return "Dórico"
+        case "pt": return "Dórico"
+        case:      return "Dórico"
+        }
+
+    case "phrygian":
+        switch lower_lang {
+        case "en": return "Phrygian"
+        case "es": return "Frigio"
+        case "pt": return "Frígio"
+        case:      return "Frígio"
+        }
+
+    case "lydian":
+        switch lower_lang {
+        case "en": return "Lydian"
+        case "es": return "Lidio"
+        case "pt": return "Lídio"
+        case:      return "Lídio"
+        }
+
+    case "mixolydian":
+        switch lower_lang {
+        case "en": return "Mixolydian"
+        case "es": return "Mixolidio"
+        case "pt": return "Mixolídio"
+        case:      return "Mixolídio"
+        }
+
+    case "aeolian":
+        switch lower_lang {
+        case "en": return "Aeolian (Natural Minor)"
+        case "es": return "Eólico (Menor Natural)"
+        case "pt": return "Eólio (Menor Natural)"
+        case:      return "Eólio (Menor Natural)"
+        }
+
+    case "locrian":
+        switch lower_lang {
+        case "en": return "Locrian"
+        case "es": return "Locrio"
+        case "pt": return "Lócrio"
+        case:      return "Lócrio"
+        }
+
+    case:
+        return "Unknown mode"
+    }
+}
+
+print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
+    mut canon := canonical_mode(mode_arg)
+    if canon.eq("") {
+        println("Modo desconhecido / Unknown mode: ".concat(mode_arg))
+        println("Try: jônio ionian jónico dorico dorian frígio phrygian lídio lydian mixolídio mixolydian eólio aeolian lócrio locrian")
+        return
+    }
+
+    mut mode_index := mode_index_from_canonical(canon)
+    mut mode_name := localized_mode_name(canon, lang)
+
+    mut acc := ""
+    mut base := ""
+    mut i := 0
+    mut input := root_arg.lower()
+    while i.lt(input.len()) {
+        mut ch := input.get(i)
+        if ch.eq("#").or(ch.eq("b")) {
+            acc = acc.concat(ch)
+        } else {
+            base = input.slice(i, input.len())
+            break
+        }
+        i = i.add(1)
+    }
+
+    mut base_idx := get_base_index(base)
+    if base_idx.eq(-1) {
+        println("Nota base inválida / Invalid base note: ".concat(base))
+        println("Use: do re mi fa sol la si")
+        return
+    }
+
+    mut root_idx := apply_accidentals(base_idx, acc)
+
+    mut steps := mode_intervals.get(mode_index)
+
+    mut scale_str := generate_scale(root_idx, steps)
+
+    println(mode_name.concat(" começando em / starting on ").concat(root_arg).concat(":"))
+    println(scale_str)
+}
+
+usage := proc(lang: Str) {
+    mut lower_lang := lang.lower()
+    if lower_lang.eq("en") {
+        println("Usage: ./bin/til music.til [-lang=pt|en|es] <mode> [root]")
+        println("Examples:")
+        println("  ./bin/til music.til ionian do")
+        println("  ./bin/til music.til -lang=en lydian #fa")
+        println("  ./bin/til music.til -lang=es eólico bre")
+    } else if lower_lang.eq("es") {
+        println("Uso: ./bin/til music.til [-lang=pt|en|es] <modo> [raíz]")
+        println("Ejemplos:")
+        println("  ./bin/til music.til jónico do")
+        println("  ./bin/til music.til -lang=es lidio #fa")
+        println("  ./bin/til music.til -lang=es eólico bre")
+    } else {  // pt
+        println("Uso: ./bin/til music.til [-lang=pt|en|es] <modo> [raiz]")
+        println("Exemplos:")
+        println("  ./bin/til music.til jônio do")
+        println("  ./bin/til music.til -lang=pt lídio #fá")
+        println("  ./bin/til music.til -lang=es eólico bre")
+    }
+}
+
+main := proc(args: ..Str) {
+    mut lang := "pt"
+    mut mode_arg := ""
+    mut root_arg := "do"
+
+    for arg: Str in args {
+        mut lower_arg := arg.lower()
+
+        if lower_arg.starts_with("-lang=") {
+            mut val := lower_arg.slice(6, lower_arg.len())
+
+            switch val {
+            case "pt": lang = "pt"
+            case "en": lang = "en"
+            case "es": lang = "es"
+            case:
+                println("TODO: unsupported language '".concat(val).concat("' — using pt"))
+            }
+
+            continue
+        }
+
+        if mode_arg.eq("") {
+            mode_arg = arg
+        } else if root_arg.eq("do") {
+            root_arg = arg
+        }
+    }
+
+    if mode_arg.eq("").or(mode_arg.eq("help")) {
+        usage(lang)
+        return
+    }
+
+    print_scale(mode_arg, root_arg, lang)
+}
