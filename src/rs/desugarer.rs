@@ -4,7 +4,7 @@
 use crate::rs::init::Context;
 use crate::rs::parser::{
     Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal,
-    Declaration, str_to_value_type, INFER_TYPE, transform_continue_with_step,
+    Declaration, str_to_value_type, transform_continue_with_step,
 };
 
 /// Build a default value expression for a given ValueType.
@@ -154,7 +154,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     };
     let index_decl = Declaration {
         name: index_var_name.clone(),
-        value_type: str_to_value_type(INFER_TYPE),
+        value_type: str_to_value_type("I64"),
         is_mut: true,
         is_copy: false,
         is_own: false,
