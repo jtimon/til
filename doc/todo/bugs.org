@@ -107,6 +107,8 @@ Each step runs make benchmark. All tests must pass before committing. If any
 code path still produces INFER_TYPE after typer, the new assertions will catch it.
 
 *** Progress
+- Step 2 DONE: Added resolve_inferred_types() calls to builder.til in
+  collect_imports, core.til handling, mode imports, and main file handling
 
 ** Bug #126: Error message divergence between rstil and til
 :PROPERTIES:
