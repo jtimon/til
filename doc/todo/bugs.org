@@ -112,6 +112,20 @@ Note: ~for elem: auto in collection~ won't work until Bug #129 is fixed.
 
 Then: make benchmark, update progress, commit.
 
+*** Step 4b: Fix resolve_inferred_types to recurse into StructDef
+
+Files: src/rs/typer.rs, src/self/typer.til
+
+resolve_inferred_types() had a default case that recursed into e.params, but
+StructDef stores function bodies in default_values (a HashMap<String, Expr>),
+not in e.params. This meant type inference inside struct method bodies was
+never resolved.
+
+Fix: Add explicit StructDef case that iterates over default_values and
+recursively calls resolve_inferred_types on each function body expression.
+
+Then: make benchmark, update progress, commit.
+
 *** Step 5: Remove INFER_TYPE handling from precomp
 
 Files: src/rs/precomp.rs, src/self/precomp.til

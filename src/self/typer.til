@@ -3068,6 +3068,20 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
         forin_params := resolve_params(context, e)
         return Expr.new_clone(e.node_type, e, forin_params)
 
+    case NodeType.StructDef(struct_def):
+        // StructDef - recurse into default_values which contain function bodies
+        mut new_default_values := Map.new(Str, Expr)
+        for name: Str in struct_def.default_values.keys {
+            mut value_expr := Expr()
+            struct_def.default_values.get(name, value_expr)
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(context.path, "resolve_types", format("KeyNotFoundError: ", err.msg))
+            }
+            new_default_values.set(name, resolve_inferred_types(context, value_expr))
+        }
+        new_struct_def := SStructDef(members=struct_def.members, default_values=new_default_values)
+        return Expr.new_explicit(NodeType.StructDef(new_struct_def), e.params, e.line, e.col)
+
     case:
         // Default: recurse into all params
         if e.params.is_empty() {

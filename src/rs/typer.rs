@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use crate::rs::init::{Context, SymbolInfo, ScopeType, get_value_type, get_func_name_in_call, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE, Literal,
@@ -2500,6 +2501,19 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                 new_params.push(resolve_inferred_types(context, p)?);
             }
             Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+        }
+
+        // StructDef - recurse into default_values which contain function bodies
+        NodeType::StructDef(struct_def) => {
+            let mut new_default_values = HashMap::new();
+            for (name, value_expr) in &struct_def.default_values {
+                new_default_values.insert(name.clone(), resolve_inferred_types(context, value_expr)?);
+            }
+            let new_struct_def = SStructDef {
+                members: struct_def.members.clone(),
+                default_values: new_default_values,
+            };
+            Ok(Expr::new_explicit(NodeType::StructDef(new_struct_def), e.params.clone(), e.line, e.col))
         }
 
         // Default: recurse into all params
