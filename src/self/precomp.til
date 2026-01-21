@@ -488,40 +488,37 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
         throw e.lang_error(context.path, "precomp", err)
     }
 
-    // Type validation - check declared type matches inferred type
-    mut is_infer := false
+    // Error if INFER_TYPE reaches precomp - typer should have resolved all types
     switch decl.value_type {
     case ValueType.TCustom(decl_type_name):
         if decl_type_name.eq(INFER_TYPE) {
-            is_infer = true
+            throw e.lang_error(context.path, "precomp", format("Declaration '", decl.name, "' has INFER_TYPE - should have been resolved by typer"))
         }
     case:
     }
-    if not(is_infer) {
-        // Check for U8/I64 coercion
-        mut is_u8_decl := false
-        mut is_i64_value := false
-        switch decl.value_type {
-        case ValueType.TCustom(decl_type_name):
-            if decl_type_name.eq("U8") {
-                is_u8_decl = true
-            }
-        case:
+    // Type checking - check for U8/I64 coercion
+    mut is_u8_decl := false
+    mut is_i64_value := false
+    switch decl.value_type {
+    case ValueType.TCustom(decl_type_name):
+        if decl_type_name.eq("U8") {
+            is_u8_decl = true
         }
-        switch value_type {
-        case ValueType.TCustom(val_type_name):
-            if val_type_name.eq("I64") {
-                is_i64_value = true
-            }
-        case:
+    case:
+    }
+    switch value_type {
+    case ValueType.TCustom(val_type_name):
+        if val_type_name.eq("I64") {
+            is_i64_value = true
         }
-        if is_u8_decl.and(is_i64_value) {
-            value_type = decl.value_type
-        } else {
-            // Check types match
-            if not(value_type_to_str(decl.value_type).eq(value_type_to_str(value_type))) {
-                throw e.lang_error(context.path, "precomp", format("'", decl.name, "' declared of type ", value_type_to_str(decl.value_type), " but initialized to type ", value_type_to_str(value_type), "."))
-            }
+    case:
+    }
+    if is_u8_decl.and(is_i64_value) {
+        value_type = decl.value_type
+    } else {
+        // Check types match
+        if not(value_type_to_str(decl.value_type).eq(value_type_to_str(value_type))) {
+            throw e.lang_error(context.path, "precomp", format("'", decl.name, "' declared of type ", value_type_to_str(decl.value_type), " but initialized to type ", value_type_to_str(value_type), "."))
         }
     }
 

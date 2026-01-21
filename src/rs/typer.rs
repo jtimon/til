@@ -63,8 +63,18 @@ pub fn typer_import_declarations(context: &mut Context, import_path_str: &str) -
     context.path = path.clone();
     context.mode_def = file_mode;
 
-    // Run type checking on the imported AST
-    let errors = check_types(context, &ast);
+    // Bug #128: Run type checking AND resolve INFER_TYPE, then update stored AST
+    let (resolved_ast, errors) = match type_check(context, &ast) {
+        Ok((resolved, errs)) => (resolved, errs),
+        Err(err) => {
+            context.path = original_path;
+            context.mode_def = original_mode;
+            return vec![err];
+        }
+    };
+
+    // Update stored AST with resolved version
+    context.imported_asts.insert(path, resolved_ast);
 
     context.path = original_path;
     context.mode_def = original_mode;
@@ -130,6 +140,11 @@ fn check_types(context: &mut Context, e: &Expr) -> Vec<String> {
 /// After this function, no INFER_TYPE should remain in the returned AST.
 pub fn type_check(context: &mut Context, e: &Expr) -> Result<(Expr, Vec<String>), String> {
     let errors = check_types(context, e);
+    // If check_types found errors, don't try to resolve types - just return the errors.
+    // This avoids duplicate errors from resolve_inferred_types trying the same things.
+    if !errors.is_empty() {
+        return Ok((e.clone(), errors));
+    }
     let resolved = resolve_inferred_types(context, e)?;
     Ok((resolved, errors))
 }
@@ -2444,10 +2459,22 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                 });
             }
 
+            // For function declarations, also register the function definition (like type checker does)
+            match &new_decl.value_type {
+                ValueType::TFunction(_) => {
+                    if let Some(decl_inner_e) = new_params.first() {
+                        if let NodeType::FuncDef(func_def) = &decl_inner_e.node_type {
+                            context.scope_stack.declare_func(new_decl.name.clone(), func_def.clone());
+                        }
+                    }
+                },
+                _ => {},
+            }
+
             Ok(Expr::new_explicit(NodeType::Declaration(new_decl), new_params, e.line, e.col))
         }
 
-        // FuncDef - push function scope
+        // FuncDef - push function scope and recurse into body
         NodeType::FuncDef(func_def) => {
             context.scope_stack.push(ScopeType::Function);
 
@@ -2462,13 +2489,23 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                 });
             }
 
-            let mut new_params = Vec::with_capacity(e.params.len());
-            for p in &e.params {
-                new_params.push(resolve_inferred_types(context, p)?);
+            // Recurse into body statements
+            let mut new_body = Vec::with_capacity(func_def.body.len());
+            for stmt in &func_def.body {
+                new_body.push(resolve_inferred_types(context, stmt)?);
             }
 
             let _ = context.scope_stack.pop();
-            Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+
+            let new_func_def = SFuncDef {
+                function_type: func_def.function_type.clone(),
+                args: func_def.args.clone(),
+                return_types: func_def.return_types.clone(),
+                throw_types: func_def.throw_types.clone(),
+                body: new_body,
+                source_path: func_def.source_path.clone(),
+            };
+            Ok(Expr::new_explicit(NodeType::FuncDef(new_func_def), e.params.clone(), e.line, e.col))
         }
 
         // Body - push block scope
@@ -2493,14 +2530,155 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
             Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
         }
 
-        // ForIn - the loop variable type is in the node_type itself, not INFER_TYPE
-        // Just recurse into params
-        NodeType::ForIn(_) => {
+        // ForIn - declare loop variable in scope before processing body
+        NodeType::ForIn(var_type_name) => {
+            context.scope_stack.push(ScopeType::Block);
+
+            // Declare loop variable - get name from params[0], type from node_type
+            if let Some(var_expr) = e.params.get(0) {
+                if let NodeType::Identifier(var_name) = &var_expr.node_type {
+                    let var_type = str_to_value_type(var_type_name);
+                    context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+                        value_type: var_type,
+                        is_mut: false,
+                        is_copy: false,
+                        is_own: false,
+                        is_comptime_const: false,
+                    });
+                }
+            }
+
             let mut new_params = Vec::with_capacity(e.params.len());
             for p in &e.params {
                 new_params.push(resolve_inferred_types(context, p)?);
             }
+
+            let _ = context.scope_stack.pop();
             Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+        }
+
+        // Switch - declare pattern binding variables in scope before processing case bodies
+        NodeType::Switch => {
+            let mut new_params = Vec::with_capacity(e.params.len());
+
+            // Get switch expression type for pattern binding
+            let switch_expr_type = if let Some(switch_expr) = e.params.get(0) {
+                new_params.push(resolve_inferred_types(context, switch_expr)?);
+                get_value_type(context, switch_expr).ok()
+            } else {
+                None
+            };
+
+            // Process case/body pairs (params[1..] are case, body, case, body, ...)
+            let mut i = 1;
+            while i < e.params.len() {
+                let case_expr = &e.params[i];
+                new_params.push(resolve_inferred_types(context, case_expr)?);
+                i += 1;
+
+                if i >= e.params.len() {
+                    break;
+                }
+
+                let body_expr = &e.params[i];
+
+                // For pattern matching, add binding variable to scope
+                if let NodeType::Pattern(PatternInfo { variant_name, binding_var }) = &case_expr.node_type {
+                    if let Some(ValueType::TCustom(enum_name)) = &switch_expr_type {
+                        let variant = if let Some(dot_pos) = variant_name.rfind('.') {
+                            &variant_name[dot_pos + 1..]
+                        } else {
+                            variant_name.as_str()
+                        };
+
+                        let payload_type = context.scope_stack.lookup_enum(enum_name)
+                            .and_then(|e| e.get(variant).cloned())
+                            .flatten();
+
+                        if let Some(payload_type) = payload_type {
+                            context.scope_stack.push(ScopeType::Block);
+                            context.scope_stack.declare_symbol(
+                                binding_var.clone(),
+                                SymbolInfo {
+                                    value_type: payload_type,
+                                    is_mut: false,
+                                    is_copy: false,
+                                    is_own: false,
+                                    is_comptime_const: false,
+                                }
+                            );
+                            new_params.push(resolve_inferred_types(context, body_expr)?);
+                            let _ = context.scope_stack.pop();
+                        } else {
+                            new_params.push(resolve_inferred_types(context, body_expr)?);
+                        }
+                    } else {
+                        new_params.push(resolve_inferred_types(context, body_expr)?);
+                    }
+                } else {
+                    new_params.push(resolve_inferred_types(context, body_expr)?);
+                }
+
+                i += 1;
+            }
+
+            Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
+        }
+
+        // Catch - declare catch variable in scope before processing body
+        NodeType::Catch => {
+            if e.params.len() != 3 {
+                return Err(e.lang_error(&context.path, "resolve_types", "Catch node must have three parameters: variable, type, and body."));
+            }
+
+            let err_var_expr = &e.params[0];
+            let err_type_expr = &e.params[1];
+            let body_expr = &e.params[2];
+
+            let var_name = match &err_var_expr.node_type {
+                NodeType::Identifier(name) => name.clone(),
+                _ => return Err(e.lang_error(&context.path, "resolve_types", "Catch variable must be an identifier")),
+            };
+
+            let type_name = match &err_type_expr.node_type {
+                NodeType::Identifier(name) => name.clone(),
+                _ => return Err(e.lang_error(&context.path, "resolve_types", "Catch type must be an identifier")),
+            };
+
+            // Create scoped context for catch body
+            context.scope_stack.push(ScopeType::Block);
+            context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+                value_type: ValueType::TCustom(type_name.clone()),
+                is_mut: false,
+                is_copy: false,
+                is_own: false,
+                is_comptime_const: false,
+            });
+
+            // Map struct fields so err.msg etc. can be accessed
+            let members = context.scope_stack.lookup_struct(&type_name)
+                .map(|s| s.members.clone());
+            if let Some(members) = members {
+                for field_decl in &members {
+                    let combined_name = format!("{}.{}", var_name, field_decl.name);
+                    context.scope_stack.declare_symbol(
+                        combined_name.clone(),
+                        SymbolInfo {
+                            value_type: field_decl.value_type.clone(),
+                            is_mut: false,
+                            is_copy: false,
+                            is_own: false,
+                            is_comptime_const: false,
+                        },
+                    );
+                }
+            }
+
+            // Process body only
+            let new_body = resolve_inferred_types(context, body_expr)?;
+            context.scope_stack.pop().ok();
+
+            Ok(Expr::new_explicit(e.node_type.clone(), vec![err_var_expr.clone(), err_type_expr.clone(), new_body], e.line, e.col))
         }
 
         // StructDef - recurse into default_values which contain function bodies

@@ -382,12 +382,15 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
             return Err(e.lang_error(&context.path, "precomp", &error_string));
         },
     };
-    if decl.value_type != ValueType::TCustom(INFER_TYPE.to_string()) {
-        if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
-            value_type = decl.value_type.clone();
-        } else if value_type != decl.value_type {
-            return Err(e.lang_error(&context.path, "precomp", &format!("'{}' declared of type {} but initialized to type {:?}.", decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type))));
-        }
+    // Error if INFER_TYPE reaches precomp - typer should have resolved all types
+    if decl.value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
+        return Err(e.lang_error(&context.path, "precomp", &format!("Declaration '{}' has INFER_TYPE - should have been resolved by typer", decl.name)));
+    }
+    // Type checking
+    if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
+        value_type = decl.value_type.clone();
+    } else if value_type != decl.value_type {
+        return Err(e.lang_error(&context.path, "precomp", &format!("'{}' declared of type {} but initialized to type {:?}.", decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type))));
     }
     if let ValueType::TType(TTypeDef::TEnumDef) = value_type {
         match &inner_e.node_type {

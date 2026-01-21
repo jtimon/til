@@ -78,15 +78,20 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
                                     file_path := import_path_to_file_path(import_path)
                                     if not(imported.contains(file_path)) {
                                         _ := imported.insert(file_path.clone())
-                                        dep_result := parse_file(file_path)
-                                        // Store AST in imported_asts so precomp can find it for circular imports
-                                        context.imported_asts.set(file_path.clone(), dep_result.ast.clone())
+                                        // Bug #128: Use already-resolved AST from typer phase if available
+                                        mut dep_resolved := Expr()
+                                        context.imported_asts.get(file_path, dep_resolved)
+                                        catch (err: KeyNotFoundError) {
+                                            dep_result := parse_file(file_path)
+                                            context.imported_asts.set(file_path.clone(), dep_result.ast.clone())
+                                            dep_resolved = dep_result.ast
+                                        }
                                         // Recursively collect imports from this dependency
-                                        collect_imports(dep_result.ast, imported, all_asts, context)
-                                        // Resolve types + Desugar + UFCS + Precomp with the correct path for this file
+                                        collect_imports(dep_resolved, imported, all_asts, context)
+                                        // Desugar + UFCS + Precomp with the correct path for this file
+                                        // (type resolution already done by typer_import_declarations)
                                         saved_path := context.path.clone()
                                         context.path = file_path.clone()
-                                        dep_resolved := resolve_inferred_types(context, dep_result.ast)
                                         dep_desugared := desugar_expr(context, dep_resolved)
                                         dep_ufcs := ufcs_expr(context, dep_desugared)
                                         dep_ast := precomp_expr(context, dep_ufcs)

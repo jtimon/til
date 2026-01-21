@@ -61,13 +61,21 @@ typer_import_declarations := proc(mut context: Context, import_path_str: Str) re
     context.path = path
     context.mode_def = file_mode
 
-    // Run type checking on the imported AST
-    errors.extend(check_types(context, ast))
+    // Bug #128: Run type checking AND resolve INFER_TYPE, then update stored AST
+    mut result := type_check(context, ast)
+    catch (err: Str) {
+        context.path = original_path
+        context.mode_def = original_mode
+        errors.push(err)
+        return errors
+    }
+
+    // Update stored AST with resolved version
+    context.imported_asts.set(path, result.resolved_ast)
 
     context.path = original_path
     context.mode_def = original_mode
-
-    return errors
+    return result.errors
 }
 
 check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Vec throws Str {
@@ -3008,6 +3016,12 @@ TypeCheckResult := struct {
 type_check := proc(mut context: Context, e: Expr) returns TypeCheckResult throws Str {
     mut result := TypeCheckResult()
     result.errors = check_types(context, e)
+    // If check_types found errors, don't try to resolve types - just return the errors.
+    // This avoids duplicate errors from resolve_inferred_types trying the same things.
+    if result.errors.len().gt(0) {
+        result.resolved_ast = e.clone()
+        return result
+    }
     result.resolved_ast = resolve_inferred_types(context, e)
     return result
 }
@@ -3062,11 +3076,124 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
         _ := context.scope_stack.pop()
         return Expr.new_clone(e.node_type, e, while_params)
 
-    case NodeType.ForIn(for_in_info):
-        // ForIn - the loop variable type is in the node_type itself, not INFER_TYPE
-        // Just recurse into params
+    case NodeType.ForIn(var_type_name):
+        // ForIn - declare loop variable in scope before processing body
+        context.scope_stack.push(ScopeType.Block)
+
+        // Declare loop variable - get name from params[0], type from node_type
+        if e.params.len().gt(0) {
+            mut var_expr := Expr()
+            e.params.get(0, var_expr)
+            switch var_expr.node_type {
+            case NodeType.Identifier(var_name):
+                var_type := str_to_value_type(var_type_name)
+                context.scope_stack.declare_symbol(var_name, SymbolInfo(
+                    value_type=var_type,
+                    is_mut=false,
+                    is_copy=false,
+                    is_own=false,
+                    is_comptime_const=false
+                ))
+            case:
+            }
+        }
+
         forin_params := resolve_params(context, e)
+
+        _ := context.scope_stack.pop()
+
         return Expr.new_clone(e.node_type, e, forin_params)
+
+    case NodeType.Switch:
+        // Switch - declare pattern binding variables in scope before processing case bodies
+        mut new_params := Vec.new(Expr)
+
+        // Get switch expression type for pattern binding
+        mut switch_expr_type := ValueType.TCustom("")
+        mut has_switch_type := false
+        if e.params.len().gt(0) {
+            mut switch_expr := Expr()
+            e.params.get(0, switch_expr)
+            new_params.push(resolve_inferred_types(context, switch_expr))
+            switch_expr_type = get_value_type(context, switch_expr)
+            has_switch_type = true
+            catch (err: Str) {
+                // REM: Error getting type, continue without switch type
+                has_switch_type = false
+            }
+        }
+
+        // Process case/body pairs (params[1..] are case, body, case, body, ...)
+        mut i := 1
+        while i.lt(e.params.len()) {
+            mut case_expr := Expr()
+            e.params.get(i, case_expr)
+            new_params.push(resolve_inferred_types(context, case_expr))
+            i = i.add(1)
+
+            if i.gteq(e.params.len()) {
+                break
+            }
+
+            mut body_expr := Expr()
+            e.params.get(i, body_expr)
+
+            // For pattern matching, add binding variable to scope
+            switch case_expr.node_type {
+            case NodeType.Pattern(pattern_info):
+                switch switch_expr_type {
+                case ValueType.TCustom(enum_name):
+                    // Extract just the variant name (remove enum prefix if present)
+                    mut variant := pattern_info.variant_name
+                    mut dot_pos := variant.rfind(".")
+                    if dot_pos.gt(sub(0, 1)) {
+                        variant = variant.get_substr(dot_pos.add(1), variant.len())
+                    }
+
+                    // Look up enum def - if not found, just process body normally
+                    mut enum_def := SEnumDef()
+                    mut enum_found := true
+                    enum_def = context.scope_stack.lookup_enum(enum_name)
+                    catch (err: KeyNotFoundError) {
+                        enum_found = false
+                    }
+
+                    if enum_found {
+                        // Look up payload type (Ptr to ValueType, NULL = None)
+                        mut payload_ptr := Ptr()
+                        mut variant_found := true
+                        payload_ptr = enum_def.get(variant)
+                        catch (err: KeyNotFoundError) {
+                            variant_found = false
+                        }
+
+                        if variant_found.and(not(NULL.eq(payload_ptr.data))) {
+                            // Variant has a payload - create scoped context with binding variable
+                            mut payload_type := ValueType.TCustom("")
+                            memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
+                            context.scope_stack.push(ScopeType.Block)
+                            context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo(value_type=payload_type))
+                            new_params.push(resolve_inferred_types(context, body_expr))
+                            _ := context.scope_stack.pop()
+                        } else {
+                            // No payload or variant not found, just process body normally
+                            new_params.push(resolve_inferred_types(context, body_expr))
+                        }
+                    } else {
+                        // Enum not found, just process body normally
+                        new_params.push(resolve_inferred_types(context, body_expr))
+                    }
+                case:
+                    new_params.push(resolve_inferred_types(context, body_expr))
+                }
+            case:
+                new_params.push(resolve_inferred_types(context, body_expr))
+            }
+
+            i = i.add(1)
+        }
+
+        return Expr.new_clone(e.node_type, e, new_params)
 
     case NodeType.StructDef(struct_def):
         // StructDef - recurse into default_values which contain function bodies
@@ -3081,6 +3208,65 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
         }
         new_struct_def := SStructDef(members=struct_def.members, default_values=new_default_values)
         return Expr.new_explicit(NodeType.StructDef(new_struct_def), e.params, e.line, e.col)
+
+    case NodeType.Catch:
+        // Catch - declare catch variable in scope before processing body
+        if not(e.params.len().eq(3)) {
+            throw e.lang_error(context.path, "resolve_types", "Catch node must have three parameters: variable, type, and body.")
+        }
+
+        mut catch_var_expr := e.get(0)
+        mut catch_type_expr := e.get(1)
+        mut catch_body_expr := e.get(2)
+
+        mut catch_var_name := ""
+        switch catch_var_expr.node_type {
+        case NodeType.Identifier(name):
+            catch_var_name = name
+        case:
+            throw e.lang_error(context.path, "resolve_types", "Catch variable must be an identifier")
+        }
+
+        mut catch_type_name := ""
+        switch catch_type_expr.node_type {
+        case NodeType.Identifier(name):
+            catch_type_name = name
+        case:
+            throw e.lang_error(context.path, "resolve_types", "Catch type must be an identifier")
+        }
+
+        // Create scoped context for catch body
+        context.scope_stack.push(ScopeType.Block)
+        context.scope_stack.declare_symbol(catch_var_name, SymbolInfo(
+            value_type=ValueType.TCustom(catch_type_name),
+            is_mut=false,
+            is_copy=false,
+            is_own=false,
+            is_comptime_const=false
+        ))
+
+        // Map struct fields so err.msg etc. can be accessed
+        mut catch_struct_def := context.scope_stack.lookup_struct(catch_type_name)
+        for field_decl: Declaration in catch_struct_def.members {
+            combined_name := format(catch_var_name, ".", field_decl.name)
+            context.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=field_decl.value_type))
+        }
+        catch (err: KeyNotFoundError) {
+            // Not a struct, skip field registration
+        }
+
+        // Process body only
+        resolved_catch_body := resolve_inferred_types(context, catch_body_expr)
+        _ := context.scope_stack.pop()
+        catch (err: Str) {
+            // Ignore pop error
+        }
+
+        mut catch_params := Vec.new(Expr)
+        catch_params.push(catch_var_expr)
+        catch_params.push(catch_type_expr)
+        catch_params.push(resolved_catch_body)
+        return Expr.new_explicit(e.node_type, catch_params, e.line, e.col)
 
     case:
         // Default: recurse into all params
@@ -3151,6 +3337,21 @@ resolve_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
         ))
     }
 
+    // For function declarations, also register the function definition (like type checker does)
+    switch new_decl.value_type {
+    case ValueType.TFunction(_):
+        if decl_params.len().gt(0) {
+            mut decl_inner_e := Expr()
+            decl_params.get(0, decl_inner_e)
+            switch decl_inner_e.node_type {
+            case NodeType.FuncDef(func_def):
+                context.scope_stack.declare_func(new_decl.name, func_def)
+            case:
+            }
+        }
+    case:
+    }
+
     catch (err: IndexOutOfBoundsError) {
         throw e.lang_error(context.path, "resolve_types", format("IndexOutOfBoundsError: ", err.msg))
     }
@@ -3160,7 +3361,7 @@ resolve_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
 
 // Helper: resolve FuncDef node
 resolve_funcdef := proc(mut context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str {
-    // FuncDef - push function scope
+    // FuncDef - push function scope and recurse into body
     context.scope_stack.push(ScopeType.Function)
 
     // Register function parameters in scope
@@ -3176,7 +3377,13 @@ resolve_funcdef := proc(mut context: Context, e: Expr, func_def: SFuncDef) retur
         ))
     }
 
-    func_params := resolve_params(context, e)
+    // Recurse into body statements
+    mut new_body := Vec.new(Expr)
+    for stmt_idx in 0..func_def.body.len() {
+        mut stmt := Expr()
+        func_def.body.get(stmt_idx, stmt)
+        new_body.push(resolve_inferred_types(context, stmt))
+    }
 
     _ := context.scope_stack.pop()
 
@@ -3184,5 +3391,13 @@ resolve_funcdef := proc(mut context: Context, e: Expr, func_def: SFuncDef) retur
         throw e.lang_error(context.path, "resolve_types", format("IndexOutOfBoundsError in FuncDef: ", err.msg))
     }
 
-    return Expr.new_clone(e.node_type, e, func_params)
+    new_func_def := SFuncDef(
+        function_type=func_def.function_type,
+        args=func_def.args,
+        return_types=func_def.return_types,
+        throw_types=func_def.throw_types,
+        body=new_body,
+        source_path=func_def.source_path
+    )
+    return Expr.new_explicit(NodeType.FuncDef(new_func_def), e.params, e.line, e.col)
 }

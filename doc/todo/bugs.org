@@ -196,6 +196,12 @@ code path still produces INFER_TYPE after typer, the new assertions will catch i
 - Step 3 DONE: Simplified resolve_inferred_types() to use get_value_type()
   directly instead of scope_stack lookup. Kept scope management (FuncDef,
   Body, If/While, ForIn) intact - only Declaration case changed.
+- type_check() fix: Modified to skip resolve_inferred_types when check_types
+  has errors. This avoids duplicate errors and short-circuits correctly.
+- Catch handler fix: Added NodeType::Catch handler to resolve_inferred_types
+  to declare catch variable in scope before processing body. This mirrors
+  check_catch_statement behavior and fixes "Undefined symbol" errors for
+  catch variables like err.msg.
 
 ** Bug #126: Error message divergence between rstil and til
 :PROPERTIES:

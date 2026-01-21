@@ -197,6 +197,30 @@ For multi-step tasks, use:
 - "Step 1: Add helpers", "Step 2: Refactor getters", etc.
 - Or just descriptive task names in todos
 
+## Showing Error Context
+When asked to "show me the context of the error", "show me the code that triggers the error", or similar:
+- Show the error message first
+- Then show the relevant function/block containing the error (typically 10-15 lines)
+- Not just the single line, not the whole file
+- Example:
+```
+Error: `src/test/errors.til:244:16: init ERROR: Undefined symbol 'err'`
+
+Context:
+trigger_out_of_bounds_assign := func(_dummy: I64) returns I64 throws Str {
+    mut arr := Array.new(I64, 2)
+    mut val := 0
+    arr.get(10, val)
+
+    catch (err: IndexOutOfBoundsError) {
+        msg := err.msg  // <- line 244: init ERROR: Undefined symbol 'err'
+        throw msg
+    }
+
+    return 0
+}
+```
+
 ## Common Patterns
 - List.push(Type, value) - type comes first
 - Vec.push(value) - type set at construction
