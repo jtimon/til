@@ -19,6 +19,19 @@ are open questions about language direction.
 :STATUS: Open
 :END:
 
+*** Failed attempt: branch wip_122 (2026-01-21)
+Commit b6d31a6a was merged to master but has a subtle bug:
+- After ~make clean && make benchmark~: FAILS
+- Without clean (incremental build): PASSES
+
+This indicates a build dependency issue - something isn't being rebuilt that
+should be, or the generated code depends on stale artifacts.
+
+Branch ~wip_122~ preserved for investigation. Will need to:
+1. Identify what artifact is stale/missing after clean
+2. Fix the build dependency or code generation
+3. Cherry-pick fix to master once resolved
+
 *** Description
 Add regular expression support to TIL's standard library. The exact interface
 is to be decided, but should be general enough to handle common use cases
