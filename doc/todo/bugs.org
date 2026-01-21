@@ -109,6 +109,9 @@ code path still produces INFER_TYPE after typer, the new assertions will catch i
 *** Progress
 - Step 2 DONE: Added resolve_inferred_types() calls to builder.til in
   collect_imports, core.til handling, mode imports, and main file handling
+- Step 3 DONE: Simplified resolve_inferred_types() to use get_value_type()
+  directly instead of scope_stack lookup. Kept scope management (FuncDef,
+  Body, If/While, ForIn) intact - only Declaration case changed.
 
 ** Bug #126: Error message divergence between rstil and til
 :PROPERTIES:

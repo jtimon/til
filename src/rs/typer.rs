@@ -2405,19 +2405,12 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
         NodeType::Declaration(decl) => {
             // Check if this declaration has INFER_TYPE
             let resolved_type = if decl.value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
-                // Look up the resolved type from scope stack
-                match context.scope_stack.lookup_symbol(&decl.name) {
-                    Some(symbol_info) => symbol_info.value_type.clone(),
-                    None => {
-                        // Symbol not found - this shouldn't happen after typer
-                        // Fall back to inferring from the value expression
-                        if let Some(inner_e) = e.params.first() {
-                            get_value_type(context, inner_e)?
-                        } else {
-                            return Err(e.lang_error(&context.path, "resolve_types",
-                                &format!("Cannot resolve type for '{}': no value expression", decl.name)));
-                        }
-                    }
+                // Infer type from the value expression
+                if let Some(inner_e) = e.params.first() {
+                    get_value_type(context, inner_e)?
+                } else {
+                    return Err(e.lang_error(&context.path, "resolve_types",
+                        &format!("Cannot resolve type for '{}': no value expression", decl.name)));
                 }
             } else {
                 decl.value_type.clone()

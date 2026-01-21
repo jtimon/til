@@ -3095,27 +3095,13 @@ resolve_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     }
 
     if decl_type_name.eq(INFER_TYPE) {
-        // Look up the resolved type from scope stack
-        mut symbol_found := false
-        mut symbol_info := SymbolInfo()
-        symbol_info = context.scope_stack.lookup_symbol(decl.name)
-        symbol_found = true
-        catch (err: KeyNotFoundError) {
-            symbol_found = false
-        }
-
-        if symbol_found {
-            resolved_type = symbol_info.value_type
+        // Infer type from the value expression
+        if e.params.len().gt(0) {
+            mut inner_e := Expr()
+            e.params.get(0, inner_e)
+            resolved_type = get_value_type(context, inner_e)
         } else {
-            // Symbol not found - this shouldn't happen after typer
-            // Fall back to inferring from the value expression
-            if e.params.len().gt(0) {
-                mut inner_e := Expr()
-                e.params.get(0, inner_e)
-                resolved_type = get_value_type(context, inner_e)
-            } else {
-                throw e.lang_error(context.path, "resolve_types", format("Cannot resolve type for '", decl.name, "': no value expression"))
-            }
+            throw e.lang_error(context.path, "resolve_types", format("Cannot resolve type for '", decl.name, "': no value expression"))
         }
     }
 
