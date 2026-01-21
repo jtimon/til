@@ -201,6 +201,8 @@ validate_lang_for_target := func(lang: Lang, target: Target) throws Str {
 
 toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
     switch target {
+    // Linux: gcc by default
+    // TODO Issue #131: Support clang as alternative (e.g. TIL_CC=clang)
     case Target.LinuxX64:
         switch lang {
         case Lang.C:
@@ -219,12 +221,16 @@ toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
             return "riscv64-linux-gnu-gcc"
         case:
         }
+    // Windows: mingw-gcc by default
+    // TODO Issue #131: Support clang as alternative
     case Target.WindowsX64:
         switch lang {
         case Lang.C:
             return "x86_64-w64-mingw32-gcc"
         case:
         }
+    // macOS: clang only (Apple's default, gcc is symlink to clang)
+    // TODO Issue #131: Support Homebrew gcc as alternative (e.g. gcc-14)
     case Target.MacosX64:
         switch lang {
         case Lang.C:

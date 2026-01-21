@@ -123,10 +123,16 @@ pub fn validate_lang_for_target(lang: &Lang, target: &Target) -> Result<(), Stri
 
 pub fn toolchain_command(target: &Target, lang: &Lang) -> Result<&'static str, String> {
     match (target, lang) {
+        // Linux: gcc by default
+        // TODO Issue #131: Support clang as alternative (e.g. TIL_CC=clang)
         (Target::LinuxX64, Lang::C) => Ok("gcc"),
         (Target::LinuxArm64, Lang::C) => Ok("aarch64-linux-gnu-gcc"),
         (Target::LinuxRiscv64, Lang::C) => Ok("riscv64-linux-gnu-gcc"),
+        // Windows: mingw-gcc by default
+        // TODO Issue #131: Support clang as alternative
         (Target::WindowsX64, Lang::C) => Ok("x86_64-w64-mingw32-gcc"),
+        // macOS: clang only (Apple's default, gcc is symlink to clang)
+        // TODO Issue #131: Support Homebrew gcc as alternative (e.g. gcc-14)
         (Target::MacosX64, Lang::C) => Ok("clang"),
         (Target::MacosArm64, Lang::C) => Ok("clang"),
         (Target::Wasm32, Lang::C) => Ok("clang"),
