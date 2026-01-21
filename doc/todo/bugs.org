@@ -197,45 +197,6 @@ recursive nested function results.
 This bug was exposed when moving `add`, `sub`, `mul`, `div` inside the I64 struct.
 Previously these were global ext_funcs that didn't need UFCS resolution.
 
-** Bug #118: Unreachable code error message should clarify catch blocks are statements
-:PROPERTIES:
-:DISCOVERED: 2026-01-15
-:IMPACT: Developer confusion, especially for LLMs and those from try/catch languages
-:STATUS: Open
-:END:
-
-*** Description
-The unreachable code error message doesn't clarify that catch blocks are also subject
-to this rule. Developers (and LLMs) coming from languages with try/catch syntax often
-place catch blocks after return statements, expecting them to work like Java/Python/C++
-where catch is syntactically bound to try and doesn't need to be "reached".
-
-In TIL, catch is a statement like any other - it must be reachable in normal control
-flow. It catches errors from statements above it, but only if execution can reach
-the catch line itself.
-
-*** Example of the confusion
-#+BEGIN_SRC til
-// WRONG - catch is unreachable (common mistake)
-clone := func(self: Array) returns Array {
-    cloned.ptr = malloc(total_bytes)
-    return cloned
-    catch (err: BadAlloc) { panic(...) }  // Dead code!
-}
-
-// CORRECT - catch before return
-clone := func(self: Array) returns Array {
-    cloned.ptr = malloc(total_bytes)
-    catch (err: BadAlloc) { panic(...) }  // Reachable
-    return cloned
-}
-#+END_SRC
-
-*** Proposed fix
-Add clarification to the unreachable code error message, something like:
-"unreachable code after return/throw. Note: this includes catch blocks - in TIL,
-catch is a statement that must be reachable, not a construct bound to try."
-
 ** Bug #114: ScopeStack lookup functions leak memory by copying entire ScopeFrame
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
@@ -2126,6 +2087,30 @@ insertion order. Errors now consistently report in declaration order (a, b, c).
 
 Verified by running the same test file multiple times with both rstil and til -
 output is now deterministic.
+
+** Bug #118: Unreachable code error message should clarify catch blocks are statements
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:FIXED: 2026-01-21
+:IMPACT: Developer confusion, especially for LLMs and those from try/catch languages
+:STATUS: Fixed
+:END:
+
+*** Description
+The unreachable code error message didn't clarify that catch blocks are also subject
+to this rule. Developers (and LLMs) coming from languages with try/catch syntax often
+place catch blocks after return statements, expecting them to work like Java/Python/C++
+where catch is syntactically bound to try and doesn't need to be "reached".
+
+*** Fix
+Updated error message in both src/rs/typer.rs and src/self/typer.til to include:
+"Note: In TIL, catch is a statement that must be reachable, not syntax bound to a try block."
+
+*** Note
+This message may not be ideal for users seeing the error without using catch at all.
+A future issue could improve this by only mentioning catch when a catch block is
+actually present in the unreachable code. For now, the clarification helps more than
+it confuses.
 
 ** Bug #102: Automatic dependency tracking from imports
 :PROPERTIES:

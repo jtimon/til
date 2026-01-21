@@ -925,7 +925,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
         if unconditional_exit_in_sequence {
             errors.push(p.error(&context.path, "type",
                 "Unreachable code after unconditional return or throw.\n\
-                 Suggestion: Remove this code or move it before the return/throw statement."));
+                 Note: In TIL, catch is a statement that must be reachable, not syntax bound to a try block.\n\
+                 Suggestion: Move catch blocks (and any other code) before the return/throw."));
         } else {
             match &p.node_type {
             NodeType::Body => {
