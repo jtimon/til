@@ -31,63 +31,82 @@ This causes architectural issues:
 Typer should mutate the AST to replace all INFER_TYPE with the resolved concrete type.
 Post-typer phases should be able to assert/panic if they encounter INFER_TYPE.
 
-*** Partial Fix (2026-01-20)
-Changed approach: typer now mutates AST directly during type checking.
-- check_types takes &mut Expr
-- When check_declaration resolves INFER_TYPE, it writes back to decl.value_type
-- Removed separate resolve_inferred_types() function
-- AST mutation happens at the moment of type inference
+*** Current state
+- resolve_inferred_types() exists but has unnecessary scope_stack lookup
+- builder.til was never updated with TIL port
+- Post-typer phases still have INFER_TYPE handling code that can be removed
 
-**** Changes made
-- typer.rs: check_types_with_context takes &mut Expr
-- typer.rs: check_declaration mutates Declaration.value_type when inferring
-- typer.rs: check_struct_def mutates FuncDef methods within struct
-- builder.rs: type_check called with &mut ast, adds to imports_typer_done
-- Removed resolved_infer_types field from Context (no longer needed)
+*** Workflow for each step
+After completing each step:
+1. Run `make benchmark` to verify all tests pass
+2. Update Bug #128 with progress notes
+3. Commit changes
 
-**** Remaining issue (WIP)
-Files being type-checked twice in build mode:
-1. builder.rs collect_imports calls type_check on dependencies
-2. Then type_check on main file triggers typer_import_declarations
-3. Scope_stack symbols from first pass leak into second pass
-4. Variables like `result` found "already in scope" with INFER_TYPE
+*** Step 2: Port missing TIL changes to builder.til
 
-Root cause: scope_stack not isolated between file type-checks. When
-processing imports, function-local variables are added to scope_stack
-but when the file changes, those symbols persist in the global scope_stack.
+File: src/self/builder.til
 
-Workaround needed: clear or isolate scope_stack between file boundaries,
-or ensure only one code path does type-checking (not both builder.rs
-and typer_import_declarations).
+Add missing calls to match src/rs/builder.rs:
+- Use type_check() where Rust uses it (returns TypeCheckResult with resolved AST + errors)
+- Call resolve_inferred_types() in collect_imports and for core.til/mode imports
 
-**** TIL port
-Not yet done - must port to typer.til after Rust version works
+Then: make benchmark, update progress, commit.
 
-*** Post-typer INFER_TYPE usage to remove after full fix
+*** Step 3: Simplify resolve_inferred_types
 
-**** interpreter.rs/til - Can remove after #128 complete
-- Line 1187: if decl.value_type != INFER_TYPE check
-- Line 1200, 1231, 1243, 1416, 1749: Pattern matches on INFER_TYPE
+Files: src/rs/typer.rs, src/self/typer.til
+
+Remove scope_stack lookup, just use get_value_type() directly.
+
+Then: make benchmark, update progress, commit.
+
+*** Step 4: Remove INFER_TYPE handling from interpreter
+
+Files: src/rs/interpreter.rs, src/self/interpreter.til
+
+Per Bug #128 notes:
+- Line 1187: `if decl.value_type != INFER_TYPE` check
+- Lines 1200, 1231, 1243, 1416, 1749: Pattern matches on INFER_TYPE
 - TIL: Lines 1236, 1271, 1433, 1449, 1548, 1902
 
-**** precomp.rs/til - Creates new INFER_TYPE (review needed)
+Replace INFER_TYPE checks with assertions/panics.
+
+Then: make benchmark, update progress, commit.
+
+*** Step 5: Review/fix INFER_TYPE in precomp
+
+Files: src/rs/precomp.rs, src/self/precomp.til
+
+Per Bug #128 notes:
 - Line 583: Creates Declaration with INFER_TYPE for for-in index variable
 - Line 926: Checks for INFER_TYPE
 - TIL: Lines 804, 1075
-- Note: precomp creates NEW declarations (for-in desugaring) that need types
-- These may need to infer from iterator, or precomp should be after resolve
 
-**** ccodegen.rs/til - Many INFER_TYPE references (biggest cleanup)
-- Line 226: s if s == INFER_TYPE => None
-- Line 2277, 3023: Checks for INFER_TYPE
+Note: precomp creates NEW declarations (for-in desugaring). These should use
+resolved types from the iterator, not INFER_TYPE.
+
+Then: make benchmark, update progress, commit.
+
+*** Step 6: Remove INFER_TYPE handling from ccodegen
+
+Files: src/rs/ccodegen.rs, src/self/ccodegen.til
+
+Per Bug #128 notes (biggest cleanup):
+- Line 226: `s if s == INFER_TYPE => None`
+- Lines 2277, 3023: Checks for INFER_TYPE
 - Lines 5202, 5260, 6265: Infers type from RHS when INFER_TYPE
 - TIL: Lines 268, 2987, 3924, 5202+, 6616, 6718, 8109-8113, many more
-- Uses INFER_TYPE as "unknown/default" placeholder throughout
 
-*** Fix
-1. Typer: When inferring a Declaration's type, write it back to decl.value_type
-2. Post-typer phases: Add assertions that INFER_TYPE never appears
-3. This enables cleaner phase separation (sugar/precomp read types, don't infer)
+Replace all INFER_TYPE handling with direct type reads or assertions.
+
+Then: make benchmark, update bugs.org and mark Bug #128 as DONE (move to
+Fixed Bugs section), final commit.
+
+*** Verification
+Each step runs make benchmark. All tests must pass before committing. If any
+code path still produces INFER_TYPE after typer, the new assertions will catch it.
+
+*** Progress
 
 ** Bug #126: Error message divergence between rstil and til
 :PROPERTIES:
