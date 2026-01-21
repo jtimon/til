@@ -2681,14 +2681,40 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
             Ok(Expr::new_explicit(e.node_type.clone(), vec![err_var_expr.clone(), err_type_expr.clone(), new_body], e.line, e.col))
         }
 
-        // StructDef - recurse into default_values which contain function bodies
+        // StructDef - resolve member types and recurse into default_values
         NodeType::StructDef(struct_def) => {
+            // First, resolve types and recurse into default_values
             let mut new_default_values = HashMap::new();
             for (name, value_expr) in &struct_def.default_values {
                 new_default_values.insert(name.clone(), resolve_inferred_types(context, value_expr)?);
             }
+
+            // Then, resolve INFER_TYPE in member declarations
+            let mut new_members = Vec::new();
+            for member in &struct_def.members {
+                let resolved_type = match &member.value_type {
+                    ValueType::TCustom(s) if s == INFER_TYPE => {
+                        // Get resolved default_value for this member
+                        match new_default_values.get(&member.name) {
+                            Some(default_value) => get_value_type(context, default_value)?,
+                            None => return Err(e.lang_error(&context.path, "resolve_types",
+                                &format!("Cannot infer type for struct member '{}': no default value", member.name))),
+                        }
+                    },
+                    _ => member.value_type.clone(),
+                };
+                new_members.push(Declaration {
+                    name: member.name.clone(),
+                    value_type: resolved_type,
+                    is_mut: member.is_mut,
+                    is_copy: member.is_copy,
+                    is_own: member.is_own,
+                    default_value: member.default_value.clone(),
+                });
+            }
+
             let new_struct_def = SStructDef {
-                members: struct_def.members.clone(),
+                members: new_members,
                 default_values: new_default_values,
             };
             Ok(Expr::new_explicit(NodeType::StructDef(new_struct_def), e.params.clone(), e.line, e.col))

@@ -202,6 +202,10 @@ code path still produces INFER_TYPE after typer, the new assertions will catch i
   to declare catch variable in scope before processing body. This mirrors
   check_catch_statement behavior and fixes "Undefined symbol" errors for
   catch variables like err.msg.
+- Step 5 DONE: Remove INFER_TYPE handling from interpreter. Added struct
+  member type resolution to typer's StructDef handler (was missing). Removed
+  INFER_TYPE guard in eval_declaration - type check always runs now. Replaced
+  struct member INFER_TYPE inference with lang_error.
 
 ** Bug #126: Error message divergence between rstil and til
 :PROPERTIES:

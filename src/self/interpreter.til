@@ -1231,37 +1231,26 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
         throw e.lang_error(context.path, "eval", err)
     }
 
-    // Check type compatibility
-    mut decl_is_infer := false
+    // Type checking - INFER_TYPE should have been resolved by typer
+    mut decl_is_u8 := false
+    mut value_is_i64 := false
     switch declaration.value_type {
     case ValueType.TCustom(s):
-        if s.eq(INFER_TYPE) {
-            decl_is_infer = true
-        }
+        if s.eq("U8") { decl_is_u8 = true }
+    case:
+    }
+    switch value_type {
+    case ValueType.TCustom(s):
+        if s.eq("I64") { value_is_i64 = true }
     case:
     }
 
-    if not(decl_is_infer) {
-        mut decl_is_u8 := false
-        mut value_is_i64 := false
-        switch declaration.value_type {
-        case ValueType.TCustom(s):
-            if s.eq("U8") { decl_is_u8 = true }
-        case:
+    if decl_is_u8 {
+        if value_is_i64 {
+            value_type = declaration.value_type
         }
-        switch value_type {
-        case ValueType.TCustom(s):
-            if s.eq("I64") { value_is_i64 = true }
-        case:
-        }
-
-        if decl_is_u8 {
-            if value_is_i64 {
-                value_type = declaration.value_type
-            }
-        } else if not(value_type_to_str(value_type).eq(value_type_to_str(declaration.value_type))) {
-            throw e.lang_error(context.path, "eval", format("'", declaration.name, "' declared of type ", value_type_to_str(declaration.value_type), " but initialized to type ", value_type_to_str(value_type), "."))
-        }
+    } else if not(value_type_to_str(value_type).eq(value_type_to_str(declaration.value_type))) {
+        throw e.lang_error(context.path, "eval", format("'", declaration.name, "' declared of type ", value_type_to_str(declaration.value_type), " but initialized to type ", value_type_to_str(value_type), "."))
     }
 
     if not(e.params.len().eq(1)) {
@@ -1428,33 +1417,14 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                         throw e.lang_error(context.path, "eval", format("Struct member '", declaration.name, ".", member_decl.name, "' expected to have default value."))
                     }
 
+                    // INFER_TYPE should have been resolved by typer
                     mut member_value_type := member_decl.value_type
-                    mut is_infer := false
                     switch member_decl.value_type {
                     case ValueType.TCustom(s2):
                         if s2.eq(INFER_TYPE) {
-                            is_infer = true
+                            throw e.lang_error(context.path, "eval", format("Struct member '", declaration.name, ".", member_decl.name, "' has INFER_TYPE - should have been resolved by typer"))
                         }
                     case:
-                    }
-                    if is_infer {
-                        member_value_type = get_value_type(context, default_value)
-                        catch (err: Str) {
-                            throw e.lang_error(context.path, "eval", err)
-                        }
-                    }
-
-                    // Check if member_value_type is still INFER
-                    mut still_infer := false
-                    switch member_value_type {
-                    case ValueType.TCustom(s3):
-                        if s3.eq(INFER_TYPE) {
-                            still_infer = true
-                        }
-                    case:
-                    }
-                    if still_infer {
-                        throw e.lang_error(context.path, "eval", format("Cannot infer type of '", declaration.name, ".", member_decl.name, "', but it should be inferred already."))
                     }
 
                     // Handle member based on type

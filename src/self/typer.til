@@ -3196,7 +3196,8 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
         return Expr.new_clone(e.node_type, e, new_params)
 
     case NodeType.StructDef(struct_def):
-        // StructDef - recurse into default_values which contain function bodies
+        // StructDef - resolve member types and recurse into default_values
+        // First, resolve types and recurse into default_values
         mut new_default_values := Map.new(Str, Expr)
         for name: Str in struct_def.default_values.keys {
             mut value_expr := Expr()
@@ -3206,7 +3207,48 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
             }
             new_default_values.set(name, resolve_inferred_types(context, value_expr))
         }
-        new_struct_def := SStructDef(members=struct_def.members, default_values=new_default_values)
+
+        // Then, resolve INFER_TYPE in member declarations
+        mut new_members := Vec.new(Declaration)
+        for member_idx in 0..struct_def.members.len() {
+            mut member := Declaration()
+            struct_def.members.get(member_idx, member)
+
+            mut member_type_name := ""
+            switch member.value_type {
+            case ValueType.TCustom(name):
+                member_type_name = name
+            case:
+                member_type_name = ""
+            }
+
+            mut resolved_type := member.value_type
+            if member_type_name.eq(INFER_TYPE) {
+                // Get resolved default_value for this member
+                mut default_value := Expr()
+                mut has_default := true
+                new_default_values.get(member.name, default_value)
+                catch (err: KeyNotFoundError) {
+                    has_default = false
+                }
+                if has_default {
+                    resolved_type = get_value_type(context, default_value)
+                } else {
+                    throw e.lang_error(context.path, "resolve_types", format("Cannot infer type for struct member '", member.name, "': no default value"))
+                }
+            }
+
+            new_members.push(Declaration(
+                name=member.name,
+                value_type=resolved_type,
+                is_mut=member.is_mut,
+                is_copy=member.is_copy,
+                is_own=member.is_own,
+                default_value=member.default_value
+            ))
+        }
+
+        new_struct_def := SStructDef(members=new_members, default_values=new_default_values)
         return Expr.new_explicit(NodeType.StructDef(new_struct_def), e.params, e.line, e.col)
 
     case NodeType.Catch:

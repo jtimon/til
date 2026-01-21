@@ -1186,12 +1186,11 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
             return Err(e.lang_error(&context.path, "eval", &error_string));
         },
     };
-    if declaration.value_type != ValueType::TCustom(INFER_TYPE.to_string()) {
-        if declaration.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
-            value_type = declaration.value_type.clone();
-        } else if value_type != declaration.value_type {
-            return Err(e.lang_error(&context.path, "eval", &format!("'{}' declared of type {} but initialized to type {:?}.", declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type))));
-        }
+    // Type checking - INFER_TYPE should have been resolved by typer
+    if declaration.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
+        value_type = declaration.value_type.clone();
+    } else if value_type != declaration.value_type {
+        return Err(e.lang_error(&context.path, "eval", &format!("'{}' declared of type {} but initialized to type {:?}.", declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type))));
     }
 
     if e.params.len() != 1 {
@@ -1229,23 +1228,16 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                                                                              &declaration.name, &member_decl.name)));
                                 },
                             };
+                            // INFER_TYPE should have been resolved by typer
                             let member_value_type = match &member_decl.value_type {
                                 ValueType::TCustom(s) if s == INFER_TYPE => {
-                                    match get_value_type(&context, &default_value) {
-                                        Ok(val_type) => val_type,
-                                        Err(error_string) => {
-                                            return Err(e.lang_error(&context.path, "eval", &error_string));
-                                        },
-                                    }
+                                    return Err(e.lang_error(&context.path, "eval", &format!("Struct member '{}.{}' has INFER_TYPE - should have been resolved by typer",
+                                                                             &declaration.name, &member_decl.name)));
                                 },
                                 _ => member_decl.value_type.clone(),
                             };
 
                             match member_value_type {
-                                ValueType::TCustom(s) if s == INFER_TYPE => {
-                                    return Err(e.lang_error(&context.path, "eval", &format!("Cannot infer type of '{}.{}', but it should be inferred already.",
-                                                                             &declaration.name, &member_decl.name)));
-                                },
                                 ValueType::TCustom(ref type_name) => {
                                     let result = eval_expr(context, default_value)?;
                                     if result.is_throw {
