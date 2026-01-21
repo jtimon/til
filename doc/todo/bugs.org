@@ -95,7 +95,24 @@ Remove scope_stack lookup, just use get_value_type() directly.
 
 Then: make benchmark, update progress, commit.
 
-*** Step 4: Remove INFER_TYPE handling from precomp
+*** Step 4: Fix desugarer to not introduce INFER_TYPE
+
+Files: src/rs/desugarer.rs, src/self/desugarer.til
+
+The desugarer runs after typer and creates for-in index variables with INFER_TYPE.
+Since desugaring happens post-typer, these won't be resolved.
+
+Fix:
+- Use I64 directly for the ~_for_i~ index variable (always initialized to 0,
+  compared to len(), used with get() - all I64 operations)
+- Use the explicitly provided type for the element variable (~for elem: MyType in collection~
+  uses MyType directly instead of INFER_TYPE)
+
+Note: ~for elem: auto in collection~ won't work until Bug #129 is fixed.
+
+Then: make benchmark, update progress, commit.
+
+*** Step 5: Remove INFER_TYPE handling from precomp
 
 Files: src/rs/precomp.rs, src/self/precomp.til
 
@@ -105,7 +122,7 @@ In `precomp_declaration`:
 
 Port to TIL. Then: make benchmark, update progress, commit.
 
-*** Step 5: Remove INFER_TYPE handling from interpreter
+*** Step 6: Remove INFER_TYPE handling from interpreter
 
 Files: src/rs/interpreter.rs, src/self/interpreter.til
 
@@ -126,7 +143,7 @@ In `eval_identifier_expr`:
 
 Port to TIL. Then: make benchmark, update progress, commit.
 
-*** Step 6: Remove INFER_TYPE handling from ccodegen
+*** Step 7: Remove INFER_TYPE handling from ccodegen
 
 Files: src/rs/ccodegen.rs, src/self/ccodegen.til
 
