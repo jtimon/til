@@ -43,176 +43,30 @@ The code path:
 2. Pass a boolean ~has_type_token~ to parse_declaration instead of relying on value
 3. Re-architect parsing to handle this case
 
-** Bug #128: INFER_TYPE should not exist in AST after typer phase
+** Bug #130: Unify type resolution with type checking into single pass
 :PROPERTIES:
-:DISCOVERED: 2026-01-20
-:IMPACT: Phases after typer require type inference machinery they shouldn't need
-:STATUS: Partial
-:RELATED: Issue #127 (pipeline refactoring)
+:DISCOVERED: 2026-01-21
+:IMPACT: Two separate passes (check_types + resolve_inferred_types) when one would suffice
+:STATUS: Open
+:RELATED: Bug #128 (completed prerequisite work)
 :END:
 
 *** Description
-After typer completes, no INFER_TYPE references should remain in the AST.
-Currently, Declaration nodes may still have value_type=INFER_TYPE after typer,
-requiring later phases (precomp, sugar, ccodegen) to re-infer types.
+Currently typer has two passes: check_types() validates types, then resolve_inferred_types()
+replaces INFER_TYPE with concrete types. These should be merged into a single pass that
+both checks types and resolves INFER_TYPE in one traversal.
 
-*** Problem
-This causes architectural issues:
-1. Precomp calls get_value_type() to look up types that should already be resolved
-2. Sugar phase (Issue #127) needs type info but can't rely on AST having it
-3. Each phase duplicates type inference logic instead of reading resolved types
+*** Background
+Bug #128 cleaned up INFER_TYPE handling across the codebase (Steps 2-6). This is the
+remaining work (was Step 7) split into its own bug for clarity.
 
-*** Expected Behavior
-Typer should mutate the AST to replace all INFER_TYPE with the resolved concrete type.
-Post-typer phases should be able to assert/panic if they encounter INFER_TYPE.
-
-*** Current state
-- resolve_inferred_types() exists but has unnecessary scope_stack lookup
-- builder.til was never updated with TIL port
-- Post-typer phases still have INFER_TYPE handling code that can be removed
-
-*** Workflow for each step
-After completing each step:
-1. Run `make benchmark` to verify all tests pass
-2. Update Bug #128 with progress notes
-3. Commit changes
-
-*** Step 2: Port missing TIL changes to builder.til
-
-File: src/self/builder.til
-
-Add missing calls to match src/rs/builder.rs:
-- Use type_check() where Rust uses it (returns TypeCheckResult with resolved AST + errors)
-- Call resolve_inferred_types() in collect_imports and for core.til/mode imports
-
-Then: make benchmark, update progress, commit.
-
-*** Step 3: Simplify resolve_inferred_types
+*** Fix
+Merge check_types() and resolve_inferred_types() into a single function that:
+1. Validates types as it traverses
+2. Replaces INFER_TYPE with resolved types in the same pass
+3. Returns the modified AST with all types resolved
 
 Files: src/rs/typer.rs, src/self/typer.til
-
-Remove scope_stack lookup, just use get_value_type() directly.
-
-Then: make benchmark, update progress, commit.
-
-*** Step 4: Fix desugarer to not introduce INFER_TYPE
-
-Files: src/rs/desugarer.rs, src/self/desugarer.til
-
-The desugarer runs after typer and creates for-in index variables with INFER_TYPE.
-Since desugaring happens post-typer, these won't be resolved.
-
-Fix:
-- Use I64 directly for the ~_for_i~ index variable (always initialized to 0,
-  compared to len(), used with get() - all I64 operations)
-- Use the explicitly provided type for the element variable (~for elem: MyType in collection~
-  uses MyType directly instead of INFER_TYPE)
-
-Note: ~for elem: auto in collection~ won't work until Bug #129 is fixed.
-
-Then: make benchmark, update progress, commit.
-
-*** Step 4b: Fix resolve_inferred_types to recurse into StructDef
-
-Files: src/rs/typer.rs, src/self/typer.til
-
-resolve_inferred_types() had a default case that recursed into e.params, but
-StructDef stores function bodies in default_values (a HashMap<String, Expr>),
-not in e.params. This meant type inference inside struct method bodies was
-never resolved.
-
-Fix: Add explicit StructDef case that iterates over default_values and
-recursively calls resolve_inferred_types on each function body expression.
-
-Then: make benchmark, update progress, commit.
-
-*** Step 5: Remove INFER_TYPE handling from precomp
-
-Files: src/rs/precomp.rs, src/self/precomp.til
-
-In `precomp_declaration`:
-- `if decl.value_type != INFER_TYPE` guard that skips type checking: REMOVE
-- TIL: same guard in `precomp_declaration`
-
-Port to TIL. Then: make benchmark, update progress, commit.
-
-*** Step 6: Remove INFER_TYPE handling from interpreter
-
-Files: src/rs/interpreter.rs, src/self/interpreter.til
-
-In `eval_declaration`:
-- `if declaration.value_type != INFER_TYPE` guard that skips type checking: REMOVE
-- Match `INFER_TYPE => return error`: KEEP (already correct)
-- Struct member type inference: two places that call `get_value_type` for
-  INFER_TYPE members, then check again for INFER_TYPE: REPLACE with lang_error
-- TIL: same 4 locations in `eval_declaration`
-
-In `eval_assignment`:
-- Match `INFER_TYPE => return error`: KEEP (already correct)
-- TIL: same in `eval_assignment`
-
-In `eval_identifier_expr`:
-- Match `INFER_TYPE => return error`: KEEP (already correct)
-- TIL: same in `eval_identifier_expr`
-
-Port to TIL. Then: make benchmark, update progress, commit.
-
-*** Step 7: Remove INFER_TYPE handling from ccodegen
-
-Files: src/rs/ccodegen.rs, src/self/ccodegen.til
-
-In `get_field_type_dependency`:
-- `s if s == INFER_TYPE => None`: REPLACE with lang_error
-- TIL: same in `get_field_type_dependency`
-
-In `emit_constant_declaration`:
-- `if type_name != INFER_TYPE` with else that falls back to I64: REPLACE with lang_error
-- TIL: same in `emit_constant_declaration`
-
-In `til_type_to_c`:
-- `if name == INFER_TYPE` returns error: KEEP (already correct)
-- TIL: same in `til_type_to_c`
-
-In `emit_declaration`:
-- Two places: `is_infer` check that infers from RHS: REPLACE with lang_error
-- TIL: same in `emit_declaration`
-
-In `collect_declarations_recursive`:
-- `if name == INFER_TYPE` that infers from RHS: REPLACE with lang_error
-- TIL: same in `collect_declarations_recursive`
-
-Port to TIL. Note: TIL has many INFER_TYPE as Vec.get() placeholder values - those stay.
-
-Then: make benchmark, update bugs.org and mark Bug #128 as DONE (move to
-Fixed Bugs section), final commit.
-
-*** Verification
-Each step runs make benchmark. All tests must pass before committing. If any
-code path still produces INFER_TYPE after typer, the new assertions will catch it.
-
-*** Progress
-- Step 2 DONE: Added resolve_inferred_types() calls to builder.til in
-  collect_imports, core.til handling, mode imports, and main file handling
-- Step 3 DONE: Simplified resolve_inferred_types() to use get_value_type()
-  directly instead of scope_stack lookup. Kept scope management (FuncDef,
-  Body, If/While, ForIn) intact - only Declaration case changed.
-- type_check() fix: Modified to skip resolve_inferred_types when check_types
-  has errors. This avoids duplicate errors and short-circuits correctly.
-- Catch handler fix: Added NodeType::Catch handler to resolve_inferred_types
-  to declare catch variable in scope before processing body. This mirrors
-  check_catch_statement behavior and fixes "Undefined symbol" errors for
-  catch variables like err.msg.
-- Step 5 DONE: Remove INFER_TYPE handling from interpreter. Added struct
-  member type resolution to typer's StructDef handler (was missing). Removed
-  INFER_TYPE guard in eval_declaration - type check always runs now. Replaced
-  struct member INFER_TYPE inference with lang_error.
-- Step 6 DONE: Remove INFER_TYPE handling from ccodegen. Replaced inference
-  logic with panic/lang_error in: get_field_type_dependency, emit_constant_declaration,
-  emit_declaration (2 places), collect_declarations_recursive.
-
-*** Step 7: Unify type resolution with type checking
-No need for two passes (check_types + resolve_inferred_types). Merge them into
-a single pass that both checks types and resolves INFER_TYPE in one traversal.
 
 ** Bug #126: Error message divergence between rstil and til
 :PROPERTIES:
@@ -2249,6 +2103,31 @@ main := proc(args: ..Str) {
 2. The C codegen should unpack argv into individual named parameters for custom signatures.
 
 * Fixed Bugs
+
+** Bug #128: INFER_TYPE should not exist in AST after typer phase
+:PROPERTIES:
+:DISCOVERED: 2026-01-20
+:FIXED: 2026-01-21
+:IMPACT: Phases after typer require type inference machinery they shouldn't need
+:STATUS: Fixed
+:RELATED: Issue #127, Bug #130 (remaining work)
+:END:
+
+*** Description
+After typer completes, no INFER_TYPE references should remain in the AST.
+Declaration nodes had value_type=INFER_TYPE after typer, requiring later phases
+(precomp, interpreter, ccodegen) to re-infer types.
+
+*** Fix Summary
+Cleaned up INFER_TYPE handling across the codebase in 6 steps:
+- Step 2: Added resolve_inferred_types() calls to builder.til
+- Step 3: Simplified resolve_inferred_types() to use get_value_type() directly
+- Step 4: Fixed desugarer to use I64 directly for _for_i index variables
+- Step 4b: Fixed resolve_inferred_types to recurse into StructDef default_values
+- Step 5: Removed INFER_TYPE handling from precomp (both Rust and TIL)
+- Step 6: Removed INFER_TYPE handling from ccodegen (both Rust and TIL)
+
+Remaining work (unifying type checking with type resolution) split to Bug #130.
 
 ** Bug #102: Automatic dependency tracking from imports
 :PROPERTIES:
