@@ -427,23 +427,27 @@ With returns Dynamic:
 val: I64 = vec.get(0)  // direct return
 #+END_SRC
 
-** Issue #110: Desugar switch to if/else in precomp
+** Issue #110: Desugar switch to if/else in desugarer
 :PROPERTIES:
 :DISCOVERED: 2026-01-13
 :IMPACT: Simplify interpreter and ccodegen, reduce internal complexity
-:STATUS: Open - WIP in branch 110_attempt2
+:STATUS: Open
 :RELATED: ccodegen payload hoisting, Issue #111 (enum_payload nicer with returns Dynamic)
 :END:
 
 *** Description
-Remove switch as an internal construct. In precomp, desugar switch/case to
+Remove switch as an internal construct. In desugarer phase, desugar switch/case to
 if/else chains with hoisted payload bindings (like ccodegen already does).
 
 *** Benefits
-- Interpreter doesn't need switch handling (uses precomp output)
-- Ccodegen doesn't need switch handling (uses precomp output)
-- One construct post-precomp (if/else), not two (if/else + switch)
-- Payload hoisting logic moves from ccodegen to precomp (single place)
+After desugaring switch to if/else in desugarer, these phases can be simplified:
+- ~interpreter.rs~ (24 switch refs) - remove switch handling entirely
+- ~ccodegen.rs~ (57 switch refs) - remove switch handling and payload hoisting
+- ~precomp.rs~ (12 switch refs) - remove switch handling
+- ~scavenger.rs~ (1 switch ref) - remove switch handling
+- ~typer.rs~ (45 switch refs) - KEEP for validation before desugaring
+
+Result: one construct post-desugarer (if/else), payload hoisting in single place
 
 *** Example
 Before precomp:
@@ -481,7 +485,7 @@ enum_payload := ext_func(e: Dynamic, payload_type: Type) returns Dynamic {}
 *** Notes
 - Gleam went the opposite direction (if/else to switch)
 - We prefer switch->if/else since payload hoisting is already in ccodegen
-- Just move that logic earlier (to precomp)
+- Move that logic to desugarer (runs after typer, before precomp/interpreter/ccodegen)
 
 *** Prerequisite [DONE]
 Merged commit ~08865594~ (enum_get_payload branch) providing:
@@ -502,11 +506,84 @@ Also added RGB struct (with U8 r,g,b fields) test case to verify struct payloads
 
 *** Implementation Plan
 
-**** Commit 1: Switch desugaring in precomp
+Incremental approach: Rust first, test, TIL port, test. One file per commit.
 
-***** Files to modify
-- ~src/rs/precomp.rs~ - add desugar_switch, modify Switch case
-- ~src/self/precomp.til~ - port same changes (follow ~doc/rs2til.org~ translation rules)
+Pipeline reminder: Typer -> Desugarer -> UFCS -> Precomp -> ...
+The desugared ~val.eq(other)~ calls will be handled by UFCS (transforms to ~Type.eq(val, other)~).
+
+**** Step 1: Add switch desugaring to desugarer (2 commits)
+
+***** Commit 1a: Rust desugarer
+- ~src/rs/desugarer.rs~ - add desugar_switch, handle Switch case
+- Run ~make benchmark~ - must pass
+
+***** Commit 1b: TIL port
+- Read ~doc/rs2til.org~ and the Rust diff before porting
+- ~src/self/desugarer.til~ - port same changes following rs2til.org rules strictly
+- Run ~make benchmark~ - must pass
+
+**** Step 2: Remove switch handling from ufcs (2 commits)
+
+UFCS has 12 switch refs and runs right after desugarer.
+
+***** Commit 2a: Rust ufcs
+- ~src/rs/ufcs.rs~ - remove switch handling, add panic for Switch node
+- Run ~make benchmark~ - must pass
+
+***** Commit 2b: TIL port
+- Read ~doc/rs2til.org~ and the Rust diff before porting
+- ~src/self/ufcs.til~ - port same changes following rs2til.org rules strictly
+- Run ~make benchmark~ - must pass
+
+**** Step 3: Remove switch handling from precomp (2 commits)
+
+***** Commit 3a: Rust precomp
+- ~src/rs/precomp.rs~ - remove switch handling, add panic for Switch node
+- Run ~make benchmark~ - must pass
+
+***** Commit 3b: TIL port
+- Read ~doc/rs2til.org~ and the Rust diff before porting
+- ~src/self/precomp.til~ - port same changes following rs2til.org rules strictly
+- Run ~make benchmark~ - must pass
+
+**** Step 4: Remove switch handling from scavenger (2 commits)
+
+***** Commit 4a: Rust scavenger
+- ~src/rs/scavenger.rs~ - remove switch handling
+- Run ~make benchmark~ - must pass
+
+***** Commit 4b: TIL port
+- Read ~doc/rs2til.org~ and the Rust diff before porting
+- ~src/self/scavenger.til~ - port same changes following rs2til.org rules strictly
+- Run ~make benchmark~ - must pass
+
+**** Step 5: Remove switch handling from interpreter (2 commits)
+
+***** Commit 5a: Rust interpreter
+- ~src/rs/interpreter.rs~ - remove switch handling, add panic for Switch node
+- Run ~make benchmark~ - must pass
+
+***** Commit 5b: TIL port
+- Read ~doc/rs2til.org~ and the Rust diff before porting
+- ~src/self/interpreter.til~ - port same changes following rs2til.org rules strictly
+- Run ~make benchmark~ - must pass
+
+**** Step 6: Remove switch handling from ccodegen (2 commits)
+
+***** Commit 6a: Rust ccodegen
+- ~src/rs/ccodegen.rs~ - remove switch handling and payload hoisting
+- Run ~make benchmark~ - must pass
+
+***** Commit 6b: TIL port
+- Read ~doc/rs2til.org~ and the Rust diff before porting
+- ~src/self/ccodegen.til~ - port same changes following rs2til.org rules strictly
+- Run ~make benchmark~ - must pass
+
+*** Desugaring Details
+
+**** Files to modify in Step 1
+- ~src/rs/desugarer.rs~ - add desugar_switch, handle Switch case
+- ~src/self/desugarer.til~ - port same changes (follow ~doc/rs2til.org~ translation rules)
 
 ***** Desugaring pattern (from test_color_match_if)
 Input:
