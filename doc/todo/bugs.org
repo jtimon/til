@@ -60,44 +60,62 @@ Remove scope_stack lookup, just use get_value_type() directly.
 
 Then: make benchmark, update progress, commit.
 
-*** Step 4: Remove INFER_TYPE handling from interpreter
-
-Files: src/rs/interpreter.rs, src/self/interpreter.til
-
-Per Bug #128 notes:
-- Line 1187: `if decl.value_type != INFER_TYPE` check
-- Lines 1200, 1231, 1243, 1416, 1749: Pattern matches on INFER_TYPE
-- TIL: Lines 1236, 1271, 1433, 1449, 1548, 1902
-
-Replace INFER_TYPE checks with assertions/panics.
-
-Then: make benchmark, update progress, commit.
-
-*** Step 5: Review/fix INFER_TYPE in precomp
+*** Step 4: Remove INFER_TYPE handling from precomp
 
 Files: src/rs/precomp.rs, src/self/precomp.til
 
-Per Bug #128 notes:
-- Line 583: Creates Declaration with INFER_TYPE for for-in index variable
-- Line 926: Checks for INFER_TYPE
-- TIL: Lines 804, 1075
+In `precomp_declaration`:
+- `if decl.value_type != INFER_TYPE` guard that skips type checking: REMOVE
+- TIL: same guard in `precomp_declaration`
 
-Note: precomp creates NEW declarations (for-in desugaring). These should use
-resolved types from the iterator, not INFER_TYPE.
+Port to TIL. Then: make benchmark, update progress, commit.
 
-Then: make benchmark, update progress, commit.
+*** Step 5: Remove INFER_TYPE handling from interpreter
+
+Files: src/rs/interpreter.rs, src/self/interpreter.til
+
+In `eval_declaration`:
+- `if declaration.value_type != INFER_TYPE` guard that skips type checking: REMOVE
+- Match `INFER_TYPE => return error`: KEEP (already correct)
+- Struct member type inference: two places that call `get_value_type` for
+  INFER_TYPE members, then check again for INFER_TYPE: REPLACE with lang_error
+- TIL: same 4 locations in `eval_declaration`
+
+In `eval_assignment`:
+- Match `INFER_TYPE => return error`: KEEP (already correct)
+- TIL: same in `eval_assignment`
+
+In `eval_identifier_expr`:
+- Match `INFER_TYPE => return error`: KEEP (already correct)
+- TIL: same in `eval_identifier_expr`
+
+Port to TIL. Then: make benchmark, update progress, commit.
 
 *** Step 6: Remove INFER_TYPE handling from ccodegen
 
 Files: src/rs/ccodegen.rs, src/self/ccodegen.til
 
-Per Bug #128 notes (biggest cleanup):
-- Line 226: `s if s == INFER_TYPE => None`
-- Lines 2277, 3023: Checks for INFER_TYPE
-- Lines 5202, 5260, 6265: Infers type from RHS when INFER_TYPE
-- TIL: Lines 268, 2987, 3924, 5202+, 6616, 6718, 8109-8113, many more
+In `get_field_type_dependency`:
+- `s if s == INFER_TYPE => None`: REPLACE with lang_error
+- TIL: same in `get_field_type_dependency`
 
-Replace all INFER_TYPE handling with direct type reads or assertions.
+In `emit_constant_declaration`:
+- `if type_name != INFER_TYPE` with else that falls back to I64: REPLACE with lang_error
+- TIL: same in `emit_constant_declaration`
+
+In `til_type_to_c`:
+- `if name == INFER_TYPE` returns error: KEEP (already correct)
+- TIL: same in `til_type_to_c`
+
+In `emit_declaration`:
+- Two places: `is_infer` check that infers from RHS: REPLACE with lang_error
+- TIL: same in `emit_declaration`
+
+In `collect_declarations_recursive`:
+- `if name == INFER_TYPE` that infers from RHS: REPLACE with lang_error
+- TIL: same in `collect_declarations_recursive`
+
+Port to TIL. Note: TIL has many INFER_TYPE as Vec.get() placeholder values - those stay.
 
 Then: make benchmark, update bugs.org and mark Bug #128 as DONE (move to
 Fixed Bugs section), final commit.
