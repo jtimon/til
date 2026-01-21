@@ -1092,6 +1092,15 @@ impl EvalArena {
         type_name: &str,
         e: &Expr,
     ) -> Result<Expr, String> {
+        // Vec and Array contain pointer fields (ptr) that hold runtime memory addresses.
+        // These addresses are meaningless as compile-time literals - they would just be
+        // garbage numbers in the generated C code, causing segfaults at runtime.
+        // Return an error so eval_comptime falls back to emitting the original function call.
+        if type_name == "Vec" || type_name == "Array" {
+            return Err(e.lang_error(&ctx.path, "arena",
+                &format!("to_struct_literal: {} contains pointer fields and cannot be serialized to literal", type_name)));
+        }
+
         let struct_def = ctx.scope_stack.lookup_struct(type_name)
             .ok_or_else(|| e.lang_error(&ctx.path, "arena",
                 &format!("to_struct_literal: struct '{}' not found", type_name)))?;

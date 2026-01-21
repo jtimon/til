@@ -1351,6 +1351,14 @@ EvalArena := struct {
     ///   Bool(data=1)
     /// The `e` parameter is only used for error reporting.
     to_struct_literal := func(ctx: Context, instance_name: Str, type_name: Str, e: Expr) returns Expr throws Str {
+        // Vec and Array contain pointer fields (ptr) that hold runtime memory addresses.
+        // These addresses are meaningless as compile-time literals - they would just be
+        // garbage numbers in the generated C code, causing segfaults at runtime.
+        // Return an error so eval_comptime falls back to emitting the original function call.
+        if or(type_name.eq("Vec"), type_name.eq("Array")) {
+            throw e.lang_error(ctx.path, "arena", format("to_struct_literal: ", type_name, " contains pointer fields and cannot be serialized to literal"))
+        }
+
         mut struct_def := ctx.scope_stack.lookup_struct(type_name)
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "arena", format("to_struct_literal: struct '", type_name, "' not found"))
