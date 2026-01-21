@@ -53,10 +53,6 @@ FunctionLocal := struct {
     mut line: I64 = 0
     mut col: I64 = 0
 
-    new := func(name_: Str, line_: I64, col_: I64) returns FunctionLocal {
-        return FunctionLocal(name=name_, line=line_, col=col_)
-    }
-
     eq := func(self: FunctionLocal, other: FunctionLocal) returns Bool {
         return self.name.eq(other.name).and(self.line.eq(other.line)).and(self.col.eq(other.col))
     }
@@ -612,7 +608,7 @@ ScopeStack := struct {
     // Bug #97: Check if this exact declaration (name, line, col) was already processed.
     // Used to detect AST duplication from transformations like for-in desugaring.
     is_already_processed := func(self: ScopeStack, name: Str, line: I64, col: I64) returns Bool {
-        mut target := FunctionLocal.new(name, line, col)
+        mut target := FunctionLocal(name=name, line=line, col=col)
         for local: FunctionLocal in self.function_locals {
             if local.eq(target) {
                 return true
@@ -624,7 +620,7 @@ ScopeStack := struct {
     // Bug #97: Register a variable declaration in the current function.
     // Call this when declaring a new variable.
     register_function_local := proc(mut self: ScopeStack, name: Str, line: I64, col: I64) {
-        mut local := FunctionLocal.new(name, line, col)
+        mut local := FunctionLocal(name=name, line=line, col=col)
         // Only insert if not already present (set semantics)
         mut already_exists := false
         for existing: FunctionLocal in self.function_locals {

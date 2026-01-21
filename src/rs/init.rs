@@ -23,12 +23,6 @@ pub struct FunctionLocal {
     pub col: usize,
 }
 
-impl FunctionLocal {
-    pub fn new(name: String, line: usize, col: usize) -> Self {
-        FunctionLocal { name, line, col }
-    }
-}
-
 #[derive(Clone)]
 pub struct SymbolInfo {
     pub value_type: ValueType,
@@ -91,8 +85,9 @@ pub struct ScopeStack {
     /// Bug #97: Track all variable declarations in the current function by (name, line, col).
     /// Using location allows handling AST duplication from transformations like for-in desugaring,
     /// while still catching actual shadowing (same name at different source location).
-    /// Uses FunctionLocal struct instead of tuple for TIL compatibility.
-    pub function_locals: HashSet<FunctionLocal>,
+    /// Uses Vec<FunctionLocal> with manual comparison for TIL compatibility (TIL's Set can't handle
+    /// structs with Str fields, so both Rust and TIL use Vec with helper methods).
+    pub function_locals: Vec<FunctionLocal>,
     /// Bug #101: Track which symbols have been used in the current function.
     pub used_symbols: HashSet<String>,
 }
@@ -102,7 +97,7 @@ impl ScopeStack {
     pub fn new() -> Self {
         ScopeStack {
             frames: Vec::new(),
-            function_locals: HashSet::new(),
+            function_locals: Vec::new(),
             used_symbols: HashSet::new(),
         }
     }
@@ -209,13 +204,30 @@ impl ScopeStack {
     /// Bug #97: Check if this exact declaration (name, line, col) was already processed.
     /// Used to detect AST duplication from transformations like for-in desugaring.
     pub fn is_already_processed(&self, name: &str, line: usize, col: usize) -> bool {
-        self.function_locals.contains(&FunctionLocal::new(name.to_string(), line, col))
+        let target = FunctionLocal { name: name.to_string(), line, col };
+        for local in &self.function_locals {
+            if local == &target {
+                return true;
+            }
+        }
+        false
     }
 
     /// Bug #97: Register a variable declaration in the current function.
     /// Call this when declaring a new variable.
     pub fn register_function_local(&mut self, name: &str, line: usize, col: usize) {
-        self.function_locals.insert(FunctionLocal::new(name.to_string(), line, col));
+        let local = FunctionLocal { name: name.to_string(), line, col };
+        // Only insert if not already present (set semantics)
+        let mut already_exists = false;
+        for existing in &self.function_locals {
+            if existing == &local {
+                already_exists = true;
+                break;
+            }
+        }
+        if !already_exists {
+            self.function_locals.push(local);
+        }
     }
 
     /// Bug #50: Check if accessing this symbol would require closure capture.
