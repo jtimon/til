@@ -12,149 +12,6 @@ are open questions about language direction.
 
 * Open Issues
 
-** Issue #122: Add regex support to standard library
-:PROPERTIES:
-:DISCOVERED: 2026-01-15
-:IMPACT: Essential for text processing, refactoring tools, code generators
-:STATUS: Open
-:END:
-
-*** Description
-Add regular expression support to TIL's standard library. The exact interface
-is to be decided, but should be general enough to handle common use cases
-while remaining simple to use.
-
-*** Prior art
-
-**** grep (POSIX Basic/Extended Regular Expressions)
-#+BEGIN_SRC bash
-# Basic usage - match pattern in file
-grep "pattern" file.txt
-
-# Extended regex (-E)
-grep -E "foo|bar" file.txt
-
-# Replace with sed
-sed 's/old/new/g' file.txt
-#+END_SRC
-
-Key features:
-- BRE (Basic) and ERE (Extended) syntax
-- Line-oriented matching
-- Simple substitution with backreferences
-
-**** Emacs Lisp
-#+BEGIN_SRC elisp
-;; Search forward for regex
-(re-search-forward "pattern" nil t)
-
-;; Replace regex
-(replace-regexp-in-string "old" "new" string)
-
-;; Match and capture groups
-(string-match "\\(foo\\)\\(bar\\)" str)
-(match-string 1 str)  ; => "foo"
-#+END_SRC
-
-Key features:
-- Integrated with buffer/string operations
-- Capture groups via match-string
-- Backslash-heavy escaping (elisp quirk)
-
-**** Python re module
-#+BEGIN_SRC python
-import re
-
-# Search for pattern
-match = re.search(r"pattern", string)
-
-# Find all matches
-matches = re.findall(r"\d+", string)
-
-# Substitution
-result = re.sub(r"old", "new", string)
-
-# Compiled patterns for performance
-pattern = re.compile(r"complex_pattern")
-pattern.match(string)
-
-# Named groups
-m = re.match(r"(?P<name>\w+)", string)
-m.group("name")
-#+END_SRC
-
-Key features:
-- Raw strings (r"...") avoid escaping issues
-- re.compile() for repeated use
-- Named capture groups
-- MULTILINE, DOTALL flags
-
-**** Rust regex crate
-#+BEGIN_SRC rust
-use regex::Regex;
-
-let re = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
-assert!(re.is_match("2024-01-15"));
-
-// Capture groups
-let caps = re.captures("...");
-caps.get(1).map(|m| m.as_str());
-
-// Replace
-re.replace_all(text, "replacement");
-#+END_SRC
-
-Key features:
-- Compiled regex (Regex::new)
-- No backtracking (guarantees linear time)
-- Capture groups with .captures()
-
-*** Proposed API (TBD)
-Interface decisions to make:
-1. Compiled vs interpreted patterns?
-2. PCRE vs POSIX vs custom syntax?
-3. How to handle capture groups?
-4. Multiline/dotall mode handling?
-
-#+BEGIN_SRC til
-// Option 1: Simple function-based API
-regex_match := ext_func(pattern: Str, text: Str) returns Bool {}
-regex_find := ext_func(pattern: Str, text: Str) returns I64 {}  // -1 if not found
-regex_sub := ext_func(pattern: Str, replacement: Str, text: Str) returns Str {}
-
-// Option 2: Compiled pattern object
-Regex := struct {
-    // ... internal state ...
-
-    new := proc(pattern: Str) returns Regex throws RegexError {}
-    is_match := func(self: Regex, text: Str) returns Bool {}
-    find := func(self: Regex, text: Str) returns I64 {}
-    replace := func(self: Regex, text: Str, replacement: Str) returns Str {}
-    replace_all := func(self: Regex, text: Str, replacement: Str) returns Str {}
-}
-
-// Option 3: Match result with captures
-RegexMatch := struct {
-    mut matched: Bool = false
-    mut start: I64 = 0
-    mut end: I64 = 0
-    mut groups: Vec = Vec.new(Str)  // Capture groups
-}
-#+END_SRC
-
-*** Implementation options
-1. Link against system regex (POSIX regex.h)
-2. Link against PCRE/PCRE2 library
-3. Use Rust regex crate (for rstil)
-4. Implement simple regex engine in TIL (educational but limited)
-
-*** Use cases
-- Text search and replace in files
-- Parsing structured text (logs, config files)
-- Input validation
-- Code refactoring tools
-- Extracting data from strings
-
 ** Issue #117: ASAP Destruction (auto-delete on last use)
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
@@ -1375,6 +1232,37 @@ This is a multi-step issue. Priorities A and B are sufficient for now.
 Final syntax may evolve as we address all Python import patterns.
 
 * Implemented Issues
+
+** Issue #122: Add regex support to standard library [DONE]
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:COMPLETED: 2026-01-21
+:IMPACT: Essential for text processing, refactoring tools, code generators
+:STATUS: Done
+:END:
+
+*** Implementation
+Pure TIL regex engine in src/std/regex.til (no external dependencies).
+
+*** API
+- ~regex_match(pattern, text)~ - returns Bool
+- ~regex_find(pattern, text)~ - returns position (I64), -1 if not found
+- ~regex_sub(pattern, replacement, text)~ - replace first match
+- ~regex_sub_all(pattern, replacement, text)~ - replace all matches
+
+*** Supported Features
+- Literals, dot (~.~), quantifiers (~*~, ~+~, ~?~), anchors (~^~, ~$~)
+- Character classes: ~[abc]~, ~[^abc]~, ~[a-z]~
+- Escape sequences: ~\d~, ~\D~, ~\w~, ~\W~, ~\s~, ~\S~, ~\n~, ~\t~, ~\r~
+
+*** Not Yet Implemented (see TODOs in regex.til)
+- Alternation (~|~), grouping ~()~, capture groups, backreferences
+- Non-greedy quantifiers, ~{n,m}~ repetition, word boundaries
+
+*** Files
+- src/std/regex.til - implementation
+- src/test/reg_expr.til - tests (runs in all 4 modes)
+- src/core/str.til - added ~Str.from_byte~ helper
 
 ** Issue #127: Pipeline refactoring - Add Desugarer and UFCS phases [DONE]
 :PROPERTIES:

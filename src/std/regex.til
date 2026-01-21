@@ -1,0 +1,493 @@
+mode lib
+
+import("core.str")
+import("core.vec")
+import("core.mem")
+import("core.bounds")
+import("core.u8")
+
+// TODO: Alternation (|) - e.g. "cat|dog"
+// TODO: Grouping with () - e.g. "(ab)+"
+// TODO: Capture groups - return matched substrings, not just positions
+// TODO: Backreferences - e.g. "(.)\1" for repeated chars
+// TODO: Non-greedy quantifiers - *?, +?, ??
+// TODO: Repetition counts - {n}, {n,}, {n,m}
+// TODO: Word boundaries - \b, \B
+
+// Error type for regex operations
+RegexError := struct {
+    mut msg: Str = ""
+}
+
+// Regex atom types (what kind of match element)
+RegexAtomType := enum {
+    Literal,        // Exact character match
+    Dot,            // . - any character except newline
+    CharClass,      // [abc] or [^abc]
+    Digit,          // \d - [0-9]
+    Word,           // \w - [a-zA-Z0-9_]
+    Whitespace,     // \s - [ \t\n\r]
+    NotDigit,       // \D
+    NotWord,        // \W
+    NotWhitespace,  // \S
+}
+
+// A single regex element with quantifier
+RegexElement := struct {
+    mut atom_type: RegexAtomType = RegexAtomType.Literal
+    mut literal_char: U8 = 0           // For Literal type
+    mut class_chars: Str = ""          // For CharClass type
+    mut class_negated: Bool = false    // For CharClass type
+    mut min_rep: I64 = 1               // Minimum repetitions
+    mut max_rep: I64 = 1               // Maximum repetitions (-1 = unlimited)
+}
+
+// Compiled regex pattern
+CompiledRegex := struct {
+    mut elements: Vec = Vec.new(RegexElement)
+    mut anchored_start: Bool = false
+    mut anchored_end: Bool = false
+}
+
+// Check if a byte is a digit (0-9)
+is_digit := func(b: U8) returns Bool {
+    v := U8.to_i64(b)
+    return v.gteq(48).and(v.lteq(57))  // '0'=48, '9'=57
+}
+
+// Check if a byte is a word character (a-zA-Z0-9_)
+is_word_char := func(b: U8) returns Bool {
+    v := U8.to_i64(b)
+    // a-z: 97-122, A-Z: 65-90, 0-9: 48-57, _: 95
+    if v.gteq(97).and(v.lteq(122)) { return true }
+    if v.gteq(65).and(v.lteq(90)) { return true }
+    if v.gteq(48).and(v.lteq(57)) { return true }
+    if v.eq(95) { return true }
+    return false
+}
+
+// Check if a byte is whitespace
+is_whitespace := func(b: U8) returns Bool {
+    v := U8.to_i64(b)
+    // space=32, tab=9, newline=10, carriage return=13
+    if v.eq(32) { return true }
+    if v.eq(9) { return true }
+    if v.eq(10) { return true }
+    if v.eq(13) { return true }
+    return false
+}
+
+// Check if atom matches a byte
+atom_matches := func(elem: RegexElement, b: U8) returns Bool {
+    v := U8.to_i64(b)
+    at := elem.atom_type
+
+    switch at {
+    case RegexAtomType.Literal:
+        return U8.eq(b, elem.literal_char)
+    case RegexAtomType.Dot:
+        return not(v.eq(10))  // Match anything except newline
+    case RegexAtomType.Digit:
+        return is_digit(b)
+    case RegexAtomType.NotDigit:
+        return not(is_digit(b))
+    case RegexAtomType.Word:
+        return is_word_char(b)
+    case RegexAtomType.NotWord:
+        return not(is_word_char(b))
+    case RegexAtomType.Whitespace:
+        return is_whitespace(b)
+    case RegexAtomType.NotWhitespace:
+        return not(is_whitespace(b))
+    case RegexAtomType.CharClass:
+        // Check if byte is in class_chars
+        mut found := false
+        for i in 0..elem.class_chars.len() {
+            class_byte := elem.class_chars.char_at(i)
+            if U8.eq(b, class_byte) {
+                found = true
+            }
+        }
+        if elem.class_negated {
+            return not(found)
+        }
+        return found
+    }
+    return false
+}
+
+// Parse a character class [abc] or [^abc] or [a-z]
+// pos should point to '[', will be advanced past ']'
+parse_char_class := proc(pattern: Str, mut pos: I64) returns RegexElement throws RegexError {
+    mut elem := RegexElement()
+    elem.atom_type = RegexAtomType.CharClass
+    mut chars := ""
+    mut found_end := false
+
+    pos.inc()  // Skip '['
+    if pos.gteq(pattern.len()) {
+        throw RegexError(msg="Unclosed character class")
+    }
+
+    // Check for negation
+    byte_caret := U8.from_i64(94)
+    if pattern.char_at(pos).eq(byte_caret) {
+        elem.class_negated = true
+        pos.inc()
+    }
+
+    byte_bracket := U8.from_i64(93)
+    byte_dash := U8.from_i64(45)
+    byte_backslash := U8.from_i64(92)
+
+    // Parse characters until ']'
+    while pos.lt(pattern.len()).and(not(found_end)) {
+        curr := pattern.char_at(pos)
+        if curr.eq(byte_bracket) {
+            pos.inc()
+            found_end = true
+        } else if pos.add(2).lt(pattern.len()).and(pattern.char_at(pos.add(1)).eq(byte_dash)).and(not(pattern.char_at(pos.add(2)).eq(byte_bracket))) {
+            // Range a-z
+            start_val := U8.to_i64(curr)
+            end_char := pattern.char_at(pos.add(2))
+            end_val := U8.to_i64(end_char)
+            for v in start_val..end_val.add(1) {
+                chars = chars.concat(Str.from_byte(U8.from_i64(v)))
+            }
+            pos = pos.add(3)
+        } else if curr.eq(byte_backslash).and(pos.add(1).lt(pattern.len())) {
+            // Escape in class
+            pos.inc()
+            escaped := pattern.char_at(pos)
+            chars = chars.concat(Str.from_byte(escaped))
+            pos.inc()
+        } else {
+            // Regular character
+            chars = chars.concat(Str.from_byte(curr))
+            pos.inc()
+        }
+    }
+
+    if not(found_end) {
+        throw RegexError(msg="Unclosed character class")
+    }
+
+    elem.class_chars = chars
+
+    catch (err: U8_Overflow) {
+        throw RegexError(msg="Invalid character in class")
+    }
+
+    return elem
+}
+
+// Helper to check and apply quantifier to element
+check_quantifier := proc(mut pos: I64, pattern: Str, mut elem: RegexElement, byte_star: U8, byte_plus: U8, byte_question: U8) {
+    if pos.lt(pattern.len()) {
+        quant := pattern.char_at(pos)
+        if quant.eq(byte_star) {
+            elem.min_rep = 0
+            elem.max_rep = sub(0, 1)
+            pos.inc()
+        } else if quant.eq(byte_plus) {
+            elem.min_rep = 1
+            elem.max_rep = sub(0, 1)
+            pos.inc()
+        } else if quant.eq(byte_question) {
+            elem.min_rep = 0
+            elem.max_rep = 1
+            pos.inc()
+        }
+    }
+}
+
+// Compile a regex pattern string
+compile_regex := proc(pattern: Str) returns CompiledRegex throws RegexError {
+    mut regex := CompiledRegex()
+    mut pos := 0
+
+    byte_caret := U8.from_i64(94)
+    byte_dollar := U8.from_i64(36)
+    byte_dot := U8.from_i64(46)
+    byte_bracket := U8.from_i64(91)
+    byte_backslash := U8.from_i64(92)
+    byte_star := U8.from_i64(42)
+    byte_plus := U8.from_i64(43)
+    byte_question := U8.from_i64(63)
+
+    while pos.lt(pattern.len()) {
+        curr := pattern.char_at(pos)
+
+        mut elem := RegexElement()
+
+        // Check for anchors
+        if curr.eq(byte_caret).and(pos.eq(0)) {
+            regex.anchored_start = true
+            pos.inc()
+        } else if curr.eq(byte_dollar).and(pos.eq(pattern.len().sub(1))) {
+            regex.anchored_end = true
+            pos.inc()
+        } else if curr.eq(byte_dot) {
+            elem.atom_type = RegexAtomType.Dot
+            pos.inc()
+            // Check quantifier and push
+            check_quantifier(pos, pattern, elem, byte_star, byte_plus, byte_question)
+            regex.elements.push(elem)
+        } else if curr.eq(byte_bracket) {
+            elem = parse_char_class(pattern, pos)
+            check_quantifier(pos, pattern, elem, byte_star, byte_plus, byte_question)
+            regex.elements.push(elem)
+        } else if curr.eq(byte_backslash) {
+            if pos.add(1).gteq(pattern.len()) {
+                throw RegexError(msg="Trailing backslash in pattern")
+            }
+            pos.inc()
+            escaped := pattern.char_at(pos)
+            escaped_val := U8.to_i64(escaped)
+            pos.inc()
+
+            if escaped_val.eq(100) {  // 'd'
+                elem.atom_type = RegexAtomType.Digit
+            } else if escaped_val.eq(68) {  // 'D'
+                elem.atom_type = RegexAtomType.NotDigit
+            } else if escaped_val.eq(119) {  // 'w'
+                elem.atom_type = RegexAtomType.Word
+            } else if escaped_val.eq(87) {  // 'W'
+                elem.atom_type = RegexAtomType.NotWord
+            } else if escaped_val.eq(115) {  // 's'
+                elem.atom_type = RegexAtomType.Whitespace
+            } else if escaped_val.eq(83) {  // 'S'
+                elem.atom_type = RegexAtomType.NotWhitespace
+            } else if escaped_val.eq(110) {  // 'n'
+                elem.atom_type = RegexAtomType.Literal
+                elem.literal_char = U8.from_i64(10)
+            } else if escaped_val.eq(116) {  // 't'
+                elem.atom_type = RegexAtomType.Literal
+                elem.literal_char = U8.from_i64(9)
+            } else if escaped_val.eq(114) {  // 'r'
+                elem.atom_type = RegexAtomType.Literal
+                elem.literal_char = U8.from_i64(13)
+            } else {
+                elem.atom_type = RegexAtomType.Literal
+                elem.literal_char = escaped
+            }
+            check_quantifier(pos, pattern, elem, byte_star, byte_plus, byte_question)
+            regex.elements.push(elem)
+        } else {
+            // Literal character
+            elem.atom_type = RegexAtomType.Literal
+            elem.literal_char = curr
+            pos.inc()
+            check_quantifier(pos, pattern, elem, byte_star, byte_plus, byte_question)
+            regex.elements.push(elem)
+        }
+    }
+
+    catch (err: U8_Overflow) {
+        throw RegexError(msg="Invalid character in pattern")
+    }
+
+    return regex
+}
+
+// Try to match regex starting at position in text
+// Returns end position if match, -1 if no match
+try_match_at := proc(regex: CompiledRegex, text: Str, start_pos: I64) returns I64 {
+    mut pos := start_pos
+    mut elem_idx := 0
+    neg_one := sub(0, 1)
+
+    while elem_idx.lt(regex.elements.len()) {
+        mut elem := RegexElement()
+        regex.elements.get(elem_idx, elem)
+
+        // Count how many times we can match
+        mut count := 0
+        mut max_possible := text.len().sub(pos)
+        if not(elem.max_rep.lt(0)) {
+            if elem.max_rep.lt(max_possible) {
+                max_possible = elem.max_rep
+            }
+        }
+
+        mut done_counting := false
+        while count.lt(max_possible).and(not(done_counting)) {
+            byte := text.char_at(pos.add(count))
+            if atom_matches(elem, byte) {
+                count.inc()
+            } else {
+                done_counting = true
+            }
+        }
+
+        if count.lt(elem.min_rep) {
+            return neg_one
+        }
+
+        // For unlimited quantifiers, try lazy matching (fewest first)
+        if elem.max_rep.lt(0) {
+            mut found_match := false
+            mut match_result := neg_one
+            for try_count in elem.min_rep..count.add(1) {
+                if not(found_match) {
+                    // Build sub-regex with remaining elements
+                    mut sub_regex := CompiledRegex()
+                    sub_regex.anchored_start = false
+                    sub_regex.anchored_end = regex.anchored_end
+                    for j in elem_idx.add(1)..regex.elements.len() {
+                        mut sub_elem := RegexElement()
+                        regex.elements.get(j, sub_elem)
+                        sub_regex.elements.push(sub_elem)
+                    }
+
+                    result := try_match_at(sub_regex, text, pos.add(try_count))
+                    if result.gteq(0) {
+                        found_match = true
+                        match_result = result
+                    }
+                }
+            }
+            if found_match {
+                return match_result
+            }
+            return neg_one
+        }
+
+        pos = pos.add(count)
+        elem_idx.inc()
+    }
+
+    // Check end anchor
+    if regex.anchored_end {
+        if not(pos.eq(text.len())) {
+            return neg_one
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        return neg_one
+    }
+
+    return pos
+}
+
+/**
+ * Tests if a regex pattern matches anywhere in the text.
+ */
+regex_match := proc(pattern: Str, text: Str) returns Bool throws RegexError {
+    regex := compile_regex(pattern)
+    mut found := false
+
+    if regex.anchored_start {
+        found = try_match_at(regex, text, 0).gteq(0)
+    } else {
+        for start in 0..text.len().add(1) {
+            if not(found) {
+                if try_match_at(regex, text, start).gteq(0) {
+                    found = true
+                }
+            }
+        }
+    }
+
+    return found
+}
+
+/**
+ * Finds the byte position of the first match (-1 if not found).
+ */
+regex_find := proc(pattern: Str, text: Str) returns I64 throws RegexError {
+    regex := compile_regex(pattern)
+    neg_one := sub(0, 1)
+    mut result := neg_one
+
+    mut start_max := text.len()
+    if regex.anchored_start {
+        start_max = 0
+    }
+
+    for start in 0..start_max.add(1) {
+        if result.lt(0) {
+            if try_match_at(regex, text, start).gteq(0) {
+                result = start
+            }
+        }
+    }
+
+    return result
+}
+
+/**
+ * Substitutes the first occurrence of pattern with replacement.
+ */
+regex_sub := proc(pattern: Str, replacement: Str, text: Str) returns Str throws RegexError {
+    regex := compile_regex(pattern)
+    mut result := text.clone()
+    mut did_replace := false
+
+    mut start_max := text.len()
+    if regex.anchored_start {
+        start_max = 0
+    }
+
+    for start in 0..start_max.add(1) {
+        if not(did_replace) {
+            end_pos := try_match_at(regex, text, start)
+            if end_pos.gteq(0) {
+                before := text.get_substr(0, start)
+                after := text.get_substr(end_pos, text.len())
+                result = before.concat(replacement).concat(after)
+                did_replace = true
+            }
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw RegexError(msg="Index error during substitution")
+    }
+
+    return result
+}
+
+/**
+ * Substitutes all occurrences of pattern with replacement.
+ */
+regex_sub_all := proc(pattern: Str, replacement: Str, text: Str) returns Str throws RegexError {
+    regex := compile_regex(pattern)
+    mut result := ""
+    mut pos := 0
+    mut done := false
+
+    while pos.lteq(text.len()).and(not(done)) {
+        if regex.anchored_start.and(pos.gt(0)) {
+            // Anchored pattern can only match once at start
+            result = result.concat(text.get_substr(pos, text.len()))
+            done = true
+        } else {
+            end_pos := try_match_at(regex, text, pos)
+            if end_pos.gteq(0) {
+                result = result.concat(replacement)
+                if end_pos.eq(pos) {
+                    // Zero-length match, advance by one
+                    if pos.lt(text.len()) {
+                        result = result.concat(Str.from_byte(text.char_at(pos)))
+                    }
+                    pos.inc()
+                } else {
+                    pos = end_pos
+                }
+            } else {
+                if pos.lt(text.len()) {
+                    result = result.concat(Str.from_byte(text.char_at(pos)))
+                }
+                pos.inc()
+            }
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw RegexError(msg="Index error during substitution")
+    }
+
+    return result
+}

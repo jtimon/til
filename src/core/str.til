@@ -389,6 +389,17 @@ Str := struct {
         }
     }
 
+    /** Create a single-character string from a byte value. */
+    from_byte := func(b: U8) returns Str {
+        mut s := Str()
+        s.cap = 1
+        s.c_string = malloc(2)
+        catch (err: BadAlloc) { panic(loc(), "Str.from_byte: malloc failed") }
+        memcpy(s.c_string, to_ptr(b), 1)
+        memset(s.c_string.add(1), ZERO_U8, 1)
+        return s
+    }
+
     /** Replace first n occurrences of 'from' with 'to' */
     replacen := func(self: Str, from: Str, to: Str, n: I64) returns Str {
         if from.len().eq(0) {

@@ -1089,6 +1089,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/optional_args.til"))
     all_common.push(TestEntry(path="src/test/parallel_cmd.til"))
     all_common.push(TestEntry(path="src/test/pointers.til"))
+    all_common.push(TestEntry(path="src/test/reg_expr.til"))
     all_common.push(TestEntry(path="src/test/return_value_usage.til"))
     all_common.push(TestEntry(path="src/test/scope_isolation.til"))
     all_common.push(TestEntry(path="src/test/sets.til"))

@@ -1,0 +1,114 @@
+mode test
+
+import("std.regex")
+
+test_regex := proc() {
+    // Test basic literal matching
+    test(loc(), regex_match("hello", "hello world"), "literal match at start")
+    test(loc(), regex_match("world", "hello world"), "literal match at end")
+    test(loc(), regex_match("lo wo", "hello world"), "literal match in middle")
+    test(loc(), not(regex_match("xyz", "hello world")), "no match for missing pattern")
+    test(loc(), regex_match("", "hello"), "empty pattern matches anything")
+    test(loc(), regex_match("", ""), "empty pattern matches empty string")
+
+    // Test dot (any character) matching
+    test(loc(), regex_match("h.llo", "hello"), "dot matches single char")
+    test(loc(), regex_match("h..lo", "hello"), "two dots match two chars")
+    test(loc(), regex_match(".....", "hello"), "five dots match five chars")
+    test(loc(), not(regex_match("......", "hello")), "six dots dont match five chars")
+    test(loc(), not(regex_match("a.b", "a\nb")), "dot should not match newline")
+
+    // Test star quantifier (zero or more)
+    test(loc(), regex_match("ab*c", "ac"), "star matches zero")
+    test(loc(), regex_match("ab*c", "abc"), "star matches one")
+    test(loc(), regex_match("ab*c", "abbc"), "star matches two")
+    test(loc(), regex_match("ab*c", "abbbbbc"), "star matches many")
+    test(loc(), regex_match(".*", "anything"), "dot-star matches anything")
+    test(loc(), regex_match(".*", ""), "dot-star matches empty")
+
+    // Test plus quantifier (one or more)
+    test(loc(), not(regex_match("ab+c", "ac")), "plus needs at least one")
+    test(loc(), regex_match("ab+c", "abc"), "plus matches one")
+    test(loc(), regex_match("ab+c", "abbc"), "plus matches two")
+    test(loc(), regex_match("ab+c", "abbbbbc"), "plus matches many")
+
+    // Test question mark quantifier (zero or one)
+    test(loc(), regex_match("ab?c", "ac"), "question matches zero")
+    test(loc(), regex_match("ab?c", "abc"), "question matches one")
+    test(loc(), not(regex_match("ab?c", "abbc")), "question doesnt match two")
+
+    // Test anchors
+    test(loc(), regex_match("^hello", "hello world"), "start anchor matches")
+    test(loc(), not(regex_match("^world", "hello world")), "start anchor fails in middle")
+    test(loc(), regex_match("world$", "hello world"), "end anchor matches")
+    test(loc(), not(regex_match("hello$", "hello world")), "end anchor fails in middle")
+    test(loc(), regex_match("^hello$", "hello"), "both anchors exact match")
+    test(loc(), not(regex_match("^hello$", "hello world")), "both anchors fail partial")
+
+    // Test character classes
+    test(loc(), regex_match("[abc]", "a"), "char class matches a")
+    test(loc(), regex_match("[abc]", "b"), "char class matches b")
+    test(loc(), regex_match("[abc]", "c"), "char class matches c")
+    test(loc(), not(regex_match("[abc]", "d")), "char class doesnt match d")
+    test(loc(), not(regex_match("[^abc]", "a")), "negated class rejects a")
+    test(loc(), regex_match("[^abc]", "d"), "negated class accepts d")
+    test(loc(), regex_match("[a-z]", "m"), "range matches middle")
+    test(loc(), regex_match("[a-z]", "a"), "range matches start")
+    test(loc(), regex_match("[a-z]", "z"), "range matches end")
+    test(loc(), not(regex_match("[a-z]", "A")), "range doesnt match uppercase")
+    test(loc(), regex_match("[a-zA-Z]", "M"), "combined range matches uppercase")
+    test(loc(), regex_match("[0-9]", "5"), "digit range matches")
+
+    // Test escape sequences
+    test(loc(), regex_match("\\d", "5"), "\\d matches digit")
+    test(loc(), not(regex_match("\\d", "a")), "\\d doesnt match letter")
+    test(loc(), regex_match("\\D", "a"), "\\D matches non-digit")
+    test(loc(), not(regex_match("\\D", "5")), "\\D doesnt match digit")
+    test(loc(), regex_match("\\w", "a"), "\\w matches letter")
+    test(loc(), regex_match("\\w", "5"), "\\w matches digit")
+    test(loc(), regex_match("\\w", "_"), "\\w matches underscore")
+    test(loc(), not(regex_match("\\w", "!")), "\\w doesnt match special")
+    test(loc(), regex_match("\\W", "!"), "\\W matches special")
+    test(loc(), regex_match("\\s", " "), "\\s matches space")
+    test(loc(), regex_match("\\s", "\t"), "\\s matches tab")
+    test(loc(), not(regex_match("\\s", "a")), "\\s doesnt match letter")
+    test(loc(), regex_match("\\S", "a"), "\\S matches letter")
+    test(loc(), regex_match("\\.", "a.b"), "escaped dot matches literal dot")
+    test(loc(), not(regex_match("\\.", "abc")), "escaped dot doesnt match letter")
+    test(loc(), regex_match("\\*", "a*b"), "escaped star matches literal star")
+
+    // Test regex_find
+    neg_one := sub(0, 1)
+    assert_eq(loc(), 0, regex_find("hello", "hello world"))
+    assert_eq(loc(), 6, regex_find("world", "hello world"))
+    assert_eq(loc(), neg_one, regex_find("xyz", "hello world"))
+    assert_eq(loc(), 0, regex_find("^hello", "hello world"))
+    assert_eq(loc(), neg_one, regex_find("^world", "hello world"))
+
+    // Test regex_sub (first replacement)
+    assert_eq_str(loc(), "hi world", regex_sub("hello", "hi", "hello world"))
+    assert_eq_str(loc(), "hello earth", regex_sub("world", "earth", "hello world"))
+    assert_eq_str(loc(), "hello world", regex_sub("xyz", "abc", "hello world"))
+    assert_eq_str(loc(), "hXllo world", regex_sub("e", "X", "hello world"))
+    assert_eq_str(loc(), "X world", regex_sub("h.*o", "X", "hello world"))
+
+    // Test regex_sub_all (all replacements)
+    assert_eq_str(loc(), "hellX wXrld", regex_sub_all("o", "X", "hello world"))
+    assert_eq_str(loc(), "XXX", regex_sub_all("[a-z]", "X", "abc"))
+    assert_eq_str(loc(), "h-ll- w-rld", regex_sub_all("[aeiou]", "-", "hello world"))
+
+    // Test complex patterns
+    test(loc(), regex_match("\\w+@\\w+\\.\\w+", "test@example.com"), "email-like pattern")
+    test(loc(), regex_match("a+b*c?d", "aaad"), "multiple quantifiers")
+    test(loc(), regex_match("a+b*c?d", "abcd"), "multiple quantifiers all present")
+    test(loc(), regex_match("[a-z]+[0-9]+", "abc123"), "class with quantifier")
+    test(loc(), not(regex_match("[a-z]+[0-9]+", "123abc")), "class order matters")
+
+    println("All regex tests passed!")
+
+    catch (err: RegexError) {
+        println("ERROR:", loc(), "RegexError:", err.msg)
+        exit(1)
+    }
+}
+test_regex()
