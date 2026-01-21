@@ -459,7 +459,7 @@ fn hoist_throwing_expr(
 
         // Emit the function call with output pointers
         output.push_str(&indent_str);
-        output.push_str("int _status_");
+        output.push_str("int __attribute__((unused)) _status_");
         output.push_str(&temp_suffix);
         output.push_str(" = ");
 
@@ -802,7 +802,7 @@ fn hoist_throwing_args(
 
             // Emit the function call with output pointers
             output.push_str(&indent_str);
-            output.push_str("int _status_");
+            output.push_str("int __attribute__((unused)) _status_");
             output.push_str(&thr_temp_suffix);
             output.push_str(" = ");
 
@@ -1318,7 +1318,7 @@ fn hoist_variadic_args(
     // Declare error var for Array.set (IndexOutOfBoundsError)
     output.push_str(&indent_str);
     output.push_str(TIL_PREFIX);
-    output.push_str("IndexOutOfBoundsError _err_idx_");
+    output.push_str("IndexOutOfBoundsError __attribute__((unused)) _err_idx_");
     output.push_str(&err_suffix);
     output.push_str(";\n");
 
@@ -1379,7 +1379,7 @@ fn hoist_variadic_args(
 
     // Declare status variable for Array.set calls
     output.push_str(&indent_str);
-    output.push_str("int _arr_status_");
+    output.push_str("int __attribute__((unused)) _arr_status_");
     output.push_str(&err_suffix);
     output.push_str(";\n");
 
@@ -4100,7 +4100,7 @@ fn emit_throwing_call(
 
     // Generate the function call with output parameters
     output.push_str(&indent_str);
-    output.push_str("int _status_");
+    output.push_str("int __attribute__((unused)) _status_");
     output.push_str(&temp_suffix.to_string());
     output.push_str(" = ");
     output.push_str(&til_func_name(&func_name));
@@ -4412,7 +4412,7 @@ fn emit_throwing_call_propagate(
 
     // Generate the function call with output parameters
     output.push_str(&indent_str);
-    output.push_str("int _status_");
+    output.push_str("int __attribute__((unused)) _status_");
     output.push_str(&temp_suffix);
     output.push_str(" = ");
     output.push_str(&til_func_name(&func_name));
@@ -4683,7 +4683,7 @@ fn emit_throwing_call_with_goto(
 
     // Generate the function call with output parameters
     output.push_str(&indent_str);
-    output.push_str("int _status_");
+    output.push_str("int __attribute__((unused)) _status_");
     output.push_str(&temp_suffix);
     output.push_str(" = ");
     output.push_str(&til_func_name(&func_name));

@@ -625,7 +625,7 @@ ccodegen.rs and ccodegen.til to escape null bytes as ~\0~ in C output.
 - [X] Step 3c: Fix and re-enable -Wint-conversion (2026-01-13) - cast RHS to Dynamic in emit_assignment
 - [ ] Step 3d: Enable and fix -Wdangling-pointer
 - [ ] Step 3e: Enable and fix -Wreturn-type
-- [ ] Step 3f: Enable and fix -Wunused-variable
+- [-] Step 3f: Enable and fix -Wunused-variable (partial 2026-01-21: added __attribute__((unused)) to _status_, _arr_status_, _err_idx_ - reduced from 2877 to 1418 warnings)
 - [ ] Step 3g: Enable and fix -Wunused-but-set-variable
 - [ ] Step 3h: Enable and fix -Wunused-label
 - [ ] Step 3i: Enable and fix -Wunused-parameter

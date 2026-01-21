@@ -632,7 +632,7 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
 
             // Emit the function call with output pointers
             output.push_str(indent_str)
-            output.push_str("int _status_")
+            output.push_str("int __attribute__((unused)) _status_")
             output.push_str(temp_suffix)
             output.push_str(" = ")
 
@@ -1107,7 +1107,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             // Emit the function call with output pointers
             output.push_str(indent_str)
-            output.push_str("int _status_")
+            output.push_str("int __attribute__((unused)) _status_")
             output.push_str(thr_temp_suffix)
             output.push_str(" = ")
 
@@ -1800,7 +1800,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     // Declare error var for Array.set (IndexOutOfBoundsError)
     output.push_str(indent_str)
     output.push_str(TIL_PREFIX)
-    output.push_str("IndexOutOfBoundsError _err_idx_")
+    output.push_str("IndexOutOfBoundsError __attribute__((unused)) _err_idx_")
     output.push_str(err_suffix)
     output.push_str(";\n")
 
@@ -1868,7 +1868,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
 
     // Declare status variable for Array.set calls
     output.push_str(indent_str)
-    output.push_str("int _arr_status_")
+    output.push_str("int __attribute__((unused)) _arr_status_")
     output.push_str(err_suffix)
     output.push_str(";\n")
 
@@ -5259,7 +5259,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // Generate the function call with output parameters
     output.push_str(indent_str)
-    output.push_str("int _status_")
+    output.push_str("int __attribute__((unused)) _status_")
     output.push_str(temp_suffix)
     output.push_str(" = ")
     output.push_str(til_func_name(func_name))
@@ -5647,7 +5647,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Generate the function call with output parameters
     output.push_str(indent_str)
-    output.push_str("int _status_")
+    output.push_str("int __attribute__((unused)) _status_")
     output.push_str(temp_suffix)
     output.push_str(" = ")
     output.push_str(til_func_name(func_name))
@@ -5982,7 +5982,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Generate the function call with output parameters
     output.push_str(indent_str)
-    output.push_str("int _status_")
+    output.push_str("int __attribute__((unused)) _status_")
     output.push_str(temp_suffix)
     output.push_str(" = ")
     output.push_str(til_func_name(func_name))
