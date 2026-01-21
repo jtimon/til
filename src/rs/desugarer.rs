@@ -354,10 +354,14 @@ pub fn desugar_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         },
         // Recurse into FuncDef bodies
         NodeType::FuncDef(func_def) => {
+            // Bug #130 fix: Reset counter per-function for deterministic output
+            let saved_counter = context.precomp_forin_counter;
+            context.precomp_forin_counter = 0;
             let mut new_body = Vec::new();
             for stmt in &func_def.body {
                 new_body.push(desugar_expr(context, stmt)?);
             }
+            context.precomp_forin_counter = saved_counter;
             let new_func_def = SFuncDef {
                 function_type: func_def.function_type.clone(),
                 args: func_def.args.clone(),

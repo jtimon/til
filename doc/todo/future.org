@@ -1433,6 +1433,22 @@ as a separate pass before precomp.
   in interpreter.til to be incorrectly typed as SymbolEntry from eval_arena.til's
   for-in loop over SymbolEntry).
 
+**** Post-completion fix: Counter reset for determinism (2026-01-21)
+When ForIn desugaring was moved from precomp to desugarer, the per-function
+counter reset logic was NOT moved along with it. This caused non-deterministic
+temp variable names (~_for_i_N~) in generated C code.
+
+precomp.rs had this pattern for FuncDef processing:
+#+BEGIN_SRC rust
+let saved_counter = context.precomp_forin_counter;
+context.precomp_forin_counter = 0;
+// ... process function body ...
+context.precomp_forin_counter = saved_counter;
+#+END_SRC
+
+But desugarer.rs was missing it. Fix: Added the same save/reset/restore pattern
+to ~desugar_expr~ FuncDef handling in both desugarer.rs and desugarer.til.
+
 **** Files to create
 - src/rs/desugarer.rs - Rust implementation
 - src/self/desugarer.til - TIL implementation (port from Rust)
