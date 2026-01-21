@@ -206,6 +206,13 @@ code path still produces INFER_TYPE after typer, the new assertions will catch i
   member type resolution to typer's StructDef handler (was missing). Removed
   INFER_TYPE guard in eval_declaration - type check always runs now. Replaced
   struct member INFER_TYPE inference with lang_error.
+- Step 6 DONE: Remove INFER_TYPE handling from ccodegen. Replaced inference
+  logic with panic/lang_error in: get_field_type_dependency, emit_constant_declaration,
+  emit_declaration (2 places), collect_declarations_recursive.
+
+*** Step 7: Unify type resolution with type checking
+No need for two passes (check_types + resolve_inferred_types). Merge them into
+a single pass that both checks types and resolves INFER_TYPE in one traversal.
 
 ** Bug #126: Error message divergence between rstil and til
 :PROPERTIES:

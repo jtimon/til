@@ -266,7 +266,7 @@ get_field_type_dependency := func(value_type: ValueType) returns Str throws KeyN
             throw KeyNotFoundError(msg="primitive")
         case:
             if name.eq(INFER_TYPE) {
-                throw KeyNotFoundError(msg="infer type")
+                panic(loc(), "INFER_TYPE in ccodegen - should have been resolved by typer")
             }
             return name
         }
@@ -2984,11 +2984,10 @@ emit_constant_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenC
                     // Check if declaration has explicit type annotation
                     switch decl.value_type {
                     case ValueType.TCustom(const_type_name):
-                        if not(const_type_name.eq(INFER_TYPE)) {
-                            c_type = TIL_PREFIX.concat(const_type_name)
-                        } else {
-                            c_type = TIL_PREFIX.concat("I64")
+                        if const_type_name.eq(INFER_TYPE) {
+                            throw expr.lang_error(context.path, "ccodegen", format("Declaration '", decl.name, "' has INFER_TYPE - should have been resolved by typer"))
                         }
+                        c_type = TIL_PREFIX.concat(const_type_name)
                     case:
                         c_type = TIL_PREFIX.concat("I64")
                     }
@@ -6609,32 +6608,17 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         }
         output.push_str(indent_str)
         if not(already_declared) {
-            // Determine C type - use explicit type annotation if present, otherwise infer
-            mut is_infer := false
+            // INFER_TYPE should have been resolved by typer
             switch decl.value_type {
             case ValueType.TCustom(s):
                 if s.eq(INFER_TYPE) {
-                    is_infer = true
+                    throw expr.lang_error(context.path, "ccodegen", format("Declaration '", decl.name, "' has INFER_TYPE - should have been resolved by typer"))
                 }
             case:
-                // REM: not TCustom
             }
-            mut c_type := ""
-            if is_infer {
-                // INFER_TYPE - infer from RHS
-                mut infer_first_param := Expr()
-                expr.params.get(0, infer_first_param)
-                infer_vt := get_value_type(context, infer_first_param)
-                c_type = til_type_to_c(infer_vt)
-                catch (err: Str) {
-                    throw expr.lang_error(context.path, "ccodegen", err)
-                }
-            } else {
-                // Explicit type annotation - use it
-                c_type = til_type_to_c(decl.value_type)
-                catch (err: Str) {
-                    throw expr.lang_error(context.path, "ccodegen", err)
-                }
+            c_type := til_type_to_c(decl.value_type)
+            catch (err: Str) {
+                throw expr.lang_error(context.path, "ccodegen", err)
             }
             output.push_str(c_type)
             output.push_str(" ")
@@ -6711,32 +6695,17 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         }
         output.push_str(indent_str)
         if not(already_declared) {
-            // Determine C type - use explicit type annotation if present, otherwise infer
-            mut const_is_infer := false
+            // INFER_TYPE should have been resolved by typer
             switch decl.value_type {
             case ValueType.TCustom(s):
                 if s.eq(INFER_TYPE) {
-                    const_is_infer = true
+                    throw expr.lang_error(context.path, "ccodegen", format("Declaration '", decl.name, "' has INFER_TYPE - should have been resolved by typer"))
                 }
             case:
-                // REM: not TCustom
             }
-            mut const_c_type := ""
-            if const_is_infer {
-                // INFER_TYPE - infer from RHS
-                mut const_first_param := Expr()
-                expr.params.get(0, const_first_param)
-                const_vt := get_value_type(context, const_first_param)
-                const_c_type = til_type_to_c(const_vt)
-                catch (err: Str) {
-                    throw expr.lang_error(context.path, "ccodegen", err)
-                }
-            } else {
-                // Explicit type annotation - use it
-                const_c_type = til_type_to_c(decl.value_type)
-                catch (err: Str) {
-                    throw expr.lang_error(context.path, "ccodegen", err)
-                }
+            const_c_type := til_type_to_c(decl.value_type)
+            catch (err: Str) {
+                throw expr.lang_error(context.path, "ccodegen", err)
             }
             output.push_str("const ")
             output.push_str(const_c_type)
@@ -8105,26 +8074,15 @@ collect_declarations_in_body := proc(body: Expr, mut context: Context) returns V
 collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected: Map, mut context: Context) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        // Add this declaration
-        // If type is INFER_TYPE, try to infer from the expression
-        mut value_type := decl.value_type
+        // INFER_TYPE should have been resolved by typer
         switch decl.value_type {
         case ValueType.TCustom(name):
-            if name.eq(INFER_TYPE).and(not(expr.params.is_empty())) {
-                mut first_param := Expr()
-                expr.params.get(0, first_param)
-                mut have_inferred := true
-                inferred := get_value_type(context, first_param)
-                catch (err: Str) {
-                    have_inferred = false
-                }
-                if have_inferred {
-                    value_type = inferred
-                }
+            if name.eq(INFER_TYPE) {
+                panic(loc(), "Declaration '", decl.name, "' has INFER_TYPE in ccodegen - should have been resolved by typer")
             }
         case:
-            // REM: not TCustom
         }
+        value_type := decl.value_type
         // Track this declaration for future lookups (both in collected and scope_stack)
         collected.set(decl.name.clone(), value_type)
         // Also add to scope_stack so get_value_type can find it for subsequent declarations

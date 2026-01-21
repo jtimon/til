@@ -223,7 +223,7 @@ fn get_field_type_dependency(value_type: &ValueType) -> Option<String> {
             // I64 and U8 are primitives, not struct dependencies
             match name.as_str() {
                 "I64" | "U8" => None,
-                s if s == INFER_TYPE => None,
+                s if s == INFER_TYPE => panic!("INFER_TYPE in ccodegen - should have been resolved by typer"),
                 _ => Some(name.clone()),
             }
         },
@@ -2274,11 +2274,10 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &mut Codegen
                     Literal::Number(_) => {
                         // Check if declaration has explicit type annotation
                         if let ValueType::TCustom(type_name) = &decl.value_type {
-                            if type_name != INFER_TYPE {
-                                format!("{}{}", TIL_PREFIX, type_name)
-                            } else {
-                                format!("{}I64", TIL_PREFIX)
+                            if type_name == INFER_TYPE {
+                                return Err(expr.lang_error(&context.path, "ccodegen", &format!("Declaration '{}' has INFER_TYPE - should have been resolved by typer", decl.name)));
                             }
+                            format!("{}{}", TIL_PREFIX, type_name)
                         } else {
                             format!("{}I64", TIL_PREFIX)
                         }
@@ -5198,16 +5197,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         }
         output.push_str(&indent_str);
         if !already_declared {
-            // Determine C type - use explicit type annotation if present, otherwise infer
-            let is_infer = matches!(&decl.value_type, ValueType::TCustom(s) if s == INFER_TYPE);
-            let c_type = if is_infer {
-                // INFER_TYPE - infer from RHS
-                let vt = get_value_type(context, &expr.params[0]).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
-                til_type_to_c(&vt).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
-            } else {
-                // Explicit type annotation - use it
-                til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
-            };
+            // INFER_TYPE should have been resolved by typer
+            if matches!(&decl.value_type, ValueType::TCustom(s) if s == INFER_TYPE) {
+                return Err(expr.lang_error(&context.path, "ccodegen", &format!("Declaration '{}' has INFER_TYPE - should have been resolved by typer", decl.name)));
+            }
+            let c_type = til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
             output.push_str(&c_type);
             output.push_str(" ");
             ctx.declared_vars.insert(til_name(name));
@@ -5256,16 +5250,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         }
         output.push_str(&indent_str);
         if !already_declared {
-            // Determine C type - use explicit type annotation if present, otherwise infer
-            let is_infer = matches!(&decl.value_type, ValueType::TCustom(s) if s == INFER_TYPE);
-            let c_type = if is_infer {
-                // INFER_TYPE - infer from RHS
-                let vt = get_value_type(context, &expr.params[0]).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
-                til_type_to_c(&vt).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
-            } else {
-                // Explicit type annotation - use it
-                til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?
-            };
+            // INFER_TYPE should have been resolved by typer
+            if matches!(&decl.value_type, ValueType::TCustom(s) if s == INFER_TYPE) {
+                return Err(expr.lang_error(&context.path, "ccodegen", &format!("Declaration '{}' has INFER_TYPE - should have been resolved by typer", decl.name)));
+            }
+            let c_type = til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
             output.push_str("const ");
             output.push_str(&c_type);
             output.push_str(" ");
@@ -6259,17 +6248,13 @@ fn collect_declarations_in_body(body: &Expr, context: &mut Context) -> Vec<Colle
 fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<CollectedDeclaration>, collected: &mut std::collections::HashMap<String, ValueType>, context: &mut Context) {
     match &expr.node_type {
         NodeType::Declaration(decl) => {
-            // Add this declaration
-            // If type is INFER_TYPE, try to infer from the expression
-            let value_type = if let ValueType::TCustom(name) = &decl.value_type {
-                if name == INFER_TYPE && !expr.params.is_empty() {
-                    get_value_type(context, &expr.params[0]).ok().unwrap_or(decl.value_type.clone())
-                } else {
-                    decl.value_type.clone()
+            // INFER_TYPE should have been resolved by typer
+            if let ValueType::TCustom(name) = &decl.value_type {
+                if name == INFER_TYPE {
+                    panic!("Declaration '{}' has INFER_TYPE in ccodegen - should have been resolved by typer", decl.name);
                 }
-            } else {
-                decl.value_type.clone()
-            };
+            }
+            let value_type = decl.value_type.clone();
             // Track this declaration for future lookups (both in collected and scope_stack)
             collected.insert(decl.name.clone(), value_type.clone());
             // Also add to scope_stack so get_value_type can find it for subsequent declarations
