@@ -584,9 +584,13 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
             };
 
             // Check if types are compatible
+            // Bug #124: Allow I64 literals to be passed as U8 arguments
+            let is_u8_i64_coercion_skip = matches!(&expected, ValueType::TCustom(tn) if tn == "U8")
+                && matches!(&found_type, ValueType::TCustom(ft) if ft == "I64")
+                && matches!(&arg_expr.node_type, NodeType::LLiteral(Literal::Number(_)));
             let types_ok = match &expected {
                 ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => true,
-                _ => &expected == &found_type,
+                _ => &expected == &found_type || is_u8_i64_coercion_skip,
             };
 
             if types_ok {
@@ -690,6 +694,10 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
         }
 
         // Note: found_type was already computed at start of loop for Bug #61 skip logic
+        // Bug #124: Allow I64 literals to be passed as U8 arguments
+        let is_u8_i64_coercion = matches!(expected_type, ValueType::TCustom(tn) if tn == "U8")
+            && matches!(&found_type, ValueType::TCustom(ft) if ft == "I64")
+            && matches!(&arg_expr.node_type, NodeType::LLiteral(Literal::Number(_)));
         match expected_type {
             ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => {}, // Accept any type for Dynamic/Type-typed argument
             ValueType::TCustom(tn) if tn == INFER_TYPE => {
@@ -701,13 +709,13 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
                     f_name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, arg.name,
                 )));
             },
-            _ if expected_type != &found_type => {
+            _ if expected_type != &found_type && !is_u8_i64_coercion => {
                 errors.push(e.error(&context.path, "type", &format!(
                     "calling function '{}' expects '{}' for arg '{}', but '{}' was provided.",
                     f_name, value_type_to_str(expected_type), arg.name, value_type_to_str(&found_type)
                 )));
             },
-            _ => {} // types match; no error
+            _ => {} // types match or U8/I64 coercion; no error
         }
 
         // Bug #49: Handle ownership transfer for 'own' parameters

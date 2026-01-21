@@ -108,50 +108,6 @@ Align error messages between src/rs/ and src/self/:
 2. Ensure same code paths produce same errors in same order
 3. Port any error message changes bidirectionally
 
-** Bug #124: I64 literals cannot be passed to U8 parameters in method calls
-:PROPERTIES:
-:DISCOVERED: 2026-01-17
-:IMPACT: Must declare U8 constants for literals when calling U8 methods
-:STATUS: Open
-:END:
-
-*** Description
-When calling methods on U8 values using UFCS syntax, I64 numeric literals (like 42 or 255)
-cannot be directly passed as arguments to U8 parameters. The type checker rejects them even
-though I64 literals work fine in other contexts where U8 is expected (like variable assignment).
-
-*** Example
-#+BEGIN_SRC til
-mut val : U8 = 41
-val.inc()
-test(loc(), val.eq(42), "should work but fails")  // ERROR: expects U8, got I64
-
-// Workaround: declare constant first
-u8_42 : U8 = 42
-test(loc(), val.eq(u8_42), "works")  // OK
-#+END_SRC
-
-*** Root Cause
-After refactoring U8.lt and U8.gt to use native u8_lt/u8_gt ext_funcs (instead of converting
-to I64 internally), the type checker now strictly enforces U8 parameter types. The issue is
-that literal type inference doesn't work for method call arguments the same way it works for
-variable assignments.
-
-Variable assignment: `val : U8 = 42` - the literal 42 is inferred as U8 (works)
-Method call: `val.eq(42)` - the literal 42 is typed as I64 (fails)
-
-*** Workaround
-Declare U8 constants before passing them to U8 methods:
-#+BEGIN_SRC til
-u8_42 : U8 = 42
-test(loc(), val.eq(u8_42), "works")
-#+END_SRC
-
-*** Notes
-This affects U8.eq, U8.lt, U8.gt, U8.lteq, U8.gteq and any other U8 methods that take U8 parameters.
-The old implementation of U8.lt/U8.gt worked around this by converting to I64 internally, but that
-defeated the purpose of having native U8 comparison functions.
-
 ** Bug #123: UFCS method calls fail on recursive nested function results
 :PROPERTIES:
 :DISCOVERED: 2026-01-16
@@ -2043,6 +1999,58 @@ main := proc(args: ..Str) {
 2. The C codegen should unpack argv into individual named parameters for custom signatures.
 
 * Fixed Bugs
+
+** Bug #124: I64 literals cannot be passed to U8 parameters in method calls
+:PROPERTIES:
+:DISCOVERED: 2026-01-17
+:FIXED: 2026-01-22
+:IMPACT: Must declare U8 constants for literals when calling U8 methods
+:STATUS: Fixed
+:END:
+
+*** Description
+When calling methods on U8 values using UFCS syntax, I64 numeric literals (like 42 or 255)
+cannot be directly passed as arguments to U8 parameters. The type checker rejects them even
+though I64 literals work fine in other contexts where U8 is expected (like variable assignment).
+
+*** Example
+#+BEGIN_SRC til
+mut val : U8 = 41
+val.inc()
+test(loc(), val.eq(42), "should work but fails")  // ERROR: expects U8, got I64
+
+// Workaround: declare constant first
+u8_42 : U8 = 42
+test(loc(), val.eq(u8_42), "works")  // OK
+#+END_SRC
+
+*** Root Cause
+After refactoring U8.lt and U8.gt to use native u8_lt/u8_gt ext_funcs (instead of converting
+to I64 internally), the type checker now strictly enforces U8 parameter types. The issue is
+that literal type inference doesn't work for method call arguments the same way it works for
+variable assignments.
+
+Variable assignment: `val : U8 = 42` - the literal 42 is inferred as U8 (works)
+Method call: `val.eq(42)` - the literal 42 is typed as I64 (fails)
+
+*** The Fix
+Added special case coercion in check_fcall (typer.rs and typer.til) to allow I64 numeric
+literals to be passed to U8 parameters. The coercion only applies when:
+1. Expected type is U8
+2. Found type is I64
+3. The argument expression is a numeric literal (NodeType::LLiteral(Literal::Number(_)))
+
+This matches the existing behavior in init.rs/init.til for variable assignments.
+
+*** Files Modified
+- src/rs/typer.rs: Added is_u8_i64_coercion_skip check in check_fcall for Bug #61 loop,
+  added is_u8_i64_coercion check before type mismatch error
+- src/self/typer.til: Same fix ported
+
+*** Notes
+This affects U8.eq, U8.lt, U8.gt, U8.lteq, U8.gteq and any other U8 methods that take U8 parameters.
+The old implementation of U8.lt/U8.gt worked around this by converting to I64 internally, but that
+defeated the purpose of having native U8 comparison functions.
 
 ** Bug #128: INFER_TYPE should not exist in AST after typer phase
 :PROPERTIES:

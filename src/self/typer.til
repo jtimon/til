@@ -707,16 +707,39 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
 
             // Check if types are compatible
+            // Bug #124: Allow I64 literals to be passed as U8 arguments
+            mut is_u8_i64_coercion_skip := false
+            switch expected {
+            case ValueType.TCustom(expected_tn):
+                if expected_tn.eq("U8") {
+                    switch found_type {
+                    case ValueType.TCustom(found_tn):
+                        if found_tn.eq("I64") {
+                            switch arg_expr.node_type {
+                            case NodeType.LLiteral(literal):
+                                switch literal {
+                                case Literal.Number(_):
+                                    is_u8_i64_coercion_skip = true
+                                case:
+                                }
+                            case:
+                            }
+                        }
+                    case:
+                    }
+                }
+            case:
+            }
             mut types_ok := false
             switch expected {
             case ValueType.TCustom(tn):
                 if tn.eq("Dynamic").or(tn.eq("Type")) {
                     types_ok = true
                 } else {
-                    types_ok = value_type_to_str(expected).eq(value_type_to_str(found_type))
+                    types_ok = value_type_to_str(expected).eq(value_type_to_str(found_type)).or(is_u8_i64_coercion_skip)
                 }
             case:
-                types_ok = value_type_to_str(expected).eq(value_type_to_str(found_type))
+                types_ok = value_type_to_str(expected).eq(value_type_to_str(found_type)).or(is_u8_i64_coercion_skip)
             }
 
             if types_ok {
@@ -853,6 +876,29 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
         }
 
         // Note: found_type was already computed at start of loop for Bug #61 skip logic
+        // Bug #124: Allow I64 literals to be passed as U8 arguments
+        mut is_u8_i64_coercion := false
+        switch expected_type {
+        case ValueType.TCustom(expected_tn):
+            if expected_tn.eq("U8") {
+                switch found_type {
+                case ValueType.TCustom(found_tn):
+                    if found_tn.eq("I64") {
+                        switch arg_expr.node_type {
+                        case NodeType.LLiteral(literal):
+                            switch literal {
+                            case Literal.Number(_):
+                                is_u8_i64_coercion = true
+                            case:
+                            }
+                        case:
+                        }
+                    }
+                case:
+                }
+            }
+        case:
+        }
         // Check type compatibility
         switch expected_type {
         case ValueType.TCustom(tn):
@@ -864,7 +910,7 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
                 )))
             } else {
                 // Check type match
-                if not(value_type_to_str(expected_type).eq(value_type_to_str(found_type))) {
+                if not(value_type_to_str(expected_type).eq(value_type_to_str(found_type))).and(not(is_u8_i64_coercion)) {
                     errors.push(e_clone.error(context.path, "type", format(
                         "calling function '", f_name, "' expects '", value_type_to_str(expected_type), "' for arg '", arg.name, "', but '", value_type_to_str(found_type), "' was provided."
                     )))
@@ -872,7 +918,7 @@ check_fcall := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
         case:
             // Check type match
-            if not(value_type_to_str(expected_type).eq(value_type_to_str(found_type))) {
+            if not(value_type_to_str(expected_type).eq(value_type_to_str(found_type))).and(not(is_u8_i64_coercion)) {
                 errors.push(e_clone.error(context.path, "type", format(
                     "calling function '", f_name, "' expects '", value_type_to_str(expected_type), "' for arg '", arg.name, "', but '", value_type_to_str(found_type), "' was provided."
                 )))
