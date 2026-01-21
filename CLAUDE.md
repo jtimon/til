@@ -120,6 +120,13 @@ Don't ask where tests go - they're organized by collection type:
   5. Can extend to more modes, upgrade to `src/test/` if useful
 - Benefits of tmp/ files: re-testable, extendable, promotable to real tests
 
+## CRITICAL: Use TIL Instead of Bash/Python for Scripting
+- **TIL has loops** - `for`, `while`, `for x in collection`
+- **TIL has conditionals** - `if`, `else`, `switch`
+- **TIL has all the features you need** - don't assume it lacks something
+- When you need to script something (run tests in a loop, process files, etc.), write a TIL script in `tmp/` instead of using bash loops or python
+- If you find yourself wanting bash/python because "TIL doesn't have X", STOP and complain to the user: "TIL sucks, I'm missing X feature right now, what should we do?"
+
 ## Permissions Already Granted
 Don't ask permission for:
 - `make`, `make benchmark`, `make rstil`, `rustc`

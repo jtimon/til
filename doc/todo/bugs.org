@@ -108,27 +108,6 @@ Align error messages between src/rs/ and src/self/:
 2. Ensure same code paths produce same errors in same order
 3. Port any error message changes bidirectionally
 
-** Bug #125: Non-deterministic order of "Unused variable" errors
-:PROPERTIES:
-:DISCOVERED: 2026-01-19
-:IMPACT: Test output comparison fails intermittently
-:STATUS: Open
-:END:
-
-*** Description
-When multiple unused variables are declared in the same function, the order of
-"Unused variable" errors is non-deterministic between runs. This causes test
-failures when comparing expected vs actual output.
-
-*** Root Cause
-In src/rs/init.rs:79, `function_locals` is a `HashSet<(String, usize, usize)>`.
-The `get_unused_symbols()` function at line 140 iterates over this HashSet,
-and HashSet iteration order is non-deterministic in Rust.
-
-*** Fix
-Sort the unused symbols before returning them from `get_unused_symbols()`,
-e.g. by name, or by (line, col, name) for consistent ordering.
-
 ** Bug #124: I64 literals cannot be passed to U8 parameters in method calls
 :PROPERTIES:
 :DISCOVERED: 2026-01-17
@@ -2128,6 +2107,25 @@ Cleaned up INFER_TYPE handling across the codebase in 6 steps:
 - Step 6: Removed INFER_TYPE handling from ccodegen (both Rust and TIL)
 
 Remaining work (unifying type checking with type resolution) split to Bug #130.
+
+** Bug #125: Non-deterministic unused variable error ordering
+:PROPERTIES:
+:DISCOVERED: 2026-01-19
+:FIXED: 2026-01-21
+:IMPACT: Minor - warnings appeared in random order
+:STATUS: Fixed
+:END:
+
+*** Description
+Unused variable warnings were reported in non-deterministic order because
+`function_locals` was stored in a HashSet (unordered).
+
+*** Fix
+Changed `function_locals` from HashSet to Vec<FunctionLocal>, which maintains
+insertion order. Errors now consistently report in declaration order (a, b, c).
+
+Verified by running the same test file multiple times with both rstil and til -
+output is now deterministic.
 
 ** Bug #102: Automatic dependency tracking from imports
 :PROPERTIES:
