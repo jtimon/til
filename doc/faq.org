@@ -24,3 +24,7 @@ Til's generics monomorphize for zero-cost abstractions in optimized builds, but 
 * Why this "multi-paradigm" approach?**
 
 Til's philosophy prioritizes developer freedom: choose the right tool for the task without ecosystem lock-in. By desugaring features (e.g., generics to macros, OO-style to UFCS), Til minimizes cognitive overhead and implementation complexity, making it a versatile foundation for everything from systems programming to data science.
+
+* For compiling C, does it use gcc or clang?
+
+Yes, to both. On macOS, Til uses clang (Apple's default and only option). On Linux and Windows, gcc is the default but clang can be used as an alternative. The choice is transparent to the user - Til's codegen produces portable C that works with either compiler. Both toolchains receive the same warning flags (including -Werror) to ensure consistent code quality across platforms.
