@@ -12,6 +12,68 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #132: Mandatory ? for calls to throwing functions
+:PROPERTIES:
+:DISCOVERED: 2026-01-22
+:IMPACT: Explicit error propagation, catches sneaky throws at compile time
+:STATUS: Open
+:RELATED: Bug #54 (precomp_throw divergence)
+:END:
+
+*** Description
+Currently, if you call a function that throws and don't catch it, the throw
+silently propagates ("sneaky throw"). This causes issues like Bug #54 where
+TIL's precomp doesn't catch compile-time throws properly.
+
+Proposal: Make ~?~ mandatory at call sites for functions that throw.
+- ~myvec.get(i)?~ instead of ~myvec.get(i)~
+- Typer enforces: call to throwing function without ~?~ = type error
+- After typer validates, ~?~ is stripped from AST (later phases don't need it)
+
+*** Incremental implementation plan
+
+**** Step 1: Optional ? support (parser + typer accept it)
+Goal: Add syntax support without breaking existing code.
+
+***** Parser changes (parser.rs, parser.til)
+- After parsing an FCall, check if next token is ~?~
+- If yes, consume it and set flag in FCall node
+- AST change: ~FCall~ becomes ~FCall(bool)~ where true = has ~?~
+- All existing FCall patterns need updating: ~NodeType::FCall~ -> ~NodeType::FCall(_)~ or ~NodeType::FCall(false)~
+
+***** Typer changes (typer.rs, typer.til)
+- When checking FCall, look up the called function's throws section
+- If function throws and call has ~?~: valid (propagates throw)
+- If function throws and call has no ~?~: valid FOR NOW (still allow sneaky throws)
+- If function doesn't throw and call has ~?~: type error ("? used on non-throwing function")
+
+***** Other phases
+- Init, precomp, interpreter, ccodegen: update FCall pattern matches
+- These phases don't care about the bool, just need ~FCall(_)~ to compile
+
+**** Step 2: Warning for missing ? (optional, -Wsneaky-throws)
+- Add warning when calling throwing function without ~?~
+- Off by default, enable with flag
+- Helps find places that need updating before Step 3
+
+**** Step 3: Mandatory ? (breaking change)
+- Change typer: missing ~?~ on throwing call = type error
+- Requires updating all call sites (~830+ in src/self alone)
+- Big refactor, needs coordination
+
+**** Step 4: Strip ? from AST after typer
+- After typer validates, ~?~ info no longer needed
+- Resolve phase or end of typer can convert ~FCall(true)~ back to ~FCall(false)~
+- Simplifies later phases
+
+*** Scale of change
+Estimated 830+ ~.get()~ calls in src/self alone, plus ~lookup_*~ functions, etc.
+
+*** Benefits
+- Explicit error handling intent at call sites (like Rust's ~?~)
+- Catches missing error handling at compile time
+- Fixes sneaky throw propagation issues
+
 ** Issue #131: Clang support (gcc/clang interchangeable)
 :PROPERTIES:
 :DISCOVERED: 2026-01-21
