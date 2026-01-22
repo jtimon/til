@@ -1020,8 +1020,6 @@ main := proc(args: ..Str) {
     // rs_common: tests that pass with rstil but NOT yet with til (interpreted or compiled)
     // (tests that pass all 4 modes are in all_common)
     mut rs_common := Vec.new(TestEntry)
-    rs_common.push(TestEntry(path="src/test/args.til"))  // TODO: til compiled segfault
-    rs_common.push(TestEntry(path="src/test/bug43.til"))  // TODO: til compiled segfault
     rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: rstil slow (~41s), til interpret works, til compiled times out at 120s
     rs_common.push(TestEntry(path="src/test/sugar.til", expected_status=1))  // REM: error output differs from til (Issue #69)
     rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: slow (~4min) but works
