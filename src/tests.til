@@ -1023,7 +1023,6 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/args.til"))  // TODO: til compiled segfault
     rs_common.push(TestEntry(path="src/test/bug43.til"))  // TODO: til compiled segfault
     rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: rstil slow (~41s), til interpret works, til compiled times out at 120s
-    rs_common.push(TestEntry(path="src/test/bug50.til", expected_status=1))  // REM: must stay in rs_common - "rstil" vs "til" in error msg (Issue #69)
     rs_common.push(TestEntry(path="src/test/sugar.til", expected_status=1))  // REM: error output differs from til (Issue #69)
     rs_common.push(TestEntry(path="src/test/test_parser.til"))  // TODO: slow (~28s) but works
     rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: slow (~4min) but works
@@ -1088,6 +1087,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/bug46.til"))
     all_common.push(TestEntry(path="src/test/bug48.til", expected_status=1))
     all_common.push(TestEntry(path="src/test/bug49.til", expected_status=1))
+    all_common.push(TestEntry(path="src/test/bug50.til", expected_status=1))
     all_common.push(TestEntry(path="src/test/circular_test.til"))
     all_common.push(TestEntry(path="src/test/clone.til"))
     all_common.push(TestEntry(path="src/test/comparisons.til"))
