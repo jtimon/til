@@ -878,7 +878,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             mut member_default_value := Expr()  # Default init, will be overwritten by get()
             struct_def.default_values.get(after_dot_name, member_default_value)
             catch (key_err: KeyNotFoundError) {
-                throw e.error(context.path, "init", format("Struct '", f_name, "' has no default value for '", after_dot_name, "'"))
+                throw e.error(context.path, "init", format("struct '", f_name, "' has no member '", after_dot_name, "' b"))
             }
 
             switch member_default_value.node_type {
@@ -1101,7 +1101,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                     // member not found, try UFCS
                     mut direct_ufcs_result := get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
                     catch (ufcs_err: Str) {
-                        throw e.error(context.path, "init", format("struct '", custom_type_name, "' has no member '", struct_after_dot_name, "'"))
+                        throw e.error(context.path, "init", format("struct '", custom_type_name, "' has no member '", struct_after_dot_name, "' c"))
                     }
                     return direct_ufcs_result
                 }
@@ -1109,7 +1109,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 mut direct_member_default_value := Expr()  # Default init, will be overwritten by get()
                 custom_struct_def.default_values.get(struct_after_dot_name, direct_member_default_value)
                 catch (key_err: KeyNotFoundError) {
-                    throw e.error(context.path, "init", format("struct '", custom_type_name, "' has no default value for '", struct_after_dot_name, "'"))
+                    throw e.error(context.path, "init", format("struct '", custom_type_name, "' has no member '", struct_after_dot_name, "' d"))
                 }
 
                 switch direct_member_default_value.node_type {
@@ -1153,7 +1153,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 mut variadic_member_default_value := Expr()  # Default init, will be overwritten by get()
                 variadic_struct_def.default_values.get(variadic_after_dot_name, variadic_member_default_value)
                 catch (key_err: KeyNotFoundError) {
-                    throw e.error(context.path, "init", format("struct '", variadic_type_name, "' has no default value for '", variadic_after_dot_name, "' (variadic)"))
+                    throw e.error(context.path, "init", format("struct '", variadic_type_name, "' has no member '", variadic_after_dot_name, "' (variadic default)"))
                 }
 
                 switch variadic_member_default_value.node_type {
