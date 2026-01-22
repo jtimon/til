@@ -33,11 +33,11 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.While:
         return precomp_params(context, e)
     case NodeType.Switch:
-        return precomp_switch(context, e)
+        return precomp_switch(context, e)?
     case NodeType.FuncDef(func_def):
-        return precomp_func_def(context, e, func_def)
+        return precomp_func_def(context, e, func_def)?
     case NodeType.Declaration(decl):
-        return precomp_declaration(context, e, decl)
+        return precomp_declaration(context, e, decl)?
     case NodeType.Assignment:
         return precomp_params(context, e)
     case NodeType.Return:
@@ -45,12 +45,12 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.Throw:
         return precomp_params(context, e)
     case NodeType.Catch:
-        return precomp_catch(context, e)
+        return precomp_catch(context, e)?
     case NodeType.Range:
         return precomp_params(context, e)
     // Struct/enum definitions - need to process default values (which may contain function defs)
     case NodeType.StructDef(struct_def):
-        return precomp_struct_def(context, e, struct_def)
+        return precomp_struct_def(context, e, struct_def)?
     case NodeType.EnumDef:
         return e.clone()
     // Identifiers can have nested params (e.g., a.b.c for field access chains)
@@ -126,7 +126,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         func_def_found = true
         catch (err: KeyNotFoundError) {
             // Could be a struct constructor - check if all args are comptime
-            combined_name := get_combined_name(context.path, e.get(0))
+            combined_name := get_combined_name(context.path, e.get(0)?)
             catch (err2: Str) {
                 return false
             }
@@ -142,7 +142,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                 mut struct_j := 1
                 while struct_j.lt(e.params.len()) {
                     mut struct_arg := Expr()
-                    e.params.get(struct_j, struct_arg)
+                    e.params.get(struct_j, struct_arg)?
                     catch (err4: IndexOutOfBoundsError) {
                         return false
                     }
@@ -151,7 +151,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                     switch struct_arg.node_type {
                     case NodeType.NamedArg(_):
                         if struct_arg.params.len().gt(0) {
-                            struct_arg.params.get(0, arg_to_check)
+                            struct_arg.params.get(0, arg_to_check)?
                             catch (err5: IndexOutOfBoundsError) {
                                 return false
                             }
@@ -171,7 +171,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                 mut k := 1
                 while k.lt(e.params.len()) {
                     mut arg := Expr()
-                    e.params.get(k, arg)
+                    e.params.get(k, arg)?
                     catch (err_arg: IndexOutOfBoundsError) {
                         return false
                     }
@@ -204,7 +204,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         mut fcall_i := 1
         while fcall_i.lt(e.params.len()) {
             mut fcall_arg := Expr()
-            e.params.get(fcall_i, fcall_arg)
+            e.params.get(fcall_i, fcall_arg)?
             catch (err: IndexOutOfBoundsError) {
                 return false
             }
@@ -303,7 +303,7 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     // Transform switch expression
     mut switch_expr := Expr()
-    e.params.get(0, switch_expr)
+    e.params.get(0, switch_expr)?
     new_params.push(precomp_expr(context, switch_expr))
 
     // Get the type of the switch expression for pattern binding resolution
@@ -319,8 +319,8 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     while i.add(1).lt(e.params.len().add(1)) {
         mut case_expr := Expr()
         mut body_expr := Expr()
-        e.params.get(i, case_expr)
-        e.params.get(i.add(1), body_expr)
+        e.params.get(i, case_expr)?
+        e.params.get(i.add(1), body_expr)?
 
         // Transform case expression (no scope change needed for case itself)
         new_params.push(precomp_expr(context, case_expr))
@@ -364,7 +364,7 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                             // Push block scope, declare binding variable, transform body, pop scope
                             context.scope_stack.push(ScopeType.Block)
                             sym := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
-                            context.scope_stack.declare_symbol(pattern_info.binding_var, sym)
+                            context.scope_stack.declare_symbol(pattern_info.binding_var, sym)?
                             new_params.push(precomp_expr(context, body_expr))
                             _ := context.scope_stack.pop()
                             handled = true
@@ -388,7 +388,7 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Handle odd trailing element (default case body without case expression)
     if i.lt(e.params.len()) {
         mut trailing := Expr()
-        e.params.get(i, trailing)
+        e.params.get(i, trailing)?
         new_params.push(precomp_expr(context, trailing))
     }
 
@@ -404,9 +404,9 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
     mut i := 0
     while i.lt(struct_def.default_values.keys.len()) {
         mut name := ""
-        struct_def.default_values.keys.get(i, name)
+        struct_def.default_values.keys.get(i, name)?
         mut value_expr := Expr()
-        struct_def.default_values.get(name, value_expr)
+        struct_def.default_values.get(name, value_expr)?
 
         // Bug #40 fix: For method definitions, set function name context
         mut is_func := false

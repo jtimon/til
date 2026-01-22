@@ -2565,7 +2565,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             for pbr_key: Str in pbr_caller_frame.arena_index.keys {
                                                 if pbr_key.starts_with(pbr_prefix) {
                                                     mut pbr_value := 0
-                                                    pbr_caller_frame.arena_index.get(pbr_key, pbr_value)
+                                                    pbr_caller_frame.arena_index.get(pbr_key, pbr_value)?
                                                     pbr_new_key := pbr_key.replacen(pbr_prefix, pbr_replacement_prefix, 1)
                                                     pbr_field_offsets_to_copy.push(EvalArenaMapping(name=pbr_new_key, offset=pbr_value))
                                                 }
@@ -2573,7 +2573,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             for pbr_skey: Str in pbr_caller_frame.symbols.keys {
                                                 if pbr_skey.starts_with(pbr_prefix) {
                                                     mut pbr_svalue := SymbolInfo()
-                                                    pbr_caller_frame.symbols.get(pbr_skey, pbr_svalue)
+                                                    pbr_caller_frame.symbols.get(pbr_skey, pbr_svalue)?
                                                     pbr_new_skey := pbr_skey.replacen(pbr_prefix, pbr_replacement_prefix, 1)
                                                     pbr_field_symbols_to_copy.push(SymbolEntry(name=pbr_new_skey, info=pbr_svalue.clone()))
                                                 }
@@ -2591,7 +2591,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     }
                                     if not(should_share_offset) {
                                         // For copy parameters, allocate and copy
-                                        insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)
+                                        insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)?
 
                                         // Push frame temporarily for copy_fields (needs dest accessible)
                                         context.scope_stack.frames.push(function_frame)
@@ -2600,33 +2600,33 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         if has_saved_offsets {
                                             for restore_mi in 0..saved_offsets.offsets.len() {
                                                 mut restore_mapping := EvalArenaMapping()
-                                                saved_offsets.offsets.get(restore_mi, restore_mapping)
+                                                saved_offsets.offsets.get(restore_mi, restore_mapping)?
                                                 mut restore_new_key := ""
                                                 if restore_mapping.name.eq(id_) {
                                                     restore_new_key = saved_offsets.temp_src_key.clone()
                                                 } else if restore_mapping.name.starts_with(format(id_, ".")) {
-                                                    restore_new_key = format(saved_offsets.temp_src_key, restore_mapping.name.get_substr(id_.len(), restore_mapping.name.len()))
+                                                    restore_new_key = format(saved_offsets.temp_src_key, restore_mapping.name.get_substr(id_.len(), restore_mapping.name.len())?)
                                                 } else {
                                                     restore_new_key = restore_mapping.name.clone()
                                                 }
                                                 mut lf9_idx := context.scope_stack.frames.len().sub(1)
                                                 mut lf9 := ScopeFrame()
-                                                context.scope_stack.frames.get(lf9_idx, lf9)
+                                                context.scope_stack.frames.get(lf9_idx, lf9)?
                                                 lf9.arena_index.set(restore_new_key, restore_mapping.offset)
-                                                context.scope_stack.frames.set(lf9_idx, lf9)
+                                                context.scope_stack.frames.set(lf9_idx, lf9)?
                                             }
 
-                                            EvalArena.copy_fields(context, resolved_type_name, saved_offsets.temp_src_key, arg.name, e)
+                                            EvalArena.copy_fields(context, resolved_type_name, saved_offsets.temp_src_key, arg.name, e)?
 
                                             // Clean up temp keys
                                             for cleanup_ci in 0..saved_offsets.offsets.len() {
                                                 mut cleanup_mapping := EvalArenaMapping()
-                                                saved_offsets.offsets.get(cleanup_ci, cleanup_mapping)
+                                                saved_offsets.offsets.get(cleanup_ci, cleanup_mapping)?
                                                 mut cleanup_new_key := ""
                                                 if cleanup_mapping.name.eq(id_) {
                                                     cleanup_new_key = saved_offsets.temp_src_key.clone()
                                                 } else if cleanup_mapping.name.starts_with(format(id_, ".")) {
-                                                    cleanup_new_key = format(saved_offsets.temp_src_key, cleanup_mapping.name.get_substr(id_.len(), cleanup_mapping.name.len()))
+                                                    cleanup_new_key = format(saved_offsets.temp_src_key, cleanup_mapping.name.get_substr(id_.len(), cleanup_mapping.name.len())?)
                                                 } else {
                                                     cleanup_new_key = cleanup_mapping.name.clone()
                                                 }
@@ -2659,11 +2659,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
                                             mut lf10_idx := context.scope_stack.frames.len().sub(1)
                                             mut lf10 := ScopeFrame()
-                                            context.scope_stack.frames.get(lf10_idx, lf10)
+                                            context.scope_stack.frames.get(lf10_idx, lf10)?
                                             lf10.arena_index.set(id_.clone(), copy_src_offset)
-                                            context.scope_stack.frames.set(lf10_idx, lf10)
-                                            context.scope_stack.declare_symbol(id_.clone(), copy_src_symbol.clone())
-                                            EvalArena.copy_fields(context, resolved_type_name, id_, arg.name, e)
+                                            context.scope_stack.frames.set(lf10_idx, lf10)?
+                                            context.scope_stack.declare_symbol(id_.clone(), copy_src_symbol.clone())?
+                                            EvalArena.copy_fields(context, resolved_type_name, id_, arg.name, e)?
                                             _ := context.scope_stack.remove_var(id_)
                                             _ := context.scope_stack.remove_symbol(id_)
                                         }
@@ -2674,7 +2674,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 } else {
                                     // For expression arguments (like Vec.new(Expr)), the struct is already
                                     // allocated and evaluated in result_str. We need to copy it to the parameter.
-                                    insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)
+                                    insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)?
 
                                     // Push frame temporarily for copy_fields
                                     context.scope_stack.frames.push(function_frame)
@@ -2691,11 +2691,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
                                     mut lf11_idx := context.scope_stack.frames.len().sub(1)
                                     mut lf11 := ScopeFrame()
-                                    context.scope_stack.frames.get(lf11_idx, lf11)
+                                    context.scope_stack.frames.get(lf11_idx, lf11)?
                                     lf11.arena_index.set(source_id.clone(), expr_src_offset)
-                                    context.scope_stack.frames.set(lf11_idx, lf11)
-                                    context.scope_stack.declare_symbol(source_id.clone(), expr_src_symbol.clone())
-                                    EvalArena.copy_fields(context, resolved_type_name, source_id, arg.name, e)
+                                    context.scope_stack.frames.set(lf11_idx, lf11)?
+                                    context.scope_stack.declare_symbol(source_id.clone(), expr_src_symbol.clone())?
+                                    EvalArena.copy_fields(context, resolved_type_name, source_id, arg.name, e)?
                                     _ := context.scope_stack.remove_var(source_id)
                                     _ := context.scope_stack.remove_symbol(source_id)
 
@@ -2774,9 +2774,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         thrown_frame_count := context.scope_stack.frames.len()
                         if thrown_frame_count.gteq(2) {
                             mut thrown_caller_frame := ScopeFrame()
-                            context.scope_stack.frames.get(thrown_frame_count.sub(2), thrown_caller_frame)
+                            context.scope_stack.frames.get(thrown_frame_count.sub(2), thrown_caller_frame)?
                             thrown_caller_frame.arena_index.set(result.value.clone(), base_offset)
-                            context.scope_stack.frames.set(thrown_frame_count.sub(2), thrown_caller_frame)
+                            context.scope_stack.frames.set(thrown_frame_count.sub(2), thrown_caller_frame)?
                         }
                     }
 
@@ -2800,9 +2800,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         if throw_src_offset_found {
                             if throw_frame_count.gteq(2) {
                                 mut throw_caller_frame := ScopeFrame()
-                                context.scope_stack.frames.get(throw_frame_count.sub(2), throw_caller_frame)
+                                context.scope_stack.frames.get(throw_frame_count.sub(2), throw_caller_frame)?
                                 throw_caller_frame.arena_index.set(throw_src_key, throw_src_offset)
-                                context.scope_stack.frames.set(throw_frame_count.sub(2), throw_caller_frame)
+                                context.scope_stack.frames.set(throw_frame_count.sub(2), throw_caller_frame)?
                             }
                         }
                     }
@@ -2816,7 +2816,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         throw_src_symbol_found = true
                         catch (err: KeyNotFoundError) { }
                         if throw_src_symbol_found {
-                            context.scope_stack.declare_symbol(throw_sym_key, throw_src_symbol.clone())
+                            context.scope_stack.declare_symbol(throw_sym_key, throw_src_symbol.clone())?
                         }
                     }
                 }
@@ -2834,7 +2834,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     mut has_saved_return_offset := false
     if func_def.return_types.len().eq(1) {
         mut return_type := ValueType.TCustom("")
-        func_def.return_types.get(0, return_type)
+        func_def.return_types.get(0, return_type)?
         mut is_tcustom := false
         mut custom_type_name := ""
         switch return_type {
@@ -2862,7 +2862,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     mut has_saved_enum_value := false
     if func_def.return_types.len().eq(1) {
         mut ret_return_type := ValueType.TCustom("")
-        func_def.return_types.get(0, ret_return_type)
+        func_def.return_types.get(0, ret_return_type)?
         mut ret_is_tcustom := false
         mut ret_custom_type_name := ""
         switch ret_return_type {
@@ -2908,12 +2908,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
     for mi in 0..mut_args.len() {
         mut m := MutArgEntry()
-        mut_args.get(mi, m)
+        mut_args.get(mi, m)?
         // Check if this arg was passed by ref
         mut was_passed_by_ref := false
         for ref_check_i in 0..pass_by_ref_params.len() {
             mut ref_param := ""
-            pass_by_ref_params.get(ref_check_i, ref_param)
+            pass_by_ref_params.get(ref_check_i, ref_param)?
             if ref_param.eq(m.arg_name) {
                 was_passed_by_ref = true
             }
@@ -2999,14 +2999,14 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     // Write collected mut_args values to caller's frame (now on top)
     for ci in 0..collected_mut_args.len() {
         mut c := CollectedMutArg()
-        collected_mut_args.get(ci, c)
+        collected_mut_args.get(ci, c)?
         switch c.value {
         case MutArgValue.I64(val):
-            EvalArena.insert_i64(context, c.source_name, I64.to_str(val), e)
+            EvalArena.insert_i64(context, c.source_name, I64.to_str(val), e)?
         case MutArgValue.U8(val):
-            EvalArena.insert_u8(context, c.source_name, U8.to_str(val), e)
+            EvalArena.insert_u8(context, c.source_name, U8.to_str(val), e)?
         case MutArgValue.Str(val):
-            EvalArena.insert_string(context, c.source_name, val, e)
+            EvalArena.insert_string(context, c.source_name, val, e)?
         case MutArgValue.Enum(writeback_enum_val):
             // Bug #38 fix: Set temp_enum_payload so insert_enum preserves the payload
             if not(NULL.eq(writeback_enum_val.payload.data)).and(not(NULL.eq(writeback_enum_val.payload_type.data))) {
@@ -3025,11 +3025,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         case MutArgValue.Struct(struct_data):
             mut lf12_idx := context.scope_stack.frames.len().sub(1)
             mut lf12 := ScopeFrame()
-            context.scope_stack.frames.get(lf12_idx, lf12)
+            context.scope_stack.frames.get(lf12_idx, lf12)?
             lf12.arena_index.set(c.source_name.clone(), struct_data.offset)
-            context.scope_stack.frames.set(lf12_idx, lf12)
+            context.scope_stack.frames.set(lf12_idx, lf12)?
             if not(struct_data.was_passed_by_ref) {
-                context.map_instance_fields(struct_data.type_name, c.source_name, e)
+                context.map_instance_fields(struct_data.type_name, c.source_name, e)?
             }
         }
     }
@@ -3038,7 +3038,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     // NOTE: Frame already popped above, using saved_return_offset and saved_enum_value
     if func_def.return_types.len().eq(1) {
         mut copy_ret_return_type := ValueType.TCustom("")
-        func_def.return_types.get(0, copy_ret_return_type)
+        func_def.return_types.get(0, copy_ret_return_type)?
         mut copy_ret_is_tcustom := false
         mut copy_ret_custom_type_name := ""
         switch copy_ret_return_type {
@@ -3084,14 +3084,14 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         copy_ret_offset := saved_return_offset
 
                         // Insert the temporary return variable into the caller's frame
-                        context.scope_stack.declare_symbol(return_instance.clone(), SymbolInfo(value_type=ValueType.TCustom(copy_ret_custom_type_name.clone()), is_mut=true))
+                        context.scope_stack.declare_symbol(return_instance.clone(), SymbolInfo(value_type=ValueType.TCustom(copy_ret_custom_type_name.clone()), is_mut=true))?
 
                         // Share the base offset in caller's frame
                         mut lf13_idx := context.scope_stack.frames.len().sub(1)
                         mut lf13 := ScopeFrame()
-                        context.scope_stack.frames.get(lf13_idx, lf13)
+                        context.scope_stack.frames.get(lf13_idx, lf13)?
                         lf13.arena_index.set(return_instance.clone(), copy_ret_offset)
-                        context.scope_stack.frames.set(lf13_idx, lf13)
+                        context.scope_stack.frames.set(lf13_idx, lf13)?
 
                         return EvalResult.new_return(return_instance) // CLEANUP SITE 4: Return struct instance
                     } else if copy_ret_is_enum_def {
@@ -3143,121 +3143,121 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
 eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_proc: Bool) returns EvalResult throws Str {
     if name.eq("loc") {
-        return func_loc(context, e)
+        return func_loc(context, e)?
     } else if name.eq("_file") {
-        return func_file(context, e)
+        return func_file(context, e)?
     } else if name.eq("_line") {
-        return func_line(context, e)
+        return func_line(context, e)?
     } else if name.eq("_col") {
-        return func_col(context, e)
+        return func_col(context, e)?
     } else if name.eq("size_of") {
-        return func_size_of(context, e)
+        return func_size_of(context, e)?
     } else if name.eq("type_as_str") {
-        return func_type_as_str(context, e)
+        return func_type_as_str(context, e)?
     } else if name.eq("to_ptr") {
-        return func_to_ptr(context, e)
+        return func_to_ptr(context, e)?
     } else if name.eq("malloc") {
-        return func_malloc(context, e)
+        return func_malloc(context, e)?
     } else if name.eq("free") {
-        return func_free(context, e)
+        return func_free(context, e)?
     } else if name.eq("memset") {
-        return func_memset(context, e)
+        return func_memset(context, e)?
     } else if name.eq("memcpy") {
-        return func_memcpy(context, e)
+        return func_memcpy(context, e)?
     } else if name.eq("memcmp") {
-        return func_memcmp(context, e)
+        return func_memcmp(context, e)?
     } else if name.eq("i64_lt") {
-        return func_lt(context, e)
+        return func_lt(context, e)?
     } else if name.eq("i64_gt") {
-        return func_gt(context, e)
+        return func_gt(context, e)?
     } else if name.eq("u8_lt") {
-        return func_u8_lt(context, e)
+        return func_u8_lt(context, e)?
     } else if name.eq("u8_gt") {
-        return func_u8_gt(context, e)
+        return func_u8_gt(context, e)?
     } else if name.eq("u8_xor") {
-        return func_u8_xor(context, e)
+        return func_u8_xor(context, e)?
     } else if name.eq("u8_and") {
-        return func_u8_and(context, e)
+        return func_u8_and(context, e)?
     } else if name.eq("u8_or") {
-        return func_u8_or(context, e)
+        return func_u8_or(context, e)?
     } else if name.eq("i64_add") {
-        return func_add(context, e)
+        return func_add(context, e)?
     } else if name.eq("i64_sub") {
-        return func_sub(context, e)
+        return func_sub(context, e)?
     } else if name.eq("i64_mul") {
-        return func_mul(context, e)
+        return func_mul(context, e)?
     } else if name.eq("i64_div") {
-        return func_div(context, e)
+        return func_div(context, e)?
     } else if name.eq("i64_mod") {
-        return func_mod(context, e)
+        return func_mod(context, e)?
     } else if name.eq("i64_and") {
-        return func_i64_and(context, e)
+        return func_i64_and(context, e)?
     } else if name.eq("i64_or") {
-        return func_i64_or(context, e)
+        return func_i64_or(context, e)?
     } else if name.eq("i64_xor") {
-        return func_i64_xor(context, e)
+        return func_i64_xor(context, e)?
     } else if name.eq("str_to_i64") {
-        return func_str_to_i64(context, e)
+        return func_str_to_i64(context, e)?
     } else if name.eq("i64_to_str") {
-        return func_i64_to_str(context, e)
+        return func_i64_to_str(context, e)?
     } else if name.eq("enum_to_str") {
-        return func_enum_to_str(context, e)
+        return func_enum_to_str(context, e)?
     } else if name.eq("enum_get_payload") {
-        return func_enum_get_payload(context, e)
+        return func_enum_get_payload(context, e)?
     } else if name.eq("u8_to_i64") {
-        return func_u8_to_i64(context, e)
+        return func_u8_to_i64(context, e)?
     } else if name.eq("i64_to_u8") {
-        return func_i64_to_u8(context, e)
+        return func_i64_to_u8(context, e)?
     } else if name.eq("u8_add") {
-        return func_u8_add(context, e)
+        return func_u8_add(context, e)?
     } else if name.eq("u8_div") {
-        return func_u8_div(context, e)
+        return func_u8_div(context, e)?
     } else if name.eq("u8_mod") {
-        return func_u8_mod(context, e)
+        return func_u8_mod(context, e)?
     } else if name.eq("u8_mul") {
-        return func_u8_mul(context, e)
+        return func_u8_mul(context, e)?
     } else if name.eq("u8_sub") {
-        return func_u8_sub(context, e)
+        return func_u8_sub(context, e)?
     } else if name.eq("eval_to_str") {
-        return proc_eval_to_str(context, e)
+        return proc_eval_to_str(context, e)?
     } else if name.eq("exit") {
-        return func_exit(context, e)
+        return func_exit(context, e)?
     } else if name.eq("import") {
-        return proc_import(context, e)
+        return proc_import(context, e)?
     } else if name.eq("input_read_line") {
-        return proc_input_read_line(context, e)
+        return proc_input_read_line(context, e)?
     } else if name.eq("single_print") {
-        return proc_single_print(context, e)
+        return proc_single_print(context, e)?
     } else if name.eq("print_flush") {
-        return proc_print_flush(context, e)
+        return proc_print_flush(context, e)?
     } else if name.eq("readfile") {
-        return proc_readfile(context, e)
+        return proc_readfile(context, e)?
     } else if name.eq("writefile") {
-        return proc_writefile(context, e)
+        return proc_writefile(context, e)?
     } else if name.eq("run_cmd") {
-        return proc_run_cmd(context, e)
+        return proc_run_cmd(context, e)?
     } else if name.eq("spawn_cmd") {
-        return proc_spawn_cmd(context, e)
+        return proc_spawn_cmd(context, e)?
     } else if name.eq("check_cmd_status") {
-        return proc_check_cmd_status(context, e)
+        return proc_check_cmd_status(context, e)?
     } else if name.eq("sleep") {
-        return proc_sleep(context, e)
+        return proc_sleep(context, e)?
     } else if name.eq("get_thread_count") {
-        return proc_get_thread_count(context, e)
+        return proc_get_thread_count(context, e)?
     } else if name.eq("file_mtime") {
-        return func_file_mtime(context, e)
+        return func_file_mtime(context, e)?
     } else if name.eq("list_dir_raw") {
-        return func_list_dir_raw(context, e)
+        return func_list_dir_raw(context, e)?
     } else if name.eq("fs_parent_dir") {
-        return func_fs_parent_dir(context, e)
+        return func_fs_parent_dir(context, e)?
     } else if name.eq("fs_mkdir_p") {
-        return proc_fs_mkdir_p(context, e)
+        return proc_fs_mkdir_p(context, e)?
     } else if name.eq("eval_file") {
-        return proc_eval_file(context, e)
+        return proc_eval_file(context, e)?
     } else if name.eq("has_const") {
-        return func_has_const(context, e)
+        return func_has_const(context, e)?
     } else if name.eq("has_field") {
-        return func_has_field(context, e)
+        return func_has_field(context, e)?
     } else {
         if is_proc {
             throw e.lang_error(context.path, "eval", format("Core procedure '", name, "' not implemented."))
@@ -3306,7 +3306,7 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
         import_fcall_expr.params.push(import_path_expr)
 
         // Mode imports need full processing: init, typer, eval
-        init_import_declarations(context, import_fcall_expr, import_str)
+        init_import_declarations(context, import_fcall_expr, import_str)?
         catch (err: Str) {
             throw format(path, ":", err)
         }
@@ -3444,20 +3444,20 @@ interpret_file := proc(path: Str, main_args: Vec) returns EvalResult throws Str 
         _ := interpret_file_with_context(true, false, context, core_path, empty_args)
     }
 
-    return interpret_file_with_context(false, false, context, path, main_args)
+    return interpret_file_with_context(false, false, context, path, main_args)?
 }
 
 // ---------- proc_eval_to_str, proc_eval_file, proc_import (moved from ext.til)
 
 proc_eval_to_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "eval_to_str", 1, true)
+    validate_arg_count(context.path, e, "eval_to_str", 1, true)?
 
     path := "eval"  // Placeholder path
-    source_expr := eval_expr(context, e.get(1))
+    source_expr := eval_expr(context, e.get(1)?)
     if source_expr.is_throw { return source_expr }
 
     str_source := format("mode script; ", source_expr.value)
-    return main_interpret(false, context, path, str_source, Vec.new(Str))
+    return main_interpret(false, context, path, str_source, Vec.new(Str))?
 }
 
 proc_eval_file := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
@@ -3465,13 +3465,13 @@ proc_eval_file := proc(mut context: Context, e: Expr) returns EvalResult throws 
         throw e.lang_error(context.path, "eval", "Core proc 'eval_file' expects at least 1 parameter")
     }
 
-    result := eval_expr(context, e.get(1))
+    result := eval_expr(context, e.get(1)?)
     if result.is_throw { return result }
     path := result.value
 
     mut main_args := Vec.new(Str)
     for i in 2..e.params.len() {
-        arg_result := eval_expr(context, e.get(i))
+        arg_result := eval_expr(context, e.get(i)?)
         if arg_result.is_throw { return arg_result }
         main_args.push(arg_result.value)
     }
@@ -3483,9 +3483,9 @@ proc_eval_file := proc(mut context: Context, e: Expr) returns EvalResult throws 
 // import_path_to_file_path is defined in init.til
 
 proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "import", 1, true)
+    validate_arg_count(context.path, e, "import", 1, true)?
 
-    result := eval_expr(context, e.get(1))
+    result := eval_expr(context, e.get(1)?)
     if result.is_throw {
         return result // Propagate throw
     }
@@ -3508,7 +3508,7 @@ proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str
         throw e.error(context.path, "eval", format(
             "Import ", path, " not found in stored ASTs - init phase should have stored it"))
     }
-    context.imported_asts.get(path, ast)
+    context.imported_asts.get(path, ast)?
     catch (err: KeyNotFoundError) {
         throw e.error(context.path, "eval", format(
             "Import ", path, " not found in stored ASTs - init phase should have stored it"))
