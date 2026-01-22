@@ -1020,7 +1020,7 @@ main := proc(args: ..Str) {
     // rs_common: tests that pass with rstil but NOT yet with til (interpreted or compiled)
     // (tests that pass all 4 modes are in all_common)
     mut rs_common := Vec.new(TestEntry)
-    rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: til_interpreted too slow (~35s), also in til_compiled
+    rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: til_interpreted too slow (~35s)
     rs_common.push(TestEntry(path="src/test/sugar.til", expected_status=1))  // REM: error output differs from til (Issue #69)
     rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: slow (~4min) but works
 
@@ -1050,7 +1050,7 @@ main := proc(args: ..Str) {
 
     // til_compiled: tests run with the self-hosted TIL compiler only
     mut til_compiled := Vec.new(TestEntry)
-    til_compiled.push(TestEntry(path="src/test/bug47.til"))  // TODO: til_interpreted too slow (~35s), til_compiled works (0.18s)
+
     // til_common: tests run with BOTH self-hosted TIL interpreter and compiler
     // (for tests where output differs between rstil and til, e.g. error messages)
     mut til_common := Vec.new(TestEntry)
