@@ -1418,7 +1418,7 @@ Final syntax may evolve as we address all Python import patterns.
 :DISCOVERED: 2026-01-19
 :COMPLETED: 2026-01-20
 :IMPACT: Cleaner architecture, single-pass type inference, easier maintenance
-:STATUS: Done
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -1578,7 +1578,7 @@ All tests must pass.
 :PROPERTIES:
 :DISCOVERED: 2025-12-31
 :IMPACT: Test infrastructure, rstil/til output validation
-:STATUS: Implemented
+:STATUS: Fixed
 :RELATED: Bug #126 (error message divergence), bug50 (rstil vs til prefix)
 :END:
 

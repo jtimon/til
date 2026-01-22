@@ -2318,7 +2318,8 @@ Added src/test/panic.til with expected_status=1 to verify exit code handling.
 :PROPERTIES:
 :DISCOVERED: 2026-01-09
 :IMPACT: Cannot pass collected arguments to variadic functions
-:STATUS: Duplicate of Bug #83
+:STATUS: Fixed
+:DUPLICATE: Bug #83
 :END:
 
 See Bug #83 for full details. All unique content merged there.
@@ -2522,7 +2523,7 @@ treated as binding variables. Nested patterns remain as FCall for proper matchin
 :DISCOVERED: 2026-01-01
 :FIXED: 2026-01-01
 :IMPACT: Cannot import self.init with til interpret
-:STATUS: Fixed (was actually Bug #77)
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -2905,7 +2906,7 @@ This ensures we only propagate when there are NO catches in the block, not just 
 :DISCOVERED: 2025-12-31
 :FIXED: 2025-12-31
 :IMPACT: 4 til_interpreted tests affected (bug56, editor_mode_test, enums, forward_declarations)
-:STATUS: Fixed (3 of 4 tests)
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -4190,7 +4191,7 @@ different issue that remains open.
 :DISCOVERED: 2025-12-19
 :FIXED: 2025-12-19
 :IMPACT: Garbage characters in string output, potential memory corruption
-:STATUS: Fixed (no regression test - see notes)
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -5030,7 +5031,7 @@ ea8cd2b: Fix Bug #26: nested struct corruption in Vec/Map
 :DISCOVERED: 2025-11-13
 :FIXED: 2025-11-13
 :IMPACT: API consistency, method resolution
-:STATUS: Fixed - uniform len() API implemented
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -5104,7 +5105,7 @@ that breaks chained method calls on field access. All tests pass (exit code 0).
 :DISCOVERED: 2025-11-12
 :FIXED: 2025-11-12
 :IMPACT: Data integrity, aliasing bugs
-:STATUS: Fixed - mut declarations now copy
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -5173,7 +5174,7 @@ See doc/ownership.org for full design analysis and Mojo comparison.
 :DISCOVERED: 2025-11-12
 :FIXED: 2025-11-18
 :IMPACT: Data structure mutation, memory management
-:STATUS: Fixed - Pass-by-reference for field access
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -5408,7 +5409,7 @@ catch (err: IndexOutOfBoundsError) {
 :DISCOVERED: 2025-11-10
 :FIXED: 2025-11-11
 :IMPACT: Code ergonomics, parser implementation
-:STATUS: Fixed - Field access and method calls work
+:STATUS: Fixed
 :END:
 
 *** Description

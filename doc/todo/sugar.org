@@ -19,7 +19,7 @@ quality-of-life improvements that reduce boilerplate and make common patterns ea
 :DISCOVERED: 2026-01-15
 :IMPLEMENTED: 2026-01-20
 :IMPACT: Common string operations, needed for file filtering and pattern matching
-:STATUS: Implemented
+:STATUS: Fixed
 :END:
 
 *** Description
