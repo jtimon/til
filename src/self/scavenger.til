@@ -31,7 +31,7 @@ collect_used_types_from_expr := proc(context: Context, e: Expr, mut used_types: 
     case NodeType.FCall(_):
         // Constructor calls - check if the function name is a known struct
         if e.params.len().gt(0) {
-            name := get_combined_name_from_identifier(e.get(0))
+            name := get_combined_name_from_identifier(e.get(0)?)
             if name.len().gt(0).and(name.find(".").lt(0)) {
                 // Check if this is a struct constructor
                 mut fcall_found_struct := false
@@ -64,7 +64,7 @@ collect_used_types_from_expr := proc(context: Context, e: Expr, mut used_types: 
     }
     // Recurse into all params
     for param: Expr in e.params {
-        collect_used_types_from_expr(context, param, used_types)
+        collect_used_types_from_expr(context, param, used_types)?
     }
 }
 
@@ -80,7 +80,7 @@ collect_used_types_from_func := proc(context: Context, func_def: SFuncDef, mut u
     // Collect from return types
     for ret_i in 0..func_def.return_types.len() {
         mut ret_type := ValueType.TCustom("")
-        func_def.return_types.get(ret_i, ret_type)
+        func_def.return_types.get(ret_i, ret_type)?
         ret_type_name := extract_type_name(ret_type)
         if ret_type_name.len().gt(0) {
             _ := used_types.insert(ret_type_name)
@@ -89,7 +89,7 @@ collect_used_types_from_func := proc(context: Context, func_def: SFuncDef, mut u
     // Collect from throw types
     for throw_i in 0..func_def.throw_types.len() {
         mut throw_type := ValueType.TCustom("")
-        func_def.throw_types.get(throw_i, throw_type)
+        func_def.throw_types.get(throw_i, throw_type)?
         throw_type_name := extract_type_name(throw_type)
         if throw_type_name.len().gt(0) {
             _ := used_types.insert(throw_type_name)
@@ -97,7 +97,7 @@ collect_used_types_from_func := proc(context: Context, func_def: SFuncDef, mut u
     }
     // Collect from body
     for stmt: Expr in func_def.body {
-        collect_used_types_from_expr(context, stmt, used_types)
+        collect_used_types_from_expr(context, stmt, used_types)?
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 }
@@ -117,7 +117,7 @@ rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def
         mut has_default := false
         mut default_expr := Expr()
         if struct_def.default_values.contains_key(member_decl.name) {
-            struct_def.default_values.get(member_decl.name, default_expr)
+            struct_def.default_values.get(member_decl.name, default_expr)?
             has_default = true
         }
 
@@ -159,7 +159,7 @@ collect_called_functions := proc(e: Expr, mut called: Set) throws Str {
     case NodeType.FCall(_):
         // After precomp, function calls have params[0] as Identifier(function_name)
         if e.params.len().gt(0) {
-            full_name := get_combined_name_from_identifier(e.get(0))
+            full_name := get_combined_name_from_identifier(e.get(0)?)
             if full_name.len().gt(0) {
                 _ := called.insert(full_name)
             }
@@ -167,24 +167,24 @@ collect_called_functions := proc(e: Expr, mut called: Set) throws Str {
         // Recurse into arguments
         mut i := 1
         while i.lt(e.params.len()) {
-            collect_called_functions(e.get(i), called)
+            collect_called_functions(e.get(i)?, called)?
             i.inc()
         }
     case NodeType.FuncDef(func_def):
         // Recurse into function body
         for stmt: Expr in func_def.body {
-            collect_called_functions(stmt, called)
+            collect_called_functions(stmt, called)?
         }
     case NodeType.Catch:
         // Catch has params[0]=name, params[1]=type, params[2]=body
         // Only recurse into body - type is not a function call
         if e.params.len().gteq(3) {
-            collect_called_functions(e.get(2), called)
+            collect_called_functions(e.get(2)?, called)?
         }
     case:
         // Recurse into all params
         for param: Expr in e.params {
-            collect_called_functions(param, called)
+            collect_called_functions(param, called)?
         }
     }
 
@@ -211,7 +211,7 @@ get_combined_name_from_identifier := proc(e: Expr) returns Str throws Str {
             mut i := 0
             while i.lt(parts.len()) {
                 mut part := ""
-                parts.get(i, part)
+                parts.get(i, part)?
                 if i.gt(0) {
                     result = result.concat(".")
                 }
@@ -246,25 +246,25 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
             switch inner.node_type {
             case NodeType.FuncDef(func_def):
                 // Function declaration
-                context.scope_stack.declare_func(decl.name.clone(), func_def.clone())
+                context.scope_stack.declare_func(decl.name.clone(), func_def.clone())?
                 // Recurse into function body for local declarations
                 for stmt: Expr in func_def.body {
-                    register_declarations_recursive(context, stmt)
+                    register_declarations_recursive(context, stmt)?
                 }
             case NodeType.StructDef(struct_def):
                 // Struct declaration
-                context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone())
+                context.scope_stack.declare_struct(decl.name.clone(), struct_def.clone())?
                 // Struct methods
                 for member_name: Str in struct_def.default_values.keys {
                     mut default_expr := Expr()
-                    struct_def.default_values.get(member_name, default_expr)
+                    struct_def.default_values.get(member_name, default_expr)?
                     switch default_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         full_name := format(decl.name, ".", member_name)
-                        context.scope_stack.declare_func(full_name, func_def.clone())
+                        context.scope_stack.declare_func(full_name, func_def.clone())?
                         // Recurse into method body for local declarations
                         for stmt: Expr in func_def.body {
-                            register_declarations_recursive(context, stmt)
+                            register_declarations_recursive(context, stmt)?
                         }
                     case:
                     }
@@ -275,13 +275,13 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
     case NodeType.FuncDef(func_def):
         // Anonymous function - recurse into body
         for stmt: Expr in func_def.body {
-            register_declarations_recursive(context, stmt)
+            register_declarations_recursive(context, stmt)?
         }
     case:
     }
     // Recurse into all params
     for param: Expr in e.params {
-        register_declarations_recursive(context, param)
+        register_declarations_recursive(context, param)?
     }
 
     catch (err: KeyNotFoundError) { throw err.msg }
@@ -289,7 +289,7 @@ register_declarations_recursive := proc(mut context: Context, e: Expr) throws St
 
 /// Register all functions and structs from the AST into context.scope_stack.
 register_declarations := proc(mut context: Context, e: Expr) throws Str {
-    register_declarations_recursive(context, e)
+    register_declarations_recursive(context, e)?
 }
 
 /// Types required by ext.c - these must be kept since ext.c is always included
@@ -327,7 +327,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
 
     while worklist.len().gt(0) {
         mut func_name := ""
-        worklist.pop(func_name)
+        worklist.pop(func_name)?
 
         // Find what this function calls using scope_stack
         mut found_func := false
@@ -339,7 +339,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
 
         if found_func {
             // Collect types used by this function
-            collect_used_types_from_func(context, func_def, used_types)
+            collect_used_types_from_func(context, func_def, used_types)?
 
             // Check if this function has variadic parameters (TMulti)
             for arg: Declaration in func_def.args {
@@ -357,7 +357,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
             }
             mut called := Set.new(Str)
             for stmt: Expr in func_def.body {
-                collect_called_functions(stmt, called)
+                collect_called_functions(stmt, called)?
             }
             // Add newly discovered functions
             for called_func: Str in called {
@@ -384,7 +384,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                         continue
                     case:
                     }
-                    collect_called_functions(default_expr, struct_called)
+                    collect_called_functions(default_expr, struct_called)?
                 }
                 for called_func: Str in struct_called {
                     mark_reachable(called_func, reachable, worklist)
@@ -423,12 +423,12 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                     // In this case, parts[0] is a variable name, not a type name
                     mut parts := func_name.split(".")
                     mut method_name := ""
-                    parts.get(parts.len().sub(1), method_name) // Last part is the method name
+                    parts.get(parts.len().sub(1), method_name)? // Last part is the method name
 
                     mut is_unresolved_ufcs := false
                     if parts.len().gteq(2) {
                         mut maybe_var := ""
-                        parts.get(0, maybe_var)
+                        parts.get(0, maybe_var)?
                         // If first part is NOT a known struct/enum, it's likely a variable
                         mut found_struct_check := false
                         mut _dummy_struct := SStructDef()
@@ -530,7 +530,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
     }
     while type_worklist.len().gt(0) {
         mut type_name := ""
-        type_worklist.pop(type_name)
+        type_worklist.pop(type_name)?
 
         // Check struct field types
         mut closure_found_struct := false
@@ -590,7 +590,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
         // Step 0: Register all functions and structs from the transformed AST into scope_stack
         // This mirrors what the interpreter does - it builds scope_stack as it walks the AST
-        register_declarations(context, e)
+        register_declarations(context, e)?
 
         // DEBUG
 
@@ -611,7 +611,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                             // Skip function declarations
                         case:
                             // Non-function declaration initializer - collect calls from it
-                            collect_called_functions(inner, roots)
+                            collect_called_functions(inner, roots)?
                         }
                     }
                 case:
@@ -631,12 +631,12 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                             // Skip function declarations - they're not roots themselves
                         case:
                             // Non-function declaration initializer - collect calls from it
-                            collect_called_functions(script_inner, roots)
+                            collect_called_functions(script_inner, roots)?
                         }
                     }
                 case:
                     // Non-declaration statement (function call, assignment, etc.)
-                    collect_called_functions(stmt, roots)
+                    collect_called_functions(stmt, roots)?
                 }
             }
         } else {
@@ -651,7 +651,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                             // Skip function declarations
                         case:
                             // Non-function declaration initializer - collect calls from it
-                            collect_called_functions(lib_inner, roots)
+                            collect_called_functions(lib_inner, roots)?
                         }
                     }
                 case:

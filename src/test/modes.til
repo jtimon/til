@@ -132,7 +132,7 @@ test_mode_test := proc() {
 
     // Test that imports contains "modes.test"
     mut import_str := Str()
-    m.imports.get(0, import_str)
+    m.imports.get(0, import_str)?
     assert_eq_str(loc(), "modes.test", import_str)
 
     catch (err: Str) {

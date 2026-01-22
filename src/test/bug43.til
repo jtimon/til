@@ -16,21 +16,21 @@ test_map_get_in_struct := proc() {
     mut frame := Frame()
     assert_eq(loc(), 0, frame.funcs._size) // Should be 0 initially
     assert_eq(loc(), 0, frame.funcs.keys._len) // Should be 0 initially
-    frame.funcs.insert("test", 42)
+    frame.funcs.insert("test", 42)?
     assert_eq(loc(), 1, frame.funcs._size) // Should be 1 after insert
     assert_eq(loc(), 1, frame.funcs.keys._len) // Should be 1 after insert
 
     // Try direct Map (not in struct) to isolate the issue
     mut direct_map := Map.new(Str, I64)
-    direct_map.insert("direct_test", 99)
+    direct_map.insert("direct_test", 99)?
     mut direct_val := 0
-    direct_map.get("direct_test", direct_val)
+    direct_map.get("direct_test", direct_val)?
     assert_eq(loc(), 99, direct_val)  // Does direct Map work?
     direct_map.delete()
 
     // Now try the struct field Map
     mut val := 0
-    frame.funcs.get("test", val)
+    frame.funcs.get("test", val)?
     assert_eq(loc(), 42, val)
 
     frame.funcs.delete()

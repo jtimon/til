@@ -133,7 +133,7 @@ get_base_index := proc(note_base: Str) returns I64 {
     target := note_base.to_lowercase()
     while i.lt(base_notes.len()) {
         mut note := ""
-        base_notes.get(i, note)
+        base_notes.get(i, note)?
         if note.eq(target) {
             // Return chromatic index, not diatonic
             return diatonic_to_chromatic(i)
@@ -180,15 +180,15 @@ generate_scale := proc(root_idx: I64, steps: Vec) returns Str {
             result = result.concat(" ")
         }
         mut note := ""
-        chromatic.get(pos, note)
+        chromatic.get(pos, note)?
         result = result.concat(note)
         mut step := 0
-        steps.get(k, step)
+        steps.get(k, step)?
         pos = pos.add(step).mod(12)
         k = k.add(1)
     }
     mut root_note := ""
-    chromatic.get(root_idx, root_note)
+    chromatic.get(root_idx, root_note)?
     result = result.concat(" (")
     result = result.concat(root_note)
     result = result.concat(")")
@@ -349,7 +349,7 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
     root_idx := apply_accidentals(base_idx, acc)
 
     mut steps := Vec.new(I64)
-    mode_intervals.get(mode_index, steps)
+    mode_intervals.get(mode_index, steps)?
 
     scale_str := generate_scale(root_idx, steps)
 

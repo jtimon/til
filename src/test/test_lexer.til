@@ -10,7 +10,7 @@ test_newline_escape := proc() {
     mut tokens := scan_tokens(source)
 
     mut tok := Token()
-    tokens.get(0, tok)
+    tokens.get(0, tok)?
 
     assert_eq_str(loc(), "\n", tok.token_str)
 
@@ -33,7 +33,7 @@ test_tab_escape := proc() {
     mut tokens := scan_tokens(source)
 
     mut tok := Token()
-    tokens.get(0, tok)
+    tokens.get(0, tok)?
 
     assert_eq_str(loc(), "\t", tok.token_str)
 
@@ -56,7 +56,7 @@ test_carriage_return_escape := proc() {
     mut tokens := scan_tokens(source)
 
     mut tok := Token()
-    tokens.get(0, tok)
+    tokens.get(0, tok)?
 
     assert_eq_str(loc(), "\r", tok.token_str)
 
@@ -79,7 +79,7 @@ test_null_escape := proc() {
     mut tokens := scan_tokens(source)
 
     mut tok := Token()
-    tokens.get(0, tok)
+    tokens.get(0, tok)?
 
     assert_eq_str(loc(), "\0", tok.token_str)
 
@@ -102,7 +102,7 @@ test_multiple_escapes := proc() {
     mut tokens := scan_tokens(source)
 
     mut tok := Token()
-    tokens.get(0, tok)
+    tokens.get(0, tok)?
 
     assert_eq_str(loc(), "hello\nworld\ttab", tok.token_str)
 
@@ -126,7 +126,7 @@ test_unknown_escape := proc() {
     mut tokens := scan_tokens(source)
 
     mut tok := Token()
-    tokens.get(0, tok)
+    tokens.get(0, tok)?
 
     assert_eq_str(loc(), "\\x", tok.token_str)
 
@@ -180,7 +180,7 @@ test_lexer_advance := proc() {
     assert_eq_str(loc(), "mode", t1.token_str)
 
     // Advance and check next token
-    lexer.advance(1)
+    lexer.advance(1)?
     t2 := lexer.peek()
     assert_eq_str(loc(), "script", t2.token_str)
 
@@ -252,7 +252,7 @@ test_lexer_previous := proc() {
     mut lexer := Lexer.new(readfile("src/examples/empty.til"))
 
     // Advance to "script"
-    lexer.advance(1)
+    lexer.advance(1)?
     current := lexer.peek()
     assert_eq_str(loc(), "script", current.token_str)
 

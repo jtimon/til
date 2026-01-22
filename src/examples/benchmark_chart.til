@@ -21,13 +21,13 @@ main := proc() {
     mut i := 0
     while i.lt(lines.len()) {
         mut line : Str = ""
-        lines.get(i, line)
+        lines.get(i, line)?
         if line.len().gt(0) {
             // Parse "abc1234 commit message"
             space_idx := line.find(" ")
             if space_idx.gt(0) {
-                hash := get_substr(line, 0, space_idx)
-                msg := get_substr(line, add(space_idx, 1), line.len())
+                hash := get_substr(line, 0, space_idx)?
+                msg := get_substr(line, add(space_idx, 1), line.len())?
 
                 // Get benchmark.org content at this commit (try paths due to renames)
                 mut content := ""
@@ -44,23 +44,23 @@ main := proc() {
                 if total_idx.gt(sub(0, 1)) {
                     // Extract the number after "Total :: "
                     start := add(total_idx, 9)
-                    rest := get_substr(content, start, content.len())
+                    rest := get_substr(content, start, content.len())?
                     s_idx := rest.find("s")
                     if s_idx.gt(0) {
-                        total_str := get_substr(rest, 0, s_idx)
+                        total_str := get_substr(rest, 0, s_idx)?
                         // Parse as milliseconds (multiply by 1000)
                         // Format is like "24.167"
                         dot_idx := total_str.find(".")
                         if dot_idx.gt(0) {
-                            secs_str := get_substr(total_str, 0, dot_idx)
-                            ms_str := get_substr(total_str, add(dot_idx, 1), total_str.len())
+                            secs_str := get_substr(total_str, 0, dot_idx)?
+                            ms_str := get_substr(total_str, add(dot_idx, 1), total_str.len())?
                             secs := secs_str.to_i64()
                             ms := ms_str.to_i64()
                             total_ms := add(mul(secs, 1000), ms)
 
                             hashes.push(hash)
                             if msg.len().gt(40) {
-                                msgs.push(concat(get_substr(msg, 0, 40), "..."))
+                                msgs.push(concat(get_substr(msg, 0, 40)?, "..."))
                             } else {
                                 msgs.push(msg)
                             }
@@ -87,9 +87,9 @@ main := proc() {
     mut out_msg := ""
     mut out_total := 0
     for j in sub(totals.len(), 1)..sub(0, 1) {
-        hashes.get(j, out_hash)
-        msgs.get(j, out_msg)
-        totals.get(j, out_total)
+        hashes.get(j, out_hash)?
+        msgs.get(j, out_msg)?
+        totals.get(j, out_total)?
 
         // Format as seconds
         secs := div(out_total, 1000)

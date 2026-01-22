@@ -65,12 +65,12 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
             case NodeType.FCall(_):
                 if not(child.params.is_empty()) {
                     mut first_param := Expr()
-                    child.params.get(0, first_param)
+                    child.params.get(0, first_param)?
                     switch first_param.node_type {
                     case NodeType.Identifier(name):
                         if name.eq("import").and(child.params.len().gt(1)) {
                             mut second_param := Expr()
-                            child.params.get(1, second_param)
+                            child.params.get(1, second_param)?
                             switch second_param.node_type {
                             case NodeType.LLiteral(lit):
                                 switch lit {
@@ -80,14 +80,14 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
                                         _ := imported.insert(file_path.clone())
                                         // Bug #128: Use already-resolved AST from typer phase if available
                                         mut dep_resolved := Expr()
-                                        context.imported_asts.get(file_path, dep_resolved)
+                                        context.imported_asts.get(file_path, dep_resolved)?
                                         catch (err: KeyNotFoundError) {
                                             dep_result := parse_file(file_path)
                                             context.imported_asts.set(file_path.clone(), dep_result.ast.clone())
                                             dep_resolved = dep_result.ast
                                         }
                                         // Recursively collect imports from this dependency
-                                        collect_imports(dep_resolved, imported, all_asts, context)
+                                        collect_imports(dep_resolved, imported, all_asts, context)?
                                         // Desugar + UFCS + Precomp with the correct path for this file
                                         // (type resolution already done by typer_import_declarations)
                                         saved_path := context.path.clone()
@@ -169,7 +169,7 @@ is_import_call := func(expr: Expr) returns Bool {
     case NodeType.FCall(_):
         if not(expr.params.is_empty()) {
             mut first_param := Expr()
-            expr.params.get(0, first_param)
+            expr.params.get(0, first_param)?
             switch first_param.node_type {
             case NodeType.Identifier(name):
                 return name.eq("import")
@@ -195,12 +195,12 @@ collect_import_paths := proc(ast: Expr, mut collected: Set) {
             case NodeType.FCall(_):
                 if not(child.params.is_empty()) {
                     mut first_param := Expr()
-                    child.params.get(0, first_param)
+                    child.params.get(0, first_param)?
                     switch first_param.node_type {
                     case NodeType.Identifier(name):
                         if name.eq("import").and(child.params.len().gt(1)) {
                             mut second_param := Expr()
-                            child.params.get(1, second_param)
+                            child.params.get(1, second_param)?
                             switch second_param.node_type {
                             case NodeType.LLiteral(lit):
                                 switch lit {
@@ -291,7 +291,7 @@ collect_all_deps := proc(path: Str) returns Vec throws Str {
 // Returns the output path (executable or source file)
 build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) returns Str throws Str {
     // Validate lang is supported for target
-    validate_lang_for_target(lang, target)
+    validate_lang_for_target(lang, target)?
 
     // Currently only C is fully supported
     switch lang {
@@ -352,7 +352,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         import_path_expr.col = 0
 
         mut import_fcall_expr := Expr()
-        import_fcall_expr.node_type = NodeType.FCall
+        import_fcall_expr.node_type = NodeType.FCall(false)
         import_fcall_expr.params = Vec.new(Expr)
         import_fcall_expr.params.push(import_func_name_expr)
         import_fcall_expr.params.push(import_path_expr)
@@ -360,7 +360,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         import_fcall_expr.col = 0
 
         // Mode imports need init and typer phases (no eval for builder)
-        init_import_declarations(context, import_fcall_expr, import_str)
+        init_import_declarations(context, import_fcall_expr, import_str)?
         catch (err: Str) {
             throw path.concat(":").concat(err)
         }
@@ -419,7 +419,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     if not(path.eq(core_path)) {
         codegen_core_result := parse_file(core_path)
         _ := imported.insert(core_path)
-        collect_imports(codegen_core_result.ast, imported, dep_asts, context)
+        collect_imports(codegen_core_result.ast, imported, dep_asts, context)?
         // Resolve types + Desugar + UFCS + Precomp core.til with its own path
         core_saved_path := context.path.clone()
         context.path = core_path
@@ -437,7 +437,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         if not(imported.contains(file_path)) {
             _ := imported.insert(file_path.clone())
             mode_result := parse_file(file_path)
-            collect_imports(mode_result.ast, imported, dep_asts, context)
+            collect_imports(mode_result.ast, imported, dep_asts, context)?
             // Resolve types + Desugar + UFCS + Precomp mode file with its own path
             mode_saved_path := context.path.clone()
             context.path = file_path.clone()
@@ -451,7 +451,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     }
 
     // Collect main file's imports
-    collect_imports(main_result.ast, imported, dep_asts, context)
+    collect_imports(main_result.ast, imported, dep_asts, context)?
 
     // Resolve types + Desugar + UFCS + Precomp main file with its own path (context.path should already be correct)
     main_resolved := resolve_inferred_types(context, main_result.ast)

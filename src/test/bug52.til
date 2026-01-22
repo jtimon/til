@@ -29,7 +29,7 @@ test_vec_iteration := proc() {
 
     mut child1 := Expr(node_type=NodeType.Body, line=1)
     mut child2 := Expr(node_type=NodeType.Identifier("hello"), line=2)
-    mut child3 := Expr(node_type=NodeType.FCall, line=3)
+    mut child3 := Expr(node_type=NodeType.FCall(false), line=3)
 
     parent.params.push(child1)
     parent.params.push(child2)

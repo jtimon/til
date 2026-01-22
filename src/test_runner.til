@@ -30,8 +30,8 @@ parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError
                     if parts.len().eq(2) {
                         mut whole := ""
                         mut frac := ""
-                        parts.get(0, whole)
-                        parts.get(1, frac)
+                        parts.get(0, whole)?
+                        parts.get(1, frac)?
                         while frac.len().lt(3) {
                             frac = frac.concat("0")
                         }
@@ -163,7 +163,7 @@ main := proc(args: ..Str) {
     mut force_rebuild := false
     mut arg_offset := 0
     mut first_arg := ""
-    args.get(0, first_arg)
+    args.get(0, first_arg)?
     if first_arg.eq("--force-rebuild") {
         force_rebuild = true
         arg_offset = 1
@@ -179,10 +179,10 @@ main := proc(args: ..Str) {
     mut out_mode := ""
     mut expected_status_str := ""
     mut file := ""
-    args.get(arg_offset.add(0), test_mode)
-    args.get(arg_offset.add(1), out_mode)
-    args.get(arg_offset.add(2), expected_status_str)
-    args.get(arg_offset.add(3), file)
+    args.get(arg_offset.add(0), test_mode)?
+    args.get(arg_offset.add(1), out_mode)?
+    args.get(arg_offset.add(2), expected_status_str)?
+    args.get(arg_offset.add(3), file)?
 
     expected_status := expected_status_str.to_i64()
 
@@ -190,7 +190,7 @@ main := proc(args: ..Str) {
     mut cmd_args := ""
     for i in arg_offset.add(4)..args.len() {
         mut arg := ""
-        args.get(i, arg)
+        args.get(i, arg)?
         if cmd_args.len().gt(0) {
             cmd_args = cmd_args.concat(" ")
         }

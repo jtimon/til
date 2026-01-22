@@ -54,7 +54,7 @@ test_self_hosting := proc() throws Str, IndexOutOfBoundsError, I64_Overflow {
     // Create the function call
     println("  4g: Creating function call...")
     mut println_call := Expr()
-    println_call.node_type = NodeType.FCall
+    println_call.node_type = NodeType.FCall(false)
     println("  4h: Creating params array...")
     mut call_params := Array.new(Expr, 2)
     println("  4i: Setting param 0 (println_id)...")

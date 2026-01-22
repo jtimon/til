@@ -4,7 +4,7 @@ import("std.sys")  // spawn_cmd, check_cmd_status, wait_cmd, sleep
 
 // Test sleep
 test_sleep := proc() {
-    sleep(100)  // sleep 100ms
+    sleep(100)?  // sleep 100ms
 
     catch (err: SleepError) {
         println("SleepError:", err.msg)

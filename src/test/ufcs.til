@@ -76,8 +76,8 @@ test_ufcs_on_function_results := proc () {
     source := "hello.world"
 
     // Simple function result method call
-    assert(loc(), source.get_substr(0, 1).eq("h"))
-    assert(loc(), source.get_substr(6, 11).eq("world"))
+    assert(loc(), source.get_substr(0, 1)?.eq("h"))
+    assert(loc(), source.get_substr(6, 11)?.eq("world"))
     assert(loc(), not(source.get_substr(0, 5).eq("world")))
 
     // Test with I64 methods on function results
@@ -138,10 +138,10 @@ test_ufcs_str_chains := proc () {
     assert(loc(), first_word.eq("hello"))
 
     // Direct chain
-    assert(loc(), text.get_substr(6, 11).eq("world"))
+    assert(loc(), text.get_substr(6, 11)?.eq("world"))
 
     // Length checks with chaining
-    hello_len := text.get_substr(0, 5).len()
+    hello_len := text.get_substr(0, 5)?.len()
     assert_eq(loc(), 5, hello_len)
 
     // Catch unexpected errors at end

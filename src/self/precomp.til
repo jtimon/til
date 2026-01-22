@@ -452,7 +452,7 @@ precomp_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) retu
     context.scope_stack.push(ScopeType.Function)
     for arg: Declaration in func_def.args {
         sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
-        context.scope_stack.declare_symbol(arg.name, sym)
+        context.scope_stack.declare_symbol(arg.name, sym)?
     }
 
     // Transform the function body
@@ -527,8 +527,8 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case ValueType.TType(TTypeDef.TEnumDef):
         switch inner_e.node_type {
         case NodeType.EnumDef(enum_def):
-            context.scope_stack.declare_enum(decl.name, enum_def)
-            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+            context.scope_stack.declare_enum(decl.name, enum_def)?
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
             return e.clone()
         case:
             throw e.lang_error(context.path, "precomp", format("Cannot declare '", decl.name, "' of type '", value_type_to_str(decl.value_type), "', expected enum definition."))
@@ -541,7 +541,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case ValueType.TType(TTypeDef.TStructDef):
         switch inner_e.node_type {
         case NodeType.StructDef(struct_def):
-            context.scope_stack.declare_struct(decl.name, struct_def)
+            context.scope_stack.declare_struct(decl.name, struct_def)?
             saved_path := context.path
             _ := eval_declaration(decl, context, e)
             context.path = saved_path
@@ -591,23 +591,23 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     // Only mut matters for constantness - copy/own are about ownership, orthogonal to comptime.
     // Any type can be comptime - the type doesn't matter, only how the value is computed.
     mut first_param := Expr()
-    new_params.get(0, first_param)
+    new_params.get(0, first_param)?
     is_comptime_const := not(decl.is_mut)
         .and(is_comptime_evaluable(context, first_param))
 
     // Register the declared variable in scope
     sym := SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=is_comptime_const)
-    context.scope_stack.declare_symbol(decl.name, sym)
+    context.scope_stack.declare_symbol(decl.name, sym)?
 
     // Also register function definitions so UFCS can resolve their return types
     switch value_type {
     case ValueType.TFunction:
         if new_params.len().gt(0) {
             mut fp := Expr()
-            new_params.get(0, fp)
+            new_params.get(0, fp)?
             switch fp.node_type {
             case NodeType.FuncDef(func_def):
-                context.scope_stack.declare_func(decl.name, func_def)
+                context.scope_stack.declare_func(decl.name, func_def)?
             case:
             }
         }
@@ -628,7 +628,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
                 if is_comptime_evaluable(context, first_param) {
                     result := eval_expr(context, first_param)
                     if not(result.is_throw) {
-                        EvalArena.insert_primitive(context, decl.name, value_type, result.value, e)
+                        EvalArena.insert_primitive(context, decl.name, value_type, result.value, e)?
                     }
                 }
             }
@@ -680,8 +680,8 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Get the catch variable name and type
     mut name_expr := Expr()
     mut type_expr := Expr()
-    e.params.get(0, name_expr)
-    e.params.get(1, type_expr)
+    e.params.get(0, name_expr)?
+    e.params.get(1, type_expr)?
     mut var_name := ""
     mut type_name := ""
     switch name_expr.node_type {
@@ -707,11 +707,11 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     sym.is_copy = false
     sym.is_own = false
     sym.is_comptime_const = false
-    context.scope_stack.declare_symbol(var_name, sym)
+    context.scope_stack.declare_symbol(var_name, sym)?
 
     // Transform the catch body (params[2])
     mut body_expr := Expr()
-    e.params.get(2, body_expr)
+    e.params.get(2, body_expr)?
     new_body := precomp_expr(context, body_expr)
 
     // Pop the scope frame
@@ -766,7 +766,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
             switch func_expr.node_type {
             case NodeType.Identifier(id_name):
                 if func_expr.params.len().eq(0) {
-                    insert_struct_instance(context, id_name, combined_name, e)
+                    insert_struct_instance(context, id_name, combined_name, e)?
                 }
             case:
             }
@@ -820,7 +820,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 mut parts := combined_name.split(".")
                 if parts.len().gt(0) {
                     mut last_part := ""
-                    parts.get(parts.len().sub(1), last_part)
+                    parts.get(parts.len().sub(1), last_part)?
                     if last_part.eq("import") {
                         _ := eval_expr(context, new_e)
                     }

@@ -65,9 +65,9 @@ test_for_in_vec_str()
 
 test_for_in_array_i64 := proc() {
     mut arr := Array.new(I64, 3)
-    arr.set(0, 100)
-    arr.set(1, 200)
-    arr.set(2, 300)
+    arr.set(0, 100)?
+    arr.set(1, 200)?
+    arr.set(2, 300)?
     mut arr_total := 0
     for n: I64 in arr {
         arr_total = arr_total.add(n)

@@ -200,14 +200,14 @@ main := proc(args: ..Str) {
 
     if args.len().gt(1) {
         mut command := ""
-        args.get(0, command)
+        args.get(0, command)?
         catch (err: IndexOutOfBoundsError) { }
 
         mut remaining_args := Vec.new(Str)
         mut i := 1
         while i.lt(args.len()) {
             mut arg := ""
-            args.get(i, arg)
+            args.get(i, arg)?
             remaining_args.push(arg)
             i.inc()
         }
@@ -216,12 +216,12 @@ main := proc(args: ..Str) {
         if command.eq("interpret") {
             // interpret doesn't use build options, just pass remaining args
             mut path := ""
-            args.get(1, path)
+            args.get(1, path)?
             mut main_args := Vec.new(Str)
             mut j := 2
             while j.lt(args.len()) {
                 mut interp_arg := ""
-                args.get(j, interp_arg)
+                args.get(j, interp_arg)?
                 main_args.push(interp_arg)
                 j.inc()
             }
@@ -237,7 +237,7 @@ main := proc(args: ..Str) {
                 exit(1)
             }
             mut build_first_path := ""
-            build_opts.remaining.get(0, build_first_path)
+            build_opts.remaining.get(0, build_first_path)?
             translate_only := build_opts.translate_only
             build_file_or_exit(build_first_path, build_opts.target, build_opts.lang, translate_only, build_opts.force_rebuild)
             catch (err: Str) {
@@ -255,7 +255,7 @@ main := proc(args: ..Str) {
                 exit(1)
             }
             mut translate_first_path := ""
-            translate_opts.remaining.get(0, translate_first_path)
+            translate_opts.remaining.get(0, translate_first_path)?
             build_file_or_exit(translate_first_path, translate_opts.target, translate_opts.lang, true, translate_opts.force_rebuild)
             catch (err: Str) {
                 println("Error: ", err)
@@ -272,14 +272,14 @@ main := proc(args: ..Str) {
                 exit(1)
             }
             mut run_first_path := ""
-            run_opts.remaining.get(0, run_first_path)
+            run_opts.remaining.get(0, run_first_path)?
             // Pass remaining paths as arguments to the compiled program
             mut extra_args := Vec.new(Str)
             if run_opts.remaining.len().gt(1) {
                 mut k := 1
                 while k.lt(run_opts.remaining.len()) {
                     mut run_arg := ""
-                    run_opts.remaining.get(k, run_arg)
+                    run_opts.remaining.get(k, run_arg)?
                     extra_args.push(run_arg)
                     k.inc()
                 }
@@ -301,7 +301,7 @@ main := proc(args: ..Str) {
         }
     } else if args.len().gt(0) {
         mut first_arg := ""
-        args.get(0, first_arg)
+        args.get(0, first_arg)?
         catch (err: IndexOutOfBoundsError) { }
         switch first_arg {
         case "repl":

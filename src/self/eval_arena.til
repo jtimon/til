@@ -1375,7 +1375,7 @@ EvalArena := struct {
             params.push(named_arg)
         }
 
-        result := Expr.new_explicit(NodeType.FCall, params, 0, 0)
+        result := Expr.new_explicit(NodeType.FCall(false), params, 0, 0)
 
 
         return result
