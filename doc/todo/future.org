@@ -1578,8 +1578,8 @@ All tests must pass.
 :PROPERTIES:
 :DISCOVERED: 2025-12-31
 :IMPACT: Test infrastructure, rstil/til output validation
-:STATUS: Fixed
-:RELATED: Bug #126 (error message divergence), bug50 (rstil vs til prefix)
+:STATUS: In Progress
+:RELATED: Bug #126 (error message divergence), Bug #100 (get rid of rstil)
 :END:
 
 *** Background
@@ -1595,7 +1595,7 @@ Added ~all_common~ category in tests.til that runs 4 modes:
 - til_compiled (til run)
 
 *** Test Categorization Strategy
-- ~all_common~: Tests producing identical output across all 4 modes (65 tests)
+- ~all_common~: Tests producing identical output across all 4 modes (67 tests)
 - ~rs_common~: Tests that pass with rstil but have different output from til
 - ~til_common~: Tests that pass with til but have different output from rstil
 - ~rs_interpreted~, ~rs_compiled~: Mode-specific tests
@@ -1611,11 +1611,18 @@ because rstil and til produce different error messages. Common divergences:
 Such tests must go in BOTH rs_common AND til_common with separate expected
 output files. See sugar.til for an example.
 
-*** Example: bug50
-bug50.til produces ~rstil type ERROR~ vs ~til type ERROR~ (binary name in output).
-It stays in ~rs_common~ until either:
-1. Binary name removed from error messages, OR
-2. Output normalization added to test comparison
+*** Example: bug50 (RESOLVED)
+bug50.til produced ~rstil type ERROR~ vs ~til type ERROR~ (binary name in output).
+Fixed by unifying LANG_NAME to "til" in both src/rs/lexer.rs and src/self/lexer.til.
+bug50.til now in all_common (2026-01-22).
+
+*** Progress
+Tests moved to all_common:
+- panic.til (2026-01-22): Error messages now identical after Bug #126 fixes
+- bug50.til (2026-01-22): LANG_NAME unified to "til" in both implementations
+
+Remaining in rs_common + til_common separately:
+- sugar.til: Error output still differs between rstil and til
 
 *** Benchmark Annotations
 4-phase all_common tests will show timing comparisons:
