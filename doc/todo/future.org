@@ -859,7 +859,7 @@ Both should produce identical behavior.
 :DISCOVERED: 2025-12-31
 :IMPACT: Language design, Rust/TIL parity, developer experience
 :STATUS: Open
-:RELATED: Bug #65 (specific shadowing divergence)
+:RELATED: Bug #65 (specific shadowing divergence), Bug #97 (implementation attempt)
 :END:
 
 *** Background

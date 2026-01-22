@@ -580,6 +580,7 @@ program crash on I/O failures.
 :DISCOVERED: 2026-01-10
 :IMPACT: Variable shadowing causes C codegen to mix up types, generating broken C code
 :STATUS: Partially Fixed
+:RELATED: Issue #66 (shadowing policy decision)
 :END:
 
 *** Description
