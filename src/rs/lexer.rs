@@ -8,7 +8,7 @@ pub enum TokenType {
     // Single-character tokens.
     Minus, Plus, Slash, Star,
     LeftParen, RightParen, LeftBrace, RightBrace, LeftBracket, RightBracket,
-    Comma, Colon,
+    Comma, Colon, Question,
 
     // One or two character tokens.
     Dot, DoubleDot,
@@ -212,6 +212,7 @@ fn token_type_to_str(tt: &TokenType) -> &'static str {
         TokenType::Minus => "-",
         TokenType::Star => "*",
         TokenType::Slash => "/",
+        TokenType::Question => "?",
         TokenType::Identifier => "identifier",
         TokenType::String => "string",
         TokenType::Number => "number",
@@ -353,6 +354,9 @@ fn scan_tokens(source: String) -> Vec<Token> {
                 ":" => TokenType::Colon,
                 // separator for args
                 "," => TokenType::Comma, // args can/must? have ',', otherwise the language would be too lispy when parsing from C
+
+                // throw propagation marker (Issue #132)
+                "?" => TokenType::Question,
 
                 // math
                 "-" => TokenType::Minus,

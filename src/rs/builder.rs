@@ -49,7 +49,7 @@ fn parse_file(path: &str) -> Result<(Expr, ModeDef), String> {
 fn collect_imports(ast: &Expr, imported: &mut HashSet<String>, all_asts: &mut Vec<Expr>, context: &mut Context) -> Result<(), String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if let NodeType::FCall = &child.node_type {
+            if let NodeType::FCall(_) = &child.node_type {
                 if !child.params.is_empty() {
                     if let NodeType::Identifier(name) = &child.params[0].node_type {
                         if name == "import" && child.params.len() > 1 {
@@ -124,7 +124,7 @@ fn merge_asts(main_ast: Expr, dep_asts: Vec<Expr>) -> Expr {
 }
 
 fn is_import_call(expr: &Expr) -> bool {
-    if let NodeType::FCall = &expr.node_type {
+    if let NodeType::FCall(_) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::Identifier(name) = &expr.params[0].node_type {
                 return name == "import";
@@ -138,7 +138,7 @@ fn is_import_call(expr: &Expr) -> bool {
 fn collect_import_paths(ast: &Expr, collected: &mut HashSet<String>) {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if let NodeType::FCall = &child.node_type {
+            if let NodeType::FCall(_) = &child.node_type {
                 if !child.params.is_empty() {
                     if let NodeType::Identifier(name) = &child.params[0].node_type {
                         if name == "import" && child.params.len() > 1 {
@@ -259,7 +259,7 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     for import_str in context.mode_def.imports.clone() {
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(crate::rs::parser::Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
-        let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
+        let import_fcall_expr = Expr{node_type: NodeType::FCall(false), params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
 
         // Mode imports need init and typer phases (no eval for builder)
         if let Err(error_string) = init_import_declarations(&mut context, &import_fcall_expr, &import_str) {

@@ -200,7 +200,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                 }
             }
         },
-        NodeType::FCall => {
+        NodeType::FCall(_) => {
             // Special handling for import() calls - type-check the imported file
             let f_name = get_func_name_in_call(&e);
             if f_name == "import" {
@@ -1099,9 +1099,33 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                 }
             },
 
-            NodeType::FCall => {
+            NodeType::FCall(has_question) => {
                 match get_func_def_for_fcall(&context, p) {
                     Ok(Some(called_func_def)) => {
+                        // Issue #132: Validate ? usage for throwing functions
+                        let func_throws = !called_func_def.throw_types.is_empty();
+                        if func_throws && !*has_question {
+                            // Use get_combined_name for better UFCS method names (e.g., "self.get" instead of "self")
+                            let f_name = match p.get(0) {
+                                Ok(id_expr) => crate::rs::parser::get_combined_name(&context.path, id_expr).unwrap_or_else(|_| get_func_name_in_call(p)),
+                                Err(_) => get_func_name_in_call(p),
+                            };
+                            let throw_types_str = called_func_def.throw_types.iter()
+                                .map(|t| value_type_to_str(t))
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            errors.push(p.error(&context.path, "type",
+                                &format!("Function '{}' throws {}, must use '?' to propagate", f_name, throw_types_str)));
+                        }
+                        if !func_throws && *has_question {
+                            let f_name = match p.get(0) {
+                                Ok(id_expr) => crate::rs::parser::get_combined_name(&context.path, id_expr).unwrap_or_else(|_| get_func_name_in_call(p)),
+                                Err(_) => get_func_name_in_call(p),
+                            };
+                            errors.push(p.error(&context.path, "type",
+                                &format!("Function '{}' doesn't throw, '?' is unnecessary", f_name)));
+                        }
+
                         for called_throw in &called_func_def.throw_types {
                             let called_throw_str = value_type_to_str(called_throw);
                             let error_msg = format!(
@@ -1115,7 +1139,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
 
                         for arg in p.params.iter().skip(1) {
                             // Handle direct function calls as arguments
-                            if let NodeType::FCall = arg.node_type {
+                            if let NodeType::FCall(_) = arg.node_type {
                                 match get_func_def_for_fcall(&context, arg) {
                                     Ok(Some(arg_nested_func_def)) => {
                                         let mut arg_thrown_types: Vec<ThrownType> = Vec::new();
@@ -1135,7 +1159,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                             // The throwing function call is inside the NamedArg's params
                             if let NodeType::NamedArg(_) = &arg.node_type {
                                 if let Some(named_arg_value_expr) = arg.params.get(0) {
-                                    if let NodeType::FCall = &named_arg_value_expr.node_type {
+                                    if let NodeType::FCall(_) = &named_arg_value_expr.node_type {
                                         match get_func_def_for_fcall(&context, named_arg_value_expr) {
                                             Ok(Some(named_arg_nested_func_def)) => {
                                                 let mut named_arg_thrown_types: Vec<ThrownType> = Vec::new();
@@ -1160,7 +1184,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         // may contain throwing function calls (Bug #36 fix)
                         for ctor_arg in p.params.iter().skip(1) {
                             // Handle direct function calls as arguments
-                            if let NodeType::FCall = ctor_arg.node_type {
+                            if let NodeType::FCall(_) = ctor_arg.node_type {
                                 match get_func_def_for_fcall(&context, ctor_arg) {
                                     Ok(Some(ctor_nested_func_def)) => {
                                         // Track the function's declared throw types
@@ -1183,7 +1207,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                             // Bug #36 fix: Handle named arguments in struct literals (e.g., Map(keys=self.keys.clone()))
                             if let NodeType::NamedArg(_) = &ctor_arg.node_type {
                                 if let Some(ctor_named_value_expr) = ctor_arg.params.get(0) {
-                                    if let NodeType::FCall = &ctor_named_value_expr.node_type {
+                                    if let NodeType::FCall(_) = &ctor_named_value_expr.node_type {
                                         match get_func_def_for_fcall(&context, ctor_named_value_expr) {
                                             Ok(Some(ctor_named_nested_func_def)) => {
                                                 // Track the function's declared throw types
@@ -1342,7 +1366,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         }
                     }
 
-                    if let NodeType::FCall = initializer.node_type {
+                    if let NodeType::FCall(_) = initializer.node_type {
                         let id_expr_opt = match initializer.get(0) {
                             Ok(id_expr_) => Some(id_expr_),
                             Err(err) => {
@@ -1412,7 +1436,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
 
             NodeType::Assignment(_) => {
                 if let Some(assign_initializer) = p.params.get(0) {
-                    if let NodeType::FCall = assign_initializer.node_type {
+                    if let NodeType::FCall(_) = assign_initializer.node_type {
 
                         let assign_id_expr_opt = match assign_initializer.get(0) {
                             Ok(id_expr_) => Some(id_expr_),
@@ -2108,7 +2132,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
 }
 
 pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) -> Result<Option<SFuncDef>, String> {
-    if fcall_expr.node_type != NodeType::FCall {
+    if !matches!(fcall_expr.node_type, NodeType::FCall(_)) {
         return Err(fcall_expr.lang_error(&context.path, "type", "Expected FCall node type"));
     }
     let func_expr = match fcall_expr.params.first() {
@@ -2149,7 +2173,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                             let mut new_args = Vec::new();
                             new_args.push(new_e);
                             new_args.extend(fcall_expr.params[1..].to_vec());
-                            *fcall_expr = Expr::new_clone(NodeType::FCall, fcall_expr.get(0)?, new_args);
+                            *fcall_expr = Expr::new_clone(NodeType::FCall(false), fcall_expr.get(0)?, new_args);
                             return Ok(Some(func_def.clone()));
                         }
                     }
@@ -2178,7 +2202,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                         ufcs_new_args.push(extra_arg_e);
                         ufcs_new_args.extend(fcall_expr.params[1..].to_vec());
 
-                        *fcall_expr = Expr::new_clone(NodeType::FCall, fcall_expr.get(0)?, ufcs_new_args);
+                        *fcall_expr = Expr::new_clone(NodeType::FCall(false), fcall_expr.get(0)?, ufcs_new_args);
                         return Ok(Some(ufcs_func_def.clone()))
                     }
 
@@ -2198,7 +2222,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                                     assoc_new_args.push(extra_arg_e);
                                     assoc_new_args.extend(fcall_expr.params[1..].to_vec());
 
-                                    *fcall_expr = Expr::new_clone(NodeType::FCall, fcall_expr.get(0)?, assoc_new_args);
+                                    *fcall_expr = Expr::new_clone(NodeType::FCall(false), fcall_expr.get(0)?, assoc_new_args);
                                     return Ok(Some(assoc_func_def.clone()))
                                 }
                             },
@@ -2274,7 +2298,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
             }
             return false
         },
-        NodeType::FCall => {
+        NodeType::FCall(_) => {
             // Check if the function being called is a proc
             let f_name = get_func_name_in_call(e);
             // Check if this proc is allowed to be called from funcs in this mode
@@ -2382,7 +2406,7 @@ pub fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
                                                                  context.mode_def.name, decl.name)));
                         }
                     },
-                    NodeType::FCall => {
+                    NodeType::FCall(_) => {
                         if !context.mode_def.allows_base_calls {
                             let f_name = get_func_name_in_call(&p);
                             if f_name != "import" {

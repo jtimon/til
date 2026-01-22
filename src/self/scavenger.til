@@ -28,7 +28,7 @@ collect_used_types_from_expr := proc(context: Context, e: Expr, mut used_types: 
         if type_name.len().gt(0) {
             _ := used_types.insert(type_name)
         }
-    case NodeType.FCall:
+    case NodeType.FCall(_):
         // Constructor calls - check if the function name is a known struct
         if e.params.len().gt(0) {
             name := get_combined_name_from_identifier(e.get(0))
@@ -156,7 +156,7 @@ rebuild_struct_without_unreachable_methods := proc(decl: Declaration, struct_def
 /// Recursively collect all function names called within an expression.
 collect_called_functions := proc(e: Expr, mut called: Set) throws Str {
     switch e.node_type {
-    case NodeType.FCall:
+    case NodeType.FCall(_):
         // After precomp, function calls have params[0] as Identifier(function_name)
         if e.params.len().gt(0) {
             full_name := get_combined_name_from_identifier(e.get(0))

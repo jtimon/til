@@ -1116,7 +1116,7 @@ impl EvalArena {
             params.push(named_arg);
         }
 
-        Ok(Expr::new_explicit(NodeType::FCall, params, 0, 0))
+        Ok(Expr::new_explicit(NodeType::FCall(false), params, 0, 0))
     }
 
     /// Helper: read a field value from EvalArena and convert to literal Expr

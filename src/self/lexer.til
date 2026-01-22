@@ -12,7 +12,7 @@ TokenType := enum {
     // Single-character tokens.
     Minus, Plus, Slash, Star,
     LeftParen, RightParen, LeftBrace, RightBrace, LeftBracket, RightBracket,
-    Comma, Colon,
+    Comma, Colon, Question,
 
     // One or two character tokens.
     Dot, DoubleDot,
@@ -113,7 +113,7 @@ Lexer := struct {
             return true
         }
         mut t := Token()
-        self.tokens.get(i, t)
+        self.tokens.get(i, t)?
         switch t.token_type {
         case TokenType.Eof:
             return true
@@ -128,7 +128,7 @@ Lexer := struct {
             throw err_token.lang_error(self.path, format("Token in pos ", i.to_str(), " is out of bounds"))
         }
         mut t := Token()
-        self.tokens.get(i, t)
+        self.tokens.get(i, t)?
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
@@ -137,7 +137,7 @@ Lexer := struct {
 
     peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
         mut t := Token()
-        self.tokens.get(self.current, t)
+        self.tokens.get(self.current, t)?
         result := t.clone()
         return result
     }
@@ -152,7 +152,7 @@ Lexer := struct {
             throw err_token2.lang_error(self.path, "Previous token is out of bounds")
         }
         mut t := Token()
-        self.tokens.get(self.current.sub(1), t)
+        self.tokens.get(self.current.sub(1), t)?
         result := t.clone()
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -179,7 +179,7 @@ Lexer := struct {
             throw err_token.lang_error(self.path, format("Peek ahead by ", offset.to_str(), " from ", self.current.to_str(), " is out of bounds"))
         }
         mut t := Token()
-        self.tokens.get(peek_idx, t)
+        self.tokens.get(peek_idx, t)?
         result := t.clone()
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -188,14 +188,14 @@ Lexer := struct {
     }
 
     next := func(self: Lexer) returns Token throws Str {
-        return self.peek_ahead(1)
+        return self.peek_ahead(1)?
     }
 
     expect := func(mut self: Lexer, expected: TokenType) returns Token throws Str {
         p := self.peek()
         switch p.token_type {
         case expected:
-            self.advance(1)
+            self.advance(1)?
             return p
         case:
             throw p.error(self.path, format(
@@ -259,6 +259,7 @@ token_type_to_str := func(tt: TokenType) returns Str {
     case TokenType.Minus: return "-"
     case TokenType.Star: return "*"
     case TokenType.Slash: return "/"
+    case TokenType.Question: return "?"
     case TokenType.Identifier: return "identifier"
     case TokenType.String: return "string"
     case TokenType.Number: return "number"
@@ -268,7 +269,7 @@ token_type_to_str := func(tt: TokenType) returns Str {
 }
 
 is_digit := func(source: Str, pos: I64) returns Bool throws Str {
-    switch source.get_substr(pos, pos.add(1)) {
+    switch source.get_substr(pos, pos.add(1))? {
     case "0".."9": return true
     case: return false
     }
@@ -376,7 +377,7 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
 
     while pos.lt(eof_pos) {
         start := pos
-        if source.is_digit(pos) {
+        if source.is_digit(pos)? {
             mut continue_scanning := true
             while continue_scanning {
                 pos.inc()
@@ -392,7 +393,7 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
             if pos.lt(eof_pos) {
                 if source.get_substr(pos, pos.add(1)).eq(".") {
                     if pos.add(1).lt(eof_pos) {
-                        if source.is_digit(pos.add(1)) {
+                        if source.is_digit(pos.add(1))? {
                             pos.inc()
                             mut continue_scanning2 := true
                             while continue_scanning2 {
@@ -453,6 +454,10 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
             case ",":
                 token_type = TokenType.Comma // args can/must? have ',', otherwise the language would be too lispy when parsing from C
 
+                // throw propagation marker (Issue #132)
+            case "?":
+                token_type = TokenType.Question
+
                 // math
             case "-":
                 token_type = TokenType.Minus
@@ -501,34 +506,56 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                 // Semicolons are completely optional - skip any number of them
             case ";":
                 pos.inc() // Skip the first semicolon
-                while lt(pos, eof_pos).and(source.get_substr(pos, pos.add(1)).eq(";")) {
-                    pos.inc()
+                mut continue_semi := lt(pos, eof_pos)
+                while continue_semi {
+                    tmp_char := source.get_substr(pos, pos.add(1))?
+                    if tmp_char.eq(";") {
+                        pos.inc()
+                        continue_semi = lt(pos, eof_pos)
+                    } else {
+                        continue_semi = false
+                    }
                 }
                 should_process_token = false
 
                 // comments:
             case "#":
                 pos.inc()
-                while lt(pos.add(1), eof_pos).and(not(source.get_substr(pos, pos.add(1)).eq("\n"))) {
-                    pos.inc()
+                mut continue_hash := lt(pos.add(1), eof_pos)
+                while continue_hash {
+                    tmp_ch := source.get_substr(pos, pos.add(1))?
+                    if tmp_ch.eq("\n") {
+                        continue_hash = false
+                    } else {
+                        pos.inc()
+                        continue_hash = lt(pos.add(1), eof_pos)
+                    }
                 }
                 should_process_token = false
             case "/":
-                if source.get_substr(pos.add(1), pos.add(2)).eq("/") {
+                next_ch := source.get_substr(pos.add(1), pos.add(2))?
+                if next_ch.eq("/") {
                     // Single-line comment
                     pos.inc()
-                    while lt(pos.add(1), eof_pos).and(not(source.get_substr(pos, pos.add(1)).eq("\n"))) {
-                        pos.inc()
+                    mut continue_slash := lt(pos.add(1), eof_pos)
+                    while continue_slash {
+                        tmp_ch2 := source.get_substr(pos, pos.add(1))?
+                        if tmp_ch2.eq("\n") {
+                            continue_slash = false
+                        } else {
+                            pos.inc()
+                            continue_slash = lt(pos.add(1), eof_pos)
+                        }
                     }
                     should_process_token = false
-                } else if source.get_substr(pos.add(1), pos.add(2)).eq("*") {
+                } else if next_ch.eq("*") {
                     // Nested block comment
                     pos = pos.add(2)
                     mut depth := 1
                     mut should_continue_parsing := true
 
                     while pos.lt(eof_pos.sub(1)).and(should_continue_parsing) {
-                        next_two = source.get_substr(pos, pos.add(2))
+                        next_two = source.get_substr(pos, pos.add(2))?
 
                         if next_two.eq("/*") {
                             depth.inc()
@@ -540,7 +567,8 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                                 should_continue_parsing = false
                             }
                         } else {
-                            if source.get_substr(pos, pos.add(1)).eq("\n") {
+                            block_ch := source.get_substr(pos, pos.add(1))?
+                            if block_ch.eq("\n") {
                                 line.inc()
                                 start_line_pos = pos
                             }
@@ -565,13 +593,14 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                 while continue_string_scan {
                     if not(lt(pos.add(1), eof_pos)) {
                         continue_string_scan = false
-                    } else if source.get_substr(pos, pos.add(1)).eq("\"") {
-                        continue_string_scan = false
                     } else {
-                        if source.get_substr(pos, pos.add(1)).eq("\\") {
+                        str_ch := source.get_substr(pos, pos.add(1))?
+                        if str_ch.eq("\"") {
+                            continue_string_scan = false
+                        } else if str_ch.eq("\\") {
                             pos.inc() // if it's the escape character, skip it
                             if lt(pos.add(1), eof_pos) {
-                                esc = source.get_substr(pos, pos.add(1))
+                                esc = source.get_substr(pos, pos.add(1))?
                                 switch esc {
                                 case "\"":
                                     lit_string = format(lit_string, "\"")
@@ -593,7 +622,7 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                                 }
                             }
                         } else {
-                            lit_string = format(lit_string, source.get_substr(pos, pos.add(1)))
+                            lit_string = format(lit_string, source.get_substr(pos, pos.add(1))?)
                         }
                         pos.inc()
                     }
@@ -608,18 +637,20 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
 
                 // Everything else must be reserved words, identifiers or invalid
             case:
-                if source.is_id_start(pos) {
+                if source.is_id_start(pos)? {
                     pos.inc()
                     mut continue_id_scan := true
                     while pos.lt(eof_pos).and(continue_id_scan) {
-                        if source.is_digit(pos).or(source.is_id_start(pos)) {
+                        is_dig := source.is_digit(pos)?
+                        is_id := source.is_id_start(pos)?
+                        if is_dig.or(is_id) {
                             pos.inc()
                         } else {
                             continue_id_scan = false
                         }
                     }
                     pos.dec()
-                    token_type = scan_reserved_words(source.get_substr(start, pos.add(1)))
+                    token_type = scan_reserved_words(source.get_substr(start, pos.add(1))?)
                 } else {
                     token_type = TokenType.Invalid
                 }
@@ -636,7 +667,7 @@ scan_tokens := proc(source: Str) returns Vec throws Str {
                     is_string = false
                 }
                 if not(is_string) {
-                    scan_push_token(tokens, token_type, source.get_substr(start, pos.add(1)), line, start.sub(start_line_pos))
+                    scan_push_token(tokens, token_type, source.get_substr(start, pos.add(1))?, line, start.sub(start_line_pos))
                 }
                 pos.inc()
             }
@@ -670,9 +701,9 @@ build_var_suggestion := func(tokens: Vec, var_index: I64) returns Str throws Str
         mut equals_token := Token()
         mut value_token := Token()
 
-        tokens.get(var_index.add(1), ident_token)
-        tokens.get(var_index.add(2), equals_token)
-        tokens.get(var_index.add(3), value_token)
+        tokens.get(var_index.add(1), ident_token)?
+        tokens.get(var_index.add(2), equals_token)?
+        tokens.get(var_index.add(3), value_token)?
 
         mut is_identifier := false
         switch ident_token.token_type {
@@ -706,8 +737,8 @@ print_lex_errors := proc(tokens: Vec, path: Str) returns I64 throws Str {
     mut tokens_len := tokens.len()
     for i in 0..tokens_len {
         mut t := Token()
-        tokens.get(i, t)
-        print_if_lex_error(path, tokens, i, t, errors_found)
+        tokens.get(i, t)?
+        print_if_lex_error(path, tokens, i, t, errors_found)?
     }
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -790,7 +821,7 @@ print_if_lex_error := proc(path: Str, tokens: Vec, index: I64, t: Token, mut err
 lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, IndexOutOfBoundsError {
     mut l := Lexer()
     l.path = path.clone()
-    tokens := scan_tokens(source)
+    tokens := scan_tokens(source)?
     l.tokens = tokens
 
     if I64.eq(tokens.len(), 0) {
@@ -798,14 +829,14 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, Inde
     }
 
     mut first := Token()
-    tokens.get(0, first)
+    tokens.get(0, first)?
     switch first.token_type {
     case TokenType.Eof:
         throw path.format(":0:0: compiler ERROR: Nothing to be done")
     case:
     }
 
-    errors := print_lex_errors(tokens, path)
+    errors := print_lex_errors(tokens, path)?
     if errors.gt(0) {
         throw format(loc(), "Compiler errors: ", I64.to_str(errors), " lexical errors found")
     }

@@ -20,7 +20,7 @@ List := struct {
 
     /** Get total size in bytes. */
     size := func(self: List) returns I64 throws IndexOutOfBoundsError {
-        return self.calc_used()
+        return self.calc_used()?
     }
 
     /** Create new empty list. */
@@ -43,7 +43,7 @@ List := struct {
         mut i := 0
         while lt(i, index) {
             mut size := 0
-            self.type_sizes.get(i, size)
+            self.type_sizes.get(i, size)?
             offset = add(offset, size)
             i = add(i, 1)
         }
@@ -52,7 +52,7 @@ List := struct {
 
     /** Calculate total bytes used. */
     calc_used := proc(self: List) returns I64 throws IndexOutOfBoundsError {
-        return self.calc_offset(self._len)
+        return self.calc_offset(self._len)?
     }
 
     /** Append element to list.
@@ -86,7 +86,7 @@ List := struct {
 
         // Get type info for validation
         mut stored_type := ""
-        self.type_names.get(index, stored_type)
+        self.type_names.get(index, stored_type)?
 
         mut _dest_type := type_as_str(dest)
 
@@ -96,9 +96,9 @@ List := struct {
         // }
 
         // Calculate offset and size
-        mut offset := self.calc_offset(index)
+        mut offset := self.calc_offset(index)?
         mut size := 0
-        self.type_sizes.get(index, size)
+        self.type_sizes.get(index, size)?
 
         // Copy data to destination
         mut dest_ptr := to_ptr(dest)
@@ -122,10 +122,10 @@ List := struct {
         mut new_size := size_of(T)
 
         mut old_type := ""
-        self.type_names.get(index, old_type)
+        self.type_names.get(index, old_type)?
 
         mut old_size := 0
-        self.type_sizes.get(index, old_size)
+        self.type_sizes.get(index, old_size)?
 
         // Case 1: Same size - simple overwrite
         if I64.eq(new_size, old_size) {
@@ -135,7 +135,7 @@ List := struct {
 
             // Update type name if different
             if not(Str.eq(new_type, old_type)) {
-                self.type_names.set(index, new_type)
+                self.type_names.set(index, new_type)?
             }
             return
         }
@@ -157,8 +157,8 @@ List := struct {
         memcpy(add(self.data, old_offset), diff_value_ptr, new_size)
 
         // Update metadata
-        self.type_names.set(index, new_type)
-        self.type_sizes.set(index, new_size)
+        self.type_names.set(index, new_type)?
+        self.type_sizes.set(index, new_size)?
     }
 
     /** Pop last element from list. */
@@ -169,9 +169,9 @@ List := struct {
 
         // Get last element FIRST before modifying anything
         mut last_index := sub(self._len, 1)
-        mut offset := self.calc_offset(last_index)
+        mut offset := self.calc_offset(last_index)?
         mut size := 0
-        self.type_sizes.get(last_index, size)
+        self.type_sizes.get(last_index, size)?
 
         // Copy data to destination directly
         mut dest_ptr := to_ptr(dest)
@@ -179,9 +179,9 @@ List := struct {
 
         // Now safe to remove from metadata
         mut dummy_name := ""
-        self.type_names.pop(dummy_name)
+        self.type_names.pop(dummy_name)?
         mut dummy_size := 0
-        self.type_sizes.pop(dummy_size)
+        self.type_sizes.pop(dummy_size)?
 
         // Decrement length
         self._len = last_index

@@ -35,7 +35,7 @@ fn collect_used_types_from_expr(context: &Context, e: &Expr, used_types: &mut Ha
                 used_types.insert(type_name);
             }
         }
-        NodeType::FCall => {
+        NodeType::FCall(_) => {
             // Constructor calls - check if the function name is a known struct
             if !e.params.is_empty() {
                 let name = get_combined_name_from_identifier(&e.params[0]);
@@ -143,7 +143,7 @@ fn rebuild_struct_without_unreachable_methods(decl: &Declaration, struct_def: &S
 /// Recursively collect all function names called within an expression.
 fn collect_called_functions(e: &Expr, called: &mut HashSet<String>) {
     match &e.node_type {
-        NodeType::FCall => {
+        NodeType::FCall(_) => {
             // After precomp, function calls have params[0] as Identifier(function_name)
             if !e.params.is_empty() {
                 let full_name = get_combined_name_from_identifier(&e.params[0]);

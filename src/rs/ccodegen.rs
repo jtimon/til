@@ -402,7 +402,7 @@ fn hoist_throwing_expr(
     let indent_str = "    ".repeat(indent);
 
     // Check if this expression itself is a throwing call
-    if let NodeType::FCall = &expr.node_type {
+    if let NodeType::FCall(_) = &expr.node_type {
     if let Some(throwing_fd) = get_fcall_func_def(context, expr) {
     if !throwing_fd.throw_types.is_empty() {
         // First, recursively hoist any throwing calls in this call's arguments
@@ -556,7 +556,7 @@ fn hoist_throwing_expr(
     }}}
 
     // Check if this is a non-throwing variadic call - also needs hoisting
-    if let NodeType::FCall = &expr.node_type {
+    if let NodeType::FCall(_) = &expr.node_type {
         if let Some(variadic_fcall_info) = detect_variadic_fcall(expr, ctx) {
             // Recursively hoist any throwing/variadic calls in this call's arguments first
             let ntv_nested_hoisted: std::collections::HashMap<usize, String> = if expr.params.len() > 1 {
@@ -650,7 +650,7 @@ fn hoist_throwing_expr(
     }
 
     // Check if this is a struct literal with throwing default values
-    if let NodeType::FCall = &expr.node_type {
+    if let NodeType::FCall(_) = &expr.node_type {
         if let Some(sl_func_name) = get_func_name_string(&expr.params[0]) {
             let has_named_args = expr.params.iter().skip(1).any(|sl_arg| matches!(&sl_arg.node_type, NodeType::NamedArg(_)));
             if let Some(sl_struct_def) = context.scope_stack.lookup_struct(&sl_func_name).cloned() {
@@ -707,7 +707,7 @@ fn hoist_throwing_expr(
 
     // Not a throwing call or variadic call - recursively check sub-expressions
     // For FCall, check all arguments
-    if let NodeType::FCall = &expr.node_type {
+    if let NodeType::FCall(_) = &expr.node_type {
         if expr.params.len() > 1 {
             for arg in &expr.params[1..] {
                 hoist_throwing_expr(arg, output, indent, ctx, context)?;
@@ -738,7 +738,7 @@ fn hoist_throwing_args(
 
     for (idx, arg) in args.iter().enumerate() {
         // Check if it's a throwing call
-        let throwing_fd_opt = if let NodeType::FCall = &arg.node_type {
+        let throwing_fd_opt = if let NodeType::FCall(_) = &arg.node_type {
             get_fcall_func_def(context, arg).filter(|fd| !fd.throw_types.is_empty())
         } else {
             None
@@ -957,7 +957,7 @@ fn hoist_throwing_args(
         // Handle non-throwing, non-variadic FCalls - still need to recurse into their arguments
         // to find deeply nested variadic/throwing calls (e.g., not(or(false)))
         // and also to hoist Dynamic params (e.g., Vec.contains(v, "bar"))
-        else if matches!(arg.node_type, NodeType::FCall) && arg.params.len() > 1 {
+        else if matches!(arg.node_type, NodeType::FCall(_)) && arg.params.len() > 1 {
             let nested_args = &arg.params[1..];
             // Recurse to hoist any nested throwing/variadic calls
             let _ = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
@@ -982,7 +982,7 @@ fn hoist_throwing_args(
         // Handle struct literal arguments (no args, or only named args) - need to hoist their throwing defaults
         // For struct literals like Expr() passed as arguments, their throwing default field values
         // (e.g., params = Vec.new(Expr)) need to be hoisted BEFORE the struct literal is created
-        else if matches!(arg.node_type, NodeType::FCall) {
+        else if matches!(arg.node_type, NodeType::FCall(_)) {
             if let Some(func_name) = get_fcall_func_name(arg) {
                 if context.scope_stack.lookup_struct(&func_name).is_some() {
                     // This is a struct literal - hoist its throwing defaults
@@ -1039,7 +1039,7 @@ fn hoist_for_dynamic_params(
                 !arg.params.is_empty()
             },
             NodeType::LLiteral(Literal::Str(_)) => true,  // String literals need hoisting
-            NodeType::FCall => true,    // Function calls need hoisting
+            NodeType::FCall(_) => true,    // Function calls need hoisting
             _ => true,  // Default to hoisting for safety
         };
 
@@ -1096,7 +1096,7 @@ fn hoist_for_dynamic_params(
                     Err(arg.lang_error(&context.path, "ccodegen", &format!("Unknown type: {}", type_name)))
                 }
             }
-            NodeType::FCall => {
+            NodeType::FCall(_) => {
                 // For function calls, try to determine return type
                 if let Some(fd) = get_fcall_func_def(context, arg) {
                     if !fd.throw_types.is_empty() {
@@ -1215,7 +1215,7 @@ fn hoist_for_ref_params(
             },
             NodeType::LLiteral(Literal::Str(_)) => false,  // Compound literal, can use &
             NodeType::LLiteral(Literal::Number(_)) => true,  // Can't take address of integer literal
-            NodeType::FCall => {
+            NodeType::FCall(_) => {
                 // Check if this is an enum or struct constructor - those become compound literals
                 // which CAN have & taken directly, so no hoisting needed
                 if let Some(first) = arg.params.first() {
@@ -1235,7 +1235,7 @@ fn hoist_for_ref_params(
         // Determine the C type based on what the arg evaluates to
         let c_type: Result<String, String> = match &arg.node_type {
             NodeType::LLiteral(Literal::Number(_)) => Ok(format!("{}I64", TIL_PREFIX)),
-            NodeType::FCall => {
+            NodeType::FCall(_) => {
                 // Look up the function's return type
                 if let Some(fd) = get_fcall_func_def(context, arg) {
                     if let Some(ret_type) = fd.return_types.first() {
@@ -1834,7 +1834,7 @@ fn emit_arg_with_param_type(
         if matches!(&arg.node_type, NodeType::LLiteral(Literal::Str(_))) {
             output.push_str("&");
             emit_expr(arg, output, 0, ctx, context)?;
-        } else if matches!(&arg.node_type, NodeType::FCall) {
+        } else if matches!(&arg.node_type, NodeType::FCall(_)) {
             // Bug #60: FCall result is rvalue, can't take address directly
             // For simple typedefs like I64: use compound literal &(Type){fcall()}
             // For struct types: use GCC statement expression ({ Type _t = fcall(); &_t; })
@@ -2247,7 +2247,7 @@ fn is_constant_declaration(expr: &Expr) -> bool {
 // Check if an expression is a function call that uses out-params (i.e., the function throws)
 // Such calls cannot be used inline in struct initializers - they need separate statements
 fn is_throwing_fcall(expr: &Expr, context: &Context) -> bool {
-    if let NodeType::FCall = &expr.node_type {
+    if let NodeType::FCall(_) = &expr.node_type {
         if let Some(fd) = get_fcall_func_def(context, expr) {
             return !fd.throw_types.is_empty();
         }
@@ -3294,7 +3294,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
 
     match &expr.node_type {
         NodeType::Body => emit_body(expr, output, indent, ctx, context),
-        NodeType::FCall => emit_fcall(expr, output, indent, ctx, context),
+        NodeType::FCall(_) => emit_fcall(expr, output, indent, ctx, context),
         NodeType::LLiteral(lit) => emit_literal(lit, output, context),
         NodeType::Declaration(decl) => emit_declaration(decl, expr, output, indent, ctx, context),
         NodeType::Identifier(name) => {
@@ -3588,11 +3588,11 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         // Check if this statement is followed by catch blocks
         // And if it's a call to a throwing function (FCall, Declaration with FCall, or Assignment with FCall)
         let (maybe_fcall, maybe_decl_name, maybe_assign_name) = match &stmt.node_type {
-            NodeType::FCall => (Some(stmt), None, None),
+            NodeType::FCall(_) => (Some(stmt), None, None),
             NodeType::Declaration(decl) => {
                 // Check if declaration has an FCall as initializer
                 if !stmt.params.is_empty() {
-                    if let NodeType::FCall = stmt.params[0].node_type {
+                    if let NodeType::FCall(_) = stmt.params[0].node_type {
                         (Some(&stmt.params[0]), Some(decl.name.clone()), None)
                     } else {
                         (None, None, None)
@@ -3604,7 +3604,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
             NodeType::Assignment(name) => {
                 // Check if assignment has an FCall as RHS
                 if !stmt.params.is_empty() {
-                    if let NodeType::FCall = stmt.params[0].node_type {
+                    if let NodeType::FCall(_) = stmt.params[0].node_type {
                         (Some(&stmt.params[0]), None, Some(name.clone()))
                     } else {
                         (None, None, None)
@@ -4948,7 +4948,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             output.push_str(&indent_str);
             // FCall at statement level (indent > 0) adds ";\n" itself
             // Other expressions need semicolon added explicitly
-            let is_fcall = matches!(&expr.params[0].node_type, NodeType::FCall);
+            let is_fcall = matches!(&expr.params[0].node_type, NodeType::FCall(_));
             if is_fcall {
                 emit_expr(&expr.params[0], output, indent, ctx, context)?;
             } else {
@@ -5163,7 +5163,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     } else if is_mut {
         // Hoist Dynamic and ref params in RHS if it's an FCall
         if !expr.params.is_empty() {
-            if let NodeType::FCall = &expr.params[0].node_type {
+            if let NodeType::FCall(_) = &expr.params[0].node_type {
                 let rhs_fcall = &expr.params[0];
                 if rhs_fcall.params.len() > 1 {
                     if let Some(fd) = get_fcall_func_def(context, rhs_fcall) {
@@ -5216,7 +5216,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         // const declaration
         // Hoist Dynamic and ref params in RHS if it's an FCall
         if !expr.params.is_empty() {
-            if let NodeType::FCall = &expr.params[0].node_type {
+            if let NodeType::FCall(_) = &expr.params[0].node_type {
                 let rhs_fcall = &expr.params[0];
                 if rhs_fcall.params.len() > 1 {
                     if let Some(fd) = get_fcall_func_def(context, rhs_fcall) {
@@ -5273,7 +5273,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 // Check if an expression is a struct construction call (TypeName() or TypeName(x=1, y=2))
 // Returns the type name if it is, None otherwise
 fn get_struct_construction_type(expr: &Expr, context: &Context) -> Option<String> {
-    if let NodeType::FCall = &expr.node_type {
+    if let NodeType::FCall(_) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::Identifier(name) = &expr.params[0].node_type {
                 // Use lookup_struct to check if this is a known struct type
@@ -5297,7 +5297,7 @@ fn get_struct_construction_type(expr: &Expr, context: &Context) -> Option<String
 // AST structure for Color.Unknown: Identifier("Color") -> [Identifier("Unknown")]
 fn get_enum_construction_type(expr: &Expr, context: &Context) -> Option<String> {
     // Check FCall case: Type.Variant(value) or Type.Variant()
-    if let NodeType::FCall = &expr.node_type {
+    if let NodeType::FCall(_) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::Identifier(type_name) = &expr.params[0].node_type {
                 // Use lookup_enum to check if this is a known enum type
@@ -5355,7 +5355,7 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
         let rhs_expr = &expr.params[0];
 
         // Check if RHS is a call to a throwing function
-        if let NodeType::FCall = rhs_expr.node_type {
+        if let NodeType::FCall(_) = rhs_expr.node_type {
             if let Some(throw_types) = get_fcall_func_def(context, rhs_expr).map(|fd| fd.throw_types).filter(|t| !t.is_empty()) {
                 // RHS is a throwing function call - emit with error propagation
                 // (typer should ensure non-throwing context doesn't call throwing functions without catch)
@@ -5420,7 +5420,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
             let return_expr = &expr.params[0];
 
             // Check if return expression is a call to a throwing function
-            if let NodeType::FCall = return_expr.node_type {
+            if let NodeType::FCall(_) = return_expr.node_type {
                 if let Some(throw_types) = get_fcall_func_def(context, return_expr).map(|fd| fd.throw_types).filter(|t| !t.is_empty()) {
                     // Return expression is a throwing function call - emit with error propagation
                     // The result will be stored via the assign_name "*_ret"
@@ -5447,7 +5447,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         // Check if return expression is a variadic function call
         if !expr.params.is_empty() {
             let return_expr = &expr.params[0];
-            if let NodeType::FCall = return_expr.node_type {
+            if let NodeType::FCall(_) = return_expr.node_type {
                 if let Some(variadic_fcall_info) = detect_variadic_fcall(return_expr, ctx) {
                     // Variadic call in return - need to hoist it
                     // First, hoist any nested throwing/variadic calls in the arguments
@@ -5610,7 +5610,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // 1. A constructor like DivideByZero() - use the type name
     // 2. A function that returns an error type like format() - use the return type
     let nh_thrown_type_name = match &thrown_expr.node_type {
-        NodeType::FCall => {
+        NodeType::FCall(_) => {
             if !thrown_expr.params.is_empty() {
                 if let NodeType::Identifier(name) = &thrown_expr.params[0].node_type {
                     // Check if this is a constructor (struct/enum) or a function call
@@ -5668,7 +5668,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         let nh_label = nh_catch_info.label.clone();
         let nh_temp_var = nh_catch_info.temp_var.clone();
         // Hoist any throwing function calls in the thrown expression
-        let nh_hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall = &thrown_expr.node_type {
+        let nh_hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall(_) = &thrown_expr.node_type {
             if thrown_expr.params.len() > 1 {
                 let nh_args = &thrown_expr.params[1..];
                 let nh_hoisted_vec = hoist_throwing_args(nh_args, output, indent, ctx, context)?;
@@ -5686,7 +5686,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         output.push_str(" = ");
 
         // Emit the thrown expression
-        if let NodeType::FCall = &thrown_expr.node_type {
+        if let NodeType::FCall(_) = &thrown_expr.node_type {
             emit_fcall_with_hoisted(thrown_expr, &nh_hoisted, output, ctx, context)?;
         } else {
             emit_expr(thrown_expr, output, 0, ctx, context)?;
@@ -5717,7 +5717,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         Some(idx) => {
             // Hoist throwing function calls from arguments of the thrown expression
             // E.g., throw Error.new(format(...)) needs to hoist format() first
-            let nh_prop_hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall = &thrown_expr.node_type {
+            let nh_prop_hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall(_) = &thrown_expr.node_type {
                 if thrown_expr.params.len() > 1 {
                     let nh_prop_args = &thrown_expr.params[1..];
                     let nh_prop_hoisted_vec = hoist_throwing_args(nh_prop_args, output, indent, ctx, context)?;
@@ -5735,7 +5735,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             output.push_str(&format!("*_err{} = ", idx + 1));
 
             // Emit the thrown expression, using hoisted temp vars for arguments
-            if let NodeType::FCall = &thrown_expr.node_type {
+            if let NodeType::FCall(_) = &thrown_expr.node_type {
                 emit_fcall_with_hoisted(thrown_expr, &nh_prop_hoisted, output, ctx, context)?;
             } else {
                 emit_expr(thrown_expr, output, 0, ctx, context)?;
@@ -6181,7 +6181,7 @@ struct VariadicFCallInfo {
 // For FCall: Type.Variant -> VariantInfo { type_name: "Type", variant_name: "Variant" }
 fn get_case_variant_info(expr: &Expr) -> VariantInfo {
     match &expr.node_type {
-        NodeType::FCall => {
+        NodeType::FCall(_) => {
             // FCall for Type.Variant (without payload extraction)
             if !expr.params.is_empty() {
                 if let NodeType::Identifier(type_name) = &expr.params[0].node_type {
@@ -6346,7 +6346,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     is_enum_switch = true;
                 }
             },
-            NodeType::FCall => {
+            NodeType::FCall(_) => {
                 is_enum_switch = true;
                 // FCall with arguments (e.g., ValueType.TType(TTypeDef.TEnumDef))
                 // implies the enum has payloads
@@ -6540,7 +6540,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 }
                 output.push_str(") {\n");
             },
-            NodeType::FCall => {
+            NodeType::FCall(_) => {
                 // FCall pattern: Type.Variant(payload) - enum variant with payload argument
                 // For example: ValueType.TType(TTypeDef.TEnumDef)
                 let info = get_case_variant_info(case_pattern);
@@ -6994,7 +6994,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // Parser produces: FCall { params: [Identifier("eq"), FCall { ... }, LLiteral(0)] }
             // Only check this for simple func names (no nested identifiers)
             if expr.params[0].params.is_empty() && expr.params.len() >= 2 {
-                if let NodeType::FCall = &expr.params[1].node_type {
+                if let NodeType::FCall(_) = &expr.params[1].node_type {
                     // The second param is an FCall result - use get_value_type to get its return type
                     if let Ok(fcall_ret_type) = get_value_type(context, &expr.params[1]) {
                         if let ValueType::TCustom(type_name) = &fcall_ret_type {

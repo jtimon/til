@@ -62,7 +62,7 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
     case NodeType.Body:
         for child: Expr in ast.params {
             switch child.node_type {
-            case NodeType.FCall:
+            case NodeType.FCall(_):
                 if not(child.params.is_empty()) {
                     mut first_param := Expr()
                     child.params.get(0, first_param)
@@ -166,7 +166,7 @@ merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr {
 
 is_import_call := func(expr: Expr) returns Bool {
     switch expr.node_type {
-    case NodeType.FCall:
+    case NodeType.FCall(_):
         if not(expr.params.is_empty()) {
             mut first_param := Expr()
             expr.params.get(0, first_param)
@@ -192,7 +192,7 @@ collect_import_paths := proc(ast: Expr, mut collected: Set) {
     case NodeType.Body:
         for child: Expr in ast.params {
             switch child.node_type {
-            case NodeType.FCall:
+            case NodeType.FCall(_):
                 if not(child.params.is_empty()) {
                     mut first_param := Expr()
                     child.params.get(0, first_param)

@@ -48,7 +48,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
         mut check_j := 0
         while check_j.lt(func_def.args.len().sub(1)) {
             mut check_def_arg := Declaration()
-            func_def.args.get(check_j, check_def_arg)
+            func_def.args.get(check_j, check_def_arg)?
             if not(NULL.eq(check_def_arg.default_value.data)) {
                 has_optional_before_variadic = true
             }
@@ -83,7 +83,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
         // Process optional args before the variadic
         while def_arg_idx.lt(func_def.args.len().sub(1)) {
             mut opt_def_arg := Declaration()
-            func_def.args.get(def_arg_idx, opt_def_arg)
+            func_def.args.get(def_arg_idx, opt_def_arg)?
 
             // Check if we have a provided arg that matches this def arg's type
             mut matches := false
@@ -126,7 +126,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
             call_arg_idx.inc()
         }
 
-        return Expr.new_clone(NodeType.FCall, e, result)
+        return Expr.new_clone(NodeType.FCall(false), e, result)
     }
 
     // Count positional args (before first named arg)
@@ -174,8 +174,8 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
         if i.gteq(func_def.args.len()) {
             throw e.error(context.path, "ufcs", format("Too many positional arguments: expected at most ", func_def.args.len().to_str()))
         }
-        final_args.set(i, e.get(i.add(1)))
-        final_args_set.set(i, true)
+        final_args.set(i, e.get(i.add(1)))?
+        final_args_set.set(i, true)?
         i.inc()
     }
 
@@ -190,7 +190,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
             mut search_j := 0
             while search_j.lt(func_def.args.len()) {
                 mut search_arg_decl := Declaration()
-                func_def.args.get(search_j, search_arg_decl)
+                func_def.args.get(search_j, search_arg_decl)?
                 if search_arg_decl.name.eq(arg_name) {
                     param_idx = search_j
                     search_j = func_def.args.len() // break
@@ -202,15 +202,15 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
                 throw named_arg.error(context.path, "ufcs", format("Unknown parameter name '", arg_name, "'"))
             }
             mut already_set := false
-            final_args_set.get(param_idx, already_set)
+            final_args_set.get(param_idx, already_set)?
             if already_set {
                 throw named_arg.error(context.path, "ufcs", format("Argument '", arg_name, "' specified multiple times"))
             }
             if named_arg.params.len().eq(0) {
                 throw named_arg.error(context.path, "ufcs", format("Named argument '", arg_name, "' has no value"))
             }
-            final_args.set(param_idx, named_arg.get(0))
-            final_args_set.set(param_idx, true)
+            final_args.set(param_idx, named_arg.get(0))?
+            final_args_set.set(param_idx, true)?
         case:
         }
         i.inc()
@@ -220,15 +220,15 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
     i = 0
     while i.lt(final_args.len()) {
         mut is_set := false
-        final_args_set.get(i, is_set)
+        final_args_set.get(i, is_set)?
         if is_set {
             mut final_arg := Expr()
-            final_args.get(i, final_arg)
+            final_args.get(i, final_arg)?
             result.push(final_arg)
         } else {
             // Check if this parameter has a default value
             mut final_arg_decl := Declaration()
-            func_def.args.get(i, final_arg_decl)
+            func_def.args.get(i, final_arg_decl)?
             if not(NULL.eq(final_arg_decl.default_value.data)) {
                 mut final_default_expr := Expr()
                 memcpy(to_ptr(final_default_expr), final_arg_decl.default_value.data, size_of(Expr))
@@ -240,7 +240,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
         i.inc()
     }
 
-    final_result := Expr.new_clone(NodeType.FCall, e, result)
+    final_result := Expr.new_clone(NodeType.FCall(false), e, result)
 
     catch (err: IndexOutOfBoundsError) {
         throw format("reorder_named_args: ", err.msg)
@@ -261,18 +261,18 @@ ufcs_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     switch e.node_type {
     case NodeType.Body:
         return ufcs_body(context, e)
-    case NodeType.FCall:
-        return ufcs_fcall(context, e)
+    case NodeType.FCall(_):
+        return ufcs_fcall(context, e)?
     case NodeType.If:
         return ufcs_params(context, e)
     case NodeType.While:
         return ufcs_params(context, e)
     case NodeType.Switch:
-        return ufcs_switch(context, e)
+        return ufcs_switch(context, e)?
     case NodeType.FuncDef(func_def):
-        return ufcs_func_def(context, e, func_def)
+        return ufcs_func_def(context, e, func_def)?
     case NodeType.Declaration(decl):
-        return ufcs_declaration(context, e, decl)
+        return ufcs_declaration(context, e, decl)?
     case NodeType.Assignment:
         return ufcs_params(context, e)
     case NodeType.Return:
@@ -280,12 +280,12 @@ ufcs_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.Throw:
         return ufcs_params(context, e)
     case NodeType.Catch:
-        return ufcs_catch(context, e)
+        return ufcs_catch(context, e)?
     case NodeType.Range:
         return ufcs_params(context, e)
     // Struct/enum definitions - need to process default values (which may contain function defs)
     case NodeType.StructDef(struct_def):
-        return ufcs_struct_def(context, e, struct_def)
+        return ufcs_struct_def(context, e, struct_def)?
     case NodeType.EnumDef:
         return e.clone()
     // Identifiers can have nested params (e.g., a.b.c for field access chains)
@@ -348,7 +348,7 @@ ufcs_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     // Transform switch expression
     mut switch_expr := Expr()
-    e.params.get(0, switch_expr)
+    e.params.get(0, switch_expr)?
     new_params.push(ufcs_expr(context, switch_expr))
 
     // Get the type of the switch expression for pattern binding resolution
@@ -364,8 +364,8 @@ ufcs_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     while i.add(1).lt(e.params.len().add(1)) {
         mut case_expr := Expr()
         mut body_expr := Expr()
-        e.params.get(i, case_expr)
-        e.params.get(i.add(1), body_expr)
+        e.params.get(i, case_expr)?
+        e.params.get(i.add(1), body_expr)?
 
         // Transform case expression (no scope change needed for case itself)
         new_params.push(ufcs_expr(context, case_expr))
@@ -409,7 +409,7 @@ ufcs_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                             // Push block scope, declare binding variable, transform body, pop scope
                             context.scope_stack.push(ScopeType.Block)
                             sym := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
-                            context.scope_stack.declare_symbol(pattern_info.binding_var, sym)
+                            context.scope_stack.declare_symbol(pattern_info.binding_var, sym)?
                             new_params.push(ufcs_expr(context, body_expr))
                             _ := context.scope_stack.pop()
                             handled = true
@@ -433,7 +433,7 @@ ufcs_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Handle odd trailing element (default case body without case expression)
     if i.lt(e.params.len()) {
         mut trailing := Expr()
-        e.params.get(i, trailing)
+        e.params.get(i, trailing)?
         new_params.push(ufcs_expr(context, trailing))
     }
 
@@ -449,9 +449,9 @@ ufcs_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) r
     mut i := 0
     while i.lt(struct_def.default_values.keys.len()) {
         mut name := ""
-        struct_def.default_values.keys.get(i, name)
+        struct_def.default_values.keys.get(i, name)?
         mut value_expr := Expr()
-        struct_def.default_values.get(name, value_expr)
+        struct_def.default_values.get(name, value_expr)?
         new_default_values.set(name, ufcs_expr(context, value_expr))
         i.inc()
     }
@@ -475,7 +475,7 @@ ufcs_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) returns
     context.scope_stack.push(ScopeType.Function)
     for arg: Declaration in func_def.args {
         sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own, is_comptime_const=false)
-        context.scope_stack.declare_symbol(arg.name, sym)
+        context.scope_stack.declare_symbol(arg.name, sym)?
     }
 
     // Transform the function body
@@ -548,14 +548,14 @@ ufcs_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retur
     // For struct definitions, register the struct so methods can be resolved
     switch inner_e.node_type {
     case NodeType.StructDef(struct_def):
-        context.scope_stack.declare_struct(decl.name, struct_def)
+        context.scope_stack.declare_struct(decl.name, struct_def)?
     case:
     }
 
     // For enum definitions, register the enum
     switch inner_e.node_type {
     case NodeType.EnumDef(enum_def):
-        context.scope_stack.declare_enum(decl.name, enum_def)
+        context.scope_stack.declare_enum(decl.name, enum_def)?
     case:
     }
 
@@ -569,15 +569,15 @@ ufcs_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retur
 
     // Register the declared variable in scope
     sym := SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=false)
-    context.scope_stack.declare_symbol(decl.name, sym)
+    context.scope_stack.declare_symbol(decl.name, sym)?
 
     // Also register function definitions so UFCS can resolve their return types
     if new_params.len().gt(0) {
         mut first_param := Expr()
-        new_params.get(0, first_param)
+        new_params.get(0, first_param)?
         switch first_param.node_type {
         case NodeType.FuncDef(func_def):
-            context.scope_stack.declare_func(decl.name, func_def)
+            context.scope_stack.declare_func(decl.name, func_def)?
         case:
         }
     }
@@ -599,8 +599,8 @@ ufcs_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Get the catch variable name and type
     mut name_expr := Expr()
     mut type_expr := Expr()
-    e.params.get(0, name_expr)
-    e.params.get(1, type_expr)
+    e.params.get(0, name_expr)?
+    e.params.get(1, type_expr)?
     mut var_name := ""
     mut type_name := ""
     switch name_expr.node_type {
@@ -626,11 +626,11 @@ ufcs_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     sym.is_copy = false
     sym.is_own = false
     sym.is_comptime_const = false
-    context.scope_stack.declare_symbol(var_name, sym)
+    context.scope_stack.declare_symbol(var_name, sym)?
 
     // Transform the catch body (params[2])
     mut body_expr := Expr()
-    e.params.get(2, body_expr)
+    e.params.get(2, body_expr)?
     new_body := ufcs_expr(context, body_expr)
 
     // Pop the scope frame
@@ -686,7 +686,7 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // This only applies when no standalone function with this name exists (checked above).
         if new_e.params.len().gteq(2) {
             mut first_arg := Expr()
-            new_e.params.get(1, first_arg)
+            new_e.params.get(1, first_arg)?
             mut got_type := true
             mut target_type := get_value_type(context, first_arg)
             catch (err: Str) {
@@ -722,11 +722,11 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                         mut j := 1
                         while j.lt(new_e.params.len()) {
                             mut arg := Expr()
-                            new_e.params.get(j, arg)
+                            new_e.params.get(j, arg)?
                             new_args.push(arg)
                             j.inc()
                         }
-                        return Expr.new_clone(NodeType.FCall, func_expr, new_args)
+                        return Expr.new_clone(NodeType.FCall(false), func_expr, new_args)
                     }
                 }
             }
@@ -735,20 +735,20 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // UFCS with dot notation (e.g., a.method(b) or a.field.method())
         if func_expr.params.len().gt(0) {
             mut func_name_expr := Expr()
-            func_expr.params.get(func_expr.params.len().sub(1), func_name_expr)
+            func_expr.params.get(func_expr.params.len().sub(1), func_name_expr)?
 
             switch func_name_expr.node_type {
             case NodeType.Identifier(ufcs_func_name):
                 mut parts := combined_name.split(".")
                 // Remove the method name (last element)
                 if parts.len().gt(0) {
-                    parts.remove(parts.len().sub(1))
+                    parts.remove(parts.len().sub(1))?
                 }
 
                 // Create identifier expression for the receiver (everything except the method name)
                 mut id_params := func_expr.params.clone()
                 if id_params.len().gt(0) {
-                    id_params.remove(id_params.len().sub(1))
+                    id_params.remove(id_params.len().sub(1))?
                 }
                 mut receiver_expr := Expr.new_clone(func_expr.node_type, new_e, id_params)
 
@@ -789,11 +789,11 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                             mut assoc_j := 1
                             while assoc_j.lt(new_e.params.len()) {
                                 mut assoc_arg := Expr()
-                                new_e.params.get(assoc_j, assoc_arg)
+                                new_e.params.get(assoc_j, assoc_arg)?
                                 assoc_new_args.push(assoc_arg)
                                 assoc_j.inc()
                             }
-                            return Expr.new_clone(NodeType.FCall, func_expr, assoc_new_args)
+                            return Expr.new_clone(NodeType.FCall(false), func_expr, assoc_new_args)
                         }
                     }
                 }
@@ -814,11 +814,11 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     mut standalone_j := 1
                     while standalone_j.lt(new_e.params.len()) {
                         mut standalone_arg := Expr()
-                        new_e.params.get(standalone_j, standalone_arg)
+                        new_e.params.get(standalone_j, standalone_arg)?
                         standalone_new_args.push(standalone_arg)
                         standalone_j.inc()
                     }
-                    return Expr.new_clone(NodeType.FCall, func_expr, standalone_new_args)
+                    return Expr.new_clone(NodeType.FCall(false), func_expr, standalone_new_args)
                 }
             case:
             }

@@ -78,7 +78,7 @@ fn to_ast_str(e: &Expr) -> String {
         NodeType::Identifier(id_name) => {
             return id_name.clone();
         },
-        NodeType::FCall => {
+        NodeType::FCall(_) => {
             let f_name = get_func_name_in_call(&e);
             ast_str.push_str(&format!("({} {})", f_name, params_to_ast_str(false, &e)));
             return ast_str;
@@ -407,7 +407,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::LLiteral(Literal::Number(li64)) => Ok(EvalResult::new(li64)),
         NodeType::LLiteral(Literal::Str(lstring)) => Ok(EvalResult::new(lstring)),
         NodeType::LLiteral(Literal::List(llist)) => Ok(EvalResult::new(llist)),
-        NodeType::FCall => {
+        NodeType::FCall(_) => {
             let f_name = get_func_name_in_call(&e);
             eval_func_proc_call(&f_name, context, &e)
         },
@@ -828,7 +828,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
 }
 
 fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.node_type != NodeType::FCall {
+    if !matches!(e.node_type, NodeType::FCall(_)) {
         return Err(e.lang_error(&context.path, "eval", "eval_func_proc_call: Expected FCall node type"));
     }
     let func_expr = match e.params.first() {
@@ -1038,7 +1038,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             i64_lit_temp_var_name
                                         },
                                         // Bug #56 fix: Handle FCall (e.g., x.clone()) for Str payloads
-                                        NodeType::FCall if struct_type_name == "Str" => {
+                                        NodeType::FCall(_) if struct_type_name == "Str" => {
                                             let str_fcall_temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
                                             let str_fcall_string_value = &payload_result.value;
 
@@ -1071,7 +1071,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                     // If it's a function call (enum constructor), evaluate it first to create a temp variable
                                     let enum_var_name = match &payload_expr.node_type {
                                         NodeType::Identifier(name) if payload_expr.params.is_empty() => name.clone(),
-                                        NodeType::Identifier(_) | NodeType::FCall => {
+                                        NodeType::Identifier(_) | NodeType::FCall(_) => {
                                             // This is a nested enum constructor call (e.g., InnerEnum.ValueA(42))
                                             // Create a temporary variable to hold the result
                                             let enum_ctor_temp_var_name = format!("__temp_enum_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
@@ -1329,7 +1329,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
 
                     } else if custom_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
                         // Special case for instantiation
-                        if inner_e.node_type == NodeType::FCall && inner_e.params.len() == 1 {
+                        if matches!(inner_e.node_type, NodeType::FCall(_)) && inner_e.params.len() == 1 {
                             if let NodeType::Identifier(potentially_struct_name) = &inner_e.params[0].node_type {
                                 if inner_e.params[0].params.is_empty() {
                                     if context.scope_stack.lookup_struct(potentially_struct_name).is_some() {
@@ -2891,7 +2891,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
     for import_str in context.mode_def.imports.clone() {
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
-        let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
+        let import_fcall_expr = Expr{node_type: NodeType::FCall(false), params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
 
         // Mode imports need full processing: init, typer, eval
         // (Regular imports have init done during main file's init, but mode imports happen before that)
@@ -2945,7 +2945,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
             for str_arg in main_args {
                 main_params.push(Expr{node_type: NodeType::LLiteral(Literal::Str(str_arg)), line: 0, col: 0, params: Vec::new()});
             }
-            e.params.push(Expr{node_type: NodeType::FCall, line: 0, col: 0, params: main_params});
+            e.params.push(Expr{node_type: NodeType::FCall(false), line: 0, col: 0, params: main_params});
         }
         // Bug #128: Unified type checking - runs check_types and resolves INFER_TYPE in one call
         let (resolved_e, type_errors) = type_check(context, &e)?;

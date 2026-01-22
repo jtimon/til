@@ -92,7 +92,7 @@ EvalArena := struct {
         }
         parts := id.split(".")
         mut base := ""
-        parts.get(0, base)
+        parts.get(0, base)?
         mut sym := ctx.scope_stack.lookup_symbol(base)
         switch sym.value_type {
         case ValueType.TType(inner):
@@ -182,7 +182,7 @@ EvalArena := struct {
 
     insert_i64 := proc(mut ctx: Context, id: Str, i64_str: Str, e: Expr) throws Str {
         offset := EvalArena.insert_i64_core(ctx, id, i64_str, e)
-        ctx.scope_stack.insert_var(id, offset)
+        ctx.scope_stack.insert_var(id, offset)?
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
         }
@@ -224,7 +224,7 @@ EvalArena := struct {
 
     insert_u8 := proc(mut ctx: Context, id: Str, u8_str: Str, e: Expr) throws Str {
         offset := EvalArena.insert_u8_core(ctx, id, u8_str, e)
-        ctx.scope_stack.insert_var(id, offset)
+        ctx.scope_stack.insert_var(id, offset)?
         catch (err: KeyNotFoundError) {
             // Already handled, nothing to store
         }
@@ -287,8 +287,8 @@ EvalArena := struct {
                 if have_src_offset {
                     dest_offset := add(dest_base_offset, current_offset)
 
-                    ctx.scope_stack.insert_var(dest_key, dest_offset)
-                    ctx.scope_stack.declare_symbol(dest_key, SymbolInfo(value_type=decl.value_type, is_mut=is_mut))
+                    ctx.scope_stack.insert_var(dest_key, dest_offset)?
+                    ctx.scope_stack.declare_symbol(dest_key, SymbolInfo(value_type=decl.value_type, is_mut=is_mut))?
 
                     g_arena.set(dest_offset, g_arena.get(src_offset, field_size), field_size)
 
@@ -301,7 +301,7 @@ EvalArena := struct {
                             is_struct = false
                         }
                         if is_struct {
-                            EvalArena.copy_fields(ctx, type_name, src_key, dest_key, e)
+                            EvalArena.copy_fields(ctx, type_name, src_key, dest_key, e)?
                             catch (err: Str) {
                                 throw e.lang_error(ctx.path, "context", format("copy_fields: failed to recursively copy field '", dest_key, "'"))
                             }
@@ -366,13 +366,13 @@ EvalArena := struct {
         for decl: Declaration in struct_def.members {
             if decl.is_mut {
                 mut field_offset := 0
-                field_offsets.get(decl.name, field_offset)
+                field_offsets.get(decl.name, field_offset)?
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "context", format("insert_struct: Missing field offset for '", decl.name, "'"))
                 }
 
                 mut default_value := ""
-                defaults.get(decl.name, default_value)
+                defaults.get(decl.name, default_value)?
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "context", format("insert_struct: Missing pre-evaluated default for field '", decl.name, "'"))
                 }
@@ -392,19 +392,19 @@ EvalArena := struct {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
                         }
                         mut part0 := ""
-                        parts.get(0, part0)
+                        parts.get(0, part0)?
                         if not(part0.eq(type_name)) {
                             throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
                         }
                         mut variant := ""
-                        parts.get(1, variant)
+                        parts.get(1, variant)?
                         // Find variant index - Bug #38 fix: use variants Vec
                         mut index : I64 = 0
                         mut found_variant := false
                         mut vi := 0
                         while vi.lt(enum_def.variants.len()) {
                             mut ev := EnumVariant()
-                            enum_def.variants.get(vi, ev)
+                            enum_def.variants.get(vi, ev)?
                             if ev.name.eq(variant) {
                                 index = vi
                                 found_variant = true
@@ -438,7 +438,7 @@ EvalArena := struct {
                                     nested_combined_name := format(id, ".", decl.name)
                                     nested_symbol := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true)
                                     // Must declare symbol BEFORE recursive call (needed for is_mut lookup)
-                                    ctx.scope_stack.declare_symbol(nested_combined_name, nested_symbol)
+                                    ctx.scope_stack.declare_symbol(nested_combined_name, nested_symbol)?
                                     mut sym_entry := SymbolEntry()
                                     sym_entry.name = nested_combined_name
                                     sym_entry.info = nested_symbol
@@ -453,8 +453,8 @@ EvalArena := struct {
                                         str_mapping.offset = str_field_offset
                                         result.arena_mappings.push(str_mapping)
                                         // Need to temporarily insert for insert_string to work
-                                        ctx.scope_stack.insert_var(nested_combined_name, str_field_offset)
-                                        EvalArena.insert_string(ctx, nested_combined_name, default_value, e)
+                                        ctx.scope_stack.insert_var(nested_combined_name, str_field_offset)?
+                                        EvalArena.insert_string(ctx, nested_combined_name, default_value, e)?
                                     } else {
                                         // Use existing offset for nested struct (inline allocation)
                                         nested_field_offset := add(offset, field_offset)
@@ -463,7 +463,7 @@ EvalArena := struct {
                                         nested_mapping.offset = nested_field_offset
                                         result.arena_mappings.push(nested_mapping)
                                         // Need to temporarily insert for recursive call to work
-                                        ctx.scope_stack.insert_var(nested_combined_name, nested_field_offset)
+                                        ctx.scope_stack.insert_var(nested_combined_name, nested_field_offset)?
                                         // Extract nested defaults (field.subfield -> subfield)
                                         prefix := format(decl.name, ".")
                                         mut nested_defaults := Map.new(Str, Str)
@@ -472,7 +472,7 @@ EvalArena := struct {
                                             if dk.starts_with(prefix) {
                                                 rest := dk.strip_prefix(prefix)
                                                 mut dv := ""
-                                                defaults.get(dk, dv)
+                                                defaults.get(dk, dv)?
                                                 catch (err: KeyNotFoundError) {
                                                     panic(loc(), "insert_struct_core: key not found in defaults")
                                                 }
@@ -563,7 +563,7 @@ EvalArena := struct {
         for decl: Declaration in struct_def.members {
             if decl.is_mut {
                 mut field_rel_offset := 0
-                field_offsets.get(decl.name, field_rel_offset)
+                field_offsets.get(decl.name, field_rel_offset)?
                 catch (err: KeyNotFoundError) {
                     field_rel_offset = 0
                 }
@@ -592,7 +592,7 @@ EvalArena := struct {
                             }
                             if is_struct {
                                 // Declare nested symbol first
-                                ctx.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true))
+                                ctx.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true))?
                                 nested := EvalArena.generate_struct_mappings(ctx, combined_name, type_name, field_abs_offset, e)
                                 result.arena_mappings.extend(nested.arena_mappings)
                                 result.symbols.extend(nested.symbols)
@@ -628,10 +628,10 @@ EvalArena := struct {
         // Generate and apply mappings
         result := EvalArena.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)
         for m: EvalArenaMapping in result.arena_mappings {
-            ctx.scope_stack.insert_var(m.name, m.offset)
+            ctx.scope_stack.insert_var(m.name, m.offset)?
         }
         for s: SymbolEntry in result.symbols {
-            ctx.scope_stack.declare_symbol(s.name, s.info)
+            ctx.scope_stack.declare_symbol(s.name, s.info)?
         }
 
         catch (err: BadAlloc) {
@@ -663,7 +663,7 @@ EvalArena := struct {
 
         // Pop frame back
         mut popped_frame := ScopeFrame()
-        ctx.scope_stack.frames.pop(popped_frame)
+        ctx.scope_stack.frames.pop(popped_frame)?
         frame = popped_frame
 
         for m: EvalArenaMapping in result.arena_mappings {
@@ -718,7 +718,7 @@ EvalArena := struct {
                             }
                         }
 
-                        ctx.scope_stack.insert_var(format(id, ".", existing_decl.name), absolute_offset)
+                        ctx.scope_stack.insert_var(format(id, ".", existing_decl.name), absolute_offset)?
                         existing_offset = add(existing_offset, existing_type_size)
                     }
                 }
@@ -752,12 +752,12 @@ EvalArena := struct {
                         }
                     }
 
-                    ctx.scope_stack.insert_var(format(id, ".", decl.name), field_offset)
+                    ctx.scope_stack.insert_var(format(id, ".", decl.name), field_offset)?
                     current_offset = add(current_offset, type_size)
                 }
             }
 
-            ctx.scope_stack.insert_var(id, struct_offset)
+            ctx.scope_stack.insert_var(id, struct_offset)?
             throw KeyNotFoundError(msg="already handled")
         }
 
@@ -775,11 +775,11 @@ EvalArena := struct {
         }
         // Create Str struct from template
         mut template_offset := 0
-        g_arena.default_instances.get("Str", template_offset)
+        g_arena.default_instances.get("Str", template_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_string", "Str template not found - ensure str.til is imported")
         }
-        EvalArena.insert_struct(ctx, id, "Str", template_offset, e)
+        EvalArena.insert_struct(ctx, id, "Str", template_offset, e)?
         c_string_offset := ctx.scope_stack.lookup_var(format(id, ".c_string"))
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "context", format("insert_string: missing '", id, ".c_string'"))
@@ -800,18 +800,18 @@ EvalArena := struct {
         }
         // Create Str struct from template
         mut template_offset := 0
-        g_arena.default_instances.get("Str", template_offset)
+        g_arena.default_instances.get("Str", template_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_string_into_frame", "Str template not found - ensure str.til is imported")
         }
-        EvalArena.insert_struct_into_frame(ctx, frame, id, "Str", template_offset, e)
+        EvalArena.insert_struct_into_frame(ctx, frame, id, "Str", template_offset, e)?
         mut c_string_offset := 0
-        frame.arena_index.get(format(id, ".c_string"), c_string_offset)
+        frame.arena_index.get(format(id, ".c_string"), c_string_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "context", format("insert_string_into_frame: missing '", id, ".c_string'"))
         }
         mut cap_offset := 0
-        frame.arena_index.get(format(id, ".cap"), cap_offset)
+        frame.arena_index.get(format(id, ".cap"), cap_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "context", format("insert_string_into_frame: missing '", id, ".cap'"))
         }
@@ -824,13 +824,13 @@ EvalArena := struct {
         switch value_type {
         case ValueType.TCustom(type_name):
             if type_name.eq("I64") {
-                EvalArena.insert_i64(ctx, var_name, value, e)
+                EvalArena.insert_i64(ctx, var_name, value, e)?
             } else {
                 if type_name.eq("U8") {
-                    EvalArena.insert_u8(ctx, var_name, value, e)
+                    EvalArena.insert_u8(ctx, var_name, value, e)?
                 } else {
                     if type_name.eq("Str") {
-                        EvalArena.insert_string(ctx, var_name, value, e)
+                        EvalArena.insert_string(ctx, var_name, value, e)?
                     } else {
                         throw e.lang_error(ctx.path, "eval", format("insert_primitive: Unsupported type ", value_type_to_str(value_type)))
                     }
@@ -922,7 +922,7 @@ EvalArena := struct {
             case ValueType.TType(type_def):
                 switch type_def {
                 case TTypeDef.TStructDef:
-                    return ctx.get_type_size(type_name)
+                    return ctx.get_type_size(type_name)?
                 case TTypeDef.TEnumDef:
                     // Recursively get the inner enum's size
                     inner_enum := EvalArena.get_enum_at_offset(ctx, type_name, offset, e)
@@ -1100,7 +1100,7 @@ EvalArena := struct {
         parts := pre_normalized_enum_name.split(".")
         mut enum_name := ""
         if parts.len().gt(0) {
-            parts.get(sub(parts.len(), 1), enum_name)
+            parts.get(sub(parts.len(), 1), enum_name)?
         }
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "context", format("insert_enum: Invalid enum name format '", pre_normalized_enum_name, "'"))
@@ -1146,7 +1146,7 @@ EvalArena := struct {
                     mut pi := 0
                     while pi.lt(payload_data.len()) {
                         mut byte_val : U8 = 0
-                        payload_data.get(pi, byte_val)
+                        payload_data.get(pi, byte_val)?
                         g_arena.set(add(payload_offset, pi), to_ptr(byte_val), 1)
                         pi = add(pi, 1)
                     }
@@ -1205,7 +1205,7 @@ EvalArena := struct {
     insert_enum := proc(mut ctx: Context, id: Str, enum_type: Str, pre_normalized_enum_name: Str, e: Expr) returns EnumVal throws Str {
         result := EvalArena.insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)
         if result.has_mapping {
-            ctx.scope_stack.insert_var(result.mapping_name, result.mapping_offset)
+            ctx.scope_stack.insert_var(result.mapping_name, result.mapping_offset)?
         }
 
         return result.enum_val
@@ -1218,7 +1218,7 @@ EvalArena := struct {
         result := EvalArena.insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)
 
         // Pop frame back
-        ctx.scope_stack.frames.pop(frame)
+        ctx.scope_stack.frames.pop(frame)?
 
         // Now apply result to the frame
         if result.has_mapping {
@@ -1237,11 +1237,11 @@ EvalArena := struct {
     insert_array_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, name: Str, elem_type: Str, values: Vec, e: Expr) throws Str {
         // Create Array struct using template
         mut template_offset := 0
-        g_arena.default_instances.get("Array", template_offset)
+        g_arena.default_instances.get("Array", template_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", "Array template not found - ensure array.til is imported")
         }
-        EvalArena.insert_struct_into_frame(ctx, frame, name, "Array", template_offset, e)
+        EvalArena.insert_struct_into_frame(ctx, frame, name, "Array", template_offset, e)?
 
         len := values.len()
         elem_size := ctx.get_type_size(elem_type)
@@ -1255,7 +1255,7 @@ EvalArena := struct {
         while i.lt(len) {
             offset := add(ptr, mul(i, elem_size))
             mut val := ""
-            values.get(i, val)
+            values.get(i, val)?
 
             if Str.eq(elem_type, "U8") {
                 byte := U8.from_str(val)
@@ -1269,10 +1269,10 @@ EvalArena := struct {
                 temp_symbol := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
                 frame.symbols.set(temp_id, temp_symbol)
 
-                EvalArena.insert_string_into_frame(ctx, frame, temp_id, val, e)
+                EvalArena.insert_string_into_frame(ctx, frame, temp_id, val, e)?
 
                 mut str_offset := 0
-                frame.arena_index.get(temp_id, str_offset)
+                frame.arena_index.get(temp_id, str_offset)?
                 catch (err: KeyNotFoundError) {
                     throw e.lang_error(ctx.path, "insert_array", format("missing Str offset for '", temp_id, "'"))
                 }
@@ -1292,7 +1292,7 @@ EvalArena := struct {
 
         // Update Array fields from frame.arena_index
         mut ptr_offset := 0
-        frame.arena_index.get(format(name, ".ptr"), ptr_offset)
+        frame.arena_index.get(format(name, ".ptr"), ptr_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array", format("missing '", name, ".ptr'"))
         }
@@ -1300,7 +1300,7 @@ EvalArena := struct {
         g_arena.set(ptr_offset, to_ptr(ptr_val), 8)
 
         mut len_offset := 0
-        frame.arena_index.get(format(name, "._len"), len_offset)
+        frame.arena_index.get(format(name, "._len"), len_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array", format("missing '", name, "._len'"))
         }
@@ -1308,7 +1308,7 @@ EvalArena := struct {
         g_arena.set(len_offset, to_ptr(len_val), 8)
 
         mut type_size_offset := 0
-        frame.arena_index.get(format(name, ".type_size"), type_size_offset)
+        frame.arena_index.get(format(name, ".type_size"), type_size_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array", format("missing '", name, ".type_size'"))
         }
@@ -1321,16 +1321,16 @@ EvalArena := struct {
         temp_symbol2 := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)
         frame.symbols.set(temp_type_name_id, temp_symbol2)
 
-        EvalArena.insert_string_into_frame(ctx, frame, temp_type_name_id, elem_type, e)
+        EvalArena.insert_string_into_frame(ctx, frame, temp_type_name_id, elem_type, e)?
 
         mut temp_str_offset := 0
-        frame.arena_index.get(temp_type_name_id, temp_str_offset)
+        frame.arena_index.get(temp_type_name_id, temp_str_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array", "missing type_name temp Str offset")
         }
 
         mut type_name_offset := 0
-        frame.arena_index.get(type_name_field, type_name_offset)
+        frame.arena_index.get(type_name_field, type_name_offset)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "insert_array", format("missing '", type_name_field, "'"))
         }

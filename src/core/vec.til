@@ -150,7 +150,7 @@ Vec := struct {
 
         // Get last element
         mut last_index := sub(self._len, 1)
-        self.get(last_index, dest)
+        self.get(last_index, dest)?
 
         // Decrement length
         self._len = last_index
@@ -345,11 +345,11 @@ sort_str_vec := proc(mut v: Vec) {
         for i in 1..n {
             mut prev := ""
             mut curr := ""
-            v.get(i.sub(1), prev)
-            v.get(i, curr)
+            v.get(i.sub(1), prev)?
+            v.get(i, curr)?
             if gt(prev.cmp(curr), 0) {
-                v.set(i.sub(1), curr)
-                v.set(i, prev)
+                v.set(i.sub(1), curr)?
+                v.set(i, prev)?
                 new_n = i
             }
             catch (err: IndexOutOfBoundsError) {

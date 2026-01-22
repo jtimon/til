@@ -116,7 +116,7 @@ wait_cmd := proc(pid: I64) returns I64 throws SleepError {
         if not(status.eq(neg_one)) {
             return status
         }
-        sleep(50)  // sleep 50 milliseconds between polls
+        sleep(50)?  // sleep 50 milliseconds between polls
     }
 }
 
@@ -180,7 +180,7 @@ list_dir := proc(path: Str) returns Vec throws IndexOutOfBoundsError {
     if raw.len().eq(0) {
         return Vec.new(Str)
     }
-    return raw.split("\n")
+    return raw.split("\n")?
 }
 
 /**
@@ -205,7 +205,7 @@ glob_files := proc(pattern: Str) returns Vec throws IndexOutOfBoundsError {
     suffix := get_substr(file_pattern, star_pos.add(1), file_pattern.len())
 
     mut result := Vec.new(Str)
-    for f: Str in list_dir(dir) {
+    for f: Str in list_dir(dir)? {
         if f.ends_with(suffix) {
             result.push(format(dir, "/", f))
         }

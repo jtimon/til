@@ -17,7 +17,7 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     switch e.node_type {
     case NodeType.Body:
         return precomp_body(context, e)
-    case NodeType.FCall:
+    case NodeType.FCall(_):
         mut const_folded := precomp_fcall(context, e)
         // Try compile-time constant folding for pure functions with literal args.
         // Only fold at global scope - inside function definitions, values from other
@@ -107,7 +107,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
             return false
         }
         return symbol.is_comptime_const
-    case NodeType.FCall:
+    case NodeType.FCall(_):
         f_name := get_func_name_in_call(e)
         catch (err: Str) {
             return false  // Can't get function name

@@ -220,7 +220,7 @@ main := proc(args: ..Str) {
         exit(1)
     }
     mut target := ""
-    args.get(0, target)
+    args.get(0, target)?
     switch target {
     case "clean":
         run_clean()

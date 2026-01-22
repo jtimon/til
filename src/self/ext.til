@@ -27,15 +27,15 @@ byte_to_str := func(byte: U8) returns Str {
 // General whitelist for all modes
 make_allowed_commands := proc() returns Array {
     mut arr := Array.new(Str, 9)
-    arr.set(0, "ls")
-    arr.set(1, "mkdir")
-    arr.set(2, "find")
-    arr.set(3, "gcc")
-    arr.set(4, "./bin/rstil")
-    arr.set(5, "diff")
-    arr.set(6, "bash")
-    arr.set(7, "rm")
-    arr.set(8, "cp")
+    arr.set(0, "ls")?
+    arr.set(1, "mkdir")?
+    arr.set(2, "find")?
+    arr.set(3, "gcc")?
+    arr.set(4, "./bin/rstil")?
+    arr.set(5, "diff")?
+    arr.set(6, "bash")?
+    arr.set(7, "rm")?
+    arr.set(8, "cp")?
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return arr
 }
@@ -44,8 +44,8 @@ ALLOWED_COMMANDS := make_allowed_commands()
 // More restrictive whitelist for safe_script mode
 make_safe_commands := proc() returns Array {
     mut arr := Array.new(Str, 2)
-    arr.set(0, "ls")
-    arr.set(1, "mkdir")
+    arr.set(0, "ls")?
+    arr.set(1, "mkdir")?
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     return arr
 }
@@ -96,7 +96,7 @@ string_from_context := proc(context: Context, id: Str, e: Expr) returns Str thro
 // ---------- Core functions - called from interpreter dispatcher
 
 func_loc := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "loc", 0, false)
+    validate_arg_count(context.path, e, "loc", 0, false)?
     file := context.path
     line := e.line
     col := e.col
@@ -104,26 +104,26 @@ func_loc := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
 }
 
 func_file := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "_file", 0, false)
+    validate_arg_count(context.path, e, "_file", 0, false)?
     return EvalResult.new(context.path)
 }
 
 func_line := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "_line", 0, false)
+    validate_arg_count(context.path, e, "_line", 0, false)?
     return EvalResult.new(e.line.to_str())
 }
 
 func_col := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "_col", 0, false)
+    validate_arg_count(context.path, e, "_col", 0, false)?
     return EvalResult.new(e.col.to_str())
 }
 
 // ---------- eval memory
 
 func_malloc := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "malloc", 1, false)
+    validate_arg_count(context.path, e, "malloc", 1, false)?
 
-    size_result := eval_expr(context, e.get(1))
+    size_result := eval_expr(context, e.get(1)?)
     if size_result.is_throw { return size_result }
     size := I64.from_str(size_result.value)
     mut offset := 0
@@ -140,9 +140,9 @@ func_malloc := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 }
 
 func_free := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "free", 1, false)
+    validate_arg_count(context.path, e, "free", 1, false)?
 
-    ptr_result := eval_expr(context, e.get(1))
+    ptr_result := eval_expr(context, e.get(1)?)
     if ptr_result.is_throw { return ptr_result }
     // REM: Free does nothing in arena model (for now).
 
@@ -150,13 +150,13 @@ func_free := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
 }
 
 func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str, U8_Overflow {
-    validate_arg_count(context.path, e, "memset", 3, false)
+    validate_arg_count(context.path, e, "memset", 3, false)?
 
-    dest_result := eval_expr(context, e.get(1))
+    dest_result := eval_expr(context, e.get(1)?)
     if dest_result.is_throw { return dest_result }
-    value_result := eval_expr(context, e.get(2))
+    value_result := eval_expr(context, e.get(2)?)
     if value_result.is_throw { return value_result }
-    size_result := eval_expr(context, e.get(3))
+    size_result := eval_expr(context, e.get(3)?)
     if size_result.is_throw { return size_result }
 
     dest := I64.from_str(dest_result.value)
@@ -176,13 +176,13 @@ func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 }
 
 func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "memcpy", 3, false)
+    validate_arg_count(context.path, e, "memcpy", 3, false)?
 
-    dest_result := eval_expr(context, e.get(1))
+    dest_result := eval_expr(context, e.get(1)?)
     if dest_result.is_throw { return dest_result }
-    src_result := eval_expr(context, e.get(2))
+    src_result := eval_expr(context, e.get(2)?)
     if src_result.is_throw { return src_result }
-    size_result := eval_expr(context, e.get(3))
+    size_result := eval_expr(context, e.get(3)?)
     if size_result.is_throw { return size_result }
 
     dest := I64.from_str(dest_result.value)
@@ -205,13 +205,13 @@ func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 }
 
 func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "memcmp", 3, false)
+    validate_arg_count(context.path, e, "memcmp", 3, false)?
 
-    ptr1_result := eval_expr(context, e.get(1))
+    ptr1_result := eval_expr(context, e.get(1)?)
     if ptr1_result.is_throw { return ptr1_result }
-    ptr2_result := eval_expr(context, e.get(2))
+    ptr2_result := eval_expr(context, e.get(2)?)
     if ptr2_result.is_throw { return ptr2_result }
-    size_result := eval_expr(context, e.get(3))
+    size_result := eval_expr(context, e.get(3)?)
     if size_result.is_throw { return size_result }
 
     ptr1 := I64.from_str(ptr1_result.value)
@@ -242,7 +242,7 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 }
 
 func_to_ptr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "to_ptr", 1, false)
+    validate_arg_count(context.path, e, "to_ptr", 1, false)?
 
     identifier_expr := e.get(1)
     combined_name := get_combined_name(context.path, identifier_expr)
@@ -254,7 +254,7 @@ func_to_ptr := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 }
 
 func_size_of := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "size_of", 1, false)
+    validate_arg_count(context.path, e, "size_of", 1, false)?
 
     type_expr := e.get(1)
     switch type_expr.node_type {
@@ -292,7 +292,7 @@ func_size_of := proc(mut context: Context, e: Expr) returns EvalResult throws St
 }
 
 func_type_as_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "type_as_str", 1, false)
+    validate_arg_count(context.path, e, "type_as_str", 1, false)?
 
     type_expr := e.get(1)
     switch type_expr.node_type {
@@ -329,10 +329,10 @@ func_type_as_str := proc(mut context: Context, e: Expr) returns EvalResult throw
 }
 
 func_lt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "lt", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "lt", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -340,10 +340,10 @@ func_lt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
 }
 
 func_gt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "gt", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "gt", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -351,10 +351,10 @@ func_gt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
 }
 
 func_u8_lt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "u8_lt", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "u8_lt", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := U8.from_str(a_result.value)
     b := U8.from_str(b_result.value)
@@ -368,10 +368,10 @@ func_u8_lt := proc(mut context: Context, e: Expr) returns EvalResult throws Str 
 }
 
 func_u8_gt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "u8_gt", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "u8_gt", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := U8.from_str(a_result.value)
     b := U8.from_str(b_result.value)
@@ -385,10 +385,10 @@ func_u8_gt := proc(mut context: Context, e: Expr) returns EvalResult throws Str 
 }
 
 func_u8_xor := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "u8_xor", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "u8_xor", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := U8.from_str(a_result.value)
     b := U8.from_str(b_result.value)
@@ -402,10 +402,10 @@ func_u8_xor := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 }
 
 func_u8_and := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "u8_and", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "u8_and", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := U8.from_str(a_result.value)
     b := U8.from_str(b_result.value)
@@ -419,10 +419,10 @@ func_u8_and := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 }
 
 func_u8_or := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "u8_or", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "u8_or", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := U8.from_str(a_result.value)
     b := U8.from_str(b_result.value)
@@ -436,10 +436,10 @@ func_u8_or := proc(mut context: Context, e: Expr) returns EvalResult throws Str 
 }
 
 func_add := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "add", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "add", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -447,10 +447,10 @@ func_add := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
 }
 
 func_sub := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "sub", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "sub", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -458,10 +458,10 @@ func_sub := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
 }
 
 func_mul := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "mul", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "mul", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -469,10 +469,10 @@ func_mul := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
 }
 
 func_div := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "div", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "div", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -484,10 +484,10 @@ func_div := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
 }
 
 func_mod := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "mod", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "mod", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -500,10 +500,10 @@ func_mod := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
 
 // Bitwise operations - don't really belong in arithmetics, but here for now
 func_i64_xor := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "i64_xor", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "i64_xor", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -511,10 +511,10 @@ func_i64_xor := proc(mut context: Context, e: Expr) returns EvalResult throws St
 }
 
 func_i64_and := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "i64_and", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "i64_and", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -522,10 +522,10 @@ func_i64_and := proc(mut context: Context, e: Expr) returns EvalResult throws St
 }
 
 func_i64_or := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "i64_or", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "i64_or", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -533,30 +533,30 @@ func_i64_or := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 }
 
 func_str_to_i64 := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "str_to_i64", 1, false)
-    result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "str_to_i64", 1, false)?
+    result := eval_expr(context, e.get(1)?)
     if result.is_throw { return result }
     a := I64.from_str(result.value)
     return EvalResult.new(a.to_str())
 }
 
 func_i64_to_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "i64_to_str", 1, false)
-    result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "i64_to_str", 1, false)?
+    result := eval_expr(context, e.get(1)?)
     if result.is_throw { return result }
     return EvalResult.new(result.value)
 }
 
 func_enum_to_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "enum_to_str", 1, false)
-    result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "enum_to_str", 1, false)?
+    result := eval_expr(context, e.get(1)?)
     if result.is_throw { return result }
     return EvalResult.new(result.value)
 }
 
 func_enum_get_payload := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "enum_get_payload", 3, false)
-    result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "enum_get_payload", 3, false)?
+    result := eval_expr(context, e.get(1)?)
     if result.is_throw { return result }
 
     // Get payload type from second argument
@@ -628,25 +628,25 @@ func_enum_get_payload := proc(mut context: Context, e: Expr) returns EvalResult 
 }
 
 func_u8_to_i64 := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "u8_to_i64", 1, false)
-    result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "u8_to_i64", 1, false)?
+    result := eval_expr(context, e.get(1)?)
     if result.is_throw { return result }
     a := I64.from_str(result.value)
     return EvalResult.new(a.to_str())
 }
 
 func_i64_to_u8 := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "i64_to_u8", 1, false)
-    result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "i64_to_u8", 1, false)?
+    result := eval_expr(context, e.get(1)?)
     if result.is_throw { return result }
     return EvalResult.new(result.value)
 }
 
 func_u8_add := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "U8_add", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "U8_add", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -656,10 +656,10 @@ func_u8_add := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 }
 
 func_u8_sub := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "U8_sub", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "U8_sub", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -669,10 +669,10 @@ func_u8_sub := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 }
 
 func_u8_mul := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "U8_mul", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "U8_mul", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -682,10 +682,10 @@ func_u8_mul := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 }
 
 func_u8_div := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "U8_div", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "U8_div", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -698,10 +698,10 @@ func_u8_div := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 }
 
 func_u8_mod := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "U8_mod", 2, false)
-    a_result := eval_expr(context, e.get(1))
+    validate_arg_count(context.path, e, "U8_mod", 2, false)?
+    a_result := eval_expr(context, e.get(1)?)
     if a_result.is_throw { return a_result }
-    b_result := eval_expr(context, e.get(2))
+    b_result := eval_expr(context, e.get(2)?)
     if b_result.is_throw { return b_result }
     a := I64.from_str(a_result.value)
     b := I64.from_str(b_result.value)
@@ -719,9 +719,9 @@ func_u8_mod := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 // as `ext_proc(s: Str)` not `ext_proc(args: ..Str)` in core.til. Variadic wrapping
 // bypasses validate_arg_count by passing args as a single Array. (Bug #30)
 proc_single_print := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "single_print", 1, true)
+    validate_arg_count(context.path, e, "single_print", 1, true)?
 
-    result := eval_expr(context, e.get(1))
+    result := eval_expr(context, e.get(1)?)
     if result.is_throw { return result }
 
     print(result.value)
@@ -729,13 +729,13 @@ proc_single_print := proc(mut context: Context, e: Expr) returns EvalResult thro
 }
 
 proc_print_flush := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "print_flush", 0, true)
+    validate_arg_count(context.path, e, "print_flush", 0, true)?
     print_flush()
     return EvalResult.new("")
 }
 
 proc_input_read_line := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "input_read_line", 1, true)
+    validate_arg_count(context.path, e, "input_read_line", 1, true)?
 
     first_param := e.get(1)
     mut read_line_error_msg := ""
@@ -759,9 +759,9 @@ proc_input_read_line := proc(mut context: Context, e: Expr) returns EvalResult t
 }
 
 proc_readfile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "readfile", 1, true)
+    validate_arg_count(context.path, e, "readfile", 1, true)?
 
-    result := eval_expr(context, e.get(1))
+    result := eval_expr(context, e.get(1)?)
     if result.is_throw {
         return result // Propagate throw
     }
@@ -776,15 +776,15 @@ proc_readfile := proc(mut context: Context, e: Expr) returns EvalResult throws S
 }
 
 proc_writefile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "writefile", 2, true)
+    validate_arg_count(context.path, e, "writefile", 2, true)?
 
-    path_result := eval_expr(context, e.get(1))
+    path_result := eval_expr(context, e.get(1)?)
     if path_result.is_throw {
         return path_result
     }
     path := path_result.value
 
-    contents_result := eval_expr(context, e.get(2))
+    contents_result := eval_expr(context, e.get(2)?)
     if contents_result.is_throw {
         return contents_result
     }
@@ -813,7 +813,7 @@ proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws St
     // Get output variable name (must be identifier for mut assignment)
     output_var := e.get(1)
 
-    cmd_result := eval_expr(context, e.get(2))
+    cmd_result := eval_expr(context, e.get(2)?)
     if cmd_result.is_throw {
         return cmd_result
     }
@@ -834,7 +834,7 @@ proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws St
     // Single quotes within args are escaped as '\''
     mut cmd_str := cmd
     for i in 3..e.params.len() {
-        arg_result := eval_expr(context, e.get(i))
+        arg_result := eval_expr(context, e.get(i)?)
         if arg_result.is_throw {
             return arg_result
         }
@@ -856,7 +856,7 @@ proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws St
     case:
         throw e.error(context.path, "eval", "run_cmd first argument must be an identifier")
     }
-    EvalArena.insert_primitive(context, var_name, ValueType.TCustom("Str"), output, e)
+    EvalArena.insert_primitive(context, var_name, ValueType.TCustom("Str"), output, e)?
 
     return EvalResult.new(exit_code.to_str())
 }
@@ -864,13 +864,13 @@ proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws St
 // ---------- Introspection functions
 
 func_has_const := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "has_const", 2, false)
+    validate_arg_count(context.path, e, "has_const", 2, false)?
 
-    result1 := eval_expr(context, e.get(1))
+    result1 := eval_expr(context, e.get(1)?)
     if result1.is_throw { return result1 }
     type_name := result1.value
 
-    result2 := eval_expr(context, e.get(2))
+    result2 := eval_expr(context, e.get(2)?)
     if result2.is_throw { return result2 }
     const_name := result2.value
 
@@ -889,13 +889,13 @@ func_has_const := proc(mut context: Context, e: Expr) returns EvalResult throws 
 }
 
 func_has_field := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "has_field", 2, false)
+    validate_arg_count(context.path, e, "has_field", 2, false)?
 
-    result1 := eval_expr(context, e.get(1))
+    result1 := eval_expr(context, e.get(1)?)
     if result1.is_throw { return result1 }
     type_name := result1.value
 
-    result2 := eval_expr(context, e.get(2))
+    result2 := eval_expr(context, e.get(2)?)
     if result2.is_throw { return result2 }
     field_name := result2.value
 
@@ -914,7 +914,7 @@ func_has_field := proc(mut context: Context, e: Expr) returns EvalResult throws 
 }
 
 func_exit := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "exit", 1, false)
+    validate_arg_count(context.path, e, "exit", 1, false)?
 
     e_exit_code := e.get(1)
 
@@ -938,9 +938,9 @@ func_exit := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
 // ---------- Process spawning functions
 
 proc_spawn_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "spawn_cmd", 1, true)
+    validate_arg_count(context.path, e, "spawn_cmd", 1, true)?
 
-    cmd_result := eval_expr(context, e.get(1))
+    cmd_result := eval_expr(context, e.get(1)?)
     if cmd_result.is_throw { return cmd_result }
     cmd := cmd_result.value
 
@@ -955,9 +955,9 @@ proc_spawn_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws 
 }
 
 proc_check_cmd_status := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "check_cmd_status", 1, true)
+    validate_arg_count(context.path, e, "check_cmd_status", 1, true)?
 
-    pid_result := eval_expr(context, e.get(1))
+    pid_result := eval_expr(context, e.get(1)?)
     if pid_result.is_throw { return pid_result }
     pid := I64.from_str(pid_result.value)
 
@@ -967,14 +967,14 @@ proc_check_cmd_status := proc(mut context: Context, e: Expr) returns EvalResult 
 }
 
 proc_sleep := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "sleep", 1, true)
+    validate_arg_count(context.path, e, "sleep", 1, true)?
 
-    ms_result := eval_expr(context, e.get(1))
+    ms_result := eval_expr(context, e.get(1)?)
     if ms_result.is_throw { return ms_result }
     ms := I64.from_str(ms_result.value)
 
     // Call host-provided sleep (when running on rstil)
-    sleep(ms)
+    sleep(ms)?
 
     catch (err: SleepError) {
         throw e.error(context.path, "eval", format("sleep failed: ", err.msg))
@@ -984,7 +984,7 @@ proc_sleep := proc(mut context: Context, e: Expr) returns EvalResult throws Str 
 }
 
 proc_get_thread_count := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "get_thread_count", 0, true)
+    validate_arg_count(context.path, e, "get_thread_count", 0, true)?
 
     // Call host-provided get_thread_count (when running on rstil)
     count := get_thread_count()
@@ -993,9 +993,9 @@ proc_get_thread_count := proc(mut context: Context, e: Expr) returns EvalResult 
 }
 
 func_file_mtime := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "file_mtime", 1, false)
+    validate_arg_count(context.path, e, "file_mtime", 1, false)?
 
-    path_result := eval_expr(context, e.get(1))
+    path_result := eval_expr(context, e.get(1)?)
     if path_result.is_throw { return path_result }
     path := path_result.value
 
@@ -1006,9 +1006,9 @@ func_file_mtime := proc(mut context: Context, e: Expr) returns EvalResult throws
 }
 
 func_list_dir_raw := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "list_dir_raw", 1, false)
+    validate_arg_count(context.path, e, "list_dir_raw", 1, false)?
 
-    path_result := eval_expr(context, e.get(1))
+    path_result := eval_expr(context, e.get(1)?)
     if path_result.is_throw { return path_result }
     path := path_result.value
 
@@ -1019,9 +1019,9 @@ func_list_dir_raw := proc(mut context: Context, e: Expr) returns EvalResult thro
 }
 
 func_fs_parent_dir := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "fs_parent_dir", 1, false)
+    validate_arg_count(context.path, e, "fs_parent_dir", 1, false)?
 
-    path_result := eval_expr(context, e.get(1))
+    path_result := eval_expr(context, e.get(1)?)
     if path_result.is_throw { return path_result }
     path := path_result.value
 
@@ -1032,9 +1032,9 @@ func_fs_parent_dir := proc(mut context: Context, e: Expr) returns EvalResult thr
 }
 
 proc_fs_mkdir_p := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "fs_mkdir_p", 1, true)
+    validate_arg_count(context.path, e, "fs_mkdir_p", 1, true)?
 
-    path_result := eval_expr(context, e.get(1))
+    path_result := eval_expr(context, e.get(1)?)
     if path_result.is_throw { return path_result }
     path := path_result.value
 

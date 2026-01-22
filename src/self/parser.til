@@ -44,7 +44,7 @@ SEnumDef := struct {
         // Deep clone: iterate and clone each element
         for i in 0..self.variants.len() {
             mut v := EnumVariant()
-            self.variants.get(i, v)
+            self.variants.get(i, v)?
             result.variants.push(v.clone())
         }
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
@@ -63,7 +63,7 @@ SEnumDef := struct {
     get := func(self: SEnumDef, variant_name: Str) returns Ptr throws KeyNotFoundError, IndexOutOfBoundsError {
         for i in 0..self.variants.len() {
             mut v := EnumVariant()
-            self.variants.get(i, v)
+            self.variants.get(i, v)?
             if v.name.eq(variant_name) {
                 return v.payload_type
             }
@@ -74,7 +74,7 @@ SEnumDef := struct {
     contains_key := func(self: SEnumDef, variant_name: Str) returns Bool throws Str {
         for i in 0..self.variants.len() {
             mut v := EnumVariant()
-            self.variants.get(i, v)
+            self.variants.get(i, v)?
             if v.name.eq(variant_name) {
                 return true
             }
@@ -146,25 +146,25 @@ SFuncDef := struct {
         // Deep clone args
         for arg_idx in 0..self.args.len() {
             mut arg := Declaration()
-            self.args.get(arg_idx, arg)
+            self.args.get(arg_idx, arg)?
             result.args.push(arg.clone())
         }
         // Deep clone return_types
         for rt_idx in 0..self.return_types.len() {
             mut rt := ValueType.TCustom("")
-            self.return_types.get(rt_idx, rt)
+            self.return_types.get(rt_idx, rt)?
             result.return_types.push(value_type_clone(rt))
         }
         // Deep clone throw_types
         for tt_idx in 0..self.throw_types.len() {
             mut tt := ValueType.TCustom("")
-            self.throw_types.get(tt_idx, tt)
+            self.throw_types.get(tt_idx, tt)?
             result.throw_types.push(value_type_clone(tt))
         }
         // Deep clone body
         for body_idx in 0..self.body.len() {
             mut e := Expr()
-            self.body.get(body_idx, e)
+            self.body.get(body_idx, e)?
             result.body.push(e.clone())
         }
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
@@ -206,15 +206,15 @@ SStructDef := struct {
         // Deep clone members
         for member_idx in 0..self.members.len() {
             mut m := Declaration()
-            self.members.get(member_idx, m)
+            self.members.get(member_idx, m)?
             result.members.push(m.clone())
         }
         // Deep clone default_values Map<Str, Expr>
         for dv_idx in 0..self.default_values.keys.len() {
             mut k := ""
             mut v := Expr()
-            self.default_values.keys.get(dv_idx, k)
-            self.default_values.values.get(dv_idx, v)
+            self.default_values.keys.get(dv_idx, k)?
+            self.default_values.values.get(dv_idx, v)?
             result.default_values.set(k.clone(), v.clone())
         }
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
@@ -225,7 +225,7 @@ SStructDef := struct {
     get_member := func(self: SStructDef, member_name: Str) returns Declaration throws Str {
         for i in 0..self.members.len() {
             mut member := Declaration()
-            self.members.get(i, member)
+            self.members.get(i, member)?
             if member.name.eq(member_name) {
                 return member
             }
@@ -272,7 +272,7 @@ literal_clone := func(lit: Literal) returns Literal {
 NodeType := enum {
     Body,
     LLiteral: Literal,
-    FCall,
+    FCall: Bool,  // bool = true if call has ? (propagates throw)
     Identifier: Str,
     Declaration: Declaration,
     Assignment: Str,
@@ -388,7 +388,7 @@ Expr := struct {
     get := func(self: Expr, i: I64) returns Expr throws Str {
         if i.lt(self.params.len()) {
             mut result := Expr()
-            self.params.get(i, result)
+            self.params.get(i, result)?
             return result
         }
         catch (err: IndexOutOfBoundsError) {
@@ -402,7 +402,7 @@ Expr := struct {
         mut cloned_params := Vec.new(Expr)
         for i in 0..self.params.len() {
             mut e := Expr()
-            self.params.get(i, e)
+            self.params.get(i, e)?
             cloned_params.push(e.clone())
         }
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
@@ -450,7 +450,7 @@ Expr := struct {
         mut cloned := Vec.new(Expr)
         for i in 0..self.params.len() {
             mut elem := Expr()
-            self.params.get(i, elem)
+            self.params.get(i, elem)?
             cloned.push(elem)
         }
         catch (err: IndexOutOfBoundsError) { throw concat("Expr.params_clone: ", err.msg) }
@@ -560,7 +560,7 @@ parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str {
     }
 
     e := Expr.new_parse(node_type, t.clone(), params)
-    lexer.advance(1)
+    lexer.advance(1)?
     return e
 }
 
@@ -572,7 +572,7 @@ parse_args := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsEr
     mut list_t := lexer.peek()
     mut expect_comma := false
 
-    while not(lexer.is_eof(0)).and(not(rightparent_found)) {
+    while not(lexer.is_eof(0)?).and(not(rightparent_found)) {
         switch list_t.token_type {
         case TokenType.RightParen:
             _ := lexer.expect(TokenType.RightParen)
@@ -605,7 +605,7 @@ parse_args := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsEr
                     if prim.params.len().gt(0) {
                         throw next_t.error(lexer.path, "Named argument name cannot be a dotted identifier")
                     }
-                    lexer.advance(1) // consume '='
+                    lexer.advance(1)? // consume '='
                     value := parse_primary(lexer)
                     mut named_arg_params := Vec.new(Expr)
                     named_arg_params.push(value)
@@ -627,7 +627,7 @@ parse_args := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsEr
     switch list_t.token_type {
     case TokenType.RightParen:
         // TODO properly parse lists besides function definition arguments
-        initial_token := lexer.get_token(initial_current).clone()
+        initial_token := lexer.get_token(initial_current)?.clone()
         return Expr.new_parse(NodeType.LLiteral(Literal.List("")), initial_token, params)
     case:
         throw list_t.error(lexer.path, "Expected closing parentheses.")
@@ -684,7 +684,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
     mut is_copy := false
     mut is_own := false
 
-    while not(lexer.is_eof(0)).and(not(rightparent_found)) {
+    while not(lexer.is_eof(0)?).and(not(rightparent_found)) {
         tt := t.token_type
         switch tt {
         case TokenType.RightParen:
@@ -692,7 +692,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
             if expect_colon {
                 throw t.error(lexer.path, format("Expected ': Type' after arg name '", arg_name, "' before ')'."))
             }
-            lexer.advance(1)
+            lexer.advance(1)?
         case TokenType.Comma:
             if expect_colon {
                 throw t.error(lexer.path, format("Expected ': Type' after arg name '", arg_name, "', but found ','."))
@@ -717,7 +717,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                 expect_colon = false
                 expect_name = false
                 expect_comma = false
-                lexer.advance(1)
+                lexer.advance(1)?
                 t = lexer.peek()
                 tt2 := t.token_type
                 switch tt2 {
@@ -742,7 +742,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                 throw t.error(lexer.path, format("Expected arg name, found '", token_type_to_str(t.token_type), "'."))
             }
             is_variadic = true
-            lexer.advance(1)
+            lexer.advance(1)?
             t = lexer.peek()
         case TokenType.Identifier:
             if expect_colon {
@@ -755,7 +755,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                 arg_name = t.token_str
                 expect_colon = true
                 expect_name = false
-                lexer.advance(1)
+                lexer.advance(1)?
                 t = lexer.peek()
             } else {
                 mut decl := Declaration()
@@ -770,13 +770,13 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                 decl.is_mut = is_mut
                 decl.is_copy = is_copy
                 decl.is_own = is_own
-                lexer.advance(1)
+                lexer.advance(1)?
                 t = lexer.peek()
                 // Check for optional default value: `= expr`
                 tt3 := t.token_type
                 switch tt3 {
                 case TokenType.Equal:
-                    lexer.advance(1)  // consume '='
+                    lexer.advance(1)?  // consume '='
                     mut default_expr := parse_primary(lexer)
                     // Must allocate heap memory - to_ptr(default_expr) would create dangling pointer
                     decl.default_value.data = malloc(size_of(Expr))
@@ -798,25 +798,25 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
             if not(expect_name) {
                 throw t.error(lexer.path, "Unexpected 'mut' in argument list.")
             }
-            validate_mut_copy_own_modifiers(t, lexer.path, "mut", is_mut, is_copy, is_own)
+            validate_mut_copy_own_modifiers(t, lexer.path, "mut", is_mut, is_copy, is_own)?
             is_mut = true
-            lexer.advance(1)
+            lexer.advance(1)?
             t = lexer.peek()
         case TokenType.Copy:
             if not(expect_name) {
                 throw t.error(lexer.path, "Unexpected 'copy' in argument list.")
             }
-            validate_mut_copy_own_modifiers(t, lexer.path, "copy", is_mut, is_copy, is_own)
+            validate_mut_copy_own_modifiers(t, lexer.path, "copy", is_mut, is_copy, is_own)?
             is_copy = true
-            lexer.advance(1)
+            lexer.advance(1)?
             t = lexer.peek()
         case TokenType.Own:
             if not(expect_name) {
                 throw t.error(lexer.path, "Unexpected 'own' in argument list.")
             }
-            validate_mut_copy_own_modifiers(t, lexer.path, "own", is_mut, is_copy, is_own)
+            validate_mut_copy_own_modifiers(t, lexer.path, "own", is_mut, is_copy, is_own)?
             is_own = true
-            lexer.advance(1)
+            lexer.advance(1)?
             t = lexer.peek()
         case:
             throw t.error(lexer.path, format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc args."))
@@ -837,7 +837,7 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
     mut end_found := false
     mut return_types := Vec.new(ValueType)
     mut t := lexer.peek()
-    lexer.advance(1)
+    lexer.advance(1)?
     tt := t.token_type
     switch tt {
     case TokenType.Returns:
@@ -848,15 +848,15 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
     t = lexer.peek()
     mut expect_comma := false
 
-    while not(lexer.is_eof(0)).and(not(end_found)) {
+    while not(lexer.is_eof(0)?).and(not(end_found)) {
         tt2 := t.token_type
         switch tt2 {
         case TokenType.Throws:
             end_found = true
-            lexer.advance(1)
+            lexer.advance(1)?
         case TokenType.LeftBrace:
             end_found = true
-            lexer.advance(1)
+            lexer.advance(1)?
         case TokenType.Comma:
             if expect_comma {
                 _ := lexer.expect(TokenType.Comma)
@@ -871,7 +871,7 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
             }
             return_types.push(str_to_value_type(t.token_str))
             expect_comma = true
-            lexer.advance(1)
+            lexer.advance(1)?
             t = lexer.peek()
         case:
             throw t.error(lexer.path, format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc returns."))
@@ -901,16 +901,16 @@ func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
     t = lexer.peek()
     mut expect_comma := false
 
-    while not(lexer.is_eof(0)).and(not(end_found)) {
+    while not(lexer.is_eof(0)?).and(not(end_found)) {
         tt2 := t.token_type
         switch tt2 {
         case TokenType.LeftBrace:
             end_found = true
-            lexer.advance(1)
+            lexer.advance(1)?
         case TokenType.Comma:
             if expect_comma {
                 expect_comma = false
-                lexer.advance(1)
+                lexer.advance(1)?
                 t = lexer.peek()
             } else {
                 throw t.error(lexer.path, "Unexpected ','.")
@@ -921,7 +921,7 @@ func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
             }
             return_types.push(str_to_value_type(t.token_str))
             expect_comma = true
-            lexer.advance(1)
+            lexer.advance(1)?
             t = lexer.peek()
         case:
             throw t.error(lexer.path, format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc throws."))
@@ -937,9 +937,9 @@ func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
 }
 
 parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType) returns Expr throws Str {
-    lexer.advance(1)
+    lexer.advance(1)?
     t := lexer.peek()
-    if lexer.is_eof(1) {
+    if lexer.is_eof(1)? {
         throw t.error(lexer.path, "expected '(' after 'func' or 'proc', found EOF.")
     }
     tt := t.token_type
@@ -988,7 +988,7 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
 
 enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
     initial_current := lexer.current
-    lexer.advance(1)
+    lexer.advance(1)?
 
     t := lexer.peek()
     tt := t.token_type
@@ -998,11 +998,11 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
     case:
         throw t.error(lexer.path, "Expected '{{' after 'enum'.")
     }
-    if lexer.is_eof(1) {
+    if lexer.is_eof(1)? {
         t2 := lexer.peek()
         throw t2.error(lexer.path, "expected identifier after 'enum {{', found EOF.")
     }
-    lexer.advance(1)
+    lexer.advance(1)?
     mut variants := Vec.new(EnumVariant)  // Bug #38 fix: Use Vec for deterministic order
 
     mut end_found := false
@@ -1034,7 +1034,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
                     variant.name = enum_val_name
                     variant.payload_type = payload_ptr
                     variants.push(variant)
-                    lexer.advance(2)
+                    lexer.advance(2)?
                 case:
                     throw next2_t.error(lexer.path, format("Expected type identifier after '", enum_val_name, " :', found '", token_type_to_str(next2_t.token_type), "'."))
                 }
@@ -1048,7 +1048,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
                 brace_variant.name = enum_val_name
                 variants.push(brace_variant)  // None = NULL pointer (default)
                 end_found = true
-                lexer.advance(1)  // Advance past the RightBrace since we peeked it with next()
+                lexer.advance(1)?  // Advance past the RightBrace since we peeked it with next()
             case:
                 throw next_t.error(lexer.path, format("Expected ',' or ':' after '", enum_val_name, "', found '", token_type_to_str(next_t.token_type), "'."))
             }
@@ -1057,7 +1057,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
         case:
             throw it_t.error(lexer.path, format("Expected '}}' to end enum or a new identifier, found '", token_type_to_str(it_t.token_type), "'."))
         }
-        lexer.advance(1)
+        lexer.advance(1)?
     }
     if not(end_found) {
         throw t.error(lexer.path, "Expected '}}' to end enum.")
@@ -1065,7 +1065,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
     params := Vec.new(Expr)
     mut enum_def := SEnumDef()
     enum_def.variants = variants
-    initial_token := lexer.get_token(initial_current).clone()
+    initial_token := lexer.get_token(initial_current)?.clone()
     e := Expr.new_parse(NodeType.EnumDef(enum_def), initial_token, params)
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -1083,11 +1083,11 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
     case:
         throw t.error(lexer.path, "Expected '{{' after 'struct'.")
     }
-    if lexer.is_eof(1) {
+    if lexer.is_eof(1)? {
         t2 := lexer.peek()
         throw t2.error(lexer.path, "expected 'identifier' after 'struct {{', found EOF.")
     }
-    lexer.advance(1)
+    lexer.advance(1)?
     body := parse_body(lexer, TokenType.RightBrace)
 
     mut members := Vec.new(Declaration)  // Vec of Declaration
@@ -1095,7 +1095,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
 
     for i in 0..body.params.len() {
         mut p := Expr()
-        body.params.get(i, p)
+        body.params.get(i, p)?
         nt := p.node_type
 
         switch nt {
@@ -1104,7 +1104,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
 
             if p.params.len().eq(1) {
                 mut val := Expr()
-                p.params.get(0, val)
+                p.params.get(0, val)?
                 default_values.set(decl.name.clone(), val.clone())
             } else {
                 // TODO allow not setting default values in struct members
@@ -1143,7 +1143,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
             switch n2tt {
             case TokenType.Identifier:
                 current_identifier = next2_t.token_str
-                lexer.advance(2)
+                lexer.advance(2)?
                 // TODO Bug #56: inline clone should work here
                 ident_expr := Expr.new_parse(
                     node_type_clone(NodeType.Identifier(current_identifier)),
@@ -1158,10 +1158,10 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
         }
     }
 
-    initial_token := lexer.get_token(initial_current).clone()
+    initial_token := lexer.get_token(initial_current)?.clone()
     token_str_cloned := t.token_str.clone()
     e := Expr.new_parse(NodeType.Identifier(token_str_cloned), initial_token, params)
-    lexer.advance(1)
+    lexer.advance(1)?
 
     ntt := next_t.token_type
     switch ntt {
@@ -1171,11 +1171,11 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
         fcall_params.push(e)
         for i in 0..arg_list.params.len() {
             mut arg := Expr()
-            arg_list.params.get(i, arg)
+            arg_list.params.get(i, arg)?
             fcall_params.push(arg)
         }
-        initial_token2 := lexer.get_token(initial_current).clone()
-        result = Expr.new_parse(NodeType.FCall, initial_token2, fcall_params)
+        initial_token2 := lexer.get_token(initial_current)?.clone()
+        result = Expr.new_parse(NodeType.FCall(false), initial_token2, fcall_params)
 
         // Handle chained method calls: a.method1().method2().method3()
         mut continue_loop := true
@@ -1185,7 +1185,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
             switch ptt {
             case TokenType.Dot:
                 // Consume the dot
-                lexer.advance(1)
+                lexer.advance(1)?
 
                 // Expect an identifier for the next method name
                 method_t := lexer.peek()
@@ -1193,7 +1193,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                 switch mtt {
                 case TokenType.Identifier:
                     method_name := method_t.token_str.clone()
-                    lexer.advance(1)
+                    lexer.advance(1)?
 
                     // Check if it's a method call (has parentheses) or field access (no parentheses)
                     next_peek := lexer.peek()
@@ -1211,11 +1211,11 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                         new_params.push(result)  // Previous call result becomes first argument
                         for j in 0..method_args.params.len() {
                             mut method_arg := Expr()
-                            method_args.params.get(j, method_arg)
+                            method_args.params.get(j, method_arg)?
                             new_params.push(method_arg)
                         }
 
-                        result = Expr.new_parse(NodeType.FCall, method_t, new_params)
+                        result = Expr.new_parse(NodeType.FCall(false), method_t, new_params)
                     case:
                         // Bug #32 fix: Field access on expression result (no parentheses)
                         // Collect all field names in the chain until we hit something else
@@ -1233,13 +1233,13 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                             patt := peek_after.token_type
                             switch patt {
                             case TokenType.Dot:
-                                lexer.advance(1)
+                                lexer.advance(1)?
                                 next_field_t := lexer.peek()
                                 nftt := next_field_t.token_type
                                 switch nftt {
                                 case TokenType.Identifier:
                                     next_field_name := next_field_t.token_str.clone()
-                                    lexer.advance(1)
+                                    lexer.advance(1)?
 
                                     // Check if this is a method call
                                     check_paren := lexer.peek()
@@ -1259,11 +1259,11 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                                         new_params2.push(field_access)
                                         for k in 0..method_args2.params.len() {
                                             mut method_arg2 := Expr()
-                                            method_args2.params.get(k, method_arg2)
+                                            method_args2.params.get(k, method_arg2)?
                                             new_params2.push(method_arg2)
                                         }
 
-                                        result = Expr.new_parse(NodeType.FCall, next_field_t, new_params2)
+                                        result = Expr.new_parse(NodeType.FCall(false), next_field_t, new_params2)
                                         continue_field_loop = false
                                     case:
                                         // Another field access
@@ -1291,6 +1291,22 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
             }
         }
 
+        // Check for ? after FCall (Issue #132: throw propagation marker)
+        peek_for_question := lexer.peek()
+        pfq_tt := peek_for_question.token_type
+        switch pfq_tt {
+        case TokenType.Question:
+            lexer.advance(1)?
+            // Update FCall to have true (has ?)
+            rnt := result.node_type
+            switch rnt {
+            case NodeType.FCall(_):
+                result.node_type = NodeType.FCall(true)
+            case:
+            }
+        case:
+        }
+
         result = result
     case:
         result = e
@@ -1314,7 +1330,7 @@ get_combined_name := func(path: Str, e: Expr) returns Str throws Str {
 
     for i in 0..e.params.len() {
         mut p := Expr()
-        e.params.get(i, p)
+        e.params.get(i, p)?
         pnt := p.node_type
         switch pnt {
             case NodeType.Identifier(id_str):
@@ -1339,13 +1355,13 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, In
     ntt := next_token_type
     switch ntt {
     case TokenType.LeftParen:
-        return parse_primary_identifier(lexer)
+        return parse_primary_identifier(lexer)?
     case TokenType.Dot:
         e := parse_primary_identifier(lexer)
         ent := e.node_type
         mut is_fcall := false
         switch ent {
-        case NodeType.FCall:
+        case NodeType.FCall(_):
             is_fcall = true
         case:
             is_fcall = false
@@ -1370,13 +1386,13 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, In
         switch ntt2 {
         case TokenType.Equal:
             name := get_combined_name(lexer.path, e)
-            return parse_assignment(lexer, t, name)
+            return parse_assignment(lexer, t, name)?
         case:
             throw t.lang_error(lexer.path, "While parsing a '.', this should never happen")
         }
     case TokenType.Equal:
-        lexer.advance(1)
-        return parse_assignment(lexer, t, t.token_str)
+        lexer.advance(1)?
+        return parse_assignment(lexer, t, t.token_str)?
     case TokenType.Colon:
         next_next_t := lexer.peek_ahead(2)
         next_next_token_type := next_next_t.token_type
@@ -1386,9 +1402,9 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, In
         switch nntt {
         case TokenType.Identifier:
             type_name := next_next_t.token_str
-            return parse_declaration(lexer, false, false, type_name)
+            return parse_declaration(lexer, false, false, type_name)?
         case TokenType.Equal:
-            return parse_declaration(lexer, false, false, INFER_TYPE)
+            return parse_declaration(lexer, false, false, INFER_TYPE)?
         case:
             throw t.error(lexer.path, format("Expected Type or '=' after '", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
         }
@@ -1437,7 +1453,7 @@ parse_primary := func(mut lexer: Lexer) returns Expr throws Str {
 
 return_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_current := lexer.current
-    lexer.advance(1)
+    lexer.advance(1)?
     mut params := Vec.new(Expr)
 
     // Try to parse first primary expression
@@ -1453,7 +1469,7 @@ return_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBo
         tt := t.token_type
         switch tt {
         case TokenType.Comma:
-            lexer.advance(1)
+            lexer.advance(1)?
             prim2 := parse_primary(lexer)
             params.push(prim2)
             t = lexer.peek()
@@ -1462,7 +1478,7 @@ return_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBo
         }
     }
 
-    initial_token := lexer.get_token(initial_current).clone()
+    initial_token := lexer.get_token(initial_current)?.clone()
 
 
     return Expr.new_parse(NodeType.Return, initial_token, params)
@@ -1470,23 +1486,23 @@ return_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBo
 
 parse_break_statement := func(mut lexer: Lexer) returns Expr throws Str {
     initial_current := lexer.current
-    lexer.advance(1) // consume 'break'
-    initial_token := lexer.get_token(initial_current).clone()
+    lexer.advance(1)? // consume 'break'
+    initial_token := lexer.get_token(initial_current)?.clone()
     mut params := Vec.new(Expr)
     return Expr.new_parse(NodeType.Break, initial_token, params)
 }
 
 parse_continue_statement := func(mut lexer: Lexer) returns Expr throws Str {
     initial_current := lexer.current
-    lexer.advance(1) // consume 'continue'
-    initial_token := lexer.get_token(initial_current).clone()
+    lexer.advance(1)? // consume 'continue'
+    initial_token := lexer.get_token(initial_current)?.clone()
     mut params := Vec.new(Expr)
     return Expr.new_parse(NodeType.Continue, initial_token, params)
 }
 
 parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_current := lexer.current
-    lexer.advance(1)
+    lexer.advance(1)?
     mut params := Vec.new(Expr)
 
     // Parse first primary expression (required for throw)
@@ -1499,7 +1515,7 @@ parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
         tt := t.token_type
         switch tt {
         case TokenType.Comma:
-            lexer.advance(1)
+            lexer.advance(1)?
             prim2 := parse_primary(lexer)
             params.push(prim2)
             t = lexer.peek()
@@ -1508,7 +1524,7 @@ parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
         }
     }
 
-    initial_token := lexer.get_token(initial_current).clone()
+    initial_token := lexer.get_token(initial_current)?.clone()
 
 
     return Expr.new_parse(NodeType.Throw, initial_token, params)
@@ -1516,7 +1532,7 @@ parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
 
 parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_current := lexer.current
-    lexer.advance(1) // consume 'catch'
+    lexer.advance(1)? // consume 'catch'
 
     _ := lexer.expect(TokenType.LeftParen) // expect '('
 
@@ -1547,7 +1563,7 @@ parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
     params.push(type_expr)
     params.push(body_expr)
 
-    initial_token := lexer.get_token(initial_current).clone()
+    initial_token := lexer.get_token(initial_current)?.clone()
 
 
     return Expr.new_parse(NodeType.Catch, initial_token, params)
@@ -1555,7 +1571,7 @@ parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
 
 if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_current := lexer.current
-    lexer.advance(1)
+    lexer.advance(1)?
     mut params := Vec.new(Expr)
 
     prim := parse_primary(lexer)
@@ -1565,7 +1581,7 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBounds
     tt := t.token_type
     switch tt {
     case TokenType.LeftBrace:
-        lexer.advance(1)
+        lexer.advance(1)?
     case:
         throw t.error(lexer.path, format("Expected '{{' after condition in 'if' statement, found '", token_type_to_str(t.token_type), "'."))
     }
@@ -1577,7 +1593,7 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBounds
     t2tt := t2.token_type
     switch t2tt {
     case TokenType.Else:
-        lexer.advance(1)
+        lexer.advance(1)?
         next := lexer.peek()
         ntt := next.token_type
         switch ntt {
@@ -1585,7 +1601,7 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBounds
             nested_if := if_statement(lexer)
             params.push(nested_if)
         case TokenType.LeftBrace:
-            lexer.advance(1)
+            lexer.advance(1)?
             else_body := parse_body(lexer, TokenType.RightBrace)
             params.push(else_body)
         case:
@@ -1595,7 +1611,7 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBounds
         // No else clause
     }
 
-    initial_token := lexer.get_token(initial_current).clone()
+    initial_token := lexer.get_token(initial_current)?.clone()
 
 
     return Expr.new_parse(NodeType.If, initial_token, params)
@@ -1603,7 +1619,7 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBounds
 
 while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_current := lexer.current
-    lexer.advance(1)
+    lexer.advance(1)?
     mut params := Vec.new(Expr)
 
     prim := parse_primary(lexer)
@@ -1613,7 +1629,7 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     tt := t.token_type
     switch tt {
     case TokenType.LeftBrace:
-        lexer.advance(1)
+        lexer.advance(1)?
     case:
         throw t.error(lexer.path, "Expected '{{' after condition in 'while' statement.")
     }
@@ -1621,7 +1637,7 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     body := parse_body(lexer, TokenType.RightBrace)
     params.push(body)
 
-    initial_token := lexer.get_token(initial_current).clone()
+    initial_token := lexer.get_token(initial_current)?.clone()
 
 
     return Expr.new_parse(NodeType.While, initial_token, params)
@@ -1649,7 +1665,7 @@ transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr t
         mut new_params := Vec.new(Expr)
         for i in 0..expr.params.len() {
             mut p := Expr()
-            expr.params.get(i, p)
+            expr.params.get(i, p)?
             new_params.push(transform_continue_with_step(p, step_expr))
         }
         return Expr(node_type=expr.node_type, params=new_params, line=expr.line, col=expr.col)
@@ -1658,7 +1674,7 @@ transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr t
 
 parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     initial_token := lexer.peek()
-    lexer.advance(1) // consume 'for'
+    lexer.advance(1)? // consume 'for'
 
     // Expect loop variable name
     ident_token := lexer.expect(TokenType.Identifier)
@@ -1674,7 +1690,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     // Bug #32 fix: Now we can use lexer.peek().token_type directly
     switch lexer.peek().token_type {
     case TokenType.Colon:
-        lexer.advance(1) // consume ':'
+        lexer.advance(1)? // consume ':'
 
         // Get the element type
         type_token := lexer.expect(TokenType.Identifier)
@@ -1718,8 +1734,8 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     if not(is_range) {
         throw ident_token.error(lexer.path, "Expected range expression (start..end) after 'in'. For collection iteration, use 'for VAR: TYPE in COLLECTION'")
     }
-    start_expr := range_expr.get(0).clone()
-    end_expr := range_expr.get(1).clone()
+    start_expr := range_expr.get(0)?.clone()
+    end_expr := range_expr.get(1)?.clone()
 
     _ := lexer.expect(TokenType.LeftBrace)
     body_expr := parse_body(lexer, TokenType.RightBrace)
@@ -1769,7 +1785,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         mut cond_params := Vec.new(Expr)
         cond_params.push(cond_var)
         cond_params.push(end.clone())
-        cond := Expr.new_explicit(NodeType.FCall, cond_params, tok.line, tok.col)
+        cond := Expr.new_explicit(NodeType.FCall(false), cond_params, tok.line, tok.col)
 
         mut inc_method_params := Vec.new(Expr)
         inc_method := Expr.new_parse(NodeType.Identifier("inc"), tok.clone(), Vec.new(Expr))
@@ -1777,7 +1793,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         inc_var := Expr.new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), inc_method_params)
         mut inc_params := Vec.new(Expr)
         inc_params.push(inc_var)
-        inc := Expr.new_explicit(NodeType.FCall, inc_params, tok.line, tok.col)
+        inc := Expr.new_explicit(NodeType.FCall(false), inc_params, tok.line, tok.col)
 
         // Bug #57 fix: Transform continue statements to include increment before continue
         transformed_body := transform_continue_with_step(body, inc)
@@ -1802,7 +1818,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         mut cond_params := Vec.new(Expr)
         cond_params.push(cond_var)
         cond_params.push(end.clone())
-        cond := Expr.new_explicit(NodeType.FCall, cond_params, tok.line, tok.col)
+        cond := Expr.new_explicit(NodeType.FCall(false), cond_params, tok.line, tok.col)
 
         mut dec_method_params := Vec.new(Expr)
         dec_method := Expr.new_parse(NodeType.Identifier("dec"), tok.clone(), Vec.new(Expr))
@@ -1810,7 +1826,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         dec_var := Expr.new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), dec_method_params)
         mut dec_params := Vec.new(Expr)
         dec_params.push(dec_var)
-        dec := Expr.new_explicit(NodeType.FCall, dec_params, tok.line, tok.col)
+        dec := Expr.new_explicit(NodeType.FCall(false), dec_params, tok.line, tok.col)
 
         // Bug #57 fix: Transform continue statements to include decrement before continue
         transformed_body := transform_continue_with_step(body, dec)
@@ -1844,7 +1860,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
             dir_cond_params.push(dir_lt_ident)
             dir_cond_params.push(start_expr.clone())
             dir_cond_params.push(end_expr.clone())
-            dir_cond_expr := Expr.new_explicit(NodeType.FCall, dir_cond_params, initial_token.line, initial_token.col)
+            dir_cond_expr := Expr.new_explicit(NodeType.FCall(false), dir_cond_params, initial_token.line, initial_token.col)
 
             mut fwd_body_params := Vec.new(Expr)
             fwd_body_params.push(fwd_while)
@@ -1882,7 +1898,7 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str {
             // For example, "Color.Green" is Identifier("Color") with params=[Identifier("Green")]
             if e.params.len().eq(1) {
                 mut p0 := Expr()
-                e.params.get(0, p0)
+                e.params.get(0, p0)?
                 p0nt := p0.node_type
                 switch p0nt {
                     case NodeType.Identifier(param_name):
@@ -1890,11 +1906,11 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str {
                     case:
                 }
             }
-        case NodeType.FCall:
+        case NodeType.FCall(_):
             if e.params.len().gteq(1) {
                 // For FCall, try to extract the function name
                 mut p0_fcall := Expr()
-                e.params.get(0, p0_fcall)
+                e.params.get(0, p0_fcall)?
                 result = get_full_identifier_name(p0_fcall)
             }
         case:
@@ -1909,7 +1925,7 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     tt := t.token_type
     switch tt {
     case TokenType.DoubleDot:
-        lexer.advance(1)
+        lexer.advance(1)?
         right := parse_primary(lexer)
         mut params := Vec.new(Expr)
         params.push(left)
@@ -1925,7 +1941,7 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
 
     // Check if node type is FCall using switch (tag() doesn't exist in TIL)
     switch lnt {
-        case NodeType.FCall:
+        case NodeType.FCall(_):
             if left.params.len().eq(2) {
             // FCall params are: [function_name, arg1, arg2, ...]
             // For pattern matching, we expect: [variant_identifier, binding_identifier]
@@ -1934,11 +1950,11 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
 
             // Get the full variant name (handling dotted names)
             mut p0 := Expr()
-            left.params.get(0, p0)
+            left.params.get(0, p0)?
             variant_name := get_full_identifier_name(p0)
 
                 mut p1 := Expr()
-                left.params.get(1, p1)
+                left.params.get(1, p1)?
                 p1nt := p1.node_type
 
                 // Check if p1 is an Identifier using switch (tag() doesn't exist in TIL)
@@ -1969,7 +1985,7 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
 parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()
     initial_current := lexer.current
-    lexer.advance(1)
+    lexer.advance(1)?
     mut params := Vec.new(Expr)
 
     prim := parse_primary(lexer)
@@ -1979,7 +1995,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
     ptt := peek_t.token_type
     switch ptt {
     case TokenType.LeftBrace:
-        lexer.advance(1)
+        lexer.advance(1)?
     case:
         throw t.error(lexer.path, "Expected '{{' after primary expression in 'switch' statement.")
     }
@@ -1999,7 +2015,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
             throw next_t.error(lexer.path, "default case must be last in switch")
         }
 
-        lexer.advance(1)
+        lexer.advance(1)?
         next_t = lexer.peek()
         ntt2 := next_t.token_type
         switch ntt2 {
@@ -2021,7 +2037,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
             throw next_t.error(lexer.path, format("Expected ':' case <primary_expr> in switch, found '", token_type_to_str(next_t.token_type), "'"))
         }
 
-        lexer.advance(1)
+        lexer.advance(1)?
         next_t = lexer.peek()
         mut body_params := Vec.new(Expr)
         mut inner_loop_done := false
@@ -2032,7 +2048,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
                 brace_body_expr := Expr.new_parse(NodeType.Body, t.clone(), body_params)
                 params.push(brace_body_expr)
                 end_found = true
-                lexer.advance(1)
+                lexer.advance(1)?
                 inner_loop_done = true  // TODO: Replace with 'break' when implemented (Rust line 1238)
             case TokenType.Case:
                 case_body_expr := Expr.new_parse(NodeType.Body, t.clone(), body_params)
@@ -2048,7 +2064,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
 
 
     if end_found {
-        initial_token := lexer.get_token(initial_current).clone()
+        initial_token := lexer.get_token(initial_current)?.clone()
         return Expr.new_parse(NodeType.Switch, initial_token, params)
     }
     throw t.error(lexer.path, "Expected '}}' to end switch.")
@@ -2059,9 +2075,9 @@ parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explici
     decl_name := t.token_str
     initial_current := lexer.current
 
-    lexer.advance(3) // skip identifier, colon and equal
+    lexer.advance(3)? // skip identifier, colon and equal
     if not(explicit_type.eq(INFER_TYPE)) {
-        lexer.advance(1) // skip type identifier
+        lexer.advance(1)? // skip type identifier
     }
 
     mut params := Vec.new(Expr)
@@ -2075,7 +2091,7 @@ parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explici
     decl.is_copy = is_copy
     decl.is_own = false
 
-    initial_token := lexer.get_token(initial_current).clone()
+    initial_token := lexer.get_token(initial_current)?.clone()
 
 
     return Expr.new_parse(NodeType.Declaration(decl), initial_token, params)
@@ -2090,7 +2106,7 @@ parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
     switch ntt {
     case TokenType.Identifier:
         identifier := next_t.token_str
-        lexer.advance(1)
+        lexer.advance(1)?
         next_t = lexer.next()
         next_token_type = next_t.token_type
 
@@ -2104,9 +2120,9 @@ parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
             switch nntt {
             case TokenType.Identifier:
                 type_name := next_next_t.token_str
-                return parse_declaration(lexer, true, false, type_name)
+                return parse_declaration(lexer, true, false, type_name)?
             case TokenType.Equal:
-                return parse_declaration(lexer, true, false, INFER_TYPE)
+                return parse_declaration(lexer, true, false, INFER_TYPE)?
             case:
                 throw t.error(lexer.path, format("Expected a type identifier or '=' after 'mut ", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
             }
@@ -2124,30 +2140,30 @@ parse_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
 
     switch tt {
     case TokenType.Return:
-        return return_statement(lexer)
+        return return_statement(lexer)?
     case TokenType.Throw:
-        return parse_throw_statement(lexer)
+        return parse_throw_statement(lexer)?
     case TokenType.Break:
-        return parse_break_statement(lexer)
+        return parse_break_statement(lexer)?
     case TokenType.Continue:
-        return parse_continue_statement(lexer)
+        return parse_continue_statement(lexer)?
     case TokenType.If:
-        return if_statement(lexer)
+        return if_statement(lexer)?
     case TokenType.While:
-        return while_statement(lexer)
+        return while_statement(lexer)?
     case TokenType.For:
-        return parse_for_statement(lexer)
+        return parse_for_statement(lexer)?
     case TokenType.Switch:
-        return parse_switch_statement(lexer)
+        return parse_switch_statement(lexer)?
     case TokenType.Mut:
-        return parse_mut_declaration(lexer)
+        return parse_mut_declaration(lexer)?
     case TokenType.Identifier:
-        return parse_statement_identifier(lexer)
+        return parse_statement_identifier(lexer)?
     case TokenType.Catch:
-        return parse_catch_statement(lexer)
+        return parse_catch_statement(lexer)?
     case TokenType.LeftBrace:
-        lexer.advance(1) // Skip LeftBrace
-        return parse_body(lexer, TokenType.RightBrace)
+        lexer.advance(1)? // Skip LeftBrace
+        return parse_body(lexer, TokenType.RightBrace)?
     case:
         throw t.error(lexer.path, format("Expected statement, found ", token_type_to_str(t.token_type), "."))
     }
@@ -2175,7 +2191,7 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
             matches_end = false
         }
         if matches_end {
-            lexer.advance(1)
+            lexer.advance(1)?
             end_found = true
             continue_loop = false
         } else {
@@ -2186,7 +2202,7 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
 
 
     if end_found {
-        initial_token := lexer.get_token(initial_current).clone()
+        initial_token := lexer.get_token(initial_current)?.clone()
         return Expr.new_parse(NodeType.Body, initial_token, params)
     }
     throw t.error(lexer.path, format("Expected '", token_type_to_str(end_token), "' to end body."))
