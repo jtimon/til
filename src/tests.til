@@ -1024,7 +1024,6 @@ main := proc(args: ..Str) {
     rs_common.push(TestEntry(path="src/test/bug43.til"))  // TODO: til compiled segfault
     rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: rstil slow (~41s), til interpret works, til compiled times out at 120s
     rs_common.push(TestEntry(path="src/test/bug50.til", expected_status=1))  // REM: must stay in rs_common - "rstil" vs "til" in error msg (Issue #69)
-    rs_common.push(TestEntry(path="src/test/panic.til", expected_status=1))  // TODO: error msg format differs from til
     rs_common.push(TestEntry(path="src/test/sugar.til", expected_status=1))  // REM: error output differs from til (Issue #69)
     rs_common.push(TestEntry(path="src/test/test_parser.til"))  // TODO: slow (~28s) but works
     rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: slow (~4min) but works
@@ -1058,7 +1057,6 @@ main := proc(args: ..Str) {
     // til_common: tests run with BOTH self-hosted TIL interpreter and compiler
     // (for tests where output differs between rstil and til, e.g. error messages)
     mut til_common := Vec.new(TestEntry)
-    til_common.push(TestEntry(path="src/test/panic.til", expected_status=1))  // error msg format differs: "til" vs "rstil"
     til_common.push(TestEntry(path="src/test/sugar.til", expected_status=1))  // REM: error output differs from rstil (Issue #69)
 
     // all_common: tests run with ALL 4 modes (rs_interpreted, rs_compiled, til_interpreted, til_compiled)
@@ -1113,6 +1111,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/mut_test.til"))
     all_common.push(TestEntry(path="src/test/namespaces.til"))
     all_common.push(TestEntry(path="src/test/optional_args.til"))
+    all_common.push(TestEntry(path="src/test/panic.til", expected_status=1))
     all_common.push(TestEntry(path="src/test/parallel_cmd.til"))
     all_common.push(TestEntry(path="src/test/pointers.til"))
     all_common.push(TestEntry(path="src/test/return_value_usage.til"))
