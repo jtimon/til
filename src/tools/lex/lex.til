@@ -62,7 +62,7 @@ peek_char := func(state: LexerState) returns Str {
         return ""
     }
     result := state.source.get_substr(state.pos, state.pos.add(1))
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
     return result
 }
 
@@ -72,7 +72,7 @@ advance := proc(mut state: LexerState) returns Str {
         return ""
     }
     c := state.source.get_substr(state.pos, state.pos.add(1))
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
     state.pos = state.pos.add(1)
     if c.eq("\n") {
         state.line = state.line.add(1)

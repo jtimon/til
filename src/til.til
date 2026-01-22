@@ -66,7 +66,7 @@ parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws St
     result.translate_only = translate_only
     result.force_rebuild = force_rebuild
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     return result
 }
@@ -201,7 +201,7 @@ main := proc(args: ..Str) {
     if args.len().gt(1) {
         mut command := ""
         args.get(0, command)?
-        catch (err: IndexOutOfBoundsError) { }
+        catch (err: OutOfBounds) { }
 
         mut remaining_args := Vec.new(Str)
         mut i := 1
@@ -211,7 +211,7 @@ main := proc(args: ..Str) {
             remaining_args.push(arg)
             i.inc()
         }
-        catch (err: IndexOutOfBoundsError) { }
+        catch (err: OutOfBounds) { }
 
         if command.eq("interpret") {
             // interpret doesn't use build options, just pass remaining args
@@ -226,7 +226,7 @@ main := proc(args: ..Str) {
                 j.inc()
             }
             interpret_file_or_exit(path, main_args)
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: OutOfBounds) { }
             return
         } else if command.eq("build") {
             // Parse build options from remaining args
@@ -244,7 +244,7 @@ main := proc(args: ..Str) {
                 println("Error: ", err)
                 exit(1)
             }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: OutOfBounds) { }
             return
         } else if command.eq("translate") {
             // Parse build options from remaining args
@@ -261,7 +261,7 @@ main := proc(args: ..Str) {
                 println("Error: ", err)
                 exit(1)
             }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: OutOfBounds) { }
             return
         } else if command.eq("run") {
             // Parse build options from remaining args
@@ -289,7 +289,7 @@ main := proc(args: ..Str) {
                 println("Error: ", err)
                 exit(1)
             }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: OutOfBounds) { }
             return
         } else if command.eq("repl") {
             usage()
@@ -302,7 +302,7 @@ main := proc(args: ..Str) {
     } else if args.len().gt(0) {
         mut first_arg := ""
         args.get(0, first_arg)?
-        catch (err: IndexOutOfBoundsError) { }
+        catch (err: OutOfBounds) { }
         switch first_arg {
         case "repl":
             interpret_file_or_exit(REPL_PATH, Vec.new(Str))

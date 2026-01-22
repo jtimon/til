@@ -15,8 +15,8 @@ test_newline_escape := proc() {
     assert_eq_str(loc(), "\n", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -38,8 +38,8 @@ test_tab_escape := proc() {
     assert_eq_str(loc(), "\t", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -61,8 +61,8 @@ test_carriage_return_escape := proc() {
     assert_eq_str(loc(), "\r", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -84,8 +84,8 @@ test_null_escape := proc() {
     assert_eq_str(loc(), "\0", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -107,8 +107,8 @@ test_multiple_escapes := proc() {
     assert_eq_str(loc(), "hello\nworld\ttab", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -131,8 +131,8 @@ test_unknown_escape := proc() {
     assert_eq_str(loc(), "\\x", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -164,8 +164,8 @@ test_lexer_peek := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -190,8 +190,8 @@ test_lexer_advance := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -215,8 +215,8 @@ test_lexer_peek_ahead := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -240,8 +240,8 @@ test_lexer_next := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -266,8 +266,8 @@ test_lexer_previous := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }

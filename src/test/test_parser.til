@@ -13,8 +13,8 @@ parse_source := proc(source: Str) {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "IndexOutOfBoundsError in parse_source")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "OutOfBounds in parse_source")
         println(err.msg)
         exit(1)
     }
@@ -93,7 +93,7 @@ test_parse_file := proc(path: Str) {
     catch (err: Str) {
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         exit(1)
     }
 }
@@ -162,8 +162,8 @@ test_parse_body := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -178,8 +178,8 @@ test_parse_statement := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -194,8 +194,8 @@ test_parse_statement_identifier := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -210,8 +210,8 @@ test_parse_declaration := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -226,8 +226,8 @@ test_parse_args := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
