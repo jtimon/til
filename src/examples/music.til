@@ -128,15 +128,15 @@ diatonic_to_chromatic := func(diatonic_idx: I64) returns I64 {
     }
 }
 
-get_base_index := proc(note_base: Str) returns I64 {
+// Returns diatonic index (0-6) for a base note name
+get_diatonic_index := proc(note_base: Str) returns I64 {
     mut i := 0
     target := note_base.to_lowercase()
     while i.lt(base_notes.len()) {
         mut note := ""
         base_notes.get(i, note)
         if note.eq(target) {
-            // Return chromatic index, not diatonic
-            return diatonic_to_chromatic(i)
+            return i
         }
         i = i.add(1)
     }
@@ -145,6 +145,50 @@ get_base_index := proc(note_base: Str) returns I64 {
     }
     neg_one := I64.sub(0, 1)
     return neg_one
+}
+
+// Returns chromatic index for a base note name
+get_base_index := proc(note_base: Str) returns I64 {
+    diatonic := get_diatonic_index(note_base)
+    if diatonic.lt(0) {
+        return diatonic
+    }
+    return diatonic_to_chromatic(diatonic)
+}
+
+// Format a note given its diatonic index and target chromatic position
+format_note := proc(diatonic_idx: I64, chromatic_pos: I64) returns Str {
+    mut note_name := ""
+    base_notes.get(diatonic_idx, note_name)
+    natural_chromatic := diatonic_to_chromatic(diatonic_idx)
+
+    mut diff := chromatic_pos.sub(natural_chromatic)
+    // Handle wraparound
+    if diff.gt(6) {
+        diff = diff.sub(12)
+    } else if diff.lt(I64.sub(0, 6)) {
+        diff = diff.add(12)
+    }
+
+    // Add accidentals
+    mut acc_i := 0
+    if diff.gt(0) {
+        while acc_i.lt(diff) {
+            note_name = note_name.concat("#")
+            acc_i = acc_i.add(1)
+        }
+    } else if diff.lt(0) {
+        mut abs_diff := I64.sub(0, diff)
+        while acc_i.lt(abs_diff) {
+            note_name = note_name.concat("b")
+            acc_i = acc_i.add(1)
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), err.msg)
+    }
+    return note_name
 }
 
 apply_accidentals := proc(base_idx: I64, acc_str: Str) returns I64 {
@@ -171,24 +215,25 @@ apply_accidentals := proc(base_idx: I64, acc_str: Str) returns I64 {
     return idx
 }
 
-generate_scale := proc(root_idx: I64, steps: Vec) returns Str {
+generate_scale := proc(root_idx: I64, root_diatonic: I64, steps: Vec) returns Str {
     mut result := ""
-    mut pos := root_idx
+    mut chromatic_pos := root_idx
+    mut diatonic_pos := root_diatonic
     mut k := 0
     while k.lt(steps.len()) {
         if k.gt(0) {
             result = result.concat(" ")
         }
-        mut note := ""
-        chromatic.get(pos, note)
+        note := format_note(diatonic_pos, chromatic_pos)
         result = result.concat(note)
         mut step := 0
         steps.get(k, step)
-        pos = pos.add(step).mod(12)
+        chromatic_pos = chromatic_pos.add(step).mod(12)
+        diatonic_pos = diatonic_pos.add(1).mod(7)
         k = k.add(1)
     }
-    mut root_note := ""
-    chromatic.get(root_idx, root_note)
+    // Add octave note in parentheses
+    root_note := format_note(root_diatonic, root_idx)
     result = result.concat(" (")
     result = result.concat(root_note)
     result = result.concat(")")
@@ -322,36 +367,38 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
     mut mode_index := mode_index_from_canonical(canon)
     mut mode_name := localized_mode_name(canon, lang)
 
+    // Parse root note with suffix accidentals (e.g., "fa#", "sib", "solx")
+    // 'x' is a workaround for '#' which causes issues in test filenames
     mut acc := ""
     mut base := ""
     mut i := 0
     input := root_arg.to_lowercase()
+    // Find where accidentals start (first #, x, or b after the note name)
     while i.lt(input.len()) {
         ch := input.get_char(i)
-        // TODO: 'x' is a workaround for '#' which causes issues in test filenames
         if ch.eq("#").or(ch.eq("x")).or(ch.eq("b")) {
-            acc = acc.concat(ch)
-        } else {
-            base = input.get_substr(i, input.len())
             break
         }
         i = i.add(1)
     }
+    base = input.get_substr(0, i)
+    acc = input.get_substr(i, input.len())
 
-    base_idx := get_base_index(base)
-    if base_idx.eq(I64.sub(0, 1)) {
+    root_diatonic := get_diatonic_index(base)
+    if root_diatonic.lt(0) {
         msg2 := "Invalid base note: "
         println(msg2.concat(base))
         println("Use: do re mi fa sol la si")
         return
     }
 
+    base_idx := diatonic_to_chromatic(root_diatonic)
     root_idx := apply_accidentals(base_idx, acc)
 
     mut steps := Vec.new(I64)
     mode_intervals.get(mode_index, steps)
 
-    scale_str := generate_scale(root_idx, steps)
+    scale_str := generate_scale(root_idx, root_diatonic, steps)
 
     header := mode_name.concat(" starting on ")
     header2 := header.concat(root_arg)
@@ -369,20 +416,20 @@ usage := proc(lang: Str) {
         println("Usage: ./bin/til music.til [-lang=pt|en|es] <mode> [root]")
         println("Examples:")
         println("  ./bin/til music.til ionian do")
-        println("  ./bin/til music.til -lang=en lydian #fa")
-        println("  ./bin/til music.til -lang=es eolico bre")
+        println("  ./bin/til music.til -lang=en lydian fax")
+        println("  ./bin/til music.til -lang=es eolico reb")
     } else if lower_lang.eq("es") {
         println("Uso: ./bin/til music.til [-lang=pt|en|es] <modo> [raiz]")
         println("Ejemplos:")
         println("  ./bin/til music.til jonico do")
-        println("  ./bin/til music.til -lang=es lidio #fa")
-        println("  ./bin/til music.til -lang=es eolico bre")
+        println("  ./bin/til music.til -lang=es lidio fax")
+        println("  ./bin/til music.til -lang=es eolico reb")
     } else {  // pt
         println("Uso: ./bin/til music.til [-lang=pt|en|es] <modo> [raiz]")
         println("Exemplos:")
         println("  ./bin/til music.til jonio do")
-        println("  ./bin/til music.til -lang=pt lidio #fa")
-        println("  ./bin/til music.til -lang=es eolico bre")
+        println("  ./bin/til music.til -lang=pt lidio fax")
+        println("  ./bin/til music.til -lang=es eolico reb")
     }
 }
 
