@@ -44,7 +44,8 @@ When the user gives you instructions, OBEY THEM. Do exactly what they say. If th
 - **NEVER** Change a `func` to a `proc` without the compiler asking you - that won't fix anything since it's just a keyword for the type checker and precomp
 - **NEVER** Ignore warnings from either rustc, rstil, til or gcc, always ask the user what to do about them
 - **NEVER** Use weird unicode symbols anywhere, stay ASCII
-- **NEVER** Use cat, use read, write or echo instead
+- **NEVER** Use cat, use Read/Write tools instead
+- **NEVER** Use echo to create test files, use Write tool instead
 - **NEVER** Use git checkout or git restore, period
 - **NEVER** Revert any changes manually or in any other way unless explicitly told to
 - **NEVER** Do more than what the user asked - do precisely what was requested and nothing else
@@ -111,14 +112,19 @@ Don't ask where tests go - they're organized by collection type:
 - Use `rstil run my_test.til` to test single files with the compiler (builds and runs)
 
 ## Testing TIL Code
-- `rstil repl` is fine for quick syntax checks
-- For testing new functionality, write to `tmp/` instead:
-  1. Write test code to a file (e.g., `tmp/test_foo.til`)
-  2. Run with `rstil interpret tmp/test_foo.til`
-  3. Can also test with `rstil run tmp/test_foo.til` (compiled mode)
-  4. Can also test with `rstil_til interpret` or `til interpret` (self-hosted)
-  5. Can extend to more modes, upgrade to `src/test/` if useful
-- Benefits of tmp/ files: re-testable, extendable, promotable to real tests
+**ALWAYS write test files to `tmp/`** - never use echo or REPL for testing.
+
+1. Write test code using the Write tool (e.g., `tmp/test_foo.til`)
+2. Test in ALL 4 modes to catch divergences early:
+   ```bash
+   ./bin/rstil interpret tmp/test_foo.til      # rs_interpreted
+   ./bin/rstil run tmp/test_foo.til            # rs_compiled
+   ./bin/rstil_til interpret tmp/test_foo.til  # til_interpreted
+   ./bin/rstil_til run tmp/test_foo.til        # til_compiled
+   ```
+3. If test is useful, promote to `src/test/` and add to `tests.til`
+
+Benefits: re-testable, catches rstil/til divergences, promotable to real tests
 
 ## CRITICAL: Use TIL Instead of Bash/Python for Scripting
 - **TIL has loops** - `for`, `while`, `for x in collection`
@@ -136,7 +142,7 @@ Don't ask permission for:
 - Reading any project file within the project
 - Creating/editing files in `tmp/`
 - **Shell commands within project - FULL FREEDOM:**
-  - ALL standard Unix commands: `cd`, `mv`, `cp`, `rm`, `mkdir`, `chmod`, `ls`, `pwd`, `echo`, `printf`
+  - ALL standard Unix commands: `cd`, `mv`, `cp`, `rm`, `mkdir`, `chmod`, `ls`, `pwd`
   - Text processing: `sed`, `awk`, `grep`, `find`, `cat`, `head`, `tail`, `sort`, `uniq`, `wc`, `tr`, `cut`
   - File operations: create temp files, move files, copy files, remove files
   - Combine commands freely (pipes, redirects, command chaining with `&&` or `;`)
