@@ -8,3 +8,4 @@ tmp/*
 
 # Codegen outputs - all generated files
 gen/
+.aider*
