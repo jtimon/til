@@ -43,7 +43,6 @@ RunningTest := struct {
 // Helper to add music.til tests to a Vec
 // music.til: 12 tests covering all 7 modes, accidentals, languages
 // TODO: use 'x' instead of '#' for sharps - test framework has issues with # in filenames
-// TODO: move to all_common once compiled modes work with args (rstil run exits 1, til run segfaults)
 add_music_tests := proc(mut tests: Vec) {
     MUSIC_PATH := "src/examples/music.til"
     // 3 tests with default language (pt)
@@ -1036,7 +1035,6 @@ main := proc(args: ..Str) {
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
     rs_interpreted.push(TestEntry(path="src/test/introspections.til")) // TODO: Add C impl for Introspection.has_const/has_field in src/ext.c
-    add_music_tests(rs_interpreted)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
     // run_cmd doesn't support stdin, would need bash -c wrapper or new ext_proc
@@ -1046,7 +1044,6 @@ main := proc(args: ..Str) {
     // til_interpreted: tests that pass with til interpret but NOT yet with til_compiled
     // (tests that pass all 4 modes are in all_common)
     mut til_interpreted := Vec.new(TestEntry)
-    add_music_tests(til_interpreted)
 
     // til_compiled: tests run with the self-hosted TIL compiler only
     mut til_compiled := Vec.new(TestEntry)
@@ -1126,6 +1123,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/undefined.til", expected_status=1))
     all_common.push(TestEntry(path="src/test/variadic.til"))
     all_common.push(TestEntry(path="src/test/vecs.til"))
+    add_music_tests(all_common)
 
     // Parse remaining args (after -j was extracted)
     if remaining_args.len().eq(0) {

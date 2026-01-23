@@ -4,7 +4,9 @@
 
 mode cli
 
-create_chromatic := func() returns Vec {
+// TODO: Bug #133 workaround - using proc instead of func to prevent precomputation
+// of heap values. The returned Vec has pointers that are invalid at compile time.
+create_chromatic := proc() returns Vec {
     mut v := Vec.new(Str)
     v.push("do")
     v.push("do#")
@@ -21,7 +23,8 @@ create_chromatic := func() returns Vec {
     return v
 }
 
-create_base_notes := func() returns Vec {
+// TODO: Bug #133 workaround - using proc instead of func
+create_base_notes := proc() returns Vec {
     mut v := Vec.new(Str)
     v.push("do")
     v.push("re")
@@ -33,7 +36,8 @@ create_base_notes := func() returns Vec {
     return v
 }
 
-create_mode_intervals := func() returns Vec {
+// TODO: Bug #133 workaround - using proc instead of func
+create_mode_intervals := proc() returns Vec {
     mut all := Vec.new(Vec)
 
     mut ionian := Vec.new(I64)

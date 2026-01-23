@@ -12,6 +12,72 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #134: Ptr type refactor - distinguish pointer fields from I64
+:PROPERTIES:
+:DISCOVERED: 2026-01-23
+:IMPACT: Enables proper serialization of heap data, fixes Bug #133
+:STATUS: Open
+:RELATED: Bug #133 (precomputed heap values), Issue #115 (owned struct fields)
+:END:
+
+*** Description
+Currently, pointer fields in structs (Vec.ptr, Str.c_string, List node pointers)
+are typed as I64. This makes it impossible to distinguish a pointer from a regular
+integer during code generation.
+
+For Bug #133's proper fix (serializing heap data to static arrays), we need to
+identify which fields contain heap pointers so ccodegen can:
+1. Extract the pointed-to data from the interpreter's arena
+2. Emit that data as static C arrays
+3. Patch the pointer to reference the static array instead
+
+*** Current State
+#+BEGIN_SRC til
+Vec := struct {
+    type_name: Str
+    mut type_size: I64
+    mut ptr: I64       // Actually a pointer, but typed as I64
+    mut _len: I64
+    mut cap: I64
+}
+#+END_SRC
+
+*** Proposed Solutions
+
+**** Option A: Add Ptr type
+Introduce a ~Ptr~ type that indicates a heap pointer:
+#+BEGIN_SRC til
+Vec := struct {
+    type_name: Str
+    mut type_size: I64
+    mut ptr: Ptr       // Explicitly a pointer
+    mut _len: I64
+    mut cap: I64
+}
+#+END_SRC
+
+ccodegen can then detect Ptr fields and handle them specially.
+
+**** Option B: Metadata/annotation approach
+Keep I64 but add annotations:
+#+BEGIN_SRC til
+mut ptr: I64 @heap_pointer
+#+END_SRC
+
+**** Option C: Pattern-based detection in ccodegen
+Hardcode knowledge of which fields are pointers (Vec.ptr, Str.c_string, etc.).
+Simplest but least extensible.
+
+*** Recommendation
+Option A (Ptr type) is cleanest for long-term language design. Option C is
+acceptable as a short-term solution if Ptr type is too invasive.
+
+*** Implementation Notes
+- Ptr would be similar to I64 in most operations (size=8, arithmetic)
+- ccodegen emits Ptr as ~til_I64~ (same as I64)
+- The difference is semantic: precomp/ccodegen knows to serialize pointed-to data
+- Consider whether Ptr should have generic type: ~Ptr<Str>~ vs just ~Ptr~
+
 ** Issue #132: Mandatory ? for calls to throwing functions
 :PROPERTIES:
 :DISCOVERED: 2026-01-22
@@ -433,7 +499,7 @@ This changes til_Str struct size - requires:
 :DISCOVERED: 2026-01-15
 :IMPACT: Enables proper ASAP destruction for composite types
 :STATUS: Open
-:RELATED: Bug #114 (memory leaks), ownership.org
+:RELATED: Bug #114 (memory leaks), Issue #134 (Ptr type), ownership.org
 :END:
 
 *** Description
