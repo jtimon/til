@@ -12,6 +12,68 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #135: True cross-compilation via precompiled ext.o per platform
+:PROPERTIES:
+:DISCOVERED: 2026-01-23
+:IMPACT: Enables compiling from any host to any target (like Rust)
+:STATUS: Open
+:RELATED: Issue #131 (clang support)
+:END:
+
+*** Description
+Currently, cross-compilation to macOS from Linux/Windows fails because:
+1. Generated C code includes OS-specific headers (~<stdio.h>~, ~<stdlib.h>~)
+2. These headers differ per OS and aren't redistributable (especially Apple's)
+3. Even with clang's ~-target~ flag, we need the target's SDK
+
+Rust solves this by using LLVM and shipping precompiled std libs per platform.
+We can do something similar for TIL.
+
+*** Proposed Solution
+Move all OS-specific code into ~ext.c~ and precompile it for each target:
+
+1. *Refactor ext.c*: Move ALL OS-dependent code there (printf wrappers, malloc,
+   file I/O, syscalls). The generated C should have zero ~#include~ statements.
+
+2. *Precompile ext.o per platform*: Build ~ext-linux-x64.o~, ~ext-macos-arm64.o~,
+   ~ext-windows-x64.o~, etc. on actual hardware (via CI).
+
+3. *Ship precompiled objects with rstil*: These ~.o~ files become part of the
+   distribution.
+
+4. *Generate header-free C*: Instead of ~#include <stdio.h>~, just declare:
+   #+BEGIN_SRC c
+   // Function signatures provided by ext.o
+   void til_print(const char* s);
+   void* til_malloc(long long size);
+   // ... generated code follows ...
+   #+END_SRC
+
+5. *Compile and link*:
+   #+BEGIN_SRC bash
+   clang -target arm64-apple-macos11 -c music.c -o music.o
+   clang -target arm64-apple-macos11 music.o ext-macos-arm64.o -o music
+   #+END_SRC
+
+*** Benefits
+- Compile from any host to any target (Linux→macOS, Windows→Linux, etc.)
+- No SDK dependencies at compile time
+- Matches Rust's cross-compilation model
+- ext.o files built once per release via CI
+
+*** Implementation Steps
+1. Audit ext.c - identify all OS-specific includes and calls
+2. Create abstraction layer in ext.c for all OS functions
+3. Modify ccodegen to emit header-free C with extern declarations
+4. Set up CI jobs to build ext.o for each platform on native runners
+5. Update builder.rs to link against precompiled ext.o instead of including ext.c
+6. Package ext.o files in rstil distribution
+
+*** Open Questions
+- How to handle platform-specific behavior differences (line endings, paths)?
+- Size impact of shipping multiple .o files?
+- Alternative: use ~zig cc~ which bundles everything (simpler but adds dependency)
+
 ** Issue #134: Ptr type refactor - distinguish pointer fields from I64
 :PROPERTIES:
 :DISCOVERED: 2026-01-23
