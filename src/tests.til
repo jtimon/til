@@ -4,6 +4,7 @@ mode cli
 import("std.sys")
 import("std.io")
 import("modes.test")
+import("core.set")
 
 // Global flag: force rebuild for compiled tests (set by --force-rebuild arg)
 mut g_force_rebuild := false
@@ -286,12 +287,8 @@ get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str {
 // test.til handles: run command, compare output, report result
 // Output is redirected to a result file for later reading
 spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns RunningTest throws SpawnError {
-    // Build command: ./bin/test_runner [--force-rebuild] <mode> <out_mode> <expected_status> <file> [args...]
-    mut force_flag := ""
-    if g_force_rebuild {
-        force_flag = "--force-rebuild "
-    }
-    mut cmd := format("./bin/test_runner ", force_flag, phase.test_mode, " ", phase.out_mode, " ", entry.expected_status.to_str(), " ", entry.path)
+    // Build command: ./bin/test_runner <mode> <out_mode> <expected_status> <file> [args...]
+    mut cmd := format("./bin/test_runner ", phase.test_mode, " ", phase.out_mode, " ", entry.expected_status.to_str(), " ", entry.path)
     if entry.cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
@@ -344,6 +341,62 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
         for phase: TestPhase in phases {
             out_path := get_out_path(entry.path, phase.out_mode, entry.cmd_args)
             ensure_out_file(entry.path, entry.cmd_args, out_path, phase.out_mode)
+        }
+    }
+
+    // Pre-build binaries for compiled modes to avoid race conditions
+    // when multiple tests use the same source file (e.g., music.til with different args)
+    // Step 1: Collect unique paths per compiler
+    mut rs_paths := Set.new(Str)
+    mut til_paths := Set.new(Str)
+    for entry: TestEntry in tests {
+        // Only pre-build if expected_status is 0 (error tests need to run to generate error output)
+        if entry.expected_status.eq(0) {
+            for phase: TestPhase in phases {
+                if phase.test_mode.eq("rs_compiled") {
+                    _ := rs_paths.insert(entry.path)
+                } else if phase.test_mode.eq("til_compiled") {
+                    _ := til_paths.insert(entry.path)
+                }
+            }
+        }
+    }
+
+    // Step 2: Spawn all builds in parallel
+    mut build_pids := Vec.new(I64)
+    mut force_flag := ""
+    if g_force_rebuild {
+        force_flag = "--force-rebuild "
+    }
+    for rs_i in 0..rs_paths.len() {
+        mut rs_path := ""
+        rs_paths.get(rs_i, rs_path)
+        rs_build_cmd := format("./bin/rstil build ", force_flag, rs_path)
+        rs_pid := spawn_cmd(rs_build_cmd)
+        build_pids.push(rs_pid)
+    }
+    for til_i in 0..til_paths.len() {
+        mut til_path := ""
+        til_paths.get(til_i, til_path)
+        til_build_cmd := format("./bin/til build ", force_flag, til_path)
+        til_pid := spawn_cmd(til_build_cmd)
+        build_pids.push(til_pid)
+    }
+
+    // Step 3: Wait for all builds to complete
+    for wait_i in 0..build_pids.len() {
+        mut wait_pid := 0
+        build_pids.get(wait_i, wait_pid)
+        // Poll until done
+        mut wait_status := sub(0, 1)
+        while wait_status.eq(sub(0, 1)) {
+            wait_status = check_cmd_status(wait_pid)
+            if wait_status.eq(sub(0, 1)) {
+                sleep(10)
+            }
+        }
+        if not(wait_status.eq(0)) {
+            println("Pre-build failed (pid ", wait_pid.to_str(), "), exit status: ", wait_status.to_str())
         }
     }
 
@@ -432,11 +485,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                         mut next_phase := TestPhase()
                         phases.get(next_phase_idx, next_phase)
 
-                        mut next_force_flag := ""
-                        if g_force_rebuild {
-                            next_force_flag = "--force-rebuild "
-                        }
-                        mut cmd := format("./bin/test_runner ", next_force_flag, next_phase.test_mode, " ", next_phase.out_mode, " ", current.entry.expected_status.to_str(), " ", current.entry.path)
+                        mut cmd := format("./bin/test_runner ", next_phase.test_mode, " ", next_phase.out_mode, " ", current.entry.expected_status.to_str(), " ", current.entry.path)
                         if current.entry.cmd_args.len().gt(0) {
                             cmd = cmd.concat(" ").concat(current.entry.cmd_args)
                         }

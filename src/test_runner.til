@@ -99,25 +99,7 @@ format_expected := func(cmd_args: Str, exit_code: I64, output: Str) returns Str 
     return result
 }
 
-// Get build command for compiled modes (returns empty string for interpreted modes)
-// This ensures the binary exists before timing the run
-get_build_cmd := func(test_mode: Str, force_rebuild: Bool, file: Str) returns Str {
-    mut force_flag := ""
-    if force_rebuild {
-        force_flag = "--force-rebuild "
-    }
-    switch test_mode {
-    case "rs_compiled":
-        return format("./bin/rstil build ", force_flag, file)
-    case "til_compiled":
-        return format("./bin/til build ", force_flag, file)
-    case:
-        return ""  // No build needed for interpreted modes
-    }
-}
-
-// Get command prefix for mode (run command only, no --force-rebuild)
-// Build is done separately so timing only measures execution
+// Get command prefix for mode
 get_cmd_prefix := func(test_mode: Str) returns Str {
     switch test_mode {
     case "rs_interpreted":
@@ -152,25 +134,9 @@ ensure_parent_dir := proc(file_path: Str) {
 
 // test_mode: rs_interpreted, rs_compiled, til_interpreted, til_compiled
 // out_mode: interpreted or compiled - which .out file to compare against
-// Optional: --force-rebuild flag to force recompilation
 main := proc(args: ..Str) {
     if args.len().lt(4) {
-        println("Usage: test_runner [--force-rebuild] <mode> <out_mode> <expected_status> <file> [args...]")
-        exit(1)
-    }
-
-    // Check for --force-rebuild flag
-    mut force_rebuild := false
-    mut arg_offset := 0
-    mut first_arg := ""
-    args.get(0, first_arg)
-    if first_arg.eq("--force-rebuild") {
-        force_rebuild = true
-        arg_offset = 1
-    }
-
-    if args.len().lt(arg_offset.add(4)) {
-        println("Usage: test_runner [--force-rebuild] <mode> <out_mode> <expected_status> <file> [args...]")
+        println("Usage: test_runner <mode> <out_mode> <expected_status> <file> [args...]")
         exit(1)
     }
 
@@ -179,16 +145,16 @@ main := proc(args: ..Str) {
     mut out_mode := ""
     mut expected_status_str := ""
     mut file := ""
-    args.get(arg_offset.add(0), test_mode)
-    args.get(arg_offset.add(1), out_mode)
-    args.get(arg_offset.add(2), expected_status_str)
-    args.get(arg_offset.add(3), file)
+    args.get(0, test_mode)
+    args.get(1, out_mode)
+    args.get(2, expected_status_str)
+    args.get(3, file)
 
     expected_status := expected_status_str.to_i64()
 
     // Collect extra args into single string
     mut cmd_args := ""
-    for i in arg_offset.add(4)..args.len() {
+    for i in 4..args.len() {
         mut arg := ""
         args.get(i, arg)
         if cmd_args.len().gt(0) {
@@ -197,32 +163,12 @@ main := proc(args: ..Str) {
         cmd_args = cmd_args.concat(arg)
     }
 
-    // For compiled modes, build first (not timed) to ensure binary exists
-    // This separates build time from execution time for fair benchmarking
-    // BUT: only do this for tests that expect success (expected_status == 0)
-    // Error tests (expected_status != 0) should run normally so error output matches expected
-    if expected_status.eq(0) {
-        build_cmd := get_build_cmd(test_mode, force_rebuild, file)
-        if build_cmd.len().gt(0) {
-            mut build_output := ""
-            build_status := build_output.run_cmd("bash", "-c", build_cmd)
-            if build_status.eq(0).not() {
-                // Build failed unexpectedly - report error
-                println("BUILD FAILED:")
-                println(build_output)
-                exit(1)
-            }
-        }
-    }
-
-    // Get command prefix for mode (run only, no --force-rebuild)
+    // Build run command
     cmd_prefix := get_cmd_prefix(test_mode)
     if cmd_prefix.eq("") {
         println("ERROR: Unknown mode '", test_mode, "'")
         exit(1)
     }
-
-    // Build run command (timing will only measure execution, not compilation)
     mut cmd := cmd_prefix.concat(file)
     if cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(cmd_args)
