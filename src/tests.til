@@ -362,8 +362,8 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
         }
     }
 
-    // Step 2: Spawn all builds in parallel
-    mut build_pids := Vec.new(I64)
+    // Step 2: Build commands list (combine both compilers)
+    mut build_cmds := Vec.new(Str)
     mut force_flag := ""
     if g_force_rebuild {
         force_flag = "--force-rebuild "
@@ -371,32 +371,65 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
     for rs_i in 0..rs_paths.len() {
         mut rs_path := ""
         rs_paths.get(rs_i, rs_path)
-        rs_build_cmd := format("./bin/rstil build ", force_flag, rs_path)
-        rs_pid := spawn_cmd(rs_build_cmd)
-        build_pids.push(rs_pid)
+        build_cmds.push(format("./bin/rstil build ", force_flag, rs_path))
     }
     for til_i in 0..til_paths.len() {
         mut til_path := ""
         til_paths.get(til_i, til_path)
-        til_build_cmd := format("./bin/til build ", force_flag, til_path)
-        til_pid := spawn_cmd(til_build_cmd)
-        build_pids.push(til_pid)
+        build_cmds.push(format("./bin/til build ", force_flag, til_path))
     }
 
-    // Step 3: Wait for all builds to complete
-    for wait_i in 0..build_pids.len() {
-        mut wait_pid := 0
-        build_pids.get(wait_i, wait_pid)
-        // Poll until done
-        mut wait_status := sub(0, 1)
-        while wait_status.eq(sub(0, 1)) {
-            wait_status = check_cmd_status(wait_pid)
-            if wait_status.eq(sub(0, 1)) {
-                sleep(10)
+    // Step 3: Spawn builds with parallelism limit
+    mut build_pids := Vec.new(I64)
+    mut build_idx := 0
+    mut build_completed := 0
+    total_builds := build_cmds.len()
+
+    // Spawn initial batch up to parallelism limit
+    while build_idx.lt(total_builds).and(build_pids.len().lt(parallelism)) {
+        mut init_cmd := ""
+        build_cmds.get(build_idx, init_cmd)
+        init_pid := spawn_cmd(init_cmd)
+        build_pids.push(init_pid)
+        build_idx = build_idx.add(1)
+    }
+
+    // Wait for builds, spawning new ones as slots become available
+    while build_completed.lt(total_builds) {
+        mut bpid_i := 0
+        while bpid_i.lt(build_pids.len()) {
+            mut bpid := 0
+            build_pids.get(bpid_i, bpid)
+            bstatus := check_cmd_status(bpid)
+            if not(bstatus.eq(sub(0, 1))) {
+                // Build finished
+                if not(bstatus.eq(0)) {
+                    println("Pre-build failed (pid ", bpid.to_str(), "), exit status: ", bstatus.to_str())
+                }
+                build_completed = build_completed.add(1)
+                // Remove this pid and spawn next if available
+                blast_idx := build_pids.len().sub(1)
+                if bpid_i.lt(blast_idx) {
+                    mut blast_pid := 0
+                    build_pids.get(blast_idx, blast_pid)
+                    build_pids.set(bpid_i, blast_pid)
+                }
+                mut bpopped := 0
+                build_pids.pop(bpopped)
+                // Spawn next build if available
+                if build_idx.lt(total_builds) {
+                    mut next_cmd := ""
+                    build_cmds.get(build_idx, next_cmd)
+                    next_pid := spawn_cmd(next_cmd)
+                    build_pids.push(next_pid)
+                    build_idx = build_idx.add(1)
+                }
+            } else {
+                bpid_i = bpid_i.add(1)
             }
         }
-        if not(wait_status.eq(0)) {
-            println("Pre-build failed (pid ", wait_pid.to_str(), "), exit status: ", wait_status.to_str())
+        if build_pids.len().gt(0) {
+            sleep(10)
         }
     }
 
