@@ -23,25 +23,25 @@ import("std.io")
 
 // Parse time output like "real\t0m0.042s" -> milliseconds
 parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError {
-    lines := time_output.split("\n")
+    lines := time_output.split("\n")?
     for line: Str in lines {
         if line.starts_with("real") {
             m_pos := line.find("m")
             s_pos := line.find("s")
             if m_pos.gt(0) {
                 if s_pos.gt(m_pos) {
-                    sec_str := get_substr(line, m_pos.add(1), s_pos)
-                    parts := sec_str.split(".")
+                    sec_str := get_substr(line, m_pos.add(1), s_pos)?
+                    parts := sec_str.split(".")?
                     if parts.len().eq(2) {
                         mut whole := ""
                         mut frac := ""
-                        parts.get(0, whole)
-                        parts.get(1, frac)
+                        parts.get(0, whole)?
+                        parts.get(1, frac)?
                         while frac.len().lt(3) {
                             frac = frac.concat("0")
                         }
                         if frac.len().gt(3) {
-                            frac = get_substr(frac, 0, 3)
+                            frac = get_substr(frac, 0, 3)?
                         }
                         return whole.to_i64().mul(1000).add(frac.to_i64())
                     }
@@ -124,12 +124,12 @@ get_cmd_prefix := func(test_mode: Str) returns Str {
 ensure_parent_dir := proc(file_path: Str) {
     mut last_slash := 0
     for i in 0..file_path.len() {
-        if file_path.get_char(i).eq("/") {
+        if file_path.get_char(i)?.eq("/") {
             last_slash = i
         }
     }
     if last_slash.gt(0) {
-        dir := get_substr(file_path, 0, last_slash)
+        dir := get_substr(file_path, 0, last_slash)?
         mut result := ""
         _ := result.run_cmd("mkdir", "-p", dir)
     }
@@ -184,22 +184,22 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
     mut truncated := full_output
     if truncated.len().gt(max_output) {
         start_pos := truncated.len().sub(max_output)
-        truncated = get_substr(truncated, start_pos, truncated.len())
+        truncated = get_substr(truncated, start_pos, truncated.len())?
     }
 
     split_pos := truncated.find("\nreal")
     if split_pos.gt(0) {
-        output = get_substr(full_output, 0, full_output.len().sub(truncated.len()).add(split_pos))
-        time_output := get_substr(truncated, split_pos, truncated.len())
-        time_ms = parse_time_ms(time_output)
+        output = get_substr(full_output, 0, full_output.len().sub(truncated.len()).add(split_pos))?
+        time_output := get_substr(truncated, split_pos, truncated.len())?
+        time_ms = parse_time_ms(time_output)?
     } else {
         if split_pos.eq(0) {
             output = ""
-            time_ms = parse_time_ms(truncated)
+            time_ms = parse_time_ms(truncated)?
         } else {
             if truncated.starts_with("real") {
                 output = ""
-                time_ms = parse_time_ms(truncated)
+                time_ms = parse_time_ms(truncated)?
             } else {
                 output = full_output
                 time_ms = 0
@@ -275,11 +275,11 @@ main := proc(args: ..Str) {
     mut out_mode := ""
     mut expected_status_str := ""
     mut file := ""
-    args.get(0, command)
-    args.get(1, test_mode)
-    args.get(2, out_mode)
-    args.get(3, expected_status_str)
-    args.get(4, file)
+    args.get(0, command)?
+    args.get(1, test_mode)?
+    args.get(2, out_mode)?
+    args.get(3, expected_status_str)?
+    args.get(4, file)?
 
     expected_status := expected_status_str.to_i64()
 
@@ -287,7 +287,7 @@ main := proc(args: ..Str) {
     mut cmd_args := ""
     for i in 5..args.len() {
         mut arg := ""
-        args.get(i, arg)
+        args.get(i, arg)?
         if cmd_args.len().gt(0) {
             cmd_args = cmd_args.concat(" ")
         }

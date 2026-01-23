@@ -141,7 +141,7 @@ pub enum Literal {
 pub enum NodeType {
     Body,
     LLiteral(Literal),
-    FCall,
+    FCall(bool),  // Issue #132: bool indicates if call has '?' suffix (calls throwing func)
     Identifier(String),
     Declaration(Declaration),
     Assignment(String),
@@ -831,7 +831,14 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
         let mut params : Vec<Expr> = Vec::new();
         params.push(e);
         params.extend(arg_list.params);
-        let mut result = Expr::new_parse(NodeType::FCall, lexer.get_token(initial_current)?.clone(), params);
+        // Issue #132: Check for ? after function call (indicates call to throwing function)
+        let does_throw = if lexer.peek().token_type == TokenType::QuestionMark {
+            lexer.advance(1)?;
+            true
+        } else {
+            false
+        };
+        let mut result = Expr::new_parse(NodeType::FCall(does_throw), lexer.get_token(initial_current)?.clone(), params);
 
         // Handle chained method calls and field access: a.method1().method2().field.method3()
         // Bug #32 fix: Support field access after method calls (not just method calls)
@@ -871,7 +878,14 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
                     new_params.push(result); // Previous call result becomes first argument
                     new_params.extend(method_args.params);
 
-                    result = Expr::new_parse(NodeType::FCall, method_t, new_params);
+                    // Issue #132: Check for ? after chained method call
+                    let method_does_throw = if lexer.peek().token_type == TokenType::QuestionMark {
+                        lexer.advance(1)?;
+                        true
+                    } else {
+                        false
+                    };
+                    result = Expr::new_parse(NodeType::FCall(method_does_throw), method_t, new_params);
                 } else {
                     // Bug #32 fix: Field access on expression result (no parentheses)
                     // Collect all field names in the chain until we hit something else
@@ -914,7 +928,14 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
                                 new_params.push(field_access);
                                 new_params.extend(method_args.params);
 
-                                result = Expr::new_parse(NodeType::FCall, next_field_t, new_params);
+                                // Issue #132: Check for ? after field chain method call
+                                let field_method_does_throw = if lexer.peek().token_type == TokenType::QuestionMark {
+                                    lexer.advance(1)?;
+                                    true
+                                } else {
+                                    false
+                                };
+                                result = Expr::new_parse(NodeType::FCall(field_method_does_throw), next_field_t, new_params);
                                 break;
                             } else {
                                 // Another field access
@@ -980,7 +1001,7 @@ fn parse_statement_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::Dot => {
             let e = parse_primary_identifier(lexer)?;
             match &e.node_type {
-                NodeType::FCall => return Ok(e),
+                NodeType::FCall(_) => return Ok(e),
                 NodeType::Identifier(_) => {},
                 _ => {
                     return Err(t.lang_error(&lexer.path, "a series of identifiers and dots should have been parsed as identifier or function call"));
@@ -1323,7 +1344,7 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     // Helper to create forward while loop
     let make_fwd_while = |body: &Expr| {
         let cond = Expr::new_explicit(
-            NodeType::FCall,
+            NodeType::FCall(false),  // Issue #132: lt doesn't throw
             vec![
                 Expr::new_parse(
                     NodeType::Identifier(loop_var_name.clone()),
@@ -1335,7 +1356,7 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
             initial_token.line, initial_token.col,
         );
         let inc = Expr::new_explicit(
-            NodeType::FCall,
+            NodeType::FCall(false),  // Issue #132: inc doesn't throw
             vec![Expr::new_parse(NodeType::Identifier(loop_var_name.clone()), initial_token.clone(), vec![
                 Expr::new_parse(NodeType::Identifier("inc".to_string()), initial_token.clone(), vec![]),
             ])],
@@ -1352,7 +1373,7 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     // Helper to create reverse while loop
     let make_rev_while = |body: &Expr| {
         let cond = Expr::new_explicit(
-            NodeType::FCall,
+            NodeType::FCall(false),  // Issue #132: gt doesn't throw
             vec![
                 Expr::new_parse(
                     NodeType::Identifier(loop_var_name.clone()),
@@ -1364,7 +1385,7 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
             initial_token.line, initial_token.col,
         );
         let dec = Expr::new_explicit(
-            NodeType::FCall,
+            NodeType::FCall(false),  // Issue #132: dec doesn't throw
             vec![Expr::new_parse(NodeType::Identifier(loop_var_name.clone()), initial_token.clone(), vec![
                 Expr::new_parse(NodeType::Identifier("dec".to_string()), initial_token.clone(), vec![]),
             ])],
@@ -1392,7 +1413,7 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
             let fwd_while = make_fwd_while(&body_expr);
             let rev_while = make_rev_while(&body_expr);
             let direction_cond = Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),  // Issue #132: lt doesn't throw
                 vec![
                     Expr::new_parse(NodeType::Identifier("lt".to_string()), initial_token.clone(), vec![]),
                     start_expr.clone(),
@@ -1426,7 +1447,7 @@ fn get_full_identifier_name(expr: &Expr) -> String {
             }
             name.clone()
         }
-        NodeType::FCall if expr.params.len() >= 1 => {
+        NodeType::FCall(_) if expr.params.len() >= 1 => {
             // For FCall, try to extract the function name
             get_full_identifier_name(&expr.params[0])
         }
@@ -1445,7 +1466,7 @@ fn parse_case_expr(lexer: &mut Lexer) -> Result<Expr, String> {
 
     // Check if this is a pattern match: EnumVariant(binding_var)
     // This would have been parsed as FCall with one Identifier parameter
-    if left.node_type == NodeType::FCall && left.params.len() == 2 {
+    if matches!(left.node_type, NodeType::FCall(_)) && left.params.len() == 2 {
         // FCall params are: [function_name, arg1, arg2, ...]
         // For pattern matching, we expect: [variant_identifier, binding_identifier]
         // Note: variant_identifier might be a dotted name like "Color.Green" which could be

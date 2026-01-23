@@ -22,7 +22,7 @@ Entity := struct {
 
     get_component := proc(self: Entity, index: I64) returns Component throws IndexOutOfBoundsError {
         mut comp := Component()
-        self.components.get(index, comp)
+        self.components.get(index, comp)?
         return comp
     }
 }

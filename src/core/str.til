@@ -45,7 +45,7 @@ Str := struct {
     clone := func(self: Str) returns Str {
         mut cloned := Str()
         cloned.cap = self.cap
-        cloned.c_string = malloc(cloned.cap.add(1))  // +1 for null terminator
+        cloned.c_string = malloc(cloned.cap.add(1))?  // +1 for null terminator
         catch (err: BadAlloc) { panic(loc(), "Str.clone: malloc failed") }
         memcpy(cloned.c_string, self.c_string, self.cap)
         // Null-terminate the string
@@ -101,7 +101,7 @@ Str := struct {
             if byte_val.gteq(65) {
                 if byte_val.lteq(90) {
                     byte_val = byte_val.add(32)
-                    byte = U8.from_i64(byte_val)
+                    byte = U8.from_i64(byte_val)?
                     memcpy(result.c_string.add(i), to_ptr(byte), 1)
                 }
             }
@@ -256,7 +256,7 @@ Str := struct {
 
         mut result := Str()
         result.cap = new_len
-        result.c_string = malloc(new_len.add(1))  // +1 for null terminator
+        result.c_string = malloc(new_len.add(1))?  // +1 for null terminator
         catch (err: BadAlloc) { panic(loc(), "Str.replace: malloc failed") }
 
         # Now build the result
@@ -363,7 +363,7 @@ Str := struct {
             one : U8 = 1
             byte_val = U8.add(byte_val, one)
             // Allocate new memory for the result
-            new_ptr := malloc(2)
+            new_ptr := malloc(2)?
             catch (err: BadAlloc) { panic(loc(), "Str.inc: malloc failed") }
             memcpy(new_ptr, to_ptr(byte_val), 1)
             memset(new_ptr.add(1), ZERO_U8, 1)
@@ -381,7 +381,7 @@ Str := struct {
             one : U8 = 1
             byte_val = U8.sub(byte_val, one)
             // Allocate new memory for the result
-            new_ptr := malloc(2)
+            new_ptr := malloc(2)?
             catch (err: BadAlloc) { panic(loc(), "Str.dec: malloc failed") }
             memcpy(new_ptr, to_ptr(byte_val), 1)
             memset(new_ptr.add(1), ZERO_U8, 1)
@@ -405,8 +405,8 @@ Str := struct {
         }
 
         // Build result: prefix + to + suffix
-        mut prefix := self.get_substr(0, idx)
-        mut suffix := self.get_substr(idx.add(from.len()), self.len())
+        mut prefix := self.get_substr(0, idx)?
+        mut suffix := self.get_substr(idx.add(from.len()), self.len())?
 
         mut result := prefix.concat(to).concat(suffix)
 
@@ -448,7 +448,7 @@ Str := struct {
             if matches {
                 # Found delimiter - extract part from start to pos
                 if pos.gt(start) {
-                    part := self.get_substr(start, pos)
+                    part := self.get_substr(start, pos)?
                     parts.push(part)
                 } else {
                     # Empty part
@@ -463,7 +463,7 @@ Str := struct {
 
         # Add remaining part after last delimiter
         if start.lt(self.len()) {
-            remaining_part := self.get_substr(start, self.len())
+            remaining_part := self.get_substr(start, self.len())?
             parts.push(remaining_part)
         } else {
             if start.eq(self.len()) {
@@ -485,7 +485,7 @@ Str := struct {
 
         mut result := Str()
         result.cap = self.cap.mul(n)
-        result.c_string = malloc(result.cap.add(1))
+        result.c_string = malloc(result.cap.add(1))?
         catch (err: BadAlloc) { panic(loc(), "Str.repeat: malloc failed") }
 
         mut offset := 0
@@ -544,7 +544,7 @@ get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBo
 
     mut substr := Str()
     substr.cap = end.sub(start)
-    substr.c_string = malloc(substr.cap.add(1))  // +1 for null terminator
+    substr.c_string = malloc(substr.cap.add(1))?  // +1 for null terminator
     catch (err: BadAlloc) { panic(loc(), "get_substr: malloc failed") }
     memcpy(substr.c_string, s.c_string.add(start), substr.cap)
     // Null-terminate the string
@@ -556,7 +556,7 @@ get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBo
 
 /** Get a single character at position pos as a Str. */
 get_char := func(s: Str, pos: I64) returns Str throws IndexOutOfBoundsError {
-    return s.get_substr(pos, pos.add(1))
+    return s.get_substr(pos, pos.add(1))?
 }
 
 /** Check if string starts with the given prefix. */
@@ -603,7 +603,7 @@ strip_prefix := func(s: Str, prefix: Str) returns Str {
     if not(starts_with(s, prefix)) {
         return ""
     }
-    result := get_substr(s, prefix.len(), s.len())
+    result := get_substr(s, prefix.len(), s.len())?
     catch (err: IndexOutOfBoundsError) {
         return ""
     }
@@ -615,7 +615,7 @@ strip_suffix := func(s: Str, suffix: Str) returns Str {
     if not(ends_with(s, suffix)) {
         return ""
     }
-    result := get_substr(s, 0, s.len().sub(suffix.len()))
+    result := get_substr(s, 0, s.len().sub(suffix.len()))?
     catch (err: IndexOutOfBoundsError) {
         return ""
     }
@@ -634,7 +634,7 @@ concat := func(a: Str, b: Str) returns Str {
         panic(loc(), "concat: integer overflow")
     }
 
-    result.c_string = malloc(result.cap.add(1))  // +1 for null terminator
+    result.c_string = malloc(result.cap.add(1))?  // +1 for null terminator
     catch (err: BadAlloc) { panic(loc(), "concat: malloc failed") }
 
     memcpy(result.c_string, a.c_string, a.cap)
@@ -653,14 +653,14 @@ format := func(prefix: Str, args: ..Str) returns Str {
 
     for i in 0..args.len() {
         mut arg := ""
-        args.get(i, arg)
+        args.get(i, arg)?
         result.cap = result.cap.add(arg.cap)
         if lt(result.cap, arg.cap) {
             panic(loc(), "format: integer overflow while summing cap")
         }
     }
 
-    result.c_string = malloc(result.cap.add(1))  // +1 for null terminator
+    result.c_string = malloc(result.cap.add(1))?  // +1 for null terminator
     catch (err: BadAlloc) { panic(loc(), "format: malloc failed") }
 
     mut offset := 0
@@ -703,7 +703,7 @@ join := func(parts: Vec, sep: Str) returns Str {
     // Allocate result
     mut result := Str()
     result.cap = total_len
-    result.c_string = malloc(total_len.add(1))
+    result.c_string = malloc(total_len.add(1))?
     catch (err: BadAlloc) { panic(loc(), "join: malloc failed") }
 
     // Copy parts with separator

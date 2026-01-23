@@ -22,7 +22,7 @@ test_bug68 := proc() {
     e.col = 1
 
     // Call check_types_with_context - this has the buggy pattern
-    errors := check_types_with_context(context, e, ExprContext.ValueUsed)
+    errors := check_types_with_context(context, e, ExprContext.ValueUsed)?
 
     // Should get 1 error: "Undefined symbol 'x'"
     assert_eq(loc(), 1, errors.len())

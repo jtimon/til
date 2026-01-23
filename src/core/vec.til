@@ -71,7 +71,7 @@ Vec := struct {
             if capacity.gt(Vec.MAX_CAP) {
                 panic(loc(), "Vec.with_capacity: capacity exceeded Vec.MAX_CAP")
             }
-            vec.ptr = malloc(mul(capacity, vec.type_size))
+            vec.ptr = malloc(mul(capacity, vec.type_size))?
             catch (err: BadAlloc) { panic(loc(), "Vec.with_capacity: malloc failed") }
         } else {
             vec.ptr = NULL
@@ -95,7 +95,8 @@ Vec := struct {
                 panic(loc(), "Vec.push: capacity exceeded Vec.MAX_CAP")
             }
 
-            mut new_ptr := malloc(mul(new_cap, self.type_size))
+            mut new_ptr := malloc(mul(new_cap, self.type_size))?
+            catch (err: BadAlloc) { panic(loc(), "Vec.push: malloc failed") }
             if gt(self._len, 0) {
                 memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
             }
@@ -109,8 +110,6 @@ Vec := struct {
         mut dest := add(self.ptr, mul(self._len, self.type_size))
         memcpy(dest, to_ptr(value), self.type_size)
         self._len = add(self._len, 1)
-
-        catch (err: BadAlloc) { panic(loc(), "Vec.push: malloc failed") }
     }
 
     /** Get element at index. */
@@ -150,7 +149,7 @@ Vec := struct {
 
         // Get last element
         mut last_index := sub(self._len, 1)
-        self.get(last_index, dest)
+        self.get(last_index, dest)?
 
         // Decrement length
         self._len = last_index
@@ -175,7 +174,7 @@ Vec := struct {
         cloned.cap = self.cap
         if gt(self.cap, 0) {
             mut total_bytes := mul(self.cap, self.type_size)
-            cloned.ptr = malloc(total_bytes)
+            cloned.ptr = malloc(total_bytes)?
             catch (err: BadAlloc) { panic(loc(), "Vec.clone: malloc failed") }
             if gt(self._len, 0) {
                 mut used_bytes := mul(self._len, self.type_size)
@@ -203,7 +202,7 @@ Vec := struct {
                 if gt(new_cap, Vec.MAX_CAP) {
                     panic(loc(), "Vec.extend: capacity exceeded Vec.MAX_CAP")
                 }
-                mut new_ptr := malloc(mul(new_cap, self.type_size))
+                mut new_ptr := malloc(mul(new_cap, self.type_size))?
                 catch (err: BadAlloc) { panic(loc(), "Vec.extend: malloc failed") }
                 if gt(self._len, 0) {
                     memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
@@ -289,7 +288,7 @@ Vec := struct {
                 panic(loc(), "Vec.insert_at: capacity exceeded Vec.MAX_CAP")
             }
 
-            mut new_ptr := malloc(mul(new_cap, self.type_size))
+            mut new_ptr := malloc(mul(new_cap, self.type_size))?
             catch (err: BadAlloc) { panic(loc(), "Vec.insert_at: malloc failed") }
             if gt(self._len, 0) {
                 memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
@@ -345,11 +344,11 @@ sort_str_vec := proc(mut v: Vec) {
         for i in 1..n {
             mut prev := ""
             mut curr := ""
-            v.get(i.sub(1), prev)
-            v.get(i, curr)
+            v.get(i.sub(1), prev)?
+            v.get(i, curr)?
             if gt(prev.cmp(curr), 0) {
-                v.set(i.sub(1), curr)
-                v.set(i, prev)
+                v.set(i.sub(1), curr)?
+                v.set(i, prev)?
                 new_n = i
             }
             catch (err: IndexOutOfBoundsError) {

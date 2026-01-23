@@ -142,7 +142,7 @@ ScopeStack := struct {
         }
 
         mut popped := ScopeFrame()
-        self.frames.pop(popped)
+        self.frames.pop(popped)?
         return popped
     }
 
@@ -157,7 +157,7 @@ ScopeStack := struct {
     // REM TODO Use this approach instead of the other workaround in files other than interpreter.til
     last_frame := func(self: ScopeStack) returns ScopeFrame throws IndexOutOfBoundsError {
         mut out := ScopeFrame()
-        self.frames.get(self.frames.len().sub(1), out)
+        self.frames.get(self.frames.len().sub(1), out)?
         return out
     }
 
@@ -165,11 +165,11 @@ ScopeStack := struct {
         // Walk up the stack from innermost to outermost
         for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+            self.frames.get(i, frame)?
 
             if frame.arena_index.contains_key(name) {
                 mut offset := 0
-                frame.arena_index.get(name, offset)
+                frame.arena_index.get(name, offset)?
                 catch (err: KeyNotFoundError) {
                     // Var not found, continue searching
                 }
@@ -186,11 +186,11 @@ ScopeStack := struct {
     lookup_symbol := func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+            self.frames.get(i, frame)?
 
             if frame.symbols.contains_key(name) {
                 mut symbol := SymbolInfo()
-                frame.symbols.get(name, symbol)
+                frame.symbols.get(name, symbol)?
                 catch (err: KeyNotFoundError) {
                     // Symbol not found, continue searching
                 }
@@ -214,7 +214,7 @@ ScopeStack := struct {
         // Walk from innermost to outermost scope
         for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+            self.frames.get(i, frame)?
 
             // Track when we enter/exit function scopes
             switch frame.scope_type {
@@ -256,7 +256,7 @@ ScopeStack := struct {
 
         mut last_idx := self.frames.len().sub(1)
         mut current_frame := ScopeFrame()
-        self.frames.get(last_idx, current_frame)
+        self.frames.get(last_idx, current_frame)?
 
         // Check for redeclaration in current scope only
         // Bug #35: Skip check for "_" - it's special for discarding return values
@@ -266,7 +266,7 @@ ScopeStack := struct {
 
         current_frame.arena_index.set(name.clone(), offset)
         current_frame.symbols.set(name, symbol)
-        self.frames.set(last_idx, current_frame)
+        self.frames.set(last_idx, current_frame)?
 
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -277,9 +277,9 @@ ScopeStack := struct {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)
+            self.frames.get(last_idx, current_frame)?
             current_frame.symbols.set(name, symbol)
-            self.frames.set(last_idx, current_frame)
+            self.frames.set(last_idx, current_frame)?
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -290,10 +290,10 @@ ScopeStack := struct {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)
+            self.frames.get(last_idx, current_frame)?
             if current_frame.symbols.contains_key(name) {
                 current_frame.symbols.remove(name)
-                self.frames.set(last_idx, current_frame)
+                self.frames.set(last_idx, current_frame)?
                 mut ptr := Ptr()
                 ptr.data = 1  // Non-NULL to indicate found and removed
                 return ptr
@@ -309,12 +309,12 @@ ScopeStack := struct {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)
+            self.frames.get(last_idx, current_frame)?
             if current_frame.arena_index.contains_key(name) {
                 mut offset := 0
-                current_frame.arena_index.get(name, offset)
+                current_frame.arena_index.get(name, offset)?
                 current_frame.arena_index.remove(name)
-                self.frames.set(last_idx, current_frame)
+                self.frames.set(last_idx, current_frame)?
                 mut ptr := Ptr()
                 ptr.data = offset
                 return ptr
@@ -334,9 +334,9 @@ ScopeStack := struct {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)
+            self.frames.get(last_idx, current_frame)?
             current_frame.arena_index.set(name, offset)
-            self.frames.set(last_idx, current_frame)
+            self.frames.set(last_idx, current_frame)?
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -346,11 +346,11 @@ ScopeStack := struct {
     lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+            self.frames.get(i, frame)?
 
             if frame.funcs.contains_key(name) {
                 mut func_def := SFuncDef()
-                frame.funcs.get(name, func_def)
+                frame.funcs.get(name, func_def)?
                 catch (err: KeyNotFoundError) {
                     // Function not found, continue searching
                 }
@@ -368,13 +368,13 @@ ScopeStack := struct {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)
+            self.frames.get(last_idx, current_frame)?
             // Use set() instead of insert() to allow overwriting existing funcs
             // This matches Rust's HashMap.insert behavior which overwrites.
             // Needed because init phase stores original func_def, then eval phase
             // stores precomp'd func_def with desugared for-in loops.
             current_frame.funcs.set(name, func_def)
-            self.frames.set(last_idx, current_frame)
+            self.frames.set(last_idx, current_frame)?
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -384,11 +384,11 @@ ScopeStack := struct {
     lookup_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+            self.frames.get(i, frame)?
 
             if frame.enums.contains_key(name) {
                 mut enum_def := SEnumDef()
-                frame.enums.get(name, enum_def)
+                frame.enums.get(name, enum_def)?
                 catch (err: KeyNotFoundError) {
                     // Enum not found, continue searching
                 }
@@ -406,9 +406,9 @@ ScopeStack := struct {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)
+            self.frames.get(last_idx, current_frame)?
             current_frame.enums.set(name, enum_def)
-            self.frames.set(last_idx, current_frame)
+            self.frames.set(last_idx, current_frame)?
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -418,11 +418,11 @@ ScopeStack := struct {
     lookup_struct := func(self: ScopeStack, name: Str) returns SStructDef throws KeyNotFoundError {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+            self.frames.get(i, frame)?
 
             if frame.structs.contains_key(name) {
                 mut struct_def := SStructDef()
-                frame.structs.get(name, struct_def)
+                frame.structs.get(name, struct_def)?
                 catch (err: KeyNotFoundError) {
                     // Struct not found, continue searching
                 }
@@ -438,17 +438,17 @@ ScopeStack := struct {
 
     // Check if a combined name (e.g., "Color.Green") refers to an enum constructor
     is_enum_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
-        mut parts := combined_name.split(".")
+        mut parts := combined_name.split(".")?
         if parts.len().eq(2) {
             mut enum_type := Str()
-            parts.get(0, enum_type)
-            mut enum_def := self.lookup_enum(enum_type)
+            parts.get(0, enum_type)?
+            mut enum_def := self.lookup_enum(enum_type)?
             catch (err: KeyNotFoundError) {
                 return false
             }
             mut variant_name := Str()
-            parts.get(1, variant_name)
-            mut result := enum_def.contains_key(variant_name)
+            parts.get(1, variant_name)?
+            mut result := enum_def.contains_key(variant_name)?
             catch (err: Str) {
                 return false
             }
@@ -462,11 +462,11 @@ ScopeStack := struct {
 
     // Check if a combined name refers to a struct constructor
     is_struct_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
-        mut parts := combined_name.split(".")
+        mut parts := combined_name.split(".")?
         if parts.len().eq(1) {
             mut struct_name := Str()
-            parts.get(0, struct_name)
-            _ := self.lookup_struct(struct_name)
+            parts.get(0, struct_name)?
+            _ := self.lookup_struct(struct_name)?
             // Bug fix: catch MUST be inside the if block to catch exceptions
             // from lookup_struct. TIL catch semantics require the catch to be
             // in the same scope as the throwing code.
@@ -490,7 +490,7 @@ ScopeStack := struct {
         mut result := Vec.new(SStructDef)
         for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+            self.frames.get(i, frame)?
 
             for struct_def: SStructDef in frame.structs.values {
                 result.push(struct_def)
@@ -507,9 +507,9 @@ ScopeStack := struct {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
-            self.frames.get(last_idx, current_frame)
+            self.frames.get(last_idx, current_frame)?
             current_frame.structs.set(name, struct_def)
-            self.frames.set(last_idx, current_frame)
+            self.frames.set(last_idx, current_frame)?
         }
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -547,7 +547,7 @@ ScopeStack := struct {
     is_inside_function := func(self: ScopeStack) returns Bool {
         for i in self.frames.len().sub(1)..sub(0, 1) {
             mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+            self.frames.get(i, frame)?
             switch frame.scope_type {
             case ScopeType.Function:
                 return true
@@ -572,11 +572,11 @@ ScopeStack := struct {
                 continue
             }
             mut frame := ScopeFrame()
-            self.frames.get(i, frame)
+            self.frames.get(i, frame)?
 
             if frame.symbols.contains_key(name) {
                 mut symbol := SymbolInfo()
-                frame.symbols.get(name, symbol)
+                frame.symbols.get(name, symbol)?
                 return symbol
             }
             // Stop at Function frame - don't search into global scope
@@ -672,7 +672,7 @@ get_func_name_in_call := func(e: Expr) returns Str throws Str {
     if e.params.len().eq(0) {
         throw "get_func_name_in_call(): fcall nodes must have at least 1 parameter."
     }
-    mut param := e.get(0)
+    mut param := e.get(0)?
     // e.get throws Str on error, will propagate
     mut func_name := ""
     switch param.node_type {
@@ -692,7 +692,7 @@ value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) 
     }
     if returns_len.eq(1) {
         mut return_type := ValueType.TCustom("")  # Dummy init, will be overwritten by get()
-        func_def.return_types.get(0, return_type)
+        func_def.return_types.get(0, return_type)?
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
@@ -714,7 +714,7 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
     // Get the last param (the method name)
     mut last_idx := id_expr.params.len().sub(1)
     mut method_name_expr := Expr()
-    id_expr.params.get(last_idx, method_name_expr)
+    id_expr.params.get(last_idx, method_name_expr)?
 
     mut method_name := ""
     switch method_name_expr.node_type {
@@ -728,13 +728,13 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
     // Check if it's a regular function
     mut found_func := false
     mut func_def := SFuncDef()
-    func_def = context.scope_stack.lookup_func(method_name)
+    func_def = context.scope_stack.lookup_func(method_name)?
     found_func = true
     catch (err: KeyNotFoundError) {
         // Not found, continue to check other options
     }
     if found_func {
-        return value_type_func_proc(context.path, e, f_name, func_def)
+        return value_type_func_proc(context.path, e, f_name, func_def)?
     }
 
     // Create identifier expression without the last param (method name) to get the type
@@ -743,7 +743,7 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
     id_without_method.params._len = new_len
 
     // Get the type of the nested identifier
-    mut target_type := get_value_type(context, id_without_method)
+    mut target_type := get_value_type(context, id_without_method)?
 
     // Check if it's an associated function for this type
     switch target_type {
@@ -751,13 +751,13 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
         mut id_expr_name := format(custom_type_name, ".", method_name)
         mut found_method := false
         mut method_def := SFuncDef()
-        method_def = context.scope_stack.lookup_func(id_expr_name)
+        method_def = context.scope_stack.lookup_func(id_expr_name)?
         found_method = true
         catch (err: KeyNotFoundError) {
             // Not found
         }
         if found_method {
-            return value_type_func_proc(context.path, e, id_expr_name, method_def)
+            return value_type_func_proc(context.path, e, id_expr_name, method_def)?
         }
         throw e.error(context.path, "init", format("Type '", custom_type_name, "' has no method '", method_name, "'"))
     case:
@@ -770,17 +770,17 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
 
 get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
 
-    mut f_name := get_func_name_in_call(e)
+    mut f_name := get_func_name_in_call(e)?
 
     // Check if this is a UFCS call on a function/expression result
     // If e has 2+ params (func name + target + args), check if the target's type
     // has an associated method with this name, prioritizing it over standalone functions
     if e.params.len().gteq(2) {
-        mut first_arg := e.get(1)  // Get the UFCS target (skip func name at index 0)
+        mut first_arg := e.get(1)?  // Get the UFCS target (skip func name at index 0)
 
         // Try to get the type of the first argument
         mut have_target_type := true
-        target_type := get_value_type(context, first_arg)
+        target_type := get_value_type(context, first_arg)?
         catch (err: Str) {
             have_target_type = false
         }
@@ -792,14 +792,14 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 mut method_name := format(custom_type_name, ".", f_name)
                 mut found_method := false
                 mut method_func_def := SFuncDef()
-                method_func_def = context.scope_stack.lookup_func(method_name)
+                method_func_def = context.scope_stack.lookup_func(method_name)?
                 found_method = true
                 catch (err: KeyNotFoundError) {
                     // Not found, fall through
                 }
                 if found_method {
                     // UFCS method exists! Use it instead of standalone function
-                    return value_type_func_proc(context.path, e, method_name, method_func_def)
+                    return value_type_func_proc(context.path, e, method_name, method_func_def)?
                 }
             case:
                 // Not TCustom or no method, fall through
@@ -811,27 +811,27 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
     // Original logic: check for standalone function
     mut found_standalone := false
     mut standalone_func_def := SFuncDef()
-    standalone_func_def = context.scope_stack.lookup_func(f_name)
+    standalone_func_def = context.scope_stack.lookup_func(f_name)?
     found_standalone = true
     catch (err: KeyNotFoundError) {
         // Not a standalone function
     }
     if found_standalone {
-        return value_type_func_proc(context.path, e, f_name, standalone_func_def)
+        return value_type_func_proc(context.path, e, f_name, standalone_func_def)?
     }
 
     // Not a standalone function, check if it's a symbol (type, enum, struct, etc)
-    mut symbol := context.scope_stack.lookup_symbol(f_name)
+    mut symbol := context.scope_stack.lookup_symbol(f_name)?
     catch (err: KeyNotFoundError) {
         throw e.error(context.path, "init", format("Undefined symbol '", f_name, "'"))
     }
-    mut id_expr := e.get(0)
+    mut id_expr := e.get(0)?
 
     switch symbol.value_type {
     case ValueType.TType(TTypeDef.TStructDef):
         // Handle struct constructor or struct method calls
         mut struct_def := SStructDef()
-        struct_def = context.scope_stack.lookup_struct(f_name)
+        struct_def = context.scope_stack.lookup_struct(f_name)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(context.path, "init", format("struct '", f_name, "' not found in context"))
         }
@@ -844,7 +844,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 mut arg_idx := 1
                 while arg_idx.lt(e.params.len()) {
                     mut arg := Expr()
-                    e.params.get(arg_idx, arg)
+                    e.params.get(arg_idx, arg)?
                     switch arg.node_type {
                     case NodeType.NamedArg(_):
                         // OK - named arg is allowed
@@ -860,7 +860,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         }
 
         mut after_dot := Expr()  # Default init, will be overwritten by get()
-        id_expr.params.get(0, after_dot)
+        id_expr.params.get(0, after_dot)?
         switch after_dot.node_type {
         case NodeType.Identifier(after_dot_name):
             // Inline get_member_or_err logic
@@ -876,7 +876,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 throw e.error(context.path, "init", format("Struct '", f_name, "' has no member '", after_dot_name, "'"))
             }
             mut member_default_value := Expr()  # Default init, will be overwritten by get()
-            struct_def.default_values.get(after_dot_name, member_default_value)
+            struct_def.default_values.get(after_dot_name, member_default_value)?
             catch (key_err: KeyNotFoundError) {
                 throw e.error(context.path, "init", format("struct '", f_name, "' has no member '", after_dot_name, "' b"))
             }
@@ -884,7 +884,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             switch member_default_value.node_type {
             case NodeType.FuncDef(func_def):
                 mut combined_name := format(f_name, ".", after_dot_name)
-                return value_type_func_proc(context.path, e, combined_name, func_def)
+                return value_type_func_proc(context.path, e, combined_name, func_def)?
             case:
                 throw e.error(context.path, "init", format("Cannot call '", f_name, ".", after_dot_name, "', it is not a function, it is '", value_type_to_str(member_decl.value_type), "'"))
             }
@@ -899,7 +899,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
     case ValueType.TType(TTypeDef.TEnumDef):
         // Handle enum constructor calls like Color.Green(true)
         mut enum_def := SEnumDef()
-        enum_def = context.scope_stack.lookup_enum(f_name)
+        enum_def = context.scope_stack.lookup_enum(f_name)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(context.path, "init", format("enum '", f_name, "' not found in context"))
         }
@@ -911,11 +911,11 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         }
 
         mut enum_after_dot_expr := Expr()  # Default init, will be overwritten by get()
-        id_expr.params.get(0, enum_after_dot_expr)
+        id_expr.params.get(0, enum_after_dot_expr)?
         switch enum_after_dot_expr.node_type {
         case NodeType.Identifier(variant_name):
             // Check if this variant exists in the enum (will throw KeyNotFoundError if not)
-            mut payload_ptr := enum_def.get(variant_name)  // Bug #38 fix: use helper method
+            mut payload_ptr := enum_def.get(variant_name)?  // Bug #38 fix: use helper method
 
             // Check if variant has a payload (NULL means no payload)
             if not(NULL.eq(payload_ptr.data)) {
@@ -928,8 +928,8 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                         throw e.error(context.path, "init", format("Enum constructor ", f_name, ".", variant_name, " expects a payload of type '", payload_type_name, "'"))
                     }
                     // Type check the payload argument
-                    mut payload_expr := e.get(1)
-                    mut _payload_actual_type := get_value_type(context, payload_expr)
+                    mut payload_expr := e.get(1)?
+                    mut _payload_actual_type := get_value_type(context, payload_expr)?
 
                     // TODO: Verify payload type matches expected type
                     // For now, we just accept any payload
@@ -953,7 +953,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             # Check if it's an enum first
             mut found_enum := false
             mut custom_enum_def := SEnumDef()
-            custom_enum_def = context.scope_stack.lookup_enum(custom_type_name)
+            custom_enum_def = context.scope_stack.lookup_enum(custom_type_name)?
             found_enum = true
             catch (err: KeyNotFoundError) {
                 // Not an enum
@@ -964,7 +964,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 if id_expr.params.len().eq(0) {
                     return ValueType.TCustom(f_name.clone())
                 }
-                id_expr.params.get(0, enum_after_dot)
+                id_expr.params.get(0, enum_after_dot)?
 
                 switch enum_after_dot.node_type {
                 case NodeType.Identifier(enum_after_dot_name):
@@ -972,19 +972,19 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                     mut enum_method_name := format(custom_type_name, ".", enum_after_dot_name)
                     mut found_enum_method := false
                     mut method_func := SFuncDef()
-                    method_func = context.scope_stack.lookup_func(enum_method_name)
+                    method_func = context.scope_stack.lookup_func(enum_method_name)?
                     found_enum_method = true
                     catch (method_err: KeyNotFoundError) {
                         // Method not found
                     }
                     if found_enum_method {
-                        return value_type_func_proc(context.path, e, enum_method_name, method_func)
+                        return value_type_func_proc(context.path, e, enum_method_name, method_func)?
                     }
 
                     # Fall back to UFCS: try standalone function with enum as first arg
                     mut found_ufcs := false
                     mut ufcs_result := ValueType.TCustom("")  // dummy default
-                    ufcs_result = get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
+                    ufcs_result = get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)?
                     found_ufcs = true
                     catch (err: Str) {
                         throw e.error(context.path, "init", format("enum '", custom_type_name, "' has no method '", enum_after_dot_name, "' and no matching function found for UFCS"))
@@ -999,7 +999,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             }
 
             # Not an enum, try struct
-            mut custom_struct_def := context.scope_stack.lookup_struct(custom_type_name)
+            mut custom_struct_def := context.scope_stack.lookup_struct(custom_type_name)?
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "init", format("type '", f_name, "' not found in context"))
             }
@@ -1008,7 +1008,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             if id_expr.params.len().eq(0) {
                 return ValueType.TCustom(f_name.clone())
             }
-            id_expr.params.get(0, struct_after_dot)
+            id_expr.params.get(0, struct_after_dot)?
 
             switch struct_after_dot.node_type {
             case NodeType.Identifier(struct_after_dot_name):
@@ -1024,7 +1024,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
 
                     mut got_intermediate := false
                     mut intermediate_type := ValueType.TCustom("")  # dummy default
-                    intermediate_type = get_value_type(context, field_access_expr)
+                    intermediate_type = get_value_type(context, field_access_expr)?
                     got_intermediate = true
                     catch (err: Str) {
                         # Failed to resolve intermediate - just fall through to normal logic
@@ -1034,7 +1034,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                         # Successfully resolved intermediate field access
                         # Now check if the last param is a member/method of that type
                         mut last_param := Expr()
-                        id_expr.params.get(id_expr.params.len().sub(1), last_param)
+                        id_expr.params.get(id_expr.params.len().sub(1), last_param)?
 
                         switch last_param.node_type {
                         case NodeType.Identifier(final_member_name):
@@ -1044,31 +1044,31 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                                 mut intermediate_method_name := format(intermediate_type_name, ".", final_member_name)
                                 mut found_intermediate_method := false
                                 mut intermediate_method_def := SFuncDef()
-                                intermediate_method_def = context.scope_stack.lookup_func(intermediate_method_name)
+                                intermediate_method_def = context.scope_stack.lookup_func(intermediate_method_name)?
                                 found_intermediate_method = true
                                 catch (method_err: KeyNotFoundError) {
                                     // Method not found
                                 }
                                 if found_intermediate_method {
-                                    return value_type_func_proc(context.path, e, intermediate_method_name, intermediate_method_def)
+                                    return value_type_func_proc(context.path, e, intermediate_method_name, intermediate_method_def)?
                                 }
 
                                 # Try UFCS: standalone function with intermediate type as first arg
                                 mut found_intermediate_standalone := false
                                 mut standalone_def := SFuncDef()
-                                standalone_def = context.scope_stack.lookup_func(final_member_name)
+                                standalone_def = context.scope_stack.lookup_func(final_member_name)?
                                 found_intermediate_standalone = true
                                 catch (standalone_err: KeyNotFoundError) {
                                     // Standalone not found
                                 }
                                 if found_intermediate_standalone {
-                                    return value_type_func_proc(context.path, e, final_member_name, standalone_def)
+                                    return value_type_func_proc(context.path, e, final_member_name, standalone_def)?
                                 }
 
                                 # Check if it's a struct with this member as a field
                                 mut found_intermediate_struct := false
                                 mut intermediate_struct_def := SStructDef()
-                                intermediate_struct_def = context.scope_stack.lookup_struct(intermediate_type_name)
+                                intermediate_struct_def = context.scope_stack.lookup_struct(intermediate_type_name)?
                                 found_intermediate_struct = true
                                 catch (struct_err: KeyNotFoundError) {
                                     // Struct not found
@@ -1076,7 +1076,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                                 if found_intermediate_struct {
                                     mut found_intermediate_member := false
                                     mut intermediate_member_decl := Declaration()
-                                    intermediate_member_decl = SStructDef.get_member(intermediate_struct_def, final_member_name)
+                                    intermediate_member_decl = SStructDef.get_member(intermediate_struct_def, final_member_name)?
                                     found_intermediate_member = true
                                     catch (member_err: Str) {
                                         // Member not found
@@ -1096,10 +1096,10 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 }
 
                 # Original logic: single-level access (struct.member)
-                mut direct_member_decl := SStructDef.get_member(custom_struct_def, struct_after_dot_name)
+                mut direct_member_decl := SStructDef.get_member(custom_struct_def, struct_after_dot_name)?
                 catch (err: Str) {
                     // member not found, try UFCS
-                    mut direct_ufcs_result := get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
+                    mut direct_ufcs_result := get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)?
                     catch (ufcs_err: Str) {
                         throw e.error(context.path, "init", format("struct '", custom_type_name, "' has no member '", struct_after_dot_name, "' c"))
                     }
@@ -1107,7 +1107,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 }
 
                 mut direct_member_default_value := Expr()  # Default init, will be overwritten by get()
-                custom_struct_def.default_values.get(struct_after_dot_name, direct_member_default_value)
+                custom_struct_def.default_values.get(struct_after_dot_name, direct_member_default_value)?
                 catch (key_err: KeyNotFoundError) {
                     throw e.error(context.path, "init", format("struct '", custom_type_name, "' has no member '", struct_after_dot_name, "' d"))
                 }
@@ -1115,7 +1115,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 switch direct_member_default_value.node_type {
                 case NodeType.FuncDef(func_def):
                     mut struct_combined_name := format(custom_type_name, ".", struct_after_dot_name)
-                    return value_type_func_proc(context.path, e, struct_combined_name, func_def)
+                    return value_type_func_proc(context.path, e, struct_combined_name, func_def)?
                 case:
                     throw e.error(context.path, "init", format("Cannot call '", f_name, ".", struct_after_dot_name, "', it is not a function, it is '", value_type_to_str(direct_member_decl.value_type), "'"))
                 }
@@ -1127,7 +1127,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             # Variadic parameters are implemented as Array at runtime
             # Treat them as Array for type checking method calls
             mut variadic_type_name := "Array"
-            mut variadic_struct_def := context.scope_stack.lookup_struct(variadic_type_name)
+            mut variadic_struct_def := context.scope_stack.lookup_struct(variadic_type_name)?
             catch (err: KeyNotFoundError) {
                 throw e.lang_error(context.path, "init", format("struct '", variadic_type_name, "' not found in context"))
             }
@@ -1136,14 +1136,14 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             if id_expr.params.len().eq(0) {
                 return ValueType.TCustom(variadic_type_name)
             }
-            id_expr.params.get(0, variadic_after_dot)
+            id_expr.params.get(0, variadic_after_dot)?
 
             switch variadic_after_dot.node_type {
             case NodeType.Identifier(variadic_after_dot_name):
-                mut variadic_member_decl := SStructDef.get_member(variadic_struct_def, variadic_after_dot_name)
+                mut variadic_member_decl := SStructDef.get_member(variadic_struct_def, variadic_after_dot_name)?
                 catch (err: Str) {
                     // member not found, try UFCS
-                    mut variadic_ufcs_result := get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
+                    mut variadic_ufcs_result := get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)?
                     catch (ufcs_err: Str) {
                         throw e.error(context.path, "init", format("struct '", variadic_type_name, "' has no member '", variadic_after_dot_name, "' (variadic)"))
                     }
@@ -1151,7 +1151,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 }
 
                 mut variadic_member_default_value := Expr()  # Default init, will be overwritten by get()
-                variadic_struct_def.default_values.get(variadic_after_dot_name, variadic_member_default_value)
+                variadic_struct_def.default_values.get(variadic_after_dot_name, variadic_member_default_value)?
                 catch (key_err: KeyNotFoundError) {
                     throw e.error(context.path, "init", format("struct '", variadic_type_name, "' has no member '", variadic_after_dot_name, "' (variadic default)"))
                 }
@@ -1159,7 +1159,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 switch variadic_member_default_value.node_type {
                 case NodeType.FuncDef(func_def):
                     mut variadic_combined_name := format(variadic_type_name, ".", variadic_after_dot_name)
-                    return value_type_func_proc(context.path, e, variadic_combined_name, func_def)
+                    return value_type_func_proc(context.path, e, variadic_combined_name, func_def)?
                 case:
                     throw e.error(context.path, "init", format("Cannot call '", variadic_type_name, ".", variadic_after_dot_name, "', it is not a function, it is '", value_type_to_str(variadic_member_decl.value_type), "'"))
                 }
@@ -1168,7 +1168,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 throw e.lang_error(context.path, "init", format("Expected identifier after '", f_name, ".' found '", enum_to_str(variadic_after_dot.node_type), "'"))
             }
         case:
-            return get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
+            return get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)?
         }
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
@@ -1206,10 +1206,10 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
         return ValueType.TType(TTypeDef.TEnumDef)
     case NodeType.StructDef(_):
         return ValueType.TType(TTypeDef.TStructDef)
-    case NodeType.FCall:
-        return get_fcall_value_type(context, e)
+    case NodeType.FCall(_):
+        return get_fcall_value_type(context, e)?
     case NodeType.Range:
-        mut range_elem_type := get_value_type(context, e.get(0))
+        mut range_elem_type := get_value_type(context, e.get(0)?)?
         return ValueType.TCustom(format(value_type_to_str(range_elem_type), "Range"))
 
     case NodeType.Identifier(name):
@@ -1219,12 +1219,12 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
         if name.eq("_") {
             if e.params.len().gt(0) {
                 // Get the type of the base expression (params[0])
-                base_expr := e.get(0)
-                mut underscore_current_type := get_value_type(context, base_expr)
+                base_expr := e.get(0)?
+                mut underscore_current_type := get_value_type(context, base_expr)?
 
                 // Traverse the field access chain in params[1..]
                 for field_idx in 1..e.params.len() {
-                    field_expr := e.get(field_idx)
+                    field_expr := e.get(field_idx)?
                     mut field_name := ""
                     switch field_expr.node_type {
                     case NodeType.Identifier(n):
@@ -1235,11 +1235,11 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
 
                     switch underscore_current_type {
                     case ValueType.TCustom(type_name):
-                        mut underscore_struct_def := context.scope_stack.lookup_struct(type_name)
+                        mut underscore_struct_def := context.scope_stack.lookup_struct(type_name)?
                         catch (err: KeyNotFoundError) {
                             throw e.error(context.path, "init", format("'", type_name, "' is not a struct"))
                         }
-                        mut member := SStructDef.get_member_or_err(underscore_struct_def, field_name, type_name, context.path, e)
+                        mut member := SStructDef.get_member_or_err(underscore_struct_def, field_name, type_name, context.path, e)?
                         underscore_current_type = value_type_clone(member.value_type)
                     case:
                         throw e.error(context.path, "init", format("Cannot access fields on type '", value_type_to_str(underscore_current_type), "'"))
@@ -1250,7 +1250,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
             }
         }
 
-        mut symbol := context.scope_stack.lookup_symbol(name)
+        mut symbol := context.scope_stack.lookup_symbol(name)?
         catch (err: KeyNotFoundError) {
             throw e.error(context.path, "init", format("Undefined symbol '", name, "'"))
         }
@@ -1274,31 +1274,31 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
             switch id_current_type {
             case ValueType.TType(TTypeDef.TStructDef):
                 # If it's a struct, resolve its member
-                mut type_struct_def := context.scope_stack.lookup_struct(name)
+                mut type_struct_def := context.scope_stack.lookup_struct(name)?
                 catch (err: KeyNotFoundError) {
                     throw e.error(context.path, "init", format("Struct '", name, "' not found"))
                 }
-                mut type_decl := SStructDef.get_member_or_err(type_struct_def, member_name, name, context.path, e)
+                mut type_decl := SStructDef.get_member_or_err(type_struct_def, member_name, name, context.path, e)?
                 id_current_type = value_type_clone(type_decl.value_type)
 
             case ValueType.TType(TTypeDef.TEnumDef):
                 # If it's an enum, resolve the variant
-                mut nested_enum_def := context.scope_stack.lookup_enum(name)
+                mut nested_enum_def := context.scope_stack.lookup_enum(name)?
                 catch (err: KeyNotFoundError) {
                     throw e.error(context.path, "init", format("Enum '", name, "' not found"))
                 }
-                if nested_enum_def.contains_key(member_name) {  // Bug #38 fix: use helper method
+                if nested_enum_def.contains_key(member_name)? {  // Bug #38 fix: use helper method
                     return ValueType.TCustom(name)
                 }
                 throw e.error(context.path, "init", format("Enum '", name, "' has no value '", member_name, "'"))
 
             case ValueType.TCustom(nested_custom_type_name):
                 # If it's a custom type (a struct), resolve the member
-                mut nested_struct_def := context.scope_stack.lookup_struct(nested_custom_type_name)
+                mut nested_struct_def := context.scope_stack.lookup_struct(nested_custom_type_name)?
                 catch (err: KeyNotFoundError) {
                     throw e.error(context.path, "init", format("Struct '", nested_custom_type_name, "' not found"))
                 }
-                mut nested_decl := SStructDef.get_member_or_err(nested_struct_def, member_name, nested_custom_type_name, context.path, e)
+                mut nested_decl := SStructDef.get_member_or_err(nested_struct_def, member_name, nested_custom_type_name, context.path, e)?
                 id_current_type = value_type_clone(nested_decl.value_type)
 
             case ValueType.TMulti(_variadic_type_name):
@@ -1317,7 +1317,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
         mut variant_name := pattern_info.variant_name
         mut dot_pos := Str.rfind(variant_name, ".")
         if dot_pos.gteq(0) {
-            mut enum_type := get_substr(variant_name, 0, dot_pos)
+            mut enum_type := get_substr(variant_name, 0, dot_pos)?
             return ValueType.TCustom(enum_type)
         }
         # If no dot, assume the whole thing is the enum type (shouldn't happen in practice)
@@ -1325,7 +1325,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
 
     case NodeType.NamedArg(_):
         if e.params.len().gt(0) {
-            return get_value_type(context, e.get(0))
+            return get_value_type(context, e.get(0)?)?
         }
         throw e.error(context.path, "init", "NamedArg must have a value expression")
 
@@ -1373,7 +1373,7 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     context.path = path.clone()
 
     # Lex the imported file
-    mut lexer := lexer_from_source(path, source)
+    mut lexer := lexer_from_source(path, source)?
     catch (err: Str) {
         context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
@@ -1384,7 +1384,7 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     }
 
     # Parse mode
-    mut parsed_mode := parse_mode(path, lexer)
+    mut parsed_mode := parse_mode(path, lexer)?
     catch (err: Str) {
         context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
@@ -1403,11 +1403,11 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     for import_str: Str in context.mode_def.imports {
         import_func_name_expr := Expr(node_type=NodeType.Identifier("import"), line=0, col=0)
         import_path_expr := Expr(node_type=NodeType.LLiteral(Literal.Str(import_str)), line=0, col=0)
-        mut import_fcall_expr := Expr(node_type=NodeType.FCall, line=0, col=0)
+        mut import_fcall_expr := Expr(node_type=NodeType.FCall(false), line=0, col=0)
         import_fcall_expr.params.push(import_func_name_expr)
         import_fcall_expr.params.push(import_path_expr)
 
-        init_import_declarations(context, import_fcall_expr, import_str)
+        init_import_declarations(context, import_fcall_expr, import_str)?
         catch (err: Str) {
             context.mode_def = previous_mode
             context.path = original_path.clone()
@@ -1416,7 +1416,7 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     }
 
     # Parse to AST
-    mut imported_ast := parse_tokens(lexer)
+    mut imported_ast := parse_tokens(lexer)?
     catch (err: Str) {
         context.mode_def = previous_mode
         context.path = original_path.clone()
@@ -1430,7 +1430,7 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
 
     # Run init_context to extract declarations
     # This will recursively handle any imports in the imported file
-    mut errors := init_context(context, imported_ast)
+    mut errors := init_context(context, imported_ast)?
     if errors.len().gt(0) {
         context.mode_def = previous_mode
         mut orig_path_clone := original_path.clone()
@@ -1461,17 +1461,17 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
     switch e.node_type {
     case NodeType.Body:
         for se: Expr in e.params {
-            mut sub_errors := init_context(context, se)
+            mut sub_errors := init_context(context, se)?
             for sub_err: Str in sub_errors {
                 errors.push(sub_err)
             }
         }
 
-    case NodeType.FCall:
-        mut f_name := get_func_name_in_call(e)
+    case NodeType.FCall(_):
+        mut f_name := get_func_name_in_call(e)?
         if f_name.eq("import") {
             # Extract import path (must be literal string)
-            mut import_path_expr := e.get(1)
+            mut import_path_expr := e.get(1)?
             catch (err: Str) {
                 errors.push(e.lang_error(context.path, "import", format(context.path, ":", err)))
                 return errors
@@ -1495,7 +1495,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
 
             # Process import declarations (no eval)
-            init_import_declarations(context, e, import_path)
+            init_import_declarations(context, e, import_path)?
             catch (err: Str) {
                 errors.push(err)
                 return errors
@@ -1506,7 +1506,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
         // Check if already declared as func
         mut found_as_func := false
         mut existing_func := SFuncDef()
-        existing_func = context.scope_stack.lookup_func(decl.name)
+        existing_func = context.scope_stack.lookup_func(decl.name)?
         found_as_func = true
         catch (err: KeyNotFoundError) {
             found_as_func = false
@@ -1514,7 +1514,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
         // Check if already declared as symbol
         mut found_as_symbol := false
         mut existing_symbol := SymbolInfo()
-        existing_symbol = context.scope_stack.lookup_symbol(decl.name)
+        existing_symbol = context.scope_stack.lookup_symbol(decl.name)?
         found_as_symbol = true
         catch (err: KeyNotFoundError) {
             found_as_symbol = false
@@ -1527,13 +1527,13 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             errors.push(e.lang_error(context.path, "init", format("in init_context, while declaring ", decl.name, ", declarations must take exactly one value.")))
             return errors
         }
-        mut inner_e := e.get(0)
+        mut inner_e := e.get(0)?
         catch (err: Str) {
             errors.push(err)
             return errors
         }
 
-        mut value_type := get_value_type(context, inner_e)
+        mut value_type := get_value_type(context, inner_e)?
         catch (err: Str) {
             errors.push(err)
             return errors
@@ -1586,8 +1586,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTFunc:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                    context.scope_stack.declare_func(decl.name, func_def.clone())
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    context.scope_stack.declare_func(decl.name, func_def.clone())?
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                     return errors
@@ -1595,8 +1595,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTFuncExt:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                    context.scope_stack.declare_func(decl.name, func_def.clone())
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    context.scope_stack.declare_func(decl.name, func_def.clone())?
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                     return errors
@@ -1604,8 +1604,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTProc:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                    context.scope_stack.declare_func(decl.name, func_def.clone())
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    context.scope_stack.declare_func(decl.name, func_def.clone())?
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                     return errors
@@ -1613,8 +1613,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTProcExt:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                    context.scope_stack.declare_func(decl.name, func_def.clone())
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    context.scope_stack.declare_func(decl.name, func_def.clone())?
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                     return errors
@@ -1622,8 +1622,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             case FunctionType.FTMacro:
                 switch inner_e.node_type {
                 case NodeType.FuncDef(func_def):
-                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                    context.scope_stack.declare_func(decl.name, func_def.clone())
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                    context.scope_stack.declare_func(decl.name, func_def.clone())?
                 case:
                     errors.push(e.lang_error(context.path, "init", format(value_type_to_str(value_type), "s should have definitions")))
                     return errors
@@ -1637,8 +1637,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
             switch inner_e.node_type {
             case NodeType.EnumDef(enum_def):
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                context.scope_stack.declare_enum(decl.name, enum_def.clone())
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                context.scope_stack.declare_enum(decl.name, enum_def.clone())?
             case:
                 errors.push(e.lang_error(context.path, "init", "enums should have definitions."))
                 return errors
@@ -1652,8 +1652,8 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             switch inner_e.node_type {
             case NodeType.StructDef(struct_def):
                 # Register the struct itself
-                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
-                context.scope_stack.declare_struct(decl.name, struct_def.clone())
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
+                context.scope_stack.declare_struct(decl.name, struct_def.clone())?
                 # Register associated funcs and constants (non-mut members only)
                 for member_decl: Declaration in struct_def.members {
                     if not(member_decl.is_mut) {
@@ -1661,24 +1661,24 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                         # Try to find a default_value (required for funcs/consts)
                         mut has_default_value := false
                         mut member_expr := Expr()
-                        struct_def.default_values.get(member_decl.name, member_expr)
+                        struct_def.default_values.get(member_decl.name, member_expr)?
                         has_default_value = true
                         catch (key_err: KeyNotFoundError) {
                             # No default value, skip this member
                         }
                         if has_default_value {
                             mut member_value_type := ValueType.TCustom(INFER_TYPE)
-                            member_value_type = get_value_type(context, member_expr)
+                            member_value_type = get_value_type(context, member_expr)?
                             catch (err: Str) {
                                 # Failed to get type - just use INFER_TYPE default
                             }
                             mut full_name := format(decl.name, ".", member_decl.name)  # Note: using '.' not '::'
                             # Register in symbols
-                            ScopeStack.declare_symbol(context.scope_stack, full_name.clone(), SymbolInfo(value_type=value_type_clone(member_value_type), is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))
+                            ScopeStack.declare_symbol(context.scope_stack, full_name.clone(), SymbolInfo(value_type=value_type_clone(member_value_type), is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))?
                             # If it's a function, also register in funcs
                             switch member_expr.node_type {
                             case NodeType.FuncDef(func_def):
-                                ScopeStack.declare_func(context.scope_stack, full_name, func_def.clone())
+                                ScopeStack.declare_func(context.scope_stack, full_name, func_def.clone())?
                             case:
                                 # Not a function, skip
                             }
@@ -1691,9 +1691,9 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
 
         case ValueType.TMulti(_):
-            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
         case ValueType.TCustom(_):
-            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type_clone(value_type), is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
         case:
             # Unreachable - all ValueType variants are covered above
             # But needed because exhaustiveness check doesn't understand nested patterns like TType(TTypeDef.TEnumDef)
@@ -1753,7 +1753,7 @@ Context := struct {
         # Create a dummy token for mode initialization errors
         dummy_token := Token(token_type=TokenType.Mode, token_str=mode_name, line=0, col=0)
 
-        mode_def := mode_from_name(mode_name, path, dummy_token)
+        mode_def := mode_from_name(mode_name, path, dummy_token)?
 
         result := Context(
             path=path,
@@ -1774,7 +1774,7 @@ Context := struct {
     get_variant_pos := func(selfi: SEnumDef, variant_name: Str, path: Str, e: Expr) returns I64 throws Str {
         for search_idx in 0..selfi.variants.len() {
             mut search_v := EnumVariant()
-            selfi.variants.get(search_idx, search_v)
+            selfi.variants.get(search_idx, search_v)?
             if search_v.name.eq(variant_name) {
                 return search_idx
             }
@@ -1782,7 +1782,7 @@ Context := struct {
         mut names := Vec.new(Str)
         for name_idx in 0..selfi.variants.len() {
             mut name_v := EnumVariant()
-            selfi.variants.get(name_idx, name_v)
+            selfi.variants.get(name_idx, name_v)?
             names.push(name_v.name)
         }
         catch (err: IndexOutOfBoundsError) {
@@ -1797,7 +1797,7 @@ Context := struct {
             mut err_names := Vec.new(Str)
             for err_idx in 0..selfi.variants.len() {
                 mut err_v := EnumVariant()
-                selfi.variants.get(err_idx, err_v)
+                selfi.variants.get(err_idx, err_v)?
                 err_names.push(err_v.name)
             }
             catch (err: IndexOutOfBoundsError) {
@@ -1807,7 +1807,7 @@ Context := struct {
         }
         # If position is valid, return the corresponding variant name
         mut pos_v := EnumVariant()
-        selfi.variants.get(position, pos_v)
+        selfi.variants.get(position, pos_v)?
         mut result := pos_v.name.clone()
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
@@ -1816,18 +1816,18 @@ Context := struct {
     }
 
     map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str, e: Expr) throws Str {
-        mut struct_def := self.scope_stack.lookup_struct(custom_type_name)
+        mut struct_def := self.scope_stack.lookup_struct(custom_type_name)?
         catch (err: KeyNotFoundError) {
             throw e.lang_error(self.path, "context", format("map_instance_fields: definition for '", custom_type_name, "' not found"))
         }
 
-        mut instance_symbol := self.scope_stack.lookup_symbol(instance_name)
+        mut instance_symbol := self.scope_stack.lookup_symbol(instance_name)?
         catch (sym_err: KeyNotFoundError) {
             throw e.lang_error(self.path, "context", format("map_instance_fields: instance '", instance_name, "' not found in symbols"))
         }
         mut is_mut := instance_symbol.is_mut
 
-        mut base_offset := self.scope_stack.lookup_var(instance_name)
+        mut base_offset := self.scope_stack.lookup_var(instance_name)?
         catch (var_err: KeyNotFoundError) {
             throw e.lang_error(self.path, "context", format("map_instance_fields: base offset for '", instance_name, "' not found"))
         }
@@ -1839,24 +1839,24 @@ Context := struct {
             if decl.is_mut {
                 mut combined_name := format(instance_name, ".", field_name)
                 mut field_offset := base_offset.add(current_offset)
-                self.scope_stack.insert_var(combined_name.clone(), field_offset)
+                self.scope_stack.insert_var(combined_name.clone(), field_offset)?
 
                 self.scope_stack.declare_symbol(
                     combined_name.clone(),
                     SymbolInfo(value_type=value_type_clone(decl.value_type), is_mut=is_mut)
-                )
+                )?
 
                 switch decl.value_type {
                 case ValueType.TCustom(type_name):
                     mut found_nested_struct := false
                     mut nested_struct_def := SStructDef()
-                    nested_struct_def = self.scope_stack.lookup_struct(type_name)
+                    nested_struct_def = self.scope_stack.lookup_struct(type_name)?
                     found_nested_struct = true
                     catch (nested_err: KeyNotFoundError) {
                         // Nested struct not found
                     }
                     if found_nested_struct {
-                        self.map_instance_fields(type_name, combined_name, e)
+                        self.map_instance_fields(type_name, combined_name, e)?
                         // Error will propagate via throws Str
                     }
                 case:
@@ -1866,7 +1866,7 @@ Context := struct {
                 mut field_size := 0
                 switch decl.value_type {
                 case ValueType.TCustom(name):
-                    field_size = self.get_type_size(name)
+                    field_size = self.get_type_size(name)?
                     // Errors propagate via throws Str
                 case:
                     throw e.lang_error(self.path, "context", format("map_instance_fields: Unsupported value type '", value_type_to_str(decl.value_type), "'"))
@@ -1882,7 +1882,7 @@ Context := struct {
         # Validate that the struct variable exists by checking if we can get its offset
         mut found_var := false
         mut offset := 0
-        offset = self.scope_stack.lookup_var(id)
+        offset = self.scope_stack.lookup_var(id)?
         found_var = true
         catch (err: KeyNotFoundError) {
             // Not found directly
@@ -1893,7 +1893,7 @@ Context := struct {
         }
         if id.contains(".") {
             # For field paths, validate we can calculate offset
-            _ := self.get_field_offset(id)
+            _ := self.get_field_offset(id)?
             catch (err: Str) {
                 throw e.lang_error(self.path, "context", format("get_struct: ", err))
             }
@@ -1917,7 +1917,7 @@ Context := struct {
     // Pop the current function scope and restore the previous path
     pop_function_scope := proc(mut self: Context, saved_path: Str) throws Str {
         self.path = saved_path
-        _ := self.scope_stack.pop()
+        _ := self.scope_stack.pop()?
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
@@ -1935,7 +1935,7 @@ Context := struct {
         // Check if it's an enum
         mut found_enum := false
         mut enum_def := SEnumDef()
-        enum_def = self.scope_stack.lookup_enum(type_name)
+        enum_def = self.scope_stack.lookup_enum(type_name)?
         found_enum = true
         catch (err: KeyNotFoundError) {
             // Not an enum
@@ -1953,7 +1953,7 @@ Context := struct {
                     memcpy(to_ptr(payload_type), v.payload_type.data, size_of(ValueType))
                     switch payload_type {
                     case ValueType.TCustom(t):
-                        payload_size := self.get_type_size(t)
+                        payload_size := self.get_type_size(t)?
                         variant_total := add(8, payload_size)  // tag + payload
                         if variant_total.gt(max_size) {
                             max_size = variant_total
@@ -1970,7 +1970,7 @@ Context := struct {
         // Check if it's a struct
         mut found_struct := false
         mut struct_def := SStructDef()
-        struct_def = self.scope_stack.lookup_struct(type_name)
+        struct_def = self.scope_stack.lookup_struct(type_name)?
         found_struct = true
         catch (err: KeyNotFoundError) {
             // Not a struct
@@ -1985,7 +1985,7 @@ Context := struct {
                     mut field_size := 0
                     switch decl.value_type {
                     case ValueType.TCustom(t):
-                        field_size = self.get_type_size(t)
+                        field_size = self.get_type_size(t)?
                     case:
                         throw format("get_type_size: unsupported value type '", value_type_to_str(decl.value_type), "' in '", type_name, ".", decl.name, "'")
                     }
@@ -2001,7 +2001,7 @@ Context := struct {
 
     // Calculate the offset of a specific field within a struct type
     calculate_field_offset := func(self: Context, struct_type: Str, field_name: Str) returns I64 throws Str {
-        mut struct_def := self.scope_stack.lookup_struct(struct_type)
+        mut struct_def := self.scope_stack.lookup_struct(struct_type)?
         catch (err: KeyNotFoundError) {
             throw format("calculate_field_offset: struct '", struct_type, "' not found")
         }
@@ -2017,7 +2017,7 @@ Context := struct {
                 mut field_size := 0
                 switch decl.value_type {
                 case ValueType.TCustom(t):
-                    field_size = self.get_type_size(t)
+                    field_size = self.get_type_size(t)?
                 case:
                     throw format("calculate_field_offset: unsupported field type '", value_type_to_str(decl.value_type), "' in '", struct_type, ".", decl.name, "'")
                 }
@@ -2031,25 +2031,25 @@ Context := struct {
 
     // Get the absolute arena offset for a field path (e.g., "my_vec._len")
     get_field_offset := func(self: Context, field_path: Str) returns I64 throws Str {
-        mut parts := field_path.split(".")
+        mut parts := field_path.split(".")?
         if parts.len().eq(0) {
             throw "get_field_offset: empty field path"
         }
 
         mut base_var := ""
-        parts.get(0, base_var)
+        parts.get(0, base_var)?
         catch (err: IndexOutOfBoundsError) {
             throw "get_field_offset: empty field path"
         }
 
-        mut base_offset := self.scope_stack.lookup_var(base_var)
+        mut base_offset := self.scope_stack.lookup_var(base_var)?
         catch (err: KeyNotFoundError) {
             throw format("get_field_offset: base variable '", base_var, "' not found in arena_index")
         }
         mut current_offset := base_offset
 
         // Get the base variable's type
-        mut base_symbol := self.scope_stack.lookup_symbol(base_var)
+        mut base_symbol := self.scope_stack.lookup_symbol(base_var)?
         catch (err: KeyNotFoundError) {
             throw format("get_field_offset: base variable '", base_var, "' not found in symbols")
         }
@@ -2068,13 +2068,13 @@ Context := struct {
         while idx.lt(parts.len()) {
             if should_continue_path {
                 mut field_name := ""
-                parts.get(idx, field_name)
+                parts.get(idx, field_name)?
 
-                field_offset := self.calculate_field_offset(current_type, field_name)
+                field_offset := self.calculate_field_offset(current_type, field_name)?
                 current_offset = current_offset.add(field_offset)
 
                 // Update current_type to the type of this field (for nested access)
-                mut struct_def := self.scope_stack.lookup_struct(current_type)
+                mut struct_def := self.scope_stack.lookup_struct(current_type)?
                 catch (err: KeyNotFoundError) {
                     throw format("get_field_offset: struct '", current_type, "' not found")
                 }
@@ -2116,19 +2116,19 @@ Context := struct {
 
     // Get the ValueType for a field path (e.g., "s.color")
     get_field_type := func(self: Context, field_path: Str) returns ValueType throws Str {
-        mut parts := field_path.split(".")
+        mut parts := field_path.split(".")?
         if parts.len().eq(0) {
             throw "get_field_type: empty field path"
         }
 
         mut base_var := ""
-        parts.get(0, base_var)
+        parts.get(0, base_var)?
         catch (err: IndexOutOfBoundsError) {
             throw "get_field_type: empty field path"
         }
 
         // Get the base variable's type
-        mut base_symbol := self.scope_stack.lookup_symbol(base_var)
+        mut base_symbol := self.scope_stack.lookup_symbol(base_var)?
         catch (err: KeyNotFoundError) {
             throw format("get_field_type: base variable '", base_var, "' not found in symbols")
         }
@@ -2140,7 +2140,7 @@ Context := struct {
         mut idx := 1
         while idx.lt(parts.len()) {
             mut field_name := ""
-            parts.get(idx, field_name)
+            parts.get(idx, field_name)?
 
             // Get the type name from current_type
             mut type_name := ""
@@ -2151,7 +2151,7 @@ Context := struct {
                 throw format("get_field_type: cannot access field '", field_name, "' on non-struct type")
             }
 
-            mut struct_def := self.scope_stack.lookup_struct(type_name)
+            mut struct_def := self.scope_stack.lookup_struct(type_name)?
             catch (err: KeyNotFoundError) {
                 throw format("get_field_type: struct '", type_name, "' not found")
             }
@@ -2183,7 +2183,7 @@ Context := struct {
     register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws Str {
         mut found_struct := false
         mut struct_def := SStructDef()
-        struct_def = self.scope_stack.lookup_struct(custom_type_name).clone()
+        struct_def = self.scope_stack.lookup_struct(custom_type_name)?.clone()
         found_struct = true
         catch (err: KeyNotFoundError) {
             // Struct not found
@@ -2197,19 +2197,19 @@ Context := struct {
             self.scope_stack.declare_symbol(
                 combined_name.clone(),
                 SymbolInfo(value_type=value_type_clone(decl.value_type), is_mut=decl.is_mut)
-            )
+            )?
 
             switch decl.value_type {
             case ValueType.TCustom(nested_type_name):
                 mut found_nested := false
                 mut nested_struct_def := SStructDef()
-                nested_struct_def = self.scope_stack.lookup_struct(nested_type_name)
+                nested_struct_def = self.scope_stack.lookup_struct(nested_type_name)?
                 found_nested = true
                 catch (nested_err: KeyNotFoundError) {
                     // Nested struct not found
                 }
                 if found_nested {
-                    self.register_struct_fields_for_typecheck(combined_name, nested_type_name)
+                    self.register_struct_fields_for_typecheck(combined_name, nested_type_name)?
                 }
             case:
                 # Not a custom type

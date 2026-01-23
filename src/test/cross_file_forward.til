@@ -34,7 +34,7 @@ test_cross_file_circular_imports := proc() {
     test(loc(), armor.owner_id.eq(1), "Armor component should reference entity 1")
 
     // Retrieve component from entity and verify
-    mut retrieved := player.get_component(0)
+    mut retrieved := player.get_component(0)?
     test(loc(), retrieved.value.eq(100), "First component should be Health with value 100")
 
     println("Cross-file forward declaration test PASSED!")

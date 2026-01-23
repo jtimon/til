@@ -38,7 +38,7 @@ test_catch_with_fields()
 // DivideByZero and safe_div are now in core/i64.til
 
 unsafe_div := proc(a: I64, b: I64) returns I64 {
-    result := a.safe_div(b)
+    result := a.safe_div(b)?
 
     catch (err: DivideByZero) {
         return 0
@@ -55,7 +55,7 @@ test_unsafe_div := proc() {
 test_unsafe_div()
 
 unsafe_div2 := proc(a: I64, b: I64) returns I64 {
-    res := a.safe_div(b)
+    res := a.safe_div(b)?
     assertm(loc(), false, "DivideByZero should have been thrown")
     catch (err: DivideByZero) {
         return 0
@@ -74,7 +74,7 @@ test_unsafe_div2()
 // REM Remove 'throws DivideByZero' to trigger a static type error
 missing_throws := proc() throws DivideByZero {
     mut zero := 0 // REM mut so precomp doesn't catch the error at compile time
-    _ := I64.safe_div(42, zero)
+    _ := I64.safe_div(42, zero)?
 }
 // missing_throws() // REM Gives an error if uncommented
 
@@ -87,13 +87,13 @@ test_example_catch := proc() {
     mut catched := false
 
     // Test that division works when b is non-zero
-    mut result1 := a.safe_div(b)
+    mut result1 := a.safe_div(b)?
     assert_eq(loc(), 42, result1)
 
     b = 0
-    _result := I64.to_str(a.safe_div(b)) // test declaration
+    _result := I64.to_str(a.safe_div(b)?) // test declaration
     mut result2 := "0"
-    result2 = I64.to_str(a.safe_div(b)) // test assignment
+    result2 = I64.to_str(a.safe_div(b)?) // test assignment
     catch (err: DivideByZero) {
         catched = true
     }
@@ -124,7 +124,7 @@ SomeStruct := struct {
 // Remove things from the throws section to test the errors
 undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndeclaredInFunc {
     if true {
-        another_func()
+        another_func()?
         catch (err: ErrorUndeclaredInFunc) {
             // Caught successfully
         }
@@ -134,9 +134,9 @@ undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndecl
     while false {
         throw 69
     }
-    SomeStruct.some_assoc()
+    SomeStruct.some_assoc()?
     ss := SomeStruct()
-    ss.some_method()
+    ss.some_method()?
 
     // another_func() // REM if uncommented, should ask undeclared_throws to throws ErrorUndeclaredInFunc
 }
@@ -144,7 +144,7 @@ undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndecl
 test_undeclared_throws := proc() {
     mut catched_assoc := false
 
-    undeclared_throws()
+    undeclared_throws()?
     catch (err: ErrorUndeclaredInAssoc) {
         catched_assoc = true
     }
@@ -208,7 +208,7 @@ test_catch_error_with_str_field()
 trigger_out_of_bounds := func(_dummy: I64) returns I64 throws Str {
     mut arr := Array.new(I64, 2)
     mut val := 0
-    arr.get(10, val)  // Intentionally out of bounds
+    arr.get(10, val)?  // Intentionally out of bounds
 
     catch (err: IndexOutOfBoundsError) {
         throw err.msg  // Rethrow the message field as Str
@@ -222,14 +222,14 @@ test_rethrow_error_field := proc() {
     mut error_msg := ""
     mut dummy := 0  // Use variable to prevent compile-time evaluation
 
-    _ := trigger_out_of_bounds(dummy)
+    _ := trigger_out_of_bounds(dummy)?
 
     catch (err: Str) {
         caught = true
         error_msg = err
     }
     assert(loc(), caught)
-    assert_eq_str(loc(), "src/core/array.til:42:52:Array.get: index out of bounds", error_msg)
+    assert_eq_str(loc(), "src/core/array.til:43:52:Array.get: index out of bounds", error_msg)
 }
 test_rethrow_error_field()
 
@@ -238,7 +238,7 @@ test_rethrow_error_field()
 trigger_out_of_bounds_assign := func(_dummy: I64) returns I64 throws Str {
     mut arr := Array.new(I64, 2)
     mut val := 0
-    arr.get(10, val)
+    arr.get(10, val)?
 
     catch (err: IndexOutOfBoundsError) {
         msg := err.msg  // Assign to variable first
@@ -253,14 +253,14 @@ test_rethrow_error_field_via_assign := proc() {
     mut error_msg := ""
     mut dummy := 0  // Use variable to prevent compile-time evaluation
 
-    _ := trigger_out_of_bounds_assign(dummy)
+    _ := trigger_out_of_bounds_assign(dummy)?
 
     catch (err: Str) {
         caught = true
         error_msg = err
     }
     assert(loc(), caught)
-    assert_eq_str(loc(), "src/core/array.til:42:52:Array.get: index out of bounds", error_msg)
+    assert_eq_str(loc(), "src/core/array.til:43:52:Array.get: index out of bounds", error_msg)
 }
 test_rethrow_error_field_via_assign()
 
@@ -282,7 +282,7 @@ bug34_maybe_throw := func(should_throw: Bool) throws Bug34Error {
 test_bug34_after_catch_success := proc() {
     mut after_catch_ran := false
 
-    bug34_maybe_throw(false)  // Does NOT throw
+    bug34_maybe_throw(false)?  // Does NOT throw
     catch (err: Bug34Error) {
         // Should not reach here
     }
@@ -298,7 +298,7 @@ test_bug34_after_catch_success()
 test_bug34_after_catch_error := proc() {
     mut after_catch_ran := false
 
-    bug34_maybe_throw(true)   // DOES throw
+    bug34_maybe_throw(true)?   // DOES throw
     catch (err: Bug34Error) {
         // Error caught
     }
@@ -324,7 +324,7 @@ mut bug34_between_test_completed := false
 test_bug34_between_throw_and_catch := proc() {
     mut caught := false
 
-    bug34_maybe_throw(true)
+    bug34_maybe_throw(true)?
     caught = false  // Code between - should NOT run on error path
     catch (err: Bug34Error) {
         caught = true
@@ -341,7 +341,7 @@ test_bug34_between_success := proc() {
     mut between_ran := false
     mut caught := false
 
-    bug34_maybe_throw(false)  // Does NOT throw
+    bug34_maybe_throw(false)?  // Does NOT throw
     between_ran = true        // This SHOULD run when no error
     catch (err: Bug34Error) {
         caught = true
@@ -378,14 +378,14 @@ bug36_throws := proc(should_throw: Bool) returns I64 throws Bug36Error { // REM 
 // because it didn't see the throwing function inside the struct literal.
 bug36_test_throws_in_struct_literal := proc() returns Bug36TestData throws Bug36Error { // REM proc so precomp doesn't fold it
     return Bug36TestData(
-        a=bug36_throws(true),
-        b=bug36_throws(true)
+        a=bug36_throws(true)?,
+        b=bug36_throws(true)?
     )
 }
 
 test_bug36 := proc() {
     mut caught := false
-    _result := bug36_test_throws_in_struct_literal()
+    _result := bug36_test_throws_in_struct_literal()?
     // Should not reach here
     assert(loc(), false)
 
@@ -423,13 +423,13 @@ test_non_consecutive_catches := proc() {
     mut caught_a := false
     mut caught_b := false
 
-    throw_a_maybe(true)  // throws TestErrorA
+    throw_a_maybe(true)?  // throws TestErrorA
     after_a_ran = true   // should NOT run on error path
     catch (err: TestErrorA) {
         caught_a = true
     }
 
-    throw_b_maybe(true)  // throws TestErrorB
+    throw_b_maybe(true)?  // throws TestErrorB
     after_b_ran = true   // should NOT run on error path
     catch (err: TestErrorB) {
         caught_b = true
@@ -461,7 +461,7 @@ callee1_throws_a_only := func(throw_a: Bool, throw_b: Bool) returns Bool throws 
     mut after_callee2_ran := false
     mut caught_b := false
 
-    callee2_throws_both(throw_a, throw_b)
+    callee2_throws_both(throw_a, throw_b)?
     after_callee2_ran = true  // should NOT run if callee2 throws
     catch (err: CallerCalleeErrorB) {
         caught_b = true
@@ -476,7 +476,7 @@ test_caller_callee_different_throws := proc() {
     mut caught_a := false
 
     // Test 1: callee2 throws B, which callee1 catches internally
-    caught_b_internally := callee1_throws_a_only(false, true)
+    caught_b_internally := callee1_throws_a_only(false, true)?
     catch (err: CallerCalleeErrorA) {
     }
     test(loc(), caught_b_internally, "ErrorB should be caught internally by callee1")
@@ -484,7 +484,7 @@ test_caller_callee_different_throws := proc() {
     // Test 2: callee2 throws A, which propagates to caller
     after_callee1_ran = false
     caught_a = false
-    _ := callee1_throws_a_only(true, false)  // callee1 propagates A
+    _ := callee1_throws_a_only(true, false)?  // callee1 propagates A
     after_callee1_ran = true  // should NOT run
     catch (err: CallerCalleeErrorA) {
         caught_a = true
@@ -509,9 +509,9 @@ test_multi_throw_single_catch := proc() {
     mut after_second_ran := false
     mut caught := false
 
-    multi_throw_maybe(true)   // throws MultiThrowError
+    multi_throw_maybe(true)?   // throws MultiThrowError
     after_first_ran = true    // should NOT run if first throws
-    multi_throw_maybe(false)  // does NOT throw
+    multi_throw_maybe(false)?  // does NOT throw
     after_second_ran = true   // should NOT run because first already threw
     catch (err: MultiThrowError) {
         caught = true
@@ -529,9 +529,9 @@ test_multi_throw_success := proc() {
     mut after_second_ran := false
     mut caught := false
 
-    multi_throw_maybe(false)  // does NOT throw
+    multi_throw_maybe(false)?  // does NOT throw
     after_first_ran = true    // SHOULD run
-    multi_throw_maybe(false)  // does NOT throw
+    multi_throw_maybe(false)?  // does NOT throw
     after_second_ran = true   // SHOULD run
     catch (err: MultiThrowError) {
         caught = true

@@ -18,7 +18,7 @@ Ptr := struct {
             panic(loc(), "Ptr.new_by_size: invalid size")
         }
         mut p := Ptr()
-        p.data = malloc(size)
+        p.data = malloc(size)?
         catch (err: BadAlloc) { panic(loc(), "Ptr.new_by_size: malloc failed") }
         return p
     }
@@ -57,6 +57,7 @@ Ptr := struct {
     }
 
     set_zero := proc(mut self: Ptr, size: I64) {
-        memset(self.data, U8.from_i64(0), size)
+        zero : U8 = 0
+        memset(self.data, zero, size)
     }
 }

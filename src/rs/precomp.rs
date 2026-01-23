@@ -26,7 +26,7 @@ use crate::rs::precomp_ext::try_replace_comptime_intrinsic;
 pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     match &e.node_type {
         NodeType::Body => precomp_body(context, e),
-        NodeType::FCall => {
+        NodeType::FCall(_) => {
             let mut const_folded = precomp_fcall(context, e)?;
             // Try compile-time constant folding for pure functions with literal args.
             // Only fold at global scope - inside function definitions, values from other
@@ -93,7 +93,7 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
             }
             false
         }
-        NodeType::FCall => {
+        NodeType::FCall(_) => {
             let f_name = get_func_name_in_call(e);
             // Special case: exit terminates the program
             if f_name == "exit" {

@@ -146,11 +146,11 @@ test_set_get := proc() {
 
     // Get elements by index (order is insertion order)
     mut elem := ""
-    s.get(0, elem)
+    s.get(0, elem)?
     assert_eq_str(loc(), "alpha", elem)
-    s.get(1, elem)
+    s.get(1, elem)?
     assert_eq_str(loc(), "beta", elem)
-    s.get(2, elem)
+    s.get(2, elem)?
     assert_eq_str(loc(), "gamma", elem)
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }

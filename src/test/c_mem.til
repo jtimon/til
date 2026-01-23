@@ -41,7 +41,7 @@ test_type_as_str := proc() {
 test_type_as_str()
 
 test_malloc := proc() {
-    mut p := malloc(16)
+    mut p := malloc(16)?
     test(loc(), gt(p, 0), "malloc: pointer address should be non-zero")
     free(p)
     catch(err: BadAlloc) {
@@ -51,7 +51,7 @@ test_malloc := proc() {
 test_malloc()
 
 test_free := proc() {
-    mut p := malloc(8)
+    mut p := malloc(8)?
     free(p)
     catch(err: BadAlloc) {
         panic(loc(), "buy more ram")
@@ -60,8 +60,8 @@ test_free := proc() {
 test_free()
 
 test_memset := proc() {
-    mut p := malloc(8)
-    memset(p, U8.from_i64(0), 8)
+    mut p := malloc(8)?
+    memset(p, U8.from_i64(0)?, 8)
     free(p)
     catch(err: BadAlloc) {
         panic(loc(), "buy more ram")
@@ -70,9 +70,9 @@ test_memset := proc() {
 test_memset()
 
 test_memcpy := proc() {
-    mut p1 := malloc(8)
-    mut p2 := malloc(8)
-    memset(p1, U8.from_i64(42), 8)
+    mut p1 := malloc(8)?
+    mut p2 := malloc(8)?
+    memset(p1, U8.from_i64(42)?, 8)
     memcpy(p2, p1, 8)
     free(p1)
     free(p2)

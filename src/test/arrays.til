@@ -5,12 +5,12 @@ import("core.vec")
 test_array_static_u8 := proc() {
     mut stat := Array.new(U8, 3)
     assert_eq(loc(), 3, stat.len())       // Static array len equals cap
-    stat.set(0, U8.from_i64(10))
-    stat.set(1, U8.from_i64(20))
-    stat.set(2, U8.from_i64(30))
-    mut val := U8.from_i64(0)
-    stat.get(2, val)
-    test(loc(), U8.from_i64(30).eq(val), "Get after set at index 2")
+    stat.set(0, U8.from_i64(10)?)?
+    stat.set(1, U8.from_i64(20)?)?
+    stat.set(2, U8.from_i64(30)?)?
+    mut val := U8.from_i64(0)?
+    stat.get(2, val)?
+    test(loc(), U8.from_i64(30)?.eq(val), "Get after set at index 2")
 
     // Uncomment to test panic behavior
     // stat.push(U8.from_i64(77)) // Should panic
@@ -35,11 +35,11 @@ test_array_static_str := proc() {
     mut stat := Array.new(Str, 3)
     assert_eq(loc(), 3, stat.len())
 
-    stat.set(0, "hello")
-    stat.set(1, "world")
-    stat.set(2, "!")
+    stat.set(0, "hello")?
+    stat.set(1, "world")?
+    stat.set(2, "!")?
     mut val := ""
-    stat.get(2, val)
+    stat.get(2, val)?
     test(loc(), val.eq("!"), "Get after set at index 2")
 
     stat.delete()
@@ -55,9 +55,9 @@ test_array_static_str()
 
 test_array_contains := proc() {
     mut arr := Array.new(Str, 3)
-    arr.set(0, "apple")
-    arr.set(1, "banana")
-    arr.set(2, "cherry")
+    arr.set(0, "apple")?
+    arr.set(1, "banana")?
+    arr.set(2, "cherry")?
 
     test(loc(), arr.contains("apple"), "contains finds first element")
     test(loc(), arr.contains("banana"), "contains finds middle element")
@@ -79,11 +79,11 @@ test_array_static_bool := proc() {
     mut stat := Array.new(Bool, 3)
     assert_eq(loc(), 3, stat.len())
 
-    stat.set(0, true)
-    stat.set(1, false)
-    stat.set(2, true)
+    stat.set(0, true)?
+    stat.set(1, false)?
+    stat.set(2, true)?
     mut val := false
-    stat.get(2, val)
+    stat.get(2, val)?
     test(loc(), val.eq(true), "Get after set at index 2")
 
     stat.delete()
@@ -101,11 +101,11 @@ test_array_static_i64 := proc() {
     mut stat := Array.new(I64, 3)
     assert_eq(loc(), 3, stat.len())
 
-    stat.set(0, 100)
-    stat.set(1, 200)
-    stat.set(2, 300)
+    stat.set(0, 100)?
+    stat.set(1, 200)?
+    stat.set(2, 300)?
     mut val := 0
-    stat.get(2, val)
+    stat.get(2, val)?
     test(loc(), val.eq(300), "Get after set at index 2")
 
     stat.delete()
@@ -131,12 +131,12 @@ test_array_static_vec2 := proc() {
     v1 := Vec2(x=1, y=2)
     v2 := Vec2(x=3, y=4)
     v3 := Vec2(x=5, y=6)
-    stat.set(0, v1)
-    stat.set(1, v2)
-    stat.set(2, v3)
+    stat.set(0, v1)?
+    stat.set(1, v2)?
+    stat.set(2, v3)?
 
     mut v := Vec2()
-    stat.get(2, v)
+    stat.get(2, v)?
     assert_eq(loc(), 5, v.x)
     assert_eq(loc(), 6, v.y)
 

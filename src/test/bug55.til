@@ -17,7 +17,7 @@ test_clone_in_struct_literal_pushed_to_vec := proc() {
     items.push(Item(name=original.clone(), count=42))
 
     mut item := Item()
-    items.get(0, item)
+    items.get(0, item)?
     assert_eq_str(loc(), "hello", item.name)
 
     catch (err: IndexOutOfBoundsError) {

@@ -11,13 +11,13 @@ Vec2 := struct {
 // Test Map<I64, I64>
 test_map_i64_to_i64 := proc() {
     mut ages := Map.new(I64, I64)
-    ages.insert(100, 30)
-    ages.insert(200, 25)
+    ages.insert(100, 30)?
+    ages.insert(200, 25)?
 
     mut age := 0
-    ages.get(100, age)
+    ages.get(100, age)?
     test(loc(), age.eq(30), "ID 100 should map to 30")
-    ages.get(200, age)
+    ages.get(200, age)?
     test(loc(), age.eq(25), "ID 200 should map to 25")
 
     ages.delete()
@@ -39,20 +39,20 @@ test_map_i64_to_i64 := proc() {
 test_map_str_to_vec2 := proc() {
     mut positions := Map.new(Str, Vec2)
     mut player_pos := Vec2(x=10, y=20)
-    positions.insert("player", player_pos)
+    positions.insert("player", player_pos)?
     mut enemy_pos := Vec2(x=30, y=40)
-    positions.insert("enemy", enemy_pos)
+    positions.insert("enemy", enemy_pos)?
     mut item_pos := Vec2(x=50, y=60)
-    positions.insert("item", item_pos)
+    positions.insert("item", item_pos)?
 
     mut pos := Vec2()
-    positions.get("player", pos)
+    positions.get("player", pos)?
     test(loc(), pos.x.eq(10), "player.x should be 10")
     test(loc(), pos.y.eq(20), "player.y should be 20")
-    positions.get("enemy", pos)
+    positions.get("enemy", pos)?
     test(loc(), pos.x.eq(30), "enemy.x should be 30")
     test(loc(), pos.y.eq(40), "enemy.y should be 40")
-    positions.get("item", pos)
+    positions.get("item", pos)?
     test(loc(), pos.x.eq(50), "item.x should be 50")
     test(loc(), pos.y.eq(60), "item.y should be 60")
 
@@ -77,24 +77,24 @@ test_map_str_to_array_str := proc() {
     fruits.push("apple")
     fruits.push("banana")
     fruits.push("orange")
-    lists.insert("fruits", fruits)
+    lists.insert("fruits", fruits)?
 
     mut colors := Vec.new(Str)
     colors.push("red")
     colors.push("green")
     colors.push("blue")
-    lists.insert("colors", colors)
+    lists.insert("colors", colors)?
 
     mut arr := Array()
-    lists.get("fruits", arr)
+    lists.get("fruits", arr)?
     test(loc(), arr.len().eq(3), "fruits array should have 3 elements")
     mut item := ""
-    arr.get(0, item)
+    arr.get(0, item)?
     test(loc(), item.eq("apple"), "fruits[0] should be apple")
 
-    lists.get("colors", arr)
+    lists.get("colors", arr)?
     test(loc(), arr.len().eq(3), "colors array should have 3 elements")
-    arr.get(0, item)
+    arr.get(0, item)?
     test(loc(), item.eq("red"), "colors[0] should be red")
 
     fruits.delete()
@@ -120,16 +120,16 @@ test_map_str_to_array_str := proc() {
 // Test Map<U8, Bool>
 test_map_u8_to_bool := proc() {
     mut flags := Map.new(U8, Bool)
-    flags.insert(U8.from_i64(10), true)
-    flags.insert(U8.from_i64(20), false)
-    flags.insert(U8.from_i64(30), true)
+    flags.insert(U8.from_i64(10)?, true)?
+    flags.insert(U8.from_i64(20)?, false)?
+    flags.insert(U8.from_i64(30)?, true)?
 
     mut flag := false
-    flags.get(U8.from_i64(10), flag)
+    flags.get(U8.from_i64(10)?, flag)?
     test(loc(), flag.eq(true), "key 10 should be true")
-    flags.get(U8.from_i64(20), flag)
+    flags.get(U8.from_i64(20)?, flag)?
     test(loc(), flag.eq(false), "key 20 should be false")
-    flags.get(U8.from_i64(30), flag)
+    flags.get(U8.from_i64(30)?, flag)?
     test(loc(), flag.eq(true), "key 30 should be true")
 
     flags.delete()
@@ -148,8 +148,8 @@ test_map_u8_to_bool := proc() {
 // Test insert() - should throw on duplicate keys
 test_map_insert_duplicate := proc() {
     mut ages := Map.new(Str, I64)
-    ages.insert("Alice", 30)
-    ages.insert("Alice", 35)
+    ages.insert("Alice", 30)?
+    ages.insert("Alice", 35)?
     panic(loc(), "Expected DuplicatedKeyError when inserting duplicate key")
     catch (err: DuplicatedKeyError) {}
     ages.delete()
@@ -163,7 +163,7 @@ test_map_set := proc() {
     test(loc(), ages.len().eq(1), "Size should still be 1 after set update")
 
     mut age := 0
-    ages.get("Alice", age)
+    ages.get("Alice", age)?
     test(loc(), age.eq(35), "Expected age 35 after update")
 
     ages.delete()
@@ -177,10 +177,10 @@ test_map_set := proc() {
 // Test get() with non-existent key
 test_map_get_missing := proc() {
     mut ages := Map.new(Str, I64)
-    ages.insert("Alice", 30)
+    ages.insert("Alice", 30)?
 
     mut age := 0
-    ages.get("Charlie", age)
+    ages.get("Charlie", age)?
     panic(loc(), "Expected KeyNotFoundError for non-existent key")
     catch (err: KeyNotFoundError) {}
     ages.delete()
@@ -194,8 +194,8 @@ test_map_get_missing := proc() {
 // Test contains_key()
 test_map_contains_key := proc() {
     mut ages := Map.new(Str, I64)
-    ages.insert("Alice", 30)
-    ages.insert("Bob", 25)
+    ages.insert("Alice", 30)?
+    ages.insert("Bob", 25)?
 
     test(loc(), ages.contains_key("Alice"), "Should contain Alice")
     test(loc(), ages.contains_key("Bob"), "Should contain Bob")
@@ -213,9 +213,9 @@ test_map_contains_key := proc() {
 // Note: Map is sorted by key, so positions are in sorted order (blue < green < red)
 test_map_position := proc() {
     mut colors := Map.new(Str, I64)
-    colors.insert("red", 1)
-    colors.insert("green", 2)
-    colors.insert("blue", 3)
+    colors.insert("red", 1)?
+    colors.insert("green", 2)?
+    colors.insert("blue", 3)?
 
     // Sorted order: blue=0, green=1, red=2
     test(loc(), colors.position("blue").eq(0), "blue should be at position 0")
@@ -251,7 +251,7 @@ test_map_growth := proc() {
     // Array.INIT_DYN_CAP is 16, so insert 20 elements to trigger reallocation
     mut i := 0
     while lt(i, 20) {
-        ages.insert(i, mul(i, 100))
+        ages.insert(i, mul(i, 100))?
         i = add(i, 1)
     }
 
@@ -259,11 +259,11 @@ test_map_growth := proc() {
 
     // Verify all values are still correct after reallocation
     mut val := 0
-    ages.get(0, val)
+    ages.get(0, val)?
     test(loc(), val.eq(0), "First element should still be 0")
-    ages.get(10, val)
+    ages.get(10, val)?
     test(loc(), val.eq(1000), "Middle element should be 1000")
-    ages.get(19, val)
+    ages.get(19, val)?
     test(loc(), val.eq(1900), "Last element should be 1900")
 
     // Verify contains_key still works after reallocation
@@ -288,9 +288,9 @@ test_map_growth := proc() {
 test_map_delete := proc() {
     mut m := Map.new(Str, I64)
 
-    m.insert("a", 1)
-    m.insert("b", 2)
-    m.insert("c", 3)
+    m.insert("a", 1)?
+    m.insert("b", 2)?
+    m.insert("c", 3)?
     test(loc(), m.len().eq(3), "Map should have 3 entries")
 
     m.delete()
@@ -309,11 +309,11 @@ test_map_len_tracking := proc() {
 
     test(loc(), m.len().eq(0), "Empty map should have len 0")
 
-    m.insert("a", 1)
+    m.insert("a", 1)?
     test(loc(), m.len().eq(1), "Map should have len 1 after first insert")
 
-    m.insert("b", 2)
-    m.insert("c", 3)
+    m.insert("b", 2)?
+    m.insert("c", 3)?
     test(loc(), m.len().eq(3), "Map should have len 3 after three inserts")
 
     // set() with existing key should not change len
@@ -338,15 +338,15 @@ test_map_multiple_overwrites := proc() {
 
     m.set("key", 1)
     mut val := 0
-    m.get("key", val)
+    m.get("key", val)?
     test(loc(), val.eq(1), "First set should store 1")
 
     m.set("key", 2)
-    m.get("key", val)
+    m.get("key", val)?
     test(loc(), val.eq(2), "Second set should overwrite to 2")
 
     m.set("key", 3)
-    m.get("key", val)
+    m.get("key", val)?
     test(loc(), val.eq(3), "Third set should overwrite to 3")
 
     test(loc(), m.len().eq(1), "Multiple overwrites should keep len at 1")
@@ -366,7 +366,7 @@ test_map_order_after_growth := proc() {
     // Insert 20 keys to trigger reallocation
     mut i := 0
     while lt(i, 20) {
-        m.insert(i, format("val", I64.to_str(i)))
+        m.insert(i, format("val", I64.to_str(i)))?
         i = add(i, 1)
     }
 
@@ -388,19 +388,19 @@ test_map_order_after_growth := proc() {
 // Test direct .keys field access
 test_map_keys_field := proc() {
     mut m := Map.new(Str, I64)
-    m.insert("alice", 30)
-    m.insert("bob", 25)
-    m.insert("charlie", 35)
+    m.insert("alice", 30)?
+    m.insert("bob", 25)?
+    m.insert("charlie", 35)?
 
     mut keys := m.keys
     test(loc(), keys.len().eq(3), "m.keys should have 3 keys")
 
     mut key := ""
-    keys.get(0, key)
+    keys.get(0, key)?
     test(loc(), key.eq("alice"), "First key should be alice")
-    keys.get(1, key)
+    keys.get(1, key)?
     test(loc(), key.eq("bob"), "Second key should be bob")
-    keys.get(2, key)
+    keys.get(2, key)?
     test(loc(), key.eq("charlie"), "Third key should be charlie")
 
     m.delete()

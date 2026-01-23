@@ -11,13 +11,13 @@ test_bug47 := proc() {
     source := "mode script; println(42)"
     path := "test"
 
-    mut context := Context.new(path, "script")
-    mut lexer := lexer_from_source(path, source)
-    mut parsed_mode := parse_mode(path, lexer)
+    mut context := Context.new(path, "script")?
+    mut lexer := lexer_from_source(path, source)?
+    mut parsed_mode := parse_mode(path, lexer)?
     context.mode_def = parsed_mode
-    mut e := parse_tokens(lexer)
-    _ := init_context(context, e)
-    _ := check_types(context, e)
+    mut e := parse_tokens(lexer)?
+    _ := init_context(context, e)?
+    _ := check_types(context, e)?
 
     catch (err: Str) {
         println("ERROR:", loc(), err)

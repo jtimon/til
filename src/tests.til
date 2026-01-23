@@ -38,7 +38,7 @@ TestPhase := struct {
 // Running test - tracks a test in progress for parallel execution
 RunningTest := struct {
     mut pid: I64 = 0                // Current process ID
-    mut entry: TestEntry = TestEntry()
+    mut entry: TestEntry = TestEntry()?
     mut actual_file: Str = ""       // Unique actual output file path
     mut current_phase: I64 = 0      // Index into phases vec (0, 1, ...)
     mut phase_times: Vec = Vec.new(I64)  // Times for completed phases
@@ -72,7 +72,7 @@ add_music_tests := proc(mut tests: Vec) {
 // Returns -1 if parsing fails
 parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError {
     // Find "real" line
-    lines := time_output.split("\n")
+    lines := time_output.split("\n")?
     for line: Str in lines {
         if line.starts_with("real") {
             // Format: "real\t0m0.042s"
@@ -82,21 +82,21 @@ parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError
             if m_pos.gt(0) {
                 if s_pos.gt(m_pos) {
                     // Extract seconds part between 'm' and 's'
-                    sec_str := get_substr(line, m_pos.add(1), s_pos)
+                    sec_str := get_substr(line, m_pos.add(1), s_pos)?
                     // Convert to milliseconds (multiply by 1000)
                     // Parse as float by splitting on dot
-                    parts := sec_str.split(".")
+                    parts := sec_str.split(".")?
                     if parts.len().eq(2) {
                         mut whole := ""
                         mut frac := ""
-                        parts.get(0, whole)
-                        parts.get(1, frac)
+                        parts.get(0, whole)?
+                        parts.get(1, frac)?
                         // Pad or truncate frac to 3 digits for ms
                         while frac.len().lt(3) {
                             frac = frac.concat("0")
                         }
                         if frac.len().gt(3) {
-                            frac = get_substr(frac, 0, 3)
+                            frac = get_substr(frac, 0, 3)?
                         }
                         return whole.to_i64().mul(1000).add(frac.to_i64())
                     }
@@ -124,7 +124,7 @@ run_timed := proc(mut output: Str, mut time_ms: I64, cmd: Str) returns I64 {
     max_output := 1000
     if full_output.len().gt(max_output) {
         start_pos := full_output.len().sub(max_output)
-        full_output = get_substr(full_output, start_pos, full_output.len())
+        full_output = get_substr(full_output, start_pos, full_output.len())?
     }
 
     // Split output at "\nreal" - everything before is command output, after is time
@@ -132,19 +132,19 @@ run_timed := proc(mut output: Str, mut time_ms: I64, cmd: Str) returns I64 {
     split_pos := full_output.find("\nreal")
     if split_pos.gt(0) {
         // Normal case: program output before time
-        output = get_substr(full_output, 0, split_pos)
-        time_output := get_substr(full_output, split_pos, full_output.len())
-        time_ms = parse_time_ms(time_output)
+        output = get_substr(full_output, 0, split_pos)?
+        time_output := get_substr(full_output, split_pos, full_output.len())?
+        time_ms = parse_time_ms(time_output)?
     } else {
         if split_pos.eq(0) {
             // Time at very start (only newline before real)
             output = ""
-            time_ms = parse_time_ms(full_output)
+            time_ms = parse_time_ms(full_output)?
         } else {
             // Try finding "real" at start (no newline before)
             if full_output.starts_with("real") {
                 output = ""
-                time_ms = parse_time_ms(full_output)
+                time_ms = parse_time_ms(full_output)?
             } else {
                 output = full_output
                 time_ms = sub(0, 1)
@@ -199,7 +199,7 @@ format_expected := func(cmd_args: Str, exit_code: I64, output: Str) returns Str 
 
 // Unified test function - runs a test with given command prefix
 // cmd_prefix: "./bin/rstil interpret ", "./bin/rstil run ", etc.
-// fail_label: label for error messages (e.g., "interpret", "run", "til interpret", "til run")
+// fail_label: label for error messages (e.g., "interpret", "run", "til interpret", "til run")?
 // out_mode: "interpreted" or "compiled" - determines which .out file to compare against
 test_with_cmd := proc(entry: TestEntry, cmd_prefix: Str, fail_label: Str, out_mode: Str, mut time_ms: I64) returns Bool {
     out_path := get_out_path(entry.path, out_mode, entry.cmd_args)
@@ -299,7 +299,7 @@ spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns Run
     result_file := format("tmp/test_result_", test_id.to_str(), ".txt")
     cmd = format(cmd, " > ", result_file, " 2>&1")
 
-    pid := spawn_cmd(cmd)
+    pid := spawn_cmd(cmd)?
 
     mut rt := RunningTest(pid=pid, entry=entry, actual_file=result_file, current_phase=0)
     rt.phase_times = Vec.new(I64)
@@ -316,7 +316,7 @@ parse_test_result := proc(result_file: Str, exit_status: I64, mut time_ms: I64, 
     if exit_status.eq(0) {
         // Success - parse "PASS <time_ms>"
         if output.starts_with("PASS ") {
-            time_str := get_substr(output, 5, output.len()).replace("\n", "")
+            time_str := get_substr(output, 5, output.len())?.replace("\n", "")
             time_ms = time_str.to_i64()
         } else {
             time_ms = 0
@@ -364,12 +364,12 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
     }
     for rs_i in 0..rs_paths.len() {
         mut rs_path := ""
-        rs_paths.get(rs_i, rs_path)
+        rs_paths.get(rs_i, rs_path)?
         build_cmds.push(format("./bin/rstil build ", force_flag, rs_path))
     }
     for til_i in 0..til_paths.len() {
         mut til_path := ""
-        til_paths.get(til_i, til_path)
+        til_paths.get(til_i, til_path)?
         build_cmds.push(format("./bin/til build ", force_flag, til_path))
     }
 
@@ -382,8 +382,8 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
     // Spawn initial batch up to parallelism limit
     while build_idx.lt(total_builds).and(build_pids.len().lt(parallelism)) {
         mut init_cmd := ""
-        build_cmds.get(build_idx, init_cmd)
-        init_pid := spawn_cmd(init_cmd)
+        build_cmds.get(build_idx, init_cmd)?
+        init_pid := spawn_cmd(init_cmd)?
         build_pids.push(init_pid)
         build_idx = build_idx.add(1)
     }
@@ -393,7 +393,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
         mut bpid_i := 0
         while bpid_i.lt(build_pids.len()) {
             mut bpid := 0
-            build_pids.get(bpid_i, bpid)
+            build_pids.get(bpid_i, bpid)?
             bstatus := check_cmd_status(bpid)
             if not(bstatus.eq(sub(0, 1))) {
                 // Build finished
@@ -405,16 +405,16 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                 blast_idx := build_pids.len().sub(1)
                 if bpid_i.lt(blast_idx) {
                     mut blast_pid := 0
-                    build_pids.get(blast_idx, blast_pid)
-                    build_pids.set(bpid_i, blast_pid)
+                    build_pids.get(blast_idx, blast_pid)?
+                    build_pids.set(bpid_i, blast_pid)?
                 }
                 mut bpopped := 0
-                build_pids.pop(bpopped)
+                build_pids.pop(bpopped)?
                 // Spawn next build if available
                 if build_idx.lt(total_builds) {
                     mut next_cmd := ""
-                    build_cmds.get(build_idx, next_cmd)
-                    next_pid := spawn_cmd(next_cmd)
+                    build_cmds.get(build_idx, next_cmd)?
+                    next_pid := spawn_cmd(next_cmd)?
                     build_pids.push(next_pid)
                     build_idx = build_idx.add(1)
                 }
@@ -423,7 +423,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
             }
         }
         if build_pids.len().gt(0) {
-            sleep(10)
+            sleep(10)?
         }
     }
 
@@ -438,10 +438,10 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
     while running.len().lt(parallelism) {
         if pending_idx.lt(tests.len()) {
             mut entry := TestEntry()
-            tests.get(pending_idx, entry)
+            tests.get(pending_idx, entry)?
             mut phase := TestPhase()
-            phases.get(0, phase)
-            rt := spawn_test(entry, phase, next_id)
+            phases.get(0, phase)?
+            rt := spawn_test(entry, phase, next_id)?
             running.push(rt)
             pending_idx.inc()
             next_id.inc()
@@ -455,26 +455,26 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
         mut i := 0
         while i.lt(running.len()) {
             mut current := RunningTest()
-            running.get(i, current)
+            running.get(i, current)?
 
             status := check_cmd_status(current.pid)
             neg_one := sub(0, 1)
             if not(status.eq(neg_one)) {
                 // Phase finished - parse result from test.til
                 mut current_phase := TestPhase()
-                phases.get(current.current_phase, current_phase)
+                phases.get(current.current_phase, current_phase)?
 
                 mut time_ms := 0
                 mut error_output := ""
-                passed := parse_test_result(current.actual_file, status, time_ms, error_output)
+                passed := parse_test_result(current.actual_file, status, time_ms, error_output)?
 
                 // Record time for this phase
                 current.phase_times.push(time_ms)
 
                 // Accumulate to phase total
                 mut old_total := 0
-                phase_totals.get(current.current_phase, old_total)
-                phase_totals.set(current.current_phase, old_total.add(time_ms))
+                phase_totals.get(current.current_phase, old_total)?
+                phase_totals.set(current.current_phase, old_total.add(time_ms))?
 
                 if not(passed) {
                     // Phase failed - test.til already printed details
@@ -487,19 +487,19 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                     last_idx := running.len().sub(1)
                     if i.lt(last_idx) {
                         mut last := RunningTest()
-                        running.get(last_idx, last)
-                        running.set(i, last)
+                        running.get(last_idx, last)?
+                        running.set(i, last)?
                     }
                     mut popped := RunningTest()
-                    running.pop(popped)
+                    running.pop(popped)?
 
                     // Start next test
                     if pending_idx.lt(tests.len()) {
                         mut fail_next_entry := TestEntry()
-                        tests.get(pending_idx, fail_next_entry)
+                        tests.get(pending_idx, fail_next_entry)?
                         mut fail_first_phase := TestPhase()
-                        phases.get(0, fail_first_phase)
-                        fail_rt := spawn_test(fail_next_entry, fail_first_phase, next_id)
+                        phases.get(0, fail_first_phase)?
+                        fail_rt := spawn_test(fail_next_entry, fail_first_phase, next_id)?
                         running.push(fail_rt)
                         pending_idx.inc()
                         next_id.inc()
@@ -510,7 +510,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                     if next_phase_idx.lt(num_phases) {
                         // More phases to run - spawn next with test_runner
                         mut next_phase := TestPhase()
-                        phases.get(next_phase_idx, next_phase)
+                        phases.get(next_phase_idx, next_phase)?
 
                         mut cmd := format("./bin/test_runner test ", next_phase.test_mode, " ", next_phase.out_mode, " ", current.entry.expected_status.to_str(), " ", current.entry.path)
                         if current.entry.cmd_args.len().gt(0) {
@@ -518,13 +518,13 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                         }
                         new_result := format("tmp/test_result_", next_id.to_str(), ".txt")
                         cmd = format(cmd, " > ", new_result, " 2>&1")
-                        new_pid := spawn_cmd(cmd)
+                        new_pid := spawn_cmd(cmd)?
                         next_id.inc()
 
                         current.pid = new_pid
                         current.actual_file = new_result
                         current.current_phase = next_phase_idx
-                        running.set(i, current)
+                        running.set(i, current)?
                         i.inc()
                     } else {
                         // All phases complete - print result
@@ -540,9 +540,9 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                         mut bench_timing := ""
                         for p_idx in 0..num_phases {
                             mut p := TestPhase()
-                            phases.get(p_idx, p)
+                            phases.get(p_idx, p)?
                             mut t := 0
-                            current.phase_times.get(p_idx, t)
+                            current.phase_times.get(p_idx, t)?
                             if p_idx.gt(0) {
                                 timing_str = timing_str.concat(", ")
                                 bench_timing = bench_timing.concat(", ")
@@ -556,16 +556,16 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                         if num_phases.eq(2) {
                             mut t0 := 0
                             mut t1 := 0
-                            current.phase_times.get(0, t0)
-                            current.phase_times.get(1, t1)
+                            current.phase_times.get(0, t0)?
+                            current.phase_times.get(1, t1)?
                             if t0.lt(t1) {
                                 mut p0 := TestPhase()
-                                phases.get(0, p0)
+                                phases.get(0, p0)?
                                 faster = format(" (faster ", p0.label, ")")
                             } else {
                                 if t1.lt(t0) {
                                     mut p1 := TestPhase()
-                                    phases.get(1, p1)
+                                    phases.get(1, p1)?
                                     faster = format(" (faster ", p1.label, ")")
                                 }
                             }
@@ -576,10 +576,10 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                             mut rs_comp := 0    // rs_compiled
                             mut til_interp := 0 // til_interpreted
                             mut til_comp := 0   // til_compiled
-                            current.phase_times.get(0, rs_interp)
-                            current.phase_times.get(1, rs_comp)
-                            current.phase_times.get(2, til_interp)
-                            current.phase_times.get(3, til_comp)
+                            current.phase_times.get(0, rs_interp)?
+                            current.phase_times.get(1, rs_comp)?
+                            current.phase_times.get(2, til_interp)?
+                            current.phase_times.get(3, til_comp)?
                             // Compare rstil modes: interpreted vs compiled
                             mut rstil_faster := ""
                             if rs_interp.lt(rs_comp) {
@@ -620,7 +620,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                                         faster = faster.concat(", ")
                                     }
                                     mut part := ""
-                                    parts.get(pi, part)
+                                    parts.get(pi, part)?
                                     faster = faster.concat(part)
                                     pi.inc()
                                 }
@@ -635,19 +635,19 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                         success_last_idx := running.len().sub(1)
                         if i.lt(success_last_idx) {
                             mut success_last := RunningTest()
-                            running.get(success_last_idx, success_last)
-                            running.set(i, success_last)
+                            running.get(success_last_idx, success_last)?
+                            running.set(i, success_last)?
                         }
                         mut success_popped := RunningTest()
-                        running.pop(success_popped)
+                        running.pop(success_popped)?
 
                         // Start next test
                         if pending_idx.lt(tests.len()) {
                             mut next_entry := TestEntry()
-                            tests.get(pending_idx, next_entry)
+                            tests.get(pending_idx, next_entry)?
                             mut next_first_phase := TestPhase()
-                            phases.get(0, next_first_phase)
-                            next_rt := spawn_test(next_entry, next_first_phase, next_id)
+                            phases.get(0, next_first_phase)?
+                            next_rt := spawn_test(next_entry, next_first_phase, next_id)?
                             running.push(next_rt)
                             pending_idx.inc()
                             next_id.inc()
@@ -660,7 +660,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
         }
 
         if running.len().gt(0) {
-            sleep(10)
+            sleep(10)?
         }
     }
 
@@ -784,45 +784,45 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     mut total_rs_interp := 0
     mut total_rs_compile := 0
     if til_interpreted.len().gt(0) {
-        til_interp_totals.get(0, total_til_interp)
+        til_interp_totals.get(0, total_til_interp)?
     }
     if til_compiled.len().gt(0) {
-        til_compile_totals.get(0, total_til_compile)
+        til_compile_totals.get(0, total_til_compile)?
     }
     if rs_interpreted.len().gt(0) {
-        rs_interp_totals.get(0, total_rs_interp)
+        rs_interp_totals.get(0, total_rs_interp)?
     }
     if rs_compiled.len().gt(0) {
-        rs_compile_totals.get(0, total_rs_compile)
+        rs_compile_totals.get(0, total_rs_compile)?
     }
     if til_common.len().gt(0) {
         mut til_common_interp := 0
         mut til_common_compile := 0
-        til_common_totals.get(0, til_common_interp)
-        til_common_totals.get(1, til_common_compile)
+        til_common_totals.get(0, til_common_interp)?
+        til_common_totals.get(1, til_common_compile)?
         total_til_interp = total_til_interp.add(til_common_interp)
         total_til_compile = total_til_compile.add(til_common_compile)
     }
     if rs_common.len().gt(0) {
         mut rs_common_interp := 0
         mut rs_common_compile := 0
-        rs_common_totals.get(0, rs_common_interp)
-        rs_common_totals.get(1, rs_common_compile)
+        rs_common_totals.get(0, rs_common_interp)?
+        rs_common_totals.get(1, rs_common_compile)?
         total_rs_interp = total_rs_interp.add(rs_common_interp)
         total_rs_compile = total_rs_compile.add(rs_common_compile)
     }
     if all_common.len().gt(0) {
         mut all_common_rs_interp := 0
         mut all_common_rs_compile := 0
-        all_common_totals.get(0, all_common_rs_interp)
-        all_common_totals.get(1, all_common_rs_compile)
+        all_common_totals.get(0, all_common_rs_interp)?
+        all_common_totals.get(1, all_common_rs_compile)?
         total_rs_interp = total_rs_interp.add(all_common_rs_interp)
         total_rs_compile = total_rs_compile.add(all_common_rs_compile)
         if not(g_rust_only) {
             mut all_common_til_interp := 0
             mut all_common_til_compile := 0
-            all_common_totals.get(2, all_common_til_interp)
-            all_common_totals.get(3, all_common_til_compile)
+            all_common_totals.get(2, all_common_til_interp)?
+            all_common_totals.get(3, all_common_til_compile)?
             total_til_interp = total_til_interp.add(all_common_til_interp)
             total_til_compile = total_til_compile.add(all_common_til_compile)
         }
@@ -1020,7 +1020,7 @@ main := proc(args: ..Str) {
     for arg: Str in args {
         if arg.starts_with("-j") {
             // Extract number after -j
-            j_str := get_substr(arg, 2, arg.len())
+            j_str := get_substr(arg, 2, arg.len())?
             if j_str.len().gt(0) {
                 parallelism = j_str.to_i64()
                 if parallelism.lt(1) {
@@ -1153,7 +1153,7 @@ main := proc(args: ..Str) {
         run_all_tests(til_interpreted, til_compiled, til_common, rs_interpreted, rs_compiled, rs_common, all_common, parallelism)
     } else {
         mut cmd := ""
-        remaining_args.get(0, cmd)
+        remaining_args.get(0, cmd)?
         switch cmd {
         case "test":
             if remaining_args.len().eq(1) {
@@ -1165,13 +1165,13 @@ main := proc(args: ..Str) {
             } else {
                 mut test_mode := ""
                 mut file := ""
-                remaining_args.get(1, test_mode)
-                remaining_args.get(2, file)
+                remaining_args.get(1, test_mode)?
+                remaining_args.get(2, file)?
                 // Collect optional args
                 mut cmd_args := ""
                 for i in 3..remaining_args.len() {
                     mut arg := ""
-                    remaining_args.get(i, arg)
+                    remaining_args.get(i, arg)?
                     if cmd_args.len().gt(0) {
                         cmd_args = cmd_args.concat(" ")
                     }
@@ -1203,7 +1203,7 @@ main := proc(args: ..Str) {
             mut files := Vec.new(Str)
             for regen_idx in 1..remaining_args.len() {
                 mut path := ""
-                remaining_args.get(regen_idx, path)
+                remaining_args.get(regen_idx, path)?
                 files.push(path)
             }
             regen(files, rs_common, rs_compiled, rs_interpreted, til_common, til_compiled, til_interpreted, all_common)

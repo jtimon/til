@@ -30,22 +30,22 @@ make_poem_recursive := func(s1: Str, s2: Str) returns Str {
 make_poem_iterative := func(s1: Str, s2: Str) returns Str {
     mut poem := ""
     mut silabes := Array.new(Str, 2)
-    silabes.set(0, s1)
-    silabes.set(1, s2)
+    silabes.set(0, s1)?
+    silabes.set(1, s2)?
 
     verse := func(i0: I64, i1: I64, i2: I64, i3: I64, silabes: Array) returns Str {
         mut s0 := ""
         mut s1_v := ""
         mut s2_v := ""
         mut s3 := ""
-        silabes.get(i0, s0)
-        silabes.get(i1, s1_v)
+        silabes.get(i0, s0)?
+        silabes.get(i1, s1_v)?
         if i2.eq(2) {
             s2_v = "lei"
         } else {
-            silabes.get(i2, s2_v)
+            silabes.get(i2, s2_v)?
         }
-        silabes.get(i3, s3)
+        silabes.get(i3, s3)?
 
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 

@@ -140,8 +140,8 @@ Map := struct {
         }
 
         // Insert at sorted position
-        self.keys.insert_at(search.index, key)
-        self.values.insert_at(search.index, value)
+        self.keys.insert_at(search.index, key)?
+        self.values.insert_at(search.index, value)?
         self._size = add(self._size, 1)
 
         catch (err: IndexOutOfBoundsError) {
@@ -161,8 +161,8 @@ Map := struct {
             memcpy(value_ptr, to_ptr(value), self.value_type_size)
         } else {
             // Key not found - insert at sorted position
-            self.keys.insert_at(search.index, key)
-            self.values.insert_at(search.index, value)
+            self.keys.insert_at(search.index, key)?
+            self.values.insert_at(search.index, value)?
             self._size = add(self._size, 1)
         }
 
@@ -198,8 +198,8 @@ Map := struct {
 
         if search.found {
             // Remove by shifting elements
-            self.keys.remove(search.index)
-            self.values.remove(search.index)
+            self.keys.remove(search.index)?
+            self.values.remove(search.index)?
             self._size = sub(self._size, 1)
         }
 
