@@ -1021,6 +1021,7 @@ main := proc(args: ..Str) {
     mut rs_common := Vec.new(TestEntry)
     rs_common.push(TestEntry(path="src/test/bug47.til"))  // TODO: til_interpreted too slow (~35s)
     rs_common.push(TestEntry(path="src/test/sugar.til", expected_status=1))  // REM: error output differs from til (Issue #69)
+    rs_common.push(TestEntry(path="src/test/test_parser.til"))  // TODO: til_interpreted too slow (~23s)
     rs_common.push(TestEntry(path="src/til.til", cmd_args="help"))  // TODO: slow (~4min) but works
 
     mut rs_compiled := Vec.new(TestEntry)
@@ -1047,6 +1048,7 @@ main := proc(args: ..Str) {
 
     // til_compiled: tests run with the self-hosted TIL compiler only
     mut til_compiled := Vec.new(TestEntry)
+    til_compiled.push(TestEntry(path="src/test/test_parser.til"))  // TODO: til_interpreted too slow (~23s)
 
     // til_common: tests run with BOTH self-hosted TIL interpreter and compiler
     // (for tests where output differs between rstil and til, e.g. error messages)
@@ -1116,7 +1118,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/structs.til"))
     all_common.push(TestEntry(path="src/test/syscalls.til"))
     all_common.push(TestEntry(path="src/test/test_lexer.til"))
-    all_common.push(TestEntry(path="src/test/test_parser.til"))
+    // all_common.push(TestEntry(path="src/test/test_parser.til")) // TODO too slow (~23s), moved to rs_common + til_compiled
     all_common.push(TestEntry(path="src/test/u8.til"))
     all_common.push(TestEntry(path="src/test/underscore.til"))
     all_common.push(TestEntry(path="src/test/ufcs.til"))
