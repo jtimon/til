@@ -9,6 +9,9 @@ import("core.set")
 // Global flag: force rebuild for compiled tests (set by --force-rebuild arg)
 mut g_force_rebuild := false
 
+// Global flag: run only Rust-based tests, skip all TIL self-hosted modes (set by --rust-only arg)
+mut g_rust_only := false
+
 // tests.til - TIL test runner
 // Runs compiled tests and compares output against .out files
 
@@ -678,7 +681,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     // til_interpreted
     mut til_interp_totals := Vec.new(I64)
     til_interp_totals.push(0)
-    if til_interpreted.len().gt(0) {
+    if til_interpreted.len().gt(0).and(not(g_rust_only)) {
         println("\n=== til_interpreted (", til_interpreted.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("* til_interpreted\n")
         mut til_interp_phases := Vec.new(TestPhase)
@@ -689,7 +692,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     // til_compiled
     mut til_compile_totals := Vec.new(I64)
     til_compile_totals.push(0)
-    if til_compiled.len().gt(0) {
+    if til_compiled.len().gt(0).and(not(g_rust_only)) {
         println("\n=== til_compiled (", til_compiled.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("\n* til_compiled\n")
         mut til_compile_phases := Vec.new(TestPhase)
@@ -701,7 +704,7 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     mut til_common_totals := Vec.new(I64)
     til_common_totals.push(0)
     til_common_totals.push(0)
-    if til_common.len().gt(0) {
+    if til_common.len().gt(0).and(not(g_rust_only)) {
         println("\n=== til_common (", til_common.len().to_str(), " tests) ===\n")
         benchmark_content = benchmark_content.concat("\n* til_common\n")
         mut til_common_phases := Vec.new(TestPhase)
@@ -746,20 +749,33 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     }
 
     // all_common (4 modes: rs_interpreted, rs_compiled, til_interpreted, til_compiled)
+    // When --rust-only: run as rs_common (2 phases) instead of all 4
     mut all_common_totals := Vec.new(I64)
     all_common_totals.push(0)
     all_common_totals.push(0)
-    all_common_totals.push(0)
-    all_common_totals.push(0)
+    if not(g_rust_only) {
+        all_common_totals.push(0)
+        all_common_totals.push(0)
+    }
     if all_common.len().gt(0) {
-        println("\n=== all_common (", all_common.len().to_str(), " tests) ===\n")
-        benchmark_content = benchmark_content.concat("\n* all_common\n")
-        mut all_common_phases := Vec.new(TestPhase)
-        all_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="rs interpreted"))
-        all_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="rs compiled"))
-        all_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="rs_interpreted", label="til interpreted"))
-        all_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="rs_interpreted", label="til compiled"))
-        errors_found = errors_found.add(run_parallel(all_common, all_common_phases, parallelism, all_common_totals, benchmark_content))
+        if g_rust_only {
+            // Run as rs_common (2 phases)
+            println("\n=== all_common [rust-only] (", all_common.len().to_str(), " tests) ===\n")
+            benchmark_content = benchmark_content.concat("\n* all_common [rust-only]\n")
+            mut rs_only_phases := Vec.new(TestPhase)
+            rs_only_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="interpreted"))
+            rs_only_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="compiled"))
+            errors_found = errors_found.add(run_parallel(all_common, rs_only_phases, parallelism, all_common_totals, benchmark_content))
+        } else {
+            println("\n=== all_common (", all_common.len().to_str(), " tests) ===\n")
+            benchmark_content = benchmark_content.concat("\n* all_common\n")
+            mut all_common_phases := Vec.new(TestPhase)
+            all_common_phases.push(TestPhase(test_mode="rs_interpreted", out_mode="rs_interpreted", label="rs interpreted"))
+            all_common_phases.push(TestPhase(test_mode="rs_compiled", out_mode="rs_interpreted", label="rs compiled"))
+            all_common_phases.push(TestPhase(test_mode="til_interpreted", out_mode="rs_interpreted", label="til interpreted"))
+            all_common_phases.push(TestPhase(test_mode="til_compiled", out_mode="rs_interpreted", label="til compiled"))
+            errors_found = errors_found.add(run_parallel(all_common, all_common_phases, parallelism, all_common_totals, benchmark_content))
+        }
     }
 
     // Compute totals (only for non-empty categories)
@@ -798,16 +814,18 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     if all_common.len().gt(0) {
         mut all_common_rs_interp := 0
         mut all_common_rs_compile := 0
-        mut all_common_til_interp := 0
-        mut all_common_til_compile := 0
         all_common_totals.get(0, all_common_rs_interp)
         all_common_totals.get(1, all_common_rs_compile)
-        all_common_totals.get(2, all_common_til_interp)
-        all_common_totals.get(3, all_common_til_compile)
         total_rs_interp = total_rs_interp.add(all_common_rs_interp)
         total_rs_compile = total_rs_compile.add(all_common_rs_compile)
-        total_til_interp = total_til_interp.add(all_common_til_interp)
-        total_til_compile = total_til_compile.add(all_common_til_compile)
+        if not(g_rust_only) {
+            mut all_common_til_interp := 0
+            mut all_common_til_compile := 0
+            all_common_totals.get(2, all_common_til_interp)
+            all_common_totals.get(3, all_common_til_compile)
+            total_til_interp = total_til_interp.add(all_common_til_interp)
+            total_til_compile = total_til_compile.add(all_common_til_compile)
+        }
     }
 
     // Print and write totals
@@ -979,7 +997,8 @@ usage := proc() {
     println("Entering no arguments is equivalent to: 'tests test'")
     println("")
     println("Options:")
-    println("  -jN     Run up to N tests in parallel (default: CPU thread count)")
+    println("  -jN          Run up to N tests in parallel (default: CPU thread count)")
+    println("  --rust-only  Run only Rust-based tests, skip all TIL self-hosted modes")
     println("")
     println("Commands:")
     println("")
@@ -1010,6 +1029,8 @@ main := proc(args: ..Str) {
             }
         } else if arg.eq("--force-rebuild") {
             g_force_rebuild = true
+        } else if arg.eq("--rust-only") {
+            g_rust_only = true
         } else {
             remaining_args.push(arg)
         }
