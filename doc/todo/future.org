@@ -902,6 +902,60 @@ an error (same as forin loops requiring ~get~ method on iterables).
 
 No hardcoding of I64/Str/U8 - just call the methods and let typer validate.
 
+*** Failed Attempts
+
+**** Branch: again110 (2026-01-23)
+
+Branch preserved for reference: ~git checkout again110~
+
+***** What was attempted
+Implemented ~desugar_switch()~ in ~src/rs/desugarer.rs~ with:
+- Enum switches: generate ~enum_to_str()~ + ~Str.eq()~ comparisons
+- Non-enum switches: generate ~val.eq(case_val)~ calls
+- Range cases: generate ~val.gteq(lo)~ and ~val.lteq(hi)~ with ~and()~
+- Payload patterns: generate ~enum_get_payload()~ calls with default-initialized bindings
+- Nested enum patterns like ~case ValueType.TType(TTypeDef.TStructDef)~: detect and generate nested if checks
+
+***** Bug #137 was fixed during this attempt
+During this attempt, discovered and fixed Bug #137: ~enum_get_payload~ field offset was
+incorrectly calculated for struct enum payloads. The fix (calculating byte offset from
+struct field definitions) was merged to master separately.
+
+***** Symptom of failure
+Rust version (~rstil interpret~) works correctly on test files. But when building
+~rstil_til~ (self-hosted TIL compiler), the resulting binary fails with:
+#+BEGIN_SRC
+src/core/bool.til:src/core/bool.til:63:10: init ERROR: Undefined symbol 'Bool'
+#+END_SRC
+
+Note the doubled path in the error - suggests AST corruption somewhere.
+
+***** Hypotheses tested and refuted
+
+1. **Nested enum patterns not detected**: Added debug output to ~get_fcall_nested_enum_pattern~.
+   All nested patterns (TTypeDef.TStructDef, TTypeDef.TEnumDef, FunctionType.*) were
+   successfully detected and returned ~Some(...)~. Hypothesis refuted.
+
+2. **Block passed to and() function**: Earlier version tried to generate ~and(outer_cond, { body })~
+   which is invalid TIL (can't pass blocks as function arguments). Fixed to use nested ifs instead.
+   But error persisted after fix.
+
+***** What remains unknown
+- Why the doubled path ~src/core/bool.til:src/core/bool.til:63:10~ appears in errors
+- Why ~rstil_til~ fails on basic symbol lookup for Bool/I64 structs
+- The actual root cause of AST corruption (if that's what it is)
+
+***** Key insight from user
+"I would copy and paste emit_switch into desugarer and rename it desugar_switch, first of all,
+then let the compiler lead me to all the stuff that's wrong."
+
+Instead of reimplementing from scratch, should literally copy working ccodegen emit_switch
+code and adapt it minimally. Let the compiler guide the changes.
+
+***** Files modified (not merged)
+- ~src/rs/desugarer.rs~ - added ~desugar_switch()~ and supporting functions (~1200 lines added)
+- TIL port was never done (blocked by Rust version not working with self-hosted compiler)
+
 ****** TODO: Typer validation (like forin)
 The forin loop validates ~len~ and ~get~ methods in typer.rs (lines 415-458) with
 clear error messages showing required signatures:
