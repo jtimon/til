@@ -369,30 +369,30 @@ ExampleEnum2 := enum {
     LString : Str,
 }
 
-// Test enum payloads - Option<Color> pattern
+// Test enum payloads - OptionSimpleColor<Color> pattern
 SimpleColor := enum {
     Red,
     Green,
     Blue,
 }
 
-Option := enum {
+OptionSimpleColor := enum {
     None,
     Some: SimpleColor,
 }
 
 test_enum_payloads := proc() {
     // Test None variant (no payload)
-    opt_none := Option.None
-    assert(loc(), enum_to_str(opt_none).eq("Option.None"))
+    opt_none := OptionSimpleColor.None
+    assert(loc(), enum_to_str(opt_none).eq("OptionSimpleColor.None"))
 
     // Test Some variant with Color payload
     my_color := SimpleColor.Red
-    opt_some := Option.Some(my_color)
+    opt_some := OptionSimpleColor.Some(my_color)
 
     mut extracted_color := SimpleColor.Blue
     switch opt_some {
-    case Option.Some(color):
+    case OptionSimpleColor.Some(color):
         extracted_color = color
     case:
         // None
@@ -401,10 +401,10 @@ test_enum_payloads := proc() {
 
     // Test with Green
     green := SimpleColor.Green
-    opt_green := Option.Some(green)
+    opt_green := OptionSimpleColor.Some(green)
     mut extracted2 := SimpleColor.Red
     switch opt_green {
-    case Option.Some(color):
+    case OptionSimpleColor.Some(color):
         extracted2 = color
     case:
         // None
@@ -413,10 +413,10 @@ test_enum_payloads := proc() {
 
     // Test with Blue
     blue := SimpleColor.Blue
-    opt_blue := Option.Some(blue)
+    opt_blue := OptionSimpleColor.Some(blue)
     mut extracted3 := SimpleColor.Red
     switch opt_blue {
-    case Option.Some(color):
+    case OptionSimpleColor.Some(color):
         extracted3 = color
     case:
         // None
@@ -425,32 +425,32 @@ test_enum_payloads := proc() {
 }
 test_enum_payloads()
 
-// Test nested enums with payloads - Result<Option<Color>, Error>
+// Test nested enums with payloads - Result<OptionSimpleColor<Color>, Error>
 ErrorType := enum {
     NotFound,
     Invalid,
 }
 
 Result := enum {
-    Ok: Option,
+    Ok: OptionSimpleColor,
     Err: ErrorType,
 }
 
 test_nested_enum_payloads := proc() {
     red := SimpleColor.Red
-    some_red := Option.Some(red)
+    some_red := OptionSimpleColor.Some(red)
     result_ok := Result.Ok(some_red)
 
-    // Extract Option from Result using switch pattern matching
+    // Extract OptionSimpleColor from Result using switch pattern matching
     switch result_ok {
         case Result.Ok(extracted_option):
-            assert(loc(), enum_to_str(extracted_option).eq("Option.Some"))
+            assert(loc(), enum_to_str(extracted_option).eq("OptionSimpleColor.Some"))
 
             // Extract the color from the option
             switch extracted_option {
-                case Option.Some(extracted_color):
+                case OptionSimpleColor.Some(extracted_color):
                     assert(loc(), enum_to_str(extracted_color).eq("SimpleColor.Red"))
-                case Option.None:
+                case OptionSimpleColor.None:
                     // Not expected in this branch
                     assert(loc(), false)
             }
@@ -460,11 +460,11 @@ test_nested_enum_payloads := proc() {
     }
 
     // Test Ok(None)
-    none_opt := Option.None
+    none_opt := OptionSimpleColor.None
     result_ok_none := Result.Ok(none_opt)
     switch result_ok_none {
         case Result.Ok(extracted_option2):
-            assert(loc(), enum_to_str(extracted_option2).eq("Option.None"))
+            assert(loc(), enum_to_str(extracted_option2).eq("OptionSimpleColor.None"))
         case Result.Err:
             // Not expected
             assert(loc(), false)
@@ -1162,3 +1162,16 @@ test_switch_on_struct_field_with_payload := proc() {
     assert_eq(loc(), 42, result)
 }
 test_switch_on_struct_field_with_payload()
+
+// Bug #137: enum_get_payload reads from wrong offset in compiled mode
+// Tests direct enum_get_payload call without switch desugaring
+test_bug137_enum_get_payload := proc() {
+    my_color := SimpleColor.Red
+    opt_some := OptionSimpleColor.Some(my_color)
+
+    mut extracted := SimpleColor.Blue
+    enum_get_payload(opt_some, SimpleColor, extracted)
+
+    assert_eq_str(loc(), "SimpleColor.Red", enum_to_str(extracted))
+}
+test_bug137_enum_get_payload()

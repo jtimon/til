@@ -39,8 +39,9 @@ static inline void til_enum_get_payload(til_Dynamic* enum_ptr, const til_Str* pa
     // Get payload size from type name
     til_I64 payload_size = til_size_of(payload_type);
     // Copy payload bytes from enum to out
-    // Enum layout: first 8 bytes = tag, rest = payload union
-    memcpy(out_ptr, (char*)enum_ptr + 8, (size_t)payload_size);
+    // Enum layout: tag (til_I64) + payload union
+    // Bug #137: enum tags are til_I64 to ensure consistent offset
+    memcpy(out_ptr, (char*)enum_ptr + sizeof(til_I64), (size_t)payload_size);
 }
 
 // Type conversion helpers

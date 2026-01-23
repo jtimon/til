@@ -8,43 +8,6 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #137: enum_get_payload reads from wrong offset in compiled mode
-:PROPERTIES:
-:DISCOVERED: 2026-01-23
-:IMPACT: Enum payload extraction returns garbage in compiled code
-:STATUS: Open
-:REPRODUCER: tmp/test_enum_get_payload.til
-:END:
-
-*** Description
-The ~enum_get_payload~ function in ~src/ext.c~ reads payload from offset 8,
-but C enum tags are 4 bytes (sizeof(int)), so the payload starts at offset 4.
-
-*** Symptoms
-- ~rstil interpret~ works correctly
-- ~rstil run~ (compiled) extracts garbage data
-
-*** Example
-#+BEGIN_SRC til
-Option := enum { None, Some: SimpleColor }
-opt := Option.Some(SimpleColor.Red)
-mut extracted := SimpleColor.Blue
-enum_get_payload(opt, SimpleColor, extracted)
-// interpret: extracted = SimpleColor.Red (correct)
-// run: extracted = SimpleColor.Blue (unchanged, garbage read)
-#+END_SRC
-
-*** Root Cause
-In ~src/ext.c~ line 43:
-#+BEGIN_SRC c
-memcpy(out_ptr, (char*)enum_ptr + 8, (size_t)payload_size);
-#+END_SRC
-
-Should be offset ~sizeof(int)~ (4 bytes), not 8.
-
-*** Fix
-Change offset from 8 to ~sizeof(int)~ in ~til_enum_get_payload~.
-
 ** Bug #136: Switch on structs compares instance names, not values
 :PROPERTIES:
 :DISCOVERED: 2026-01-23
@@ -2183,6 +2146,36 @@ main := proc(args: ..Str) {
 2. The C codegen should unpack argv into individual named parameters for custom signatures.
 
 * Fixed Bugs
+
+** Bug #137: enum_get_payload reads from wrong offset in compiled mode
+:PROPERTIES:
+:DISCOVERED: 2026-01-23
+:FIXED: 2026-01-23
+:IMPACT: Enum payload extraction returns garbage in compiled code
+:STATUS: Fixed
+:REPRODUCER: tmp/test_enum_get_payload.til
+:END:
+
+*** Description
+The ~enum_get_payload~ function in ~src/ext.c~ reads payload from a fixed offset,
+but C struct alignment varies based on the payload union's largest member alignment.
+Different enum types had different payload offsets (e.g., 4 for small payloads, 8 for
+payloads containing I64).
+
+*** Root Cause
+C enums are typically 4 bytes (sizeof(int)), but payload unions align to their
+largest member's alignment. This caused inconsistent payload offsets across
+different enum types, making a fixed offset impossible.
+
+*** Fix
+Changed enum tag type from C enum to ~til_I64~ (8 bytes) to ensure consistent
+8-byte offset for all payloads:
+- ~src/ext.c~: Use ~sizeof(til_I64)~ for payload offset
+- ~src/rs/ccodegen.rs~: Emit ~til_I64 tag;~ instead of ~EnumName_Tag tag;~
+- ~src/self/ccodegen.til~: Same change for self-hosted compiler
+
+*** Regression Test
+Added ~test_bug137_enum_get_payload~ in ~src/test/enums.til~.
 
 ** Bug #126: Error message divergence between rstil and til
 :PROPERTIES:

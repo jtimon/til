@@ -2699,14 +2699,15 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
         output.push_str("_Payload;\n\n");
     }
 
-    // 3. Emit wrapper struct: struct Color { Color_Tag tag; Color_Payload payload; };
+    // 3. Emit wrapper struct: struct Color { til_I64 tag; Color_Payload payload; };
     // Note: typedef is already forward-declared, so we just define the struct body
+    // Bug #137: Use til_I64 for tag to ensure consistent 8-byte offset for payload
     output.push_str("struct ");
     output.push_str(enum_name);
     output.push_str(" {\n");
     output.push_str("    ");
-    output.push_str(enum_name);
-    output.push_str("_Tag tag;\n");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64 tag;\n");
     if has_any_payload {
         output.push_str("    ");
         output.push_str(enum_name);
