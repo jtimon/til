@@ -52,6 +52,13 @@ pub enum ScopeType {
     Catch,       // Catch block (for error handling)
 }
 
+/// Entry for returning enum definitions from get_all_enums
+#[derive(Clone)]
+pub struct EnumEntry {
+    pub name: String,
+    pub enum_def: SEnumDef,
+}
+
 #[derive(Clone)]
 #[allow(dead_code)]
 pub struct ScopeFrame {
@@ -329,6 +336,28 @@ impl ScopeStack {
             }
         }
         None
+    }
+
+    /// Get all enum definitions from all frames (for enum type inference)
+    pub fn get_all_enums(&self) -> Vec<EnumEntry> {
+        let mut result = Vec::new();
+        for frame in self.frames.iter().rev() {
+            for (name, enum_def) in &frame.enums {
+                result.push(EnumEntry { name: name.clone(), enum_def: enum_def.clone() });
+            }
+        }
+        result
+    }
+
+    /// Get all struct definitions from all frames (for field type inference)
+    pub fn get_all_structs(&self) -> Vec<SStructDef> {
+        let mut result = Vec::new();
+        for frame in self.frames.iter().rev() {
+            for (_name, struct_def) in &frame.structs {
+                result.push(struct_def.clone());
+            }
+        }
+        result
     }
 
     pub fn declare_enum(&mut self, name: String, enum_def: SEnumDef) {

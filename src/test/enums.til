@@ -390,13 +390,17 @@ test_enum_payloads := proc() {
     my_color := SimpleColor.Red
     opt_some := OptionSimpleColor.Some(my_color)
 
+    println("DEBUG: opt_some =", enum_to_str(opt_some))
+
     mut extracted_color := SimpleColor.Blue
+    println("DEBUG: before switch, extracted_color =", enum_to_str(extracted_color))
     switch opt_some {
     case OptionSimpleColor.Some(color):
         extracted_color = color
     case:
-        // None
+        println("DEBUG: matched default case")
     }
+    println("DEBUG: after switch, extracted_color =", enum_to_str(extracted_color))
     assert(loc(), enum_to_str(extracted_color).eq("SimpleColor.Red"))
 
     // Test with Green

@@ -2147,6 +2147,31 @@ main := proc(args: ..Str) {
 
 * Fixed Bugs
 
+** Bug #138: Enum field access on expression results returns path instead of value
+:PROPERTIES:
+:DISCOVERED: 2026-01-23
+:FIXED: 2026-01-23
+:IMPACT: Desugared switch statements failed when switch expression was field access on function result
+:STATUS: Fixed
+:RELATED: Issue #110 (switch desugaring), Bug #32 (field access on expression results)
+:END:
+
+*** Description
+When accessing an enum field on an expression result using the Bug #32 pattern
+(Identifier("_") with FCall and field access params), the interpreter's
+eval_identifier_expr returned the field PATH (e.g., "_return.token_type")
+instead of the actual enum VALUE (e.g., "TokenType.Colon").
+
+This was exposed when Issue #110's switch desugaring created declarations like:
+  _switch_val: TokenType = lexer.peek()?.token_type
+
+The error manifested as "Enum variant 'token_type' not found in variants".
+
+*** Fix
+In interpreter.rs eval_identifier_expr, when the final field type is an enum,
+use EvalArena::get_enum to retrieve the actual enum value instead of just
+returning the field path.
+
 ** Bug #137: enum_get_payload reads from wrong offset in compiled mode
 :PROPERTIES:
 :DISCOVERED: 2026-01-23
