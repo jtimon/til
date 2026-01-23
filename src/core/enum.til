@@ -1,0 +1,12 @@
+mode lib
+
+// Enum intrinsics - fundamental operations on enum types
+// These are built-in functions handled by the interpreter and ccodegen.
+// Moved to core from std.meta for Issue #110 (switch desugaring).
+
+// Get enum variant name as string (e.g., "Color.Red")
+enum_to_str := ext_func(e: Dynamic) returns Str {}
+
+// Extract payload from enum variant into output variable
+// enum_get_payload(enum_value, PayloadType, out_var)
+enum_get_payload := ext_proc(e: Dynamic, payload_type: Type, mut out: Dynamic) {}

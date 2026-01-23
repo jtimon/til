@@ -3,6 +3,7 @@ mode lib
 import("core.array")
 import("core.bool")
 import("core.comptime")
+import("core.enum")
 import("core.exit")
 import("core.i64")
 import("core.print")

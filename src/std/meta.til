@@ -1,11 +1,10 @@
 mode lib
 
 import("core.vec")
+import("core.enum")  // For enum_to_str and enum_get_payload
 
 // Metaprogramming and introspection utilities
-
-enum_to_str := ext_func(e: Dynamic) returns Str {}
-enum_get_payload := ext_func(e: Dynamic, payload_type: Type, mut out: Dynamic) {}
+// Note: enum_to_str and enum_get_payload moved to core.enum for Issue #110
 
 eval_to_str     := ext_proc(a: Str) returns Str {}
 eval_to_ast_str := ext_proc(src: Str) returns Str {}  // TODO

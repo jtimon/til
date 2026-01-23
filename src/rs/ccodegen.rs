@@ -1053,10 +1053,17 @@ fn hoist_for_dynamic_params(
             NodeType::LLiteral(Literal::Number(_)) => Ok("til_I64".to_string()),
             NodeType::LLiteral(Literal::List(_)) => Ok("til_I64".to_string()), // TODO: proper list type
             NodeType::Identifier(var_name) if !arg.params.is_empty() => {
-                // Could be: enum constructor (Type.Variant), field access (var.field), or method call
-                let first_param = arg.params.first()
-                    .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Expected param"))?;
-                if let NodeType::Identifier(field_or_variant) = &first_param.node_type {
+                // Could be: enum constructor (Type.Variant), field access (var.field), method call,
+                // or UFCS placeholder "_" for chained expressions like get_foo().bar
+                if var_name == "_" {
+                    // UFCS placeholder - this is a chained expression, get its value type
+                    get_value_type(context, arg)
+                        .map(|vt| til_type_to_c(&vt).unwrap_or_else(|_| "int".to_string()))
+                        .map_err(|e| arg.lang_error(&context.path, "ccodegen", &format!("Cannot determine type for UFCS expression: {}", e)))
+                } else {
+                    let first_param = arg.params.first()
+                        .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Expected param"))?;
+                    if let NodeType::Identifier(field_or_variant) = &first_param.node_type {
                     // Check if this is an enum constructor
                     if context.scope_stack.lookup_enum(var_name)
                         .map(|e| e.contains_key(field_or_variant))
@@ -1084,8 +1091,9 @@ fn hoist_for_dynamic_params(
                     } else {
                         Err(arg.lang_error(&context.path, "ccodegen", &format!("Symbol not found: {}", var_name)))
                     }
-                } else {
-                    Err(arg.lang_error(&context.path, "ccodegen", "Expected identifier for field/variant"))
+                    } else {
+                        Err(arg.lang_error(&context.path, "ccodegen", "Expected identifier for field/variant"))
+                    }
                 }
             }
             NodeType::Identifier(type_name) if arg.params.is_empty() => {
