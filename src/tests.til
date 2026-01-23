@@ -200,7 +200,6 @@ format_expected := func(cmd_args: Str, exit_code: I64, output: Str) returns Str 
 // out_mode: "interpreted" or "compiled" - determines which .out file to compare against
 test_with_cmd := proc(entry: TestEntry, cmd_prefix: Str, fail_label: Str, out_mode: Str, mut time_ms: I64) returns Bool {
     out_path := get_out_path(entry.path, out_mode, entry.cmd_args)
-    ensure_out_file(entry.path, entry.cmd_args, out_path, out_mode)
 
     mut output := ""
     mut run_time := 0
@@ -287,8 +286,8 @@ get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str {
 // test.til handles: run command, compare output, report result
 // Output is redirected to a result file for later reading
 spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns RunningTest throws SpawnError {
-    // Build command: ./bin/test_runner <mode> <out_mode> <expected_status> <file> [args...]
-    mut cmd := format("./bin/test_runner ", phase.test_mode, " ", phase.out_mode, " ", entry.expected_status.to_str(), " ", entry.path)
+    // Build command: ./bin/test_runner test <mode> <out_mode> <expected_status> <file> [args...]
+    mut cmd := format("./bin/test_runner test ", phase.test_mode, " ", phase.out_mode, " ", entry.expected_status.to_str(), " ", entry.path)
     if entry.cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
@@ -335,14 +334,6 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
     // Ensure tmp directory exists for result files
     mut mkdir_out := ""
     _ := mkdir_out.run_cmd("mkdir", "-p", "tmp")
-
-    // Ensure expected output files exist before spawning tests
-    for entry: TestEntry in tests {
-        for phase: TestPhase in phases {
-            out_path := get_out_path(entry.path, phase.out_mode, entry.cmd_args)
-            ensure_out_file(entry.path, entry.cmd_args, out_path, phase.out_mode)
-        }
-    }
 
     // Pre-build binaries for compiled modes to avoid race conditions
     // when multiple tests use the same source file (e.g., music.til with different args)
@@ -514,11 +505,11 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                     // Phase passed
                     next_phase_idx := current.current_phase.add(1)
                     if next_phase_idx.lt(num_phases) {
-                        // More phases to run - spawn next with test.til
+                        // More phases to run - spawn next with test_runner
                         mut next_phase := TestPhase()
                         phases.get(next_phase_idx, next_phase)
 
-                        mut cmd := format("./bin/test_runner ", next_phase.test_mode, " ", next_phase.out_mode, " ", current.entry.expected_status.to_str(), " ", current.entry.path)
+                        mut cmd := format("./bin/test_runner test ", next_phase.test_mode, " ", next_phase.out_mode, " ", current.entry.expected_status.to_str(), " ", current.entry.path)
                         if current.entry.cmd_args.len().gt(0) {
                             cmd = cmd.concat(" ").concat(current.entry.cmd_args)
                         }
@@ -919,52 +910,6 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec,
     }
 }
 
-// Ensure parent directory exists for a file path
-ensure_parent_dir := proc(file_path: Str) {
-    // Extract directory by finding last /
-    mut last_slash := 0
-    for i in 0..file_path.len() {
-        if file_path.get_char(i).eq("/") {
-            last_slash = i
-        }
-    }
-    if last_slash.gt(0) {
-        dir := get_substr(file_path, 0, last_slash)
-        mut result := ""
-        _ := result.run_cmd("mkdir", "-p", dir)
-    }
-
-    catch (err: IndexOutOfBoundsError) { /* ignore */ }
-}
-
-// Auto-generate missing .out files
-// test_mode determines which binary and command to use
-ensure_out_file := proc(path: Str, cmd_args: Str, out_path: Str, test_mode: Str) {
-    // file_mtime returns -1 if file doesn't exist
-    if file_mtime(out_path).lt(0) {
-        mut output := ""
-        mut cmd := ""
-        if test_mode.eq("rs_compiled") {
-            cmd = concat("./bin/rstil run ", path)
-        } else if test_mode.eq("til_interpreted") {
-            cmd = concat("./bin/til interpret ", path)
-        } else if test_mode.eq("til_compiled") {
-            cmd = concat("./bin/til run ", path)
-        } else {
-            // rs_interpreted is the default
-            cmd = concat("./bin/rstil interpret ", path)
-        }
-        if not(cmd_args.eq("")) {
-            cmd = cmd.concat(" ").concat(cmd_args)
-        }
-        exit_code := output.run_cmd("bash", "-c", cmd)
-        formatted := format_expected(cmd_args, exit_code, output)
-        ensure_parent_dir(out_path)
-        _ := writefile(out_path, formatted)
-        println("Created: ", out_path)
-    }
-}
-
 // _common tests compare both modes against same .interpreted.out file
 test_rs_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms: I64) returns I64 {
     mut errors_found := 0
@@ -989,71 +934,43 @@ test_til_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms:
 }
 
 regen_test := proc(entry: TestEntry) {
-    out_path := get_out_path(entry.path, "rs_interpreted", entry.cmd_args)
-
-    mut output := ""
-    mut exit_code := 0
-    if entry.cmd_args.eq("") {
-        exit_code = output.run_cmd("./bin/rstil", "interpret", entry.path)
-    } else {
-        cmd := concat(concat("./bin/rstil interpret ", entry.path), concat(" ", entry.cmd_args))
-        exit_code = output.run_cmd("bash", "-c", cmd)
+    mut cmd := format("./bin/test_runner regen rs_interpreted rs_interpreted ", entry.expected_status.to_str(), " ", entry.path)
+    if entry.cmd_args.len().gt(0) {
+        cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
-    formatted := format_expected(entry.cmd_args, exit_code, output)
-    ensure_parent_dir(out_path)
-    _ := writefile(out_path, formatted)
-    println("Regenerated: ", out_path)
+    mut output := ""
+    _ := output.run_cmd("bash", "-c", cmd)
+    print(output)
 }
 
 regen_test_compiled := proc(entry: TestEntry) {
-    out_path := get_out_path(entry.path, "rs_compiled", entry.cmd_args)
-
-    mut output := ""
-    mut exit_code := 0
-    if entry.cmd_args.eq("") {
-        exit_code = output.run_cmd("./bin/rstil", "run", entry.path)
-    } else {
-        cmd := concat(concat("./bin/rstil run ", entry.path), concat(" ", entry.cmd_args))
-        exit_code = output.run_cmd("bash", "-c", cmd)
+    mut cmd := format("./bin/test_runner regen rs_compiled rs_compiled ", entry.expected_status.to_str(), " ", entry.path)
+    if entry.cmd_args.len().gt(0) {
+        cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
-    formatted := format_expected(entry.cmd_args, exit_code, output)
-    ensure_parent_dir(out_path)
-    _ := writefile(out_path, formatted)
-    println("Regenerated (rs_compiled): ", out_path)
+    mut output := ""
+    _ := output.run_cmd("bash", "-c", cmd)
+    print(output)
 }
 
 regen_test_til := proc(entry: TestEntry) {
-    out_path := get_out_path(entry.path, "til_interpreted", entry.cmd_args)
-
-    mut output := ""
-    mut exit_code := 0
-    if entry.cmd_args.eq("") {
-        exit_code = output.run_cmd("./bin/til", "interpret", entry.path)
-    } else {
-        cmd := concat(concat("./bin/til interpret ", entry.path), concat(" ", entry.cmd_args))
-        exit_code = output.run_cmd("bash", "-c", cmd)
+    mut cmd := format("./bin/test_runner regen til_interpreted til_interpreted ", entry.expected_status.to_str(), " ", entry.path)
+    if entry.cmd_args.len().gt(0) {
+        cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
-    formatted := format_expected(entry.cmd_args, exit_code, output)
-    ensure_parent_dir(out_path)
-    _ := writefile(out_path, formatted)
-    println("Regenerated (til_interpreted): ", out_path)
+    mut output := ""
+    _ := output.run_cmd("bash", "-c", cmd)
+    print(output)
 }
 
 regen_test_til_compiled := proc(entry: TestEntry) {
-    out_path := get_out_path(entry.path, "til_compiled", entry.cmd_args)
-
-    mut output := ""
-    mut exit_code := 0
-    if entry.cmd_args.eq("") {
-        exit_code = output.run_cmd("./bin/til", "run", entry.path)
-    } else {
-        cmd := concat(concat("./bin/til run ", entry.path), concat(" ", entry.cmd_args))
-        exit_code = output.run_cmd("bash", "-c", cmd)
+    mut cmd := format("./bin/test_runner regen til_compiled til_compiled ", entry.expected_status.to_str(), " ", entry.path)
+    if entry.cmd_args.len().gt(0) {
+        cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
-    formatted := format_expected(entry.cmd_args, exit_code, output)
-    ensure_parent_dir(out_path)
-    _ := writefile(out_path, formatted)
-    println("Regenerated (til_compiled): ", out_path)
+    mut output := ""
+    _ := output.run_cmd("bash", "-c", cmd)
+    print(output)
 }
 
 usage := proc() {

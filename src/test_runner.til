@@ -4,12 +4,17 @@ mode cli
 import("std.sys")
 import("std.io")
 
-// test.til - Single test executor
+// test_runner.til - Single test executor
 // Called by tests.til for parallel execution
 //
-// Usage: rstil interpret test.til <mode> <expected_status> <file> [args...]
+// Usage: test_runner <command> <mode> <out_mode> <expected_status> <file> [args...]
+//
+// Commands:
+//   test  - Run test. If .out file missing, generate it. Then compare output.
+//   regen - Run test and write .out file (always, regardless of whether it exists).
 //
 // Modes: rs_interpreted, rs_compiled, til_interpreted, til_compiled
+// out_mode: Which .out file to compare against (e.g., rs_interpreted, til_interpreted)
 // For "common" tests, tests.til calls this twice with different modes.
 //
 // Output file naming: gen/out/<path_without_src>.<mode>.<args_with_underscores>.actual.out
@@ -132,37 +137,28 @@ ensure_parent_dir := proc(file_path: Str) {
     catch (err: IndexOutOfBoundsError) { /* ignore */ }
 }
 
-// test_mode: rs_interpreted, rs_compiled, til_interpreted, til_compiled
-// out_mode: interpreted or compiled - which .out file to compare against
-main := proc(args: ..Str) {
-    if args.len().lt(4) {
-        println("Usage: test_runner <mode> <out_mode> <expected_status> <file> [args...]")
+// Regenerate .out file for a test
+do_regen := proc(test_mode: Str, out_mode: Str, file: Str, cmd_args: Str) {
+    cmd_prefix := get_cmd_prefix(test_mode)
+    if cmd_prefix.eq("") {
+        println("ERROR: Unknown mode '", test_mode, "'")
         exit(1)
     }
-
-    // Extract required args
-    mut test_mode := ""
-    mut out_mode := ""
-    mut expected_status_str := ""
-    mut file := ""
-    args.get(0, test_mode)
-    args.get(1, out_mode)
-    args.get(2, expected_status_str)
-    args.get(3, file)
-
-    expected_status := expected_status_str.to_i64()
-
-    // Collect extra args into single string
-    mut cmd_args := ""
-    for i in 4..args.len() {
-        mut arg := ""
-        args.get(i, arg)
-        if cmd_args.len().gt(0) {
-            cmd_args = cmd_args.concat(" ")
-        }
-        cmd_args = cmd_args.concat(arg)
+    mut cmd := cmd_prefix.concat(file)
+    if cmd_args.len().gt(0) {
+        cmd = cmd.concat(" ").concat(cmd_args)
     }
+    mut output := ""
+    exit_code := output.run_cmd("bash", "-c", cmd)
+    formatted := format_expected(cmd_args, exit_code, output)
+    expected_path := get_expected_path(file, out_mode, cmd_args)
+    ensure_parent_dir(expected_path)
+    _ := writefile(expected_path, formatted)
+    println("Regenerated: ", expected_path)
+}
 
+// Run test and compare against .out file (with timing)
+do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, cmd_args: Str) {
     // Build run command
     cmd_prefix := get_cmd_prefix(test_mode)
     if cmd_prefix.eq("") {
@@ -225,13 +221,22 @@ main := proc(args: ..Str) {
 
     // Compare output against expected
     expected_path := get_expected_path(file, out_mode, cmd_args)
-    expected := readfile(expected_path)
 
+    // Build formatted output (used for both auto-generation and comparison)
     mut args_str := ""
     if cmd_args.len().gt(0) {
         args_str = cmd_args
     }
     formatted := format("args: ", args_str, "\nexpected_status: ", expected_status.to_str(), "\noutput:\n", output)
+
+    // Auto-generate .out file if missing (file_mtime returns -1 if file doesn't exist)
+    if file_mtime(expected_path).lt(0) {
+        ensure_parent_dir(expected_path)
+        _ := writefile(expected_path, formatted)
+        // Don't print here - stdout is captured for parsing "PASS <time>"
+    }
+
+    expected := readfile(expected_path)
 
     if not(formatted.eq(expected)) {
         // Write actual output for diff
@@ -251,6 +256,54 @@ main := proc(args: ..Str) {
     // Success - print timing info for tests.til to parse
     // Format: PASS <time_ms>
     println("PASS ", time_ms.to_str())
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
+// test_mode: rs_interpreted, rs_compiled, til_interpreted, til_compiled
+// out_mode: which .out file to compare against (e.g., rs_interpreted, til_interpreted)
+main := proc(args: ..Str) {
+    if args.len().lt(5) {
+        println("Usage: test_runner <command> <mode> <out_mode> <expected_status> <file> [args...]")
+        println("Commands: test, regen")
+        exit(1)
+    }
+
+    // Extract required args
+    mut command := ""
+    mut test_mode := ""
+    mut out_mode := ""
+    mut expected_status_str := ""
+    mut file := ""
+    args.get(0, command)
+    args.get(1, test_mode)
+    args.get(2, out_mode)
+    args.get(3, expected_status_str)
+    args.get(4, file)
+
+    expected_status := expected_status_str.to_i64()
+
+    // Collect extra args into single string
+    mut cmd_args := ""
+    for i in 5..args.len() {
+        mut arg := ""
+        args.get(i, arg)
+        if cmd_args.len().gt(0) {
+            cmd_args = cmd_args.concat(" ")
+        }
+        cmd_args = cmd_args.concat(arg)
+    }
+
+    switch command {
+    case "regen":
+        do_regen(test_mode, out_mode, file, cmd_args)
+    case "test":
+        do_test(test_mode, out_mode, expected_status, file, cmd_args)
+    case:
+        println("ERROR: Unknown command '", command, "'")
+        println("Commands: test, regen")
+        exit(1)
+    }
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
