@@ -25,7 +25,7 @@ This ensures TIL behaves identically to Rust regarding memory ownership.
 - Token.clone(), literal_clone(), node_type_clone(), value_type_clone() ARE needed for deep copying
 
 ** AllocError handling
-- Internal errors (IndexOutOfBoundsError, AllocError) should be caught internally
+- Internal errors (OutOfBounds, AllocError) should be caught internally
 - NOT exposed in the throws signature
 - Catch and rethrow as Str: =catch (err: AllocError) { throw err.msg }=
 

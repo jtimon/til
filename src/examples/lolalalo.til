@@ -47,7 +47,7 @@ make_poem_iterative := func(s1: Str, s2: Str) returns Str {
         }
         silabes.get(i3, s3)?
 
-        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+        catch (err: OutOfBounds) { panic(loc(), err.msg) }
 
         return s0.concat(s1_v).concat(s2_v).concat(s3).concat("\n")
     }
@@ -63,7 +63,7 @@ make_poem_iterative := func(s1: Str, s2: Str) returns Str {
         }
     }
 
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
 
     return poem
 }

@@ -40,7 +40,7 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
                 enum_def.variants.get(0, first_v)?
                 first_variant := first_v.name
                 payload_type_ptr := first_v.payload_type
-                catch (err: IndexOutOfBoundsError) {
+                catch (err: OutOfBounds) {
                     // Shouldn't happen since we checked len > 0
                 }
                 variant_id := Expr.new_explicit(NodeType.Identifier(first_variant), Vec.new(Expr), line, col)
@@ -84,7 +84,7 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
 /// for _for_i in 0..collection.len() {
 //     mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
 ///     collection.get(_for_i, VAR)
-//     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+//     catch (err: OutOfBounds) { panic(loc(), err.msg) }
 ///     body
 /// }
 desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns Expr throws Str {
@@ -170,7 +170,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
             enum_def.variants.get(0, first_v)?
             first_variant := first_v.name
             payload_type_ptr := first_v.payload_type
-            catch (err: IndexOutOfBoundsError) {
+            catch (err: OutOfBounds) {
                 // Shouldn't happen since we checked len > 0
             }
 
@@ -220,7 +220,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     get_params.push(Expr.new_explicit(NodeType.Identifier(var_name), Vec.new(Expr), e.line, e.col))
     get_call := Expr.new_explicit(NodeType.FCall(false), get_params, e.line, e.col)
 
-    // Build: catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    // Build: catch (err: OutOfBounds) { panic(loc(), err.msg) }
     // Build err.msg (identifier with field access)
     mut msg_field := Vec.new(Expr)
     msg_field.push(Expr.new_explicit(NodeType.Identifier("msg"), Vec.new(Expr), e.line, e.col))
@@ -246,7 +246,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     // Catch structure: [name_expr, type_expr, body_expr]
     mut catch_params := Vec.new(Expr)
     catch_params.push(Expr.new_explicit(NodeType.Identifier("err"), Vec.new(Expr), e.line, e.col))
-    catch_params.push(Expr.new_explicit(NodeType.Identifier("IndexOutOfBoundsError"), Vec.new(Expr), e.line, e.col))
+    catch_params.push(Expr.new_explicit(NodeType.Identifier("OutOfBounds"), Vec.new(Expr), e.line, e.col))
     catch_params.push(catch_body)
     catch_expr := Expr.new_explicit(NodeType.Catch, catch_params, e.line, e.col)
 
@@ -264,7 +264,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     inc_stmt := Expr.new_explicit(NodeType.Assignment(index_var_name), inc_params, e.line, e.col)
 
     // Build while body: var_decl, get_call + catch (together), original body statements, inc
-    // The catch must be right after get_call so it only catches IndexOutOfBoundsError from get,
+    // The catch must be right after get_call so it only catches OutOfBounds from get,
     // not from user code in the loop body
     mut while_body_params := Vec.new(Expr)
     while_body_params.push(var_decl_expr)
@@ -298,7 +298,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     outer_body_params.push(index_decl_expr)
     outer_body_params.push(while_expr)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("desugar_forin: ", err.msg)
     }
 
@@ -364,8 +364,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         }
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw format("desugar_expr: IndexOutOfBoundsError: ", err.msg)
+    catch (err: OutOfBounds) {
+        throw format("desugar_expr: OutOfBounds: ", err.msg)
     }
     catch (err: KeyNotFoundError) {
         throw format("desugar_expr: KeyNotFoundError: ", err.msg)

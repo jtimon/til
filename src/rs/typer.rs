@@ -455,10 +455,10 @@ fn check_forin_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let get_method = format!("{}.get", type_name);
     match context.scope_stack.lookup_func(&get_method) {
         Some(func_def) => {
-            // Verify signature: get(self, I64, mut Dynamic) throws IndexOutOfBoundsError
+            // Verify signature: get(self, I64, mut Dynamic) throws OutOfBounds
             let mut throws_index_error = false;
             for t in &func_def.throw_types {
-                if *t == ValueType::TCustom("IndexOutOfBoundsError".to_string()) {
+                if *t == ValueType::TCustom("OutOfBounds".to_string()) {
                     throws_index_error = true;
                     break;
                 }
@@ -472,14 +472,14 @@ fn check_forin_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             if !valid {
                 errors.push(e.error(&context.path, "type", &format!(
                     "for-in loop: '{}.get()' has wrong signature.\n\
-                     Required: {}.get(self, index: I64, mut item: Dynamic) throws IndexOutOfBoundsError",
+                     Required: {}.get(self, index: I64, mut item: Dynamic) throws OutOfBounds",
                     type_name, type_name)));
             }
         },
         None => {
             errors.push(e.error(&context.path, "type", &format!(
                 "for-in loop: type '{}' does not have a 'get()' method.\n\
-                 Required: {}.get(self, index: I64, mut item: Dynamic) throws IndexOutOfBoundsError",
+                 Required: {}.get(self, index: I64, mut item: Dynamic) throws OutOfBounds",
                 type_name, type_name)));
         }
     }

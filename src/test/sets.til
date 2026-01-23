@@ -153,6 +153,6 @@ test_set_get := proc() {
     s.get(2, elem)?
     assert_eq_str(loc(), "gamma", elem)
 
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
 }
 test_set_get()

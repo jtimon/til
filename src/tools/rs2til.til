@@ -28,7 +28,7 @@ is_eof := func(state: TranslatorState) returns Bool {
     case:
         return false
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         // REM: Can't happen - checked bounds above
         return true
     }
@@ -38,7 +38,7 @@ is_eof := func(state: TranslatorState) returns Bool {
 peek := func(state: TranslatorState) returns Token {
     mut t := Token()
     state.tokens.get(state.pos, t)
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
     return t
 }
 
@@ -46,7 +46,7 @@ peek := func(state: TranslatorState) returns Token {
 next_token := proc(mut state: TranslatorState) returns Token {
     mut t := Token()
     state.tokens.get(state.pos, t)
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
     state.pos = state.pos.add(1)
     return t
 }
@@ -140,7 +140,7 @@ translate_fn := proc(mut state: TranslatorState) returns Str throws Str {
 
     // Generate TIL: name := proc() {}
     result := format(name_token.token_str, " := proc() {}\n")
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
     catch (err: I64_Overflow) { throw err.msg }
     return result
 }

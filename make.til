@@ -59,7 +59,7 @@ build_rstil := proc() {
     mut deps := Vec.new(Str)
     deps.push("src/rstil.rs")
     rs_files := glob_files("src/rs/*.rs")?
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
     for f: Str in rs_files { deps.push(f) }
 
     if needs_rebuild("bin/rstil", deps).not() {
@@ -216,7 +216,7 @@ main := proc(args: ..Str) {
     }
     mut target := ""
     args.get(0, target)?
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
     switch target {
     case "clean":
         run_clean()

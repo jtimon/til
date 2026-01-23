@@ -144,7 +144,7 @@ get_diatonic_index := proc(note_base: Str) returns I64 {
         }
         i = i.add(1)
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
     neg_one := I64.sub(0, 1)
@@ -189,7 +189,7 @@ format_note := proc(diatonic_idx: I64, chromatic_pos: I64) returns Str {
         }
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
     return note_name
@@ -213,7 +213,7 @@ apply_accidentals := proc(base_idx: I64, acc_str: Str) returns I64 {
         idx = idx.add(12)
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
     return idx
@@ -242,7 +242,7 @@ generate_scale := proc(root_idx: I64, root_diatonic: I64, steps: Vec) returns St
     result = result.concat(root_note)
     result = result.concat(")")
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
     return result
@@ -409,7 +409,7 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
     println(header2.concat(":"))
     println(scale_str)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
 }
@@ -475,7 +475,7 @@ main := proc(args: ..Str) {
 
     print_scale(mode_arg, root_arg, lang)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
 }

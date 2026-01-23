@@ -12,7 +12,7 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
 ### Fixed Bugs
 - **Bug #54** (Fixed): Pure functions that throw are not folded at compile time
   - Root cause: is_comptime_evaluable blocked all throwing functions
-  - Fix: Only exclude AllocError/IndexOutOfBoundsError/KeyNotFoundError (runtime-dependent)
+  - Fix: Only exclude AllocError/OutOfBounds/KeyNotFoundError (runtime-dependent)
   - Part of major precomp overhaul - see doc/precomp.org
 
 - **Bug #43** (Fixed): Map.get returns wrong value when Map is field inside struct
@@ -40,7 +40,7 @@ Currently only `./bin/rstil interpret` and `./bin/rstil run` work.
   - Fix: Allocate +1 byte and null-terminate with memset
   - Note: No regression test - bug only manifests with fragmented heap
 
-- **Code Quality**: Fixed empty AllocError and IndexOutOfBoundsError catches
+- **Code Quality**: Fixed empty AllocError and OutOfBounds catches
   - Converted 61 empty catches to properly rethrow errors as Str
   - ext.til global init functions use panic() instead of throw
   - Added `throws Str` to 12 functions whose error paths now propagate

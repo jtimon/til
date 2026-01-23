@@ -44,8 +44,8 @@ test_array_clone := proc() {
     original.get(0, orig_val)?
     assert_eq(loc(), 10, orig_val)
 
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError:", err.msg)
+    catch(err: OutOfBounds) {
+        println(loc(), "OutOfBounds:", err.msg)
         exit(1)
     }
 }
@@ -71,8 +71,8 @@ test_vec_clone := proc() {
     assert_eq(loc(), 4, cloned.len())
     assert_eq(loc(), 3, original.len())
 
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError:", err.msg)
+    catch(err: OutOfBounds) {
+        println(loc(), "OutOfBounds:", err.msg)
         exit(1)
     }
 }
@@ -108,8 +108,8 @@ test_list_clone := proc() {
     assert_eq(loc(), 4, cloned.len())
     assert_eq(loc(), 3, original.len())
 
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError:", err.msg)
+    catch(err: OutOfBounds) {
+        println(loc(), "OutOfBounds:", err.msg)
         exit(1)
     }
 }
