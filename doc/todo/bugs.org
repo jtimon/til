@@ -8,6 +8,43 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #137: enum_get_payload reads from wrong offset in compiled mode
+:PROPERTIES:
+:DISCOVERED: 2026-01-23
+:IMPACT: Enum payload extraction returns garbage in compiled code
+:STATUS: Open
+:REPRODUCER: tmp/test_enum_get_payload.til
+:END:
+
+*** Description
+The ~enum_get_payload~ function in ~src/ext.c~ reads payload from offset 8,
+but C enum tags are 4 bytes (sizeof(int)), so the payload starts at offset 4.
+
+*** Symptoms
+- ~rstil interpret~ works correctly
+- ~rstil run~ (compiled) extracts garbage data
+
+*** Example
+#+BEGIN_SRC til
+Option := enum { None, Some: SimpleColor }
+opt := Option.Some(SimpleColor.Red)
+mut extracted := SimpleColor.Blue
+enum_get_payload(opt, SimpleColor, extracted)
+// interpret: extracted = SimpleColor.Red (correct)
+// run: extracted = SimpleColor.Blue (unchanged, garbage read)
+#+END_SRC
+
+*** Root Cause
+In ~src/ext.c~ line 43:
+#+BEGIN_SRC c
+memcpy(out_ptr, (char*)enum_ptr + 8, (size_t)payload_size);
+#+END_SRC
+
+Should be offset ~sizeof(int)~ (4 bytes), not 8.
+
+*** Fix
+Change offset from 8 to ~sizeof(int)~ in ~til_enum_get_payload~.
+
 ** Bug #136: Switch on structs compares instance names, not values
 :PROPERTIES:
 :DISCOVERED: 2026-01-23
