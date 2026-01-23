@@ -1050,8 +1050,8 @@ fn hoist_for_dynamic_params(
         // Determine the C type of the arg based on what it is
         let c_type: Result<String, String> = match &arg.node_type {
             NodeType::LLiteral(Literal::Str(_)) => Ok(format!("{}Str", TIL_PREFIX)),
-            NodeType::LLiteral(Literal::Number(_)) => Ok("int64_t".to_string()),
-            NodeType::LLiteral(Literal::List(_)) => Ok("int64_t".to_string()), // TODO: proper list type
+            NodeType::LLiteral(Literal::Number(_)) => Ok("til_I64".to_string()),
+            NodeType::LLiteral(Literal::List(_)) => Ok("til_I64".to_string()), // TODO: proper list type
             NodeType::Identifier(var_name) if !arg.params.is_empty() => {
                 // Could be: enum constructor (Type.Variant), field access (var.field), or method call
                 let first_param = arg.params.first()

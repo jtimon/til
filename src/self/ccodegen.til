@@ -1464,9 +1464,9 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: M
             case Literal.Str:
                 c_type = format(TIL_PREFIX, "Str")
             case Literal.Number:
-                c_type = "int64_t"
+                c_type = "til_I64"
             case Literal.List:
-                c_type = "int64_t"  // TODO: proper list type
+                c_type = "til_I64"  // TODO: proper list type
             case:
             }
         case NodeType.Identifier(name):
