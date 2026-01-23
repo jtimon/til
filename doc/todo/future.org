@@ -669,6 +669,14 @@ of comparing against max type size.
 
 Also added RGB struct (with U8 r,g,b fields) test case to verify struct payloads work.
 
+*** Current State (2026-01-23)
+
+- Desugarer phase EXISTS (from Issue #127) - handles ForIn, but NO switch desugaring yet
+- Switch still handled by: ufcs, precomp, interpreter, ccodegen
+- ccodegen's ~emit_switch()~ already generates if/else chains - reference implementation
+- enum_to_str and enum_get_payload ext_funcs ready to use
+- Scavenger has NO switch handling (only a comment mentioning switch)
+
 *** Implementation Plan
 
 Incremental approach: Rust first, test, TIL port, test. One file per commit.
@@ -678,8 +686,15 @@ The desugared ~val.eq(other)~ calls will be handled by UFCS (transforms to ~Type
 
 **** Step 1: Add switch desugaring to desugarer (2 commits)
 
+Reference: ccodegen's ~emit_switch()~ (lines ~6309-6400) already does this work.
+
 ***** Commit 1a: Rust desugarer
-- ~src/rs/desugarer.rs~ - add desugar_switch, handle Switch case
+- ~src/rs/desugarer.rs~ - add ~desugar_switch()~, handle Switch case in ~desugar_expr()~
+- Use ~context.precomp_forin_counter~ for unique temp var names
+- For enum switches: use ~enum_to_str()~ + ~Str.eq()~
+- For non-enum switches: use direct ~val.eq(case_val)~
+- For range cases: use ~val.gteq(lo) && val.lteq(hi)~
+- For payload patterns: generate ~enum_get_payload()~ with default-initialized bindings
 - Run ~make benchmark~ - must pass
 
 ***** Commit 1b: TIL port
@@ -689,10 +704,8 @@ The desugared ~val.eq(other)~ calls will be handled by UFCS (transforms to ~Type
 
 **** Step 2: Remove switch handling from ufcs (2 commits)
 
-UFCS has 12 switch refs and runs right after desugarer.
-
 ***** Commit 2a: Rust ufcs
-- ~src/rs/ufcs.rs~ - remove switch handling, add panic for Switch node
+- ~src/rs/ufcs.rs~ - remove ~ufcs_switch()~ (lines 248-326), add panic for Switch node
 - Run ~make benchmark~ - must pass
 
 ***** Commit 2b: TIL port
@@ -703,7 +716,7 @@ UFCS has 12 switch refs and runs right after desugarer.
 **** Step 3: Remove switch handling from precomp (2 commits)
 
 ***** Commit 3a: Rust precomp
-- ~src/rs/precomp.rs~ - remove switch handling, add panic for Switch node
+- ~src/rs/precomp.rs~ - remove ~precomp_switch()~ (lines 233-311), add panic for Switch node
 - Run ~make benchmark~ - must pass
 
 ***** Commit 3b: TIL port
@@ -711,37 +724,45 @@ UFCS has 12 switch refs and runs right after desugarer.
 - ~src/self/precomp.til~ - port same changes following rs2til.org rules strictly
 - Run ~make benchmark~ - must pass
 
-**** Step 4: Remove switch handling from scavenger (2 commits)
+**** Step 4: Remove switch handling from interpreter (2 commits)
 
-***** Commit 4a: Rust scavenger
-- ~src/rs/scavenger.rs~ - remove switch handling
+***** Commit 4a: Rust interpreter
+- ~src/rs/interpreter.rs~ - remove switch evaluation (lines 462-~600), add panic for Switch node
 - Run ~make benchmark~ - must pass
 
 ***** Commit 4b: TIL port
 - Read ~doc/rs2til.org~ and the Rust diff before porting
-- ~src/self/scavenger.til~ - port same changes following rs2til.org rules strictly
+- ~src/self/interpreter.til~ - port same changes following rs2til.org rules strictly
 - Run ~make benchmark~ - must pass
 
-**** Step 5: Remove switch handling from interpreter (2 commits)
+**** Step 5: Remove switch handling from ccodegen (2 commits)
 
-***** Commit 5a: Rust interpreter
-- ~src/rs/interpreter.rs~ - remove switch handling, add panic for Switch node
+***** Commit 5a: Rust ccodegen
+- ~src/rs/ccodegen.rs~ - remove ~emit_switch()~ (lines 6309-6400), add panic for Switch node
 - Run ~make benchmark~ - must pass
 
 ***** Commit 5b: TIL port
 - Read ~doc/rs2til.org~ and the Rust diff before porting
-- ~src/self/interpreter.til~ - port same changes following rs2til.org rules strictly
+- ~src/self/ccodegen.til~ - port same changes following rs2til.org rules strictly
 - Run ~make benchmark~ - must pass
 
-**** Step 6: Remove switch handling from ccodegen (2 commits)
+**** Step 6: Add typer validation for switch methods (2 commits)
 
-***** Commit 6a: Rust ccodegen
-- ~src/rs/ccodegen.rs~ - remove switch handling and payload hoisting
+This prevents confusing runtime errors after desugaring. Without this, a struct
+without ~eq~ method used in switch will fail with generic "Type X has no method eq"
+instead of helpful "switch case: type X does not have an eq() method".
+
+***** Commit 6a: Rust typer
+- ~src/rs/typer.rs~ - in ~check_switch_statement()~ (line ~1763)
+- Copy pattern from forin validation (lines 444-485)
+- For non-enum simple cases: check ~TypeName.eq(self, other: TypeName) returns Bool~
+- For range cases: check ~TypeName.gteq~ and ~TypeName.lteq~
+- Skip validation for enum types (they use enum_to_str + Str.eq)
 - Run ~make benchmark~ - must pass
 
 ***** Commit 6b: TIL port
 - Read ~doc/rs2til.org~ and the Rust diff before porting
-- ~src/self/ccodegen.til~ - port same changes following rs2til.org rules strictly
+- ~src/self/typer.til~ - port same changes following rs2til.org rules strictly
 - Run ~make benchmark~ - must pass
 
 *** Desugaring Details
@@ -935,16 +956,9 @@ switch p1 { case Point(x=0, y=0)..Point(x=10, y=20): ... }
 4. Flatten Body nodes when adding original body statements
 5. Build if chain from end to beginning (reverse iteration)
 
-***** precomp.rs changes
-Line 240: Change ~NodeType::Switch => precomp_switch(context, e)~ to:
-#+BEGIN_SRC rust
-NodeType::Switch => {
-    let desugared = desugar_switch(context, e)?;
-    precomp_expr(context, &desugared)
-},
-#+END_SRC
+***** desugarer.rs implementation
 
-Add ~desugar_switch~ function (~line 770) with helpers:
+Add ~desugar_switch~ function with helpers:
 - ~build_switch_if_chain~ - collect cases, build if chain
 - ~build_case_condition~ - build condition based on case type:
   - Simple case: ~val.eq(case_val)~
@@ -953,12 +967,10 @@ Add ~desugar_switch~ function (~line 770) with helpers:
 - ~build_payload_extraction_body~ - for enum patterns: {mut var := default; enum_get_payload(...); ...body...}
 - ~build_if_chain_from_cases~ - build If nodes from end to beginning
 
-Delete old ~precomp_switch~ function (lines 776-852).
+Reference implementation: ccodegen.rs ~emit_switch()~ lines ~6309-6400
 
-***** precomp.til changes
-Line 310: Change to call desugar_switch and recurse.
+***** desugarer.til implementation
 Add equivalent functions using TIL idioms (~Vec.new(Expr)~, ~Expr.new_explicit~).
-Delete old ~precomp_switch~ function (lines 576-679).
 IMPORTANT: Follow ~doc/rs2til.org~ translation rules when porting.
 
 **** Commit 2: Replace eval_Switch/emit_switch with panics
