@@ -2026,6 +2026,14 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             }
         }
     }
+    // 2b2: namespace functions (with mangled names)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_namespace_statement(child) {
+                emit_namespace_func_prototypes(child, &mut output)?;
+            }
+        }
+    }
     // 2c: hoisted nested function prototypes (collected in Pass 0a)
     if !ctx.hoisted_prototypes.is_empty() {
         output.push_str("\n// Nested function prototypes (hoisted)\n");
@@ -2107,6 +2115,14 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         for child in &ast.params {
             if is_struct_declaration(child) {
                 emit_struct_func_bodies(child, &mut output, &mut ctx, context)?;
+            }
+        }
+    }
+    // 5b2: namespace functions (with mangled names)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_namespace_statement(child) {
+                emit_namespace_func_bodies(child, &mut output, &mut ctx, context)?;
             }
         }
     }
@@ -2221,6 +2237,14 @@ fn is_enum_declaration(expr: &Expr) -> bool {
     false
 }
 
+// Check if an expression is a namespace statement (namespace TypeName {...})
+fn is_namespace_statement(expr: &Expr) -> bool {
+    if let NodeType::NamespaceDef(_) = &expr.node_type {
+        return true;
+    }
+    false
+}
+
 // Check if an expression is a top-level constant declaration (name := literal)
 // Constants are non-mut declarations with literal values (numbers, strings, bools)
 fn is_constant_declaration(expr: &Expr) -> bool {
@@ -2235,8 +2259,8 @@ fn is_constant_declaration(expr: &Expr) -> bool {
                 NodeType::LLiteral(_) => return true,
                 // Bool identifiers (true/false) are constants
                 NodeType::Identifier(name) if name == "true" || name == "false" => return true,
-                // Skip struct, enum, and function definitions
-                NodeType::StructDef(_) | NodeType::EnumDef(_) | NodeType::FuncDef(_) => return false,
+                // Skip struct, enum, namespace, and function definitions
+                NodeType::StructDef(_) | NodeType::NamespaceDef(_) | NodeType::EnumDef(_) | NodeType::FuncDef(_) => return false,
                 _ => return false,
             }
         }
@@ -2331,7 +2355,7 @@ fn is_global_declaration(expr: &Expr) -> bool {
         if !expr.params.is_empty() {
             match &expr.params[0].node_type {
                 // Skip these - they have their own handling
-                NodeType::StructDef(_) | NodeType::EnumDef(_) | NodeType::FuncDef(_) => return false,
+                NodeType::StructDef(_) | NodeType::NamespaceDef(_) | NodeType::EnumDef(_) | NodeType::FuncDef(_) => return false,
                 // Skip literal constants - they're handled by is_constant_declaration
                 // (only non-mut literals are constants)
                 NodeType::LLiteral(_) if !decl.is_mut => return false,
@@ -3016,6 +3040,41 @@ fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
     Ok(())
 }
 
+// Emit namespace function prototypes for all functions in a namespace block
+fn emit_namespace_func_prototypes(expr: &Expr, output: &mut String) -> Result<(), String> {
+    if let NodeType::NamespaceDef(namespace_def) = &expr.node_type {
+        let type_name = til_name(&namespace_def.type_name);
+        for member in &namespace_def.members {
+            // Check if default_value is a function definition
+            if let Some(func_expr) = namespace_def.default_values.get(&member.name) {
+                if let NodeType::FuncDef(func_def) = &func_expr.node_type {
+                    let mangled_name = format!("{}_{}", type_name, member.name);
+                    emit_func_signature(&mangled_name, func_def, output)?;
+                    output.push_str(";\n");
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// Emit namespace function bodies for all functions in a namespace block
+fn emit_namespace_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+    if let NodeType::NamespaceDef(namespace_def) = &expr.node_type {
+        let type_name = til_name(&namespace_def.type_name);
+        for member in &namespace_def.members {
+            // Check if default_value is a function definition
+            if let Some(func_expr) = namespace_def.default_values.get(&member.name) {
+                if let NodeType::FuncDef(func_def) = &func_expr.node_type {
+                    // Reuse struct function body emission (same logic applies)
+                    emit_struct_func_body(&type_name, member, func_def, output, ctx, context)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 // Convert TIL type to C type. Returns Err if the type can't be represented in C (e.g., functions, infer)
 fn til_type_to_c(til_type: &crate::rs::parser::ValueType) -> Result<String, String> {
     match til_type {
@@ -3384,6 +3443,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::Catch => Ok(()), // Catch blocks handled at call site
         NodeType::Throw => emit_throw(expr, output, indent, ctx, context),
         NodeType::StructDef(_) => Err("ccodegen: StructDef should be handled at top level, not in emit_expr".to_string()),
+        NodeType::NamespaceDef(_) => Err("ccodegen: NamespaceDef should be handled at top level, not in emit_expr".to_string()),
         NodeType::EnumDef(_) => Err("ccodegen: EnumDef should be handled at top level, not in emit_expr".to_string()),
         NodeType::Switch => emit_switch(expr, output, indent, ctx, context),
         NodeType::DefaultCase => Err("ccodegen: DefaultCase should be handled inside emit_switch".to_string()),

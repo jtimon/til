@@ -5,7 +5,7 @@
 use crate::rs::init::{Context, get_value_type, SymbolInfo, ScopeType};
 use crate::rs::typer::func_proc_has_multi_arg;
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SFuncDef, PatternInfo, INFER_TYPE,
+    Expr, NodeType, ValueType, SStructDef, SNamespaceDef, SFuncDef, PatternInfo, INFER_TYPE,
 };
 
 // ---------- Named argument reordering
@@ -201,8 +201,9 @@ pub fn ufcs_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::Return | NodeType::Throw => ufcs_params(context, e),
         NodeType::Catch => ufcs_catch(context, e),
         NodeType::Range => ufcs_params(context, e),
-        // Struct/enum definitions - need to process default values (which may contain function defs)
+        // Struct/enum/namespace definitions - need to process default values (which may contain function defs)
         NodeType::StructDef(struct_def) => ufcs_struct_def(context, e, struct_def),
+        NodeType::NamespaceDef(namespace_def) => ufcs_namespace_def(context, e, namespace_def),
         NodeType::EnumDef(_) => Ok(e.clone()),
         // Identifiers can have nested params (e.g., a.b.c for field access chains)
         NodeType::Identifier(_) => ufcs_params(context, e),
@@ -336,6 +337,19 @@ fn ufcs_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) -> 
         default_values: new_default_values,
     };
     Ok(Expr::new_clone(NodeType::StructDef(new_struct_def), e, e.params.clone()))
+}
+
+fn ufcs_namespace_def(context: &mut Context, e: &Expr, namespace_def: &SNamespaceDef) -> Result<Expr, String> {
+    let mut new_default_values = std::collections::HashMap::new();
+    for (name, value_expr) in &namespace_def.default_values {
+        new_default_values.insert(name.clone(), ufcs_expr(context, value_expr)?);
+    }
+    let new_namespace_def = SNamespaceDef {
+        type_name: namespace_def.type_name.clone(),
+        members: namespace_def.members.clone(),
+        default_values: new_default_values,
+    };
+    Ok(Expr::new_clone(NodeType::NamespaceDef(new_namespace_def), e, e.params.clone()))
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame

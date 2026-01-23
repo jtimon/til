@@ -1450,7 +1450,8 @@ Depends on Issue #108 (proper namespace syntax).
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
 :IMPACT: Language feature, code organization
-:STATUS: Open
+:STATUS: Implemented
+:IMPLEMENTED: 2026-01-24
 :RELATED: Issue #107 (First-Class Namespaces)
 :END:
 
@@ -1537,6 +1538,21 @@ namespace MyStruct {
     increment := func(self: MyStruct) returns MyStruct { return MyStruct(x=self.x.add(1)) }
 }
 #+END_SRC
+
+*** Implementation Notes (2026-01-24)
+Implemented in branch claude/fix-issue-108-37Gkm.
+
+What works:
+- ~namespace TypeName { ... }~ syntax for both enums and structs
+- Namespace members registered as ~TypeName.member_name~
+- UFCS works: ~val.method()~ calls ~TypeName.method(val)~
+- Parser enforces only declarations inside namespace blocks
+
+Known limitations:
+- Chained calls like ~EnumType.Variant.method()~ require intermediate variable
+- Namespace blocks in imported files don't work in compiled mode yet (works in interpreted)
+
+Tests: src/test/namespaces.til
 
 ** Issue #109: Proper Imports
 :PROPERTIES:

@@ -167,6 +167,8 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
         errors.extend(check_enum_def(context, e, enum_def)?)
     case NodeType.StructDef(struct_def):
         errors.extend(check_struct_def(context, e, struct_def)?)
+    case NodeType.NamespaceDef(namespace_def):
+        errors.extend(check_namespace_def(context, e, namespace_def)?)
     case NodeType.If:
         errors.extend(check_if_statement(context, e)?)
     case NodeType.While:
@@ -2604,6 +2606,47 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
     return errors
 }
 
+check_namespace_def := proc(mut context: Context, e: Expr, namespace_def: SNamespaceDef) returns Vec throws Str {
+    mut errors := Vec.new(Str)
+
+    // Type-check each member declaration in the namespace
+    for member_decl: Declaration in namespace_def.members {
+        if namespace_def.default_values.contains_key(member_decl.name) {
+            mut inner_e := Expr()
+            namespace_def.default_values.get(member_decl.name, inner_e)?
+
+            switch inner_e.node_type {
+            case NodeType.FuncDef(func_def):
+                // If the member is a function, type-check it
+                context.scope_stack.push(ScopeType.Function)
+                mut func_errors := check_func_proc_types(func_def, context, inner_e)?
+                errors.extend(func_errors)
+                func_errors.delete()
+                _ := context.scope_stack.pop()?
+            case:
+                // For constants/other values, check purity
+                if is_expr_calling_procs(context, inner_e)? {
+                    errors.push(inner_e.error(context.path, "type",
+                        format("Namespace member '", member_decl.name, "' has value that calls proc. Namespace values must be pure (can only call funcs, not procs).")))
+                }
+            }
+        } else {
+            errors.push(e.error(context.path, "type", format(
+                "Namespace member '", member_decl.name, "' lacks a value. All namespace members must be defined."
+            )))
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: KeyNotFoundError) {
+        throw err.msg
+    }
+
+    return errors
+}
+
 // Returns SFuncDef if function found
 // Throws KeyNotFoundError for struct/enum instantiation (Ok(None) case)
 // Throws Str for errors
@@ -2860,6 +2903,17 @@ is_expr_calling_procs := func(context: Context, e: Expr) returns Bool throws Str
             mut default_expr := Expr()
             struct_def.default_values.get(key, default_expr)?
             if is_expr_calling_procs(context, default_expr)? {
+                return true
+            }
+        }
+        return false
+
+    case NodeType.NamespaceDef(namespace_def):
+        // Check if any default values call procs
+        for ns_key: Str in namespace_def.default_values.keys {
+            mut ns_default_expr := Expr()
+            namespace_def.default_values.get(ns_key, ns_default_expr)?
+            if is_expr_calling_procs(context, ns_default_expr)? {
                 return true
             }
         }
@@ -3331,6 +3385,62 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
 
         new_struct_def := SStructDef(members=new_members, default_values=new_default_values)
         return Expr.new_explicit(NodeType.StructDef(new_struct_def), e.params, e.line, e.col)
+
+    case NodeType.NamespaceDef(namespace_def):
+        // NamespaceDef - resolve member types and recurse into default_values
+        // First, resolve types and recurse into default_values
+        mut ns_new_default_values := Map.new(Str, Expr)
+        for ns_name: Str in namespace_def.default_values.keys {
+            mut ns_value_expr := Expr()
+            namespace_def.default_values.get(ns_name, ns_value_expr)?
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(context.path, "resolve_types", format("KeyNotFoundError: ", err.msg))
+            }
+            ns_new_default_values.set(ns_name, resolve_inferred_types(context, ns_value_expr)?)
+        }
+
+        // Then, resolve INFER_TYPE in member declarations
+        mut ns_new_members := Vec.new(Declaration)
+        for ns_member_idx in 0..namespace_def.members.len() {
+            mut ns_member := Declaration()
+            namespace_def.members.get(ns_member_idx, ns_member)?
+
+            mut ns_member_type_name := ""
+            switch ns_member.value_type {
+            case ValueType.TCustom(name):
+                ns_member_type_name = name
+            case:
+                ns_member_type_name = ""
+            }
+
+            mut ns_resolved_type := ns_member.value_type
+            if ns_member_type_name.eq(INFER_TYPE) {
+                // Get resolved default_value for this member
+                mut ns_default_value := Expr()
+                mut ns_has_default := true
+                ns_new_default_values.get(ns_member.name, ns_default_value)?
+                catch (err: KeyNotFoundError) {
+                    ns_has_default = false
+                }
+                if ns_has_default {
+                    ns_resolved_type = get_value_type(context, ns_default_value)?
+                } else {
+                    throw e.lang_error(context.path, "resolve_types", format("Cannot infer type for namespace member '", ns_member.name, "': no default value"))
+                }
+            }
+
+            ns_new_members.push(Declaration(
+                name=ns_member.name,
+                value_type=ns_resolved_type,
+                is_mut=ns_member.is_mut,
+                is_copy=ns_member.is_copy,
+                is_own=ns_member.is_own,
+                default_value=ns_member.default_value
+            ))
+        }
+
+        new_namespace_def := SNamespaceDef(type_name=namespace_def.type_name, members=ns_new_members, default_values=ns_new_default_values)
+        return Expr.new_explicit(NodeType.NamespaceDef(new_namespace_def), e.params, e.line, e.col)
 
     case NodeType.Catch:
         // Catch - declare catch variable in scope before processing body
