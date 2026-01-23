@@ -14,14 +14,10 @@ mut g_compiler_changed := false
 // Run command with streaming output (prints as it goes)
 run_stream_cmd := proc(cmd: Str) returns I64 {
     println(cmd)
-    pid := spawn_cmd(cmd)
+    pid := spawn_cmd(cmd)?
     status := wait_cmd(pid)
 
     catch (err: SpawnError) {
-        println("ERROR: ", err.msg)
-        exit(1)
-    }
-    catch (err: SleepError) {
         println("ERROR: ", err.msg)
         exit(1)
     }
@@ -62,7 +58,8 @@ build_rstil := proc() {
     // Check if rstil needs rebuilding (Rust files - not tracked by til build)
     mut deps := Vec.new(Str)
     deps.push("src/rstil.rs")
-    rs_files := glob_files("src/rs/*.rs")
+    rs_files := glob_files("src/rs/*.rs")?
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     for f: Str in rs_files { deps.push(f) }
 
     if needs_rebuild("bin/rstil", deps).not() {
@@ -75,8 +72,6 @@ build_rstil := proc() {
     if status.eq(0).not() {
         exit(1)
     }
-
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
 build_rstil_til := proc() {
@@ -220,7 +215,8 @@ main := proc(args: ..Str) {
         exit(1)
     }
     mut target := ""
-    args.get(0, target)
+    args.get(0, target)?
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     switch target {
     case "clean":
         run_clean()
@@ -249,6 +245,4 @@ main := proc(args: ..Str) {
         println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff_til")
         exit(1)
     }
-
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }

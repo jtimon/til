@@ -28,7 +28,7 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
         // For other types (structs, other enums), check if it's an enum
         // Bug #86: Check if this type is an enum - enums need special constructor syntax
         mut is_enum := false
-        mut enum_def := context.scope_stack.lookup_enum(type_name)
+        mut enum_def := context.scope_stack.lookup_enum(type_name)?
         is_enum = true
         catch (err: KeyNotFoundError) {
             // Not an enum
@@ -37,7 +37,7 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
             // Build proper enum constructor: EnumType.FirstVariant or EnumType.FirstVariant(payload)
             if enum_def.variants.len().gt(0) {
                 mut first_v := EnumVariant()
-                enum_def.variants.get(0, first_v)
+                enum_def.variants.get(0, first_v)?
                 first_variant := first_v.name
                 payload_type_ptr := first_v.payload_type
                 catch (err: IndexOutOfBoundsError) {
@@ -55,7 +55,7 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
                     mut enum_payload_fcall_params := Vec.new(Expr)
                     enum_payload_fcall_params.push(enum_id)
                     enum_payload_fcall_params.push(default_arg)
-                    return Expr.new_explicit(NodeType.FCall, enum_payload_fcall_params, line, col)
+                    return Expr.new_explicit(NodeType.FCall(false), enum_payload_fcall_params, line, col)
                 } else {
                     // Variant has no payload - just the identifier chain
                     return enum_id
@@ -64,13 +64,13 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
                 // Empty enum - fall back to struct-like constructor (shouldn't happen)
                 mut empty_enum_fcall_params := Vec.new(Expr)
                 empty_enum_fcall_params.push(Expr.new_explicit(NodeType.Identifier(type_name), Vec.new(Expr), line, col))
-                return Expr.new_explicit(NodeType.FCall, empty_enum_fcall_params, line, col)
+                return Expr.new_explicit(NodeType.FCall(false), empty_enum_fcall_params, line, col)
             }
         } else {
             // Not an enum - use struct-like constructor: TYPE()
             mut struct_fcall_params := Vec.new(Expr)
             struct_fcall_params.push(Expr.new_explicit(NodeType.Identifier(type_name), Vec.new(Expr), line, col))
-            return Expr.new_explicit(NodeType.FCall, struct_fcall_params, line, col)
+            return Expr.new_explicit(NodeType.FCall(false), struct_fcall_params, line, col)
         }
     case:
         // For function types and other types, use a placeholder (shouldn't typically happen)
@@ -92,7 +92,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     if e.params.len().lt(1) {
         throw e.lang_error(context.path, "desugar", "ForIn: missing loop variable")
     }
-    mut var_expr := e.get(0)
+    mut var_expr := e.get(0)?
     mut var_name := ""
     switch var_expr.node_type {
     case NodeType.Identifier(name):
@@ -105,7 +105,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     if e.params.len().lt(2) {
         throw e.lang_error(context.path, "desugar", "ForIn: missing collection expression")
     }
-    collection_expr := desugar_expr(context, e.get(1))
+    collection_expr := desugar_expr(context, e.get(1)?)?
 
     // NOTE: We do NOT declare the loop variable in scope_stack here.
     // The desugarer just transforms AST; variable declaration will be handled
@@ -116,7 +116,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     if e.params.len().lt(3) {
         throw e.lang_error(context.path, "desugar", "ForIn: missing body")
     }
-    body_expr := desugar_expr(context, e.get(2))
+    body_expr := desugar_expr(context, e.get(2)?)?
 
     // Build: mut _for_i_funcname_N := 0 (unique name to avoid conflicts with nested loops)
     // Bug #40 fix: Use per-function counter and include function name for deterministic output
@@ -139,14 +139,14 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     mut len_params := Vec.new(Expr)
     len_params.push(Expr.new_explicit(NodeType.Identifier("len"), Vec.new(Expr), e.line, e.col))
     len_params.push(collection_expr.clone())
-    len_call_expr := Expr.new_explicit(NodeType.FCall, len_params, e.line, e.col)
+    len_call_expr := Expr.new_explicit(NodeType.FCall(false), len_params, e.line, e.col)
 
     // Build lt(_for_i, len_result) - already desugared form
     mut cond_params := Vec.new(Expr)
     cond_params.push(Expr.new_explicit(NodeType.Identifier("lt"), Vec.new(Expr), e.line, e.col))
     cond_params.push(Expr.new_explicit(NodeType.Identifier(index_var_name), Vec.new(Expr), e.line, e.col))
     cond_params.push(len_call_expr)
-    cond_expr := Expr.new_explicit(NodeType.FCall, cond_params, e.line, e.col)
+    cond_expr := Expr.new_explicit(NodeType.FCall(false), cond_params, e.line, e.col)
 
     // Build: mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
     var_decl := Declaration(name=var_name, value_type=ValueType.TCustom(var_type_name), is_mut=true, is_copy=false, is_own=false, default_value=NULL)
@@ -156,7 +156,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     // Bug #33: for-in loops don't work with enum collections
     mut type_call := Expr()
     mut is_enum := false
-    mut enum_def := context.scope_stack.lookup_enum(var_type_name)
+    mut enum_def := context.scope_stack.lookup_enum(var_type_name)?
     is_enum = true
     catch (err: KeyNotFoundError) {
         // Not an enum
@@ -167,7 +167,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
         // Bug #38 fix: use variants Vec
         if enum_def.variants.len().gt(0) {
             mut first_v := EnumVariant()
-            enum_def.variants.get(0, first_v)
+            enum_def.variants.get(0, first_v)?
             first_variant := first_v.name
             payload_type_ptr := first_v.payload_type
             catch (err: IndexOutOfBoundsError) {
@@ -190,7 +190,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
                 mut fcall_params := Vec.new(Expr)
                 fcall_params.push(enum_id)
                 fcall_params.push(default_arg)
-                type_call = Expr.new_explicit(NodeType.FCall, fcall_params, e.line, e.col)
+                type_call = Expr.new_explicit(NodeType.FCall(false), fcall_params, e.line, e.col)
             } else {
                 // Variant has no payload - just the identifier chain (NOT an FCall)
                 type_call = enum_id
@@ -199,13 +199,13 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
             // Empty enum - shouldn't happen, fall back to struct-like constructor
             mut empty_enum_type_call_params := Vec.new(Expr)
             empty_enum_type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
-            type_call = Expr.new_explicit(NodeType.FCall, empty_enum_type_call_params, e.line, e.col)
+            type_call = Expr.new_explicit(NodeType.FCall(false), empty_enum_type_call_params, e.line, e.col)
         }
     } else {
         // Not an enum - use struct-like constructor: TYPE()
         mut struct_type_call_params := Vec.new(Expr)
         struct_type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
-        type_call = Expr.new_explicit(NodeType.FCall, struct_type_call_params, e.line, e.col)
+        type_call = Expr.new_explicit(NodeType.FCall(false), struct_type_call_params, e.line, e.col)
     }
 
     mut var_decl_params := Vec.new(Expr)
@@ -218,7 +218,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     get_params.push(collection_expr.clone())
     get_params.push(Expr.new_explicit(NodeType.Identifier(index_var_name), Vec.new(Expr), e.line, e.col))
     get_params.push(Expr.new_explicit(NodeType.Identifier(var_name), Vec.new(Expr), e.line, e.col))
-    get_call := Expr.new_explicit(NodeType.FCall, get_params, e.line, e.col)
+    get_call := Expr.new_explicit(NodeType.FCall(false), get_params, e.line, e.col)
 
     // Build: catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     // Build err.msg (identifier with field access)
@@ -229,14 +229,14 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     // Build loc() call
     mut loc_params := Vec.new(Expr)
     loc_params.push(Expr.new_explicit(NodeType.Identifier("loc"), Vec.new(Expr), e.line, e.col))
-    loc_call := Expr.new_explicit(NodeType.FCall, loc_params, e.line, e.col)
+    loc_call := Expr.new_explicit(NodeType.FCall(false), loc_params, e.line, e.col)
 
     // Build panic(loc(), err.msg)
     mut panic_params := Vec.new(Expr)
     panic_params.push(Expr.new_explicit(NodeType.Identifier("panic"), Vec.new(Expr), e.line, e.col))
     panic_params.push(loc_call)
     panic_params.push(err_msg_expr)
-    panic_call := Expr.new_explicit(NodeType.FCall, panic_params, e.line, e.col)
+    panic_call := Expr.new_explicit(NodeType.FCall(false), panic_params, e.line, e.col)
 
     // Build catch body
     mut catch_body_params := Vec.new(Expr)
@@ -257,7 +257,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     add_params.push(Expr.new_explicit(NodeType.Identifier(index_var_name), Vec.new(Expr), e.line, e.col))
     mut one_params := Vec.new(Expr)
     add_params.push(Expr.new_explicit(NodeType.LLiteral(Literal.Number("1")), one_params, e.line, e.col))
-    add_call := Expr.new_explicit(NodeType.FCall, add_params, e.line, e.col)
+    add_call := Expr.new_explicit(NodeType.FCall(false), add_params, e.line, e.col)
 
     mut inc_params := Vec.new(Expr)
     inc_params.push(add_call)
@@ -272,13 +272,13 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     while_body_params.push(catch_expr)
 
     // Bug #57 fix: Transform continue statements to include increment before continue
-    transformed_body := transform_continue_with_step(body_expr, inc_stmt)
+    transformed_body := transform_continue_with_step(body_expr, inc_stmt)?
     // Add original body statements (transformed)
     switch transformed_body.node_type {
     case NodeType.Body:
         for i in 0..transformed_body.params.len() {
             mut p := Expr()
-            transformed_body.params.get(i, p)
+            transformed_body.params.get(i, p)?
             while_body_params.push(p.clone())
         }
     case:
@@ -310,7 +310,7 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     switch e.node_type {
     // ForIn desugaring: for VAR: TYPE in COLLECTION { body } -> while loop
     case NodeType.ForIn(var_type_name):
-        return desugar_forin(context, e, var_type_name)
+        return desugar_forin(context, e, var_type_name)?
     // Recurse into FuncDef bodies
     case NodeType.FuncDef(func_def):
         // Bug #130 fix: Reset counter per-function for deterministic output
@@ -319,8 +319,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         mut new_body := Vec.new(Expr)
         for func_i in 0..func_def.body.len() {
             mut stmt := Expr()
-            func_def.body.get(func_i, stmt)
-            new_body.push(desugar_expr(context, stmt))
+            func_def.body.get(func_i, stmt)?
+            new_body.push(desugar_expr(context, stmt)?)
         }
         context.precomp_forin_counter = saved_counter
         new_func_def := SFuncDef(
@@ -338,10 +338,10 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         mut struct_i := 0
         while struct_i.lt(struct_def.default_values.keys.len()) {
             mut name := ""
-            struct_def.default_values.keys.get(struct_i, name)
+            struct_def.default_values.keys.get(struct_i, name)?
             mut value_expr := Expr()
-            struct_def.default_values.get(name, value_expr)
-            new_default_values.set(name, desugar_expr(context, value_expr))
+            struct_def.default_values.get(name, value_expr)?
+            new_default_values.set(name, desugar_expr(context, value_expr)?)
             struct_i.inc()
         }
         new_struct_def := SStructDef(
@@ -357,8 +357,8 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             mut new_params := Vec.new(Expr)
             for param_i in 0..e.params.len() {
                 mut p := Expr()
-                e.params.get(param_i, p)
-                new_params.push(desugar_expr(context, p))
+                e.params.get(param_i, p)?
+                new_params.push(desugar_expr(context, p)?)
             }
             return Expr.new_clone(e.node_type, e, new_params)
         }

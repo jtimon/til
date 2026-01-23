@@ -140,93 +140,6 @@ acceptable as a short-term solution if Ptr type is too invasive.
 - The difference is semantic: precomp/ccodegen knows to serialize pointed-to data
 - Consider whether Ptr should have generic type: ~Ptr<Str>~ vs just ~Ptr~
 
-** Issue #132: Mandatory ? for calls to throwing functions
-:PROPERTIES:
-:DISCOVERED: 2026-01-22
-:IMPACT: Explicit error propagation, catches sneaky throws at compile time
-:STATUS: Open
-:RELATED: Bug #54 (precomp_throw divergence)
-:END:
-
-*** Description
-Currently, if you call a function that throws and don't catch it, the throw
-silently propagates ("sneaky throw"). This causes issues like Bug #54 where
-TIL's precomp doesn't catch compile-time throws properly.
-
-Proposal: Make ~?~ mandatory at call sites for functions that throw.
-- ~myvec.get(i)?~ instead of ~myvec.get(i)~
-- Typer enforces: call to throwing function without ~?~ = type error
-- After typer validates, ~?~ is stripped from AST (later phases don't need it)
-
-*** Implementation plan
-
-**** Syntax
-- ~foo()?~ - foo throws
-- ~foo().bar()?~ - only bar throws
-- ~foo()?.bar()~ - only foo throws
-- ~foo()?.bar()?~ - both throw
-
-**** Step 1: Rust implementation
-***** Lexer (lexer.rs)
-- Add ~QuestionMark~ token for ~?~
-
-***** Parser (parser.rs, ast.rs)
-- Add ~does_throw: bool~ field to FCall expression
-- After parsing fcall closing ~)~, check for ~?~ token
-- If present, consume it and set ~does_throw = true~
-
-***** Typer (typer.rs)
-- When type-checking FCall, get the called function's signature
-- If function has ~throws~ clause and ~does_throw == false~: error "function X throws but call is missing ?"
-- If function has no ~throws~ clause and ~does_throw == true~: error "function X doesn't throw but call has ?"
-
-***** Other phases
-- Init, precomp, interpreter, ccodegen: update FCall pattern matches
-- These phases don't care about the bool, just need ~FCall(_)~ to compile
-
-***** Test and fix errors.til
-- Run ~make rstil && ./bin/rstil interpret src/test/errors.til~
-- Verify both error types trigger:
-  - Missing ~?~ on throwing call
-  - Unnecessary ~?~ on non-throwing call (add some, verify compiler complains, remove them)
-- Fix all ~?~ errors in errors.til
-- Commit
-
-**** Step 2: Fix all .til files (Rust only)
-This is the longest step but also the simplest - just adding missing ~?~ symbols.
-Includes make.til, tests.til, test_runner.til, all test files, AND all ~src/self/*.til~ files.
-
-Note: ~til.til help~ is in rs_common, so all ~src/self/*.til~ files must be fixed
-for ~./bin/tests --rust-only~ to pass.
-
-- Run ~make rstil~ to build the Rust compiler
-- Iteratively fix files using ~./bin/rstil interpret <file>~ or ~./bin/rstil run <file>~
-- Fix all ~src/self/*.til~ files (830+ throwing calls)
-- Once make.til, test_runner.til, tests.til are fixed, build them:
-  ~./bin/rstil build src/test_runner.til && ./bin/rstil build src/tests.til~
-- Run ~./bin/tests --rust-only~ to verify all test files pass
-- Amend previous commit
-
-**** Step 3: Port to TIL
-- Port lexer changes to ~src/self/lexer.til~
-- Port parser changes to ~src/self/parser.til~
-- Port ast changes to ~src/self/ast.til~
-- Port typer changes to ~src/self/typer.til~
-- Follow ~doc/rs2til.org~ conventions
-
-**** Step 4: Final verification
-- Run ~make benchmark~
-- Fix any remaining issues (should only be porting errors)
-- Amend previous commit
-
-*** Scale of change
-Estimated 830+ ~.get()~ calls in src/self alone, plus ~lookup_*~ functions, etc.
-
-*** Benefits
-- Explicit error handling intent at call sites (like Rust's ~?~)
-- Catches missing error handling at compile time
-- Fixes sneaky throw propagation issues
-
 ** Issue #131: Clang support (gcc/clang interchangeable)
 :PROPERTIES:
 :DISCOVERED: 2026-01-21
@@ -1627,6 +1540,33 @@ This is a multi-step issue. Priorities A and B are sufficient for now.
 Final syntax may evolve as we address all Python import patterns.
 
 * Implemented Issues
+
+** Issue #132: Mandatory ? for calls to throwing functions [DONE]
+:PROPERTIES:
+:DISCOVERED: 2026-01-22
+:COMPLETED: 2026-01-23
+:IMPACT: Explicit error propagation, catches sneaky throws at compile time
+:STATUS: Fixed
+:RELATED: Bug #54 (precomp_throw divergence)
+:END:
+
+*** Description
+Make ~?~ mandatory at call sites for functions that throw.
+- ~myvec.get(i)?~ instead of ~myvec.get(i)~
+- Typer enforces: call to throwing function without ~?~ = type error
+
+*** Syntax
+- ~foo()?~ - foo throws
+- ~foo().bar()?~ - only bar throws
+- ~foo()?.bar()~ - only foo throws
+- ~foo()?.bar()?~ - both throw
+
+*** Implementation
+- Lexer: Added ~QuestionMark~ token for ~?~
+- Parser: Added ~does_throw: bool~ field to FCall, consumed ~?~ after ~)~
+- Typer: Check ~does_throw~ matches function's throws clause
+- All phases updated to handle ~FCall(bool)~ pattern
+- All .til files updated with ~?~ on throwing calls (~4000+ changes)
 
 ** Issue #127: Pipeline refactoring - Add Desugarer and UFCS phases [DONE]
 :PROPERTIES:

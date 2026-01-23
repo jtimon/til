@@ -235,11 +235,11 @@ test_mut_array := proc() {
     assert_eq(loc(), 2, numbers.len())
 
     mut val0 := 0
-    numbers.get(0, val0)
+    numbers.get(0, val0)?
     assert_eq(loc(), 42, val0)
 
     mut val1 := 0
-    numbers.get(1, val1)
+    numbers.get(1, val1)?
     assert_eq(loc(), 84, val1)
 
     numbers.delete()

@@ -22,7 +22,7 @@ assert_eq(loc(), add(34, 35), var_i64_add(34, 35))
 var_safe_add := proc(args: ..U8) returns U8 {
     mut result : U8 = 0
     for val: U8 in args {
-        result = result.safe_add(val)
+        result = result.safe_add(val)?
     }
 
     catch(err: U8_Overflow) {
@@ -32,7 +32,7 @@ var_safe_add := proc(args: ..U8) returns U8 {
 
     return result
 }
-assert_eq(loc(), add(34, 35), U8.to_i64(var_safe_add(U8.from_i64(34), U8.from_i64(35))))
+assert_eq(loc(), add(34, 35), U8.to_i64(var_safe_add(U8.from_i64(34)?, U8.from_i64(35)?)))
 
 // Test: Variadic type checking (merged from variadic_type_check.til)
 test_i64_variadic := func(args: ..I64) returns I64 {

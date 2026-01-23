@@ -17,15 +17,15 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     switch e.node_type {
     case NodeType.Body:
         return precomp_body(context, e)
-    case NodeType.FCall:
-        mut const_folded := precomp_fcall(context, e)
+    case NodeType.FCall(_):
+        mut const_folded := precomp_fcall(context, e)?
         // Try compile-time constant folding for pure functions with literal args.
         // Only fold at global scope - inside function definitions, values from other
         // modules may not be available yet (import ordering). Interpreter doesn't
         // evaluate function bodies during import either.
         at_global_scope := context.scope_stack.frames.len().eq(1)
         if at_global_scope.and(is_comptime_evaluable(context, const_folded)) {
-            const_folded = eval_comptime(context, const_folded)
+            const_folded = eval_comptime(context, const_folded)?
         }
         return const_folded
     case NodeType.If:
@@ -33,11 +33,11 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.While:
         return precomp_params(context, e)
     case NodeType.Switch:
-        return precomp_switch(context, e)
+        return precomp_switch(context, e)?
     case NodeType.FuncDef(func_def):
-        return precomp_func_def(context, e, func_def)
+        return precomp_func_def(context, e, func_def)?
     case NodeType.Declaration(decl):
-        return precomp_declaration(context, e, decl)
+        return precomp_declaration(context, e, decl)?
     case NodeType.Assignment:
         return precomp_params(context, e)
     case NodeType.Return:
@@ -45,12 +45,12 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.Throw:
         return precomp_params(context, e)
     case NodeType.Catch:
-        return precomp_catch(context, e)
+        return precomp_catch(context, e)?
     case NodeType.Range:
         return precomp_params(context, e)
     // Struct/enum definitions - need to process default values (which may contain function defs)
     case NodeType.StructDef(struct_def):
-        return precomp_struct_def(context, e, struct_def)
+        return precomp_struct_def(context, e, struct_def)?
     case NodeType.EnumDef:
         return e.clone()
     // Identifiers can have nested params (e.g., a.b.c for field access chains)
@@ -72,7 +72,7 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case NodeType.NamedArg(name):
         mut new_params := Vec.new(Expr)
         for p: Expr in e.params {
-            new_params.push(precomp_expr(context, p))
+            new_params.push(precomp_expr(context, p)?)
         }
         return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
     // ForIn should have been desugared in desugarer phase
@@ -102,13 +102,13 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
             return false  // Field access chains not supported
         }
         // Look up the symbol and check if it's a comptime const
-        mut symbol := context.scope_stack.lookup_symbol(name)
+        mut symbol := context.scope_stack.lookup_symbol(name)?
         catch (err: KeyNotFoundError) {
             return false
         }
         return symbol.is_comptime_const
-    case NodeType.FCall:
-        f_name := get_func_name_in_call(e)
+    case NodeType.FCall(_):
+        f_name := get_func_name_in_call(e)?
         catch (err: Str) {
             return false  // Can't get function name
         }
@@ -122,17 +122,17 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         mut e_clone := e.clone()
         mut func_def := SFuncDef()
         mut func_def_found := false
-        func_def = get_func_def_for_fcall_with_expr(context, e_clone)
+        func_def = get_func_def_for_fcall_with_expr(context, e_clone)?
         func_def_found = true
         catch (err: KeyNotFoundError) {
             // Could be a struct constructor - check if all args are comptime
-            combined_name := get_combined_name(context.path, e.get(0))
+            combined_name := get_combined_name(context.path, e.get(0)?)?
             catch (err2: Str) {
                 return false
             }
             // Try to look up as struct
             mut is_struct := false
-            _ := context.scope_stack.lookup_struct(combined_name)
+            _ := context.scope_stack.lookup_struct(combined_name)?
             is_struct = true
             catch (err3: KeyNotFoundError) {
                 // REM: Not a struct
@@ -142,7 +142,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                 mut struct_j := 1
                 while struct_j.lt(e.params.len()) {
                     mut struct_arg := Expr()
-                    e.params.get(struct_j, struct_arg)
+                    e.params.get(struct_j, struct_arg)?
                     catch (err4: IndexOutOfBoundsError) {
                         return false
                     }
@@ -151,7 +151,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                     switch struct_arg.node_type {
                     case NodeType.NamedArg(_):
                         if struct_arg.params.len().gt(0) {
-                            struct_arg.params.get(0, arg_to_check)
+                            struct_arg.params.get(0, arg_to_check)?
                             catch (err5: IndexOutOfBoundsError) {
                                 return false
                             }
@@ -171,7 +171,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                 mut k := 1
                 while k.lt(e.params.len()) {
                     mut arg := Expr()
-                    e.params.get(k, arg)
+                    e.params.get(k, arg)?
                     catch (err_arg: IndexOutOfBoundsError) {
                         return false
                     }
@@ -204,7 +204,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         mut fcall_i := 1
         while fcall_i.lt(e.params.len()) {
             mut fcall_arg := Expr()
-            e.params.get(fcall_i, fcall_arg)
+            e.params.get(fcall_i, fcall_arg)?
             catch (err: IndexOutOfBoundsError) {
                 return false
             }
@@ -223,7 +223,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
 eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Save and restore context.path - interpreter may change it during function calls
     saved_path := context.path
-    result := eval_expr(context, e)
+    result := eval_expr(context, e)?
     context.path = saved_path
 
     // Check if the function threw an exception during evaluation
@@ -237,7 +237,7 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     // EvalResult.value is a String representation of the value
     // Convert back to LLiteral based on the result type
-    value_type := get_value_type(context, e)
+    value_type := get_value_type(context, e)?
     switch value_type {
     case ValueType.TCustom(type_name):
         if type_name.eq("I64") {
@@ -250,14 +250,14 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
             return Expr.new_clone(NodeType.LLiteral(Literal.Str(result.value)), e, Vec.new(Expr))
         }
         // Check if it's a struct type - result.value is the instance name
-        _struct_def := context.scope_stack.lookup_struct(type_name)
+        _struct_def := context.scope_stack.lookup_struct(type_name)?
         catch (err: KeyNotFoundError) {
             // For enums and other types: eval_expr was called (catching any errors),
             // but we can't convert the result back to AST literal, so return original
             return e.clone()
         }
         // Try to convert struct back to literal, fall back to original expr if unsupported
-        mut struct_literal := EvalArena.to_struct_literal(context, result.value, type_name, e)
+        mut struct_literal := EvalArena.to_struct_literal(context, result.value, type_name, e)?
         catch (err: Str) {
             return e.clone()
         }
@@ -275,7 +275,7 @@ eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
 precomp_body := proc(mut context: Context, e: Expr) returns Expr {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
-        new_params.push(precomp_expr(context, p))
+        new_params.push(precomp_expr(context, p)?)
     }
 
     return Expr.new_clone(e.node_type, e, new_params)
@@ -285,7 +285,7 @@ precomp_body := proc(mut context: Context, e: Expr) returns Expr {
 precomp_params := proc(mut context: Context, e: Expr) returns Expr {
     mut new_params := Vec.new(Expr)
     for p: Expr in e.params {
-        new_params.push(precomp_expr(context, p))
+        new_params.push(precomp_expr(context, p)?)
     }
 
     return Expr.new_clone(e.node_type, e, new_params)
@@ -303,13 +303,13 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     // Transform switch expression
     mut switch_expr := Expr()
-    e.params.get(0, switch_expr)
-    new_params.push(precomp_expr(context, switch_expr))
+    e.params.get(0, switch_expr)?
+    new_params.push(precomp_expr(context, switch_expr)?)
 
     // Get the type of the switch expression for pattern binding resolution
     mut switch_expr_type := ValueType.TCustom("")
     mut got_switch_type := true
-    switch_expr_type = get_value_type(context, switch_expr)
+    switch_expr_type = get_value_type(context, switch_expr)?
     catch (err: Str) {
         got_switch_type = false
     }
@@ -319,11 +319,11 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     while i.add(1).lt(e.params.len().add(1)) {
         mut case_expr := Expr()
         mut body_expr := Expr()
-        e.params.get(i, case_expr)
-        e.params.get(i.add(1), body_expr)
+        e.params.get(i, case_expr)?
+        e.params.get(i.add(1), body_expr)?
 
         // Transform case expression (no scope change needed for case itself)
-        new_params.push(precomp_expr(context, case_expr))
+        new_params.push(precomp_expr(context, case_expr)?)
 
         // For pattern matching with binding variable, add binding to scope before processing body
         switch case_expr.node_type {
@@ -337,12 +337,12 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     mut variant := variant_name
                     dot_pos := variant_name.rfind(".")
                     if dot_pos.gteq(0) {
-                        variant = get_substr(variant_name, dot_pos.add(1), variant_name.len())
+                        variant = get_substr(variant_name, dot_pos.add(1), variant_name.len())?
                     }
 
                     // Get payload type from enum definition
                     mut enum_found := true
-                    mut enum_def := context.scope_stack.lookup_enum(enum_name)
+                    mut enum_def := context.scope_stack.lookup_enum(enum_name)?
                     catch (err: KeyNotFoundError) {
                         enum_found = false
                     }
@@ -351,7 +351,7 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                         mut payload_type := ValueType.TCustom("")
                         mut got_payload := false
                         // Bug #38 fix: use helper method
-                        payload_ptr := enum_def.get(variant)
+                        payload_ptr := enum_def.get(variant)?
                         if not(NULL.eq(payload_ptr.data)) {
                             memcpy(to_ptr(payload_type), payload_ptr.data, size_of(ValueType))
                             got_payload = true
@@ -364,9 +364,9 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                             // Push block scope, declare binding variable, transform body, pop scope
                             context.scope_stack.push(ScopeType.Block)
                             sym := SymbolInfo(value_type=payload_type, is_mut=false, is_copy=false, is_own=false)
-                            context.scope_stack.declare_symbol(pattern_info.binding_var, sym)
-                            new_params.push(precomp_expr(context, body_expr))
-                            _ := context.scope_stack.pop()
+                            context.scope_stack.declare_symbol(pattern_info.binding_var, sym)?
+                            new_params.push(precomp_expr(context, body_expr)?)
+                            _ := context.scope_stack.pop()?
                             handled = true
                         }
                     }
@@ -375,11 +375,11 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
             }
             if not(handled) {
                 // No payload type found or switch type not found, transform body without binding
-                new_params.push(precomp_expr(context, body_expr))
+                new_params.push(precomp_expr(context, body_expr)?)
             }
         case:
             // Not a pattern, transform body normally
-            new_params.push(precomp_expr(context, body_expr))
+            new_params.push(precomp_expr(context, body_expr)?)
         }
 
         i = i.add(2)
@@ -388,8 +388,8 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Handle odd trailing element (default case body without case expression)
     if i.lt(e.params.len()) {
         mut trailing := Expr()
-        e.params.get(i, trailing)
-        new_params.push(precomp_expr(context, trailing))
+        e.params.get(i, trailing)?
+        new_params.push(precomp_expr(context, trailing)?)
     }
 
     catch (err: IndexOutOfBoundsError) {
@@ -404,9 +404,9 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
     mut i := 0
     while i.lt(struct_def.default_values.keys.len()) {
         mut name := ""
-        struct_def.default_values.keys.get(i, name)
+        struct_def.default_values.keys.get(i, name)?
         mut value_expr := Expr()
-        struct_def.default_values.get(name, value_expr)
+        struct_def.default_values.get(name, value_expr)?
 
         // Bug #40 fix: For method definitions, set function name context
         mut is_func := false
@@ -422,7 +422,7 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
             context.precomp_forin_counter = 0
         }
 
-        new_default_values.set(name, precomp_expr(context, value_expr))
+        new_default_values.set(name, precomp_expr(context, value_expr)?)
 
         // Bug #40 fix: Restore previous function context
         if is_func {
@@ -452,17 +452,17 @@ precomp_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) retu
     context.scope_stack.push(ScopeType.Function)
     for arg: Declaration in func_def.args {
         sym := SymbolInfo(value_type=arg.value_type, is_mut=arg.is_mut, is_copy=arg.is_copy, is_own=arg.is_own)
-        context.scope_stack.declare_symbol(arg.name, sym)
+        context.scope_stack.declare_symbol(arg.name, sym)?
     }
 
     // Transform the function body
     mut new_body := Vec.new(Expr)
     for stmt: Expr in func_def.body {
-        new_body.push(precomp_expr(context, stmt))
+        new_body.push(precomp_expr(context, stmt)?)
     }
 
     // Pop the function scope frame
-    _ := context.scope_stack.pop()
+    _ := context.scope_stack.pop()?
 
     mut new_func_def := SFuncDef()
     new_func_def.function_type = func_def.function_type
@@ -482,8 +482,8 @@ precomp_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) retu
 /// Transform Declaration - register the declared variable in scope, then transform value
 precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str {
     // Eagerly create default instance template for this struct type
-    inner_e := e.get(0)
-    mut value_type := get_value_type(context, inner_e)
+    inner_e := e.get(0)?
+    mut value_type := get_value_type(context, inner_e)?
     catch (err: Str) {
         throw e.lang_error(context.path, "precomp", err)
     }
@@ -527,8 +527,8 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case ValueType.TType(TTypeDef.TEnumDef):
         switch inner_e.node_type {
         case NodeType.EnumDef(enum_def):
-            context.scope_stack.declare_enum(decl.name, enum_def)
-            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))
+            context.scope_stack.declare_enum(decl.name, enum_def)?
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own))?
             return e.clone()
         case:
             throw e.lang_error(context.path, "precomp", format("Cannot declare '", decl.name, "' of type '", value_type_to_str(decl.value_type), "', expected enum definition."))
@@ -541,9 +541,9 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case ValueType.TType(TTypeDef.TStructDef):
         switch inner_e.node_type {
         case NodeType.StructDef(struct_def):
-            context.scope_stack.declare_struct(decl.name, struct_def)
+            context.scope_stack.declare_struct(decl.name, struct_def)?
             saved_path := context.path
-            _ := eval_declaration(decl, context, e)
+            _ := eval_declaration(decl, context, e)?
             context.path = saved_path
         case:
         }
@@ -571,7 +571,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     mut new_params := Vec.new(Expr)
     if e.params.len().gt(0) {
         for p: Expr in e.params {
-            new_params.push(precomp_expr(context, p))
+            new_params.push(precomp_expr(context, p)?)
         }
     }
 
@@ -591,23 +591,23 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     // Only mut matters for constantness - copy/own are about ownership, orthogonal to comptime.
     // Any type can be comptime - the type doesn't matter, only how the value is computed.
     mut first_param := Expr()
-    new_params.get(0, first_param)
+    new_params.get(0, first_param)?
     is_comptime_const := not(decl.is_mut)
         .and(is_comptime_evaluable(context, first_param))
 
     // Register the declared variable in scope
     sym := SymbolInfo(value_type=value_type, is_mut=decl.is_mut, is_copy=decl.is_copy, is_own=decl.is_own, is_comptime_const=is_comptime_const)
-    context.scope_stack.declare_symbol(decl.name, sym)
+    context.scope_stack.declare_symbol(decl.name, sym)?
 
     // Also register function definitions so UFCS can resolve their return types
     switch value_type {
     case ValueType.TFunction:
         if new_params.len().gt(0) {
             mut fp := Expr()
-            new_params.get(0, fp)
+            new_params.get(0, fp)?
             switch fp.node_type {
             case NodeType.FuncDef(func_def):
-                context.scope_stack.declare_func(decl.name, func_def)
+                context.scope_stack.declare_func(decl.name, func_def)?
             case:
             }
         }
@@ -626,9 +626,9 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
         case ValueType.TCustom(custom_type_name):
             if custom_type_name.eq("I64").or(custom_type_name.eq("U8")).or(custom_type_name.eq("Str")) {
                 if is_comptime_evaluable(context, first_param) {
-                    result := eval_expr(context, first_param)
+                    result := eval_expr(context, first_param)?
                     if not(result.is_throw) {
-                        EvalArena.insert_primitive(context, decl.name, value_type, result.value, e)
+                        EvalArena.insert_primitive(context, decl.name, value_type, result.value, e)?
                     }
                 }
             }
@@ -645,14 +645,14 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
             // Skip primitives (I64, U8) - handled above. Skip Str - needs special handling.
             if not(custom_type_name.eq("I64")).and(not(custom_type_name.eq("U8"))).and(not(custom_type_name.eq("Str"))) {
                 // Check if this is a struct type (not a struct definition)
-                mut instance_sym := context.scope_stack.lookup_symbol(custom_type_name)
+                mut instance_sym := context.scope_stack.lookup_symbol(custom_type_name)?
                 catch (err: KeyNotFoundError) {
                     // Type not found, skip
                 }
                 switch instance_sym.value_type {
                 case ValueType.TType(TTypeDef.TStructDef):
                     instance_saved_path := context.path
-                    _ := eval_declaration(decl, context, e)
+                    _ := eval_declaration(decl, context, e)?
                     context.path = instance_saved_path
                 case:
                 }
@@ -680,8 +680,8 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Get the catch variable name and type
     mut name_expr := Expr()
     mut type_expr := Expr()
-    e.params.get(0, name_expr)
-    e.params.get(1, type_expr)
+    e.params.get(0, name_expr)?
+    e.params.get(1, type_expr)?
     mut var_name := ""
     mut type_name := ""
     switch name_expr.node_type {
@@ -707,15 +707,15 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     sym.is_copy = false
     sym.is_own = false
     sym.is_comptime_const = false
-    context.scope_stack.declare_symbol(var_name, sym)
+    context.scope_stack.declare_symbol(var_name, sym)?
 
     // Transform the catch body (params[2])
     mut body_expr := Expr()
-    e.params.get(2, body_expr)
-    new_body := precomp_expr(context, body_expr)
+    e.params.get(2, body_expr)?
+    new_body := precomp_expr(context, body_expr)?
 
     // Pop the scope frame
-    _ := context.scope_stack.pop()
+    _ := context.scope_stack.pop()?
 
     // Return the transformed catch with original var_name, type, and new body
     mut new_params := Vec.new(Expr)
@@ -734,7 +734,7 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // 1. Check for compile-time intrinsics (loc, _file, _line, _col)
     mut was_replaced := false
-    replaced := try_replace_comptime_intrinsic(context, e, was_replaced)
+    replaced := try_replace_comptime_intrinsic(context, e, was_replaced)?
     if was_replaced {
         return replaced
     }
@@ -744,36 +744,36 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // Empty FCall, shouldn't happen but just return as-is
         return e.clone()
     }
-    mut func_expr := e.get(0)
+    mut func_expr := e.get(0)?
 
     mut combined_name := ""
     switch func_expr.node_type {
     case NodeType.Identifier:
-        combined_name = get_combined_name(context.path, func_expr)
+        combined_name = get_combined_name(context.path, func_expr)?
     case:
     }
 
     // 3. Struct constructor - create instance like eval does (before arg transform)
     if not(combined_name.eq("")) {
         mut struct_found := false
-        _dummy_struct := context.scope_stack.lookup_struct(combined_name)
+        _dummy_struct := context.scope_stack.lookup_struct(combined_name)?
         struct_found = true
         catch (err: KeyNotFoundError) {
             // Not found
         }
         if struct_found {
-            _ := create_default_instance(context, combined_name, e)
+            _ := create_default_instance(context, combined_name, e)?
             switch func_expr.node_type {
             case NodeType.Identifier(id_name):
                 if func_expr.params.len().eq(0) {
-                    insert_struct_instance(context, id_name, combined_name, e)
+                    insert_struct_instance(context, id_name, combined_name, e)?
                 }
             case:
             }
             // Transform arguments for struct constructor
             mut struct_params := Vec.new(Expr)
             for p: Expr in e.params {
-                struct_params.push(precomp_expr(context, p))
+                struct_params.push(precomp_expr(context, p)?)
             }
             return Expr.new_clone(e.node_type, e, struct_params)
         }
@@ -784,7 +784,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // Transform arguments for enum constructor
         mut enum_params := Vec.new(Expr)
         for p: Expr in e.params {
-            enum_params.push(precomp_expr(context, p))
+            enum_params.push(precomp_expr(context, p)?)
         }
         return Expr.new_clone(e.node_type, e, enum_params)
     }
@@ -792,7 +792,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // 5. Transform all arguments
     mut transformed_params := Vec.new(Expr)
     for p: Expr in e.params {
-        transformed_params.push(precomp_expr(context, p))
+        transformed_params.push(precomp_expr(context, p)?)
     }
     mut new_e := Expr.new_clone(e.node_type, e, transformed_params)
 
@@ -800,15 +800,15 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     if new_e.params.len().eq(0) {
         return new_e
     }
-    func_expr = new_e.get(0)
+    func_expr = new_e.get(0)?
 
     switch func_expr.node_type {
     case NodeType.Identifier:
-        combined_name = get_combined_name(context.path, func_expr)
+        combined_name = get_combined_name(context.path, func_expr)?
 
         // 6. Handle ext functions and import()
         mut func_found := false
-        mut func_def := context.scope_stack.lookup_func(combined_name)
+        mut func_def := context.scope_stack.lookup_func(combined_name)?
         func_found = true
         catch (err: KeyNotFoundError) {
             // Not found
@@ -817,12 +817,12 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
             // Ext functions: evaluation happens through eval_comptime path (see doc/precomp.org)
             // Exception: import() must run during precomp to load code
             if func_def.is_ext() {
-                mut parts := combined_name.split(".")
+                mut parts := combined_name.split(".")?
                 if parts.len().gt(0) {
                     mut last_part := ""
-                    parts.get(parts.len().sub(1), last_part)
+                    parts.get(parts.len().sub(1), last_part)?
                     if last_part.eq("import") {
-                        _ := eval_expr(context, new_e)
+                        _ := eval_expr(context, new_e)?
                     }
                 }
             }

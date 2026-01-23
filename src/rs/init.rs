@@ -414,7 +414,7 @@ impl ScopeStack {
 }
 
 pub fn get_func_name_in_call(e: &Expr) -> String {
-    if e.node_type != NodeType::FCall {
+    if !matches!(e.node_type, NodeType::FCall(_)) {
         return e.exit_error("init", "get_func_name_in_call(): expected fcall node.")
     }
     if e.params.len() == 0 {
@@ -836,7 +836,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
         },
         NodeType::EnumDef(_) => Ok(ValueType::TType(TTypeDef::TEnumDef)),
         NodeType::StructDef(_) => Ok(ValueType::TType(TTypeDef::TStructDef)),
-        NodeType::FCall => get_fcall_value_type(context, e),
+        NodeType::FCall(_) => get_fcall_value_type(context, e),
         NodeType::Range => Ok(ValueType::TCustom(format!("{}Range", value_type_to_str(&get_value_type(&context, e.get(0)?)?)))),
 
         NodeType::Identifier(name) => {
@@ -1032,7 +1032,7 @@ pub fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str
     for import_str in context.mode_def.imports.clone() {
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
-        let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
+        let import_fcall_expr = Expr{node_type: NodeType::FCall(false), params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
         if let Err(error_string) = init_import_declarations(context, &import_fcall_expr, &import_str) {
             context.mode_def = previous_mode;
             context.path = original_path;
@@ -1086,7 +1086,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 errors.extend(init_context(context, &se));
             }
         },
-        NodeType::FCall => {
+        NodeType::FCall(_) => {
             let f_name = get_func_name_in_call(&e);
             if f_name == "import" {
                 // Extract import path (must be literal string)

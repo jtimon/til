@@ -95,7 +95,9 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
             result.push(call_args[i].clone());
         }
 
-        return Ok(Expr::new_clone(NodeType::FCall, e, result));
+        // Issue #132: Preserve does_throw flag from original FCall
+        let does_throw = matches!(e.node_type, NodeType::FCall(true));
+        return Ok(Expr::new_clone(NodeType::FCall(does_throw), e, result));
     }
 
     // Count positional args (before first named arg)
@@ -172,7 +174,9 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
         }
     }
 
-    Ok(Expr::new_clone(NodeType::FCall, e, result))
+    // Issue #132: Preserve does_throw flag from original FCall
+    let does_throw = matches!(e.node_type, NodeType::FCall(true));
+    Ok(Expr::new_clone(NodeType::FCall(does_throw), e, result))
 }
 
 // ---------- Main entry point
@@ -187,7 +191,7 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
 pub fn ufcs_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     match &e.node_type {
         NodeType::Body => ufcs_body(context, e),
-        NodeType::FCall => ufcs_fcall(context, e),
+        NodeType::FCall(_) => ufcs_fcall(context, e),
         NodeType::If => ufcs_params(context, e),
         NodeType::While => ufcs_params(context, e),
         NodeType::Switch => ufcs_switch(context, e),
@@ -512,7 +516,9 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                         let mut new_args = Vec::new();
                         new_args.push(new_e);
                         new_args.extend(e.params[1..].to_vec());
-                        return Ok(Expr::new_clone(NodeType::FCall, e.get(0)?, new_args));
+                        // Issue #132: Preserve does_throw flag from original FCall
+                        let does_throw = matches!(e.node_type, NodeType::FCall(true));
+                        return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.get(0)?, new_args));
                     }
                 }
             }
@@ -548,7 +554,9 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                                 assoc_new_args.push(assoc_new_id_e);
                                 assoc_new_args.push(receiver_expr);
                                 assoc_new_args.extend(e.params[1..].to_vec());
-                                return Ok(Expr::new_clone(NodeType::FCall, e.get(0)?, assoc_new_args));
+                                // Issue #132: Preserve does_throw flag from original FCall
+                                let does_throw = matches!(e.node_type, NodeType::FCall(true));
+                                return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.get(0)?, assoc_new_args));
                             }
                         }
                     }
@@ -564,7 +572,9 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                     standalone_new_args.push(standalone_new_id_e);
                     standalone_new_args.push(receiver_expr);
                     standalone_new_args.extend(e.params[1..].to_vec());
-                    return Ok(Expr::new_clone(NodeType::FCall, e.get(0)?, standalone_new_args));
+                    // Issue #132: Preserve does_throw flag from original FCall
+                    let does_throw = matches!(e.node_type, NodeType::FCall(true));
+                    return Ok(Expr::new_clone(NodeType::FCall(does_throw), e.get(0)?, standalone_new_args));
                 }
             }
         }

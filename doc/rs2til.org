@@ -265,7 +265,7 @@ if let Some(val) = map.get(key) {
 TIL (catch block with out-parameter):
 #+begin_src til
 mut val := DefaultType()
-map.get(key, val)
+map.get(key, val)?
 catch (err: KeyNotFoundError) {
     // key not found - handle or ignore
 }
@@ -276,7 +276,7 @@ TIL (check existence first):
 #+begin_src til
 if map.contains_key(key) {
     mut val := DefaultType()
-    map.get(key, val)
+    map.get(key, val)?
     // use val
 }
 #+end_src
@@ -297,7 +297,7 @@ if let Some(temp_var) = ctx.hoisted_exprs.get(&expr_addr) {
 
 TIL (BROKEN):
 #+begin_src til
-ctx.hoisted_exprs.get(expr_addr, temp_var)
+ctx.hoisted_exprs.get(expr_addr, temp_var)?
 output.push_str(temp_var)
 return  // ERROR: makes catch unreachable
 catch (err: KeyNotFoundError) { }
@@ -305,7 +305,7 @@ catch (err: KeyNotFoundError) { }
 
 TIL (WORKAROUND - wrap in if true):
 #+begin_src til
-ctx.hoisted_exprs.get(expr_addr, temp_var)
+ctx.hoisted_exprs.get(expr_addr, temp_var)?
 if true { // TODO Bug #96 workaround
     output.push_str(temp_var)
     return
@@ -327,7 +327,7 @@ errors from ALL code above them, not just the most recent call.
 Rust:
 #+begin_src rust
 // Nested if-let where None cases are ignored (no else branches)
-if let NodeType::FCall = &expr.node_type {
+if let NodeType::FCall(_) = &expr.node_type {
     if let Some(func_name) = get_func_name_string(&expr.params[0]) {
         // func_name is valid here
         if let Some(struct_def) = context.scope_stack.lookup_struct(&func_name) {
@@ -343,14 +343,14 @@ if let NodeType::FCall = &expr.node_type {
 TIL (CORRECT - catch immediately after each throwing call):
 #+begin_src til
 switch expr.node_type {
-case NodeType.FCall:
-    mut func_name := get_func_name_string(first_param)
+case NodeType.FCall(_):
+    mut func_name := get_func_name_string(first_param)?
     catch (err: KeyNotFoundError) {
         // REM: Equivalent to Rust's None case - just skip
     }
     // func_name is valid here
 
-    mut struct_def := lookup_struct(func_name)
+    mut struct_def := lookup_struct(func_name)?
     catch (err: KeyNotFoundError) {
         // REM: Equivalent to Rust's None case - just skip
     }
@@ -364,9 +364,9 @@ TIL (WRONG - catches at end will fail):
 #+begin_src til
 // BUG: This does NOT work!
 switch expr.node_type {
-case NodeType.FCall:
-    mut func_name := get_func_name_string(first_param)  // throws KeyNotFoundError
-    mut struct_def := lookup_struct(func_name)          // also throws KeyNotFoundError
+case NodeType.FCall(_):
+    mut func_name := get_func_name_string(first_param)?  // throws KeyNotFoundError
+    mut struct_def := lookup_struct(func_name)?          // also throws KeyNotFoundError
 
     // These catches are WRONG because:
     // 1. First catch handles errors from BOTH calls above
@@ -387,8 +387,8 @@ than Rust:
 
 #+begin_src til
 // When all error handling is the same, ONE catch at the end suffices
-mut func_name := get_func_name_string(first_param)  // throws KeyNotFoundError
-mut struct_def := lookup_struct(func_name)          // throws KeyNotFoundError
+mut func_name := get_func_name_string(first_param)?  // throws KeyNotFoundError
+mut struct_def := lookup_struct(func_name)?          // throws KeyNotFoundError
 process(func_name, struct_def)
 
 catch (err: KeyNotFoundError) {
@@ -403,7 +403,7 @@ When Rust's None case does nothing (no else branch), TIL uses an empty catch.
 IMPORTANT: Never leave catch blocks completely empty - always add a "// REM:" comment
 explaining why the catch is empty:
 #+begin_src til
-mut result := some_function_that_returns_option()
+mut result := some_function_that_returns_option()?
 catch (err: KeyNotFoundError) {
     // REM: Rust's None case did nothing, so we do nothing here
 }
@@ -419,7 +419,7 @@ TIL (reverse range loop):
 // Iterate len-1 down to 0 (inclusive) - use sub(0, 1) as end
 for i in items.len().sub(1)..sub(0, 1) {
     mut item := T()
-    items.get(i, item)
+    items.get(i, item)?
     // use item
 }
 #+end_src
@@ -496,7 +496,7 @@ for item: T in items {
 
 for i in 0..items.len() {
     mut item := T()
-    items.get(i, item)
+    items.get(i, item)?
     // use i and item
 }
 #+end_src
@@ -542,22 +542,26 @@ TIL uses throw/catch instead:
 - Caller uses catch block to handle the not-found case
 - ~map.contains_key(k)~ to check existence without fetching
 
-** The ? operator is implicit in TIL
+** The ? operator is mandatory in TIL (Issue #132)
 
-Rust uses ~?~ to propagate errors up the call stack:
+Both Rust and TIL use ~?~ to mark calls to throwing functions:
 #+begin_src rust
-let x = foo()?;  // propagates error if foo() returns Err
+let x = foo()?;  // Rust: propagates error if foo() returns Err
 let y = bar()?.baz()?;  // chains propagation
 #+end_src
 
-TIL has NO ~?~ operator. Error propagation is automatic:
 #+begin_src til
-x := foo()  // automatically propagates if foo() throws
-y := bar().baz()  // chains automatically
+x := foo()?  // TIL: marks that foo() may throw
+y := bar()?.baz()?  // chains work the same way
 #+end_src
 
+Key difference: In Rust, ~?~ is optional (you can match on Result instead). In TIL, ~?~ is MANDATORY:
+- Calls to throwing functions MUST use ~?~
+- Calls to non-throwing functions MUST NOT use ~?~
+- The type checker enforces both rules
+
 When porting Rust to TIL:
-- Remove all ~?~ operators - they're implicit
+- KEEP all ~?~ operators - they're required in TIL
 - Change ~Result<T, String>~ to ~returns T throws Str~
 - Change ~panic!("msg")~ to ~throw "msg"~
 - Errors propagate automatically unless caught
@@ -587,7 +591,7 @@ reserve := proc(mut self: Arena, size: I64) returns I64 throws Str {
     if gt(new_len, ARENA_SIZE) { throw "arena overflow" }
     // ...
 }
-// Call sites: arena.reserve(size)  -- ? is implicit
+// Call sites: arena.reserve(size)?  -- ? is mandatory
 #+end_src
 
 ** Nested if-let detection patterns
@@ -616,7 +620,7 @@ is_struct_declaration := func(expr: Expr) returns Bool {
     case NodeType.Declaration(_):
         if not(expr.params.is_empty()) {
             mut first := Expr()
-            expr.params.get(0, first)
+            expr.params.get(0, first)?
             catch (err: IndexOutOfBoundsError) { return false }
             switch first.node_type {
             case NodeType.StructDef(_):
@@ -809,10 +813,10 @@ let val = map.get(&key)?;
 TIL:
 #+begin_src til
 mut item := T()  // default init
-vec.get(i, item)  // out-parameter, throws IndexOutOfBoundsError
+vec.get(i, item)?  // out-parameter, throws IndexOutOfBoundsError
 
 mut val := V()
-map.get(key, val)  // out-parameter, throws KeyNotFoundError
+map.get(key, val)?  // out-parameter, throws KeyNotFoundError
 #+end_src
 
 ** HashMap.insert vs Map.insert/set
@@ -874,7 +878,7 @@ TIL:
 #+begin_src til
 for member_name: Str in struct_def.default_values.keys {
     mut default_expr := Expr()
-    struct_def.default_values.get(member_name, default_expr)
+    struct_def.default_values.get(member_name, default_expr)?
     switch default_expr.node_type {
     case NodeType.FuncDef(func_def):
         mangled_name := format(struct_name, "_", member_name)
@@ -903,11 +907,11 @@ Place catch immediately after the throwing call, before using the result:
 lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
     for i in self.frames.len().sub(1)..sub(0, 1) {
         mut frame := ScopeFrame()
-        self.frames.get(i, frame)
+        self.frames.get(i, frame)?
 
         if frame.funcs.contains_key(name) {
             mut func_def := SFuncDef()
-            frame.funcs.get(name, func_def)
+            frame.funcs.get(name, func_def)?
             catch (err: KeyNotFoundError) {
                 // Function not found, continue searching
             }
@@ -946,7 +950,7 @@ Use ~panic(loc(), "message")~ for errors that should never happen (e.g., index e
 #+begin_src til
 for i in vec.len().sub(1)..sub(0, 1) {
     mut item := T()
-    vec.get(i, item)
+    vec.get(i, item)?
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), "vec.get can't fail: i is always within bounds: ", err.msg)
     }
@@ -974,7 +978,7 @@ TIL (catch and throw Str):
 process := func(items: Vec) returns Result throws Str {
     for i in 0..items.len() {
         mut item := Item()
-        items.get(i, item)
+        items.get(i, item)?
         // ...
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -1107,9 +1111,9 @@ MyStruct := struct {
     mut field1: Str = ""
     mut field2: I64 = 0
 
-    clone := func(self: MyStruct) returns MyStruct {
+    clone := func(self: MyStruct) returns MyStruct throws AllocError {
         mut result := MyStruct()
-        result.field1 = self.field1.clone()
+        result.field1 = self.field1.clone()?
         result.field2 = self.field2
         return result
     }
@@ -1146,7 +1150,7 @@ Example from parser.til:
 literal_clone := func(lit: Literal) returns Literal throws AllocError {
     switch lit {
     case Literal.Str(s):
-        return Literal.Str(s.clone())
+        return Literal.Str(s.clone()?)
     case Literal.I64(n):
         return Literal.I64(n)  // primitive, no clone needed
     case Literal.Bool(b):
@@ -1177,14 +1181,14 @@ The ~throws~ section is completely independent of func/proc. Both can throw:
 // Pure function that can throw
 get_value := func(map: Map, key: Str) returns Str throws KeyNotFoundError {
     mut result := ""
-    map.get(key, result)
+    map.get(key, result)?
     return result
 }
 
 // Procedure that can throw
 read_file := proc(path: Str) returns Str throws Str {
     // Has side effects (I/O), so it's a proc
-    return file_read(path)
+    return file_read(path)?
 }
 
 // Pure function that doesn't throw
@@ -1293,3 +1297,4 @@ The translation is mechanical:
 21. ~Option<T>~ struct fields/params -> ~Ptr~ (NULL = None); read with ~memcpy(to_ptr(local), ptr.data, size_of(T))~
 22. Variable shadowing: TIL doesn't allow it. Rename in BOTH Rust and TIL to use unique names (see dedicated section)
 23. Tuples: TIL doesn't have tuples. Use structs instead in BOTH Rust and TIL with the same struct name and fields (e.g., ~HashSet<(String, usize, usize)>~ -> ~HashSet<FunctionLocal>~ with ~FunctionLocal~ struct)
+24. The ~?~ operator: KEEP all ~?~ from Rust - TIL requires ~?~ on calls to throwing functions (Issue #132)

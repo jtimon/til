@@ -64,7 +64,7 @@ fn build_default_value(context: &Context, vt: &ValueType, line: usize, col: usiz
                                 let default_arg = build_default_value(context, payload_vt, line, col);
                                 let enum_payload_fcall_params = vec![enum_id, default_arg];
                                 Expr::new_explicit(
-                                    NodeType::FCall,
+                                    NodeType::FCall(false),  // Issue #132: desugared calls don't throw
                                     enum_payload_fcall_params,
                                     line,
                                     col,
@@ -77,7 +77,7 @@ fn build_default_value(context: &Context, vt: &ValueType, line: usize, col: usiz
                             // Empty enum - fall back to struct-like constructor (shouldn't happen)
                             let empty_enum_fcall_params = vec![Expr::new_explicit(NodeType::Identifier(type_name.clone()), vec![], line, col)];
                             Expr::new_explicit(
-                                NodeType::FCall,
+                                NodeType::FCall(false),  // Issue #132: desugared calls don't throw
                                 empty_enum_fcall_params,
                                 line,
                                 col,
@@ -87,7 +87,7 @@ fn build_default_value(context: &Context, vt: &ValueType, line: usize, col: usiz
                         // Not an enum - use struct-like constructor: TYPE()
                         let struct_fcall_params = vec![Expr::new_explicit(NodeType::Identifier(type_name.clone()), vec![], line, col)];
                         Expr::new_explicit(
-                            NodeType::FCall,
+                            NodeType::FCall(false),  // Issue #132: desugared calls don't throw
                             struct_fcall_params,
                             line,
                             col,
@@ -165,7 +165,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
 
     // Build len(collection) - already desugared form
     let len_call_expr = Expr::new_explicit(
-        NodeType::FCall,
+        NodeType::FCall(false),  // Issue #132: desugared calls don't throw
         vec![
             Expr::new_explicit(NodeType::Identifier("len".to_string()), vec![], e.line, e.col),
             collection_expr.clone(),
@@ -176,7 +176,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
 
     // Build lt(_for_i, len_result) - already desugared form
     let cond_expr = Expr::new_explicit(
-        NodeType::FCall,
+        NodeType::FCall(false),  // Issue #132: desugared calls don't throw
         vec![
             Expr::new_explicit(NodeType::Identifier("lt".to_string()), vec![], e.line, e.col),
             Expr::new_explicit(NodeType::Identifier(index_var_name.clone()), vec![], e.line, e.col),
@@ -224,7 +224,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
                 // Variant has a payload - need FCall with default value
                 let default_arg = build_default_value(context, payload_vt, e.line, e.col);
                 Expr::new_explicit(
-                    NodeType::FCall,
+                    NodeType::FCall(false),  // Issue #132: desugared calls don't throw
                     vec![enum_id, default_arg],
                     e.line,
                     e.col,
@@ -236,7 +236,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
         } else {
             // Empty enum - shouldn't happen, fall back to struct-like constructor
             Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),  // Issue #132: desugared calls don't throw
                 vec![Expr::new_explicit(NodeType::Identifier(var_type_name.to_string()), vec![], e.line, e.col)],
                 e.line,
                 e.col,
@@ -245,7 +245,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     } else {
         // Not an enum - use struct-like constructor: TYPE()
         Expr::new_explicit(
-            NodeType::FCall,
+            NodeType::FCall(false),  // Issue #132: desugared calls don't throw
             vec![Expr::new_explicit(NodeType::Identifier(var_type_name.to_string()), vec![], e.line, e.col)],
             e.line,
             e.col,
@@ -255,7 +255,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
 
     // Build: get(collection, _for_i, VAR) - already desugared form
     let get_call = Expr::new_explicit(
-        NodeType::FCall,
+        NodeType::FCall(false),  // Issue #132: desugared calls don't throw
         vec![
             Expr::new_explicit(NodeType::Identifier("get".to_string()), vec![], e.line, e.col),
             collection_expr.clone(),
@@ -269,11 +269,11 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     // Build: catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     // Catch structure: params[0]=error type identifier, params[1]=error var name, params[2]=body
     let panic_call = Expr::new_explicit(
-        NodeType::FCall,
+        NodeType::FCall(false),  // Issue #132: desugared calls don't throw
         vec![
             Expr::new_explicit(NodeType::Identifier("panic".to_string()), vec![], e.line, e.col),
             Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),  // Issue #132: desugared calls don't throw
                 vec![Expr::new_explicit(NodeType::Identifier("loc".to_string()), vec![], e.line, e.col)],
                 e.line,
                 e.col,
@@ -304,7 +304,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     // Build: _for_i = add(_for_i, 1)
     // Already desugared form - no UFCS resolution needed
     let add_call = Expr::new_explicit(
-        NodeType::FCall,
+        NodeType::FCall(false),  // Issue #132: desugared calls don't throw
         vec![
             Expr::new_explicit(NodeType::Identifier("add".to_string()), vec![], e.line, e.col),
             Expr::new_explicit(NodeType::Identifier(index_var_name.clone()), vec![], e.line, e.col),

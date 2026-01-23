@@ -3,17 +3,17 @@ mode test
 my_u8 : U8 = 42
 
 test_u8 := proc() {
-    assert_eq(loc(), 0, U8.from_i64(0).to_i64())
-    assert_eq(loc(), 42, U8.from_i64(42).to_i64())
+    assert_eq(loc(), 0, U8.from_i64(0)?.to_i64())
+    assert_eq(loc(), 42, U8.from_i64(42)?.to_i64())
     assert_eq(loc(), 42, my_u8.to_i64())
 
-    assert_eq_str(loc(), "0", U8.from_i64(0).to_str())
-    assert_eq_str(loc(), "42", U8.from_i64(42).to_str())
+    assert_eq_str(loc(), "0", U8.from_i64(0)?.to_str())
+    assert_eq_str(loc(), "42", U8.from_i64(42)?.to_str())
     assert_eq_str(loc(), "42", my_u8.to_str())
 
     // Must fail:
     mut overflow_val := 300 // REM mut so precomp doesn't catch the error at compile time
-    assert_eq(loc(), 300, U8.from_i64(overflow_val).to_i64()) // Fails because 300 is greater than 255
+    assert_eq(loc(), 300, U8.from_i64(overflow_val)?.to_i64()) // Fails because 300 is greater than 255
     catch(err: U8_Overflow) {
         println(loc(), "test_array_static_u8: U8_Overflow thrown:")
         println(err.msg)

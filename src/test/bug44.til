@@ -25,7 +25,7 @@ maybe_throw_C := func(do_throw: Bool) returns I64 throws ErrorC {
 test_func := func() returns I64 throws Str {
     // This block mimics the "if e.params.len().gteq(2)" block
     if true {
-        mut val := maybe_throw_A(false)
+        mut val := maybe_throw_A(false)?
         catch (err: ErrorA) {
             // handle A
         }
@@ -34,7 +34,7 @@ test_func := func() returns I64 throws Str {
 
     // After the if block - this mimics the standalone function lookup
     mut found := false
-    mut result := maybe_throw_C(true)  // This SHOULD throw
+    mut result := maybe_throw_C(true)?  // This SHOULD throw
     found = true  // This should NOT run if C throws
     catch (err: ErrorC) {
         // Should catch C
@@ -47,7 +47,7 @@ test_func := func() returns I64 throws Str {
 }
 
 caller := proc() {
-    mut r := test_func()
+    mut r := test_func()?
     catch (err: Str) {
         println("ERROR: ", err)
         exit(1)

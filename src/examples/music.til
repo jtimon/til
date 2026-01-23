@@ -138,7 +138,7 @@ get_diatonic_index := proc(note_base: Str) returns I64 {
     target := note_base.to_lowercase()
     while i.lt(base_notes.len()) {
         mut note := ""
-        base_notes.get(i, note)
+        base_notes.get(i, note)?
         if note.eq(target) {
             return i
         }
@@ -163,7 +163,7 @@ get_base_index := proc(note_base: Str) returns I64 {
 // Format a note given its diatonic index and target chromatic position
 format_note := proc(diatonic_idx: I64, chromatic_pos: I64) returns Str {
     mut note_name := ""
-    base_notes.get(diatonic_idx, note_name)
+    base_notes.get(diatonic_idx, note_name)?
     natural_chromatic := diatonic_to_chromatic(diatonic_idx)
 
     mut diff := chromatic_pos.sub(natural_chromatic)
@@ -199,7 +199,7 @@ apply_accidentals := proc(base_idx: I64, acc_str: Str) returns I64 {
     mut semitones := 0
     mut j := 0
     while j.lt(acc_str.len()) {
-        ch := acc_str.get_char(j)
+        ch := acc_str.get_char(j)?
         // TODO: 'x' is a workaround for '#' which causes issues in test filenames
         if ch.eq("#").or(ch.eq("x")) {
             semitones = semitones.add(1)
@@ -231,7 +231,7 @@ generate_scale := proc(root_idx: I64, root_diatonic: I64, steps: Vec) returns St
         note := format_note(diatonic_pos, chromatic_pos)
         result = result.concat(note)
         mut step := 0
-        steps.get(k, step)
+        steps.get(k, step)?
         chromatic_pos = chromatic_pos.add(step).mod(12)
         diatonic_pos = diatonic_pos.add(1).mod(7)
         k = k.add(1)
@@ -379,14 +379,14 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
     input := root_arg.to_lowercase()
     // Find where accidentals start (first #, x, or b after the note name)
     while i.lt(input.len()) {
-        ch := input.get_char(i)
+        ch := input.get_char(i)?
         if ch.eq("#").or(ch.eq("x")).or(ch.eq("b")) {
             break
         }
         i = i.add(1)
     }
-    base = input.get_substr(0, i)
-    acc = input.get_substr(i, input.len())
+    base = input.get_substr(0, i)?
+    acc = input.get_substr(i, input.len())?
 
     root_diatonic := get_diatonic_index(base)
     if root_diatonic.lt(0) {
@@ -400,7 +400,7 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
     root_idx := apply_accidentals(base_idx, acc)
 
     mut steps := Vec.new(I64)
-    mode_intervals.get(mode_index, steps)
+    mode_intervals.get(mode_index, steps)?
 
     scale_str := generate_scale(root_idx, root_diatonic, steps)
 
@@ -446,7 +446,7 @@ main := proc(args: ..Str) {
         mut lower_arg := arg.to_lowercase()
 
         if lower_arg.starts_with("-lang=") {
-            mut val := lower_arg.get_substr(6, lower_arg.len())
+            mut val := lower_arg.get_substr(6, lower_arg.len())?
 
             switch val {
             case "pt": lang = "pt"

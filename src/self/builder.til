@@ -21,7 +21,7 @@ import("std.sys")
 // Returns ParseFileResult struct since TIL doesn't have tuples
 ParseFileResult := struct {
     mut ast: Expr = Expr()
-    mut mode_def: ModeDef = ModeDef()
+    mut mode_def: ModeDef = ModeDef()?
 }
 
 parse_file := proc(path: Str) returns ParseFileResult throws Str {
@@ -31,17 +31,17 @@ parse_file := proc(path: Str) returns ParseFileResult throws Str {
         throw concat("File '", path).concat("' not found or empty.")
     }
 
-    mut lexer := lexer_from_source(path, source)
+    mut lexer := lexer_from_source(path, source)?
     catch (err: Str) {
         throw path.concat(":").concat(err)
     }
 
-    mode_def := parse_mode(path, lexer)
+    mode_def := parse_mode(path, lexer)?
     catch (err: Str) {
         throw path.concat(":").concat(err)
     }
 
-    ast := parse_tokens(lexer)
+    ast := parse_tokens(lexer)?
     catch (err: Str) {
         throw path.concat(":").concat(err)
     }
@@ -62,17 +62,17 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
     case NodeType.Body:
         for child: Expr in ast.params {
             switch child.node_type {
-            case NodeType.FCall:
+            case NodeType.FCall(_):
                 if not(child.params.is_empty()) {
                     mut first_param := Expr()
-                    child.params.get(0, first_param)
+                    child.params.get(0, first_param)?
                     switch first_param.node_type {
                     case NodeType.Identifier(name):
                         if name.eq("import").and(child.params.len().gt(1)) {
                             mut second_param := Expr()
-                            child.params.get(1, second_param)
+                            child.params.get(1, second_param)?
                             switch second_param.node_type {
-                            case NodeType.LLiteral(lit):
+                            case NodeType.LLiteral(lit)?:
                                 switch lit {
                                 case Literal.Str(import_path):
                                     file_path := import_path_to_file_path(import_path)
@@ -80,21 +80,21 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
                                         _ := imported.insert(file_path.clone())
                                         // Bug #128: Use already-resolved AST from typer phase if available
                                         mut dep_resolved := Expr()
-                                        context.imported_asts.get(file_path, dep_resolved)
+                                        context.imported_asts.get(file_path, dep_resolved)?
                                         catch (err: KeyNotFoundError) {
-                                            dep_result := parse_file(file_path)
+                                            dep_result := parse_file(file_path)?
                                             context.imported_asts.set(file_path.clone(), dep_result.ast.clone())
                                             dep_resolved = dep_result.ast
                                         }
                                         // Recursively collect imports from this dependency
-                                        collect_imports(dep_resolved, imported, all_asts, context)
+                                        collect_imports(dep_resolved, imported, all_asts, context)?
                                         // Desugar + UFCS + Precomp with the correct path for this file
                                         // (type resolution already done by typer_import_declarations)
                                         saved_path := context.path.clone()
                                         context.path = file_path.clone()
-                                        dep_desugared := desugar_expr(context, dep_resolved)
-                                        dep_ufcs := ufcs_expr(context, dep_desugared)
-                                        dep_ast := precomp_expr(context, dep_ufcs)
+                                        dep_desugared := desugar_expr(context, dep_resolved)?
+                                        dep_ufcs := ufcs_expr(context, dep_desugared)?
+                                        dep_ast := precomp_expr(context, dep_ufcs)?
                                         // Update with precompiled version
                                         context.imported_asts.set(file_path.clone(), dep_ast.clone())
                                         context.path = saved_path
@@ -143,7 +143,7 @@ merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr {
         }
     }
 
-    // Add main file contents (skip imports)
+    // Add main file contents (skip imports)?
     switch main_ast.node_type {
     case NodeType.Body:
         for child: Expr in main_ast.params {
@@ -166,12 +166,12 @@ merge_asts := proc(main_ast: Expr, dep_asts: Vec) returns Expr {
 
 is_import_call := func(expr: Expr) returns Bool {
     switch expr.node_type {
-    case NodeType.FCall:
+    case NodeType.FCall(_):
         if not(expr.params.is_empty()) {
             mut first_param := Expr()
-            expr.params.get(0, first_param)
+            expr.params.get(0, first_param)?
             switch first_param.node_type {
-            case NodeType.Identifier(name):
+            case NodeType.Identifier(name)?:
                 return name.eq("import")
             case:
                 return false
@@ -192,24 +192,24 @@ collect_import_paths := proc(ast: Expr, mut collected: Set) {
     case NodeType.Body:
         for child: Expr in ast.params {
             switch child.node_type {
-            case NodeType.FCall:
+            case NodeType.FCall(_):
                 if not(child.params.is_empty()) {
                     mut first_param := Expr()
-                    child.params.get(0, first_param)
+                    child.params.get(0, first_param)?
                     switch first_param.node_type {
                     case NodeType.Identifier(name):
                         if name.eq("import").and(child.params.len().gt(1)) {
                             mut second_param := Expr()
-                            child.params.get(1, second_param)
+                            child.params.get(1, second_param)?
                             switch second_param.node_type {
-                            case NodeType.LLiteral(lit):
+                            case NodeType.LLiteral(lit)?:
                                 switch lit {
-                                case Literal.Str(import_path):
+                                case Literal.Str(import_path)?:
                                     file_path := import_path_to_file_path(import_path)
                                     if not(collected.contains(file_path)) {
                                         _ := collected.insert(file_path.clone())
                                         // Recursively collect imports from this dependency
-                                        dep_result := parse_file(file_path)
+                                        dep_result := parse_file(file_path)?
                                         collect_import_paths(dep_result.ast, collected)
                                         catch (err: Str) {
                                             // Ignore parse errors for deps checking
@@ -252,13 +252,13 @@ collect_all_deps := proc(path: Str) returns Vec throws Str {
     _ := deps.insert(path.clone())
 
     // Parse main file to get its mode and imports
-    main_result := parse_file(path)
+    main_result := parse_file(path)?
 
-    // Add core.til and its imports (unless main file IS core.til)
+    // Add core.til and its imports (unless main file IS core.til)?
     core_path := "src/core/core.til"
     if not(path.eq(core_path)) {
         _ := deps.insert(core_path)
-        core_result := parse_file(core_path)
+        core_result := parse_file(core_path)?
         collect_import_paths(core_result.ast, deps)
     }
 
@@ -267,7 +267,7 @@ collect_all_deps := proc(path: Str) returns Vec throws Str {
         file_path := import_path_to_file_path(import_str)
         if not(deps.contains(file_path)) {
             _ := deps.insert(file_path.clone())
-            mode_result := parse_file(file_path)
+            mode_result := parse_file(file_path)?
             collect_import_paths(mode_result.ast, deps)
             catch (err: Str) {
                 // Ignore parse errors for deps checking
@@ -291,7 +291,7 @@ collect_all_deps := proc(path: Str) returns Vec throws Str {
 // Returns the output path (executable or source file)
 build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) returns Str throws Str {
     // Validate lang is supported for target
-    validate_lang_for_target(lang, target)
+    validate_lang_for_target(lang, target)?
 
     // Currently only C is fully supported
     switch lang {
@@ -304,11 +304,11 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     }
 
     // Parse main file
-    main_result := parse_file(path)
+    main_result := parse_file(path)?
 
     // Create context with "lib" mode first (like interpreter does at interpreter.rs:2713)
     // This ensures core.til is typechecked with lib mode, not the main file's mode
-    mut context := Context.new(path, "lib")
+    mut context := Context.new(path, "lib")?
 
     // Reusable error vector to avoid shadowing
     mut errors := Vec.new(Str)
@@ -317,15 +317,15 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     // This runs init + typer on core.til and all its imports with lib mode
     core_path := "src/core/core.til"
     if not(path.eq(core_path)) {
-        core_result := parse_file(core_path)
-        errors = init_context(context, core_result.ast)
+        core_result := parse_file(core_path)?
+        errors = init_context(context, core_result.ast)?
         if not(errors.is_empty()) {
             for err: Str in errors {
                 println(err)
             }
             throw concat("Compiler errors: ", errors.len().to_str()).concat(" init errors in core.til")
         }
-        errors = check_types(context, core_result.ast)
+        errors = check_types(context, core_result.ast)?
         if not(errors.is_empty()) {
             for err: Str in errors {
                 println(err)
@@ -352,7 +352,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         import_path_expr.col = 0
 
         mut import_fcall_expr := Expr()
-        import_fcall_expr.node_type = NodeType.FCall
+        import_fcall_expr.node_type = NodeType.FCall(false)
         import_fcall_expr.params = Vec.new(Expr)
         import_fcall_expr.params.push(import_func_name_expr)
         import_fcall_expr.params.push(import_path_expr)
@@ -360,7 +360,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         import_fcall_expr.col = 0
 
         // Mode imports need init and typer phases (no eval for builder)
-        init_import_declarations(context, import_fcall_expr, import_str)
+        init_import_declarations(context, import_fcall_expr, import_str)?
         catch (err: Str) {
             throw path.concat(":").concat(err)
         }
@@ -380,7 +380,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
 
     // Run init + typer on the main file (this handles its imports internally)
     errors.clear()
-    mut tmp_errors := init_context(context, main_result.ast)
+    mut tmp_errors := init_context(context, main_result.ast)?
     for err: Str in tmp_errors {
         errors.push(err.clone())
     }
@@ -391,11 +391,11 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         throw concat("Compiler errors: ", errors.len().to_str()).concat(" init errors found")
     }
 
-    tmp_errors = basic_mode_checks(context, main_result.ast)
+    tmp_errors = basic_mode_checks(context, main_result.ast)?
     for err: Str in tmp_errors {
         errors.push(err.clone())
     }
-    tmp_errors = check_types(context, main_result.ast)
+    tmp_errors = check_types(context, main_result.ast)?
     for err: Str in tmp_errors {
         errors.push(err.clone())
     }
@@ -417,16 +417,16 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
 
     // Collect core.til and its imports
     if not(path.eq(core_path)) {
-        codegen_core_result := parse_file(core_path)
+        codegen_core_result := parse_file(core_path)?
         _ := imported.insert(core_path)
-        collect_imports(codegen_core_result.ast, imported, dep_asts, context)
+        collect_imports(codegen_core_result.ast, imported, dep_asts, context)?
         // Resolve types + Desugar + UFCS + Precomp core.til with its own path
         core_saved_path := context.path.clone()
         context.path = core_path
-        core_resolved := resolve_inferred_types(context, codegen_core_result.ast)
-        core_desugared := desugar_expr(context, core_resolved)
-        core_ufcs_ast := ufcs_expr(context, core_desugared)
-        core_precomp_ast := precomp_expr(context, core_ufcs_ast)
+        core_resolved := resolve_inferred_types(context, codegen_core_result.ast)?
+        core_desugared := desugar_expr(context, core_resolved)?
+        core_ufcs_ast := ufcs_expr(context, core_desugared)?
+        core_precomp_ast := precomp_expr(context, core_ufcs_ast)?
         context.path = core_saved_path
         dep_asts.push(core_precomp_ast)
     }
@@ -436,37 +436,37 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         file_path := import_path_to_file_path(import_str)
         if not(imported.contains(file_path)) {
             _ := imported.insert(file_path.clone())
-            mode_result := parse_file(file_path)
-            collect_imports(mode_result.ast, imported, dep_asts, context)
+            mode_result := parse_file(file_path)?
+            collect_imports(mode_result.ast, imported, dep_asts, context)?
             // Resolve types + Desugar + UFCS + Precomp mode file with its own path
             mode_saved_path := context.path.clone()
             context.path = file_path.clone()
-            mode_resolved := resolve_inferred_types(context, mode_result.ast)
-            mode_desugared := desugar_expr(context, mode_resolved)
-            mode_ufcs_ast := ufcs_expr(context, mode_desugared)
-            mode_precomp_ast := precomp_expr(context, mode_ufcs_ast)
+            mode_resolved := resolve_inferred_types(context, mode_result.ast)?
+            mode_desugared := desugar_expr(context, mode_resolved)?
+            mode_ufcs_ast := ufcs_expr(context, mode_desugared)?
+            mode_precomp_ast := precomp_expr(context, mode_ufcs_ast)?
             context.path = mode_saved_path
             dep_asts.push(mode_precomp_ast)
         }
     }
 
     // Collect main file's imports
-    collect_imports(main_result.ast, imported, dep_asts, context)
+    collect_imports(main_result.ast, imported, dep_asts, context)?
 
     // Resolve types + Desugar + UFCS + Precomp main file with its own path (context.path should already be correct)
-    main_resolved := resolve_inferred_types(context, main_result.ast)
-    main_desugared := desugar_expr(context, main_resolved)
-    main_ufcs := ufcs_expr(context, main_desugared)
-    main_ast := precomp_expr(context, main_ufcs)
+    main_resolved := resolve_inferred_types(context, main_result.ast)?
+    main_desugared := desugar_expr(context, main_resolved)?
+    main_ufcs := ufcs_expr(context, main_desugared)?
+    main_ast := precomp_expr(context, main_ufcs)?
 
     // Merge all precompiled ASTs for codegen
     merged_ast := merge_asts(main_ast, dep_asts)
 
     // Scavenger phase: Remove unused function declarations
-    merged_ast2 := scavenger_expr(context, merged_ast)
+    merged_ast2 := scavenger_expr(context, merged_ast)?
 
     // Generate C code
-    c_code := emit(merged_ast2, context)
+    c_code := emit(merged_ast2, context)?
 
     // Write output file to ./gen/c/ directory instead of alongside source
     c_filename := path.replace(".til", ".c")
@@ -492,7 +492,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     }
 
     // Get toolchain command for target
-    compiler := toolchain_command(target, lang)
+    compiler := toolchain_command(target, lang)?
 
     // Compile - output to bin/ directory in project root, preserving relative path
     // e.g., src/til.til -> bin/til, src/examples/hello_script.til -> bin/examples/hello_script
@@ -522,7 +522,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     cmd_args.push("-o")
     cmd_args.push(exe_path_str.clone())
 
-    // Build full command string with stderr redirected to stdout (like Rust's cmd.output())
+    // Build full command string with stderr redirected to stdout (like Rust's cmd.output())?
     mut full_cmd := compiler
     for arg: Str in cmd_args {
         full_cmd = full_cmd.concat(" ").concat(arg)

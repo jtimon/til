@@ -29,9 +29,10 @@ Array := struct {
         arr.type_name = type_as_str(T)
         arr.type_size = size_of(T)
         size_bytes := mul(capacity, arr.type_size)
-        arr.ptr = malloc(size_bytes)
+        arr.ptr = malloc(size_bytes)?
         catch (err: BadAlloc) { panic(loc(), "Array.new: malloc failed") }
-        memset(arr.ptr, U8.from_i64(0), size_bytes)
+        zero : U8 = 0
+        memset(arr.ptr, zero, size_bytes)
         arr._len = capacity
         return arr
     }
@@ -79,7 +80,7 @@ Array := struct {
         cloned.type_size = self.type_size
         cloned._len = self._len
         mut total_bytes := mul(self._len, self.type_size)
-        cloned.ptr = malloc(total_bytes)
+        cloned.ptr = malloc(total_bytes)?
         catch (err: BadAlloc) { panic(loc(), "Array.clone: malloc failed") }
         memcpy(cloned.ptr, self.ptr, total_bytes)
         return cloned

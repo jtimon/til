@@ -109,14 +109,15 @@ check_cmd_status := ext_proc(pid: I64) returns I64 {}
  * Returns: The exit code of the terminated process
  * Throws:  WaitError if an invalid PID is provided or another OS error occurs
  */
-wait_cmd := proc(pid: I64) returns I64 throws SleepError {
+wait_cmd := proc(pid: I64) returns I64 {
     neg_one := sub(0, 1)  // -1
     while true {
         mut status := check_cmd_status(pid)
         if not(status.eq(neg_one)) {
             return status
         }
-        sleep(50)  // sleep 50 milliseconds between polls
+        sleep(50)?  // sleep 50 milliseconds between polls
+        catch (err: SleepError) { /* ignore sleep errors */ }
     }
 }
 
@@ -180,7 +181,7 @@ list_dir := proc(path: Str) returns Vec throws IndexOutOfBoundsError {
     if raw.len().eq(0) {
         return Vec.new(Str)
     }
-    return raw.split("\n")
+    return raw.split("\n")?
 }
 
 /**
@@ -192,20 +193,20 @@ glob_files := proc(pattern: Str) returns Vec throws IndexOutOfBoundsError {
     // Find last slash to split dir/pattern
     mut last_slash := 0
     for i in 0..pattern.len() {
-        if pattern.get_char(i).eq("/") {
+        if pattern.get_char(i)?.eq("/") {
             last_slash = i
         }
     }
 
-    dir := get_substr(pattern, 0, last_slash)
-    file_pattern := get_substr(pattern, last_slash.add(1), pattern.len())
+    dir := get_substr(pattern, 0, last_slash)?
+    file_pattern := get_substr(pattern, last_slash.add(1), pattern.len())?
 
     // Extract suffix from "*.til" -> ".til"
     star_pos := file_pattern.find("*")
-    suffix := get_substr(file_pattern, star_pos.add(1), file_pattern.len())
+    suffix := get_substr(file_pattern, star_pos.add(1), file_pattern.len())?
 
     mut result := Vec.new(Str)
-    for f: Str in list_dir(dir) {
+    for f: Str in list_dir(dir)? {
         if f.ends_with(suffix) {
             result.push(format(dir, "/", f))
         }

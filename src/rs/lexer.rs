@@ -12,6 +12,7 @@ pub enum TokenType {
 
     // One or two character tokens.
     Dot, DoubleDot,
+    QuestionMark,
     Not, NotEqual,
     Equal, EqualEqual,
     Greater, GreaterEqual,
@@ -199,6 +200,7 @@ fn token_type_to_str(tt: &TokenType) -> &'static str {
         TokenType::Comma => ",",
         TokenType::Dot => ".",
         TokenType::DoubleDot => "..",
+        TokenType::QuestionMark => "?",
         TokenType::Colon => ":",
         TokenType::Equal => "=",
         TokenType::EqualEqual => "==",
@@ -358,6 +360,9 @@ fn scan_tokens(source: String) -> Vec<Token> {
                 "-" => TokenType::Minus,
                 "+" => TokenType::Plus,
                 "*" => TokenType::Star,
+
+                // Issue #132: Question mark for throwing function calls
+                "?" => TokenType::QuestionMark,
 
                 // reserved for two chars in a row
                 "." => if &source[pos+1..pos+2] == "." { pos += 1; TokenType::DoubleDot } else { TokenType::Dot },

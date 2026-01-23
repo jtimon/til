@@ -15,7 +15,7 @@ try_replace_comptime_intrinsic := func(context: Context, e: Expr, mut out_replac
         return e
     }
 
-    func_expr := e.get(0)
+    func_expr := e.get(0)?
 
     switch func_expr.node_type {
     case NodeType.Identifier(name):

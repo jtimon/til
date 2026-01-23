@@ -7,10 +7,10 @@ import("self.lexer")
 
 test_newline_escape := proc() {
     mut source := "\"\\n\""
-    mut tokens := scan_tokens(source)
+    mut tokens := scan_tokens(source)?
 
     mut tok := Token()
-    tokens.get(0, tok)
+    tokens.get(0, tok)?
 
     assert_eq_str(loc(), "\n", tok.token_str)
 
@@ -30,10 +30,10 @@ test_newline_escape()
 
 test_tab_escape := proc() {
     mut source := "\"\\t\""
-    mut tokens := scan_tokens(source)
+    mut tokens := scan_tokens(source)?
 
     mut tok := Token()
-    tokens.get(0, tok)
+    tokens.get(0, tok)?
 
     assert_eq_str(loc(), "\t", tok.token_str)
 
@@ -53,10 +53,10 @@ test_tab_escape()
 
 test_carriage_return_escape := proc() {
     mut source := "\"\\r\""
-    mut tokens := scan_tokens(source)
+    mut tokens := scan_tokens(source)?
 
     mut tok := Token()
-    tokens.get(0, tok)
+    tokens.get(0, tok)?
 
     assert_eq_str(loc(), "\r", tok.token_str)
 
@@ -76,10 +76,10 @@ test_carriage_return_escape()
 
 test_null_escape := proc() {
     mut source := "\"\\0\""
-    mut tokens := scan_tokens(source)
+    mut tokens := scan_tokens(source)?
 
     mut tok := Token()
-    tokens.get(0, tok)
+    tokens.get(0, tok)?
 
     assert_eq_str(loc(), "\0", tok.token_str)
 
@@ -99,10 +99,10 @@ test_null_escape()
 
 test_multiple_escapes := proc() {
     mut source := "\"hello\\nworld\\ttab\""
-    mut tokens := scan_tokens(source)
+    mut tokens := scan_tokens(source)?
 
     mut tok := Token()
-    tokens.get(0, tok)
+    tokens.get(0, tok)?
 
     assert_eq_str(loc(), "hello\nworld\ttab", tok.token_str)
 
@@ -123,10 +123,10 @@ test_multiple_escapes()
 test_unknown_escape := proc() {
     // Unknown escape sequences should keep the backslash
     mut source := "\"\\x\""
-    mut tokens := scan_tokens(source)
+    mut tokens := scan_tokens(source)?
 
     mut tok := Token()
-    tokens.get(0, tok)
+    tokens.get(0, tok)?
 
     assert_eq_str(loc(), "\\x", tok.token_str)
 
@@ -148,14 +148,14 @@ test_unknown_escape()
 
 test_lexer_peek := proc() {
     // Create a simple test file
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
 
     // Peek at first token (should be "mode")
-    first_token := lexer.peek()
+    first_token := lexer.peek()?
     assert_eq_str(loc(), "mode", first_token.token_str)
 
     // Peek again should return same token
-    first_again := lexer.peek()
+    first_again := lexer.peek()?
     assert_eq_str(loc(), "mode", first_again.token_str)
 
     // Catch unexpected errors at end
@@ -173,15 +173,15 @@ test_lexer_peek := proc() {
 test_lexer_peek()
 
 test_lexer_advance := proc() {
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
 
     // First token should be "mode"
-    t1 := lexer.peek()
+    t1 := lexer.peek()?
     assert_eq_str(loc(), "mode", t1.token_str)
 
     // Advance and check next token
-    lexer.advance(1)
-    t2 := lexer.peek()
+    lexer.advance(1)?
+    t2 := lexer.peek()?
     assert_eq_str(loc(), "script", t2.token_str)
 
     // Catch unexpected errors at end
@@ -199,14 +199,14 @@ test_lexer_advance := proc() {
 test_lexer_advance()
 
 test_lexer_peek_ahead := proc() {
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
 
     // Peek ahead by 1 (should be "script" while current is still "mode")
-    next_token := lexer.peek_ahead(1)
+    next_token := lexer.peek_ahead(1)?
     assert_eq_str(loc(), "script", next_token.token_str)
 
     // Current token should still be "mode"
-    current := lexer.peek()
+    current := lexer.peek()?
     assert_eq_str(loc(), "mode", current.token_str)
 
     // Catch unexpected errors at end
@@ -224,14 +224,14 @@ test_lexer_peek_ahead := proc() {
 test_lexer_peek_ahead()
 
 test_lexer_next := proc() {
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
 
     // next() returns peek_ahead(1), so it returns the next token
-    t1 := lexer.next()
+    t1 := lexer.next()?
     assert_eq_str(loc(), "script", t1.token_str)
 
     // Current position hasn't changed (peek_ahead doesn't advance)
-    t2 := lexer.peek()
+    t2 := lexer.peek()?
     assert_eq_str(loc(), "mode", t2.token_str)
 
     // Catch unexpected errors at end
@@ -249,15 +249,15 @@ test_lexer_next := proc() {
 test_lexer_next()
 
 test_lexer_previous := proc() {
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
 
     // Advance to "script"
-    lexer.advance(1)
-    current := lexer.peek()
+    lexer.advance(1)?
+    current := lexer.peek()?
     assert_eq_str(loc(), "script", current.token_str)
 
     // Get previous token (should be "mode")
-    prev := lexer.previous()
+    prev := lexer.previous()?
     assert_eq_str(loc(), "mode", prev.token_str)
 
     // Catch unexpected errors at end
@@ -275,7 +275,7 @@ test_lexer_previous := proc() {
 test_lexer_previous()
 
 test_lexer_len := proc() {
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
 
     // empty.til should have at least 2 tokens: "mode" and "script"
     token_count := lexer.len()
@@ -291,14 +291,14 @@ test_lexer_len := proc() {
 test_lexer_len()
 
 test_lexer_get_token := proc() {
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))
+    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
 
     // Get token at index 0
-    t0 := lexer.get_token(0)
+    t0 := lexer.get_token(0)?
     assert_eq_str(loc(), "mode", t0.token_str)
 
     // Get token at index 1
-    t1 := lexer.get_token(1)
+    t1 := lexer.get_token(1)?
     assert_eq_str(loc(), "script", t1.token_str)
 
     catch (err: Str) {

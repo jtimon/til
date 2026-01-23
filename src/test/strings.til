@@ -16,22 +16,22 @@ test_strings := proc() {
     test(loc(), len3_str.len().eq(3), "Str.len('012') = 3")
     test(loc(), len5_str.len().eq(5), "Str.len('01234') = 5")
 
-    assert_eq_str(loc(), "0",   get_substr("01234", 0, 1))
-    assert_eq_str(loc(), "012", get_substr("01234", 0, 3))
-    assert_eq_str(loc(), "234", get_substr("01234", 2, 5))
+    assert_eq_str(loc(), "0",   get_substr("01234", 0, 1)?)
+    assert_eq_str(loc(), "012", get_substr("01234", 0, 3)?)
+    assert_eq_str(loc(), "234", get_substr("01234", 2, 5)?)
 
-    assert_eq_str(loc(), "\\",  get_substr(",,\\", 2, 3))
-    assert_eq_str(loc(), "\"",  get_substr(",,\"", 2, 3))
-    assert_eq_str(loc(), "\n",  get_substr(",,\n", 2, 3))
-    assert_eq_str(loc(), "\t",  get_substr(",,\t", 2, 3))
-    assert_eq_str(loc(), "\r",  get_substr(",,\r", 2, 3))
+    assert_eq_str(loc(), "\\",  get_substr(",,\\", 2, 3)?)
+    assert_eq_str(loc(), "\"",  get_substr(",,\"", 2, 3)?)
+    assert_eq_str(loc(), "\n",  get_substr(",,\n", 2, 3)?)
+    assert_eq_str(loc(), "\t",  get_substr(",,\t", 2, 3)?)
+    assert_eq_str(loc(), "\r",  get_substr(",,\r", 2, 3)?)
     // assert_eq_str(loc(), "\0",  get_substr(",,\0", 2, 3)) // TODO Decide: Do we need to handle string null termination in string literals?
 
-    assert_eq_str(loc(), "\\",  get_char(",,\\", 2))
-    assert_eq_str(loc(), "\"",  get_char(",,\"", 2))
-    assert_eq_str(loc(), "\n",  get_char(",,\n", 2))
-    assert_eq_str(loc(), "\t",  get_char(",,\t", 2))
-    assert_eq_str(loc(), "\r",  get_char(",,\r", 2))
+    assert_eq_str(loc(), "\\",  get_char(",,\\", 2)?)
+    assert_eq_str(loc(), "\"",  get_char(",,\"", 2)?)
+    assert_eq_str(loc(), "\n",  get_char(",,\n", 2)?)
+    assert_eq_str(loc(), "\t",  get_char(",,\t", 2)?)
+    assert_eq_str(loc(), "\r",  get_char(",,\r", 2)?)
     // assert_eq_str(loc(), "\0",  get_char(",,\0", 2))
 
     // starts_with tests
@@ -101,9 +101,9 @@ test_strings := proc() {
     test(loc(), med_pos.gt(0), "find in medium string should work")
 
     // get_substr with start==end returns empty string (regression test)
-    assert_eq_str(loc(), "", get_substr("hello", 0, 0))
-    assert_eq_str(loc(), "", get_substr("hello", 3, 3))
-    assert_eq_str(loc(), "", get_substr("hello", 5, 5))
+    assert_eq_str(loc(), "", get_substr("hello", 0, 0)?)
+    assert_eq_str(loc(), "", get_substr("hello", 3, 3)?)
+    assert_eq_str(loc(), "", get_substr("hello", 5, 5)?)
 
     // replacen tests (regression: match at position 0 was broken)
     src_path := "src/examples/empty.c"
