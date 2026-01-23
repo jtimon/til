@@ -38,58 +38,6 @@ Str := struct {
         return true
     }
 
-    /** Lexicographical less-than-or-equal comparison. */
-    lteq := func(self: Str, other: Str) returns Bool {
-        // Compare character by character
-        mut min_len := self.cap
-        if other.cap.lt(min_len) {
-            min_len = other.cap
-        }
-
-        for i in 0..min_len {
-            mut self_byte  : U8 = 0
-            mut other_byte : U8 = 0
-            memcpy(to_ptr(self_byte), self.c_string.add(i), 1)
-            memcpy(to_ptr(other_byte), other.c_string.add(i), 1)
-
-            if U8.lt(self_byte, other_byte) {
-                return true  // self < other
-            }
-            if U8.gt(self_byte, other_byte) {
-                return false  // self > other
-            }
-        }
-
-        // All compared characters are equal, check lengths
-        return self.cap.lteq(other.cap)
-    }
-
-    /** Lexicographical greater-than-or-equal comparison. */
-    gteq := func(self: Str, other: Str) returns Bool {
-        // Compare character by character
-        mut min_len := self.cap
-        if other.cap.lt(min_len) {
-            min_len = other.cap
-        }
-
-        for i in 0..min_len {
-            mut self_byte  : U8 = 0
-            mut other_byte : U8 = 0
-            memcpy(to_ptr(self_byte), self.c_string.add(i), 1)
-            memcpy(to_ptr(other_byte), other.c_string.add(i), 1)
-
-            if U8.gt(self_byte, other_byte) {
-                return true  // self > other
-            }
-            if U8.lt(self_byte, other_byte) {
-                return false  // self < other
-            }
-        }
-
-        // All compared characters are equal, check lengths
-        return self.cap.gteq(other.cap)
-    }
-
     to_i64 := func(self: Str) returns I64 {
         return I64.from_str(self)
     }

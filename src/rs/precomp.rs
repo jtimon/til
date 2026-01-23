@@ -3,11 +3,11 @@
 // This phase runs after typer, before interpreter/builder.
 
 use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType};
-use crate::rs::typer::get_func_def_for_fcall_with_expr;
+use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg};
 use std::collections::HashMap;
 use crate::rs::parser::{
     Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal, TTypeDef, PatternInfo,
-    value_type_to_str, INFER_TYPE,
+    value_type_to_str, INFER_TYPE, Declaration, str_to_value_type,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
 use crate::rs::eval_arena::EvalArena;
@@ -101,6 +101,7 @@ fn rename_identifier(expr: &Expr, old_name: &str, new_name: &str) -> Expr {
 
 // Bug #57 fix: Transform continue statements to include the step expression before continue.
 // This ensures the loop variable is incremented even when continue is used in for-in loops.
+#[allow(dead_code)]
 fn transform_continue_with_step(expr: &Expr, step_expr: &Expr) -> Expr {
     match &expr.node_type {
         NodeType::Continue => {
@@ -134,6 +135,7 @@ fn transform_continue_with_step(expr: &Expr, step_expr: &Expr) -> Expr {
 /// Reorder named arguments to match function parameter order.
 /// Transforms: func(b=3, a=10) -> func(10, 3) (for func(a, b))
 /// This runs during precomp so both interpreter and builder share the work.
+#[allow(dead_code)]
 fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Result<Expr, String> {
     // params[0] is the function identifier, params[1..] are the arguments
     let call_args = if e.params.len() <= 1 {
@@ -216,7 +218,7 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
             result.push(call_args[i].clone());
         }
 
-        return Ok(Expr::new_clone(NodeType::FCall, e, result));
+        return Ok(Expr::new_clone(NodeType::FCall(false), e, result));
     }
 
     // Count positional args (before first named arg)
@@ -293,7 +295,7 @@ fn reorder_named_args(context: &Context, e: &Expr, func_def: &SFuncDef) -> Resul
         }
     }
 
-    Ok(Expr::new_clone(NodeType::FCall, e, result))
+    Ok(Expr::new_clone(NodeType::FCall(false), e, result))
 }
 
 // ---------- Main entry point
@@ -570,7 +572,7 @@ fn build_default_value(context: &Context, vt: &ValueType, line: usize, col: usiz
                                 let default_arg = build_default_value(context, payload_vt, line, col);
                                 let enum_payload_fcall_params = vec![enum_id, default_arg];
                                 Expr::new_explicit(
-                                    NodeType::FCall,
+                                    NodeType::FCall(false),
                                     enum_payload_fcall_params,
                                     line,
                                     col,
@@ -583,7 +585,7 @@ fn build_default_value(context: &Context, vt: &ValueType, line: usize, col: usiz
                             // Empty enum - fall back to struct-like constructor (shouldn't happen)
                             let empty_enum_fcall_params = vec![Expr::new_explicit(NodeType::Identifier(type_name.clone()), vec![], line, col)];
                             Expr::new_explicit(
-                                NodeType::FCall,
+                                NodeType::FCall(false),
                                 empty_enum_fcall_params,
                                 line,
                                 col,
@@ -593,7 +595,7 @@ fn build_default_value(context: &Context, vt: &ValueType, line: usize, col: usiz
                         // Not an enum - use struct-like constructor: TYPE()
                         let struct_fcall_params = vec![Expr::new_explicit(NodeType::Identifier(type_name.clone()), vec![], line, col)];
                         Expr::new_explicit(
-                            NodeType::FCall,
+                            NodeType::FCall(false),
                             struct_fcall_params,
                             line,
                             col,
@@ -621,6 +623,7 @@ fn build_default_value(context: &Context, vt: &ValueType, line: usize, col: usiz
 ///     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 ///     body
 /// }
+#[allow(dead_code)]
 fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result<Expr, String> {
     // Extract var_name from params[0]
     let var_name = match e.params.get(0) {
@@ -675,7 +678,7 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
 
     // Build len(collection) - already desugared form
     let len_call_expr = Expr::new_explicit(
-        NodeType::FCall,
+        NodeType::FCall(false),
         vec![
             Expr::new_explicit(NodeType::Identifier("len".to_string()), vec![], e.line, e.col),
             collection_expr.clone(),
@@ -686,7 +689,7 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
 
     // Build lt(_for_i, len_result) - already desugared form
     let cond_expr = Expr::new_explicit(
-        NodeType::FCall,
+        NodeType::FCall(false),
         vec![
             Expr::new_explicit(NodeType::Identifier("lt".to_string()), vec![], e.line, e.col),
             Expr::new_explicit(NodeType::Identifier(index_var_name.clone()), vec![], e.line, e.col),
@@ -734,7 +737,7 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
                 // Variant has a payload - need FCall with default value
                 let default_arg = build_default_value(context, payload_vt, e.line, e.col);
                 Expr::new_explicit(
-                    NodeType::FCall,
+                    NodeType::FCall(false),
                     vec![enum_id, default_arg],
                     e.line,
                     e.col,
@@ -746,7 +749,7 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
         } else {
             // Empty enum - shouldn't happen, fall back to struct-like constructor
             Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),
                 vec![Expr::new_explicit(NodeType::Identifier(var_type_name.to_string()), vec![], e.line, e.col)],
                 e.line,
                 e.col,
@@ -755,7 +758,7 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     } else {
         // Not an enum - use struct-like constructor: TYPE()
         Expr::new_explicit(
-            NodeType::FCall,
+            NodeType::FCall(false),
             vec![Expr::new_explicit(NodeType::Identifier(var_type_name.to_string()), vec![], e.line, e.col)],
             e.line,
             e.col,
@@ -765,7 +768,7 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
 
     // Build: get(collection, _for_i, VAR) - already desugared form
     let get_call = Expr::new_explicit(
-        NodeType::FCall,
+        NodeType::FCall(false),
         vec![
             Expr::new_explicit(NodeType::Identifier("get".to_string()), vec![], e.line, e.col),
             collection_expr.clone(),
@@ -779,11 +782,11 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     // Build: catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     // Catch structure: params[0]=error type identifier, params[1]=error var name, params[2]=body
     let panic_call = Expr::new_explicit(
-        NodeType::FCall,
+        NodeType::FCall(false),
         vec![
             Expr::new_explicit(NodeType::Identifier("panic".to_string()), vec![], e.line, e.col),
             Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),
                 vec![Expr::new_explicit(NodeType::Identifier("loc".to_string()), vec![], e.line, e.col)],
                 e.line,
                 e.col,
@@ -814,7 +817,7 @@ fn precomp_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     // Build: _for_i = add(_for_i, 1)
     // Already desugared form - no UFCS resolution needed
     let add_call = Expr::new_explicit(
-        NodeType::FCall,
+        NodeType::FCall(false),
         vec![
             Expr::new_explicit(NodeType::Identifier("add".to_string()), vec![], e.line, e.col),
             Expr::new_explicit(NodeType::Identifier(index_var_name.clone()), vec![], e.line, e.col),
@@ -963,7 +966,7 @@ fn build_case_condition(
 
             // Build: enum_to_str(switch_expr)
             let enum_to_str_call = Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),
                 vec![
                     Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
                     switch_expr.clone(),
@@ -979,7 +982,7 @@ fn build_case_condition(
             );
             let eq_id = Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col);
             let condition = Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),
                 vec![
                     Expr::new_explicit(NodeType::Identifier("Str".to_string()), vec![eq_id], line, col),
                     enum_to_str_call,
@@ -1045,7 +1048,7 @@ fn build_case_condition(
 
                     // Extract payload
                     let payload_call = Expr::new_explicit(
-                        NodeType::FCall,
+                        NodeType::FCall(false),
                         vec![
                             Expr::new_explicit(NodeType::Identifier("enum_get_payload".to_string()), vec![], line, col),
                             switch_expr.clone(),
@@ -1058,7 +1061,7 @@ fn build_case_condition(
 
                     // Build nested condition check: enum_to_str(temp_var).eq(binding_var)
                     let nested_enum_to_str = Expr::new_explicit(
-                        NodeType::FCall,
+                        NodeType::FCall(false),
                         vec![
                             Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
                             Expr::new_explicit(NodeType::Identifier(temp_name), vec![], line, col),
@@ -1071,7 +1074,7 @@ fn build_case_condition(
                     );
                     let nested_eq_id = Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col);
                     let nested_condition = Expr::new_explicit(
-                        NodeType::FCall,
+                        NodeType::FCall(false),
                         vec![
                             Expr::new_explicit(NodeType::Identifier("Str".to_string()), vec![nested_eq_id], line, col),
                             nested_enum_to_str,
@@ -1117,7 +1120,7 @@ fn build_case_condition(
 
                     // Call enum_get_payload(switch_expr, "Variant", mangled_name)
                     let payload_call = Expr::new_explicit(
-                        NodeType::FCall,
+                        NodeType::FCall(false),
                         vec![
                             Expr::new_explicit(NodeType::Identifier("enum_get_payload".to_string()), vec![], line, col),
                             switch_expr.clone(),
@@ -1171,7 +1174,7 @@ fn build_case_condition(
             // Build: Type.gteq(switch_expr, start)
             let gteq_id = Expr::new_explicit(NodeType::Identifier("gteq".to_string()), vec![], line, col);
             let gteq_call = Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),
                 vec![
                     Expr::new_explicit(NodeType::Identifier(type_prefix.to_string()), vec![gteq_id], line, col),
                     switch_expr.clone(),
@@ -1183,7 +1186,7 @@ fn build_case_condition(
             // Build: Type.lteq(switch_expr, end)
             let lteq_id = Expr::new_explicit(NodeType::Identifier("lteq".to_string()), vec![], line, col);
             let lteq_call = Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),
                 vec![
                     Expr::new_explicit(NodeType::Identifier(type_prefix.to_string()), vec![lteq_id], line, col),
                     switch_expr.clone(),
@@ -1194,7 +1197,7 @@ fn build_case_condition(
 
             // Build: and(gteq_call, lteq_call)
             let condition = Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),
                 vec![
                     Expr::new_explicit(NodeType::Identifier("and".to_string()), vec![], line, col),
                     gteq_call,
@@ -1233,7 +1236,7 @@ fn build_case_condition(
             if is_enum_value_variable && switch_is_enum {
                 // Runtime enum comparison: enum_to_str(switch_expr).eq(enum_to_str(case_expr))
                 let enum_to_str_switch = Expr::new_explicit(
-                    NodeType::FCall,
+                    NodeType::FCall(false),
                     vec![
                         Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
                         switch_expr.clone(),
@@ -1241,7 +1244,7 @@ fn build_case_condition(
                     line, col,
                 );
                 let enum_to_str_case = Expr::new_explicit(
-                    NodeType::FCall,
+                    NodeType::FCall(false),
                     vec![
                         Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
                         case_expr.clone(),
@@ -1250,7 +1253,7 @@ fn build_case_condition(
                 );
                 let eq_id = Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col);
                 let condition = Expr::new_explicit(
-                    NodeType::FCall,
+                    NodeType::FCall(false),
                     vec![
                         Expr::new_explicit(NodeType::Identifier("Str".to_string()), vec![eq_id], line, col),
                         enum_to_str_switch,
@@ -1287,7 +1290,7 @@ fn build_case_condition(
 
                 // Build: enum_to_str(switch_expr).eq("variant_str")
                 let enum_to_str_call = Expr::new_explicit(
-                    NodeType::FCall,
+                    NodeType::FCall(false),
                     vec![
                         Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
                         switch_expr.clone(),
@@ -1300,7 +1303,7 @@ fn build_case_condition(
                 );
                 let eq_id = Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col);
                 let condition = Expr::new_explicit(
-                    NodeType::FCall,
+                    NodeType::FCall(false),
                     vec![
                         Expr::new_explicit(NodeType::Identifier("Str".to_string()), vec![eq_id], line, col),
                         enum_to_str_call,
@@ -1317,7 +1320,7 @@ fn build_case_condition(
                 };
                 let eq_id = Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col);
                 let condition = Expr::new_explicit(
-                    NodeType::FCall,
+                    NodeType::FCall(false),
                     vec![
                         Expr::new_explicit(NodeType::Identifier(type_prefix), vec![eq_id], line, col),
                         switch_expr.clone(),
@@ -1336,7 +1339,7 @@ fn build_case_condition(
             };
             let eq_id = Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col);
             let condition = Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),
                 vec![
                     Expr::new_explicit(NodeType::Identifier(type_prefix), vec![eq_id], line, col),
                     switch_expr.clone(),
@@ -1346,7 +1349,7 @@ fn build_case_condition(
             );
             Ok((condition, vec![], None))
         }
-        NodeType::FCall => {
+        NodeType::FCall(_) => {
             // FCall case can be either:
             // 1. Enum variant with payload: Variant(payload_pattern) - when switch_expr is an enum
             // 2. Computed value: add(40, 2) - when switch_expr is not an enum
@@ -1367,7 +1370,7 @@ fn build_case_condition(
                 };
                 let eq_id = Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col);
                 let condition = Expr::new_explicit(
-                    NodeType::FCall,
+                    NodeType::FCall(false),
                     vec![
                         Expr::new_explicit(NodeType::Identifier(type_prefix), vec![eq_id], line, col),
                         switch_expr.clone(),
@@ -1390,7 +1393,7 @@ fn build_case_condition(
 
             // Build outer condition: enum_to_str(switch_expr).eq("FullVariantName")
             let enum_to_str_call = Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),
                 vec![
                     Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
                     switch_expr.clone(),
@@ -1403,7 +1406,7 @@ fn build_case_condition(
             );
             let eq_id = Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col);
             let outer_condition = Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),
                 vec![
                     Expr::new_explicit(NodeType::Identifier("Str".to_string()), vec![eq_id], line, col),
                     enum_to_str_call,
@@ -1459,7 +1462,7 @@ fn build_case_condition(
 
                     // Extract payload
                     let payload_call = Expr::new_explicit(
-                        NodeType::FCall,
+                        NodeType::FCall(false),
                         vec![
                             Expr::new_explicit(NodeType::Identifier("enum_get_payload".to_string()), vec![], line, col),
                             switch_expr.clone(),
@@ -1471,7 +1474,7 @@ fn build_case_condition(
 
                     // Build inner condition: enum_to_str(temp_var).eq("InnerVariantName")
                     let inner_enum_to_str = Expr::new_explicit(
-                        NodeType::FCall,
+                        NodeType::FCall(false),
                         vec![
                             Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
                             Expr::new_explicit(NodeType::Identifier(temp_name), vec![], line, col),
@@ -1484,7 +1487,7 @@ fn build_case_condition(
                     );
                     let inner_eq_id = Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col);
                     let inner_condition = Expr::new_explicit(
-                        NodeType::FCall,
+                        NodeType::FCall(false),
                         vec![
                             Expr::new_explicit(NodeType::Identifier("Str".to_string()), vec![inner_eq_id], line, col),
                             inner_enum_to_str,
@@ -1528,7 +1531,7 @@ fn build_case_condition(
             };
             let eq_id = Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col);
             let condition = Expr::new_explicit(
-                NodeType::FCall,
+                NodeType::FCall(false),
                 vec![
                     Expr::new_explicit(NodeType::Identifier(type_prefix), vec![eq_id], line, col),
                     switch_expr.clone(),

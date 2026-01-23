@@ -181,25 +181,25 @@ test_color_match_if := proc(to_switch: Color) returns Str {
         return "unknown color"
     } else if variant.eq("Color.Green") {
         mut is_olive := false
-        enum_get_payload(to_switch, Bool, is_olive)
+        enum_get_payload(to_switch, "Green", is_olive)
         if is_olive {
             return "olive green"
         }
         return "dark green"
     } else if variant.eq("Color.Number") {
         mut code := 0
-        enum_get_payload(to_switch, I64, code)
+        enum_get_payload(to_switch, "Number", code)
         if code.gt(0) {
             return "positive color code"
         }
         return "negative color code"
     } else if variant.eq("Color.Name") {
         mut name := ""
-        enum_get_payload(to_switch, Str, name)
+        enum_get_payload(to_switch, "Name", name)
         return format("color named ", name)
     } else if variant.eq("Color.Rgb") {
         mut rgb := RGB()
-        enum_get_payload(to_switch, RGB, rgb)
+        enum_get_payload(to_switch, "Rgb", rgb)
         return format("rgb(", rgb.r.to_str(), ",", rgb.g.to_str(), ",", rgb.b.to_str(), ")")
     }
     return "should not reach here"
