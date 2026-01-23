@@ -6,7 +6,7 @@ use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::HashMap;
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal, TTypeDef, PatternInfo,
+    Expr, NodeType, ValueType, SStructDef, SNamespaceDef, SFuncDef, Literal, TTypeDef, PatternInfo,
     value_type_to_str, INFER_TYPE,
 };
 use crate::rs::interpreter::{eval_expr, eval_declaration, insert_struct_instance, create_default_instance};
@@ -47,8 +47,9 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::Return | NodeType::Throw => precomp_params(context, e),
         NodeType::Catch => precomp_catch(context, e),
         NodeType::Range => precomp_params(context, e),
-        // Struct/enum definitions - need to process default values (which may contain function defs)
+        // Struct/enum/namespace definitions - need to process default values (which may contain function defs)
         NodeType::StructDef(struct_def) => precomp_struct_def(context, e, struct_def),
+        NodeType::NamespaceDef(namespace_def) => precomp_namespace_def(context, e, namespace_def),
         NodeType::EnumDef(_) => Ok(e.clone()),
         // Identifiers can have nested params (e.g., a.b.c for field access chains)
         NodeType::Identifier(_) => precomp_params(context, e),
@@ -336,6 +337,34 @@ fn precomp_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) 
         default_values: new_default_values,
     };
     Ok(Expr::new_clone(NodeType::StructDef(new_struct_def), e, e.params.clone()))
+}
+
+fn precomp_namespace_def(context: &mut Context, e: &Expr, namespace_def: &SNamespaceDef) -> Result<Expr, String> {
+    let mut new_default_values = HashMap::new();
+    for (name, value_expr) in &namespace_def.default_values {
+        // Bug #40 fix: For method definitions, set function name context
+        let is_func = matches!(&value_expr.node_type, NodeType::FuncDef(_));
+        let saved_func = context.current_precomp_func.clone();
+        let saved_counter = context.precomp_forin_counter;
+        if is_func {
+            context.current_precomp_func = name.clone();
+            context.precomp_forin_counter = 0;
+        }
+
+        new_default_values.insert(name.clone(), precomp_expr(context, value_expr)?);
+
+        // Bug #40 fix: Restore previous function context
+        if is_func {
+            context.current_precomp_func = saved_func;
+            context.precomp_forin_counter = saved_counter;
+        }
+    }
+    let new_namespace_def = SNamespaceDef {
+        type_name: namespace_def.type_name.clone(),
+        members: namespace_def.members.clone(),
+        default_values: new_default_values,
+    };
+    Ok(Expr::new_clone(NodeType::NamespaceDef(new_namespace_def), e, e.params.clone()))
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame

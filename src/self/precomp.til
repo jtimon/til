@@ -48,9 +48,11 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         return precomp_catch(context, e)?
     case NodeType.Range:
         return precomp_params(context, e)
-    // Struct/enum definitions - need to process default values (which may contain function defs)
+    // Struct/enum/namespace definitions - need to process default values (which may contain function defs)
     case NodeType.StructDef(struct_def):
         return precomp_struct_def(context, e, struct_def)?
+    case NodeType.NamespaceDef(namespace_def):
+        return precomp_namespace_def(context, e, namespace_def)?
     case NodeType.EnumDef:
         return e.clone()
     // Identifiers can have nested params (e.g., a.b.c for field access chains)
@@ -91,6 +93,8 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         return true
     // Type definitions and function definitions are static metadata - always comptime
     case NodeType.StructDef:
+        return true
+    case NodeType.NamespaceDef:
         return true
     case NodeType.EnumDef:
         return true
@@ -444,6 +448,54 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
     }
 
     return Expr.new_clone(NodeType.StructDef(new_struct_def), e, e.params.clone())
+}
+
+precomp_namespace_def := proc(mut context: Context, e: Expr, namespace_def: SNamespaceDef) returns Expr throws Str {
+    mut new_default_values := Map.new(Str, Expr)
+    mut i := 0
+    while i.lt(namespace_def.default_values.keys.len()) {
+        mut name := ""
+        namespace_def.default_values.keys.get(i, name)?
+        mut value_expr := Expr()
+        namespace_def.default_values.get(name, value_expr)?
+
+        // Bug #40 fix: For method definitions, set function name context
+        mut is_func := false
+        switch value_expr.node_type {
+        case NodeType.FuncDef:
+            is_func = true
+        case:
+        }
+        saved_func := context.current_precomp_func
+        saved_counter := context.precomp_forin_counter
+        if is_func {
+            context.current_precomp_func = name
+            context.precomp_forin_counter = 0
+        }
+
+        new_default_values.set(name, precomp_expr(context, value_expr)?)
+
+        // Bug #40 fix: Restore previous function context
+        if is_func {
+            context.current_precomp_func = saved_func
+            context.precomp_forin_counter = saved_counter
+        }
+
+        i.inc()
+    }
+    mut new_namespace_def := SNamespaceDef()
+    new_namespace_def.type_name = namespace_def.type_name.clone()
+    new_namespace_def.members = namespace_def.members.clone()
+    new_namespace_def.default_values = new_default_values
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("precomp_namespace_def: ", err.msg)
+    }
+    catch (err: KeyNotFoundError) {
+        throw format("precomp_namespace_def: ", err.msg)
+    }
+
+    return Expr.new_clone(NodeType.NamespaceDef(new_namespace_def), e, e.params.clone())
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame

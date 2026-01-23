@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use crate::rs::init::{Context, SymbolInfo, ScopeType, get_value_type, get_func_name_in_call, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE, Literal,
-    Expr, NodeType, ValueType, SEnumDef, SStructDef, SFuncDef, Declaration, PatternInfo, FunctionType, TTypeDef,
+    Expr, NodeType, ValueType, SEnumDef, SStructDef, SNamespaceDef, SFuncDef, Declaration, PatternInfo, FunctionType, TTypeDef,
     value_type_to_str, str_to_value_type,
 };
 
@@ -164,6 +164,9 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
         },
         NodeType::StructDef(struct_def) => {
             errors.extend(check_struct_def(context, &e, struct_def));
+        },
+        NodeType::NamespaceDef(namespace_def) => {
+            errors.extend(check_namespace_def(context, &e, namespace_def));
         },
         NodeType::If => {
             errors.extend(check_if_statement(context, &e));
@@ -2128,6 +2131,41 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
     return errors
 }
 
+fn check_namespace_def(context: &mut Context, e: &Expr, namespace_def: &SNamespaceDef) -> Vec<String> {
+    let mut errors: Vec<String> = Vec::new();
+
+    // Type-check each member declaration in the namespace
+    for member_decl in &namespace_def.members {
+        match namespace_def.default_values.get(&member_decl.name) {
+            Some(inner_e) => {
+                match &inner_e.node_type {
+                    // If the member is a function, type-check it
+                    NodeType::FuncDef(func_def) => {
+                        context.scope_stack.push(ScopeType::Function);
+                        errors.extend(check_func_proc_types(&func_def, context, &inner_e));
+                        context.scope_stack.pop().ok();
+                    },
+                    // For constants/other values, check purity
+                    _ => {
+                        if is_expr_calling_procs(context, inner_e) {
+                            errors.push(inner_e.exit_error("type",
+                                &format!("Namespace member '{}' has value that calls proc. Namespace values must be pure (can only call funcs, not procs).", member_decl.name)));
+                        }
+                    }
+                }
+            },
+            None => {
+                errors.push(e.error(&context.path, "type", &format!(
+                    "Namespace member '{}' lacks a value. All namespace members must be defined.",
+                    member_decl.name
+                )));
+            }
+        }
+    }
+
+    return errors
+}
+
 pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) -> Result<Option<SFuncDef>, String> {
     if !matches!(fcall_expr.node_type, NodeType::FCall(_)) {
         return Err(fcall_expr.lang_error(&context.path, "type", "Expected FCall node type"));
@@ -2273,6 +2311,15 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         NodeType::StructDef(struct_def) => {
             // Check if any default values call procs
             for (_member_name, default_expr) in &struct_def.default_values {
+                if is_expr_calling_procs(context, default_expr) {
+                    return true
+                }
+            }
+            return false
+        },
+        NodeType::NamespaceDef(namespace_def) => {
+            // Check if any default values call procs
+            for (_member_name, default_expr) in &namespace_def.default_values {
                 if is_expr_calling_procs(context, default_expr) {
                     return true
                 }
@@ -2754,6 +2801,46 @@ pub fn resolve_inferred_types(context: &mut Context, e: &Expr) -> Result<Expr, S
                 default_values: new_default_values,
             };
             Ok(Expr::new_explicit(NodeType::StructDef(new_struct_def), e.params.clone(), e.line, e.col))
+        }
+
+        // NamespaceDef - resolve member types and recurse into default_values
+        NodeType::NamespaceDef(namespace_def) => {
+            // First, resolve types and recurse into default_values
+            let mut new_default_values = HashMap::new();
+            for (name, value_expr) in &namespace_def.default_values {
+                new_default_values.insert(name.clone(), resolve_inferred_types(context, value_expr)?);
+            }
+
+            // Then, resolve INFER_TYPE in member declarations
+            let mut new_members = Vec::new();
+            for member in &namespace_def.members {
+                let resolved_type = match &member.value_type {
+                    ValueType::TCustom(s) if s == INFER_TYPE => {
+                        // Get resolved default_value for this member
+                        match new_default_values.get(&member.name) {
+                            Some(default_value) => get_value_type(context, default_value)?,
+                            None => return Err(e.lang_error(&context.path, "resolve_types",
+                                &format!("Cannot infer type for namespace member '{}': no default value", member.name))),
+                        }
+                    },
+                    _ => member.value_type.clone(),
+                };
+                new_members.push(Declaration {
+                    name: member.name.clone(),
+                    value_type: resolved_type,
+                    is_mut: member.is_mut,
+                    is_copy: member.is_copy,
+                    is_own: member.is_own,
+                    default_value: member.default_value.clone(),
+                });
+            }
+
+            let new_namespace_def = SNamespaceDef {
+                type_name: namespace_def.type_name.clone(),
+                members: new_members,
+                default_values: new_default_values,
+            };
+            Ok(Expr::new_explicit(NodeType::NamespaceDef(new_namespace_def), e.params.clone(), e.line, e.col))
         }
 
         // Default: recurse into all params

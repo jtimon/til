@@ -789,6 +789,9 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
         return EvalResult.new_break()
     case NodeType.Continue:
         return EvalResult.new_continue()
+    case NodeType.NamespaceDef(_):
+        // Namespace definitions are handled in init phase, nothing to eval
+        return EvalResult.new("")
     case:
         throw e.lang_error(context.path, "eval", format("Not implemented yet, found node type ", enum_to_str(e.node_type), "."))
     }

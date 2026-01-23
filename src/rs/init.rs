@@ -551,6 +551,19 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 };
                 match &after_dot.node_type {
                     NodeType::Identifier(after_dot_name) => {
+                        // First check if this is a namespace member (Issue #108)
+                        let namespace_full_name = format!("{}.{}", f_name, after_dot_name);
+                        if context.scope_stack.lookup_symbol(&namespace_full_name).is_some() {
+                            // If it's a function, get the return type
+                            if let Some(func_def) = context.scope_stack.lookup_func(&namespace_full_name) {
+                                return value_type_func_proc(&context.path, e, &namespace_full_name, &func_def);
+                            }
+                            // Otherwise return the symbol's value type
+                            if let Some(symbol_info) = context.scope_stack.lookup_symbol(&namespace_full_name) {
+                                return Ok(symbol_info.value_type.clone());
+                            }
+                        }
+
                         let member_decl = struct_def.get_member_or_err(after_dot_name, &f_name, &context.path, e)?;
                         let member_default_value = match struct_def.default_values.get(after_dot_name) {
                             Some(_member) => _member,
@@ -591,6 +604,19 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 };
                 match &enum_after_dot_expr.node_type {
                     NodeType::Identifier(variant_name) => {
+                        // First check if this is a namespace member (Issue #108)
+                        let namespace_full_name = format!("{}.{}", f_name, variant_name);
+                        if context.scope_stack.lookup_symbol(&namespace_full_name).is_some() {
+                            // If it's a function, get the return type
+                            if let Some(func_def) = context.scope_stack.lookup_func(&namespace_full_name) {
+                                return value_type_func_proc(&context.path, e, &namespace_full_name, &func_def);
+                            }
+                            // Otherwise return the symbol's value type
+                            if let Some(symbol_info) = context.scope_stack.lookup_symbol(&namespace_full_name) {
+                                return Ok(symbol_info.value_type.clone());
+                            }
+                        }
+
                         // Check if this variant exists in the enum
                         let variant_type = match enum_def.get(variant_name) {
                             Some(_variant) => _variant,
@@ -1241,6 +1267,59 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 ValueType::TMulti(_) | ValueType::TCustom(_) => {
                     context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
                 },
+            }
+        }
+        NodeType::NamespaceDef(namespace_def) => {
+            // Verify the type exists (either struct or enum)
+            let type_name = &namespace_def.type_name;
+            let type_exists = context.scope_stack.lookup_struct(type_name).is_some()
+                || context.scope_stack.lookup_enum(type_name).is_some();
+
+            if !type_exists {
+                errors.push(e.error(&context.path, "init", &format!(
+                    "namespace '{}' refers to undefined type. Define the struct or enum first.",
+                    type_name
+                )));
+                return errors;
+            }
+
+            // Register namespace members as TypeName.member_name
+            for member_decl in &namespace_def.members {
+                if !member_decl.is_mut {
+                    // Get the member's expression (required for funcs/consts in namespaces)
+                    if let Some(member_expr) = namespace_def.default_values.get(&member_decl.name) {
+                        let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+                        let full_name = format!("{}.{}", type_name, member_decl.name);
+
+                        // Check for duplicate
+                        if context.scope_stack.lookup_symbol(&full_name).is_some() {
+                            errors.push(e.error(&context.path, "init", &format!(
+                                "'{}.{}' already defined. Only one namespace block per type allowed.",
+                                type_name, member_decl.name
+                            )));
+                            continue;
+                        }
+
+                        // Register in symbols
+                        context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo {
+                            value_type: member_value_type.clone(),
+                            is_mut: member_decl.is_mut,
+                            is_copy: member_decl.is_copy,
+                            is_own: member_decl.is_own,
+                            is_comptime_const: false
+                        });
+
+                        // If it's a function, also register in funcs
+                        if let NodeType::FuncDef(func_def) = &member_expr.node_type {
+                            context.scope_stack.declare_func(full_name, func_def.clone());
+                        }
+                    }
+                } else {
+                    errors.push(e.error(&context.path, "init", &format!(
+                        "namespace member '{}' cannot be mutable. Namespaces only contain constants and functions.",
+                        member_decl.name
+                    )));
+                }
             }
         }
         _ => {

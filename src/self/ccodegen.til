@@ -2662,6 +2662,16 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         }
     case:
     }
+    // 2b2: namespace functions (with mangled names)
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            if is_namespace_statement(child) {
+                emit_namespace_func_prototypes(child, output)?
+            }
+        }
+    case:
+    }
     // 2c: hoisted nested function prototypes (collected in Pass 0a)
     if not(ctx.hoisted_prototypes.is_empty()) {
         output.push_str("\n// Nested function prototypes (hoisted)\n")
@@ -2760,6 +2770,16 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         }
     case:
     }
+    // 5b2: namespace functions (with mangled names)
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            if is_namespace_statement(child) {
+                emit_namespace_func_bodies(child, output, ctx, context)?
+            }
+        }
+    case:
+    }
 
     // 5c: hoisted nested function definitions
     // These were collected during emit_func_declaration when encountering nested functions
@@ -2809,7 +2829,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
                 }
             case:
             }
-            if not(skip).and(not(is_func_declaration(child))).and(not(is_struct_declaration(child))).and(not(is_enum_declaration(child))).and(not(is_constant_declaration(child))) {
+            if not(skip).and(not(is_func_declaration(child))).and(not(is_struct_declaration(child))).and(not(is_namespace_statement(child))).and(not(is_enum_declaration(child))).and(not(is_constant_declaration(child))) {
                 main_stmts.push(child)
             }
         }
@@ -2894,6 +2914,16 @@ is_enum_declaration := func(expr: Expr) returns Bool {
 
     catch (err: IndexOutOfBoundsError) { }
 
+    return false
+}
+
+// Check if an expression is a namespace statement (namespace TypeName {...})
+is_namespace_statement := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.NamespaceDef:
+        return true
+    case:
+    }
     return false
 }
 
@@ -3917,6 +3947,53 @@ emit_struct_func_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
     }
 }
 
+// Emit namespace function prototypes for all functions in a namespace block
+emit_namespace_func_prototypes := proc(expr: Expr, mut output: Str) throws Str {
+    switch expr.node_type {
+    case NodeType.NamespaceDef(namespace_def):
+        type_name := til_name(namespace_def.type_name)
+        for member: Declaration in namespace_def.members {
+            // Check if default_value is a function definition
+            mut func_expr := Expr()
+            namespace_def.default_values.get(member.name, func_expr)?
+            catch (err: KeyNotFoundError) {
+                // REM: member has no default value, skip
+            }
+            switch func_expr.node_type {
+            case NodeType.FuncDef(func_def):
+                mangled_name := type_name.concat("_").concat(member.name)
+                emit_func_signature(mangled_name, func_def, output)?
+                output.push_str(";\n")
+            case:
+            }
+        }
+    case:
+    }
+}
+
+// Emit namespace function bodies for all functions in a namespace block
+emit_namespace_func_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
+    switch expr.node_type {
+    case NodeType.NamespaceDef(namespace_def):
+        type_name := til_name(namespace_def.type_name)
+        for member: Declaration in namespace_def.members {
+            // Check if default_value is a function definition
+            mut func_expr := Expr()
+            namespace_def.default_values.get(member.name, func_expr)?
+            catch (err: KeyNotFoundError) {
+                // REM: member has no default value, skip
+            }
+            switch func_expr.node_type {
+            case NodeType.FuncDef(func_def):
+                // Reuse struct function body emission (same logic applies)
+                emit_struct_func_body(type_name, member, func_def, output, ctx, context)?
+            case:
+            }
+        }
+    case:
+    }
+}
+
 // Convert TIL type to C type. Returns Err if the type can't be represented in C (e.g., functions, infer)
 til_type_to_c := func(til_type: ValueType) returns Str throws Str {
     switch til_type {
@@ -4372,6 +4449,8 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         emit_throw(expr, output, indent, ctx, context)?
     case NodeType.StructDef(sd):
         throw "ccodegen: StructDef should be handled at top level, not in emit_expr"
+    case NodeType.NamespaceDef(nd):
+        throw "ccodegen: NamespaceDef should be handled at top level, not in emit_expr"
     case NodeType.EnumDef(ed):
         throw "ccodegen: EnumDef should be handled at top level, not in emit_expr"
     case NodeType.Switch:

@@ -108,6 +108,13 @@ pub struct SStructDef {
     pub default_values : HashMap<String, Expr>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct SNamespaceDef {
+    pub type_name: String,
+    pub members: Vec<Declaration>,
+    pub default_values: HashMap<String, Expr>,
+}
+
 impl SStructDef {
     /// Helper to find a member by name
     pub fn get_member(&self, member_name: &str) -> Option<&Declaration> {
@@ -149,6 +156,7 @@ pub enum NodeType {
     FuncDef(SFuncDef),
     EnumDef(SEnumDef),
     StructDef(SStructDef),
+    NamespaceDef(SNamespaceDef),
     Return,
     Throw,
     Catch,
@@ -799,6 +807,60 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
 
     return Ok(Expr::new_parse(NodeType::StructDef(SStructDef{members: members, default_values: default_values}),
                               t.clone(), Vec::new()));
+}
+
+fn parse_namespace_statement(lexer: &mut Lexer) -> Result<Expr, String> {
+    let initial_t = lexer.peek();
+    lexer.expect(TokenType::Namespace)?;
+
+    // Expect type name identifier
+    let type_t = lexer.peek();
+    if type_t.token_type != TokenType::Identifier {
+        return Err(type_t.error(&lexer.path, &format!("Expected type name after 'namespace', found '{:?}'.", type_t.token_type)));
+    }
+    let type_name = type_t.token_str.clone();
+    lexer.advance(1)?;
+
+    // Expect opening brace
+    let brace_t = lexer.peek();
+    if brace_t.token_type != TokenType::LeftBrace {
+        return Err(brace_t.error(&lexer.path, "Expected '{{' after 'namespace TypeName'."));
+    }
+    lexer.advance(1)?;
+
+    // Parse body - same as struct body
+    let body = match parse_body(lexer, TokenType::RightBrace) {
+        Ok(body) => body,
+        Err(err_str) => return Err(err_str),
+    };
+
+    // Extract members from body declarations (same as struct)
+    let mut members = Vec::new();
+    let mut default_values = HashMap::new();
+    for p in body.params {
+        match p.node_type {
+            NodeType::Declaration(decl) => {
+                members.push(decl.clone());
+                if p.params.len() == 1 {
+                    match p.params.get(0) {
+                        Some(val) => {
+                            default_values.insert(decl.name.clone(), val.clone());
+                        },
+                        None => return Err(brace_t.error(&lexer.path, "expected value in namespace member declaration")),
+                    }
+                } else {
+                    return Err(brace_t.error(&lexer.path, "all declarations inside namespace must have a value"));
+                }
+            },
+            _ => return Err(brace_t.error(&lexer.path, "expected only declarations inside namespace")),
+        }
+    }
+
+    return Ok(Expr::new_parse(
+        NodeType::NamespaceDef(SNamespaceDef{type_name, members, default_values}),
+        initial_t.clone(),
+        Vec::new()
+    ));
 }
 
 fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
@@ -1638,6 +1700,7 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::Mut => return parse_mut_declaration(lexer),
         TokenType::Identifier => return parse_statement_identifier(lexer),
         TokenType::Catch => return parse_catch_statement(lexer),
+        TokenType::Namespace => return parse_namespace_statement(lexer),
         TokenType::LeftBrace => {
             lexer.advance(1)?; // Skip LeftBrace
             return parse_body(lexer, TokenType::RightBrace)

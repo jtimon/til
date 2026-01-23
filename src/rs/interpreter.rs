@@ -75,6 +75,9 @@ fn to_ast_str(e: &Expr) -> String {
         NodeType::StructDef(_) => {
             return "(struct)".to_string();
         },
+        NodeType::NamespaceDef(_) => {
+            return "(namespace)".to_string();
+        },
         NodeType::Identifier(id_name) => {
             return id_name.clone();
         },
@@ -808,6 +811,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::FuncDef(_) => Ok(EvalResult::new("")),
         NodeType::EnumDef(_) => Ok(EvalResult::new("")),
         NodeType::StructDef(_) => Ok(EvalResult::new("")),
+        NodeType::NamespaceDef(_) => Ok(EvalResult::new("")),
         // NamedArg is handled inside FCall processing
         NodeType::NamedArg(_) => {
             return Err(e.lang_error(&context.path, "eval", "NamedArg should only appear inside FCall"))

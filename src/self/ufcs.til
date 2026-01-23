@@ -283,9 +283,11 @@ ufcs_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         return ufcs_catch(context, e)?
     case NodeType.Range:
         return ufcs_params(context, e)
-    // Struct/enum definitions - need to process default values (which may contain function defs)
+    // Struct/enum/namespace definitions - need to process default values (which may contain function defs)
     case NodeType.StructDef(struct_def):
         return ufcs_struct_def(context, e, struct_def)?
+    case NodeType.NamespaceDef(namespace_def):
+        return ufcs_namespace_def(context, e, namespace_def)?
     case NodeType.EnumDef:
         return e.clone()
     // Identifiers can have nested params (e.g., a.b.c for field access chains)
@@ -467,6 +469,32 @@ ufcs_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) r
     }
 
     return Expr.new_clone(NodeType.StructDef(new_struct_def), e, e.params.clone())
+}
+
+ufcs_namespace_def := proc(mut context: Context, e: Expr, namespace_def: SNamespaceDef) returns Expr throws Str {
+    mut new_default_values := Map.new(Str, Expr)
+    mut i := 0
+    while i.lt(namespace_def.default_values.keys.len()) {
+        mut name := ""
+        namespace_def.default_values.keys.get(i, name)?
+        mut value_expr := Expr()
+        namespace_def.default_values.get(name, value_expr)?
+        new_default_values.set(name, ufcs_expr(context, value_expr)?)
+        i.inc()
+    }
+    mut new_namespace_def := SNamespaceDef()
+    new_namespace_def.type_name = namespace_def.type_name.clone()
+    new_namespace_def.members = namespace_def.members.clone()
+    new_namespace_def.default_values = new_default_values
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("ufcs_namespace_def: ", err.msg)
+    }
+    catch (err: KeyNotFoundError) {
+        throw format("ufcs_namespace_def: ", err.msg)
+    }
+
+    return Expr.new_clone(NodeType.NamespaceDef(new_namespace_def), e, e.params.clone())
 }
 
 /// Transform FuncDef - push scope frame for function args, transform body, pop frame
