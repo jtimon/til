@@ -1842,7 +1842,7 @@ fn emit_arg_with_param_type(
                 if let Some(ret_type) = fd.return_types.first() {
                     if let Ok(c_type) = til_type_to_c(ret_type) {
                         // Check if return type is a simple typedef (I64) vs struct
-                        // I64 is the only simple typedef - all others are structs
+                        // I64 is a simple typedef - all others are structs
                         let is_simple_type = matches!(ret_type, ValueType::TCustom(name) if name == "I64");
                         if is_simple_type {
                             output.push_str("&(");

@@ -1027,7 +1027,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
                                             // Add symbol entry before calling insert_i64
                                             context.scope_stack.declare_symbol(i64_lit_temp_var_name.clone(), SymbolInfo {
-                                                value_type: ValueType::TCustom("I64".to_string()),
+                                                value_type: ValueType::TCustom(struct_type_name.clone()),
                                                 is_mut: false,
                                                 is_copy: false,
                                                 is_own: false,

@@ -133,14 +133,9 @@ read_struct_primitive_fields := proc(ctx: Context, instance_id: Str, struct_type
 
             if is_custom {
                 if type_name.eq("I64") {
-                    // Skip 'ptr' and 'c_string' fields - these point to temp instance memory
-                    if decl.name.eq("ptr").or(decl.name.eq("c_string")) {
-                        // Skip - let these use static default (0)
-                    } else {
-                        // Read actual I64 value from evaluated instance
-                        val := EvalArena.get_i64(ctx, field_id, e)
-                        values.set(key, val.to_str())
-                    }
+                    // Read actual I64 value from evaluated instance
+                    val := EvalArena.get_i64(ctx, field_id, e)
+                    values.set(key, val.to_str())
                 } else if type_name.eq("U8") {
                     // Read actual U8 value from evaluated instance
                     u8_val := EvalArena.get_u8(ctx, field_id, e)
@@ -515,7 +510,7 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                                 memcpy(to_ptr(i64_val), g_arena.get(i64_payload_offset, 8), 8)
 
                                 // Declare symbol and insert into arena
-                                i64_sym_info := SymbolInfo(value_type=ValueType.TCustom("I64"), is_mut=false, is_copy=false, is_own=false)
+                                i64_sym_info := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=false, is_copy=false, is_own=false)
                                 context.scope_stack.declare_symbol(pattern_binding, i64_sym_info)
                                 EvalArena.insert_i64(context, pattern_binding, i64_val.to_str(), case_expr)
                             } else if type_name.eq("Str") {
@@ -1046,13 +1041,13 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                     }
                                 case Literal.Number(_):
                                     if struct_type_name.eq("I64") {
-                                        // For I64 literals, create a temporary I64 struct
+                                        // For I64 literals, create a temporary struct
                                         i64_lit_last_frame := context.scope_stack.last_frame()
                                         i64_lit_temp_var_name := format("__temp_i64_", I64.to_str(i64_lit_last_frame.arena_index.len()))
                                         i64_lit_value := payload_result.value
 
                                         // Add symbol entry before calling insert_i64
-                                        context.scope_stack.declare_symbol(i64_lit_temp_var_name, SymbolInfo(value_type=ValueType.TCustom("I64")))
+                                        context.scope_stack.declare_symbol(i64_lit_temp_var_name, SymbolInfo(value_type=ValueType.TCustom(struct_type_name)))
 
                                         EvalArena.insert_i64(context, i64_lit_temp_var_name, i64_lit_value, e)
                                         struct_var_name = i64_lit_temp_var_name

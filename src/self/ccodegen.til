@@ -2477,7 +2477,7 @@ emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_ty
                     fc_fd.return_types.get(0, fc_ret_type)
                     fc_ret_c_type := til_type_to_c(fc_ret_type)
                     // Check if return type is a simple typedef (I64) vs struct
-                    // I64 is the only simple typedef - all others are structs
+                    // I64 is a simple typedef - all others are structs
                     mut fc_is_simple_type := false
                     switch fc_ret_type {
                     case ValueType.TCustom(fc_ret_type_name):
