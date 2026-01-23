@@ -823,15 +823,8 @@ fn build_case_condition(
             // FCall pattern (e.g., enum with complex payload) - treat as enum
             if is_enum_switch {
                 let variant_name = get_fcall_variant_name(case_expr);
-                let outer_condition = build_enum_variant_condition(e, switch_var_name, &variant_name, switch_type)?;
-
-                // Check for nested enum pattern in the FCall argument
-                if let Some((nested_enum_type, nested_variant_name)) = get_fcall_nested_enum_pattern(context, case_expr) {
-                    // Generate compound condition: outer_check && { extract_payload; check_nested }
-                    build_nested_enum_condition(context, e, switch_expr, switch_var_name, &outer_condition, &nested_enum_type, &nested_variant_name)
-                } else {
-                    Ok(outer_condition)
-                }
+                // Just return the outer condition - nested check handled in build_case_body
+                build_enum_variant_condition(e, switch_var_name, &variant_name, switch_type)
             } else {
                 // Fallback to eq comparison
                 build_eq_condition(e, switch_expr, case_expr)
@@ -874,6 +867,7 @@ fn get_full_variant_name(name: &str, case_expr: &Expr, switch_type: &Option<Valu
 fn get_fcall_nested_enum_pattern(context: &Context, case_expr: &Expr) -> Option<(String, String)> {
     // FCall: params[0] = function, params[1] = argument
     if case_expr.params.len() < 2 {
+        eprintln!("DEBUG nested: FCall has < 2 params");
         return None;
     }
     let arg_expr = &case_expr.params[1];
@@ -887,7 +881,10 @@ fn get_fcall_nested_enum_pattern(context: &Context, case_expr: &Expr) -> Option<
                     // name is EnumType, variant_name is Variant
                     // Check if name is a known enum
                     if context.scope_stack.lookup_enum(name).is_some() {
+                        eprintln!("DEBUG nested: found {}.{}", name, variant_name);
                         return Some((name.clone(), format!("{}.{}", name, variant_name)));
+                    } else {
+                        eprintln!("DEBUG nested: enum '{}' NOT FOUND in scope for nested pattern {}.{}", name, name, variant_name);
                     }
                 }
             }
@@ -896,9 +893,14 @@ fn get_fcall_nested_enum_pattern(context: &Context, case_expr: &Expr) -> Option<
         if let Some(dot_pos) = name.rfind('.') {
             let enum_type = &name[..dot_pos];
             if context.scope_stack.lookup_enum(enum_type).is_some() {
+                eprintln!("DEBUG nested: found qualified {}", name);
                 return Some((enum_type.to_string(), name.clone()));
+            } else {
+                eprintln!("DEBUG nested: enum '{}' NOT FOUND for qualified {}", enum_type, name);
             }
         }
+    } else {
+        eprintln!("DEBUG nested: arg is not Identifier, it's {:?}", arg_expr.node_type);
     }
     None
 }
@@ -1067,96 +1069,6 @@ fn build_range_condition(context: &Context, e: &Expr, switch_expr: &Expr, case_e
     ))
 }
 
-/// Build compound condition for nested enum patterns:
-/// outer_condition && { mut _temp := Default; enum_get_payload(...); Str.eq(enum_to_str(_temp), expected) }
-fn build_nested_enum_condition(
-    context: &Context,
-    e: &Expr,
-    switch_expr: &Expr,
-    switch_var_name: &str,
-    outer_condition: &Expr,
-    nested_enum_type: &str,
-    nested_variant_name: &str,
-) -> Result<Expr, String> {
-    // Generate unique temp variable name for nested payload
-    let temp_var_name = format!("{}_nested", switch_var_name);
-
-    // Build default value for the nested enum type
-    let default_value = build_default_value(context, &ValueType::TCustom(nested_enum_type.to_string()), e.line, e.col);
-
-    // Build: mut _temp := DefaultValue
-    let temp_decl = Declaration {
-        name: temp_var_name.clone(),
-        value_type: ValueType::TCustom(nested_enum_type.to_string()),
-        is_mut: true,
-        is_copy: false,
-        is_own: false,
-        default_value: None,
-    };
-    let temp_decl_expr = Expr::new_explicit(
-        NodeType::Declaration(temp_decl),
-        vec![default_value],
-        e.line,
-        e.col,
-    );
-
-    // Build: enum_get_payload(switch_expr, NestedEnumType, _temp)
-    let get_payload_call = Expr::new_explicit(
-        NodeType::FCall(false),
-        vec![
-            Expr::new_explicit(NodeType::Identifier("enum_get_payload".to_string()), vec![], e.line, e.col),
-            switch_expr.clone(),
-            Expr::new_explicit(NodeType::Identifier(nested_enum_type.to_string()), vec![], e.line, e.col),
-            Expr::new_explicit(NodeType::Identifier(temp_var_name.clone()), vec![], e.line, e.col),
-        ],
-        e.line,
-        e.col,
-    );
-
-    // Build: enum_to_str(_temp)
-    let enum_to_str_call = Expr::new_explicit(
-        NodeType::FCall(false),
-        vec![
-            Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], e.line, e.col),
-            Expr::new_explicit(NodeType::Identifier(temp_var_name.clone()), vec![], e.line, e.col),
-        ],
-        e.line,
-        e.col,
-    );
-
-    // Build: Str.eq(enum_to_str(_temp), "NestedEnumType.ExpectedVariant")
-    let nested_check = Expr::new_explicit(
-        NodeType::FCall(false),
-        vec![
-            Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], e.line, e.col),
-            enum_to_str_call,
-            Expr::new_explicit(NodeType::LLiteral(Literal::Str(nested_variant_name.to_string())), vec![], e.line, e.col),
-        ],
-        e.line,
-        e.col,
-    );
-
-    // Build block: { decl; get_payload; nested_check }
-    let nested_block = Expr::new_explicit(
-        NodeType::Body,
-        vec![temp_decl_expr, get_payload_call, nested_check],
-        e.line,
-        e.col,
-    );
-
-    // Build: outer_condition && nested_block
-    Ok(Expr::new_explicit(
-        NodeType::FCall(false),
-        vec![
-            Expr::new_explicit(NodeType::Identifier("and".to_string()), vec![], e.line, e.col),
-            outer_condition.clone(),
-            nested_block,
-        ],
-        e.line,
-        e.col,
-    ))
-}
-
 /// Rename all occurrences of a base identifier in an expression.
 /// Only renames the BASE of identifier chains, not field access names.
 /// E.g., for old_name="val": val -> new_name, val.field -> new_name.field
@@ -1257,6 +1169,103 @@ fn build_case_body(
                 }
             }
             return Ok(Expr::new_explicit(NodeType::Body, body_stmts, e.line, e.col));
+        }
+    }
+
+    // For FCall with nested enum pattern, wrap body in nested if
+    if let NodeType::FCall(_) = &case_expr.node_type {
+        eprintln!("DEBUG build_case_body: FCall case, is_enum_switch={}", is_enum_switch);
+        if is_enum_switch {
+            let nested_result = get_fcall_nested_enum_pattern(context, case_expr);
+            eprintln!("DEBUG build_case_body: nested_result={:?}", nested_result);
+            if let Some((nested_enum_type, nested_variant_name)) = nested_result {
+                // Generate:
+                // {
+                //     mut _payload: NestedType = NestedType.Default()
+                //     enum_get_payload(switch_expr, NestedType, _payload)
+                //     if Str.eq(enum_to_str(_payload), "NestedType.ExpectedVariant") {
+                //         original_body
+                //     }
+                // }
+                let payload_var_name = format!("{}_nested_{}", switch_var_name, case_index);
+
+                // Build default value for nested enum type
+                let default_value = build_default_value(context, &ValueType::TCustom(nested_enum_type.clone()), e.line, e.col);
+
+                // Build: mut _payload := default_value
+                let payload_decl = Declaration {
+                    name: payload_var_name.clone(),
+                    value_type: ValueType::TCustom(nested_enum_type.clone()),
+                    is_mut: true,
+                    is_copy: false,
+                    is_own: false,
+                    default_value: None,
+                };
+                let payload_decl_expr = Expr::new_explicit(
+                    NodeType::Declaration(payload_decl),
+                    vec![default_value],
+                    e.line,
+                    e.col,
+                );
+
+                // Build: enum_get_payload(switch_expr, NestedType, _payload)
+                let get_payload_call = Expr::new_explicit(
+                    NodeType::FCall(false),
+                    vec![
+                        Expr::new_explicit(NodeType::Identifier("enum_get_payload".to_string()), vec![], e.line, e.col),
+                        switch_expr.clone(),
+                        Expr::new_explicit(NodeType::Identifier(nested_enum_type.clone()), vec![], e.line, e.col),
+                        Expr::new_explicit(NodeType::Identifier(payload_var_name.clone()), vec![], e.line, e.col),
+                    ],
+                    e.line,
+                    e.col,
+                );
+
+                // Build: enum_to_str(_payload)
+                let enum_to_str_call = Expr::new_explicit(
+                    NodeType::FCall(false),
+                    vec![
+                        Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], e.line, e.col),
+                        Expr::new_explicit(NodeType::Identifier(payload_var_name.clone()), vec![], e.line, e.col),
+                    ],
+                    e.line,
+                    e.col,
+                );
+
+                // Build: Str.eq(enum_to_str(_payload), "NestedType.ExpectedVariant")
+                let nested_condition = Expr::new_explicit(
+                    NodeType::FCall(false),
+                    vec![
+                        Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], e.line, e.col),
+                        enum_to_str_call,
+                        Expr::new_explicit(NodeType::LLiteral(Literal::Str(nested_variant_name)), vec![], e.line, e.col),
+                    ],
+                    e.line,
+                    e.col,
+                );
+
+                // Wrap original body
+                let wrapped_body = match &body_expr.node_type {
+                    NodeType::Body => body_expr.clone(),
+                    _ => Expr::new_explicit(NodeType::Body, vec![body_expr.clone()], e.line, e.col),
+                };
+
+                // Build: if nested_condition { wrapped_body }
+                let nested_if = Expr::new_explicit(
+                    NodeType::If,
+                    vec![nested_condition, wrapped_body],
+                    e.line,
+                    e.col,
+                );
+
+                // Build outer body: { payload_decl; get_payload; nested_if }
+                return Ok(Expr::new_explicit(
+                    NodeType::Body,
+                    vec![payload_decl_expr, get_payload_call, nested_if],
+                    e.line,
+                    e.col,
+                ));
+            }
         }
     }
 
