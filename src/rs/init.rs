@@ -591,11 +591,17 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 };
                 match &enum_after_dot_expr.node_type {
                     NodeType::Identifier(variant_name) => {
+                        // First check for associated function (namespace-defined)
+                        let combined_name = format!("{}.{}", f_name, variant_name);
+                        if let Some(func_def) = context.scope_stack.lookup_func(&combined_name) {
+                            return value_type_func_proc(&context.path, &e, &combined_name, func_def);
+                        }
+
                         // Check if this variant exists in the enum
                         let variant_type = match enum_def.get(variant_name) {
                             Some(_variant) => _variant,
                             None => {
-                                return Err(e.error(&context.path, "init", &format!("enum '{}' has no variant '{}'", f_name, variant_name)));
+                                return Err(e.error(&context.path, "init", &format!("enum '{}' has no variant '{}' and no associated function '{}'", f_name, variant_name, combined_name)));
                             },
                         };
 
@@ -1241,6 +1247,54 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 ValueType::TMulti(_) | ValueType::TCustom(_) => {
                     context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
                 },
+            }
+        }
+        NodeType::NamespaceDef(ns_def) => {
+            // Verify the type exists (struct or enum)
+            let type_exists = context.scope_stack.lookup_struct(&ns_def.type_name).is_some()
+                           || context.scope_stack.lookup_enum(&ns_def.type_name).is_some();
+            if !type_exists {
+                errors.push(e.error(&context.path, "init", &format!(
+                    "namespace '{}' refers to undefined type. Define the type before the namespace block.",
+                    ns_def.type_name)));
+                return errors;
+            }
+
+            // Register each member as TypeName.memberName
+            for member_decl in &ns_def.members {
+                let full_name = format!("{}.{}", ns_def.type_name, member_decl.name);
+
+                // Check for name collisions
+                if context.scope_stack.lookup_func(&full_name).is_some() || context.scope_stack.lookup_symbol(&full_name).is_some() {
+                    errors.push(e.error(&context.path, "init", &format!(
+                        "'{}' is already defined for type '{}'.", member_decl.name, ns_def.type_name)));
+                    continue;
+                }
+
+                // Get the member's expression and value type
+                if let Some(member_expr) = ns_def.default_values.get(&member_decl.name) {
+                    let member_value_type = match get_value_type(&context, member_expr) {
+                        Ok(vt) => vt,
+                        Err(err) => {
+                            errors.push(err);
+                            continue;
+                        }
+                    };
+
+                    // Register in symbols
+                    context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo {
+                        value_type: member_value_type.clone(),
+                        is_mut: member_decl.is_mut,
+                        is_copy: member_decl.is_copy,
+                        is_own: member_decl.is_own,
+                        is_comptime_const: false,
+                    });
+
+                    // If it's a function, also register in funcs
+                    if let NodeType::FuncDef(func_def) = &member_expr.node_type {
+                        context.scope_stack.declare_func(full_name, func_def.clone());
+                    }
+                }
             }
         }
         _ => {

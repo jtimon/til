@@ -2026,6 +2026,14 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             }
         }
     }
+    // 2b2: namespace functions (with mangled names)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_namespace_block(child) {
+                emit_namespace_func_prototypes(child, &mut output)?;
+            }
+        }
+    }
     // 2c: hoisted nested function prototypes (collected in Pass 0a)
     if !ctx.hoisted_prototypes.is_empty() {
         output.push_str("\n// Nested function prototypes (hoisted)\n");
@@ -2110,6 +2118,14 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             }
         }
     }
+    // 5b2: namespace functions (with mangled names)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_namespace_block(child) {
+                emit_namespace_func_bodies(child, &mut output, &mut ctx, context)?;
+            }
+        }
+    }
 
     // 5c: hoisted nested function definitions
     // These were collected during emit_func_declaration when encountering nested functions
@@ -2151,7 +2167,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
                         return false;
                     }
                 }
-                !is_func_declaration(child) && !is_struct_declaration(child) && !is_enum_declaration(child) && !is_constant_declaration(child)
+                !is_func_declaration(child) && !is_struct_declaration(child) && !is_enum_declaration(child) && !is_constant_declaration(child) && !is_namespace_block(child)
             })
             .cloned()
             .collect();
@@ -2219,6 +2235,11 @@ fn is_enum_declaration(expr: &Expr) -> bool {
         }
     }
     false
+}
+
+// Check if an expression is a namespace block (namespace TypeName {...})
+fn is_namespace_block(expr: &Expr) -> bool {
+    matches!(&expr.node_type, NodeType::NamespaceDef(_))
 }
 
 // Check if an expression is a top-level constant declaration (name := literal)
@@ -2881,6 +2902,11 @@ fn emit_enum_to_str_for_declaration(
     if let NodeType::Declaration(decl) = &expr.node_type {
         let enum_name = &decl.name;
         if let Some(enum_def) = context.scope_stack.lookup_enum(enum_name) {
+            // Skip if user defined their own to_str via namespace block
+            let user_to_str = format!("{}.to_str", enum_name);
+            if context.scope_stack.lookup_func(&user_to_str).is_some() {
+                return Ok(());
+            }
             let c_enum_name = til_name(enum_name);
             emit_enum_to_str_function(&c_enum_name, &enum_def, output);
             return Ok(());
@@ -2992,6 +3018,8 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     // Clear current function context
     ctx.current_throw_types.clear();
     ctx.current_return_types.clear();
+    ctx.current_ref_params.clear();
+    ctx.current_variadic_params.clear();
 
     Ok(())
 }
@@ -3009,6 +3037,39 @@ fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
                             emit_struct_func_body(&struct_name, member, func_def, output, ctx, context)?;
                         }
                     }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// Emit namespace function prototypes (similar to struct function prototypes)
+fn emit_namespace_func_prototypes(expr: &Expr, output: &mut String) -> Result<(), String> {
+    if let NodeType::NamespaceDef(ns_def) = &expr.node_type {
+        let type_name = til_name(&ns_def.type_name);
+        for member in &ns_def.members {
+            if let Some(func_expr) = ns_def.default_values.get(&member.name) {
+                if let NodeType::FuncDef(func_def) = &func_expr.node_type {
+                    let mangled_name = format!("{}_{}", type_name, member.name);
+                    emit_func_signature(&mangled_name, func_def, output)?;
+                    output.push_str(";\n");
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// Emit namespace function bodies (similar to struct function bodies)
+fn emit_namespace_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+    if let NodeType::NamespaceDef(ns_def) = &expr.node_type {
+        let type_name = til_name(&ns_def.type_name);
+        for member in &ns_def.members {
+            if let Some(func_expr) = ns_def.default_values.get(&member.name) {
+                if let NodeType::FuncDef(func_def) = &func_expr.node_type {
+                    // Reuse emit_struct_func_body since the logic is the same
+                    emit_struct_func_body(&type_name, member, func_def, output, ctx, context)?;
                 }
             }
         }
@@ -3391,8 +3452,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::Pattern(_) => Err("ccodegen: Pattern should be handled inside emit_switch".to_string()),
         NodeType::NamedArg(_) => Err(expr.error(&context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")),
         NodeType::ForIn(_) => Err(expr.lang_error(&context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")),
-        // TODO: namespace blocks not yet implemented
-        NodeType::NamespaceDef(_) => Err(expr.todo_error(&context.path, "ccodegen", "namespace blocks not yet implemented")),
+        NodeType::NamespaceDef(_) => Err("ccodegen: NamespaceDef should be handled at top level, not in emit_expr".to_string()),
     }
 }
 
@@ -5169,7 +5229,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             if let NodeType::FCall(_) = &expr.params[0].node_type {
                 let rhs_fcall = &expr.params[0];
                 if rhs_fcall.params.len() > 1 {
-                    if let Some(fd) = get_fcall_func_def(context, rhs_fcall) {
+                    // Try get_fcall_func_def first, then fallback to scope lookup (for namespace functions)
+                    let rhs_orig_func_name = get_til_func_name_string(&rhs_fcall.params[0]);
+                    let fd_opt = get_fcall_func_def(context, rhs_fcall)
+                        .or_else(|| rhs_orig_func_name.as_ref().and_then(|n| context.scope_stack.lookup_func(n).cloned()));
+                    if let Some(fd) = fd_opt {
                         let param_types: Vec<Option<ValueType>> = fd.args.iter()
                             .map(|fd_arg| Some(fd_arg.value_type.clone()))
                             .collect();
@@ -5222,7 +5286,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             if let NodeType::FCall(_) = &expr.params[0].node_type {
                 let rhs_fcall = &expr.params[0];
                 if rhs_fcall.params.len() > 1 {
-                    if let Some(fd) = get_fcall_func_def(context, rhs_fcall) {
+                    // Try get_fcall_func_def first, then fallback to scope lookup (for namespace functions)
+                    let const_rhs_orig_func_name = get_til_func_name_string(&rhs_fcall.params[0]);
+                    let const_fd_opt = get_fcall_func_def(context, rhs_fcall)
+                        .or_else(|| const_rhs_orig_func_name.as_ref().and_then(|n| context.scope_stack.lookup_func(n).cloned()));
+                    if let Some(fd) = const_fd_opt {
                         let param_types: Vec<Option<ValueType>> = fd.args.iter()
                             .map(|fd_arg| Some(fd_arg.value_type.clone()))
                             .collect();
@@ -5893,9 +5961,16 @@ fn emit_fcall_with_hoisted(
     output.push_str(&func_name);
     output.push_str("(");
 
+    // For namespace function lookups, get the original name with dots
+    let orig_func_name_hoisted = get_til_func_name_string(&expr.params[0])
+        .unwrap_or_else(|| func_name.clone());
+
     // Look up param types for by-ref handling
     let param_info: Vec<ParamTypeInfo> = {
         if let Some(fd) = get_fcall_func_def(context, expr) {
+            fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
+        } else if let Some(fd) = context.scope_stack.lookup_func(&orig_func_name_hoisted) {
+            // Fallback: lookup via scope_stack directly (for namespace functions)
             fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
         } else {
             Vec::new()
@@ -7214,6 +7289,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 // Regular non-variadic function call
                 // Look up function to get parameter info (by_ref flags)
                 let param_info: Vec<ParamTypeInfo> = if let Some(fd) = get_fcall_func_def(context, expr) {
+                    fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
+                } else if let Some(fd) = context.scope_stack.lookup_func(&orig_func_name) {
+                    // Fallback: lookup via scope_stack directly (for namespace functions)
                     fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
                 } else {
                     Vec::new()

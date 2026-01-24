@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use crate::rs::init::{Context, SymbolInfo, ScopeType, get_value_type, get_func_name_in_call, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE, Literal,
-    Expr, NodeType, ValueType, SEnumDef, SStructDef, SFuncDef, Declaration, PatternInfo, FunctionType, TTypeDef,
+    Expr, NodeType, ValueType, SEnumDef, SStructDef, SNamespaceDef, SFuncDef, Declaration, PatternInfo, FunctionType, TTypeDef,
     value_type_to_str, str_to_value_type,
 };
 
@@ -268,8 +268,8 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
         NodeType::ForIn(_var_type) => {
             errors.extend(check_forin_statement(context, &e));
         },
-        NodeType::NamespaceDef(_) => {
-            errors.push(e.todo_error(&context.path, "type", "namespace blocks not yet implemented"));
+        NodeType::NamespaceDef(ns_def) => {
+            errors.extend(check_namespace_def(context, &e, ns_def));
         },
     }
 
@@ -2125,6 +2125,36 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                  Note: size() should return the total size in bytes, not element count (use len() for that).",
                 size_struct_name, size_methods_str.join("/"), size_struct_name, size_struct_name
             )));
+        }
+    }
+
+    return errors
+}
+
+fn check_namespace_def(context: &mut Context, _e: &Expr, ns_def: &SNamespaceDef) -> Vec<String> {
+    let mut errors: Vec<String> = Vec::new();
+
+    // Type was already verified to exist in init phase
+    // Now type-check each member
+
+    for member_decl in &ns_def.members {
+        if let Some(inner_e) = ns_def.default_values.get(&member_decl.name) {
+            match &inner_e.node_type {
+                // If the member is a function, type check it
+                NodeType::FuncDef(func_def) => {
+                    context.scope_stack.push(ScopeType::Function);
+                    errors.extend(check_func_proc_types(&func_def, context, &inner_e));
+                    context.scope_stack.pop().ok();
+                },
+                // For constants, check purity (no proc calls)
+                _ => {
+                    if is_expr_calling_procs(context, inner_e) {
+                        errors.push(inner_e.error(&context.path, "type",
+                            &format!("Namespace member '{}' has value that calls proc. Namespace values must be pure (can only call funcs, not procs).",
+                                     member_decl.name)));
+                    }
+                }
+            }
         }
     }
 
