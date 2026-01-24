@@ -1404,6 +1404,59 @@ The TIL syntax differs slightly (e.g., ~at_global_scope.and(...)~ instead of
 *** Tests
 - tmp/test_constfold_scope.til - demonstrates the issue
 
+**** Implementation Attempt #2 (2026-01-24)
+
+***** What Was Tried
+1. Modified ~eval_comptime~ to catch errors and return original expression instead of propagating
+2. Removed ~at_global_scope~ check from FCall folding in ~precomp_expr~
+
+***** Results
+- Change 1 (eval_comptime error handling): SUCCESS - passes all tests
+- Change 2 (remove at_global_scope): FAILURE - breaks UFCS lookups
+
+***** Root Cause Discovery
+When ~at_global_scope~ check is removed, ~is_comptime_evaluable~ is called for FCalls
+inside function bodies. This triggers a lookup chain:
+
+1. ~is_comptime_evaluable~ calls ~get_func_def_for_fcall_with_expr~
+2. ~get_func_def_for_fcall_with_expr~ calls ~get_value_type~ on arguments
+3. For UFCS patterns like ~mul(self.cap, 2)~, ~get_value_type~ tries to resolve the type
+
+The issue arises during ~collect_imports~ in builder.rs. Files are processed in order:
+- Core modules are precompiled via ~precomp_expr~ during ~collect_imports~
+- Each import is processed recursively, precompiling immediately after its deps
+- But ~precomp_declaration~ calls ~get_value_type~ on the ORIGINAL expression BEFORE
+  UFCS transformation happens
+
+When vec.til is being precompiled, the error occurs in:
+- ~precomp_declaration~ (line 926) calls ~get_value_type(mul(self.cap, 2))~
+- ~get_fcall_value_type~ tries UFCS lookup
+- For ~self.cap~ lookup to work, ~self~ must be in scope (it should be)
+- For ~I64.mul~ lookup to work, I64.mul must be registered (it should be)
+
+The failure suggests a deeper issue with how scopes or lookups work during the
+nested ~collect_imports~ -> ~precomp_expr~ call chain. The exact root cause needs
+further investigation, but the issue manifests as "Undefined symbol 'mul'" errors.
+
+***** Partial Fix Applied
+The ~eval_comptime~ error handling change was kept since it improves robustness:
+#+BEGIN_SRC rust
+let result = match result {
+    Ok(r) => r,
+    Err(_) => return Ok(e.clone()),
+};
+#+END_SRC
+
+This allows eval_comptime to gracefully handle cases where comptime constants
+aren't available yet, returning the original expression instead of failing.
+
+***** What Would Fix Bug #89 Fully
+A proper fix would require one of:
+1. Restructure ~collect_imports~ to run all init phases before any precomp phases
+2. Make ~is_comptime_evaluable~ not trigger ~get_value_type~ lookup chains
+3. Defer constant folding inside function bodies to after all imports are complete
+4. Create a separate "late precomp" phase that runs after full context is built
+
 ** Bug #83: No spread/splat operator for variadic argument forwarding
 :PROPERTIES:
 :DISCOVERED: 2026-01-03

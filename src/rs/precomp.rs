@@ -226,9 +226,10 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::FCall => {
             let mut const_folded = precomp_fcall(context, e)?;
             // Try compile-time constant folding for pure functions with literal args.
-            // Only fold at global scope - inside function definitions, values from other
-            // modules may not be available yet (import ordering). Interpreter doesn't
-            // evaluate function bodies during import either.
+            // Only fold at global scope - inside function definitions, is_comptime_evaluable
+            // triggers get_value_type calls that can fail due to import ordering issues.
+            // Bug #89 documents the full analysis. The fix requires restructuring the
+            // init/precomp phases, which is more invasive than this workaround.
             let at_global_scope = context.scope_stack.frames.len() == 1;
             if at_global_scope && is_comptime_evaluable(context, &const_folded) {
                 const_folded = eval_comptime(context, &const_folded)?;
@@ -366,12 +367,18 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
 }
 
 /// Evaluate a comptime-evaluable expression and convert result back to AST literal.
+/// Returns original expression if evaluation fails (e.g., constants not yet in arena).
 fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     // Save and restore context.path - interpreter may change it during function calls
     let saved_path = context.path.clone();
     let result = eval_expr(context, e);
     context.path = saved_path;
-    let result = result?;
+    // If eval fails (e.g., comptime constant not yet in arena during func body precomp),
+    // return original expression - folding will happen at runtime instead.
+    let result = match result {
+        Ok(r) => r,
+        Err(_) => return Ok(e.clone()),
+    };
 
     // Check if the function threw an exception during evaluation
     if result.is_throw {
