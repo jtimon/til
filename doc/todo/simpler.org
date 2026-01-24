@@ -1,8 +1,9 @@
 #+TITLE: Simplifications and Optimizations
 #+AUTHOR: TIL Development
 #+DATE: 2026-01-15
-# BOT: Issues here use same numbering as bugs.org (from doc/todo/next_issue_num.txt)
-# BOT: add them at the top of open issues, when implemented, move them to the top of implemented issues
+# BOT: Issues use next number from doc/todo/next_issue_num.txt, then increment it.
+# BOT: Add new issues at the top of Open Issues section.
+# BOT: When implemented, move to Implemented Issues section in doc/todo/fixed.org.
 
 * Overview
 
@@ -66,6 +67,4 @@ static inline int til_malloc(til_I64* _ret, const til_I64* size) {
 - Cleaner function signatures
 - Fewer pointer parameters to pass around
 - Encourages use of simple error types (just a marker, not a message carrier)
-
-* Implemented Issues
 

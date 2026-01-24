@@ -1,8 +1,9 @@
 #+TITLE: Syntactic Sugar and Convenience Functions
 #+AUTHOR: TIL Development
 #+DATE: 2026-01-15
-# BOT: Issues here use same numbering as bugs.org (from doc/todo/next_issue_num.txt)
-# BOT: add them at the top of open issues, when implemented, move them to the top of implemented issues
+# BOT: Issues use next number from doc/todo/next_issue_num.txt, then increment it.
+# BOT: Add new issues at the top of Open Issues section.
+# BOT: When implemented, move to Implemented Issues section in doc/todo/fixed.org.
 
 * Overview
 
@@ -11,29 +12,4 @@ ergonomic to use. These are not bug fixes or fundamental language changes, but
 quality-of-life improvements that reduce boilerplate and make common patterns easier.
 
 * Open Issues
-
-* Implemented Issues
-
-** Issue #120: Str.ends_with() and Str.starts_with()
-:PROPERTIES:
-:DISCOVERED: 2026-01-15
-:IMPLEMENTED: 2026-01-20
-:IMPACT: Common string operations, needed for file filtering and pattern matching
-:STATUS: Fixed
-:END:
-
-*** Description
-Convenience functions to check if a string starts or ends with a given substring.
-These are fundamental string operations found in virtually every language.
-
-*** Implementation
-- ~starts_with(s, prefix)~ in src/core/str.til:563-579
-- ~ends_with(s, suffix)~ in src/core/str.til:582-599
-- Tests in src/test/strings.til:37-56
-
-*** Use cases
-- File extension filtering: ~filename.ends_with(".til")~
-- Path checking: ~path.starts_with("/home/")~
-- Protocol detection: ~url.starts_with("https://")~
-- Suffix stripping: ~if name.ends_with("Error") { ... }~
 
