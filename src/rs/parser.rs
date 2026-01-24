@@ -778,7 +778,7 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
     let mut members = Vec::new();
     let mut default_values = HashMap::new();
     for p in body.params {
-        match p.node_type {
+        match &p.node_type {
             NodeType::Declaration(decl) => {
                 members.push(decl.clone());
                 if p.params.len() == 1 {
@@ -793,7 +793,26 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
                     return Err(t.error(&lexer.path, "all declarations inside struct definitions must have a value for now"));
                 }
             },
-            _ => return Err(t.error(&lexer.path, "expected only declarations inside struct definition")),
+            NodeType::Assignment(name) => {
+                // Handle const := value inside structs (methods like eq := func(...))
+                if p.params.len() == 1 {
+                    let val = p.params.get(0).unwrap();
+                    // Create a Declaration for the method
+                    let decl = Declaration {
+                        name: name.clone(),
+                        value_type: ValueType::TCustom(INFER_TYPE.to_string()),
+                        is_mut: false,
+                        is_copy: false,
+                        is_own: false,
+                        default_value: None,
+                    };
+                    members.push(decl.clone());
+                    default_values.insert(name.clone(), val.clone());
+                } else {
+                    return Err(t.error(&lexer.path, &format!("struct assignment '{}' must have exactly one value", name)));
+                }
+            },
+            _ => return Err(t.error(&lexer.path, &format!("expected only declarations inside struct definition, found {:?}", p.node_type))),
         }
     }
 

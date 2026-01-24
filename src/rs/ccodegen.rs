@@ -6451,6 +6451,23 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     let switch_type = get_value_type(context, switch_expr).ok();
     let is_str_switch = matches!(&switch_type, Some(ValueType::TCustom(t)) if t == "Str");
 
+    // Bug #136: Check if this is a struct switch that needs eq() method
+    // Skip primitive types (I64, U8, Bool, Str) whose values are literals
+    let mut is_struct_switch = false;
+    let mut struct_type_name = String::new();
+    if let Some(ValueType::TCustom(type_name)) = &switch_type {
+        let is_primitive = type_name == "Str" || type_name == "I64" || type_name == "U8" || type_name == "Bool";
+        if !is_primitive {
+            if context.scope_stack.lookup_struct(type_name).is_some() {
+                let eq_method_name = format!("{}.eq", type_name);
+                if context.scope_stack.lookup_func(&eq_method_name).is_some() {
+                    is_struct_switch = true;
+                    struct_type_name = type_name.clone();
+                }
+            }
+        }
+    }
+
     // Determine if this is an enum switch and if it has payloads
     let mut is_enum_switch = false;
     let mut enum_has_payloads_flag = false;
@@ -6636,6 +6653,15 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     output.push_str(", &");
                     emit_expr(case_pattern, output, 0, ctx, context)?;
                     output.push_str(").data");
+                } else if is_struct_switch {
+                    // Bug #136: Struct comparison using eq() method
+                    output.push_str("til_");
+                    output.push_str(&struct_type_name);
+                    output.push_str("_eq(&");
+                    output.push_str(&switch_var);
+                    output.push_str(", &");
+                    emit_expr(case_pattern, output, 0, ctx, context)?;
+                    output.push_str(").data");
                 } else {
                     // Regular value comparison
                     output.push_str(&switch_var);
@@ -6648,6 +6674,15 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 if is_str_switch {
                     // String literal comparison - pass by pointer
                     output.push_str("til_Str_eq(&");
+                    output.push_str(&switch_var);
+                    output.push_str(", &");
+                    emit_expr(case_pattern, output, 0, ctx, context)?;
+                    output.push_str(").data");
+                } else if is_struct_switch {
+                    // Bug #136: Struct comparison using eq() method
+                    output.push_str("til_");
+                    output.push_str(&struct_type_name);
+                    output.push_str("_eq(&");
                     output.push_str(&switch_var);
                     output.push_str(", &");
                     emit_expr(case_pattern, output, 0, ctx, context)?;
@@ -6700,6 +6735,15 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     output.push_str("_");
                     output.push_str(&info.variant_name);
                     output.push_str(") {\n");
+                } else if is_struct_switch {
+                    // Bug #136: Not an enum pattern, struct comparison using eq()
+                    output.push_str("til_");
+                    output.push_str(&struct_type_name);
+                    output.push_str("_eq(&");
+                    output.push_str(&switch_var);
+                    output.push_str(", &");
+                    emit_expr(case_pattern, output, 0, ctx, context)?;
+                    output.push_str(").data) {\n");
                 } else {
                     // Not an enum pattern - fall through to generic comparison
                     output.push_str(&switch_var);
@@ -6713,6 +6757,15 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 // TODO: Should emit proper FCall through normal path instead of hardcoding
                 if is_str_switch {
                     output.push_str("til_Str_eq(&");
+                    output.push_str(&switch_var);
+                    output.push_str(", &");
+                    emit_expr(case_pattern, output, 0, ctx, context)?;
+                    output.push_str(").data");
+                } else if is_struct_switch {
+                    // Bug #136: Struct comparison using eq() method
+                    output.push_str("til_");
+                    output.push_str(&struct_type_name);
+                    output.push_str("_eq(&");
                     output.push_str(&switch_var);
                     output.push_str(", &");
                     emit_expr(case_pattern, output, 0, ctx, context)?;

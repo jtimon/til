@@ -754,7 +754,61 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                         if result_case.is_throw {
                             return Ok(result_case);
                         }
-                        result_to_switch.value == result_case.value
+                        // Bug #136: For struct types, use eq() method instead of string comparison
+                        // Skip primitive types whose values are literals, not instance names:
+                        // - Str: values are string content
+                        // - I64, U8: values are numbers
+                        // - Bool: values are true/false
+                        // These types have struct wrappers for methods, but switch comparison uses value equality
+                        if let ValueType::TCustom(type_name) = &value_type {
+                            let is_primitive = type_name == "Str" || type_name == "I64" || type_name == "U8" || type_name == "Bool";
+                            // Check if this is a non-primitive struct type
+                            if !is_primitive && context.scope_stack.lookup_struct(type_name).is_some() {
+                                // Check if the struct has an eq() method
+                                let eq_method_name = format!("{}.eq", type_name);
+                                if context.scope_stack.lookup_func(&eq_method_name).is_some() {
+                                    // Construct FCall for StructName.eq(switch_val, case_val)
+                                    let method_id = Expr::new_explicit(
+                                        NodeType::Identifier(eq_method_name.clone()),
+                                        vec![],
+                                        e.line,
+                                        e.col
+                                    );
+                                    let switch_val_id = Expr::new_explicit(
+                                        NodeType::Identifier(result_to_switch.value.clone()),
+                                        vec![],
+                                        e.line,
+                                        e.col
+                                    );
+                                    let case_val_id = Expr::new_explicit(
+                                        NodeType::Identifier(result_case.value.clone()),
+                                        vec![],
+                                        e.line,
+                                        e.col
+                                    );
+                                    let eq_call = Expr::new_explicit(
+                                        NodeType::FCall(false),
+                                        vec![method_id, switch_val_id, case_val_id],
+                                        e.line,
+                                        e.col
+                                    );
+                                    let eq_result = eval_expr(context, &eq_call)?;
+                                    if eq_result.is_throw {
+                                        return Ok(eq_result);
+                                    }
+                                    eval_condition_to_bool(context, &eq_result, case)?
+                                } else {
+                                    return Err(case.error(&context.path, "eval", &format!(
+                                        "Struct '{}' requires eq() method for switch comparison", type_name
+                                    )));
+                                }
+                            } else {
+                                // Not a struct, use default comparison
+                                result_to_switch.value == result_case.value
+                            }
+                        } else {
+                            result_to_switch.value == result_case.value
+                        }
                     }
                 };
 

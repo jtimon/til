@@ -586,6 +586,9 @@ enum_payload := ext_func(e: Dynamic, payload_type: Type) returns Dynamic {}
 - Gleam went the opposite direction (if/else to switch)
 - We prefer switch->if/else since payload hoisting is already in ccodegen
 - Move that logic to desugarer (runs after typer, before precomp/interpreter/ccodegen)
+- Bug #136 (switch on structs compared instance names, not values) was fixed independently
+  by adding eq() calls directly in interpreter switch handling. This issue is now purely
+  about code simplification, not correctness.
 
 *** Prerequisite [DONE]
 Merged commit ~08865594~ (enum_get_payload branch) providing:
