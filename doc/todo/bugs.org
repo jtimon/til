@@ -13,7 +13,7 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :PROPERTIES:
 :DISCOVERED: 2026-01-23
 :IMPACT: Switch on struct values silently fails to match
-:STATUS: Open - will be fixed by Issue #110
+:STATUS: Open
 :REPRODUCER: see tmp/test_switch_no_eq.til
 :END:
 
@@ -43,10 +43,26 @@ For I64/Str this works because they evaluate to actual values ("5", "hello").
 For enums, special pattern matching code handles comparison (not string compare).
 
 *** Resolution
-Will be fixed by Issue #110 (desugar switch to if/else). After desugaring:
-- Switch becomes ~if p.eq(Point(x=5)) { ... }~
-- Structs will need an ~eq~ method to work in switch statements
-- This transforms the bug into a documented feature requirement
+Fix switch comparison directly in interpreter to use ~eq()~ for struct types:
+
+1. In interpreter's switch handling (interpreter.rs ~line 757, interpreter.til equivalent):
+   - Detect when switch expression is a struct type
+   - Instead of comparing instance names, call the struct's ~eq()~ method
+   - If struct has no ~eq()~ method, emit error: "Struct X requires eq() method for switch"
+
+2. Same fix needed in ccodegen for compiled mode
+
+3. Structs must implement ~eq()~ to be usable in switch case patterns:
+   #+BEGIN_SRC til
+   Point := struct {
+       mut x: I64 = 0
+       eq := func(self: Point, other: Point) returns Bool {
+           return self.x.eq(other.x)
+       }
+   }
+   #+END_SRC
+
+This is a direct fix that doesn't depend on Issue #110 (desugar switch to if/else).
 
 ** Bug #133: Precomputed heap values (Vec, List, etc.) have invalid pointers at runtime
 :PROPERTIES:
