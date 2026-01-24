@@ -73,9 +73,9 @@ Map := struct {
         } else {
             // For other types, use memcmp
             result := memcmp(key_a_ptr, key_b_ptr, self.key_type_size)
-            if lt(result, 0) {
+            if result.lt(0) {
                 return sub(0, 1)
-            } else if gt(result, 0) {
+            } else if result.gt(0) {
                 return 1
             } else {
                 return 0
@@ -96,30 +96,29 @@ Map := struct {
         }
 
         mut low := 0
-        mut high := sub(self._size, 1)
-        mut keys_arr := self.keys
+        mut high := self._size.sub(1)
 
         while low.lteq(high) {
-            mut mid := add(low, div(sub(high, low), 2))
-            mut mid_key_ptr := add(keys_arr.ptr, mul(mid, self.key_type_size))
-            cmp := self.compare_keys(to_ptr(key), mid_key_ptr)
+            mut mid := low.add(high.sub(low).div(2))
+            mid_key_ptr := self.keys.ptr.offset(mid.mul(self.key_type_size))
+            cmp := self.compare_keys(to_ptr(key), mid_key_ptr.data)
 
             if cmp.eq(0) {
                 // Found exact match
                 result.found = true
                 result.index = mid
                 return result
-            } else if lt(cmp, 0) {
+            } else if cmp.lt(0) {
                 // key < mid_key, search left half
                 if mid.eq(0) {
                     result.found = false
                     result.index = 0
                     return result
                 }
-                high = sub(mid, 1)
+                high = mid.sub(1)
             } else {
                 // key > mid_key, search right half
-                low = add(mid, 1)
+                low = mid.add(1)
             }
         }
 
@@ -142,7 +141,7 @@ Map := struct {
         // Insert at sorted position
         self.keys.insert_at(search.index, key)?
         self.values.insert_at(search.index, value)?
-        self._size = add(self._size, 1)
+        self._size = self._size.add(1)
 
         catch (err: IndexOutOfBoundsError) {
             panic(loc(), "Map.insert: unexpected IndexOutOfBoundsError: ", err.msg)
@@ -157,13 +156,13 @@ Map := struct {
 
         if search.found {
             // Key found - update value in place
-            mut value_ptr := add(self.values.ptr, mul(search.index, self.value_type_size))
-            memcpy(value_ptr, to_ptr(value), self.value_type_size)
+            mut value_ptr := self.values.ptr.offset(search.index.mul(self.value_type_size))
+            value_ptr.copy_from_dynamic(value, self.value_type_size)
         } else {
             // Key not found - insert at sorted position
             self.keys.insert_at(search.index, key)?
             self.values.insert_at(search.index, value)?
-            self._size = add(self._size, 1)
+            self._size = self._size.add(1)
         }
 
         catch (err: IndexOutOfBoundsError) {
@@ -178,8 +177,8 @@ Map := struct {
         search := self.binary_search(key)
 
         if search.found {
-            mut value_ptr := add(self.values.ptr, mul(search.index, self.value_type_size))
-            memcpy(to_ptr(dest), value_ptr, self.value_type_size)
+            value_ptr := self.values.ptr.offset(search.index.mul(self.value_type_size))
+            value_ptr.copy_to_dynamic(dest, self.value_type_size)
             return
         }
 
@@ -200,7 +199,7 @@ Map := struct {
             // Remove by shifting elements
             self.keys.remove(search.index)?
             self.values.remove(search.index)?
-            self._size = sub(self._size, 1)
+            self._size = self._size.sub(1)
         }
 
         catch (err: IndexOutOfBoundsError) {

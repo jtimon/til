@@ -30,13 +30,13 @@ Set := struct {
         // Check if element already exists
         mut i := 0
         mut elems_arr := self.elements
-        while lt(i, self._size) {
+        while i.lt(self._size) {
             mut elems_match := 0
             if Str.eq(self.elem_type_name, "Str") {
                 // For Str elements, use Str.eq() to compare content
                 mut existing_elem := ""
-                mut existing_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
-                memcpy(to_ptr(existing_elem), existing_elem_ptr, self.elem_type_size)
+                existing_elem_ptr := elems_arr.ptr.offset(i.mul(self.elem_type_size))
+                existing_elem_ptr.copy_to_dynamic(existing_elem, self.elem_type_size)
                 mut elem_str := ""
                 memcpy(to_ptr(elem_str), to_ptr(elem), self.elem_type_size)
                 if elem_str.eq(existing_elem) {
@@ -45,21 +45,21 @@ Set := struct {
                     elems_match = 1
                 }
             } else {
-                mut cmp_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
-                elems_match = memcmp(to_ptr(elem), cmp_elem_ptr, self.elem_type_size)
+                cmp_elem_ptr := elems_arr.ptr.offset(i.mul(self.elem_type_size))
+                elems_match = memcmp(to_ptr(elem), cmp_elem_ptr.data, self.elem_type_size)
             }
 
             if elems_match.eq(0) {
                 // Element already exists
                 return false
             }
-            i = add(i, 1)
+            i = i.add(1)
         }
 
         // Element not found, add it
         elems_arr.push(elem)
         self.elements = elems_arr
-        self._size = add(self._size, 1)
+        self._size = self._size.add(1)
         return true
     }
 
@@ -67,12 +67,12 @@ Set := struct {
     remove := proc(mut self: Set, elem: Dynamic) {
         mut i := 0
         mut elems_arr := self.elements
-        while lt(i, self._size) {
+        while i.lt(self._size) {
             mut elems_match := 0
             if Str.eq(self.elem_type_name, "Str") {
                 mut existing_elem := ""
-                mut existing_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
-                memcpy(to_ptr(existing_elem), existing_elem_ptr, self.elem_type_size)
+                existing_elem_ptr := elems_arr.ptr.offset(i.mul(self.elem_type_size))
+                existing_elem_ptr.copy_to_dynamic(existing_elem, self.elem_type_size)
                 mut elem_str := ""
                 memcpy(to_ptr(elem_str), to_ptr(elem), self.elem_type_size)
                 if elem_str.eq(existing_elem) {
@@ -81,26 +81,26 @@ Set := struct {
                     elems_match = 1
                 }
             } else {
-                mut cmp_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
-                elems_match = memcmp(to_ptr(elem), cmp_elem_ptr, self.elem_type_size)
+                cmp_elem_ptr := elems_arr.ptr.offset(i.mul(self.elem_type_size))
+                elems_match = memcmp(to_ptr(elem), cmp_elem_ptr.data, self.elem_type_size)
             }
 
             if elems_match.eq(0) {
                 // Element found - remove by shifting all subsequent elements down
                 mut j := i
-                while lt(j, sub(self._size, 1)) {
-                    mut src_ptr := add(self.elements.ptr, mul(add(j, 1), self.elem_type_size))
-                    mut dst_ptr := add(self.elements.ptr, mul(j, self.elem_type_size))
-                    memcpy(dst_ptr, src_ptr, self.elem_type_size)
-                    j = add(j, 1)
+                while j.lt(self._size.sub(1)) {
+                    src_ptr := self.elements.ptr.offset(j.add(1).mul(self.elem_type_size))
+                    mut dst_ptr := self.elements.ptr.offset(j.mul(self.elem_type_size))
+                    dst_ptr.copy_from(src_ptr, self.elem_type_size)
+                    j = j.add(1)
                 }
 
                 // Decrease size
-                self._size = sub(self._size, 1)
-                self.elements._len = sub(self.elements._len, 1)
+                self._size = self._size.sub(1)
+                self.elements._len = self.elements._len.sub(1)
                 return
             }
-            i = add(i, 1)
+            i = i.add(1)
         }
         // Element not found - do nothing
     }
@@ -109,12 +109,12 @@ Set := struct {
     contains := proc(self: Set, elem: Dynamic) returns Bool {
         mut i := 0
         mut elems_arr := self.elements
-        while lt(i, self._size) {
+        while i.lt(self._size) {
             mut elems_match := 0
             if Str.eq(self.elem_type_name, "Str") {
                 mut existing_elem := ""
-                mut existing_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
-                memcpy(to_ptr(existing_elem), existing_elem_ptr, self.elem_type_size)
+                existing_elem_ptr := elems_arr.ptr.offset(i.mul(self.elem_type_size))
+                existing_elem_ptr.copy_to_dynamic(existing_elem, self.elem_type_size)
                 mut elem_str := ""
                 memcpy(to_ptr(elem_str), to_ptr(elem), self.elem_type_size)
                 if elem_str.eq(existing_elem) {
@@ -123,14 +123,14 @@ Set := struct {
                     elems_match = 1
                 }
             } else {
-                mut cmp_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
-                elems_match = memcmp(to_ptr(elem), cmp_elem_ptr, self.elem_type_size)
+                cmp_elem_ptr := elems_arr.ptr.offset(i.mul(self.elem_type_size))
+                elems_match = memcmp(to_ptr(elem), cmp_elem_ptr.data, self.elem_type_size)
             }
 
             if elems_match.eq(0) {
                 return true
             }
-            i = add(i, 1)
+            i = i.add(1)
         }
         return false
     }
@@ -145,13 +145,13 @@ Set := struct {
         if index.lt(0).or(not(index.lt(self._size))) {
             throw IndexOutOfBoundsError(msg=format("Set.get: index ", I64.to_str(index), " out of bounds (size: ", I64.to_str(self._size), ")"))
         }
-        mut src_ptr := add(self.elements.ptr, mul(index, self.elem_type_size))
-        memcpy(to_ptr(out), src_ptr, self.elem_type_size)
+        src_ptr := self.elements.ptr.offset(index.mul(self.elem_type_size))
+        src_ptr.copy_to_dynamic(out, self.elem_type_size)
     }
 
     /** Get total size in bytes */
     size := func(self: Set) returns I64 {
-        return mul(self._size, self.elem_type_size)
+        return self._size.mul(self.elem_type_size)
     }
 
     /** Free set memory and reset */

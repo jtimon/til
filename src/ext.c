@@ -17,7 +17,7 @@ static inline til_I64 til_size_of(const til_Str* type_name);
 // single_print: print a string without newline
 static inline void til_single_print(const til_Str* s)
 {
-    printf("%s", (char*)s->c_string);
+    printf("%s", (char*)s->c_string.data);
 }
 
 // print_flush: flush stdout
@@ -208,19 +208,19 @@ static inline til_Str til_i64_to_str(const til_I64* v)
 {
     char* buf = (char*)malloc(32);
     if (!buf) {
-        til_Str s = {0, 0};
+        til_Str s = {{0}, 0};
         return s;
     }
     snprintf(buf, 32, "%lld", (long long)*v);
     til_Str s;
-    s.c_string = (til_I64)buf;
+    s.c_string.data = (til_I64)buf;
     s.cap = strlen(buf);
     return s;
 }
 
 static inline til_I64 til_str_to_i64(const til_Str* s)
 {
-    return (til_I64)strtoll((const char*)s->c_string, NULL, 10);
+    return (til_I64)strtoll((const char*)s->c_string.data, NULL, 10);
 }
 
 // I/O functions
@@ -230,19 +230,19 @@ static inline til_Str til_input_read_line(const til_Str* prompt)
 {
     // Print the prompt if non-empty
     if (prompt->cap > 0) {
-        printf("%.*s", (int)prompt->cap, (const char*)prompt->c_string);
+        printf("%.*s", (int)prompt->cap, (const char*)prompt->c_string.data);
         fflush(stdout);
     }
     char* buf = (char*)malloc(4096);
     if (!buf) {
-        til_Str s = {0, 0};
+        til_Str s = {{0}, 0};
         return s;
     }
     if (fgets(buf, 4096, stdin) == NULL) {
         buf[0] = '\0';
     }
     til_Str s;
-    s.c_string = (til_I64)buf;
+    s.c_string.data = (til_I64)buf;
     s.cap = strlen(buf);
     return s;
 }
@@ -250,9 +250,9 @@ static inline til_Str til_input_read_line(const til_Str* prompt)
 // readfile: read entire file contents
 static inline til_Str til_readfile(const til_Str* path)
 {
-    FILE* f = fopen((const char*)path->c_string, "rb");
+    FILE* f = fopen((const char*)path->c_string.data, "rb");
     if (!f) {
-        til_Str s = {0, 0};
+        til_Str s = {{0}, 0};
         return s;
     }
     fseek(f, 0, SEEK_END);
@@ -261,14 +261,14 @@ static inline til_Str til_readfile(const til_Str* path)
     char* buf = (char*)malloc(len + 1);
     if (!buf) {
         fclose(f);
-        til_Str s = {0, 0};
+        til_Str s = {{0}, 0};
         return s;
     }
     fread(buf, 1, len, f);
     buf[len] = '\0';
     fclose(f);
     til_Str s;
-    s.c_string = (til_I64)buf;
+    s.c_string.data = (til_I64)buf;
     s.cap = len;
     return s;
 }
@@ -277,18 +277,18 @@ static inline til_Str til_readfile(const til_Str* path)
 // Bug #98: Should throw WriteError instead of panicking
 static inline til_Str til_writefile(const til_Str* path, const til_Str* contents)
 {
-    FILE* f = fopen((const char*)path->c_string, "wb");
+    FILE* f = fopen((const char*)path->c_string.data, "wb");
     if (!f) {
-        fprintf(stderr, "PANIC: writefile: could not open file '%s'\n", (const char*)path->c_string);
+        fprintf(stderr, "PANIC: writefile: could not open file '%s'\n", (const char*)path->c_string.data);
         exit(1);
     }
-    size_t written = fwrite((const char*)contents->c_string, 1, contents->cap, f);
+    size_t written = fwrite((const char*)contents->c_string.data, 1, contents->cap, f);
     fclose(f);
     if (written != (size_t)contents->cap) {
-        fprintf(stderr, "PANIC: writefile: write failed for '%s'\n", (const char*)path->c_string);
+        fprintf(stderr, "PANIC: writefile: write failed for '%s'\n", (const char*)path->c_string.data);
         exit(1);
     }
-    return (til_Str){(til_I64)"", 0};
+    return (til_Str){{(til_I64)""}, 0};
 }
 
 // run_cmd: run command with arguments, capture output and return exit code
@@ -299,14 +299,14 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
     #define RUN_CMD_BUF_SIZE 65536
     char* buf = (char*)malloc(RUN_CMD_BUF_SIZE);
     if (!buf) {
-        output_str->c_string = 0;
+        output_str->c_string.data = 0;
         output_str->cap = 0;
         return -1;
     }
     buf[0] = '\0';
 
     if (args->_len == 0) {
-        output_str->c_string = (til_I64)buf;
+        output_str->c_string.data = (til_I64)buf;
         output_str->cap = 0;
         return -1;
     }
@@ -329,7 +329,7 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
                 cmd_buf[cmd_len++] = '\'';
             }
         }
-        const char* arg_str = (const char*)arg->c_string;
+        const char* arg_str = (const char*)arg->c_string.data;
         size_t arg_len = arg->cap;
         if (i == 0) {
             // Command: no quoting needed
@@ -360,7 +360,7 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
 
     FILE* f = popen(cmd_buf, "r");
     if (!f) {
-        output_str->c_string = (til_I64)buf;
+        output_str->c_string.data = (til_I64)buf;
         output_str->cap = 0;
         return -1;
     }
@@ -385,7 +385,7 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
     int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 #endif
 
-    output_str->c_string = (til_I64)buf;
+    output_str->c_string.data = (til_I64)buf;
     output_str->cap = total;
     return (til_I64)exit_code;
     #undef RUN_CMD_BUF_SIZE
@@ -420,10 +420,10 @@ static inline int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd)
     ZeroMemory(&pi, sizeof(pi));
 
     char cmdline[8192];
-    snprintf(cmdline, sizeof(cmdline), "cmd.exe /c %s", (char*)cmd->c_string);
+    snprintf(cmdline, sizeof(cmdline), "cmd.exe /c %s", (char*)cmd->c_string.data);
 
     if (!CreateProcess(NULL, cmdline, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
-        _err->msg.c_string = (til_I64)"Failed to create process";
+        _err->msg.c_string.data = (til_I64)"Failed to create process";
         _err->msg.cap = 24;
         return 1;  // throw
     }
@@ -461,7 +461,7 @@ static inline til_I64 til_get_thread_count(void) {
 
 // file_mtime: Returns file modification time as Unix timestamp, -1 if not exists
 static inline til_I64 til_file_mtime(const til_Str* path) {
-    HANDLE h = CreateFileA((char*)path->c_string, GENERIC_READ,
+    HANDLE h = CreateFileA((char*)path->c_string.data, GENERIC_READ,
         FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (h == INVALID_HANDLE_VALUE) return -1;
     FILETIME ft;
@@ -477,11 +477,11 @@ static inline til_I64 til_file_mtime(const til_Str* path) {
 // list_dir_raw: List files in a directory, returns newline-separated Str
 static inline til_Str til_list_dir_raw(const til_Str* path) {
     char pattern[1024];
-    snprintf(pattern, sizeof(pattern), "%s/*", (char*)path->c_string);
+    snprintf(pattern, sizeof(pattern), "%s/*", (char*)path->c_string.data);
 
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pattern, &fd);
-    if (h == INVALID_HANDLE_VALUE) return (til_Str){0, 0};
+    if (h == INVALID_HANDLE_VALUE) return (til_Str){{0}, 0};
 
     char buf[65536];
     size_t pos = 0;
@@ -501,12 +501,12 @@ static inline til_Str til_list_dir_raw(const til_Str* path) {
     // Allocate and copy result
     char* result = (char*)malloc(pos + 1);
     memcpy(result, buf, pos + 1);
-    return (til_Str){(til_I64)result, pos};
+    return (til_Str){{(til_I64)result}, pos};
 }
 
 // fs_parent_dir: Get parent directory of a path (Windows version)
 static inline til_Str til_fs_parent_dir(const til_Str* path) {
-    const char* p = (const char*)path->c_string;
+    const char* p = (const char*)path->c_string.data;
     size_t len = path->cap;
 
     // Find last slash or backslash
@@ -520,19 +520,19 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
     }
 
     if (!found || last_slash == 0) {
-        return (til_Str){0, 0};  // No parent or root
+        return (til_Str){{0}, 0};  // No parent or root
     }
 
     // Allocate and copy parent path
     char* result = (char*)malloc(last_slash + 1);
     memcpy(result, p, last_slash);
     result[last_slash] = '\0';
-    return (til_Str){(til_I64)result, last_slash};
+    return (til_Str){{(til_I64)result}, last_slash};
 }
 
 // fs_mkdir_p: Create directory and all parent directories (Windows)
 static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
-    const char* p = (const char*)path->c_string;
+    const char* p = (const char*)path->c_string.data;
     size_t len = path->cap;
     if (len == 0) return 0;
 
@@ -565,11 +565,11 @@ static inline int til_spawn_cmd(til_I64* _ret, void* _err_v, const til_Str* cmd)
     pid_t pid = fork();
     if (pid == 0) {
         // Child process
-        execl("/bin/sh", "sh", "-c", (char*)cmd->c_string, NULL);
+        execl("/bin/sh", "sh", "-c", (char*)cmd->c_string.data, NULL);
         _exit(127);  // execl failed
     }
     if (pid < 0) {
-        _err->msg.c_string = (til_I64)"Fork failed";
+        _err->msg.c_string.data = (til_I64)"Fork failed";
         _err->msg.cap = 11;
         return 1;  // throw
     }
@@ -608,15 +608,15 @@ static inline til_I64 til_get_thread_count(void) {
 #include <sys/stat.h>
 static inline til_I64 til_file_mtime(const til_Str* path) {
     struct stat st;
-    if (stat((char*)path->c_string, &st) != 0) return -1;
+    if (stat((char*)path->c_string.data, &st) != 0) return -1;
     return (til_I64)st.st_mtime;
 }
 
 // list_dir_raw: List files in a directory, returns newline-separated Str
 #include <dirent.h>
 static inline til_Str til_list_dir_raw(const til_Str* path) {
-    DIR* d = opendir((char*)path->c_string);
-    if (!d) return (til_Str){0, 0};
+    DIR* d = opendir((char*)path->c_string.data);
+    if (!d) return (til_Str){{0}, 0};
 
     char buf[65536];
     size_t pos = 0;
@@ -637,12 +637,12 @@ static inline til_Str til_list_dir_raw(const til_Str* path) {
     // Allocate and copy result
     char* result = (char*)malloc(pos + 1);
     memcpy(result, buf, pos + 1);
-    return (til_Str){(til_I64)result, pos};
+    return (til_Str){{(til_I64)result}, pos};
 }
 
 // fs_parent_dir: Get parent directory of a path
 static inline til_Str til_fs_parent_dir(const til_Str* path) {
-    const char* p = (const char*)path->c_string;
+    const char* p = (const char*)path->c_string.data;
     size_t len = path->cap;
 
     // Find last slash
@@ -656,19 +656,19 @@ static inline til_Str til_fs_parent_dir(const til_Str* path) {
     }
 
     if (!found || last_slash == 0) {
-        return (til_Str){0, 0};  // No parent or root
+        return (til_Str){{0}, 0};  // No parent or root
     }
 
     // Allocate and copy parent path
     char* result = (char*)malloc(last_slash + 1);
     memcpy(result, p, last_slash);
     result[last_slash] = '\0';
-    return (til_Str){(til_I64)result, last_slash};
+    return (til_Str){{(til_I64)result}, last_slash};
 }
 
 // fs_mkdir_p: Create directory and all parent directories (Unix)
 static inline til_I64 til_fs_mkdir_p(const til_Str* path) {
-    const char* p = (const char*)path->c_string;
+    const char* p = (const char*)path->c_string.data;
     size_t len = path->cap;
     if (len == 0) return 0;
 

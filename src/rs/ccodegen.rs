@@ -2648,7 +2648,7 @@ fn emit_size_of_function(output: &mut String, ctx: &CodegenContext) {
 
     // All known types from structs and enums
     for type_name in &ctx.known_types {
-        output.push_str("    if (strcmp((char*)type_name->c_string, \"");
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"");
         output.push_str(type_name);
         output.push_str("\") == 0) return ");
         output.push_str(TIL_PREFIX);
@@ -2657,7 +2657,7 @@ fn emit_size_of_function(output: &mut String, ctx: &CodegenContext) {
         output.push_str(";\n");
     }
 
-    output.push_str("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name->c_string);\n");
+    output.push_str("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name->c_string.data);\n");
     output.push_str("    exit(1);\n");
     output.push_str("}\n");
 }
@@ -6596,13 +6596,13 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     // For string ranges, use strcmp: strcmp(low, val) <= 0 && strcmp(val, high) <= 0
                     output.push_str("strcmp((char*)");
                     emit_expr(&case_pattern.params[0], output, 0, ctx, context)?;
-                    output.push_str(".c_string, (char*)");
+                    output.push_str(".c_string.data, (char*)");
                     output.push_str(&switch_var);
-                    output.push_str(".c_string) <= 0 && strcmp((char*)");
+                    output.push_str(".c_string.data) <= 0 && strcmp((char*)");
                     output.push_str(&switch_var);
-                    output.push_str(".c_string, (char*)");
+                    output.push_str(".c_string.data, (char*)");
                     emit_expr(&case_pattern.params[1], output, 0, ctx, context)?;
-                    output.push_str(".c_string) <= 0");
+                    output.push_str(".c_string.data) <= 0");
                 } else {
                     emit_expr(&case_pattern.params[0], output, 0, ctx, context)?;
                     output.push_str(" <= ");

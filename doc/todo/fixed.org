@@ -3727,6 +3727,59 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #134: Ptr type refactor - distinguish pointer fields from I64
+:PROPERTIES:
+:DISCOVERED: 2026-01-23
+:IMPLEMENTED: 2026-01-24
+:IMPACT: Enables proper serialization of heap data, foundation for Bug #133 fix
+:STATUS: Fixed
+:RELATED: Bug #133 (precomputed heap values), Issue #115 (owned struct fields)
+:END:
+
+*** Description
+Changed pointer fields in core structs (Vec.ptr, Str.c_string, List.data) from
+type I64 to use the existing Ptr struct type. This allows ccodegen to distinguish
+pointer fields from regular integers.
+
+*** Implementation (Option A from proposal)
+Used the existing ~Ptr~ type from core/ptr.til which wraps an I64 in a struct:
+#+BEGIN_SRC til
+Ptr := struct {
+    mut data: I64 = NULL
+}
+#+END_SRC
+
+*** Changes Made
+- *src/core/ptr.til*: Added ~copy_from_dynamic~ and ~copy_to_dynamic~ methods
+  to encapsulate memcpy with Dynamic arguments
+- *src/core/vec.til*: Changed ~ptr: I64~ to ~ptr: Ptr~, updated all usages to
+  use Ptr interface (is_null, delete, offset, copy_from, copy_from_dynamic, copy_to_dynamic)
+- *src/core/str.til*: Changed ~c_string: I64~ to ~c_string: Ptr~, updated all
+  string manipulation functions
+- *src/std/list.til*: Changed ~data: I64~ to ~data: Ptr~, updated all list operations
+- *src/std/map.til*: Updated to use UFCS style and Ptr.offset().data for pointer math
+- *src/core/set.til*: Updated to use UFCS style and Ptr interface
+- *src/std/arena.til*: Updated to use Ptr.offset().data internally
+- *src/self/eval_arena.til*: Updated to pass .data when calling Arena methods
+- *src/self/ext.til*: Updated byte_to_str to use Ptr.new_by_size
+- *src/self/interpreter.til*: Updated to use .ptr.data for memcpy
+- *src/ext.c*: Updated all c_string accesses to use .data (e.g., s->c_string.data)
+- *src/rs/ccodegen.rs*: Updated size_of function to use c_string.data
+- *src/test/vecs.til*: Updated tests to use is_null() instead of comparing to 0
+
+*** Key Patterns
+Old pattern -> New pattern:
+- ~vec.ptr = NULL~ -> ~vec.ptr = Ptr()~
+- ~malloc(size)?~ catch BadAlloc panic -> ~Ptr.new_by_size(size)~
+- ~if gt(self.ptr, 0)~ -> ~if not(self.ptr.is_null())~
+- ~free(self.ptr)~ -> ~self.ptr.delete()~
+- ~add(self.ptr, offset)~ -> ~self.ptr.offset(offset).data~
+- ~memcpy(dest, to_ptr(value), size)~ -> ~dest.copy_from_dynamic(value, size)~
+- ~memcpy(to_ptr(T), src, size)~ -> ~src.copy_to_dynamic(T, size)~
+
+*** Testing
+All 91 tests pass in all 4 modes (rs_interpreted, rs_compiled, til_interpreted, til_compiled).
+
 ** Issue #119: Skip empty struct error parameters in C codegen
 :PROPERTIES:
 :DISCOVERED: 2026-01-15

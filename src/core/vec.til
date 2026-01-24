@@ -1,6 +1,7 @@
 mode lib
 
 import("core.mem")
+import("core.ptr")
 
 /**
  * Vec - Dynamic/growable array.
@@ -9,7 +10,7 @@ import("core.mem")
 Vec := struct {
     mut type_name : Str  = ""
     mut type_size : I64  = 0
-    mut ptr       : I64  = 0
+    mut ptr       : Ptr  = Ptr()
     mut _len      : I64  = 0
     mut cap       : I64  = 0
 
@@ -41,7 +42,7 @@ Vec := struct {
         mut vec := Vec()
         vec.type_name = type_as_str(T)
         vec.type_size = size_of(T)
-        vec.ptr = NULL
+        vec.ptr = Ptr()
         vec._len = 0
         vec.cap = 0
         return vec
@@ -53,7 +54,7 @@ Vec := struct {
         mut vec := Vec()
         vec.type_name = type_name
         vec.type_size = type_size
-        vec.ptr = NULL
+        vec.ptr = Ptr()
         vec._len = 0
         vec.cap = 0
         return vec
@@ -71,10 +72,9 @@ Vec := struct {
             if capacity.gt(Vec.MAX_CAP) {
                 panic(loc(), "Vec.with_capacity: capacity exceeded Vec.MAX_CAP")
             }
-            vec.ptr = malloc(mul(capacity, vec.type_size))?
-            catch (err: BadAlloc) { panic(loc(), "Vec.with_capacity: malloc failed") }
+            vec.ptr = Ptr.new_by_size(capacity.mul(vec.type_size))
         } else {
-            vec.ptr = NULL
+            vec.ptr = Ptr()
         }
         return vec
     }
@@ -87,29 +87,28 @@ Vec := struct {
 
         // Grow if needed (handles cap=0 case with max(1, cap*2))
         if self._len.eq(self.cap) {
-            mut new_cap := mul(self.cap, 2)
-            if lt(new_cap, 1) {
+            mut new_cap := self.cap.mul(2)
+            if new_cap.lt(1) {
                 new_cap = 1
             }
-            if gt(new_cap, Vec.MAX_CAP) {
+            if new_cap.gt(Vec.MAX_CAP) {
                 panic(loc(), "Vec.push: capacity exceeded Vec.MAX_CAP")
             }
 
-            mut new_ptr := malloc(mul(new_cap, self.type_size))?
-            catch (err: BadAlloc) { panic(loc(), "Vec.push: malloc failed") }
-            if gt(self._len, 0) {
-                memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
+            mut new_ptr := Ptr.new_by_size(new_cap.mul(self.type_size))
+            if self._len.gt(0) {
+                new_ptr.copy_from(self.ptr, self._len.mul(self.type_size))
             }
-            if gt(self.ptr, 0) {
-                free(self.ptr)
+            if not(self.ptr.is_null()) {
+                self.ptr.delete()
             }
             self.ptr = new_ptr
             self.cap = new_cap
         }
 
-        mut dest := add(self.ptr, mul(self._len, self.type_size))
-        memcpy(dest, to_ptr(value), self.type_size)
-        self._len = add(self._len, 1)
+        mut dest := self.ptr.offset(self._len.mul(self.type_size))
+        dest.copy_from_dynamic(value, self.type_size)
+        self._len = self._len.add(1)
     }
 
     /** Get element at index. */
@@ -122,9 +121,8 @@ Vec := struct {
         //     throw format(loc(), format("Vec.get: destination type mismatch: expected '", self.type_name, "' found '", type_as_str(T), "'"))
         // }
 
-        src := add(self.ptr, mul(index, self.type_size))
-        mut dest := to_ptr(T)
-        memcpy(dest, src, self.type_size)
+        src := self.ptr.offset(index.mul(self.type_size))
+        src.copy_to_dynamic(T, self.type_size)
     }
 
     /** Set element at index. */
@@ -137,8 +135,8 @@ Vec := struct {
         //     throw format(loc(), "Vec.set: value type mismatch")
         // }
 
-        mut dest := add(self.ptr, mul(index, self.type_size))
-        memcpy(dest, to_ptr(value), self.type_size)
+        mut dest := self.ptr.offset(index.mul(self.type_size))
+        dest.copy_from_dynamic(value, self.type_size)
     }
 
     /** Pop last element from vec. */
@@ -157,10 +155,10 @@ Vec := struct {
 
     /** Free vec memory. */
     delete := proc(mut self: Vec) {
-        if gt(self.ptr, 0) {
-            free(self.ptr)
+        if not(self.ptr.is_null()) {
+            self.ptr.delete()
         }
-        self.ptr = 0
+        self.ptr = Ptr()
         self._len = 0
         self.cap = 0
     }
@@ -172,16 +170,13 @@ Vec := struct {
         cloned.type_size = self.type_size
         cloned._len = self._len
         cloned.cap = self.cap
-        if gt(self.cap, 0) {
-            mut total_bytes := mul(self.cap, self.type_size)
-            cloned.ptr = malloc(total_bytes)?
-            catch (err: BadAlloc) { panic(loc(), "Vec.clone: malloc failed") }
-            if gt(self._len, 0) {
-                mut used_bytes := mul(self._len, self.type_size)
-                memcpy(cloned.ptr, self.ptr, used_bytes)
+        if self.cap.gt(0) {
+            cloned.ptr = Ptr.new_by_size(self.cap.mul(self.type_size))
+            if self._len.gt(0) {
+                cloned.ptr.copy_from(self.ptr, self._len.mul(self.type_size))
             }
         } else {
-            cloned.ptr = NULL
+            cloned.ptr = Ptr()
         }
         return cloned
     }
@@ -191,33 +186,32 @@ Vec := struct {
         mut i := 0
         while i.lt(other._len) {
             // Copy element from other to self
-            src := add(other.ptr, mul(i, other.type_size))
+            src := other.ptr.offset(i.mul(other.type_size))
 
             // Ensure capacity (handles cap=0 case with max(1, cap*2))
             if self._len.eq(self.cap) {
-                mut new_cap := mul(self.cap, 2)
-                if lt(new_cap, 1) {
+                mut new_cap := self.cap.mul(2)
+                if new_cap.lt(1) {
                     new_cap = 1
                 }
-                if gt(new_cap, Vec.MAX_CAP) {
+                if new_cap.gt(Vec.MAX_CAP) {
                     panic(loc(), "Vec.extend: capacity exceeded Vec.MAX_CAP")
                 }
-                mut new_ptr := malloc(mul(new_cap, self.type_size))?
-                catch (err: BadAlloc) { panic(loc(), "Vec.extend: malloc failed") }
-                if gt(self._len, 0) {
-                    memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
+                mut new_ptr := Ptr.new_by_size(new_cap.mul(self.type_size))
+                if self._len.gt(0) {
+                    new_ptr.copy_from(self.ptr, self._len.mul(self.type_size))
                 }
-                if gt(self.ptr, 0) {
-                    free(self.ptr)
+                if not(self.ptr.is_null()) {
+                    self.ptr.delete()
                 }
                 self.ptr = new_ptr
                 self.cap = new_cap
             }
 
-            mut dest := add(self.ptr, mul(self._len, self.type_size))
-            memcpy(dest, src, self.type_size)
-            self._len = add(self._len, 1)
-            i = add(i, 1)
+            mut dest := self.ptr.offset(self._len.mul(self.type_size))
+            dest.copy_from(src, self.type_size)
+            self._len = self._len.add(1)
+            i = i.add(1)
         }
     }
 
@@ -232,23 +226,23 @@ Vec := struct {
      *  Uses Str.eq() for Str elements, memcmp for others. */
     contains := func(self: Vec, value: Dynamic) returns Bool {
         mut i := 0
-        while lt(i, self._len) {
-            src := add(self.ptr, mul(i, self.type_size))
+        while i.lt(self._len) {
+            src := self.ptr.offset(i.mul(self.type_size))
             // Special case for Str: compare content, not struct bytes
             if Str.eq(self.type_name, "Str") {
                 mut existing := ""
-                memcpy(to_ptr(existing), src, self.type_size)
+                src.copy_to_dynamic(existing, self.type_size)
                 mut val_str := ""
                 memcpy(to_ptr(val_str), to_ptr(value), self.type_size)
                 if val_str.eq(existing) {
                     return true
                 }
             } else {
-                if memcmp(to_ptr(value), src, self.type_size).eq(0) {
+                if memcmp(to_ptr(value), src.data, self.type_size).eq(0) {
                     return true
                 }
             }
-            i = add(i, 1)
+            i = i.add(1)
         }
         return false
     }
@@ -261,14 +255,14 @@ Vec := struct {
 
         // Shift elements left
         mut i := index
-        while i.lt(sub(self._len, 1)) {
-            src := add(self.ptr, mul(add(i, 1), self.type_size))
-            mut dest := add(self.ptr, mul(i, self.type_size))
-            memcpy(dest, src, self.type_size)
-            i = add(i, 1)
+        while i.lt(self._len.sub(1)) {
+            src := self.ptr.offset(i.add(1).mul(self.type_size))
+            mut dest := self.ptr.offset(i.mul(self.type_size))
+            dest.copy_from(src, self.type_size)
+            i = i.add(1)
         }
 
-        self._len = sub(self._len, 1)
+        self._len = self._len.sub(1)
     }
 
     /** Insert element at index, shifting remaining elements right.
@@ -280,21 +274,20 @@ Vec := struct {
 
         // Grow if needed (same logic as push)
         if self._len.eq(self.cap) {
-            mut new_cap := mul(self.cap, 2)
-            if lt(new_cap, 1) {
+            mut new_cap := self.cap.mul(2)
+            if new_cap.lt(1) {
                 new_cap = 1
             }
-            if gt(new_cap, Vec.MAX_CAP) {
+            if new_cap.gt(Vec.MAX_CAP) {
                 panic(loc(), "Vec.insert_at: capacity exceeded Vec.MAX_CAP")
             }
 
-            mut new_ptr := malloc(mul(new_cap, self.type_size))?
-            catch (err: BadAlloc) { panic(loc(), "Vec.insert_at: malloc failed") }
-            if gt(self._len, 0) {
-                memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
+            mut new_ptr := Ptr.new_by_size(new_cap.mul(self.type_size))
+            if self._len.gt(0) {
+                new_ptr.copy_from(self.ptr, self._len.mul(self.type_size))
             }
-            if gt(self.ptr, 0) {
-                free(self.ptr)
+            if not(self.ptr.is_null()) {
+                self.ptr.delete()
             }
             self.ptr = new_ptr
             self.cap = new_cap
@@ -303,16 +296,16 @@ Vec := struct {
         // Shift elements right (from end to index)
         mut i := self._len
         while i.gt(index) {
-            shift_src := add(self.ptr, mul(sub(i, 1), self.type_size))
-            mut shift_dest := add(self.ptr, mul(i, self.type_size))
-            memcpy(shift_dest, shift_src, self.type_size)
-            i = sub(i, 1)
+            shift_src := self.ptr.offset(i.sub(1).mul(self.type_size))
+            mut shift_dest := self.ptr.offset(i.mul(self.type_size))
+            shift_dest.copy_from(shift_src, self.type_size)
+            i = i.sub(1)
         }
 
         // Insert value at index
-        mut insert_dest := add(self.ptr, mul(index, self.type_size))
-        memcpy(insert_dest, to_ptr(value), self.type_size)
-        self._len = add(self._len, 1)
+        mut insert_dest := self.ptr.offset(index.mul(self.type_size))
+        insert_dest.copy_from_dynamic(value, self.type_size)
+        self._len = self._len.add(1)
     }
 
     /** Convert vec to string representation (like Rust's {:?} format).
@@ -326,8 +319,8 @@ Vec := struct {
             // For Str elements, wrap in quotes
             if Str.eq(self.type_name, "Str") {
                 mut elem := ""
-                src := add(self.ptr, mul(i, self.type_size))
-                memcpy(to_ptr(elem), src, self.type_size)
+                src := self.ptr.offset(i.mul(self.type_size))
+                src.copy_to_dynamic(elem, self.type_size)
                 result = result.concat("\"").concat(elem).concat("\"")
             }
         }

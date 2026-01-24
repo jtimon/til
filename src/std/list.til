@@ -1,5 +1,6 @@
 mode lib
 
+import("core.ptr")
 import("core.vec")
 
 /**
@@ -8,7 +9,7 @@ import("core.vec")
  * Type information tracked via parallel metadata vectors.
  */
 List := struct {
-    mut data : I64  = 0     // Pointer to raw memory blob
+    mut data : Ptr  = Ptr()  // Pointer to raw memory blob
     mut _len : I64 = 0      // Number of elements stored
     mut type_names : Vec = Vec()  // Vec<Str> - type name per element
     mut type_sizes : Vec = Vec()  // Vec<I64> - size per element
@@ -27,9 +28,7 @@ List := struct {
     new := proc() returns List {
         mut list := List()
         // Allocate enough for reasonable number of elements
-        list.data = malloc(1024)?
-        catch (err: BadAlloc) { panic(loc(), "List.new: malloc failed") }
-
+        list.data = Ptr.new_by_size(1024)
         list._len = 0
         list.type_names = Vec.new(Str)
         list.type_sizes = Vec.new(I64)
@@ -64,8 +63,8 @@ List := struct {
 
         // Copy value to data blob at current end
         mut offset := self.calc_used()?
-        mut value_ptr := to_ptr(value)
-        memcpy(add(self.data, offset), value_ptr, type_size)
+        mut dest := self.data.offset(offset)
+        dest.copy_from_dynamic(value, type_size)
 
         // Record metadata
         self.type_names.push(type_name)
@@ -101,8 +100,8 @@ List := struct {
         self.type_sizes.get(index, size)?
 
         // Copy data to destination
-        mut dest_ptr := to_ptr(dest)
-        memcpy(dest_ptr, add(self.data, offset), size)
+        src := self.data.offset(offset)
+        src.copy_to_dynamic(dest, size)
     }
 
     /** Set element at index.
@@ -130,8 +129,8 @@ List := struct {
         // Case 1: Same size - simple overwrite
         if I64.eq(new_size, old_size) {
             mut offset := self.calc_offset(index)?
-            mut value_ptr := to_ptr(value)
-            memcpy(add(self.data, offset), value_ptr, new_size)
+            mut dest := self.data.offset(offset)
+            dest.copy_from_dynamic(value, new_size)
 
             // Update type name if different
             if not(Str.eq(new_type, old_type)) {
@@ -142,19 +141,21 @@ List := struct {
 
         // Case 2: Different size - need to shift elements
         mut old_offset := self.calc_offset(index)?
-        mut after_offset := add(old_offset, old_size)
+        mut after_offset := old_offset.add(old_size)
         mut used := self.calc_used()?
-        mut bytes_after := sub(used, after_offset)
+        mut bytes_after := used.sub(after_offset)
 
         // Shift elements after index
-        if gt(bytes_after, 0) {
-            mut new_after_offset := add(old_offset, new_size)
-            memcpy(add(self.data, new_after_offset), add(self.data, after_offset), bytes_after)
+        if bytes_after.gt(0) {
+            mut new_after_offset := old_offset.add(new_size)
+            mut dest_shift := self.data.offset(new_after_offset)
+            src_shift := self.data.offset(after_offset)
+            dest_shift.copy_from(src_shift, bytes_after)
         }
 
         // Write new value
-        mut diff_value_ptr := to_ptr(value)
-        memcpy(add(self.data, old_offset), diff_value_ptr, new_size)
+        mut write_dest := self.data.offset(old_offset)
+        write_dest.copy_from_dynamic(value, new_size)
 
         // Update metadata
         self.type_names.set(index, new_type)?
@@ -174,8 +175,8 @@ List := struct {
         self.type_sizes.get(last_index, size)?
 
         // Copy data to destination directly
-        mut dest_ptr := to_ptr(dest)
-        memcpy(dest_ptr, add(self.data, offset), size)
+        src := self.data.offset(offset)
+        src.copy_to_dynamic(dest, size)
 
         // Now safe to remove from metadata
         mut dummy_name := ""
@@ -189,8 +190,10 @@ List := struct {
 
     /** Free list memory. */
     delete := proc(mut self: List) {
-        free(self.data)
-        self.data = 0
+        if not(self.data.is_null()) {
+            self.data.delete()
+        }
+        self.data = Ptr()
         self._len = 0
 
         mut names := self.type_names
@@ -209,9 +212,8 @@ List := struct {
 
         // Calculate total bytes used and allocate data buffer
         mut total_bytes := self.calc_used()?
-        cloned.data = malloc(total_bytes)?
-        catch (err: BadAlloc) { panic(loc(), "List.clone: malloc failed") }
-        memcpy(cloned.data, self.data, total_bytes)
+        cloned.data = Ptr.new_by_size(total_bytes)
+        cloned.data.copy_from(self.data, total_bytes)
         return cloned
     }
 }

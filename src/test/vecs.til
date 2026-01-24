@@ -23,7 +23,7 @@ test_vec_u8 := proc() {
     test(loc(), val.eq(U8.from_i64(99)?), "Set and get index 0")
 
     dyn.delete()
-    assert_eq(loc(), 0, dyn.ptr) // Pointer cleared after delete
+    test(loc(), dyn.ptr.is_null(), "Pointer is null") // Pointer cleared after delete
     assert_eq(loc(), 0, dyn.len()) // Length reset after delete
     assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
 
@@ -72,7 +72,7 @@ test_vec_str := proc() {
     assert_eq_str(loc(), "bazbar", combined_str)
 
     dyn.delete()
-    assert_eq(loc(), 0, dyn.ptr) // Pointer cleared after delete
+    test(loc(), dyn.ptr.is_null(), "Pointer is null") // Pointer cleared after delete
     assert_eq(loc(), 0, dyn.len()) // Length reset after delete
     assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
 
@@ -106,7 +106,7 @@ test_vec_bool := proc() {
     test(loc(), val.eq(false), "Set and get index 0")
 
     dyn.delete()
-    assert_eq(loc(), 0, dyn.ptr)
+    test(loc(), dyn.ptr.is_null(), "Pointer is null")
     assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), 0, dyn.cap)
 
@@ -140,7 +140,7 @@ test_vec_i64 := proc() {
     test(loc(), val.eq(123), "Set and get index 0")
 
     dyn.delete()
-    assert_eq(loc(), 0, dyn.ptr)
+    test(loc(), dyn.ptr.is_null(), "Pointer is null")
     assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), 0, dyn.cap)
 
@@ -183,7 +183,7 @@ test_vec_vec2 := proc() {
     test(loc(), v_after_set.y.eq(60), "v_after_set.y should be 60")
 
     dyn.delete()
-    assert_eq(loc(), 0, dyn.ptr)
+    test(loc(), dyn.ptr.is_null(), "Pointer is null")
     assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), 0, dyn.cap)
 
@@ -595,7 +595,7 @@ test_vec_with_capacity := proc() {
 
     assert_eq(loc(), 0, vec.len())
     assert_eq(loc(), 10, vec.cap)
-    test(loc(), vec.ptr.gt(0), "ptr should be allocated")
+    test(loc(), not(vec.ptr.is_null()), "ptr should be allocated")
 
     // Push elements without triggering reallocation
     mut i := 0
@@ -625,7 +625,7 @@ test_vec_with_capacity := proc() {
     mut empty := Vec.with_capacity(Str, 0)
     assert_eq(loc(), 0, empty.len())
     assert_eq(loc(), 0, empty.cap)
-    assert_eq(loc(), 0, empty.ptr)
+    test(loc(), empty.ptr.is_null(), "Empty vec ptr is null")
 
     empty.push("hello")
     assert_eq(loc(), 1, empty.len())

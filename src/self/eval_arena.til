@@ -686,7 +686,7 @@ EvalArena := struct {
         is_field := EvalArena.is_instance_field(ctx, id)
 
         // Allocate string data
-        string_offset := g_arena.put(value_str.c_string, value_str.len())
+        string_offset := g_arena.put(value_str.c_string.data, value_str.len())
         mut null_byte : U8 = 0
         _ := g_arena.put(to_ptr(null_byte), 1)  // null terminator
         str_len := value_str.len()
@@ -1156,11 +1156,11 @@ EvalArena := struct {
                 // Allocate max enum size, write tag and payload, then zero-pad remaining
                 offset = g_arena.put(to_ptr(enum_value), 8)
                 if payload_data.len().gt(0) {
-                    _ := g_arena.put(payload_data.ptr, payload_data.len())
+                    _ := g_arena.put(payload_data.ptr.data, payload_data.len())
                 }
                 // Bug #38 fix: Pad with zeros to reach max_enum_size
                 if actual_size.lt(max_enum_size) {
-                    _ := g_arena.reserve(sub(max_enum_size, actual_size))
+                    _ := g_arena.reserve(max_enum_size.sub(actual_size))
                 }
                 result.has_mapping = true
                 result.mapping_name = id
@@ -1170,11 +1170,11 @@ EvalArena := struct {
             // Allocate max enum size, write tag and payload, then zero-pad remaining
             new_enum_offset := g_arena.put(to_ptr(enum_value), 8)
             if payload_data.len().gt(0) {
-                _ := g_arena.put(payload_data.ptr, payload_data.len())
+                _ := g_arena.put(payload_data.ptr.data, payload_data.len())
             }
             // Bug #38 fix: Pad with zeros to reach max_enum_size
             if actual_size.lt(max_enum_size) {
-                _ := g_arena.reserve(sub(max_enum_size, actual_size))
+                _ := g_arena.reserve(max_enum_size.sub(actual_size))
             }
             result.has_mapping = true
             result.mapping_name = id

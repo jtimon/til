@@ -60,4 +60,14 @@ Ptr := struct {
         zero : U8 = 0
         memset(self.data, zero, size)
     }
+
+    /** Copy from a Dynamic value into this Ptr. */
+    copy_from_dynamic := proc(mut self: Ptr, value: Dynamic, size: I64) {
+        memcpy(self.data, to_ptr(value), size)
+    }
+
+    /** Copy from this Ptr into a Dynamic destination. */
+    copy_to_dynamic := proc(self: Ptr, mut dest: Dynamic, size: I64) {
+        memcpy(to_ptr(dest), self.data, size)
+    }
 }

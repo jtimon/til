@@ -2,12 +2,13 @@ mode liba
 
 import("core.bounds")
 import("core.mem")
+import("core.ptr")
 import("core.vec")
 
 /** Str - String type with c_string pointer and capacity. */
 // TODO get rid of special cases for Str besides literals
 Str := struct {
-    mut c_string : I64 = 0  // Pointer to null-terminated C string
+    mut c_string : Ptr = Ptr()  // Pointer to null-terminated C string
     mut cap      : I64 = 0
     // mut len : I64 = 0 // TODO make sure double declarations inside the same struct give type errors
 
@@ -27,8 +28,8 @@ Str := struct {
         for i in 0..self.cap {
             mut self_byte  : U8 = 0
             mut other_byte : U8 = 0
-            memcpy(to_ptr(self_byte), self.c_string.add(i), 1)
-            memcpy(to_ptr(other_byte), other.c_string.add(i), 1)
+            memcpy(to_ptr(self_byte), self.c_string.offset(i).data, 1)
+            memcpy(to_ptr(other_byte), other.c_string.offset(i).data, 1)
 
             if not(U8.eq(self_byte, other_byte)) {
                 return false
@@ -45,12 +46,11 @@ Str := struct {
     clone := func(self: Str) returns Str {
         mut cloned := Str()
         cloned.cap = self.cap
-        cloned.c_string = malloc(cloned.cap.add(1))?  // +1 for null terminator
-        catch (err: BadAlloc) { panic(loc(), "Str.clone: malloc failed") }
-        memcpy(cloned.c_string, self.c_string, self.cap)
+        cloned.c_string = Ptr.new_by_size(cloned.cap.add(1))  // +1 for null terminator
+        cloned.c_string.copy_from(self.c_string, self.cap)
         // Null-terminate the string
         zero : U8 = 0
-        memset(cloned.c_string.add(cloned.cap), zero, 1)
+        memset(cloned.c_string.offset(cloned.cap).data, zero, 1)
         return cloned
     }
 
@@ -73,14 +73,14 @@ Str := struct {
         }
         for i in 0..self.cap {
             mut byte : U8 = 0
-            memcpy(to_ptr(byte), self.c_string.add(i), 1)
+            memcpy(to_ptr(byte), self.c_string.offset(i).data, 1)
             // A = 65, Z = 90. Convert to I64 for comparison.
             mut byte_val : I64 = 0
             byte_val = U8.to_i64(byte)
-            if lt(byte_val, 65) {
+            if byte_val.lt(65) {
                 return false
             }
-            if gt(byte_val, 90) {
+            if byte_val.gt(90) {
                 return false
             }
         }
@@ -94,7 +94,7 @@ Str := struct {
         mut result := self.clone()
         for i in 0..result.cap {
             mut byte : U8 = 0
-            memcpy(to_ptr(byte), result.c_string.add(i), 1)
+            memcpy(to_ptr(byte), result.c_string.offset(i).data, 1)
             mut byte_val : I64 = 0
             byte_val = U8.to_i64(byte)
             // A = 65, Z = 90. Add 32 to convert to lowercase.
@@ -102,7 +102,7 @@ Str := struct {
                 if byte_val.lteq(90) {
                     byte_val = byte_val.add(32)
                     byte = U8.from_i64(byte_val)?
-                    memcpy(result.c_string.add(i), to_ptr(byte), 1)
+                    memcpy(result.c_string.offset(i).data, to_ptr(byte), 1)
                 }
             }
         }
@@ -130,8 +130,8 @@ Str := struct {
             for needle_idx in 0..needle.len() {
                 mut self_byte : U8 = 0
                 mut needle_byte : U8 = 0
-                memcpy(to_ptr(self_byte), self.c_string.add(start_idx.add(needle_idx)), 1)
-                memcpy(to_ptr(needle_byte), needle.c_string.add(needle_idx), 1)
+                memcpy(to_ptr(self_byte), self.c_string.offset(start_idx.add(needle_idx)).data, 1)
+                memcpy(to_ptr(needle_byte), needle.c_string.offset(needle_idx).data, 1)
 
                 if not(U8.eq(self_byte, needle_byte)) {
                     matches = false
@@ -169,8 +169,8 @@ Str := struct {
                 } else {
                     mut self_byte : U8 = 0
                     mut needle_byte : U8 = 0
-                    memcpy(to_ptr(self_byte), self.c_string.add(start_idx.add(needle_idx)), 1)
-                    memcpy(to_ptr(needle_byte), needle.c_string.add(needle_idx), 1)
+                    memcpy(to_ptr(self_byte), self.c_string.offset(start_idx.add(needle_idx)).data, 1)
+                    memcpy(to_ptr(needle_byte), needle.c_string.offset(needle_idx).data, 1)
 
                     if not(U8.eq(self_byte, needle_byte)) {
                         matches = false
@@ -204,8 +204,8 @@ Str := struct {
             for needle_idx in 0..needle.len() {
                 mut self_byte : U8 = 0
                 mut needle_byte : U8 = 0
-                memcpy(to_ptr(self_byte), self.c_string.add(start_idx.add(needle_idx)), 1)
-                memcpy(to_ptr(needle_byte), needle.c_string.add(needle_idx), 1)
+                memcpy(to_ptr(self_byte), self.c_string.offset(start_idx.add(needle_idx)).data, 1)
+                memcpy(to_ptr(needle_byte), needle.c_string.offset(needle_idx).data, 1)
 
                 if not(U8.eq(self_byte, needle_byte)) {
                     matches = false
@@ -233,8 +233,8 @@ Str := struct {
             for i in 0..from.len() {
                 mut self_byte : U8 = 0
                 mut from_byte : U8 = 0
-                memcpy(to_ptr(self_byte), self.c_string.add(search_start.add(i)), 1)
-                memcpy(to_ptr(from_byte), from.c_string.add(i), 1)
+                memcpy(to_ptr(self_byte), self.c_string.offset(search_start.add(i)).data, 1)
+                memcpy(to_ptr(from_byte), from.c_string.offset(i).data, 1)
                 if not(U8.eq(self_byte, from_byte)) {
                     matches = false
                 }
@@ -256,8 +256,7 @@ Str := struct {
 
         mut result := Str()
         result.cap = new_len
-        result.c_string = malloc(new_len.add(1))?  // +1 for null terminator
-        catch (err: BadAlloc) { panic(loc(), "Str.replace: malloc failed") }
+        result.c_string = Ptr.new_by_size(new_len.add(1))  // +1 for null terminator
 
         # Now build the result
         mut src_idx := 0
@@ -269,8 +268,8 @@ Str := struct {
                 for j in 0..from.len() {
                     mut src_byte : U8 = 0
                     mut pattern_byte : U8 = 0
-                    memcpy(to_ptr(src_byte), self.c_string.add(src_idx.add(j)), 1)
-                    memcpy(to_ptr(pattern_byte), from.c_string.add(j), 1)
+                    memcpy(to_ptr(src_byte), self.c_string.offset(src_idx.add(j)).data, 1)
+                    memcpy(to_ptr(pattern_byte), from.c_string.offset(j).data, 1)
                     if not(U8.eq(src_byte, pattern_byte)) {
                         found_match = false
                     }
@@ -281,12 +280,12 @@ Str := struct {
 
             if found_match {
                 # Copy 'to' string
-                memcpy(result.c_string.add(dst_idx), to.c_string, to.len())
+                memcpy(result.c_string.offset(dst_idx).data, to.c_string.data, to.len())
                 dst_idx = dst_idx.add(to.len())
                 src_idx = src_idx.add(from.len())
             } else {
                 # Copy single byte
-                memcpy(result.c_string.add(dst_idx), self.c_string.add(src_idx), 1)
+                memcpy(result.c_string.offset(dst_idx).data, self.c_string.offset(src_idx).data, 1)
                 dst_idx.inc()
                 src_idx.inc()
             }
@@ -294,7 +293,7 @@ Str := struct {
 
         // Null-terminate the string
         zero : U8 = 0
-        memset(result.c_string.add(result.cap), zero, 1)
+        memset(result.c_string.offset(result.cap).data, zero, 1)
 
         return result
     }
@@ -308,7 +307,7 @@ Str := struct {
         if index.gteq(self.len()) {
             return result
         }
-        memcpy(to_ptr(result), self.c_string.add(index), 1)
+        memcpy(to_ptr(result), self.c_string.offset(index).data, 1)
         return result
     }
 
@@ -359,14 +358,13 @@ Str := struct {
     inc := proc(mut self: Str) {
         if self.len().eq(1) {
             mut byte_val : U8 = 0
-            memcpy(to_ptr(byte_val), self.c_string, 1)
+            memcpy(to_ptr(byte_val), self.c_string.data, 1)
             one : U8 = 1
             byte_val = U8.add(byte_val, one)
             // Allocate new memory for the result
-            new_ptr := malloc(2)?
-            catch (err: BadAlloc) { panic(loc(), "Str.inc: malloc failed") }
-            memcpy(new_ptr, to_ptr(byte_val), 1)
-            memset(new_ptr.add(1), ZERO_U8, 1)
+            new_ptr := Ptr.new_by_size(2)
+            memcpy(new_ptr.data, to_ptr(byte_val), 1)
+            memset(new_ptr.offset(1).data, ZERO_U8, 1)
             self.c_string = new_ptr
         }
     }
@@ -377,14 +375,13 @@ Str := struct {
     dec := proc(mut self: Str) {
         if self.len().eq(1) {
             mut byte_val : U8 = 0
-            memcpy(to_ptr(byte_val), self.c_string, 1)
+            memcpy(to_ptr(byte_val), self.c_string.data, 1)
             one : U8 = 1
             byte_val = U8.sub(byte_val, one)
             // Allocate new memory for the result
-            new_ptr := malloc(2)?
-            catch (err: BadAlloc) { panic(loc(), "Str.dec: malloc failed") }
-            memcpy(new_ptr, to_ptr(byte_val), 1)
-            memset(new_ptr.add(1), ZERO_U8, 1)
+            new_ptr := Ptr.new_by_size(2)
+            memcpy(new_ptr.data, to_ptr(byte_val), 1)
+            memset(new_ptr.offset(1).data, ZERO_U8, 1)
             self.c_string = new_ptr
         }
     }
@@ -438,8 +435,8 @@ Str := struct {
             for i in 0..delimiter.len() {
                 mut self_byte : U8 = 0
                 mut delim_byte : U8 = 0
-                memcpy(to_ptr(self_byte), self.c_string.add(pos.add(i)), 1)
-                memcpy(to_ptr(delim_byte), delimiter.c_string.add(i), 1)
+                memcpy(to_ptr(self_byte), self.c_string.offset(pos.add(i)).data, 1)
+                memcpy(to_ptr(delim_byte), delimiter.c_string.offset(i).data, 1)
                 if not(U8.eq(self_byte, delim_byte)) {
                     matches = false
                 }
@@ -485,17 +482,16 @@ Str := struct {
 
         mut result := Str()
         result.cap = self.cap.mul(n)
-        result.c_string = malloc(result.cap.add(1))?
-        catch (err: BadAlloc) { panic(loc(), "Str.repeat: malloc failed") }
+        result.c_string = Ptr.new_by_size(result.cap.add(1))
 
         mut offset := 0
         for i in 0..n {
-            memcpy(result.c_string.add(offset), self.c_string, self.cap)
+            memcpy(result.c_string.offset(offset).data, self.c_string.data, self.cap)
             offset = offset.add(self.cap)
         }
 
         // Null-terminate the string
-        memset(result.c_string.add(result.cap), ZERO_U8, 1)
+        memset(result.c_string.offset(result.cap).data, ZERO_U8, 1)
 
         return result
     }
@@ -512,7 +508,7 @@ Str := struct {
         mut h := FNV_OFFSET_BASIS
         for i in 0..self.cap {
             mut byte_val : U8 = 0
-            memcpy(to_ptr(byte_val), self.c_string.add(i), 1)
+            memcpy(to_ptr(byte_val), self.c_string.offset(i).data, 1)
             // h = h XOR byte
             h = I64.xor(h, U8.to_i64(byte_val))
             // h = h * FNV_PRIME (overflow is fine, we want wrapping multiplication)
@@ -544,12 +540,11 @@ get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBo
 
     mut substr := Str()
     substr.cap = end.sub(start)
-    substr.c_string = malloc(substr.cap.add(1))?  // +1 for null terminator
-    catch (err: BadAlloc) { panic(loc(), "get_substr: malloc failed") }
-    memcpy(substr.c_string, s.c_string.add(start), substr.cap)
+    substr.c_string = Ptr.new_by_size(substr.cap.add(1))  // +1 for null terminator
+    memcpy(substr.c_string.data, s.c_string.offset(start).data, substr.cap)
     // Null-terminate the string
     zero : U8 = 0
-    memset(substr.c_string.add(substr.cap), zero, 1)
+    memset(substr.c_string.offset(substr.cap).data, zero, 1)
 
     return substr
 }
@@ -568,8 +563,8 @@ starts_with := func(s: Str, prefix: Str) returns Bool {
     while i.lt(prefix.len()) {
         mut s_byte : U8 = 0
         mut p_byte : U8 = 0
-        memcpy(to_ptr(s_byte), s.c_string.add(i), 1)
-        memcpy(to_ptr(p_byte), prefix.c_string.add(i), 1)
+        memcpy(to_ptr(s_byte), s.c_string.offset(i).data, 1)
+        memcpy(to_ptr(p_byte), prefix.c_string.offset(i).data, 1)
         if not(U8.eq(s_byte, p_byte)) {
             return false
         }
@@ -583,13 +578,13 @@ ends_with := func(s: Str, suffix: Str) returns Bool {
     if suffix.len().gt(s.len()) {
         return false
     }
-    mut offset := s.len().sub(suffix.len())
+    mut str_offset := s.len().sub(suffix.len())
     mut i := 0
     while i.lt(suffix.len()) {
         mut s_byte : U8 = 0
         mut suffix_byte : U8 = 0
-        memcpy(to_ptr(s_byte), s.c_string.add(offset.add(i)), 1)
-        memcpy(to_ptr(suffix_byte), suffix.c_string.add(i), 1)
+        memcpy(to_ptr(s_byte), s.c_string.offset(str_offset.add(i)).data, 1)
+        memcpy(to_ptr(suffix_byte), suffix.c_string.offset(i).data, 1)
         if not(U8.eq(s_byte, suffix_byte)) {
             return false
         }
@@ -630,18 +625,17 @@ concat := func(a: Str, b: Str) returns Str {
     mut result := Str()
     result.cap = a.cap.add(b.cap)
 
-    if lt(result.cap, a.cap) {
+    if result.cap.lt(a.cap) {
         panic(loc(), "concat: integer overflow")
     }
 
-    result.c_string = malloc(result.cap.add(1))?  // +1 for null terminator
-    catch (err: BadAlloc) { panic(loc(), "concat: malloc failed") }
+    result.c_string = Ptr.new_by_size(result.cap.add(1))  // +1 for null terminator
 
-    memcpy(result.c_string, a.c_string, a.cap)
-    memcpy(result.c_string.add(a.cap), b.c_string, b.cap)
+    memcpy(result.c_string.data, a.c_string.data, a.cap)
+    memcpy(result.c_string.offset(a.cap).data, b.c_string.data, b.cap)
     // Null-terminate the string
     zero : U8 = 0
-    memset(result.c_string.add(result.cap), zero, 1)
+    memset(result.c_string.offset(result.cap).data, zero, 1)
 
     return result
 }
@@ -655,26 +649,25 @@ format := func(prefix: Str, args: ..Str) returns Str {
         mut arg := ""
         args.get(i, arg)?
         result.cap = result.cap.add(arg.cap)
-        if lt(result.cap, arg.cap) {
+        if result.cap.lt(arg.cap) {
             panic(loc(), "format: integer overflow while summing cap")
         }
     }
 
-    result.c_string = malloc(result.cap.add(1))?  // +1 for null terminator
-    catch (err: BadAlloc) { panic(loc(), "format: malloc failed") }
+    result.c_string = Ptr.new_by_size(result.cap.add(1))  // +1 for null terminator
 
-    mut offset := 0
-    memcpy(result.c_string, prefix.c_string, prefix.cap)
-    offset = prefix.cap
+    mut fmt_offset := 0
+    memcpy(result.c_string.data, prefix.c_string.data, prefix.cap)
+    fmt_offset = prefix.cap
 
     for s: Str in args {
-        memcpy(result.c_string.add(offset), s.c_string, s.cap)
-        offset = offset.add(s.cap)
+        memcpy(result.c_string.offset(fmt_offset).data, s.c_string.data, s.cap)
+        fmt_offset = fmt_offset.add(s.cap)
     }
 
     // Null-terminate the string
     zero : U8 = 0
-    memset(result.c_string.add(result.cap), zero, 1)
+    memset(result.c_string.offset(result.cap).data, zero, 1)
 
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), err.msg)
@@ -703,25 +696,24 @@ join := func(parts: Vec, sep: Str) returns Str {
     // Allocate result
     mut result := Str()
     result.cap = total_len
-    result.c_string = malloc(total_len.add(1))?
-    catch (err: BadAlloc) { panic(loc(), "join: malloc failed") }
+    result.c_string = Ptr.new_by_size(total_len.add(1))
 
     // Copy parts with separator
-    mut offset := 0
+    mut join_offset := 0
     first = true
     for part: Str in parts {
         if not(first) {
-            memcpy(result.c_string.add(offset), sep.c_string, sep.len())
-            offset = offset.add(sep.len())
+            memcpy(result.c_string.offset(join_offset).data, sep.c_string.data, sep.len())
+            join_offset = join_offset.add(sep.len())
         }
-        memcpy(result.c_string.add(offset), part.c_string, part.len())
-        offset = offset.add(part.len())
+        memcpy(result.c_string.offset(join_offset).data, part.c_string.data, part.len())
+        join_offset = join_offset.add(part.len())
         first = false
     }
 
     // Null-terminate
     zero : U8 = 0
-    memset(result.c_string.add(result.cap), zero, 1)
+    memset(result.c_string.offset(result.cap).data, zero, 1)
 
     return result
 }
