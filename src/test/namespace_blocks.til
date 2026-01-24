@@ -1,0 +1,81 @@
+mode test
+
+// Test namespace blocks for enums (Issue #108)
+
+// Basic enum with namespace-defined associated functions
+Color := enum {
+    Red,
+    Green,
+    Blue,
+}
+
+namespace Color {
+    to_str := func(c: Color) returns Str {
+        switch c {
+        case Color.Red:
+            return "red"
+        case Color.Green:
+            return "green"
+        case Color.Blue:
+            return "blue"
+        }
+    }
+
+    is_primary := func(_c: Color) returns Bool {
+        return true  // all our colors are primary
+    }
+
+    new := func() returns Color {
+        return Color.Red
+    }
+}
+
+// Test direct calls
+test(loc(), Color.to_str(Color.Red).eq("red"), "Color.to_str(Color.Red)")
+test(loc(), Color.to_str(Color.Green).eq("green"), "Color.to_str(Color.Green)")
+test(loc(), Color.to_str(Color.Blue).eq("blue"), "Color.to_str(Color.Blue)")
+
+// Test UFCS calls
+mut c := Color.Green
+test(loc(), c.to_str().eq("green"), "c.to_str() via UFCS")
+test(loc(), c.is_primary(), "c.is_primary() via UFCS")
+
+// Test static function (no self parameter)
+mut new_color := Color.new()
+test(loc(), new_color.to_str().eq("red"), "Color.new() returns Red")
+
+// Enum with payload and namespace
+Result := enum {
+    Ok: I64,
+    Err: Str,
+}
+
+namespace Result {
+    is_ok := func(r: Result) returns Bool {
+        switch r {
+        case Result.Ok(_):
+            return true
+        case Result.Err(_):
+            return false
+        }
+    }
+
+    unwrap := func(r: Result) returns I64 {
+        switch r {
+        case Result.Ok(val):
+            return val
+        case Result.Err(_msg):
+            return I64.sub(0, 1)  // return -1 on error for testing
+        }
+        return 0
+    }
+}
+
+mut ok_result := Result.Ok(42)
+mut err_result := Result.Err("something went wrong")
+
+test(loc(), ok_result.is_ok(), "Result.Ok.is_ok()")
+test(loc(), not(err_result.is_ok()), "Result.Err.is_ok() is false")
+assert_eq(loc(), 42, ok_result.unwrap())
+
+println("All namespace block tests passed!")
