@@ -2167,7 +2167,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
                         return false;
                     }
                 }
-                !is_func_declaration(child) && !is_struct_declaration(child) && !is_enum_declaration(child) && !is_constant_declaration(child) && !is_namespace_statement(child)
+                !is_func_declaration(child) && !is_struct_declaration(child) && !is_enum_declaration(child) && !is_constant_declaration(child)
             })
             .cloned()
             .collect();
