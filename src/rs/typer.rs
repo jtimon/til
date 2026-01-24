@@ -268,6 +268,9 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
         NodeType::ForIn(_var_type) => {
             errors.extend(check_forin_statement(context, &e));
         },
+        NodeType::NamespaceDef(_) => {
+            errors.push(e.todo_error(&context.path, "type", "namespace blocks not yet implemented"));
+        },
     }
 
     return errors
@@ -2378,6 +2381,10 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
                     return true;
                 }
             }
+            false
+        }
+        NodeType::NamespaceDef(_) => {
+            // TODO: check default values for proc calls
             false
         }
     }

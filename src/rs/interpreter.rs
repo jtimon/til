@@ -824,6 +824,10 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::DefaultCase => {
             return Err(e.lang_error(&context.path, "eval", "DefaultCase should only appear inside Switch"))
         },
+        // TODO: namespace blocks not yet implemented
+        NodeType::NamespaceDef(_) => {
+            return Err(e.todo_error(&context.path, "eval", "namespace blocks not yet implemented"))
+        },
     }
 }
 

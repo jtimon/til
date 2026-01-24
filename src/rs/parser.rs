@@ -131,6 +131,13 @@ impl SStructDef {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct SNamespaceDef {
+    pub type_name: String,
+    pub members: Vec<Declaration>,
+    pub default_values: HashMap<String, Expr>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Number(String), // TODO support more kinds of numbers
     Str(String),
@@ -149,6 +156,7 @@ pub enum NodeType {
     FuncDef(SFuncDef),
     EnumDef(SEnumDef),
     StructDef(SStructDef),
+    NamespaceDef(SNamespaceDef),
     Return,
     Throw,
     Catch,
@@ -801,6 +809,63 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
                               t.clone(), Vec::new()));
 }
 
+fn parse_namespace_definition(lexer: &mut Lexer) -> Result<Expr, String> {
+    let t = lexer.peek();
+    lexer.expect(TokenType::Namespace)?;
+
+    // Expect type name (identifier)
+    let type_name_token = lexer.peek();
+    if type_name_token.token_type != TokenType::Identifier {
+        return Err(type_name_token.error(&lexer.path, &format!(
+            "Expected type name after 'namespace', found '{:?}'.", type_name_token.token_type)));
+    }
+    let type_name = type_name_token.token_str.clone();
+    lexer.advance(1)?;
+
+    // Expect opening brace
+    let brace_token = lexer.peek();
+    if brace_token.token_type != TokenType::LeftBrace {
+        return Err(brace_token.error(&lexer.path, &format!(
+            "Expected '{{' after 'namespace {}', found '{:?}'.", type_name, brace_token.token_type)));
+    }
+    if lexer.is_eof(1) {
+        return Err(brace_token.error(&lexer.path, &format!(
+            "Expected declaration after 'namespace {} {{', found EOF.", type_name)));
+    }
+    lexer.advance(1)?;
+
+    // Parse body (same as struct)
+    let body = match parse_body(lexer, TokenType::RightBrace) {
+        Ok(body) => body,
+        Err(err_str) => return Err(err_str),
+    };
+
+    let mut members = Vec::new();
+    let mut default_values = HashMap::new();
+    for p in body.params {
+        match p.node_type {
+            NodeType::Declaration(decl) => {
+                members.push(decl.clone());
+                if p.params.len() == 1 {
+                    match p.params.get(0) {
+                        Some(val) => {
+                            default_values.insert(decl.name.clone(), val.clone());
+                        },
+                        None => return Err(t.error(&lexer.path, "expected value in namespace member declaration")),
+                    }
+                } else {
+                    return Err(t.error(&lexer.path, "all declarations inside namespace definitions must have a value"));
+                }
+            },
+            _ => return Err(t.error(&lexer.path, "expected only declarations inside namespace definition")),
+        }
+    }
+
+    return Ok(Expr::new_parse(
+        NodeType::NamespaceDef(SNamespaceDef{type_name: type_name, members: members, default_values: default_values}),
+        t.clone(), Vec::new()));
+}
+
 fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
 
     let initial_current = lexer.current;
@@ -1061,6 +1126,7 @@ fn parse_primary(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::ProcExt => return parse_func_proc_definition(lexer, FunctionType::FTProcExt),
         TokenType::Enum => return enum_definition(lexer),
         TokenType::Struct => return parse_struct_definition(lexer),
+        TokenType::Namespace => return parse_namespace_definition(lexer),
         TokenType::LeftParen => return parse_args(lexer),
         TokenType::Identifier => return parse_primary_identifier(lexer),
         _ => return Err(t.error(&lexer.path, &format!("Expected primary expression, found '{:?}'.", t.token_type))),
@@ -1636,6 +1702,7 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::For => return parse_for_statement(lexer),
         TokenType::Switch => return parse_switch_statement(lexer),
         TokenType::Mut => return parse_mut_declaration(lexer),
+        TokenType::Namespace => return parse_namespace_definition(lexer),
         TokenType::Identifier => return parse_statement_identifier(lexer),
         TokenType::Catch => return parse_catch_statement(lexer),
         TokenType::LeftBrace => {

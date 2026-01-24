@@ -68,6 +68,8 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::ForIn(_) => {
             panic!("ForIn should have been desugared in desugarer phase");
         },
+        // TODO: namespace blocks not yet implemented
+        NodeType::NamespaceDef(_) => Ok(e.clone()),
     }
 }
 

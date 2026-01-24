@@ -3391,6 +3391,8 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::Pattern(_) => Err("ccodegen: Pattern should be handled inside emit_switch".to_string()),
         NodeType::NamedArg(_) => Err(expr.error(&context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")),
         NodeType::ForIn(_) => Err(expr.lang_error(&context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")),
+        // TODO: namespace blocks not yet implemented
+        NodeType::NamespaceDef(_) => Err(expr.todo_error(&context.path, "ccodegen", "namespace blocks not yet implemented")),
     }
 }
 

@@ -51,6 +51,9 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Struct/enum definitions - need to process default values (which may contain function defs)
     case NodeType.StructDef(struct_def):
         return precomp_struct_def(context, e, struct_def)?
+    // TODO: namespace blocks not yet implemented
+    case NodeType.NamespaceDef(_):
+        return e.clone()
     case NodeType.EnumDef:
         return e.clone()
     // Identifiers can have nested params (e.g., a.b.c for field access chains)
