@@ -398,6 +398,12 @@ fn ufcs_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser::D
         context.scope_stack.declare_enum(decl.name.clone(), enum_def.clone());
     }
 
+    // Bug #123: For function definitions, pre-register the function BEFORE transforming its body
+    // This allows recursive nested functions to resolve UFCS on their own return type
+    if let NodeType::FuncDef(func_def) = &inner_e.node_type {
+        context.scope_stack.declare_func(decl.name.clone(), func_def.clone());
+    }
+
     // Transform the value expression
     let new_params = if !e.params.is_empty() {
         let mut new_params = Vec::new();

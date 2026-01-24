@@ -254,51 +254,6 @@ Merge check_types() and resolve_inferred_types() into a single function that:
 
 Files: src/rs/typer.rs, src/self/typer.til
 
-** Bug #123: UFCS method calls fail on recursive nested function results
-:PROPERTIES:
-:DISCOVERED: 2026-01-16
-:IMPACT: Workaround required (use explicit Type.method() syntax)
-:STATUS: Open
-:END:
-
-*** Description
-When a nested function (defined inside a proc) calls itself recursively, UFCS method
-resolution fails to find the return type. This prevents using `.add()`, `.sub()`, etc.
-on the recursive call's result.
-
-*** Example
-#+BEGIN_SRC til
-test := proc() {
-    // This FAILS - UFCS can't resolve .add() on fib() result
-    fib := func(n: I64) returns I64 {
-        if lt(n, 2) { return n }
-        return fib(n.sub(1)).add(fib(n.sub(2)))  // ERROR: Undefined symbol 'add'
-    }
-
-    // This WORKS - explicit I64.add() bypasses UFCS resolution
-    fib_ok := func(n: I64) returns I64 {
-        if lt(n, 2) { return n }
-        return I64.add(fib_ok(n.sub(1)), fib_ok(n.sub(2)))  // OK
-    }
-}
-#+END_SRC
-
-*** Root Cause
-UFCS resolution needs to know the return type of `fib(...)` to find the `.add()` method.
-For recursive calls inside the function being defined, the function's signature may not
-be fully registered in the scope at the time of UFCS resolution.
-
-Non-recursive nested functions work fine because their definitions are complete before
-their results are used with UFCS.
-
-*** Workaround
-Use explicit `I64.add(a, b)` syntax instead of `a.add(b)` when chaining methods on
-recursive nested function results.
-
-*** Note
-This bug was exposed when moving `add`, `sub`, `mul`, `div` inside the I64 struct.
-Previously these were global ext_funcs that didn't need UFCS resolution.
-
 ** Bug #114: ScopeStack lookup functions leak memory by copying entire ScopeFrame
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
@@ -2146,6 +2101,36 @@ main := proc(args: ..Str) {
 2. The C codegen should unpack argv into individual named parameters for custom signatures.
 
 * Fixed Bugs
+
+** Bug #123: UFCS method calls fail on recursive nested function results
+:PROPERTIES:
+:DISCOVERED: 2026-01-16
+:FIXED: 2026-01-24
+:IMPACT: Workaround required (use explicit Type.method() syntax)
+:STATUS: Fixed
+:END:
+
+*** Description
+When a nested function (defined inside a proc) calls itself recursively, UFCS method
+resolution failed to find the return type. This prevented using `.add()`, `.sub()`, etc.
+on the recursive call's result.
+
+*** Root Cause
+In ~ufcs_declaration~, the function definition was registered AFTER transforming its body.
+For recursive nested functions, when transforming the body, the function's return type
+wasn't available yet because it hadn't been registered.
+
+*** Fix
+In ~ufcs_declaration~ (both src/rs/ufcs.rs and src/self/ufcs.til), pre-register the
+function definition BEFORE transforming its body. This allows recursive calls to resolve
+UFCS on the function's own return type.
+
+*** Files Changed
+- src/rs/ufcs.rs: Added pre-registration of FuncDef before transforming body
+- src/self/ufcs.til: Same change for self-hosted compiler
+- src/test/bug123.til: Updated test to use UFCS version
+- src/test/ufcs.til: Added test_ufcs_recursive_nested_functions
+- src/test/fibonacci.til: Updated to use UFCS now that bug is fixed
 
 ** Bug #137: enum_get_payload reads from wrong offset in compiled mode
 :PROPERTIES:

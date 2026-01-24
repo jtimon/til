@@ -2,21 +2,19 @@ mode test
 
 // Here are some examples of pure functions, this time with recursion:
 fib_test := proc(fib_arg: I64) {
-    // Bug #123: Recursive nested functions can't use UFCS .add() due to type resolution
-    // timing - the function's return type isn't available when resolving the method.
-    // Use explicit I64.add() instead.
+    // Bug #123 fixed: Recursive nested functions can now use UFCS .add()
     fib_0 := func(n: I64) returns I64 {
         if lt(n, 2) {
             return n
         }
-        return I64.add(fib_0(n.sub(1)), fib_0(n.sub(2)))
+        return fib_0(n.sub(1)).add(fib_0(n.sub(2)))
     }
 
     fib_1 := func(n: I64) returns I64 {
         if lt(n, 2) {
             return n
         } else {
-            return I64.add(fib_1(n.sub(1)), fib_1(n.sub(2)))
+            return fib_1(n.sub(1)).add(fib_1(n.sub(2)))
         }
     }
 

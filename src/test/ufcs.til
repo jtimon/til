@@ -411,3 +411,39 @@ test_ufcs_chain_on_binding := proc() {
     assert(loc(), result)
 }
 test_ufcs_chain_on_binding()
+
+// Bug #123: UFCS on recursive nested function results
+// Previously, UFCS method resolution failed on recursive nested function results
+// because the function's return type wasn't registered before transforming its body.
+test_ufcs_recursive_nested_functions := proc() {
+    // This used to fail with "Undefined symbol 'add'" or C codegen errors
+    // Now works because ufcs_declaration pre-registers function definitions
+    fib := func(n: I64) returns I64 {
+        if lt(n, 2) {
+            return n
+        }
+        return fib(n.sub(1)).add(fib(n.sub(2)))
+    }
+
+    assert_eq(loc(), 0, fib(0))
+    assert_eq(loc(), 1, fib(1))
+    assert_eq(loc(), 1, fib(2))
+    assert_eq(loc(), 2, fib(3))
+    assert_eq(loc(), 5, fib(5))
+    assert_eq(loc(), 55, fib(10))
+
+    // Test with another recursive function using different UFCS methods
+    factorial := func(n: I64) returns I64 {
+        if n.lteq(1) {
+            return 1
+        }
+        return n.mul(factorial(n.sub(1)))
+    }
+
+    assert_eq(loc(), 1, factorial(0))
+    assert_eq(loc(), 1, factorial(1))
+    assert_eq(loc(), 2, factorial(2))
+    assert_eq(loc(), 6, factorial(3))
+    assert_eq(loc(), 120, factorial(5))
+}
+test_ufcs_recursive_nested_functions()

@@ -559,6 +559,14 @@ ufcs_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retur
     case:
     }
 
+    // Bug #123: For function definitions, pre-register the function BEFORE transforming its body
+    // This allows recursive nested functions to resolve UFCS on their own return type
+    switch inner_e.node_type {
+    case NodeType.FuncDef(func_def):
+        context.scope_stack.declare_func(decl.name, func_def)?
+    case:
+    }
+
     // Transform the value expression
     mut new_params := Vec.new(Expr)
     if e.params.len().gt(0) {

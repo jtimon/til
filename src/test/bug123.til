@@ -3,15 +3,10 @@ import("core.i64")
 
 // Bug #123: UFCS method calls fail on recursive nested function results
 //
-// When a recursive nested function (inside a proc) calls itself and tries
-// to use UFCS on the result, the C codegen doesn't wrap the function call
-// result in &(til_I64){...}, causing a compilation error.
-//
-// Error: passing argument 1 of 'til_I64_add' makes pointer from integer without a cast
-//
-// Workaround: use explicit Type.method() syntax instead of UFCS.
-//
-// To reproduce the bug, uncomment the fib_ufcs version below.
+// Fixed: The issue was that nested function definitions were not pre-registered
+// in the scope before transforming their body. Now ufcs_declaration registers
+// the function BEFORE transforming its body, allowing recursive calls to resolve
+// UFCS on the function's return type.
 
 bug123_test := proc() {
     // WORKS - explicit I64.add()
@@ -22,16 +17,16 @@ bug123_test := proc() {
         return I64.add(fib_explicit(n.sub(1)), fib_explicit(n.sub(2)))
     }
 
-    // FAILS - UFCS on recursive nested function result
-    // Uncomment to see the bug:
-    // fib_ufcs := func(n: I64) returns I64 {
-    //     if lt(n, 2) {
-    //         return n
-    //     }
-    //     return fib_ufcs(n.sub(1)).add(fib_ufcs(n.sub(2)))
-    // }
+    // Bug #123 fixed - UFCS on recursive nested function result now works
+    fib_ufcs := func(n: I64) returns I64 {
+        if lt(n, 2) {
+            return n
+        }
+        return fib_ufcs(n.sub(1)).add(fib_ufcs(n.sub(2)))
+    }
 
-    test(loc(), fib_explicit(10).eq(55), "fib(10) should be 55")
+    test(loc(), fib_explicit(10).eq(55), "fib_explicit(10) should be 55")
+    test(loc(), fib_ufcs(10).eq(55), "fib_ufcs(10) should be 55")
 }
 
 bug123_test()
