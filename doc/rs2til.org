@@ -741,9 +741,9 @@ TIL:
 #+begin_src til
 process_type := proc(param_type: Ptr) {  // Ptr to ValueType, NULL = None
     if not(param_type.is_null()) {
-        // Read the value via memcpy
+        // Read the value using copy_to_dynamic
         mut vt := ValueType.TCustom("")
-        memcpy(to_ptr(vt), param_type.data, size_of(ValueType))
+        param_type.copy_to_dynamic(vt, size_of(ValueType))
         // use vt
     }
 }
@@ -765,14 +765,14 @@ if ptr.is_null() {
 
 *** Reading the value from Ptr
 
-Use ~memcpy~ to copy from the pointer into a local variable:
+Use ~copy_to_dynamic~ to copy from the pointer into a local variable:
 
 #+begin_src til
 // 1. Create a default-initialized local variable
 mut local_val := ValueType.TCustom("")
 
-// 2. Copy from pointer to local variable
-memcpy(to_ptr(local_val), ptr.data, size_of(ValueType))
+// 2. Copy from pointer to local variable using Ptr method
+ptr.copy_to_dynamic(local_val, size_of(ValueType))
 
 // 3. Now use local_val (e.g., switch on it)
 switch local_val {
@@ -799,6 +799,98 @@ IMPORTANT: The pointed-to value must remain in scope while the Ptr is used.
 Use comments to document what the Ptr points to:
 - ~// Ptr to T, NULL = None~
 - ~// Ptr for Option pattern, NULL = None~
+
+** Ptr type for memory operations
+
+Core types (Vec, Str, List) use the ~Ptr~ type for internal pointer fields instead of ~I64~.
+When working with raw memory, use ~Ptr~ methods instead of arithmetic and ~memcpy~.
+
+*** Ptr struct fields in core types
+
+#+begin_src til
+Vec := struct {
+    mut ptr : Ptr = Ptr()  // NOT I64
+    // ...
+}
+
+Str := struct {
+    mut c_string : Ptr = Ptr()  // NOT I64
+    // ...
+}
+
+List := struct {
+    mut data : Ptr = Ptr()  // NOT I64
+    // ...
+}
+#+end_src
+
+*** Allocation and deallocation
+
+OLD pattern (don't use):
+#+begin_src til
+ptr := malloc(size)?
+catch (err: BadAlloc) { panic(loc(), "malloc failed") }
+// ...
+free(ptr)
+#+end_src
+
+NEW pattern:
+#+begin_src til
+ptr := Ptr.new_by_size(size)  // No catch needed, panics on failure
+// ...
+if not(ptr.is_null()) {
+    ptr.delete()
+}
+ptr = Ptr()  // Reset to null
+#+end_src
+
+*** Offset calculations
+
+OLD pattern (don't use):
+#+begin_src til
+dest := add(self.ptr, mul(index, elem_size))
+memcpy(dest, to_ptr(value), elem_size)
+#+end_src
+
+NEW pattern:
+#+begin_src til
+mut dest := self.ptr.offset(index.mul(elem_size))
+dest.copy_from_dynamic(value, elem_size)
+#+end_src
+
+*** Ptr methods for copying
+
+~Ptr~ provides methods for common copy operations:
+
+#+begin_src til
+// Copy from another Ptr
+dest_ptr.copy_from(src_ptr, num_bytes)
+
+// Copy from a Dynamic value into this Ptr
+dest_ptr.copy_from_dynamic(value, size_of(T))
+
+// Copy from this Ptr into a Dynamic destination
+src_ptr.copy_to_dynamic(dest_var, size_of(T))
+#+end_src
+
+When you need the raw I64 address (e.g., for ~memcmp~), use ~.data~:
+#+begin_src til
+result := memcmp(to_ptr(value), ptr.offset(i).data, elem_size)
+#+end_src
+
+*** NULL checks
+
+OLD pattern (don't use):
+#+begin_src til
+if gt(self.ptr, 0) { ... }
+if self.ptr.eq(0) { ... }
+#+end_src
+
+NEW pattern:
+#+begin_src til
+if not(self.ptr.is_null()) { ... }
+if self.ptr.is_null() { ... }
+#+end_src
 
 ** Vec/Map.get() out-parameter pattern
 
@@ -1294,7 +1386,9 @@ The translation is mechanical:
 18. ~vec.extend(std::iter::repeat(v).take(n))~ -> ~vec.extend_with(v, n)~
 19. Prefer method chaining: ~x.gt(0)~ over ~gt(x, 0)~, ~a.and(b)~ over ~and(a, b)~
 20. HashMap iteration: ~for (k, v) in &map~ -> ~for k: T in map.keys { map.get(k, v) }~
-21. ~Option<T>~ struct fields/params -> ~Ptr~ (NULL = None); read with ~memcpy(to_ptr(local), ptr.data, size_of(T))~
+21. ~Option<T>~ struct fields/params -> ~Ptr~ (NULL = None); read with ~ptr.copy_to_dynamic(local, size_of(T))~
 22. Variable shadowing: TIL doesn't allow it. Rename in BOTH Rust and TIL to use unique names (see dedicated section)
 23. Tuples: TIL doesn't have tuples. Use structs instead in BOTH Rust and TIL with the same struct name and fields (e.g., ~HashSet<(String, usize, usize)>~ -> ~HashSet<FunctionLocal>~ with ~FunctionLocal~ struct)
 24. The ~?~ operator: KEEP all ~?~ from Rust - TIL requires ~?~ on calls to throwing functions (Issue #132)
+25. Memory operations use ~Ptr~ type: ~Ptr.new_by_size(n)~ for allocation, ~ptr.delete()~ for deallocation, ~ptr.offset(n)~ for pointer arithmetic, ~ptr.is_null()~ for NULL checks
+26. Copying with ~Ptr~: ~dest.copy_from(src_ptr, size)~, ~dest.copy_from_dynamic(value, size)~, ~src.copy_to_dynamic(dest, size)~
