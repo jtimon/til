@@ -11,3 +11,7 @@ import("core.u8")
 
 Dynamic := struct {} // For dynamic arguments not checked at type checking phase
 Type := struct {} // For type name parameters (like Vec.new(T: Type))
+
+// Enum introspection
+enum_to_str := ext_func(e: Dynamic) returns Str {}
+enum_get_payload := ext_func(e: Dynamic, payload_type: Type, mut out: Dynamic) {}

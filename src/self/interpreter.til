@@ -1908,6 +1908,15 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
                     val := string_from_context(context, current_name, e)?
                     return EvalResult.new(val)
                 } else {
+                    // Bug #138 fix: Check if final type is an enum - return proper enum format
+                    mut is_field_enum := false
+                    _field_enum_def := context.scope_stack.lookup_enum(current_type)?
+                    is_field_enum = true
+                    catch (err: KeyNotFoundError) { /* not an enum */ }
+                    if is_field_enum {
+                        field_enum_val := EvalArena.get_enum(context, current_name, e)?
+                        return EvalResult.new(format(field_enum_val.enum_type, ".", field_enum_val.enum_name))
+                    }
                     // Return the field path for struct fields
                     return EvalResult.new(current_name)
                 }

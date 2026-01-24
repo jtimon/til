@@ -7,6 +7,32 @@
 
 * Fixed Bugs
 
+** Bug #138: Enum field access on function results returns arena path instead of value
+:PROPERTIES:
+:DISCOVERED: 2026-01-24
+:FIXED: 2026-01-24
+:IMPACT: Switch on enum fields from function results fails to match
+:STATUS: Fixed
+:END:
+
+*** Description
+When accessing an enum field on a function result (e.g., ~lexer.peek().token_type~),
+the interpreter returns the arena path (~_return_XX.token_type~) instead of the
+actual enum value (~TokenType.Colon~). This causes switch comparisons to fail.
+
+*** Root Cause
+In ~eval_identifier_expr~, the ~_~ pattern handles field access on function results.
+For the final field type, it checks I64/U8/Str explicitly but falls through to
+returning ~current_name~ (the arena path) for other types including enums.
+
+*** Fix
+Added enum type check before the fallback. When final type is an enum, call
+~EvalArena::get_enum~ and return proper ~EnumType.VariantName~ format.
+
+Files changed:
+- src/rs/interpreter.rs
+- src/self/interpreter.til
+
 ** Bug #136: Switch on structs compares instance names, not values
 :PROPERTIES:
 :DISCOVERED: 2026-01-23

@@ -1758,6 +1758,11 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                         return Ok(EvalResult::new(&val));
                     },
                     _ => {
+                        // Bug #138 fix: Check if final type is an enum - return proper enum format
+                        if context.scope_stack.lookup_enum(&current_type).is_some() {
+                            let enum_val = EvalArena::get_enum(context, &current_name, e)?;
+                            return Ok(EvalResult::new(&format!("{}.{}", enum_val.enum_type, enum_val.enum_name)));
+                        }
                         // Return the field path for struct fields
                         return Ok(EvalResult::new(&current_name));
                     }
