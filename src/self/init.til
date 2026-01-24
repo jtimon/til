@@ -914,6 +914,19 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         id_expr.params.get(0, enum_after_dot_expr)?
         switch enum_after_dot_expr.node_type {
         case NodeType.Identifier(variant_name):
+            # First check for associated function (namespace-defined)
+            mut af_combined_name := format(f_name, ".", variant_name)
+            mut found_as_func := false
+            mut af_func_def := SFuncDef()
+            af_func_def = context.scope_stack.lookup_func(af_combined_name)?
+            found_as_func = true
+            catch (err: KeyNotFoundError) {
+                # Not an associated function
+            }
+            if found_as_func {
+                return value_type_func_proc(context.path, e, af_combined_name, af_func_def)?
+            }
+
             // Check if this variant exists in the enum (will throw KeyNotFoundError if not)
             mut payload_ptr := enum_def.get(variant_name)?  // Bug #38 fix: use helper method
 
@@ -1697,6 +1710,78 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
         case:
             # Unreachable - all ValueType variants are covered above
             # But needed because exhaustiveness check doesn't understand nested patterns like TType(TTypeDef.TEnumDef)
+        }
+
+    case NodeType.NamespaceDef(ns_def):
+        # Verify the type exists (struct or enum)
+        mut type_exists := false
+        mut _struct_def := SStructDef()
+        _struct_def = context.scope_stack.lookup_struct(ns_def.type_name)?
+        type_exists = true
+        catch (err: KeyNotFoundError) {
+            # Not a struct, try enum
+        }
+        if not(type_exists) {
+            mut _enum_def := SEnumDef()
+            _enum_def = context.scope_stack.lookup_enum(ns_def.type_name)?
+            type_exists = true
+            catch (err: KeyNotFoundError) {
+                # Not an enum either
+            }
+        }
+        if not(type_exists) {
+            errors.push(e.error(context.path, "init", format("namespace '", ns_def.type_name, "' refers to undefined type. Define the type before the namespace block.")))
+            return errors
+        }
+
+        # Register each member as TypeName.memberName
+        for member_decl: Declaration in ns_def.members {
+            mut ns_full_name := format(ns_def.type_name, ".", member_decl.name)
+
+            # Check for name collisions
+            mut ns_already_as_func := false
+            mut _ns_existing_func := SFuncDef()
+            _ns_existing_func = context.scope_stack.lookup_func(ns_full_name)?
+            ns_already_as_func = true
+            catch (err: KeyNotFoundError) {
+                # Not found as func
+            }
+            mut ns_already_as_symbol := false
+            mut _ns_existing_symbol := SymbolInfo()
+            _ns_existing_symbol = context.scope_stack.lookup_symbol(ns_full_name)?
+            ns_already_as_symbol = true
+            catch (err: KeyNotFoundError) {
+                # Not found as symbol
+            }
+            if ns_already_as_func.or(ns_already_as_symbol) {
+                errors.push(e.error(context.path, "init", format("'", member_decl.name, "' is already defined for type '", ns_def.type_name, "'.")))
+                continue
+            }
+
+            # Get the member's expression and value type
+            mut ns_member_expr := Expr()
+            ns_def.default_values.get(member_decl.name, ns_member_expr)?
+            catch (err: KeyNotFoundError) {
+                # No default value, skip
+                continue
+            }
+            mut ns_member_value_type := ValueType.TCustom(INFER_TYPE)
+            ns_member_value_type = get_value_type(context, ns_member_expr)?
+            catch (err: Str) {
+                errors.push(err)
+                continue
+            }
+
+            # Register in symbols
+            context.scope_stack.declare_symbol(ns_full_name.clone(), SymbolInfo(value_type=value_type_clone(ns_member_value_type), is_mut=member_decl.is_mut, is_copy=member_decl.is_copy, is_own=member_decl.is_own))?
+
+            # If it's a function, also register in funcs
+            switch ns_member_expr.node_type {
+            case NodeType.FuncDef(func_def):
+                context.scope_stack.declare_func(ns_full_name, func_def.clone())?
+            case:
+                # Not a function, skip
+            }
         }
 
     case:

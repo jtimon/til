@@ -310,6 +310,8 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
         }
     case NodeType.ForIn(_var_type):
         errors.extend(check_forin_statement(context, e)?)
+    case NodeType.NamespaceDef(ns_def):
+        errors.extend(check_namespace_def(context, e, ns_def)?)
     case:
         // Other node types not handled
     }
@@ -2598,6 +2600,44 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
         throw err.msg
     }
     catch (err: KeyNotFoundError) {
+        throw err.msg
+    }
+
+    return errors
+}
+
+check_namespace_def := proc(mut context: Context, _e: Expr, ns_def: SNamespaceDef) returns Vec throws Str {
+    mut errors := Vec.new(Str)
+
+    // Type was already verified to exist in init phase
+    // Now type-check each member
+
+    for member_decl: Declaration in ns_def.members {
+        mut has_inner_e := false
+        mut inner_e := Expr()
+        ns_def.default_values.get(member_decl.name, inner_e)?
+        has_inner_e = true
+        catch (err: KeyNotFoundError) {
+            // No default value
+        }
+        if has_inner_e {
+            switch inner_e.node_type {
+            // If the member is a function, type check it
+            case NodeType.FuncDef(func_def):
+                context.scope_stack.push(ScopeType.Function)
+                errors.extend(check_func_proc_types(func_def, context, inner_e)?)
+                _ := context.scope_stack.pop()?
+            // For constants, check purity (no proc calls)
+            case:
+                if is_expr_calling_procs(context, inner_e)? {
+                    errors.push(inner_e.error(context.path, "type",
+                        format("Namespace member '", member_decl.name, "' has value that calls proc. Namespace values must be pure (can only call funcs, not procs).")))
+                }
+            }
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
 

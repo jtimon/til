@@ -789,8 +789,9 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
         return EvalResult.new_break()
     case NodeType.Continue:
         return EvalResult.new_continue()
+    // Namespace definitions are handled during registration, not evaluation
     case NodeType.NamespaceDef(_):
-        throw e.todo_error(context.path, "eval", "namespace blocks not yet implemented")
+        return EvalResult.new("")
     case:
         throw e.lang_error(context.path, "eval", format("Not implemented yet, found node type ", enum_to_str(e.node_type), "."))
     }
