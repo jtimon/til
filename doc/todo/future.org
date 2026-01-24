@@ -1454,6 +1454,8 @@ Depends on Issue #108 (proper namespace syntax).
 :RELATED: Issue #107 (First-Class Namespaces)
 :END:
 
+*Detailed plan:* See [[file:108.org][doc/todo/108.org]]
+
 *** Current State
 Structs are used as namespaces by declaring only constants (no mut).
 See src/test/namespaces.til:

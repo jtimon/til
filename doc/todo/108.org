@@ -1,0 +1,362 @@
+* Issue #108: namespace blocks for associated functions on enums
+
+** Problem
+
+Structs can define associated functions (AFs) inline because the =mut= keyword
+distinguishes storage fields from AFs. Enums can't do this - their syntax just
+lists variants. Users need a way to define AFs for enums (like =to_str()=,
+=eq()=, custom methods).
+
+Currently =enum_to_str()= exists but only returns ="EnumName.VariantName"= with
+no payload info. Users should be able to define richer =to_str()= or any other
+AF for their enums.
+
+** Solution
+
+Add =namespace TypeName { ... }= blocks where AFs can be defined and associated
+with a type's namespace.
+
+Example:
+#+begin_src til
+Color := enum {
+    Red
+    Green
+    Blue
+}
+
+namespace Color {
+    to_str := func(c: Color) returns Str {
+        switch c {
+            Color.Red   => return "red"
+            Color.Green => return "green"
+            Color.Blue  => return "blue"
+        }
+    }
+}
+#+end_src
+
+After this, both =Color.to_str(my_color)= and =my_color.to_str()= work via UFCS.
+
+** Plan
+
+*** Step 1: namespace blocks for enums
+
+**** Step 1.1: Parser - recognize namespace blocks
+
+Add parsing for =namespace TypeName { ... }= syntax. The block contains
+declarations (functions, constants) just like inside a struct.
+
+**** Step 1.2: Type checker - register AFs in type's namespace
+
+When type checking a namespace block:
+1. Verify TypeName refers to an existing type (enum, struct, or other)
+2. Register each declaration as an AF of that type
+3. Handle name collisions (error if AF already exists)
+
+**** Step 1.3: Interpreter - evaluate namespace blocks
+
+Execute namespace blocks by evaluating each declaration and storing the
+results in the type's namespace.
+
+**** Step 1.4: Compiler - compile namespace blocks
+
+Compile namespace blocks the same way as struct AF declarations.
+
+**** Step 1.5: Port to TIL
+
+Port all changes from Rust to the self-hosted TIL implementation.
+
+**** Step 1.6: Tests
+
+Add tests for:
+- Basic namespace block with functions
+- Namespace block with constants
+- UFCS calls to namespace-defined AFs
+- Multiple namespace blocks for same type (if allowed)
+- Error cases: unknown type, duplicate AFs
+
+*** Step 2: Unify AF syntax for structs
+
+After Step 1, enums use =namespace= blocks for AFs. Step 2 extends this to
+structs, so both types use the same pattern. Structs would define only storage
+fields inline, and move all AFs to a =namespace= block.
+
+Before:
+#+begin_src til
+Bool := struct {
+    mut data: U8 = 0
+
+    eq := func(a: Bool, b: Bool) returns Bool { ... }
+    and := func(self: Bool, other: Bool) returns Bool { ... }
+    to_str := func(self: Bool) returns Str { ... }
+}
+#+end_src
+
+After:
+#+begin_src til
+Bool := struct {
+    mut data: U8 = 0
+}
+
+namespace Bool {
+    eq := func(a: Bool, b: Bool) returns Bool { ... }
+    and := func(self: Bool, other: Bool) returns Bool { ... }
+    to_str := func(self: Bool) returns Str { ... }
+}
+#+end_src
+
+**** Step 2.1: Allow namespace blocks for structs
+
+After Step 1, namespace blocks already work. This step ensures they work for
+structs too (should be automatic if Step 1 is type-agnostic).
+
+***** Failed attempt: branch wip_108_222
+
+Tried multiple approaches that all failed:
+
+1. Modified init.rs to merge namespace members into struct's default_values
+   and re-register the struct. This modified the AST itself which was undesirable.
+
+2. Added NamespaceDef handling to ufcs.rs, typer.rs, precomp.rs to recursively
+   process function definitions inside namespace blocks. This broke unrelated
+   code (til.til failed with Str/Set_contains errors).
+
+3. The fundamental issue: when Bool.eq (with methods in namespace block) calls
+   a.and(b), the codegen produces =til_Bool_and(til_not(til_b), til_not(til_a))=
+   but til_not returns a value and til_Bool_and expects a pointer. Function
+   call results need to be wrapped in temporaries.
+
+The correct approach should be:
+- Keep init.rs simple: just register functions in scope as Type.method
+- Modify ccodegen to emit namespace block functions (look at NamespaceDef nodes)
+- Do NOT modify the struct AST to include namespace members
+
+**** Step 2.2: Migrate existing struct AFs to namespace blocks
+
+Update all struct definitions in the codebase to use the new syntax:
+- Move AFs from inside struct blocks to namespace blocks
+- Keep only =mut= fields inside struct blocks
+
+**** Step 2.3: Disallow inline AFs in structs
+
+Once migration is complete, update the parser/type checker to reject AFs
+defined inside struct blocks. Only =mut= fields allowed inline.
+
+**** Step 2.4: Port to TIL
+
+Port all changes from Rust to the self-hosted TIL implementation.
+
+**** Step 2.5: Update documentation
+
+Less documentation needed now - one pattern for all types.
+
+*** Step 3: Associated constants (ACs) in namespace blocks
+
+After Steps 1-2, namespace blocks hold AFs for all types. Step 3 extends this
+to constants. Things like =MAX_I64= become =I64.Max= - constants living in the
+type's namespace instead of as standalone globals.
+
+Current state is mixed:
+- Some constants are standalone: =MAX_I64=, =MIN_I64= (in i64.til after struct)
+- Some might already be inside struct blocks (the old workaround for namespaces)
+- Structs without =mut= fields were used as fake namespaces (see namespaces.til)
+
+Target state:
+#+begin_src til
+namespace I64 {
+    Max := 9223372036854775807
+    Min := -9223372036854775808
+    // plus all the AFs moved here in Step 2
+}
+#+end_src
+
+Usage: =I64.Max= instead of =MAX_I64=.
+
+**** Step 3.1: Audit constants for core types (U8, I64, Str)
+
+Analyze the current state of constants for the main types:
+- U8: where are its constants? standalone? inside struct? naming?
+- I64: =MAX_I64=, =MIN_I64=, =I64_SIZE= are standalone
+- Str: where are its constants?
+
+Document what exists and what naming conventions are used.
+
+**** Step 3.2: Ensure namespace blocks support constants
+
+Verify that namespace blocks can hold constant declarations, not just
+functions. (Might already work if parser treats them uniformly.)
+
+**** Step 3.3: Rename and move constants into namespace blocks
+
+Migrate constants into their respective type namespaces with cleaner names:
+- =MAX_I64= -> =I64.Max=
+- =MIN_I64= -> =I64.Min=
+- Similar for other numeric types (U8, I32, etc.)
+
+**** Step 3.4: Update all usages
+
+Find and replace all usages of old constant names with new namespaced versions.
+
+**** Step 3.5: General constants cleanup
+
+Review all other constants in the codebase:
+- Move each to its right namespace
+- Apply consistent naming (=Type.Max=, =Type.Min=, etc.)
+- Remove any leftover fake namespace structs that only held constants
+
+**** Step 3.6: Port to TIL
+
+Port all changes from Rust to the self-hosted TIL implementation.
+
+*** Step 4: Make namespace blocks mandatory for struct AFs
+
+After Steps 1-3, the new syntax works and has been proven with Bool and other
+types. Step 4 makes it mandatory: struct blocks can only contain =mut= field
+declarations, nothing else.
+
+**** Step 4.1: Update parser/type checker to reject inline AFs
+
+Modify the parser or type checker to error when a struct block contains
+anything other than =mut= field declarations.
+
+**** Step 4.2: Fix revealed AFs
+
+The new errors will reveal any AFs that were missed during Step 2's migration.
+Move them to their respective namespace blocks.
+
+At this point, many structs already have namespace blocks from Step 3's AC
+work, so moving remaining AFs is trivial - just add them to existing blocks.
+
+**** Step 4.3: Port to TIL
+
+Port all changes from Rust to the self-hosted TIL implementation.
+
+*** Step 5: Per-instance immutable fields
+
+After Step 4, struct blocks only allow =mut= field declarations. Step 5
+repurposes non-mut declarations for a new meaning: per-instance immutable
+fields. These are set at construction and cannot be changed afterward.
+
+Example:
+#+begin_src til
+Entry := struct {
+    id := 0              // immutable after construction
+    mut name := ""       // mutable
+    mut desc : Str = ""  // mutable
+}
+
+mut myentry := Entry(id=get_unique_id(), name="urmom", desc="pretty good")
+myentry.name = "new name"  // OK, name is mut
+myentry.id = 1             // ERROR: id is not mut, frozen after construction
+#+end_src
+
+Two kinds of constants now:
+- Associated constants: =namespace Type { Max := ... }= - one per type ("static")
+- Per-instance immutables: =id := 0= inside struct - set at construction, frozen
+
+**** Step 5.1: Allow non-mut field declarations in structs again
+
+Update parser to accept non-mut field declarations in struct blocks.
+These are now per-instance immutable fields, not AFs or ACs.
+
+**** Step 5.2: Type checker tracks mutability per field
+
+Type checker must know which fields are mutable vs immutable.
+Attempting to assign to an immutable field after construction is an error.
+
+**** Step 5.3: Interpreter enforces field immutability
+
+Interpreter must reject mutations to immutable fields.
+
+**** Step 5.4: Compiler enforces field immutability
+
+Compiler must generate code that rejects mutations to immutable fields.
+
+**** Step 5.5: Port to TIL
+
+Port all changes from Rust to the self-hosted TIL implementation.
+
+*** Step 6: Associated mutable state in namespace blocks
+
+Namespace blocks can now hold mutable state - like static variables in other
+languages. Currently globals are prefixed with =g_= (see make.til, test.til).
+With this step, mutable state can live inside a type's namespace.
+
+Example:
+#+begin_src til
+Soldier := struct {
+    id := 0
+    name := "unknown soldier"
+}
+
+namespace Soldier {
+    mut soldier_counter := 0
+
+    new := func(name: Str = "unknown soldier") returns Soldier {
+        s := Soldier(id=soldier_counter, name=name)
+        soldier_counter = soldier_counter + 1
+        return s
+    }
+}
+#+end_src
+
+Four kinds of declarations now:
+| Location  | Syntax             | Meaning                          |
+|-----------+--------------------+----------------------------------|
+| namespace | =Max := 100=       | Associated constant (static)     |
+| namespace | =mut counter := 0= | Associated mutable (static)      |
+| struct    | =id := 0=          | Per-instance immutable (frozen)  |
+| struct    | =mut name := ""=   | Per-instance mutable             |
+
+**** Step 6.1: Allow mut declarations in namespace blocks
+
+Update parser to accept =mut= declarations in namespace blocks.
+
+**** Step 6.2: Interpreter handles namespace mutable state
+
+Interpreter stores and mutates namespace-level variables.
+
+**** Step 6.3: Compiler handles namespace mutable state
+
+Compiler generates code for namespace-level mutable variables.
+
+**** Step 6.4: Port to TIL
+
+Port all changes from Rust to the self-hosted TIL implementation.
+
+*** Step 7: Reflect and compare with C++
+
+After Steps 1-6, TIL has a unified syntax for associated functions, constants,
+and mutable state. Step 7 is about reflection and documentation:
+
+1. Survey C++ options for this kind of stuff (static members, const members,
+   static methods, friend functions, etc.)
+2. Document which features TIL will never support and why
+3. Show TIL syntax examples that achieve the same goals without extra keywords
+4. Identify any gaps we might have missed
+
+This step is mostly documentation. C++ has the most options for this kind of
+thing, so it's a good reference. Might discover we're missing something, might
+confirm we're done.
+
+**** Step 7.1: Survey C++ member/static/const options
+
+List all C++ features related to:
+- Static vs instance members
+- Const vs mutable members
+- Static methods vs member functions
+- Friend functions
+- Constexpr, inline, etc.
+
+**** Step 7.2: Document unsupported features and rationale
+
+For each C++ feature TIL won't support:
+- Why it's not needed
+- How to achieve the same goal with TIL's syntax
+
+**** Step 7.3: Identify any gaps
+
+Review if anything useful is missing from TIL's model.
+If yes, plan additional steps. If no, we're done.
+
+*** Step 8: TBD (if needed)
