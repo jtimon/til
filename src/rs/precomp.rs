@@ -358,6 +358,9 @@ fn precomp_func_def(context: &mut Context, e: &Expr, func_def: SFuncDef) -> Resu
         new_body.push(precomp_expr(context, stmt)?);
     }
 
+    // Issue #117: Insert ASAP delete calls for variables with delete() methods
+    let new_body = insert_asap_deletes(new_body, context);
+
     // Pop the function scope frame
     let _ = context.scope_stack.pop();
 
@@ -635,4 +638,230 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
     // No transformation needed (UFCS already resolved in ufcs phase)
     Ok(e)
+}
+
+// ============================================================================
+// Issue #117: ASAP Destruction - Auto-delete on last use
+// ============================================================================
+
+
+/// Check if a type has a delete() method AND clear ownership semantics
+/// Issue #117: Currently hardcoded list of types with delete() methods
+/// Future: Could check context.scope_stack.lookup_func but that may not work
+/// during early precomp when methods aren't registered yet
+///
+/// Note: Ptr is excluded because:
+/// - Ptr.offset() returns non-owning pointers (views into existing memory)
+/// - Raw pointer ownership is complex and requires explicit management
+fn type_has_delete(type_name: &str, _context: &Context) -> bool {
+    // Types with delete() method AND clear allocation/ownership semantics
+    // Vec, Array, Set: constructor allocates, delete() frees
+    // Ptr: excluded - complex ownership (offset returns non-owning view)
+    matches!(type_name, "Vec" | "Array" | "Set")
+}
+
+
+/// Get the type name from a ValueType, returning None for primitive/non-deletable types
+fn get_deletable_type_name(value_type: &ValueType) -> Option<String> {
+    match value_type {
+        ValueType::TCustom(name) => Some(name.clone()),
+        _ => None,
+    }
+}
+
+
+/// Variable lifetime tracking for ASAP destruction
+struct VarLifetime {
+    name: String,
+    value_type: ValueType,
+    last_use_stmt_idx: Option<usize>,
+}
+
+
+/// Collect all variable names used in an expression (for liveness analysis)
+fn collect_var_uses(expr: &Expr, uses: &mut std::collections::HashSet<String>) {
+    match &expr.node_type {
+        NodeType::Identifier(name) => {
+            // Skip type-qualified access (Type.method) by checking if first char is uppercase
+            if !name.chars().next().map_or(false, |c| c.is_uppercase()) {
+                uses.insert(name.clone());
+            }
+            // Also collect from nested params (field access, etc)
+            for param in &expr.params {
+                collect_var_uses(param, uses);
+            }
+        }
+        NodeType::Assignment(name) => {
+            uses.insert(name.clone());
+            for param in &expr.params {
+                collect_var_uses(param, uses);
+            }
+        }
+        NodeType::FCall(_) => {
+            // First param is function name/path, collect vars from there and all args
+            for param in &expr.params {
+                collect_var_uses(param, uses);
+            }
+        }
+        _ => {
+            for param in &expr.params {
+                collect_var_uses(param, uses);
+            }
+        }
+    }
+}
+
+
+/// Collect variables that are returned (ownership transferred to caller)
+fn collect_returned_vars(stmts: &[Expr]) -> std::collections::HashSet<String> {
+    let mut returned = std::collections::HashSet::new();
+
+    for stmt in stmts {
+        collect_returned_vars_in_expr(stmt, &mut returned);
+    }
+
+    returned
+}
+
+
+fn collect_returned_vars_in_expr(expr: &Expr, returned: &mut std::collections::HashSet<String>) {
+    match &expr.node_type {
+        NodeType::Return => {
+            // Variables directly returned transfer ownership
+            if !expr.params.is_empty() {
+                if let NodeType::Identifier(name) = &expr.params[0].node_type {
+                    // Only simple identifiers (not field access)
+                    if expr.params[0].params.is_empty() {
+                        returned.insert(name.clone());
+                    }
+                }
+            }
+        }
+        NodeType::FuncDef(_) => {
+            // Don't recurse into nested function definitions
+        }
+        _ => {
+            for param in &expr.params {
+                collect_returned_vars_in_expr(param, returned);
+            }
+        }
+    }
+}
+
+
+/// Analyze liveness of deletable variables in a statement list
+fn analyze_var_lifetimes(stmts: &[Expr], context: &Context) -> Vec<VarLifetime> {
+    let mut lifetimes: Vec<VarLifetime> = Vec::new();
+
+    // Collect variables that are returned (ownership transferred to caller)
+    let returned_vars = collect_returned_vars(stmts);
+
+    // First pass: collect all local variable declarations with delete() types
+    // Skip variables that are returned (caller takes ownership)
+    for stmt in stmts.iter() {
+        if let NodeType::Declaration(decl) = &stmt.node_type {
+            // Don't auto-delete variables that are returned
+            if returned_vars.contains(&decl.name) {
+                continue;
+            }
+            if let Some(type_name) = get_deletable_type_name(&decl.value_type) {
+                if type_has_delete(&type_name, context) {
+                    lifetimes.push(VarLifetime {
+                        name: decl.name.clone(),
+                        value_type: decl.value_type.clone(),
+                        last_use_stmt_idx: None,
+                    });
+                }
+            }
+        }
+    }
+
+    // Second pass: find last use of each deletable variable
+    for (stmt_idx, stmt) in stmts.iter().enumerate() {
+        let mut uses: std::collections::HashSet<String> = std::collections::HashSet::new();
+        collect_var_uses(stmt, &mut uses);
+
+        for lifetime in lifetimes.iter_mut() {
+            if uses.contains(&lifetime.name) {
+                lifetime.last_use_stmt_idx = Some(stmt_idx);
+            }
+        }
+    }
+
+    lifetimes
+}
+
+
+/// Create a delete() method call expression for a variable
+fn create_delete_call(var_name: &str, value_type: &ValueType, template_expr: &Expr) -> Expr {
+    let type_name = match value_type {
+        ValueType::TCustom(name) => name.clone(),
+        _ => return template_expr.clone(), // Shouldn't happen
+    };
+
+    // Create: Type.delete(var)
+    // After UFCS resolution, FCall structure is: [func_name_expr, arg1, arg2, ...]
+    // func_name_expr is an Identifier with the full name like "Vec.delete"
+
+    let method_name = format!("{}.delete", type_name);
+    let func_name_expr = Expr::new_clone(
+        NodeType::Identifier(method_name),
+        template_expr,
+        vec![],
+    );
+
+    let var_expr = Expr::new_clone(
+        NodeType::Identifier(var_name.to_string()),
+        template_expr,
+        vec![],
+    );
+
+    // FCall(bool) - bool indicates if call has '?' suffix (Issue #132)
+    // delete() is not a throwing function, so false
+    Expr::new_clone(
+        NodeType::FCall(false),
+        template_expr,
+        vec![func_name_expr, var_expr],
+    )
+}
+
+
+/// Insert ASAP delete calls into a statement list
+fn insert_asap_deletes(stmts: Vec<Expr>, context: &Context) -> Vec<Expr> {
+    if stmts.is_empty() {
+        return stmts;
+    }
+
+    let lifetimes = analyze_var_lifetimes(&stmts, context);
+
+    if lifetimes.is_empty() {
+        return stmts; // No deletable variables
+    }
+
+    let mut result: Vec<Expr> = Vec::new();
+    // Clone first statement as template for location info (avoid borrow issues)
+    let template_expr = stmts[0].clone();
+
+    for (stmt_idx, stmt) in stmts.into_iter().enumerate() {
+        result.push(stmt);
+
+        // After this statement, emit delete for any variable whose last use was here
+        for lifetime in &lifetimes {
+            if lifetime.last_use_stmt_idx == Some(stmt_idx) {
+                let delete_call = create_delete_call(&lifetime.name, &lifetime.value_type, &template_expr);
+                result.push(delete_call);
+            }
+        }
+    }
+
+    // Safety net: delete any variables that were never used (last_use_stmt_idx is None)
+    // Delete in reverse order (LIFO like C++/Rust)
+    for lifetime in lifetimes.iter().rev() {
+        if lifetime.last_use_stmt_idx.is_none() {
+            let delete_call = create_delete_call(&lifetime.name, &lifetime.value_type, &template_expr);
+            result.push(delete_call);
+        }
+    }
+
+    result
 }

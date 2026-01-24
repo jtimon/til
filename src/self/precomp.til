@@ -461,6 +461,9 @@ precomp_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) retu
         new_body.push(precomp_expr(context, stmt)?)
     }
 
+    // Issue #117: Insert ASAP delete calls for variables with delete() methods
+    new_body = insert_asap_deletes(new_body, context)?
+
     // Pop the function scope frame
     _ := context.scope_stack.pop()?
 
@@ -836,4 +839,251 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     // No transformation needed (UFCS already resolved in ufcs phase)
     return new_e
+}
+
+// ============================================================================
+// Issue #117: ASAP Destruction - Auto-delete on last use
+// ============================================================================
+
+/// Check if a type has a delete() method AND clear ownership semantics
+/// Note: Ptr is excluded because Ptr.offset() returns non-owning pointers
+type_has_delete := func(type_name: Str) returns Bool {
+    // Types with delete() method AND clear allocation/ownership semantics
+    if type_name.eq("Vec") { return true }
+    if type_name.eq("Array") { return true }
+    if type_name.eq("Set") { return true }
+    return false
+}
+
+/// Get the type name from a ValueType, returning empty string for non-custom types
+get_deletable_type_name := func(value_type: ValueType) returns Str {
+    switch value_type {
+    case ValueType.TCustom(name):
+        return name
+    case:
+        return ""
+    }
+}
+
+/// Variable lifetime tracking for ASAP destruction
+VarLifetime := struct {
+    name: Str
+    value_type: ValueType
+    last_use_stmt_idx: I64  // -1 means never used
+}
+
+/// Collect all variable names used in an expression (for liveness analysis)
+collect_var_uses := proc(e: Expr, mut uses: Set) throws Str {
+    switch e.node_type {
+    case NodeType.Identifier(name):
+        // Skip type-qualified access (Type.method) by checking if first char is uppercase
+        if name.len().gt(0) {
+            first_char := get_char(name, 0)?
+            if not(is_uppercase(first_char)) {
+                uses.insert_str(name)
+            }
+        }
+        // Also collect from nested params (field access, etc)
+        for param: Expr in e.params {
+            collect_var_uses(param, uses)?
+        }
+    case NodeType.Assignment(name):
+        uses.insert_str(name)
+        for param: Expr in e.params {
+            collect_var_uses(param, uses)?
+        }
+    case NodeType.FCall(_):
+        // First param is function name/path, collect vars from there and all args
+        for param: Expr in e.params {
+            collect_var_uses(param, uses)?
+        }
+    case:
+        for param: Expr in e.params {
+            collect_var_uses(param, uses)?
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("collect_var_uses: ", err.msg)
+    }
+}
+
+/// Collect variables that are returned (ownership transferred to caller)
+collect_returned_vars := proc(stmts: Vec) returns Set throws Str {
+    mut returned := Set.new(Str)
+
+    for stmt: Expr in stmts {
+        collect_returned_vars_in_expr(stmt, returned)?
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("collect_returned_vars: ", err.msg)
+    }
+
+    return returned
+}
+
+collect_returned_vars_in_expr := proc(e: Expr, mut returned: Set) throws Str {
+    switch e.node_type {
+    case NodeType.Return:
+        // Variables directly returned transfer ownership
+        if e.params.len().gt(0) {
+            first_param := e.get(0)?
+            switch first_param.node_type {
+            case NodeType.Identifier(name):
+                // Only simple identifiers (not field access)
+                if first_param.params.len().eq(0) {
+                    returned.insert_str(name)
+                }
+            case:
+            }
+        }
+    case NodeType.FuncDef(_):
+        // Don't recurse into nested function definitions
+    case:
+        for param: Expr in e.params {
+            collect_returned_vars_in_expr(param, returned)?
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("collect_returned_vars_in_expr: ", err.msg)
+    }
+}
+
+/// Analyze liveness of deletable variables in a statement list
+analyze_var_lifetimes := proc(stmts: Vec, context: Context) returns Vec throws Str {
+    mut lifetimes := Vec.new(VarLifetime)
+
+    // Collect variables that are returned (ownership transferred to caller)
+    returned_vars := collect_returned_vars(stmts)?
+
+    // First pass: collect all local variable declarations with delete() types
+    for stmt: Expr in stmts {
+        switch stmt.node_type {
+        case NodeType.Declaration(decl):
+            // Don't auto-delete variables that are returned
+            if returned_vars.contains_str(decl.name) {
+                continue
+            }
+            type_name := get_deletable_type_name(decl.value_type)
+            if type_name.len().gt(0) {
+                if type_has_delete(type_name) {
+                    lifetime := VarLifetime(name=decl.name, value_type=decl.value_type, last_use_stmt_idx=-1)
+                    lifetimes.push(lifetime)
+                }
+            }
+        case:
+        }
+    }
+
+    // Second pass: find last use of each deletable variable
+    mut stmt_idx := 0
+    for stmt: Expr in stmts {
+        mut uses := Set.new(Str)
+        collect_var_uses(stmt, uses)?
+
+        mut i := 0
+        while i.lt(lifetimes.len()) {
+            mut lifetime := VarLifetime()
+            lifetimes.get(i, lifetime)?
+            if uses.contains_str(lifetime.name) {
+                lifetime.last_use_stmt_idx = stmt_idx
+                lifetimes.set(i, lifetime)?
+            }
+            i.inc()
+        }
+
+        stmt_idx.inc()
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("analyze_var_lifetimes: ", err.msg)
+    }
+
+    return lifetimes
+}
+
+/// Create a delete() method call expression for a variable
+create_delete_call := proc(var_name: Str, value_type: ValueType, template_expr: Expr) returns Expr throws Str {
+    type_name := get_deletable_type_name(value_type)
+    if type_name.len().eq(0) {
+        return template_expr.clone()
+    }
+
+    // Create: Type.delete(var)
+    // After UFCS resolution, FCall structure is: [func_name_expr, arg1, arg2, ...]
+    // func_name_expr is an Identifier with the full name like "Vec.delete"
+
+    method_name := format(type_name, ".delete")
+    func_name_expr := Expr.new_clone(NodeType.Identifier(method_name), template_expr, Vec.new(Expr))
+
+    var_expr := Expr.new_clone(NodeType.Identifier(var_name), template_expr, Vec.new(Expr))
+
+    mut params := Vec.new(Expr)
+    params.push(func_name_expr)
+    params.push(var_expr)
+
+    // FCall(bool) - bool indicates if call has '?' suffix (Issue #132)
+    // delete() is not a throwing function, so false
+    return Expr.new_clone(NodeType.FCall(false), template_expr, params)
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("create_delete_call: ", err.msg)
+    }
+}
+
+/// Insert ASAP delete calls into a statement list
+insert_asap_deletes := proc(stmts: Vec, context: Context) returns Vec throws Str {
+    if stmts.len().eq(0) {
+        return stmts
+    }
+
+    lifetimes := analyze_var_lifetimes(stmts, context)?
+
+    if lifetimes.len().eq(0) {
+        return stmts // No deletable variables
+    }
+
+    mut result := Vec.new(Expr)
+    // Clone first statement as template for location info
+    template_expr := stmts.get_expr(0)?
+
+    mut stmt_idx := 0
+    for stmt: Expr in stmts {
+        result.push(stmt)
+
+        // After this statement, emit delete for any variable whose last use was here
+        mut i := 0
+        while i.lt(lifetimes.len()) {
+            mut lifetime := VarLifetime()
+            lifetimes.get(i, lifetime)?
+            if lifetime.last_use_stmt_idx.eq(stmt_idx) {
+                delete_call := create_delete_call(lifetime.name, lifetime.value_type, template_expr)?
+                result.push(delete_call)
+            }
+            i.inc()
+        }
+
+        stmt_idx.inc()
+    }
+
+    // Safety net: delete any variables that were never used (last_use_stmt_idx is -1)
+    // Delete in reverse order (LIFO like C++/Rust)
+    mut i := lifetimes.len().sub(1)
+    while i.gteq(0) {
+        mut lifetime := VarLifetime()
+        lifetimes.get(i, lifetime)?
+        if lifetime.last_use_stmt_idx.eq(-1) {
+            delete_call := create_delete_call(lifetime.name, lifetime.value_type, template_expr)?
+            result.push(delete_call)
+        }
+        i.dec()
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("insert_asap_deletes: ", err.msg)
+    }
+
+    return result
 }
