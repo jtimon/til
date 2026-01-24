@@ -551,11 +551,18 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 };
                 match &after_dot.node_type {
                     NodeType::Identifier(after_dot_name) => {
+                        // First check for associated function (namespace-defined)
+                        let af_combined_name = format!("{}.{}", f_name, after_dot_name);
+                        if let Some(func_def) = context.scope_stack.lookup_func(&af_combined_name) {
+                            return value_type_func_proc(&context.path, &e, &af_combined_name, func_def);
+                        }
+
+                        // Fall back to struct member lookup
                         let member_decl = struct_def.get_member_or_err(after_dot_name, &f_name, &context.path, e)?;
                         let member_default_value = match struct_def.default_values.get(after_dot_name) {
                             Some(_member) => _member,
                             None => {
-                                return Err(e.error(&context.path, "init", &format!("struct '{}' has no member '{}' b", f_name, after_dot_name)));
+                                return Err(e.error(&context.path, "init", &format!("struct '{}' has no member '{}'", f_name, after_dot_name)));
                             },
                         };
                         match &member_default_value.node_type {
