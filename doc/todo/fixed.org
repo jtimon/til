@@ -3727,6 +3727,32 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #119: Skip empty struct error parameters in C codegen
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:IMPLEMENTED: 2026-01-24
+:IMPACT: Smaller generated C code, simpler function signatures
+:STATUS: Fixed
+:END:
+
+*** Description
+When a throws clause uses an empty struct (like BadAlloc), the C codegen no longer
+passes a pointer to the error struct as a parameter. For empty structs, only the
+return status code matters (0 = success, 1+ = error type index).
+
+*** Implementation
+- Added ~is_empty_error_struct~ helper to check if error type has no fields
+- ~emit_func_signature~ skips error parameters for empty structs
+- ~emit_throwing_call~, ~emit_throwing_call_propagate~, ~emit_throwing_call_with_goto~
+  skip declaring, passing, and copying empty struct errors
+- Catch blocks use ~= {}~ initializer for empty struct error bindings
+- Updated ~til_malloc~ in src/ext.c to match new signature
+
+*** Files Modified
+- src/rs/ccodegen.rs: Added empty struct error handling throughout
+- src/self/ccodegen.til: Ported same changes
+- src/ext.c: Removed unused error parameter from til_malloc
+
 ** Issue #132: Mandatory ? for calls to throwing functions [DONE]
 :PROPERTIES:
 :DISCOVERED: 2026-01-22

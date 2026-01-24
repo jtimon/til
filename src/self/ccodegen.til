@@ -2563,7 +2563,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     switch ast.node_type {
     case NodeType.Body:
         for child: Expr in ast.params {
-            collect_nested_func_info(child, ctx, "")?
+            collect_nested_func_info(child, ctx, context, "")?
         }
     case:
     }
@@ -2647,7 +2647,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     case NodeType.Body:
         for child: Expr in ast.params {
             if is_func_declaration(child) {
-                emit_func_prototype(child, output)?
+                emit_func_prototype(child, context, output)?
             }
         }
     case:
@@ -2657,7 +2657,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     case NodeType.Body:
         for child: Expr in ast.params {
             if is_struct_declaration(child) {
-                emit_struct_func_prototypes(child, output)?
+                emit_struct_func_prototypes(child, context, output)?
             }
         }
     case:
@@ -3212,7 +3212,7 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
 
 // Collect nested function info (for hoisting): scan function bodies for nested FuncDef declarations
 // This populates ctx.nested_func_names and ctx.hoisted_prototypes before we emit function bodies
-collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_func_name: Str) throws Str {
+collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, context: Context, parent_func_name: Str) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3227,19 +3227,19 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_fun
 
                     // Generate prototype using emit_func_signature (handles throwing functions properly)
                     mut proto := ""
-                    emit_func_signature(til_name(mangled_name), func_def, proto)?
+                    emit_func_signature(til_name(mangled_name), func_def, context, proto)?
                     proto.push_str(";\n")
                     ctx.hoisted_prototypes.push(proto)
 
                     // Recursively check for nested functions within this nested function
                     new_parent := mangled_name.clone()
                     for body_expr: Expr in func_def.body {
-                        collect_nested_func_info(body_expr, ctx, new_parent)?
+                        collect_nested_func_info(body_expr, ctx, context, new_parent)?
                     }
                 } else {
                     // Top-level function - scan its body for nested functions
                     for body_expr: Expr in func_def.body {
-                        collect_nested_func_info(body_expr, ctx, decl.name)?
+                        collect_nested_func_info(body_expr, ctx, context, decl.name)?
                     }
                 }
             case:
@@ -3247,26 +3247,26 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_fun
         }
     case NodeType.Body:
         for child: Expr in expr.params {
-            collect_nested_func_info(child, ctx, parent_func_name)?
+            collect_nested_func_info(child, ctx, context, parent_func_name)?
         }
     case NodeType.If:
         // Check then and else branches (params[0] = condition, params[1] = then, params[2] = else)
         if expr.params.len().gt(1) {
             mut then_branch := Expr()
             expr.params.get(1, then_branch)?
-            collect_nested_func_info(then_branch, ctx, parent_func_name)?
+            collect_nested_func_info(then_branch, ctx, context, parent_func_name)?
         }
         if expr.params.len().gt(2) {
             mut else_branch := Expr()
             expr.params.get(2, else_branch)?
-            collect_nested_func_info(else_branch, ctx, parent_func_name)?
+            collect_nested_func_info(else_branch, ctx, context, parent_func_name)?
         }
     case NodeType.While:
         // Check loop body (params[0] = condition, params[1] = body)
         if expr.params.len().gt(1) {
             mut body := Expr()
             expr.params.get(1, body)?
-            collect_nested_func_info(body, ctx, parent_func_name)?
+            collect_nested_func_info(body, ctx, context, parent_func_name)?
         }
     case NodeType.Switch:
         // Check all case bodies (params[0] = value, rest are cases)
@@ -3274,13 +3274,13 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_fun
         while i.lt(expr.params.len()) {
             mut case_expr := Expr()
             expr.params.get(i, case_expr)?
-            collect_nested_func_info(case_expr, ctx, parent_func_name)?
+            collect_nested_func_info(case_expr, ctx, context, parent_func_name)?
             i.inc()
         }
     case:
         // Recursively check all params for other node types
         for child: Expr in expr.params {
-            collect_nested_func_info(child, ctx, parent_func_name)?
+            collect_nested_func_info(child, ctx, context, parent_func_name)?
         }
     }
 
@@ -3761,7 +3761,7 @@ emit_enum_to_str_for_declaration := proc(expr: Expr, mut output: Str, context: C
 }
 
 // Emit struct function prototypes for all functions in a struct
-emit_struct_func_prototypes := proc(expr: Expr, mut output: Str) throws Str {
+emit_struct_func_prototypes := proc(expr: Expr, context: Context, mut output: Str) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -3780,7 +3780,7 @@ emit_struct_func_prototypes := proc(expr: Expr, mut output: Str) throws Str {
                     switch func_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         mangled_name := struct_name.concat("_").concat(member.name)
-                        emit_func_signature(mangled_name, func_def, output)?
+                        emit_func_signature(mangled_name, func_def, context, output)?
                         output.push_str(";\n")
                     case:
                     }
@@ -3853,7 +3853,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     ctx.current_function_name = mangled_name.clone()
     ctx.mangling_counter = 0
 
-    emit_func_signature(mangled_name, func_def, output)?
+    emit_func_signature(mangled_name, func_def, context, output)?
     output.push_str(" {\n")
 
     // Emit function body with catch pattern detection
@@ -3947,12 +3947,28 @@ value_type_to_c_name := func(vt: ValueType) returns Str throws Str {
     }
 }
 
+// Issue #119: Check if a throw type refers to an empty struct (no fields)
+// For empty structs, we don't need to pass error parameters - just the status code
+is_empty_error_struct := func(context: Context, throw_type: ValueType) returns Bool {
+    switch throw_type {
+    case ValueType.TCustom(type_name):
+        struct_def_opt := context.scope_stack.lookup_struct(type_name)?
+        catch (err: KeyNotFoundError) {
+            return false
+        }
+        return struct_def_opt.members.is_empty()
+    case:
+        return false
+    }
+}
+
 // Emit function signature (used by both prototype and definition)
 // For throwing functions:
 //   int func_name(RetType* _ret, Error1* _err1, Error2* _err2, args...)
 // For non-throwing:
 //   RetType func_name(args...)
-emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str) throws Str {
+// Issue #119: Empty struct errors don't get parameters - only status code matters
+emit_func_signature := proc(func_name: Str, func_def: SFuncDef, context: Context, mut output: Str) throws Str {
     is_throwing := not(func_def.throw_types.is_empty())
 
     if is_throwing {
@@ -3987,17 +4003,22 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str)
             param_count.inc()
         }
 
+        // Issue #119: Skip empty struct errors - only status code matters
         for i in 0..func_def.throw_types.len() {
             mut throw_type := ValueType.TCustom(INFER_TYPE)
             func_def.throw_types.get(i, throw_type)?
-            if param_count.gt(0) {
-                output.push_str(", ")
+            if is_empty_error_struct(context, throw_type) {
+                // Skip this error parameter for empty struct
+            } else {
+                if param_count.gt(0) {
+                    output.push_str(", ")
+                }
+                err_type := value_type_to_c_name(throw_type)?
+                output.push_str(err_type)
+                output.push_str("* _err")
+                output.push_str(I64.to_str(i.add(1)))
+                param_count.inc()
             }
-            err_type := value_type_to_c_name(throw_type)?
-            output.push_str(err_type)
-            output.push_str("* _err")
-            output.push_str(I64.to_str(i.add(1)))
-            param_count.inc()
         }
     }
 
@@ -4070,7 +4091,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, mut output: Str)
 }
 
 // Emit a function prototype (forward declaration)
-emit_func_prototype := proc(expr: Expr, mut output: Str) throws Str {
+emit_func_prototype := proc(expr: Expr, context: Context, mut output: Str) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
@@ -4084,7 +4105,7 @@ emit_func_prototype := proc(expr: Expr, mut output: Str) throws Str {
                 }
 
                 func_name := til_name(decl.name)
-                emit_func_signature(func_name, func_def, output)?
+                emit_func_signature(func_name, func_def, context, output)?
                 output.push_str(";\n")
                 return
             case:
@@ -4190,7 +4211,7 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 ctx.current_function_name = decl.name.clone()
                 ctx.mangling_counter = 0  // Reset counter per-function for determinism
 
-                emit_func_signature(func_name, func_def, output)?
+                emit_func_signature(func_name, func_def, context, output)?
                 output.push_str(" {\n")
 
                 // Emit function body with catch pattern detection
@@ -6175,7 +6196,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
 
                 // Generate the hoisted function prototype
                 mut proto_output := ""
-                emit_func_signature(til_name(mangled_name), func_def, proto_output)?
+                emit_func_signature(til_name(mangled_name), func_def, context, proto_output)?
                 proto_output.push_str(";\n")
                 ctx.hoisted_prototypes.push(proto_output)
 
@@ -6231,7 +6252,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 context.scope_stack.frames.push(function_frame)
 
                 // Emit the function
-                emit_func_signature(til_name(mangled_name), func_def, func_output)?
+                emit_func_signature(til_name(mangled_name), func_def, context, func_output)?
                 func_output.push_str(" {\n")
                 emit_stmts(func_def.body, func_output, 1, ctx, context)?
                 if not(func_def.throw_types.is_empty()).and(func_def.return_types.is_empty()) {

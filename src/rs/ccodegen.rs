@@ -122,6 +122,17 @@ fn til_func_name(name: &str) -> String {
     format!("{}{}", TIL_PREFIX, name.replace('.', "_"))
 }
 
+// Issue #119: Check if a throw type refers to an empty struct (no fields)
+// Empty struct errors don't need error parameters - only the status code matters
+fn is_empty_error_struct(context: &Context, throw_type: &ValueType) -> bool {
+    if let ValueType::TCustom(type_name) = throw_type {
+        if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
+            return struct_def.members.is_empty();
+        }
+    }
+    false
+}
+
 // Get function name from FCall's first param, handling both AST patterns:
 // - Identifier("func") with params = [] -> "func"
 // - Identifier("I64.inc") with params = [] -> "I64_inc" (from precomp)
@@ -430,9 +441,12 @@ fn hoist_throwing_expr(
         output.push_str(&temp_var);
         output.push_str(";\n");
 
-        // Declare error variables for each throw type
+        // Declare error variables for each throw type (Issue #119: skip empty struct errors)
         let temp_suffix = next_mangled(ctx);
         for (decl_err_idx, decl_throw_type) in throwing_fd.throw_types.iter().enumerate() {
+            if is_empty_error_struct(context, decl_throw_type) {
+                continue;
+            }
             if let ValueType::TCustom(type_name) = decl_throw_type {
                 output.push_str(&indent_str);
                 output.push_str(&til_name(type_name));
@@ -491,12 +505,16 @@ fn hoist_throwing_expr(
                         output.push_str(" == ");
                         output.push_str(&(local_err_idx + 1).to_string());
                         output.push_str(") { ");
-                        output.push_str(&catch_info.temp_var);
-                        output.push_str(" = _err");
-                        output.push_str(&local_err_idx.to_string());
-                        output.push_str("_");
-                        output.push_str(&temp_suffix);
-                        output.push_str("; goto ");
+                        // Issue #119: Skip copying empty struct errors
+                        if !is_empty_error_struct(context, local_throw_type) {
+                            output.push_str(&catch_info.temp_var);
+                            output.push_str(" = _err");
+                            output.push_str(&local_err_idx.to_string());
+                            output.push_str("_");
+                            output.push_str(&temp_suffix);
+                            output.push_str("; ");
+                        }
+                        output.push_str("goto ");
                         output.push_str(&catch_info.label);
                         output.push_str("; }\n");
                     }
@@ -519,13 +537,18 @@ fn hoist_throwing_expr(
                                 output.push_str(&temp_suffix);
                                 output.push_str(" == ");
                                 output.push_str(&(prop_err_idx + 1).to_string());
-                                output.push_str(") { *_err");
-                                output.push_str(&(curr_idx + 1).to_string());
-                                output.push_str(" = _err");
-                                output.push_str(&prop_err_idx.to_string());
-                                output.push_str("_");
-                                output.push_str(&temp_suffix);
-                                output.push_str("; return ");
+                                output.push_str(") { ");
+                                // Issue #119: Skip copying empty struct errors
+                                if !is_empty_error_struct(context, prop_throw_type) {
+                                    output.push_str("*_err");
+                                    output.push_str(&(curr_idx + 1).to_string());
+                                    output.push_str(" = _err");
+                                    output.push_str(&prop_err_idx.to_string());
+                                    output.push_str("_");
+                                    output.push_str(&temp_suffix);
+                                    output.push_str("; ");
+                                }
+                                output.push_str("return ");
                                 output.push_str(&(curr_idx + 1).to_string());
                                 output.push_str("; }\n");
                                 break;
@@ -773,9 +796,12 @@ fn hoist_throwing_args(
             output.push_str(&temp_var);
             output.push_str(";\n");
 
-            // Declare error variables for each throw type
+            // Declare error variables for each throw type (Issue #119: skip empty struct errors)
             let thr_temp_suffix = next_mangled(ctx);
             for (thr_decl_err_idx, thr_decl_throw_type) in thr_fd.throw_types.iter().enumerate() {
+                if is_empty_error_struct(context, thr_decl_throw_type) {
+                    continue;
+                }
                 if let ValueType::TCustom(type_name) = thr_decl_throw_type {
                     output.push_str(&indent_str);
                     output.push_str(&til_name(type_name));
@@ -830,13 +856,18 @@ fn hoist_throwing_args(
                                 output.push_str(&thr_temp_suffix);
                                 output.push_str(" == ");
                                 output.push_str(&(thr_prop_err_idx + 1).to_string());
-                                output.push_str(") { *_err");
-                                output.push_str(&(thr_curr_idx + 1).to_string());
-                                output.push_str(" = _err");
-                                output.push_str(&thr_prop_err_idx.to_string());
-                                output.push_str("_");
-                                output.push_str(&thr_temp_suffix);
-                                output.push_str("; return ");
+                                output.push_str(") { ");
+                                // Issue #119: Skip copying empty struct errors
+                                if !is_empty_error_struct(context, thr_prop_throw_type) {
+                                    output.push_str("*_err");
+                                    output.push_str(&(thr_curr_idx + 1).to_string());
+                                    output.push_str(" = _err");
+                                    output.push_str(&thr_prop_err_idx.to_string());
+                                    output.push_str("_");
+                                    output.push_str(&thr_temp_suffix);
+                                    output.push_str("; ");
+                                }
+                                output.push_str("return ");
                                 output.push_str(&(thr_curr_idx + 1).to_string());
                                 output.push_str("; }\n");
                                 break;
@@ -1496,8 +1527,11 @@ fn emit_fcall_name_and_args_for_throwing(
     output.push_str("(&");
     output.push_str(temp_var);
 
-    // Add error output pointers
-    for (idx, _) in throw_types.iter().enumerate() {
+    // Add error output pointers (Issue #119: skip empty struct errors)
+    for (idx, throw_type) in throw_types.iter().enumerate() {
+        if is_empty_error_struct(context, throw_type) {
+            continue;
+        }
         output.push_str(", &_err");
         output.push_str(&idx.to_string());
         output.push_str("_");
@@ -1942,7 +1976,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     // Pass 0a: collect nested function info for hoisting (populates hoisted_prototypes and nested_func_names)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            collect_nested_func_info(child, &mut ctx, None)?;
+            collect_nested_func_info(child, &mut ctx, context, None)?;
         }
     }
 
@@ -2014,7 +2048,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_func_declaration(child) {
-                emit_func_prototype(child, &mut output)?;
+                emit_func_prototype(child, context, &mut output)?;
             }
         }
     }
@@ -2022,7 +2056,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
-                emit_struct_func_prototypes(child, &mut output)?;
+                emit_struct_func_prototypes(child, context, &mut output)?;
             }
         }
     }
@@ -2432,7 +2466,7 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
 
 // Collect nested function info (for hoisting): scan function bodies for nested FuncDef declarations
 // This populates ctx.nested_func_names and ctx.hoisted_prototypes before we emit function bodies
-fn collect_nested_func_info(expr: &Expr, ctx: &mut CodegenContext, parent_func_name: Option<&str>) -> Result<(), String> {
+fn collect_nested_func_info(expr: &Expr, ctx: &mut CodegenContext, context: &Context, parent_func_name: Option<&str>) -> Result<(), String> {
     match &expr.node_type {
         NodeType::Declaration(decl) => {
             if !expr.params.is_empty() {
@@ -2444,19 +2478,19 @@ fn collect_nested_func_info(expr: &Expr, ctx: &mut CodegenContext, parent_func_n
 
                         // Generate prototype using emit_func_signature (handles throwing functions properly)
                         let mut proto = String::new();
-                        emit_func_signature(&til_name(&mangled_name), func_def, &mut proto)?;
+                        emit_func_signature(&til_name(&mangled_name), func_def, context, &mut proto)?;
                         proto.push_str(";\n");
                         ctx.hoisted_prototypes.push(proto);
 
                         // Recursively check for nested functions within this nested function
                         let new_parent = mangled_name.clone();
                         for body_expr in &func_def.body {
-                            collect_nested_func_info(body_expr, ctx, Some(&new_parent))?;
+                            collect_nested_func_info(body_expr, ctx, context, Some(&new_parent))?;
                         }
                     } else {
                         // Top-level function - scan its body for nested functions
                         for body_expr in &func_def.body {
-                            collect_nested_func_info(body_expr, ctx, Some(&decl.name))?;
+                            collect_nested_func_info(body_expr, ctx, context, Some(&decl.name))?;
                         }
                     }
                 }
@@ -2464,34 +2498,34 @@ fn collect_nested_func_info(expr: &Expr, ctx: &mut CodegenContext, parent_func_n
         },
         NodeType::Body => {
             for child in &expr.params {
-                collect_nested_func_info(child, ctx, parent_func_name)?;
+                collect_nested_func_info(child, ctx, context, parent_func_name)?;
             }
         },
         NodeType::If => {
             // Check then and else branches (params[0] = condition, params[1] = then, params[2] = else)
             if expr.params.len() > 1 {
-                collect_nested_func_info(&expr.params[1], ctx, parent_func_name)?;
+                collect_nested_func_info(&expr.params[1], ctx, context, parent_func_name)?;
             }
             if expr.params.len() > 2 {
-                collect_nested_func_info(&expr.params[2], ctx, parent_func_name)?;
+                collect_nested_func_info(&expr.params[2], ctx, context, parent_func_name)?;
             }
         },
         NodeType::While => {
             // Check loop body (params[0] = condition, params[1] = body)
             if expr.params.len() > 1 {
-                collect_nested_func_info(&expr.params[1], ctx, parent_func_name)?;
+                collect_nested_func_info(&expr.params[1], ctx, context, parent_func_name)?;
             }
         },
         NodeType::Switch => {
             // Check all case bodies (params[0] = value, rest are cases)
             for i in 1..expr.params.len() {
-                collect_nested_func_info(&expr.params[i], ctx, parent_func_name)?;
+                collect_nested_func_info(&expr.params[i], ctx, context, parent_func_name)?;
             }
         },
         _ => {
             // Recursively check all params for other node types
             for child in &expr.params {
-                collect_nested_func_info(child, ctx, parent_func_name)?;
+                collect_nested_func_info(child, ctx, context, parent_func_name)?;
             }
         }
     }
@@ -2890,7 +2924,7 @@ fn emit_enum_to_str_for_declaration(
 }
 
 // Emit struct function prototypes for all functions in a struct
-fn emit_struct_func_prototypes(expr: &Expr, output: &mut String) -> Result<(), String> {
+fn emit_struct_func_prototypes(expr: &Expr, context: &Context, output: &mut String) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
@@ -2900,7 +2934,7 @@ fn emit_struct_func_prototypes(expr: &Expr, output: &mut String) -> Result<(), S
                     if let Some(func_expr) = struct_def.default_values.get(&member.name) {
                         if let NodeType::FuncDef(func_def) = &func_expr.node_type {
                             let mangled_name = format!("{}_{}", struct_name, member.name);
-                            emit_func_signature(&mangled_name, func_def, output)?;
+                            emit_func_signature(&mangled_name, func_def, context, output)?;
                             output.push_str(";\n");
                         }
                     }
@@ -2969,7 +3003,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     ctx.current_function_name = mangled_name.clone();
     ctx.mangling_counter = 0;
 
-    emit_func_signature(&mangled_name, func_def, output)?;
+    emit_func_signature(&mangled_name, func_def, context, output)?;
     output.push_str(" {\n");
 
     // Emit function body with catch pattern detection
@@ -3049,7 +3083,8 @@ fn value_type_to_c_name(vt: &ValueType) -> Result<String, String> {
 //   int func_name(RetType* _ret, Error1* _err1, Error2* _err2, args...)
 // For non-throwing:
 //   RetType func_name(args...)
-fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String) -> Result<(), String> {
+// Issue #119: Empty struct errors don't get error parameters - only status code matters
+fn emit_func_signature(func_name: &str, func_def: &SFuncDef, context: &Context, output: &mut String) -> Result<(), String> {
     let is_throwing = !func_def.throw_types.is_empty();
 
     if is_throwing {
@@ -3081,6 +3116,10 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
         }
 
         for (i, throw_type) in func_def.throw_types.iter().enumerate() {
+            // Issue #119: Skip empty struct errors - only status code matters
+            if is_empty_error_struct(context, throw_type) {
+                continue;
+            }
             if param_count > 0 {
                 output.push_str(", ");
             }
@@ -3156,7 +3195,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
 }
 
 // Emit a function prototype (forward declaration)
-fn emit_func_prototype(expr: &Expr, output: &mut String) -> Result<(), String> {
+fn emit_func_prototype(expr: &Expr, context: &Context, output: &mut String) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::FuncDef(func_def) = &expr.params[0].node_type {
@@ -3166,7 +3205,7 @@ fn emit_func_prototype(expr: &Expr, output: &mut String) -> Result<(), String> {
                 }
 
                 let func_name = til_name(&decl.name);
-                emit_func_signature(&func_name, func_def, output)?;
+                emit_func_signature(&func_name, func_def, context, output)?;
                 output.push_str(";\n");
                 return Ok(());
             }
@@ -3254,7 +3293,7 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 ctx.current_function_name = decl.name.clone();
                 ctx.mangling_counter = 0;  // Reset counter per-function for determinism
 
-                emit_func_signature(&func_name, func_def, output)?;
+                emit_func_signature(&func_name, func_def, context, output)?;
                 output.push_str(" {\n");
 
                 // Emit function body with catch pattern detection
@@ -4075,9 +4114,11 @@ fn emit_throwing_call(
         }
     }
 
-    // Declare error structs for each throw type
-    // Check if struct is empty to avoid {0} warning
+    // Declare error structs for each throw type (Issue #119: skip empty struct errors)
     for (idx, throw_type) in throw_types.iter().enumerate() {
+        if is_empty_error_struct(context, throw_type) {
+            continue;
+        }
         if let crate::rs::parser::ValueType::TCustom(type_name) = throw_type {
             output.push_str(&indent_str);
             output.push_str(&til_name(type_name));
@@ -4113,22 +4154,27 @@ fn emit_throwing_call(
         output.push_str(&temp_suffix.to_string());
     }
 
-    // Then: error pointers
-    for idx in 0..throw_types.len() {
-        if needs_ret || idx > 0 {
+    // Then: error pointers (Issue #119: skip empty struct errors)
+    let mut has_emitted_params = needs_ret;
+    for (idx, throw_type) in throw_types.iter().enumerate() {
+        if is_empty_error_struct(context, throw_type) {
+            continue;
+        }
+        if has_emitted_params {
             output.push_str(", ");
         }
         output.push_str("&_err");
         output.push_str(&idx.to_string());
         output.push_str("_");
         output.push_str(&temp_suffix.to_string());
+        has_emitted_params = true;
     }
 
     // Emit arguments - handle variadic separately from regular args
     if let Some(ref vi) = variadic_info {
         // Variadic call: emit regular args first, then variadic array pointer
         for (vi_arg_idx, vi_arg) in fcall.params.iter().skip(1).take(vi.regular_count).enumerate() {
-            if needs_ret || !throw_types.is_empty() || vi_arg_idx > 0 {
+            if has_emitted_params || vi_arg_idx > 0 {
                 output.push_str(", ");
             }
             let vi_param_type = param_types.get(vi_arg_idx).and_then(|p| p.as_ref());
@@ -4138,7 +4184,7 @@ fn emit_throwing_call(
 
         // Emit variadic array pointer
         if let Some(ref arr_var) = variadic_arr_var {
-            if needs_ret || !throw_types.is_empty() || vi.regular_count > 0 {
+            if has_emitted_params || vi.regular_count > 0 {
                 output.push_str(", ");
             }
             output.push_str("&");
@@ -4148,7 +4194,7 @@ fn emit_throwing_call(
         // Non-variadic: emit all args directly
         let mut nv_args_started = false;
         for (nv_arg_idx, nv_arg) in fcall.params.iter().skip(1).enumerate() {
-            if needs_ret || !throw_types.is_empty() || nv_args_started {
+            if has_emitted_params || nv_args_started {
                 output.push_str(", ");
             }
             // Get parameter type and mutability for this argument
@@ -4241,11 +4287,17 @@ fn emit_throwing_call(
                         output.push_str(&til_name(err_type_name));
                         output.push_str(" ");
                         output.push_str(&til_name(err_var_name));
-                        output.push_str(" = _err");
-                        output.push_str(&idx.to_string());
-                        output.push_str("_");
-                        output.push_str(&temp_suffix.to_string());
-                        output.push_str(";\n");
+                        // Issue #119: For empty struct errors, use empty initializer since _err var doesn't exist
+                        let throw_type = &throw_types[idx];
+                        if is_empty_error_struct(context, throw_type) {
+                            output.push_str(" = {};\n");
+                        } else {
+                            output.push_str(" = _err");
+                            output.push_str(&idx.to_string());
+                            output.push_str("_");
+                            output.push_str(&temp_suffix.to_string());
+                            output.push_str(";\n");
+                        }
 
                         // Add error variable to scope for type resolution in catch body
                         context.scope_stack.declare_symbol(
@@ -4390,7 +4442,11 @@ fn emit_throwing_call_propagate(
     }
 
     // Declare error structs for each throw type of the called function
+    // Issue #119: Skip empty struct errors - only status code matters
     for (idx, throw_type) in throw_types.iter().enumerate() {
+        if is_empty_error_struct(context, throw_type) {
+            continue;
+        }
         if let crate::rs::parser::ValueType::TCustom(type_name) = throw_type {
             output.push_str(&indent_str);
             output.push_str(&til_name(type_name));
@@ -4425,22 +4481,27 @@ fn emit_throwing_call_propagate(
         output.push_str(&temp_suffix);
     }
 
-    // Then: error pointers
-    for idx in 0..throw_types.len() {
-        if needs_ret || idx > 0 {
+    // Then: error pointers (Issue #119: skip empty struct errors)
+    let mut has_emitted_params = needs_ret;
+    for (idx, throw_type) in throw_types.iter().enumerate() {
+        if is_empty_error_struct(context, throw_type) {
+            continue;
+        }
+        if has_emitted_params {
             output.push_str(", ");
         }
         output.push_str("&_err");
         output.push_str(&idx.to_string());
         output.push_str("_");
         output.push_str(&temp_suffix);
+        has_emitted_params = true;
     }
 
     // Emit arguments - handle variadic separately from regular args
     if let Some(ref vi) = variadic_info {
         // Variadic call: emit regular args first, then variadic array pointer
         for (arg_idx, arg) in fcall.params.iter().skip(1).take(vi.regular_count).enumerate() {
-            if needs_ret || !throw_types.is_empty() || arg_idx > 0 {
+            if has_emitted_params || arg_idx > 0 {
                 output.push_str(", ");
             }
             let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
@@ -4450,7 +4511,7 @@ fn emit_throwing_call_propagate(
 
         // Emit variadic array pointer
         if let Some(ref arr_var) = variadic_arr_var {
-            if needs_ret || !throw_types.is_empty() || vi.regular_count > 0 {
+            if has_emitted_params || vi.regular_count > 0 {
                 output.push_str(", ");
             }
             output.push_str("&");
@@ -4460,7 +4521,7 @@ fn emit_throwing_call_propagate(
         // Non-variadic: emit all args directly
         let mut args_started = false;
         for (arg_idx, arg) in fcall.params.iter().skip(1).enumerate() {
-            if needs_ret || !throw_types.is_empty() || args_started {
+            if has_emitted_params || args_started {
                 output.push_str(", ");
             }
             // Get parameter type and mutability for this argument
@@ -4489,18 +4550,24 @@ fn emit_throwing_call_propagate(
             }
 
             if let Some(cur_idx) = current_idx {
+                // Issue #119: For empty struct errors, don't copy - just return status
+                let is_empty = is_empty_error_struct(context, called_throw_type);
                 output.push_str(&indent_str);
                 output.push_str("if (_status_");
                 output.push_str(&temp_suffix);
                 output.push_str(" == ");
                 output.push_str(&(called_idx + 1).to_string());
-                output.push_str(") { *_err");
-                output.push_str(&(cur_idx + 1).to_string());
-                output.push_str(" = _err");
-                output.push_str(&called_idx.to_string());
-                output.push_str("_");
-                output.push_str(&temp_suffix);
-                output.push_str("; return ");
+                output.push_str(") { ");
+                if !is_empty {
+                    output.push_str("*_err");
+                    output.push_str(&(cur_idx + 1).to_string());
+                    output.push_str(" = _err");
+                    output.push_str(&called_idx.to_string());
+                    output.push_str("_");
+                    output.push_str(&temp_suffix);
+                    output.push_str("; ");
+                }
+                output.push_str("return ");
                 output.push_str(&(cur_idx + 1).to_string());
                 output.push_str("; }\n");
             }
@@ -4661,7 +4728,11 @@ fn emit_throwing_call_with_goto(
     }
 
     // Declare error structs for each throw type of the called function
+    // Issue #119: Skip empty struct errors - only status code matters
     for (idx, throw_type) in throw_types.iter().enumerate() {
+        if is_empty_error_struct(context, throw_type) {
+            continue;
+        }
         if let crate::rs::parser::ValueType::TCustom(type_name) = throw_type {
             output.push_str(&indent_str);
             output.push_str(&til_name(type_name));
@@ -4696,15 +4767,20 @@ fn emit_throwing_call_with_goto(
         output.push_str(&temp_suffix);
     }
 
-    // Then: error pointers
-    for idx in 0..throw_types.len() {
-        if needs_ret || idx > 0 {
+    // Then: error pointers (Issue #119: skip empty struct errors)
+    let mut has_emitted_params = needs_ret;
+    for (idx, throw_type) in throw_types.iter().enumerate() {
+        if is_empty_error_struct(context, throw_type) {
+            continue;
+        }
+        if has_emitted_params {
             output.push_str(", ");
         }
         output.push_str("&_err");
         output.push_str(&idx.to_string());
         output.push_str("_");
         output.push_str(&temp_suffix);
+        has_emitted_params = true;
     }
 
     // Emit arguments
@@ -4714,7 +4790,7 @@ fn emit_throwing_call_with_goto(
         if arg_idx >= regular_arg_count {
             break;
         }
-        if needs_ret || !throw_types.is_empty() || args_started {
+        if has_emitted_params || args_started {
             output.push_str(", ");
         }
         let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
@@ -4725,7 +4801,7 @@ fn emit_throwing_call_with_goto(
 
     // Add variadic array if present
     if let Some(arr_var) = &variadic_arr_var {
-        if needs_ret || !throw_types.is_empty() || args_started {
+        if has_emitted_params || args_started {
             output.push_str(", ");
         }
         output.push_str("&");
@@ -4738,21 +4814,26 @@ fn emit_throwing_call_with_goto(
     // For each error type, emit a check that either jumps to local catch or propagates
     for (err_idx, throw_type) in throw_types.iter().enumerate() {
         if let crate::rs::parser::ValueType::TCustom(type_name) = throw_type {
+            let is_empty = is_empty_error_struct(context, throw_type);
             // Check if there's a local catch for this error type
             if let Some(catch_info) = ctx.local_catch_labels.get(type_name) {
-                // Jump to local catch: copy error to temp var, then goto label
+                // Jump to local catch: copy error to temp var (if not empty), then goto label
                 output.push_str(&indent_str);
                 output.push_str("if (_status_");
                 output.push_str(&temp_suffix);
                 output.push_str(" == ");
                 output.push_str(&(err_idx + 1).to_string());
                 output.push_str(") { ");
-                output.push_str(&catch_info.temp_var);
-                output.push_str(" = _err");
-                output.push_str(&err_idx.to_string());
-                output.push_str("_");
-                output.push_str(&temp_suffix);
-                output.push_str("; goto ");
+                // Issue #119: Skip copy for empty struct errors
+                if !is_empty {
+                    output.push_str(&catch_info.temp_var);
+                    output.push_str(" = _err");
+                    output.push_str(&err_idx.to_string());
+                    output.push_str("_");
+                    output.push_str(&temp_suffix);
+                    output.push_str("; ");
+                }
+                output.push_str("goto ");
                 output.push_str(&catch_info.label);
                 output.push_str("; }\n");
             } else {
@@ -4767,21 +4848,26 @@ fn emit_throwing_call_with_goto(
                     }
                 }
                 if let Some(prop_idx) = prop_idx {
-                // Propagate to caller: copy error to output param and return
-                output.push_str(&indent_str);
-                output.push_str("if (_status_");
-                output.push_str(&temp_suffix);
-                output.push_str(" == ");
-                output.push_str(&(err_idx + 1).to_string());
-                output.push_str(") { *_err");
-                output.push_str(&(prop_idx + 1).to_string());
-                output.push_str(" = _err");
-                output.push_str(&err_idx.to_string());
-                output.push_str("_");
-                output.push_str(&temp_suffix);
-                output.push_str("; return ");
-                output.push_str(&(prop_idx + 1).to_string());
-                output.push_str("; }\n");
+                    // Propagate to caller: copy error to output param (if not empty) and return
+                    output.push_str(&indent_str);
+                    output.push_str("if (_status_");
+                    output.push_str(&temp_suffix);
+                    output.push_str(" == ");
+                    output.push_str(&(err_idx + 1).to_string());
+                    output.push_str(") { ");
+                    // Issue #119: Skip copy for empty struct errors
+                    if !is_empty {
+                        output.push_str("*_err");
+                        output.push_str(&(prop_idx + 1).to_string());
+                        output.push_str(" = _err");
+                        output.push_str(&err_idx.to_string());
+                        output.push_str("_");
+                        output.push_str(&temp_suffix);
+                        output.push_str("; ");
+                    }
+                    output.push_str("return ");
+                    output.push_str(&(prop_idx + 1).to_string());
+                    output.push_str("; }\n");
                 }
             }
         }
@@ -4849,7 +4935,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
                 // Generate the hoisted function prototype
                 let mut proto_output = String::new();
-                emit_func_signature(&til_name(&mangled_name), func_def, &mut proto_output)?;
+                emit_func_signature(&til_name(&mangled_name), func_def, context, &mut proto_output)?;
                 proto_output.push_str(";\n");
                 ctx.hoisted_prototypes.push(proto_output);
 
@@ -4906,7 +4992,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 context.scope_stack.frames.push(function_frame);
 
                 // Emit the function
-                emit_func_signature(&til_name(&mangled_name), func_def, &mut func_output)?;
+                emit_func_signature(&til_name(&mangled_name), func_def, context, &mut func_output)?;
                 func_output.push_str(" {\n");
                 emit_stmts(&func_def.body, &mut func_output, 1, ctx, context)?;
                 if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
@@ -5591,10 +5677,14 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
         match error_index {
             Some(idx) => {
-                output.push_str(&indent_str);
-                output.push_str(&format!("*_err{} = ", idx + 1));
-                output.push_str(&hoisted_temp);
-                output.push_str(";\n");
+                // Issue #119: Skip assigning empty struct errors
+                let nh_err_type = &ctx.current_throw_types[idx];
+                if !is_empty_error_struct(context, nh_err_type) {
+                    output.push_str(&indent_str);
+                    output.push_str(&format!("*_err{} = ", idx + 1));
+                    output.push_str(&hoisted_temp);
+                    output.push_str(";\n");
+                }
                 output.push_str(&indent_str);
                 output.push_str(&format!("return {};\n", idx + 1));
                 return Ok(());
@@ -5668,6 +5758,23 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     if let Some(nh_catch_info) = ctx.local_catch_labels.get(&nh_thrown_type_name) {
         let nh_label = nh_catch_info.label.clone();
         let nh_temp_var = nh_catch_info.temp_var.clone();
+
+        // Issue #119: Check if this is an empty struct error
+        let is_empty_local_err = if let Some(struct_def) = context.scope_stack.lookup_struct(&nh_thrown_type_name) {
+            struct_def.members.is_empty()
+        } else {
+            false
+        };
+
+        // Issue #119: Skip storing value for empty struct errors - just goto
+        if is_empty_local_err {
+            output.push_str(&indent_str);
+            output.push_str("goto ");
+            output.push_str(&nh_label);
+            output.push_str(";\n");
+            return Ok(());
+        }
+
         // Hoist any throwing function calls in the thrown expression
         let nh_hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall(_) = &thrown_expr.node_type {
             if thrown_expr.params.len() > 1 {
@@ -5716,13 +5823,22 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     match nh_error_index {
         Some(idx) => {
+            // Issue #119: Check if this is an empty struct error
+            let nh_prop_err_type = &ctx.current_throw_types[idx];
+            let is_empty_err = is_empty_error_struct(context, nh_prop_err_type);
+
             // Hoist throwing function calls from arguments of the thrown expression
             // E.g., throw Error.new(format(...)) needs to hoist format() first
-            let nh_prop_hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall(_) = &thrown_expr.node_type {
-                if thrown_expr.params.len() > 1 {
-                    let nh_prop_args = &thrown_expr.params[1..];
-                    let nh_prop_hoisted_vec = hoist_throwing_args(nh_prop_args, output, indent, ctx, context)?;
-                    nh_prop_hoisted_vec.into_iter().map(|nh_prop_h| (nh_prop_h.index, nh_prop_h.temp_var)).collect()
+            // (Skip if empty struct - no need to hoist anything)
+            let nh_prop_hoisted: std::collections::HashMap<usize, String> = if !is_empty_err {
+                if let NodeType::FCall(_) = &thrown_expr.node_type {
+                    if thrown_expr.params.len() > 1 {
+                        let nh_prop_args = &thrown_expr.params[1..];
+                        let nh_prop_hoisted_vec = hoist_throwing_args(nh_prop_args, output, indent, ctx, context)?;
+                        nh_prop_hoisted_vec.into_iter().map(|nh_prop_h| (nh_prop_h.index, nh_prop_h.temp_var)).collect()
+                    } else {
+                        std::collections::HashMap::new()
+                    }
                 } else {
                     std::collections::HashMap::new()
                 }
@@ -5730,18 +5846,21 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 std::collections::HashMap::new()
             };
 
-            // Store the error value in the appropriate error pointer
-            // Note: error params are 1-based (_err1, _err2, etc.)
-            output.push_str(&indent_str);
-            output.push_str(&format!("*_err{} = ", idx + 1));
+            // Issue #119: Skip storing error value for empty struct errors
+            if !is_empty_err {
+                // Store the error value in the appropriate error pointer
+                // Note: error params are 1-based (_err1, _err2, etc.)
+                output.push_str(&indent_str);
+                output.push_str(&format!("*_err{} = ", idx + 1));
 
-            // Emit the thrown expression, using hoisted temp vars for arguments
-            if let NodeType::FCall(_) = &thrown_expr.node_type {
-                emit_fcall_with_hoisted(thrown_expr, &nh_prop_hoisted, output, ctx, context)?;
-            } else {
-                emit_expr(thrown_expr, output, 0, ctx, context)?;
+                // Emit the thrown expression, using hoisted temp vars for arguments
+                if let NodeType::FCall(_) = &thrown_expr.node_type {
+                    emit_fcall_with_hoisted(thrown_expr, &nh_prop_hoisted, output, ctx, context)?;
+                } else {
+                    emit_expr(thrown_expr, output, 0, ctx, context)?;
+                }
+                output.push_str(";\n");
             }
-            output.push_str(";\n");
 
             // Return the error index (1-based, since 0 = success)
             output.push_str(&indent_str);
