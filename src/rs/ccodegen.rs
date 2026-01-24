@@ -1115,6 +1115,36 @@ fn hoist_for_dynamic_params(
                     } else {
                         Err(arg.lang_error(&context.path, "ccodegen", &format!("Symbol not found: {}", var_name)))
                     }
+                } else if let NodeType::FCall(_) = &first_param.node_type {
+                    // Field access on FCall result: expr.field where expr is a function call
+                    // Pattern: Identifier("_").params = [FCall(...), Identifier("field_name")]
+                    // Get the return type of the FCall, then look up the field
+                    let mut found_type: Option<ValueType> = None;
+                    if arg.params.len() >= 2 {
+                        if let NodeType::Identifier(field_name) = &arg.params[1].node_type {
+                            // Get the FCall's return type
+                            if let Some(fd) = get_fcall_func_def(context, first_param) {
+                                if let Some(ret_type) = fd.return_types.first() {
+                                    if let ValueType::TCustom(struct_name) = ret_type {
+                                        // Look up the field in the return type
+                                        if let Some(struct_def) = context.scope_stack.lookup_struct(struct_name) {
+                                            for m in &struct_def.members {
+                                                if &m.name == field_name {
+                                                    found_type = Some(m.value_type.clone());
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(vt) = found_type {
+                        til_type_to_c(&vt).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
+                    } else {
+                        Err(arg.lang_error(&context.path, "ccodegen", "Cannot determine type for field access on FCall result"))
+                    }
                 } else {
                     Err(arg.lang_error(&context.path, "ccodegen", "Expected identifier for field/variant"))
                 }

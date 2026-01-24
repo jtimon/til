@@ -4,6 +4,8 @@ import("self.init")
 import("self.parser")
 
 // Desugarer phase: Desugars ForIn loops to while loops with get() calls.
+// Note: Switch desugaring is implemented in Rust (desugarer.rs) but not yet ported to TIL.
+// The TIL version passes switches through unchanged, using existing ccodegen/interpreter handling.
 // This phase runs after typer, before precomp.
 
 /// Build a default value expression for a given ValueType.
@@ -311,6 +313,16 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // ForIn desugaring: for VAR: TYPE in COLLECTION { body } -> while loop
     case NodeType.ForIn(var_type_name):
         return desugar_forin(context, e, var_type_name)?
+    // Switch: Just recurse into children, don't desugar
+    // Full switch desugaring is in Rust version; TIL uses existing ccodegen/interpreter handling
+    case NodeType.Switch:
+        mut switch_params := Vec.new(Expr)
+        for sw_i in 0..e.params.len() {
+            mut sw_p := Expr()
+            e.params.get(sw_i, sw_p)?
+            switch_params.push(desugar_expr(context, sw_p)?)
+        }
+        return Expr.new_explicit(NodeType.Switch, switch_params, e.line, e.col)
     // Recurse into FuncDef bodies
     case NodeType.FuncDef(func_def):
         // Bug #130 fix: Reset counter per-function for deterministic output
