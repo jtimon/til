@@ -1112,6 +1112,23 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
                 // TODO allow not setting default values in struct members
                 throw t.error(lexer.path, "all declarations inside struct definitions must have a value for now")
             }
+        case NodeType.Assignment(name):
+            // Handle const := value inside structs (methods like eq := func(...))
+            if p.params.len().eq(1) {
+                mut assign_val := Expr()
+                p.params.get(0, assign_val)?
+                // Create a Declaration for the method
+                mut assign_decl := Declaration()
+                assign_decl.name = name.clone()
+                assign_decl.value_type = ValueType.TCustom(INFER_TYPE)
+                assign_decl.is_mut = false
+                assign_decl.is_copy = false
+                assign_decl.is_own = false
+                members.push(assign_decl.clone())
+                default_values.set(name.clone(), assign_val.clone())
+            } else {
+                throw t.error(lexer.path, format("struct assignment '", name, "' must have exactly one value"))
+            }
         case:
             throw t.error(lexer.path, "expected only declarations inside struct definition")
         }

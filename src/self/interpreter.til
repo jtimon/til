@@ -749,7 +749,78 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                 if result_case.is_throw {
                     return result_case
                 }
-                is_match = result_to_switch.value.eq(result_case.value)
+                // Bug #136: For struct types, use eq() method instead of string comparison
+                // Skip primitive types whose values are literals, not instance names:
+                // - Str: values are string content
+                // - I64, U8: values are numbers
+                // - Bool: values are true/false
+                // These types have struct wrappers for methods, but switch comparison uses value equality
+                switch value_type {
+                case ValueType.TCustom(type_name):
+                    // Check if this is a non-primitive struct type
+                    is_primitive := type_name.eq("Str").or(type_name.eq("I64")).or(type_name.eq("U8")).or(type_name.eq("Bool"))
+                    mut is_struct := false
+                    if not(is_primitive) {
+                        _struct_def := context.scope_stack.lookup_struct(type_name)?
+                        is_struct = true
+                        catch (err: KeyNotFoundError) {
+                            // Not a struct
+                        }
+                    }
+                    if is_struct {
+                        // Check if the struct has an eq() method
+                        eq_method_name := format(type_name, ".eq")
+                        mut method_found := false
+                        _func_def := context.scope_stack.lookup_func(eq_method_name)?
+                        method_found = true
+                        catch (err: KeyNotFoundError) {
+                            // Method not found
+                        }
+                        if method_found {
+                            // Construct FCall for StructName.eq(switch_val, case_val)
+                            method_id := Expr.new_explicit(
+                                NodeType.Identifier(eq_method_name),
+                                Vec.new(Expr),
+                                e.line,
+                                e.col
+                            )
+                            switch_val_id := Expr.new_explicit(
+                                NodeType.Identifier(result_to_switch.value),
+                                Vec.new(Expr),
+                                e.line,
+                                e.col
+                            )
+                            case_val_id := Expr.new_explicit(
+                                NodeType.Identifier(result_case.value),
+                                Vec.new(Expr),
+                                e.line,
+                                e.col
+                            )
+                            mut params := Vec.new(Expr)
+                            params.push(method_id)
+                            params.push(switch_val_id)
+                            params.push(case_val_id)
+                            eq_call := Expr.new_explicit(
+                                NodeType.FCall(false),
+                                params,
+                                e.line,
+                                e.col
+                            )
+                            eq_result := eval_expr(context, eq_call)?
+                            if eq_result.is_throw {
+                                return eq_result
+                            }
+                            is_match = eval_condition_to_bool(context, eq_result, case_expr)?
+                        } else {
+                            throw case_expr.error(context.path, "eval", format("Struct '", type_name, "' requires eq() method for switch comparison"))
+                        }
+                    } else {
+                        // Not a struct, use default comparison
+                        is_match = result_to_switch.value.eq(result_case.value)
+                    }
+                case:
+                    is_match = result_to_switch.value.eq(result_case.value)
+                }
             }
 
             param_it.inc()

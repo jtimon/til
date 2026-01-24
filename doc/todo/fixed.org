@@ -7,6 +7,45 @@
 
 * Fixed Bugs
 
+** Bug #136: Switch on structs compares instance names, not values
+:PROPERTIES:
+:DISCOVERED: 2026-01-23
+:FIXED: 2026-01-24
+:IMPACT: Switch on struct values silently fails to match
+:STATUS: Fixed
+:END:
+
+*** Description
+Switch statements on struct types don't work correctly. The interpreter compares
+instance names (like "p1" vs "__return_instance_0") instead of actual struct values.
+
+*** Root Cause
+In interpreter.rs, switch comparison uses ~result_to_switch.value == result_case.value~.
+For structs, variable ~p~ evaluates to its name "p", while literal ~Point(x=5)~ evaluates
+to temp name "__return_instance_N". These strings never match.
+
+*** Fix
+Modified switch comparison in both interpreters AND both codegens to detect struct
+types and call their ~eq()~ method instead of comparing instance names:
+- Skip primitive types (I64, U8, Bool, Str) whose values are literals, not instance names
+- For non-primitive struct types, look up and call TypeName.eq(switch_val, case_val)
+- If struct lacks eq() method, emit error: "Struct X requires eq() method for switch"
+- Ccodegen emits ~til_TypeName_eq(&switch_var, &case_val).data~ for struct comparisons
+
+Also completed porting Issue #119 (skip empty struct error parameters) to ccodegen.til
+which was discovered as incomplete during testing.
+
+*** Files Changed
+- src/rs/interpreter.rs: Added struct eq() call in switch handling
+- src/self/interpreter.til: Same change for self-hosted interpreter
+- src/rs/ccodegen.rs: Added struct eq() call generation in switch handling
+- src/self/ccodegen.til: Same change + completed Issue #119 porting
+- src/rs/parser.rs: Handle Assignment nodes (name := func) inside struct definitions
+- src/self/parser.til: Same change
+- src/rs/scavenger.rs: Mark eq() methods as reachable when struct type is used
+- src/self/scavenger.til: Same change
+- src/test/flow.til: Added test_switch_struct_eq test
+
 ** Bug #123: UFCS method calls fail on recursive nested function results
 :PROPERTIES:
 :DISCOVERED: 2026-01-16
@@ -3805,6 +3844,17 @@ return status code matters (0 = success, 1+ = error type index).
 - src/rs/ccodegen.rs: Added empty struct error handling throughout
 - src/self/ccodegen.til: Ported same changes
 - src/ext.c: Removed unused error parameter from til_malloc
+
+*** Incomplete Port Note (discovered during Bug #136)
+The initial port to ccodegen.til was incomplete - it was missing the "skip copying
+empty struct errors" checks in many places. The Rust version (ccodegen.rs) had about
+20 locations with Issue #119 checks, but ccodegen.til only had a few. During Bug #136
+work, we discovered the gap when til_compiled tests failed with wrong argument counts
+to til_malloc. The remaining ~8 locations were added to ccodegen.til:
+- Local catch error copying (goto blocks)
+- Error propagation copying (return blocks)
+- Throw statement error assignments
+- Catch body error variable bindings
 
 ** Issue #132: Mandatory ? for calls to throwing functions [DONE]
 :PROPERTIES:

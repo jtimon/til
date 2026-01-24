@@ -300,3 +300,49 @@ test_break_after_statements := proc() {
     assert_eq(loc(), 6, b)
 }
 test_break_after_statements()
+
+// Bug #136: switch on structs should use eq() method for comparison
+Point136 := struct {
+    mut x: I64 = 0
+    mut y: I64 = 0
+
+    eq := func(a: Point136, b: Point136) returns Bool {
+        return a.x.eq(b.x).and(a.y.eq(b.y))
+    }
+}
+
+test_switch_struct_eq := proc() {
+    p := Point136(x=5, y=10)
+
+    // Test matching case
+    mut matched := false
+    switch p {
+    case Point136(x=5, y=10):
+        matched = true
+    case:
+        matched = false
+    }
+    test(loc(), matched, "switch should match struct via eq()")
+
+    // Test non-matching case
+    mut fell_through := false
+    switch p {
+    case Point136(x=1, y=2):
+        fell_through = false
+    case:
+        fell_through = true
+    }
+    test(loc(), fell_through, "switch should fall through when struct doesn't match")
+
+    // Test variable vs literal
+    _other := Point136(x=5, y=10)
+    mut var_matched := false
+    switch p {
+    case _other:
+        var_matched = true
+    case:
+        var_matched = false
+    }
+    test(loc(), var_matched, "switch should match struct variable via eq()")
+}
+test_switch_struct_eq()

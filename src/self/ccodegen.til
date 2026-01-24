@@ -591,11 +591,14 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
             output.push_str(temp_var)
             output.push_str(";\n")
 
-            // Declare error variables for each throw type
+            // Declare error variables for each throw type (Issue #119: skip empty struct errors)
             temp_suffix := next_mangled(ctx)
             for decl_err_idx in 0..throwing_fd.throw_types.len() {
                 mut decl_throw_type := ValueType.TCustom(INFER_TYPE)
                 throwing_fd.throw_types.get(decl_err_idx, decl_throw_type)?
+                if is_empty_error_struct(context, decl_throw_type) {
+                    continue
+                }
                 switch decl_throw_type {
                 case ValueType.TCustom(type_name):
                     output.push_str(indent_str)
@@ -677,12 +680,16 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
                             output.push_str(" == ")
                             output.push_str(add(local_err_idx, 1).to_str())
                             output.push_str(") { ")
-                            output.push_str(catch_info.temp_var)
-                            output.push_str(" = _err")
-                            output.push_str(local_err_idx.to_str())
-                            output.push_str("_")
-                            output.push_str(temp_suffix)
-                            output.push_str("; goto ")
+                            // Issue #119: Skip copying empty struct errors
+                            if not(is_empty_error_struct(context, local_throw_type)) {
+                                output.push_str(catch_info.temp_var)
+                                output.push_str(" = _err")
+                                output.push_str(local_err_idx.to_str())
+                                output.push_str("_")
+                                output.push_str(temp_suffix)
+                                output.push_str("; ")
+                            }
+                            output.push_str("goto ")
                             output.push_str(catch_info.label)
                             output.push_str("; }\n")
                         }
@@ -712,13 +719,18 @@ hoist_throwing_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: C
                                     output.push_str(temp_suffix)
                                     output.push_str(" == ")
                                     output.push_str(add(prop_err_idx, 1).to_str())
-                                    output.push_str(") { *_err")
-                                    output.push_str(add(curr_idx, 1).to_str())
-                                    output.push_str(" = _err")
-                                    output.push_str(prop_err_idx.to_str())
-                                    output.push_str("_")
-                                    output.push_str(temp_suffix)
-                                    output.push_str("; return ")
+                                    output.push_str(") { ")
+                                    // Issue #119: Skip copying empty struct errors
+                                    if not(is_empty_error_struct(context, prop_throw_type)) {
+                                        output.push_str("*_err")
+                                        output.push_str(add(curr_idx, 1).to_str())
+                                        output.push_str(" = _err")
+                                        output.push_str(prop_err_idx.to_str())
+                                        output.push_str("_")
+                                        output.push_str(temp_suffix)
+                                        output.push_str("; ")
+                                    }
+                                    output.push_str("return ")
                                     output.push_str(add(curr_idx, 1).to_str())
                                     output.push_str("; }\n")
                                     break
@@ -1065,11 +1077,14 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             output.push_str(thr_temp_var)
             output.push_str(";\n")
 
-            // Declare error variables for each throw type
+            // Declare error variables for each throw type (Issue #119: skip empty struct errors)
             thr_temp_suffix := next_mangled(ctx)
             for thr_decl_err_idx in 0..thr_fd.throw_types.len() {
                 mut thr_decl_throw_type := ValueType.TCustom(INFER_TYPE)
                 thr_fd.throw_types.get(thr_decl_err_idx, thr_decl_throw_type)?
+                if is_empty_error_struct(context, thr_decl_throw_type) {
+                    continue
+                }
                 switch thr_decl_throw_type {
                 case ValueType.TCustom(type_name):
                     output.push_str(indent_str)
@@ -1145,13 +1160,18 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                                 output.push_str(thr_temp_suffix)
                                 output.push_str(" == ")
                                 output.push_str(add(thr_prop_err_idx, 1).to_str())
-                                output.push_str(") { *_err")
-                                output.push_str(add(thr_curr_idx, 1).to_str())
-                                output.push_str(" = _err")
-                                output.push_str(thr_prop_err_idx.to_str())
-                                output.push_str("_")
-                                output.push_str(thr_temp_suffix)
-                                output.push_str("; return ")
+                                output.push_str(") { ")
+                                // Issue #119: Skip copying empty struct errors
+                                if not(is_empty_error_struct(context, thr_prop_throw_type)) {
+                                    output.push_str("*_err")
+                                    output.push_str(add(thr_curr_idx, 1).to_str())
+                                    output.push_str(" = _err")
+                                    output.push_str(thr_prop_err_idx.to_str())
+                                    output.push_str("_")
+                                    output.push_str(thr_temp_suffix)
+                                    output.push_str("; ")
+                                }
+                                output.push_str("return ")
                                 output.push_str(add(thr_curr_idx, 1).to_str())
                                 output.push_str("; }\n")
                                 break
@@ -1998,13 +2018,17 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
     output.push_str("(&")
     output.push_str(temp_var)
 
-    // Add error output pointers
+    // Add error output pointers (Issue #119: skip empty struct errors)
     mut idx := 0
     while idx.lt(throw_types.len()) {
-        output.push_str(", &_err")
-        output.push_str(idx.to_str())
-        output.push_str("_")
-        output.push_str(temp_suffix)
+        mut throw_type := ValueType.TCustom(INFER_TYPE)
+        throw_types.get(idx, throw_type)?
+        if not(is_empty_error_struct(context, throw_type)) {
+            output.push_str(", &_err")
+            output.push_str(idx.to_str())
+            output.push_str("_")
+            output.push_str(temp_suffix)
+        }
         idx.inc()
     }
 
@@ -3448,7 +3472,7 @@ emit_size_of_function := proc(mut output: Str, ctx: CodegenContext) {
 
     // All known types from structs and enums
     for type_name: Str in ctx.known_types {
-        output.push_str("    if (strcmp((char*)type_name->c_string, \"")
+        output.push_str("    if (strcmp((char*)type_name->c_string.data, \"")
         output.push_str(type_name)
         output.push_str("\") == 0) return ")
         output.push_str(TIL_PREFIX)
@@ -3457,7 +3481,7 @@ emit_size_of_function := proc(mut output: Str, ctx: CodegenContext) {
         output.push_str(";\n")
     }
 
-    output.push_str("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name->c_string);\n")
+    output.push_str("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name->c_string.data);\n")
     output.push_str("    exit(1);\n")
     output.push_str("}\n")
 }
@@ -5245,10 +5269,13 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         catch (err: IndexOutOfBoundsError) { }
     }
 
-    // Declare error structs for each throw type
+    // Declare error structs for each throw type (Issue #119: skip empty struct errors)
     for idx in 0..throw_types.len() {
         mut throw_type := ValueType.TCustom(INFER_TYPE)
         throw_types.get(idx, throw_type)?
+        if is_empty_error_struct(context, throw_type) {
+            continue
+        }
         switch throw_type {
         case ValueType.TCustom(type_name):
             output.push_str(indent_str)
@@ -5293,16 +5320,22 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         output.push_str(temp_suffix)
     }
 
-    // Then: error pointers
+    // Then: error pointers (Issue #119: skip empty struct errors)
+    mut has_emitted_params := needs_ret
     mut err_idx := 0
     while err_idx.lt(throw_types.len()) {
-        if needs_ret.or(err_idx.gt(0)) {
-            output.push_str(", ")
+        mut err_throw_type := ValueType.TCustom(INFER_TYPE)
+        throw_types.get(err_idx, err_throw_type)?
+        if not(is_empty_error_struct(context, err_throw_type)) {
+            if has_emitted_params {
+                output.push_str(", ")
+            }
+            output.push_str("&_err")
+            output.push_str(I64.to_str(err_idx))
+            output.push_str("_")
+            output.push_str(temp_suffix)
+            has_emitted_params = true
         }
-        output.push_str("&_err")
-        output.push_str(I64.to_str(err_idx))
-        output.push_str("_")
-        output.push_str(temp_suffix)
         err_idx.inc()
     }
 
@@ -5311,7 +5344,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         // Variadic call: emit regular args first, then variadic array pointer
         mut vi_arg_idx := 0
         while vi_arg_idx.lt(variadic_info.regular_count) {
-            if needs_ret.or(not(throw_types.is_empty())).or(vi_arg_idx.gt(0)) {
+            if has_emitted_params.or(vi_arg_idx.gt(0)) {
                 output.push_str(", ")
             }
             mut vi_arg := Expr()
@@ -5458,11 +5491,17 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                         output.push_str(til_name(err_type_name))
                         output.push_str(" ")
                         output.push_str(til_name(err_var_name))
-                        output.push_str(" = _err")
-                        output.push_str(I64.to_str(found_idx))
-                        output.push_str("_")
-                        output.push_str(temp_suffix)
-                        output.push_str(";\n")
+                        // Issue #119: For empty struct errors, use empty initializer since _err var doesn't exist
+                        catch_throw_type := ValueType.TCustom(err_type_name.clone())
+                        if is_empty_error_struct(context, catch_throw_type) {
+                            output.push_str(" = {};\n")
+                        } else {
+                            output.push_str(" = _err")
+                            output.push_str(I64.to_str(found_idx))
+                            output.push_str("_")
+                            output.push_str(temp_suffix)
+                            output.push_str(";\n")
+                        }
 
                         // Add error variable to scope for type resolution in catch body
                         mut catch_sym_info := SymbolInfo()
@@ -5629,10 +5668,13 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         catch (err: IndexOutOfBoundsError) { }
     }
 
-    // Declare error structs for each throw type of the called function
+    // Declare error structs for each throw type of the called function (Issue #119: skip empty struct errors)
     for idx in 0..throw_types.len() {
         mut throw_type := ValueType.TCustom(INFER_TYPE)
         throw_types.get(idx, throw_type)?
+        if is_empty_error_struct(context, throw_type) {
+            continue
+        }
         switch throw_type {
         case ValueType.TCustom(type_name):
             output.push_str(indent_str)
@@ -5681,16 +5723,22 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         output.push_str(temp_suffix)
     }
 
-    // Then: error pointers
+    // Then: error pointers (Issue #119: skip empty struct errors)
+    mut has_emitted_params := needs_ret
     mut err_idx := 0
     while err_idx.lt(throw_types.len()) {
-        if needs_ret.or(err_idx.gt(0)) {
-            output.push_str(", ")
+        mut err_throw_type := ValueType.TCustom(INFER_TYPE)
+        throw_types.get(err_idx, err_throw_type)?
+        if not(is_empty_error_struct(context, err_throw_type)) {
+            if has_emitted_params {
+                output.push_str(", ")
+            }
+            output.push_str("&_err")
+            output.push_str(I64.to_str(err_idx))
+            output.push_str("_")
+            output.push_str(temp_suffix)
+            has_emitted_params = true
         }
-        output.push_str("&_err")
-        output.push_str(I64.to_str(err_idx))
-        output.push_str("_")
-        output.push_str(temp_suffix)
         err_idx.inc()
     }
 
@@ -5698,7 +5746,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if has_variadic {
         mut var_arg_i := 0
         while var_arg_i.lt(variadic_info.regular_count) {
-            if needs_ret.or(not(throw_types.is_empty())).or(var_arg_i.gt(0)) {
+            if has_emitted_params.or(var_arg_i.gt(0)) {
                 output.push_str(", ")
             }
             mut var_arg := Expr()
@@ -5718,7 +5766,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             emit_arg_with_param_type(var_arg, var_arg_i, hoisted, var_param_type_ptr, var_by_ref, output, ctx, context)?
             var_arg_i.inc()
         }
-        if needs_ret.or(not(throw_types.is_empty())).or(variadic_info.regular_count.gt(0)) {
+        if has_emitted_params.or(variadic_info.regular_count.gt(0)) {
             output.push_str(", ")
         }
         output.push_str("&")
@@ -5732,7 +5780,9 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
                 arg_i.inc()
                 continue
             }
-            if needs_ret.or(not(throw_types.is_empty())).or(args_started) {
+            // Issue #119: use has_emitted_params instead of checking throw_types.is_empty()
+            // because all error params might have been skipped (empty structs)
+            if has_emitted_params.or(args_started) {
                 output.push_str(", ")
             }
             // Get parameter type and mutability for this argument
@@ -5775,18 +5825,24 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
                 }
             }
             if found {
+                // Issue #119: For empty struct errors, don't copy - just return status
+                is_empty := is_empty_error_struct(context, called_throw_type)
                 output.push_str(indent_str)
                 output.push_str("if (_status_")
                 output.push_str(temp_suffix)
                 output.push_str(" == ")
                 output.push_str(I64.to_str(called_idx.add(1)))
-                output.push_str(") { *_err")
-                output.push_str(I64.to_str(current_idx.add(1)))
-                output.push_str(" = _err")
-                output.push_str(I64.to_str(called_idx))
-                output.push_str("_")
-                output.push_str(temp_suffix)
-                output.push_str("; return ")
+                output.push_str(") { ")
+                if not(is_empty) {
+                    output.push_str("*_err")
+                    output.push_str(I64.to_str(current_idx.add(1)))
+                    output.push_str(" = _err")
+                    output.push_str(I64.to_str(called_idx))
+                    output.push_str("_")
+                    output.push_str(temp_suffix)
+                    output.push_str("; ")
+                }
+                output.push_str("return ")
                 output.push_str(I64.to_str(current_idx.add(1)))
                 output.push_str("; }\n")
             }
@@ -5964,10 +6020,13 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         catch (err: IndexOutOfBoundsError) { }
     }
 
-    // Declare error structs for each throw type of the called function
+    // Declare error structs for each throw type of the called function (Issue #119: skip empty struct errors)
     for idx in 0..throw_types.len() {
         mut throw_type := ValueType.TCustom(INFER_TYPE)
         throw_types.get(idx, throw_type)?
+        if is_empty_error_struct(context, throw_type) {
+            continue
+        }
         switch throw_type {
         case ValueType.TCustom(type_name):
             output.push_str(indent_str)
@@ -6016,16 +6075,22 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         output.push_str(temp_suffix)
     }
 
-    // Then: error pointers
+    // Then: error pointers (Issue #119: skip empty struct errors)
+    mut has_emitted_params := needs_ret
     mut err_idx := 0
     while err_idx.lt(throw_types.len()) {
-        if needs_ret.or(err_idx.gt(0)) {
-            output.push_str(", ")
+        mut err_throw_type := ValueType.TCustom(INFER_TYPE)
+        throw_types.get(err_idx, err_throw_type)?
+        if not(is_empty_error_struct(context, err_throw_type)) {
+            if has_emitted_params {
+                output.push_str(", ")
+            }
+            output.push_str("&_err")
+            output.push_str(I64.to_str(err_idx))
+            output.push_str("_")
+            output.push_str(temp_suffix)
+            has_emitted_params = true
         }
-        output.push_str("&_err")
-        output.push_str(I64.to_str(err_idx))
-        output.push_str("_")
-        output.push_str(temp_suffix)
         err_idx.inc()
     }
 
@@ -6045,7 +6110,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         if arg_i.sub(1).gteq(regular_arg_count) {
             break
         }
-        if needs_ret.or(not(throw_types.is_empty())).or(args_started) {
+        if has_emitted_params.or(args_started) {
             output.push_str(", ")
         }
         mut by_ref := false
@@ -6088,12 +6153,16 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             output.push_str(" == ")
             output.push_str(I64.to_str(goto_err_idx.add(1)))
             output.push_str(") { ")
-            output.push_str(catch_info.temp_var)
-            output.push_str(" = _err")
-            output.push_str(I64.to_str(goto_err_idx))
-            output.push_str("_")
-            output.push_str(temp_suffix)
-            output.push_str("; goto ")
+            // Issue #119: Skip copy for empty struct errors
+            if not(is_empty_error_struct(context, goto_throw_type)) {
+                output.push_str(catch_info.temp_var)
+                output.push_str(" = _err")
+                output.push_str(I64.to_str(goto_err_idx))
+                output.push_str("_")
+                output.push_str(temp_suffix)
+                output.push_str("; ")
+            }
+            output.push_str("goto ")
             output.push_str(catch_info.label)
             output.push_str("; }\n")
             catch (err: KeyNotFoundError) {
@@ -6119,13 +6188,18 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
                     output.push_str(temp_suffix)
                     output.push_str(" == ")
                     output.push_str(I64.to_str(goto_err_idx.add(1)))
-                    output.push_str(") { *_err")
-                    output.push_str(I64.to_str(prop_idx.add(1)))
-                    output.push_str(" = _err")
-                    output.push_str(I64.to_str(goto_err_idx))
-                    output.push_str("_")
-                    output.push_str(temp_suffix)
-                    output.push_str("; return ")
+                    output.push_str(") { ")
+                    // Issue #119: Skip copy for empty struct errors
+                    if not(is_empty_error_struct(context, goto_throw_type)) {
+                        output.push_str("*_err")
+                        output.push_str(I64.to_str(prop_idx.add(1)))
+                        output.push_str(" = _err")
+                        output.push_str(I64.to_str(goto_err_idx))
+                        output.push_str("_")
+                        output.push_str(temp_suffix)
+                        output.push_str("; ")
+                    }
+                    output.push_str("return ")
                     output.push_str(I64.to_str(prop_idx.add(1)))
                     output.push_str("; }\n")
                 }
@@ -7216,11 +7290,15 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         if not(catch_info.label.eq("")) {
             label := catch_info.label.clone()
             temp_var := catch_info.temp_var.clone()
-            output.push_str(indent_str)
-            output.push_str(temp_var)
-            output.push_str(" = ")
-            output.push_str(hoisted_temp)
-            output.push_str(";\n")
+            // Issue #119: Skip assigning empty struct errors
+            hoisted_err_type := ValueType.TCustom(thrown_type_name.clone())
+            if not(is_empty_error_struct(context, hoisted_err_type)) {
+                output.push_str(indent_str)
+                output.push_str(temp_var)
+                output.push_str(" = ")
+                output.push_str(hoisted_temp)
+                output.push_str(";\n")
+            }
             output.push_str(indent_str)
             output.push_str("goto ")
             output.push_str(label)
@@ -7246,12 +7324,16 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         }
 
         if error_index.gteq(0) {
-            output.push_str(indent_str)
-            output.push_str("*_err")
-            output.push_str(I64.to_str(error_index.add(1)))
-            output.push_str(" = ")
-            output.push_str(hoisted_temp)
-            output.push_str(";\n")
+            // Issue #119: Skip assigning empty struct errors
+            hoisted_prop_err_type := ValueType.TCustom(thrown_type_name.clone())
+            if not(is_empty_error_struct(context, hoisted_prop_err_type)) {
+                output.push_str(indent_str)
+                output.push_str("*_err")
+                output.push_str(I64.to_str(error_index.add(1)))
+                output.push_str(" = ")
+                output.push_str(hoisted_temp)
+                output.push_str(";\n")
+            }
             output.push_str(indent_str)
             output.push_str("return ")
             output.push_str(I64.to_str(error_index.add(1)))
@@ -7346,6 +7428,20 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     if not(nh_catch_info.label.eq("")) {
         nh_label := nh_catch_info.label.clone()
         nh_temp_var := nh_catch_info.temp_var.clone()
+
+        // Issue #119: Check if this is an empty struct error
+        nh_local_err_type := ValueType.TCustom(nh_thrown_type_name.clone())
+        is_empty_local_err := is_empty_error_struct(context, nh_local_err_type)
+
+        // Issue #119: Skip storing value for empty struct errors - just goto
+        if is_empty_local_err {
+            output.push_str(indent_str)
+            output.push_str("goto ")
+            output.push_str(nh_label)
+            output.push_str(";\n")
+            return
+        }
+
         // Hoist any throwing function calls in the thrown expression
         mut nh_hoisted := Map.new(I64, Str)
         switch thrown_expr.node_type {
@@ -7408,43 +7504,53 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     }
 
     if nh_error_index.gteq(0) {
+        // Issue #119: Check if this is an empty struct error
+        nh_prop_err_type := ValueType.TCustom(nh_thrown_type_name.clone())
+        is_empty_prop_err := is_empty_error_struct(context, nh_prop_err_type)
+
         // Hoist throwing function calls from arguments of the thrown expression
         // E.g., throw Error.new(format(...)) needs to hoist format() first
+        // (Skip if empty struct - no need to hoist anything)
         mut nh_prop_hoisted := Map.new(I64, Str)
-        switch thrown_expr.node_type {
-        case NodeType.FCall(_):
-            if thrown_expr.params.len().gt(1) {
-                mut nh_prop_args := Vec.new(Expr)
-                mut nh_prop_arg_idx := 1
-                while nh_prop_arg_idx.lt(thrown_expr.params.len()) {
-                    mut nh_prop_arg := Expr()
-                    thrown_expr.params.get(nh_prop_arg_idx, nh_prop_arg)?
-                    nh_prop_args.push(nh_prop_arg)
-                    nh_prop_arg_idx.inc()
+        if not(is_empty_prop_err) {
+            switch thrown_expr.node_type {
+            case NodeType.FCall(_):
+                if thrown_expr.params.len().gt(1) {
+                    mut nh_prop_args := Vec.new(Expr)
+                    mut nh_prop_arg_idx := 1
+                    while nh_prop_arg_idx.lt(thrown_expr.params.len()) {
+                        mut nh_prop_arg := Expr()
+                        thrown_expr.params.get(nh_prop_arg_idx, nh_prop_arg)?
+                        nh_prop_args.push(nh_prop_arg)
+                        nh_prop_arg_idx.inc()
+                    }
+                    nh_prop_hoisted_vec := hoist_throwing_args(nh_prop_args, output, indent, ctx, context)?
+                    for nh_prop_h: HoistedArg in nh_prop_hoisted_vec {
+                        nh_prop_hoisted.set(nh_prop_h.index, nh_prop_h.temp_var)
+                    }
                 }
-                nh_prop_hoisted_vec := hoist_throwing_args(nh_prop_args, output, indent, ctx, context)?
-                for nh_prop_h: HoistedArg in nh_prop_hoisted_vec {
-                    nh_prop_hoisted.set(nh_prop_h.index, nh_prop_h.temp_var)
-                }
+            case:
             }
-        case:
         }
 
-        // Store the error value in the appropriate error pointer
-        // Note: error params are 1-based (_err1, _err2, etc.)
-        output.push_str(indent_str)
-        output.push_str("*_err")
-        output.push_str(I64.to_str(nh_error_index.add(1)))
-        output.push_str(" = ")
+        // Issue #119: Skip storing error value for empty struct errors
+        if not(is_empty_prop_err) {
+            // Store the error value in the appropriate error pointer
+            // Note: error params are 1-based (_err1, _err2, etc.)
+            output.push_str(indent_str)
+            output.push_str("*_err")
+            output.push_str(I64.to_str(nh_error_index.add(1)))
+            output.push_str(" = ")
 
-        // Emit the thrown expression, using hoisted temp vars for arguments
-        switch thrown_expr.node_type {
-        case NodeType.FCall(_):
-            emit_fcall_with_hoisted(thrown_expr, nh_prop_hoisted, output, ctx, context)?
-        case:
-            emit_expr(thrown_expr, output, 0, ctx, context)?
+            // Emit the thrown expression, using hoisted temp vars for arguments
+            switch thrown_expr.node_type {
+            case NodeType.FCall(_):
+                emit_fcall_with_hoisted(thrown_expr, nh_prop_hoisted, output, ctx, context)?
+            case:
+                emit_expr(thrown_expr, output, 0, ctx, context)?
+            }
+            output.push_str(";\n")
         }
-        output.push_str(";\n")
 
         // Return the error index (1-based, since 0 = success)
         output.push_str(indent_str)
@@ -8214,6 +8320,31 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
         }
     }
 
+    // Bug #136: Check if this is a struct switch that needs eq() method
+    // Skip primitive types (I64, U8, Bool, Str) whose values are literals
+    mut is_struct_switch := false
+    mut struct_type_name := ""
+    if has_switch_type {
+        switch switch_type {
+        case ValueType.TCustom(type_name):
+            is_primitive := type_name.eq("Str").or(type_name.eq("I64")).or(type_name.eq("U8")).or(type_name.eq("Bool"))
+            if not(is_primitive) {
+                mut is_struct := false
+                _struct_def := context.scope_stack.lookup_struct(type_name)?
+                is_struct = true
+                catch (err: KeyNotFoundError) { }
+                if is_struct {
+                    eq_method_name := format(type_name, ".eq")
+                    _func_def := context.scope_stack.lookup_func(eq_method_name)?
+                    is_struct_switch = true
+                    struct_type_name = type_name.clone()
+                    catch (err: KeyNotFoundError) { }
+                }
+            }
+        case:
+        }
+    }
+
     // Determine if this is an enum switch and if it has payloads
     mut is_enum_switch := false
     mut enum_has_payloads_flag := false
@@ -8385,15 +8516,15 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                 mut range_start := Expr()
             case_pattern.params.get(0, range_start)?
                 emit_expr(range_start, output, 0, ctx, context)?
-                output.push_str(".c_string, (char*)")
+                output.push_str(".c_string.data, (char*)")
                 output.push_str(switch_var)
-                output.push_str(".c_string) <= 0 && strcmp((char*)")
+                output.push_str(".c_string.data) <= 0 && strcmp((char*)")
                 output.push_str(switch_var)
-                output.push_str(".c_string, (char*)")
+                output.push_str(".c_string.data, (char*)")
                 mut range_end := Expr()
             case_pattern.params.get(1, range_end)?
                 emit_expr(range_end, output, 0, ctx, context)?
-                output.push_str(".c_string) <= 0")
+                output.push_str(".c_string.data) <= 0")
             } else {
                 mut else_range_start := Expr()
             case_pattern.params.get(0, else_range_start)?
@@ -8430,6 +8561,15 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                 output.push_str(", &")
                 emit_expr(case_pattern, output, 0, ctx, context)?
                 output.push_str(").data")
+            } else if is_struct_switch {
+                // Bug #136: Struct comparison using eq() method
+                output.push_str("til_")
+                output.push_str(struct_type_name)
+                output.push_str("_eq(&")
+                output.push_str(switch_var)
+                output.push_str(", &")
+                emit_expr(case_pattern, output, 0, ctx, context)?
+                output.push_str(").data")
             } else {
                 // Regular value comparison
                 output.push_str(switch_var)
@@ -8441,6 +8581,15 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
             if is_str_switch {
                 // String literal comparison - pass by pointer
                 output.push_str("til_Str_eq(&")
+                output.push_str(switch_var)
+                output.push_str(", &")
+                emit_expr(case_pattern, output, 0, ctx, context)?
+                output.push_str(").data")
+            } else if is_struct_switch {
+                // Bug #136: Struct comparison using eq() method
+                output.push_str("til_")
+                output.push_str(struct_type_name)
+                output.push_str("_eq(&")
                 output.push_str(switch_var)
                 output.push_str(", &")
                 emit_expr(case_pattern, output, 0, ctx, context)?
@@ -8493,6 +8642,15 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                 output.push_str("_")
                 output.push_str(fcall_info.variant_name)
                 output.push_str(") {\n")
+            } else if is_struct_switch {
+                // Bug #136: Not an enum pattern, struct comparison using eq()
+                output.push_str("til_")
+                output.push_str(struct_type_name)
+                output.push_str("_eq(&")
+                output.push_str(switch_var)
+                output.push_str(", &")
+                emit_expr(case_pattern, output, 0, ctx, context)?
+                output.push_str(").data) {\n")
             } else {
                 // Not an enum pattern - fall through to generic comparison
                 output.push_str(switch_var)
@@ -8505,6 +8663,15 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
             // TODO: Should emit proper FCall through normal path instead of hardcoding
             if is_str_switch {
                 output.push_str("til_Str_eq(&")
+                output.push_str(switch_var)
+                output.push_str(", &")
+                emit_expr(case_pattern, output, 0, ctx, context)?
+                output.push_str(").data")
+            } else if is_struct_switch {
+                // Bug #136: Struct comparison using eq() method
+                output.push_str("til_")
+                output.push_str(struct_type_name)
+                output.push_str("_eq(&")
                 output.push_str(switch_var)
                 output.push_str(", &")
                 emit_expr(case_pattern, output, 0, ctx, context)?

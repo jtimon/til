@@ -118,19 +118,19 @@ const til_I64 til_MAX_U8 = 255;
 const til_U8 til_ZERO_U8 = 0;
 
 static inline til_I64 til_size_of(const til_Str* type_name) {
-    if (strcmp((char*)type_name->c_string, "IndexOutOfBoundsError") == 0) return til_size_of_IndexOutOfBoundsError;
-    if (strcmp((char*)type_name->c_string, "BadAlloc") == 0) return til_size_of_BadAlloc;
-    if (strcmp((char*)type_name->c_string, "Array") == 0) return til_size_of_Array;
-    if (strcmp((char*)type_name->c_string, "Bool") == 0) return til_size_of_Bool;
-    if (strcmp((char*)type_name->c_string, "I64") == 0) return til_size_of_I64;
-    if (strcmp((char*)type_name->c_string, "Ptr") == 0) return til_size_of_Ptr;
-    if (strcmp((char*)type_name->c_string, "Str") == 0) return til_size_of_Str;
-    if (strcmp((char*)type_name->c_string, "U8") == 0) return til_size_of_U8;
-    if (strcmp((char*)type_name->c_string, "Dynamic") == 0) return til_size_of_Dynamic;
-    if (strcmp((char*)type_name->c_string, "Type") == 0) return til_size_of_Type;
-    if (strcmp((char*)type_name->c_string, "CfVec2") == 0) return til_size_of_CfVec2;
-    if (strcmp((char*)type_name->c_string, "CfRect") == 0) return til_size_of_CfRect;
-    fprintf(stderr, "size_of: unknown type %s\n", (char*)type_name->c_string);
+    if (strcmp((char*)type_name->c_string.data, "IndexOutOfBoundsError") == 0) return til_size_of_IndexOutOfBoundsError;
+    if (strcmp((char*)type_name->c_string.data, "BadAlloc") == 0) return til_size_of_BadAlloc;
+    if (strcmp((char*)type_name->c_string.data, "Array") == 0) return til_size_of_Array;
+    if (strcmp((char*)type_name->c_string.data, "Bool") == 0) return til_size_of_Bool;
+    if (strcmp((char*)type_name->c_string.data, "I64") == 0) return til_size_of_I64;
+    if (strcmp((char*)type_name->c_string.data, "Ptr") == 0) return til_size_of_Ptr;
+    if (strcmp((char*)type_name->c_string.data, "Str") == 0) return til_size_of_Str;
+    if (strcmp((char*)type_name->c_string.data, "U8") == 0) return til_size_of_U8;
+    if (strcmp((char*)type_name->c_string.data, "Dynamic") == 0) return til_size_of_Dynamic;
+    if (strcmp((char*)type_name->c_string.data, "Type") == 0) return til_size_of_Type;
+    if (strcmp((char*)type_name->c_string.data, "CfVec2") == 0) return til_size_of_CfVec2;
+    if (strcmp((char*)type_name->c_string.data, "CfRect") == 0) return til_size_of_CfRect;
+    fprintf(stderr, "size_of: unknown type %s\n", (char*)type_name->c_string.data);
     exit(1);
 }
 
@@ -471,9 +471,8 @@ til_Array til_Array_new(til_Type til_T, const til_I64* til_capacity) {
     til_arr.type_size = til_size_of(&((til_Str){(til_I64)til_T, strlen(til_T)}));
     const til_I64 til_size_bytes = til_I64_mul(til_capacity, &til_arr.type_size);
     til_I64 _ret__tmp_til_Array_new_1;
-    til_BadAlloc _err0__tmp_til_Array_new_1 = {};
-    int __attribute__((unused)) _status__tmp_til_Array_new_1 = til_malloc(&_ret__tmp_til_Array_new_1, &_err0__tmp_til_Array_new_1, &til_size_bytes);
-    if (_status__tmp_til_Array_new_1 == 1) { _thrown_BadAlloc__tmp_til_Array_new_0 = _err0__tmp_til_Array_new_1; goto _catch_BadAlloc__tmp_til_Array_new_0; }
+    int __attribute__((unused)) _status__tmp_til_Array_new_1 = til_malloc(&_ret__tmp_til_Array_new_1, &til_size_bytes);
+    if (_status__tmp_til_Array_new_1 == 1) { goto _catch_BadAlloc__tmp_til_Array_new_0; }
     til_arr.ptr = _ret__tmp_til_Array_new_1;
     if (0) { _catch_BadAlloc__tmp_til_Array_new_0:;
         til_BadAlloc til_err = _thrown_BadAlloc__tmp_til_Array_new_0;
@@ -664,9 +663,8 @@ til_Ptr til_Ptr_new_by_size(const til_I64* til_size) {
     }
     til_Ptr til_p = {.data = til_NULL};
     til_I64 _ret__tmp_til_Ptr_new_by_size_5;
-    til_BadAlloc _err0__tmp_til_Ptr_new_by_size_5 = {};
-    int __attribute__((unused)) _status__tmp_til_Ptr_new_by_size_5 = til_malloc(&_ret__tmp_til_Ptr_new_by_size_5, &_err0__tmp_til_Ptr_new_by_size_5, til_size);
-    if (_status__tmp_til_Ptr_new_by_size_5 == 1) { _thrown_BadAlloc__tmp_til_Ptr_new_by_size_0 = _err0__tmp_til_Ptr_new_by_size_5; goto _catch_BadAlloc__tmp_til_Ptr_new_by_size_0; }
+    int __attribute__((unused)) _status__tmp_til_Ptr_new_by_size_5 = til_malloc(&_ret__tmp_til_Ptr_new_by_size_5, til_size);
+    if (_status__tmp_til_Ptr_new_by_size_5 == 1) { goto _catch_BadAlloc__tmp_til_Ptr_new_by_size_0; }
     til_p.data = _ret__tmp_til_Ptr_new_by_size_5;
     if (0) { _catch_BadAlloc__tmp_til_Ptr_new_by_size_0:;
         til_BadAlloc til_err = _thrown_BadAlloc__tmp_til_Ptr_new_by_size_0;
