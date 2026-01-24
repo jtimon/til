@@ -39,34 +39,34 @@ After this, both =Color.to_str(my_color)= and =my_color.to_str()= work via UFCS.
 
 ** Plan
 
-*** Step 1: namespace blocks for enums
+*** Step 1: namespace blocks for enums [DONE 2026-01-24]
 
-**** Step 1.1: Parser - recognize namespace blocks
+**** Step 1.1: Parser - recognize namespace blocks [DONE]
 
 Add parsing for =namespace TypeName { ... }= syntax. The block contains
 declarations (functions, constants) just like inside a struct.
 
-**** Step 1.2: Type checker - register AFs in type's namespace
+**** Step 1.2: Type checker - register AFs in type's namespace [DONE]
 
 When type checking a namespace block:
 1. Verify TypeName refers to an existing type (enum, struct, or other)
 2. Register each declaration as an AF of that type
 3. Handle name collisions (error if AF already exists)
 
-**** Step 1.3: Interpreter - evaluate namespace blocks
+**** Step 1.3: Interpreter - evaluate namespace blocks [DONE]
 
 Execute namespace blocks by evaluating each declaration and storing the
 results in the type's namespace.
 
-**** Step 1.4: Compiler - compile namespace blocks
+**** Step 1.4: Compiler - compile namespace blocks [DONE]
 
 Compile namespace blocks the same way as struct AF declarations.
 
-**** Step 1.5: Port to TIL
+**** Step 1.5: Port to TIL [DONE]
 
 Port all changes from Rust to the self-hosted TIL implementation.
 
-**** Step 1.6: Tests
+**** Step 1.6: Tests [DONE]
 
 Add tests for:
 - Basic namespace block with functions
@@ -74,6 +74,8 @@ Add tests for:
 - UFCS calls to namespace-defined AFs
 - Multiple namespace blocks for same type (if allowed)
 - Error cases: unknown type, duplicate AFs
+
+See src/test/namespace_blocks.til
 
 *** Step 2: Unify AF syntax for structs
 
