@@ -141,6 +141,7 @@ til_Bool til_not(const til_Bool* til_b) {
         return false;
     }
     return true;
+    return (til_Bool){0};
 }
 
 void til_panic(const til_Str* til_loc_str, const til_Str* til_msg, til_Array* til_extra_msgs) {
@@ -250,6 +251,7 @@ til_Str til_concat(const til_Str* til_a, const til_Str* til_b) {
     til_I64 _tmp_concat_5 = 1;
     til_memset(({ til_I64 _tmp_concat_6 = til_Ptr_offset(&til_result.c_string, &til_result._len).data; &_tmp_concat_6; }), &til_zero, &_tmp_concat_5);
     return til_result;
+    return (til_Str){0};
 }
 
 til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
@@ -339,6 +341,7 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
         til_Array_delete(&_tmp_format_20);
     }
     return til_result;
+    return (til_Str){0};
 }
 
 void til_test(const til_Str* til_loc_str, const til_Bool* til_cond, const til_Str* til_msg) {
@@ -468,6 +471,7 @@ void til_test_struct_fold_nested(void) {
 
 til_I64 til_Array_len(const til_Array* til_self) {
     return til_self->_len;
+    return (til_I64){0};
 }
 
 til_Array til_Array_new(til_Type til_T, const til_I64* til_capacity) {
@@ -495,6 +499,7 @@ til_Array til_Array_new(til_Type til_T, const til_I64* til_capacity) {
     til_memset(&til_arr.ptr, &til_zero, &til_size_bytes);
     til_arr._len = (*til_capacity);
     return til_arr;
+    return (til_Array){0};
 }
 
 int til_Array_get(til_IndexOutOfBoundsError* _err1, const til_Array* til_self, const til_I64* til_index, til_Dynamic* til_T) {
@@ -589,14 +594,17 @@ void til_Array_delete(til_Array* til_self) {
 
 til_I64 til_I64_sub(const til_I64* til_a, const til_I64* til_b) {
     return til_i64_sub(til_a, til_b);
+    return (til_I64){0};
 }
 
 til_I64 til_I64_mul(const til_I64* til_a, const til_I64* til_b) {
     return til_i64_mul(til_a, til_b);
+    return (til_I64){0};
 }
 
 til_I64 til_I64_add(const til_I64* til_a, const til_I64* til_b) {
     return til_i64_add(til_a, til_b);
+    return (til_I64){0};
 }
 
 til_Bool til_I64_eq(const til_I64* til_a, const til_I64* til_b) {
@@ -613,18 +621,22 @@ til_Bool til_I64_eq(const til_I64* til_a, const til_I64* til_b) {
         return false;
     }
     return true;
+    return (til_Bool){0};
 }
 
 til_Bool til_I64_lt(const til_I64* til_a, const til_I64* til_b) {
     return til_i64_lt(til_a, til_b);
+    return (til_Bool){0};
 }
 
 til_Bool til_I64_gt(const til_I64* til_a, const til_I64* til_b) {
     return til_i64_gt(til_a, til_b);
+    return (til_Bool){0};
 }
 
 til_Str til_I64_to_str(const til_I64* til_self) {
     return til_i64_to_str(til_self);
+    return (til_Str){0};
 }
 
 void til_I64_inc(til_I64* til_self) {
@@ -643,6 +655,7 @@ til_Bool til_I64_gteq(const til_I64* til_a, const til_I64* til_b) {
         return false;
     }
     return true;
+    return (til_Bool){0};
 }
 
 til_Bool til_I64_lteq(const til_I64* til_a, const til_I64* til_b) {
@@ -653,6 +666,7 @@ til_Bool til_I64_lteq(const til_I64* til_a, const til_I64* til_b) {
         return false;
     }
     return true;
+    return (til_Bool){0};
 }
 
 til_Ptr til_Ptr_new_by_size(const til_I64* til_size) {
@@ -684,16 +698,19 @@ til_Ptr til_Ptr_new_by_size(const til_I64* til_size) {
         til_Array_delete(&_tmp_til_Ptr_new_by_size_6);
     }
     return til_p;
+    return (til_Ptr){0};
 }
 
 til_Ptr til_Ptr_offset(const til_Ptr* til_self, const til_I64* til_offset) {
     til_Ptr til_p = {.data = til_NULL, .is_borrowed = 0};
     til_p.data = til_I64_add(&til_self->data, til_offset);
     return til_p;
+    return (til_Ptr){0};
 }
 
 til_I64 til_Str_len(const til_Str* til_self) {
     return til_self->_len;
+    return (til_I64){0};
 }
 
 til_Bool til_Str_eq(const til_Str* til_self, const til_Str* til_other) {
@@ -735,6 +752,7 @@ til_Bool til_Str_eq(const til_Str* til_self, const til_Str* til_other) {
         }
     }
     return true;
+    return (til_Bool){0};
 }
 
 til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle) {
@@ -834,14 +852,17 @@ til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle) {
         }
     }
     return false;
+    return (til_Bool){0};
 }
 
 til_Bool til_U8_lt(const til_U8* til_self, const til_U8* til_other) {
     return til_u8_lt(til_self, til_other);
+    return (til_Bool){0};
 }
 
 til_Bool til_U8_gt(const til_U8* til_self, const til_U8* til_other) {
     return til_u8_gt(til_self, til_other);
+    return (til_Bool){0};
 }
 
 til_Bool til_U8_eq(const til_U8* til_a, const til_U8* til_b) {
@@ -858,18 +879,22 @@ til_Bool til_U8_eq(const til_U8* til_a, const til_U8* til_b) {
         return false;
     }
     return true;
+    return (til_Bool){0};
 }
 
 til_CfVec2 til_CfVec2_magic(void) {
     return (til_CfVec2){.x = 42, .y = 99};
+    return (til_CfVec2){0};
 }
 
 til_CfVec2 til_CfVec2_at(const til_I64* til_x, const til_I64* til_y) {
     return (til_CfVec2){.x = (*til_x), .y = (*til_y)};
+    return (til_CfVec2){0};
 }
 
 til_CfRect til_CfRect_sample(void) {
     return (til_CfRect){.top_left = (til_CfVec2){.x = 5, .y = 10}, .bottom_right = (til_CfVec2){.x = 100, .y = 200}};
+    return (til_CfRect){0};
 }
 
 int main(int argc, char** argv) {

@@ -3011,9 +3011,15 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     // Emit function body with catch pattern detection
     emit_stmts(&func_def.body, output, 1, ctx, context)?;
 
-    // For throwing void functions, add implicit return 0 at end
-    if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
+    // Add implicit return at end to silence gcc -Wreturn-type warnings
+    // when all paths return inside branches but gcc can't prove exhaustiveness
+    if !func_def.throw_types.is_empty() {
+        // Throwing functions return int (0=success, 1+=error)
         output.push_str("    return 0;\n");
+    } else if !func_def.return_types.is_empty() {
+        // Non-throwing functions with return type - add zero-initialized fallback
+        let ret_type = til_type_to_c(&func_def.return_types[0])?;
+        output.push_str(&format!("    return ({}){{0}};\n", ret_type));
     }
 
     output.push_str("}\n\n");
@@ -3301,9 +3307,12 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 // Emit function body with catch pattern detection
                 emit_stmts(&func_def.body, output, 1, ctx, context)?;
 
-                // For throwing void functions, add implicit return 0 at end
-                if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
+                // Add implicit return at end to silence gcc -Wreturn-type warnings
+                if !func_def.throw_types.is_empty() {
                     output.push_str("    return 0;\n");
+                } else if !func_def.return_types.is_empty() {
+                    let ret_type = til_type_to_c(&func_def.return_types[0])?;
+                    output.push_str(&format!("    return ({}){{0}};\n", ret_type));
                 }
 
                 output.push_str("}\n\n");
@@ -4997,8 +5006,12 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 emit_func_signature(&til_name(&mangled_name), func_def, context, &mut func_output)?;
                 func_output.push_str(" {\n");
                 emit_stmts(&func_def.body, &mut func_output, 1, ctx, context)?;
-                if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
+                // Add implicit return at end to silence gcc -Wreturn-type warnings
+                if !func_def.throw_types.is_empty() {
                     func_output.push_str("    return 0;\n");
+                } else if !func_def.return_types.is_empty() {
+                    let ret_type = til_type_to_c(&func_def.return_types[0])?;
+                    func_output.push_str(&format!("    return ({}){{0}};\n", ret_type));
                 }
                 func_output.push_str("}\n\n");
 

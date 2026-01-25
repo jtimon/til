@@ -3885,9 +3885,19 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     // Emit function body with catch pattern detection
     emit_stmts(func_def.body, output, 1, ctx, context)?
 
-    // For throwing void functions, add implicit return 0 at end
-    if not(func_def.throw_types.is_empty()).and(func_def.return_types.is_empty()) {
+    // Add implicit return at end to silence gcc -Wreturn-type warnings
+    // when all paths return inside branches but gcc can't prove exhaustiveness
+    if not(func_def.throw_types.is_empty()) {
+        // Throwing functions return int (0=success, 1+=error)
         output.push_str("    return 0;\n")
+    } else if not(func_def.return_types.is_empty()) {
+        // Non-throwing functions with return type - add zero-initialized fallback
+        mut ret_type_vt := ValueType.TCustom("")
+        func_def.return_types.get(0, ret_type_vt)?
+        ret_type := til_type_to_c(ret_type_vt)?
+        output.push_str("    return (")
+        output.push_str(ret_type)
+        output.push_str("){0};\n")
     }
 
     output.push_str("}\n\n")
@@ -4243,9 +4253,16 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 // Emit function body with catch pattern detection
                 emit_stmts(func_def.body, output, 1, ctx, context)?
 
-                // For throwing void functions, add implicit return 0 at end
-                if not(func_def.throw_types.is_empty()).and(func_def.return_types.is_empty()) {
+                // Add implicit return at end to silence gcc -Wreturn-type warnings
+                if not(func_def.throw_types.is_empty()) {
                     output.push_str("    return 0;\n")
+                } else if not(func_def.return_types.is_empty()) {
+                    mut ret_type_vt := ValueType.TCustom("")
+                    func_def.return_types.get(0, ret_type_vt)?
+                    ret_type := til_type_to_c(ret_type_vt)?
+                    output.push_str("    return (")
+                    output.push_str(ret_type)
+                    output.push_str("){0};\n")
                 }
 
                 output.push_str("}\n\n")
@@ -6331,8 +6348,16 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 emit_func_signature(til_name(mangled_name), func_def, context, func_output)?
                 func_output.push_str(" {\n")
                 emit_stmts(func_def.body, func_output, 1, ctx, context)?
-                if not(func_def.throw_types.is_empty()).and(func_def.return_types.is_empty()) {
+                // Add implicit return at end to silence gcc -Wreturn-type warnings
+                if not(func_def.throw_types.is_empty()) {
                     func_output.push_str("    return 0;\n")
+                } else if not(func_def.return_types.is_empty()) {
+                    mut ret_type_vt := ValueType.TCustom("")
+                    func_def.return_types.get(0, ret_type_vt)?
+                    ret_type := til_type_to_c(ret_type_vt)?
+                    func_output.push_str("    return (")
+                    func_output.push_str(ret_type)
+                    func_output.push_str("){0};\n")
                 }
                 func_output.push_str("}\n\n")
 

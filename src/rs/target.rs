@@ -147,14 +147,25 @@ pub fn toolchain_command(target: &Target, lang: &Lang) -> Result<&'static str, S
 }
 
 pub fn toolchain_extra_args(target: &Target, _lang: &Lang) -> Vec<&'static str> {
-    // Bug #99: -Werror to forbid warnings.
-    // -Wno-return-type: clang is stricter than gcc about missing returns (Step 3e)
+    // Bug #99: -Wall -Wextra -Werror with suppressions for unfixed warnings.
+    // Remove suppressions as warnings get fixed.
+    let common: &[&str] = &[
+        "-Wall", "-Wextra", "-Werror",
+        // Suppressions for unfixed warnings (Bug #99):
+        "-Wno-unused-variable",           // 1514 occurrences
+        "-Wno-dangling-pointer",          // 971 occurrences (high priority to fix)
+        "-Wno-unused-but-set-variable",   // 386 occurrences
+        "-Wno-unused-label",              // 153 occurrences
+        "-Wno-unused-parameter",          // 7 occurrences
+        "-Wno-missing-braces",            // 4 occurrences
+        "-Wno-missing-field-initializers", // 1 occurrence
+    ];
     match target {
-        Target::MacosArm64 => vec!["-target", "arm64-apple-macos11", "-Werror", "-Wno-return-type"],
-        Target::MacosX64 => vec!["-target", "x86_64-apple-macos10.12", "-Werror", "-Wno-return-type"],
-        Target::Wasm32 => vec!["--target=wasm32", "-nostdlib", "-Wl,--no-entry", "-Wl,--export-all", "-Werror", "-Wno-return-type"],
+        Target::MacosArm64 => [&["-target", "arm64-apple-macos11"], common].concat(),
+        Target::MacosX64 => [&["-target", "x86_64-apple-macos10.12"], common].concat(),
+        Target::Wasm32 => [&["--target=wasm32", "-nostdlib", "-Wl,--no-entry", "-Wl,--export-all"], common].concat(),
         Target::TempleosX86 => todo!("HolyC doesn't support these flags"),
-        _ => vec!["-Werror", "-Wno-return-type"],
+        _ => common.to_vec(),
     }
 }
 

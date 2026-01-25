@@ -611,29 +611,39 @@ fixed so we can enable ~-Werror~ (treat warnings as errors) in the build.
 - rustc: DONE - added ~-D warnings~ to Makefile and make.til (no warnings currently)
 - gcc: TODO - need to fix warnings before enabling ~-Werror~
 
-*** Warning Categories (2026-01-13)
-Audit of generated C code shows these warning types:
+*** Warning Categories (updated 2026-01-25)
+Audit of generated C code with ~gcc -Wall -Wextra~:
 
-| Type                         | Priority | Notes                                      |
-|------------------------------+----------+--------------------------------------------|
-| -Wdangling-pointer           | High     | Statement expressions return &local_var    |
-| -Wreturn-type                | High     | Control reaches end of non-void function   |
-| -Wincompatible-pointer-types | Medium   | Vec_push receives typed* instead of void** |
-| -Wunused-variable            | Low      | Generated temp vars not always used        |
-| -Wunused-but-set-variable    | Low      | Similar to above                           |
-| -Wunused-label               | Low      | Catch labels generated but not jumped to   |
-| -Wunused-parameter           | Low      | ext.c has unused _err params               |
+| Type                         | Count | Priority | Notes                                      |
+|------------------------------+-------+----------+--------------------------------------------|
+| -Wunused-variable            |  1514 | Low      | Generated temp vars not always used        |
+| -Wdangling-pointer           |   971 | High     | Statement expressions return &local_var    |
+| -Wunused-but-set-variable    |   386 | Low      | Similar to above                           |
+| -Wunused-label               |   153 | Low      | Catch labels generated but not jumped to   |
+| -Wunused-parameter           |     7 | Low      | ext.c has unused _err params               |
+| -Wmissing-braces             |     4 | Low      | Nested struct initializers                 |
+| -Wmissing-field-initializers |     1 | Low      | Struct initializer missing field           |
+| -Wreturn-type                |     0 | High     | FIXED 2026-01-25                           |
+| -Wincompatible-pointer-types |     0 | Medium   | FIXED 2026-01-13                           |
 
 *** Fix Strategy (Incremental)
-Current state: -Werror enabled with specific warning suppressions.
-
 1. Suppress current warnings to get clean baseline (DONE)
 2. Enable ~-Werror~ (DONE - 2026-01-13)
 3. Re-enable warning flags one by one, fixing each category
-4. Once stable, switch to ~-Wall -Wextra -Werror~
+4. Switch to ~-Wall -Wextra -Werror~ with suppressions (DONE - 2026-01-25)
+5. Remove suppressions one by one as each warning category is fixed
 
-*** Current Warning Suppressions (target.rs/til)
-- ~-Wno-return-type~: clang is stricter than gcc about missing returns in all paths
+*** Current Build Flags (target.rs/til)
+Now using ~-Wall -Wextra -Werror~ with suppressions for unfixed warnings (2026-01-25):
+- ~-Wno-unused-variable~ (1514 occurrences)
+- ~-Wno-dangling-pointer~ (971 occurrences) - high priority to fix
+- ~-Wno-unused-but-set-variable~ (386 occurrences)
+- ~-Wno-unused-label~ (153 occurrences)
+- ~-Wno-unused-parameter~ (7 occurrences)
+- ~-Wno-missing-braces~ (4 occurrences)
+- ~-Wno-missing-field-initializers~ (1 occurrence)
+
+To fix a warning category: remove the ~-Wno-~ flag and fix the resulting errors.
 
 *** Additional Fix: Null byte escaping in ccodegen (2026-01-13)
 GCC 13 errors on raw null bytes in string literals. Fixed emit_str_literal() in
@@ -645,14 +655,15 @@ ccodegen.rs and ccodegen.til to escape null bytes as ~\0~ in C output.
 - [X] Step 3a: Fix and re-enable -Wincompatible-pointer-types (2026-01-13) - added (til_Dynamic*) cast for hoisted args, used decl.value_type for constant types
 - [X] Step 3b: Fix and re-enable -Wdiscarded-qualifiers (2026-01-13) - added const to enum_to_str
 - [X] Step 3c: Fix and re-enable -Wint-conversion (2026-01-13) - cast RHS to Dynamic in emit_assignment
-- [ ] Step 3d: Enable and fix -Wdangling-pointer
-- [ ] Step 3e: Enable and fix -Wreturn-type
-- [-] Step 3f: Enable and fix -Wunused-variable (partial 2026-01-21: added __attribute__((unused)) to _status_, _arr_status_, _err_idx_ - reduced from 2877 to 1418 warnings)
-- [ ] Step 3g: Enable and fix -Wunused-but-set-variable
-- [ ] Step 3h: Enable and fix -Wunused-label
-- [ ] Step 3i: Enable and fix -Wunused-parameter
-- [ ] Step 3j: Enable and fix -Wshadow
-- [ ] Step 4: Switch to -Wall -Wextra -Werror
+- [X] Step 3e: Enable and fix -Wreturn-type (2026-01-25) - add implicit return 0 to throwing functions, add zero-initialized fallback return to non-throwing functions with return types
+- [X] Step 4: Switch to -Wall -Wextra -Werror with suppressions (2026-01-25)
+- [ ] Step 5a: Remove -Wno-dangling-pointer (971 occurrences, high priority)
+- [-] Step 5b: Remove -Wno-unused-variable (1514 occurrences, partial progress)
+- [ ] Step 5c: Remove -Wno-unused-but-set-variable (386 occurrences)
+- [ ] Step 5d: Remove -Wno-unused-label (153 occurrences)
+- [ ] Step 5e: Remove -Wno-unused-parameter (7 occurrences)
+- [ ] Step 5f: Remove -Wno-missing-braces (4 occurrences)
+- [ ] Step 5g: Remove -Wno-missing-field-initializers (1 occurrence)
 
 ** Bug #98: ext_proc errors should throw specific error types instead of panicking
 :PROPERTIES:
@@ -1074,11 +1085,16 @@ til_Vec_push(&_err, &vec, &_tmp_str);  // _tmp_str is til_Str*
 **** Return Type (1 occurrence)
 Function ~til_get_value_type~ at line 13360 - control reaches end without return.
 
+*** Progress (2026-01-25)
+Commit 129ba21a fixed -Wreturn-type by adding implicit ~return 0;~ at end of ALL
+throwing functions (not just void ones). All throwing functions return int
+(0=success, 1+=error), so return 0 is always valid as an unreachable fallback.
+
 *** TODO
 - [X] Investigate why ~til run bug47.til~ fails - OOM during ccodegen
+- [X] Fix missing return statement (commit 129ba21a)
 - [ ] Fix til ccodegen memory usage (high priority - OOM on large files)
 - [ ] Fix dangling pointer pattern in ccodegen (high priority)
-- [ ] Fix missing return statement (high priority)
 - [ ] Add casts for Vec_push calls or specialize per type
 - [ ] Consider which unused-* warnings to fix vs suppress
 
