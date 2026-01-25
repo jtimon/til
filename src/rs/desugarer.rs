@@ -336,25 +336,11 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         i += 2;
     }
 
-    // Check if any case has nested enum patterns or Range patterns - skip full desugaring if so
+    // Check if any case has nested enum patterns - skip full desugaring if so
     // These are too complex to desugar and are left for interpreter/ccodegen
-    // Range patterns cause ccodegen temporary caching issues when desugared
     for (case_pattern, _) in &cases {
         if has_nested_enum_pattern(case_pattern) {
             // Just desugar children but keep switch structure
-            let mut desugared_params = Vec::new();
-            for param in &e.params {
-                desugared_params.push(desugar_expr(context, param)?);
-            }
-            return Ok(Expr::new_explicit(
-                NodeType::Switch,
-                desugared_params,
-                e.line,
-                e.col,
-            ));
-        }
-        // Skip desugaring Range cases - ccodegen has issues with temporary caching
-        if matches!(case_pattern.node_type, NodeType::Range) {
             let mut desugared_params = Vec::new();
             for param in &e.params {
                 desugared_params.push(desugar_expr(context, param)?);

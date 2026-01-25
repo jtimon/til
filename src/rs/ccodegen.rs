@@ -4992,6 +4992,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 let prev_variadic_params = std::mem::take(&mut ctx.current_variadic_params);
                 let prev_function_name = ctx.current_function_name.clone();
                 let prev_mangling_counter = ctx.mangling_counter;
+                let prev_hoisted_exprs = std::mem::take(&mut ctx.hoisted_exprs);
 
                 ctx.current_throw_types = func_def.throw_types.clone();
                 ctx.current_return_types = func_def.return_types.clone();
@@ -5057,6 +5058,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 ctx.current_variadic_params = prev_variadic_params;
                 ctx.current_function_name = prev_function_name;
                 ctx.mangling_counter = prev_mangling_counter;
+                ctx.hoisted_exprs = prev_hoisted_exprs;
 
                 ctx.hoisted_functions.push(func_output);
 

@@ -6312,6 +6312,8 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 prev_variadic_params := ctx.current_variadic_params.clone()
                 prev_function_name := ctx.current_function_name.clone()
                 prev_mangling_counter := ctx.mangling_counter
+                prev_hoisted_exprs := ctx.hoisted_exprs.clone()
+                ctx.hoisted_exprs.clear()
 
                 ctx.current_throw_types = func_def.throw_types.clone()
                 ctx.current_return_types = func_def.return_types.clone()
@@ -6381,6 +6383,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 ctx.current_variadic_params = prev_variadic_params
                 ctx.current_function_name = prev_function_name
                 ctx.mangling_counter = prev_mangling_counter
+                ctx.hoisted_exprs = prev_hoisted_exprs
 
                 ctx.hoisted_functions.push(func_output)
 

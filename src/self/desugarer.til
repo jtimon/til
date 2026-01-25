@@ -736,8 +736,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         collect_i = collect_i.add(2)
     }
 
-    // Check if any case has nested enum patterns or Range patterns - skip full desugaring if so
-    // Range patterns cause ccodegen temporary caching issues when desugared
+    // Check if any case has nested enum patterns - skip full desugaring if so
+    // These are too complex to desugar and are left for interpreter/ccodegen
     mut nested_check_i := 0
     while nested_check_i.lt(cases.len()) {
         mut nested_pattern := Expr()
@@ -754,21 +754,6 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 desugar_param_i.inc()
             }
             return Expr.new_explicit(NodeType.Switch, desugared_params, e.line, e.col)
-        }
-        // Skip desugaring Range cases - ccodegen has issues with temporary caching
-        switch nested_pattern.node_type {
-        case NodeType.Range:
-            mut desugared_params2 := Vec.new(Expr)
-            mut desugar_param_i2 := 0
-            while desugar_param_i2.lt(e.params.len()) {
-                mut desugar_param2 := Expr()
-                e.params.get(desugar_param_i2, desugar_param2)?
-                desugared_params2.push(desugar_expr(context, desugar_param2)?)
-                desugar_param_i2.inc()
-            }
-            return Expr.new_explicit(NodeType.Switch, desugared_params2, e.line, e.col)
-        case:
-            // REM: not a Range
         }
         nested_check_i = nested_check_i.add(2)  // skip body, go to next pattern
     }

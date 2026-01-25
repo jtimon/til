@@ -623,17 +623,21 @@ Branch: ~claude/fix-issue-110-IOhyZ~
 - Enum switches with simple patterns: ~enum_to_str()~ + ~Str.eq()~
 - Non-enum switches with simple cases: ~val.eq(case_val)~
 - Payload extraction: ~enum_get_payload()~ with default-initialized bindings
+- Range patterns (e.g., ~case 10..20:~): ~val.gteq(lo).and(val.lteq(hi))~
 
 ***** What is NOT desugared (left for interpreter/ccodegen):
 - Nested enum patterns (e.g., ~Type.Variant(Inner.Variant)~) - too complex
-- Range patterns (e.g., ~case 10..20:~) - ccodegen has temp caching issues when desugared
 
 All tests pass (~make benchmark~ exit 0).
+
+**** ccodegen hoisted_exprs fix (2026-01-25)
+Range patterns were initially skipped because ccodegen had a bug: ~hoisted_exprs~
+(HashMap for variadic call argument temps) wasn't saved/restored for nested functions.
+Fix: save and clear ~hoisted_exprs~ on nested function entry, restore on exit.
 
 **** REMAINING
 
 Before Steps 2-6 can proceed, Step 1 needs completion:
-- Desugar range patterns (requires fixing ccodegen temp caching)
 - Desugar nested enum patterns (or document why they can't be)
 
 Once ALL patterns are desugared, cleanup Steps 2-6 can remove switch handling from downstream phases.
