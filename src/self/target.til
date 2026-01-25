@@ -289,9 +289,17 @@ toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec {
     result.push("-Werror")
     // Suppressions for unfixed warnings (Bug #99):
     result.push("-Wno-unused-variable")           // 1514 occurrences
-    result.push("-Wno-dangling-pointer")          // 971 occurrences (high priority to fix)
-    result.push("-Wno-unused-but-set-variable")   // 386 occurrences
     result.push("-Wno-unused-label")              // 153 occurrences
+    // GCC-only flags (not supported by clang on Mac)
+    switch target {
+    case Target.MacosArm64:
+        // Skip GCC-only flags
+    case Target.MacosX64:
+        // Skip GCC-only flags
+    case:
+        result.push("-Wno-dangling-pointer")          // 971 occurrences (high priority to fix)
+        result.push("-Wno-unused-but-set-variable")   // 386 occurrences
+    }
     return result
 }
 
