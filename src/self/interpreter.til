@@ -528,13 +528,14 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
                                 // Str payload is 16 bytes after the enum tag (c_string ptr + size)
                                 str_payload_offset := add(str_var_offset, 8)
 
-                                // Extract c_string pointer (first 8 bytes)?
+                                // Extract c_string pointer (first 8 bytes of Ptr.data)
                                 mut ptr_offset : I64 = 0
                                 memcpy(to_ptr(ptr_offset), g_arena.get(str_payload_offset, 8), 8)
 
-                                // Extract size (next 8 bytes)
+                                // Extract size (after Ptr, which includes data + is_borrowed)
+                                ptr_size := context.get_type_size("Ptr")?
                                 mut str_size : I64 = 0
-                                memcpy(to_ptr(str_size), g_arena.get(add(str_payload_offset, 8), 8), 8)
+                                memcpy(to_ptr(str_size), g_arena.get(add(str_payload_offset, ptr_size), 8), 8)
 
                                 // Declare symbol first
                                 str_sym_info := SymbolInfo(value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false)

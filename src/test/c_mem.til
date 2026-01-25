@@ -12,7 +12,7 @@ test_size_of := proc() {
     assert_eq(loc(), size_of(I64), 8)
     // Color enum is 8 bytes in interpreter (I64), 4 bytes in compiled C (int enum)
     test(loc(), size_of(Color).gteq(4), "size_of(Color) should be at least 4")
-    assert_eq(loc(), size_of(Str), 16)
+    assert_eq(loc(), size_of(Str), 24)
 }
 test_size_of()
 

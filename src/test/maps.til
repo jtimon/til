@@ -69,9 +69,9 @@ test_map_str_to_vec2 := proc() {
     }
 }
 
-// Test Map<Str, Array<Str>>
-test_map_str_to_array_str := proc() {
-    mut lists := Map.new(Str, Array)
+// Test Map<Str, Vec<Str>>
+test_map_str_to_vec_str := proc() {
+    mut lists := Map.new(Str, Vec)
 
     mut fruits := Vec.new(Str)
     fruits.push("apple")
@@ -85,16 +85,16 @@ test_map_str_to_array_str := proc() {
     colors.push("blue")
     lists.insert("colors", colors)?
 
-    mut arr := Array()
-    lists.get("fruits", arr)?
-    test(loc(), arr.len().eq(3), "fruits array should have 3 elements")
+    mut retrieved := Vec()
+    lists.get("fruits", retrieved)?
+    test(loc(), retrieved.len().eq(3), "fruits vec should have 3 elements")
     mut item := ""
-    arr.get(0, item)?
+    retrieved.get(0, item)?
     test(loc(), item.eq("apple"), "fruits[0] should be apple")
 
-    lists.get("colors", arr)?
-    test(loc(), arr.len().eq(3), "colors array should have 3 elements")
-    arr.get(0, item)?
+    lists.get("colors", retrieved)?
+    test(loc(), retrieved.len().eq(3), "colors vec should have 3 elements")
+    retrieved.get(0, item)?
     test(loc(), item.eq("red"), "colors[0] should be red")
 
     fruits.delete()
@@ -419,7 +419,7 @@ test_map_keys_field := proc() {
 // Run all tests
 test_map_i64_to_i64()
 test_map_str_to_vec2()
-test_map_str_to_array_str()
+test_map_str_to_vec_str()
 test_map_u8_to_bool()
 test_map_insert_duplicate()
 test_map_set()

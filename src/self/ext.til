@@ -70,8 +70,9 @@ validate_arg_count := proc(path: Str, e: Expr, func_name: Str, expected: I64, is
 
 // Read a Str value from context (reads c_string and cap from arena)
 string_from_context := proc(context: Context, id: Str, e: Expr) returns Str throws Str {
-    // Read the c_string field (I64 pointer to string data in EvalArena)
-    c_string_ptr := EvalArena.get_i64(context, format(id, ".c_string"), e)?
+    // Read the c_string.data field (I64 pointer to string data in EvalArena)
+    // Note: c_string is a Ptr struct { data: I64, is_borrowed: I64 }, so we read .data
+    c_string_ptr := EvalArena.get_i64(context, format(id, ".c_string.data"), e)?
 
     // Read the cap field (I64 length)
     length := EvalArena.get_i64(context, format(id, ".cap"), e)?

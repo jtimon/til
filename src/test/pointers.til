@@ -18,7 +18,7 @@ test_pointers := proc() {
     r := p.offset(16)
     test(loc(), gt(r.data, p.data), "Offset pointer should be greater than base pointer")
 
-    s := Ptr.new(I64)
+    mut s := Ptr.new(I64)
     test(loc(), gt(s.data, 0), "Typed pointer allocation should succeed")
 
     // TODO actually free things after self hosting, when we move on from an interpreted arena (very wasteful, but feels like garbage collection for free)

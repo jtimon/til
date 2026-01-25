@@ -5,6 +5,7 @@ import("core.mem")
 /** Ptr - Pointer type wrapping a raw memory address. */
 Ptr := struct {
     mut data: I64 = NULL
+    mut is_borrowed: I64 = 0  // 0=false, 1=true
 
     // TODO FIX should type error because size is already declared
     size_of := func() returns I64 { return size_of(I64) }
@@ -27,11 +28,13 @@ Ptr := struct {
         return Ptr.new_by_size(size_of(T))
     }
 
-    delete := proc(self: Ptr) {
+    delete := proc(mut self: Ptr) {
         if NULL.eq(self.data) {
-            panic(loc(), "Ptr.delete: trying to free a NULL pointer")
+            // Already deleted or never allocated - safe to call multiple times
+            return
         }
         free(self.data)
+        self.data = NULL
     }
 
     /** Ptr.offset is danger-ous, also known as "pointer arythmetics". */

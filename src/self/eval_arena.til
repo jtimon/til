@@ -1023,7 +1023,7 @@ EvalArena := struct {
                     payload_size = 8
                 } else {
                     if vtype_name.eq("Str") {
-                        payload_size = 16  // Str is always 16 bytes (pointer + size)
+                        payload_size = ctx.get_type_size("Str")?
                     } else {
                         // Check if this is a struct or enum type
                         mut type_symbol := ctx.scope_stack.lookup_symbol(vtype_name)?

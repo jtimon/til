@@ -149,8 +149,9 @@ pub fn string_from_context(context: &Context, id: &str, e: &Expr) -> Result<Stri
     // Validate the Str struct exists
     context.get_struct(id, e)?;
 
-    // Read the c_string field (I64 pointer to string data in EvalArena)
-    let c_string_ptr = EvalArena::get_i64(context, &format!("{}.c_string", id), e)? as usize;
+    // Read the c_string.data field (I64 pointer to string data in EvalArena)
+    // Note: c_string is a Ptr struct { data: I64, is_borrowed: I64 }, so we read .data
+    let c_string_ptr = EvalArena::get_i64(context, &format!("{}.c_string.data", id), e)? as usize;
 
     // Read the cap field (I64 length)
     let length = EvalArena::get_i64(context, &format!("{}.cap", id), e)? as usize;
@@ -545,19 +546,21 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                         EvalArena::insert_i64(context, binding_var, &i64_val.to_string(), &case)?;
                                     }
                                     ValueType::TCustom(type_name) if type_name == "Str" => {
-                                        // For Str, the payload contains pointer + size (16 bytes total)
-                                        // We need to reconstruct the string from the arena
-                                        if payload_bytes.len() != 16 {
-                                            return Err(case.error(&context.path, "eval", &format!("Invalid Str payload size: expected 16, got {}", payload_bytes.len())));
+                                        // For Str, the payload contains Ptr (data + is_borrowed) + cap
+                                        // Str layout: { c_string: Ptr { data: I64, is_borrowed: I64 }, cap: I64 }
+                                        let str_size = context.get_type_size("Str").unwrap_or(24);
+                                        if payload_bytes.len() != str_size {
+                                            return Err(case.error(&context.path, "eval", &format!("Invalid Str payload size: expected {}, got {}", str_size, payload_bytes.len())));
                                         }
-                                        // Extract the c_string pointer (first 8 bytes)
+                                        // Extract the c_string.data pointer (first 8 bytes)
                                         let mut ptr_bytes = [0u8; 8];
                                         ptr_bytes.copy_from_slice(&payload_bytes[0..8]);
                                         let ptr_offset = i64::from_le_bytes(ptr_bytes);
 
-                                        // Extract size (next 8 bytes)
+                                        // Extract cap (after Ptr, which is now 16 bytes: data + is_borrowed)
+                                        let ptr_size = context.get_type_size("Ptr").unwrap_or(16);
                                         let mut size_bytes = [0u8; 8];
-                                        size_bytes.copy_from_slice(&payload_bytes[8..16]);
+                                        size_bytes.copy_from_slice(&payload_bytes[ptr_size..ptr_size+8]);
                                         let size = i64::from_le_bytes(size_bytes);
 
                                         // First add the symbol to context

@@ -825,7 +825,7 @@ impl EvalArena {
                 let payload_size = match vtype {
                     ValueType::TCustom(type_name) if type_name == "I64" => 8,
                     ValueType::TCustom(type_name) if type_name == "Str" => {
-                        16  // Str is always 16 bytes (pointer + size)
+                        ctx.get_type_size("Str").unwrap_or(0)
                     },
                     ValueType::TCustom(type_name) => {
                         // Check if this is a struct or enum type
