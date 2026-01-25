@@ -9,6 +9,60 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #140: Dangling pointers in generated C code (undefined behavior)
+:PROPERTIES:
+:DISCOVERED: 2026-01-25
+:IMPACT: Undefined behavior in generated C code; works by luck, may break with optimization
+:STATUS: Open
+:RELATED: Bug #99 Step 5a
+:END:
+
+*** Description
+The C codegen generates undefined behavior when passing rvalue results by-reference.
+GCC's ~-Wdangling-pointer~ warning (971 occurrences) reveals the problem:
+#+BEGIN_SRC c
+til_foo(({ til_Str _tmp = til_bar(); &_tmp; }))
+#+END_SRC
+
+The ~_tmp~ variable is local to the statement expression, so ~&_tmp~ is a dangling
+pointer once the expression ends. GCC warns about this with ~-Wdangling-pointer~.
+
+*** Why It Works (By Luck)
+The temp is on the stack and the outer function call happens immediately, before the
+stack location is overwritten. This is undefined behavior that happens to work because:
+- No optimization reorders the operations
+- Stack isn't clobbered between statement expression end and function call
+- Compiler doesn't exploit UB for optimization
+
+This could break with different optimization levels, compilers, or future gcc versions.
+
+*** Affected Patterns (ccodegen.rs lines)
+- Enum constructors needing address-of (line 1812)
+- UFCS placeholder "_" chained expressions (line 1835)
+- FCall results for struct types (line 1890)
+- Custom type constructors (line 1913)
+
+*** Fix Approach
+Hoist temp variables to statement level instead of using statement expressions:
+#+BEGIN_SRC c
+// Before (dangling):
+til_foo(({ til_Str _tmp = til_bar(); &_tmp; }))
+
+// After (safe):
+til_Str _tmp_42 = til_bar();
+til_foo(&_tmp_42);
+#+END_SRC
+
+This requires restructuring ~emit_fcall_arg~ to:
+1. Pre-scan arguments to identify which need temp variables
+2. Emit temp declarations before the call
+3. Reference the temps in the call arguments
+
+*** Complexity Notes
+- Affects core function call emission logic
+- Must be ported to both ccodegen.rs and ccodegen.til
+- May interact with existing ~ctx.hoisted_exprs~ mechanism
+
 ** Bug #139: Type checker allows assigning I64 to Ptr field
 :PROPERTIES:
 :DISCOVERED: 2026-01-25
@@ -678,7 +732,7 @@ ccodegen.rs and ccodegen.til to escape null bytes as ~\0~ in C output.
 - [X] Step 3c: Fix and re-enable -Wint-conversion (2026-01-13) - cast RHS to Dynamic in emit_assignment
 - [X] Step 3e: Enable and fix -Wreturn-type (2026-01-25) - add implicit return 0 to throwing functions, add zero-initialized fallback return to non-throwing functions with return types
 - [X] Step 4: Switch to -Wall -Wextra -Werror with suppressions (2026-01-25)
-- [ ] Step 5a: Remove -Wno-dangling-pointer (971 occurrences, high priority)
+- [ ] Step 5a: Remove -Wno-dangling-pointer (971 occurrences) - see Bug #140
 - [-] Step 5b: Remove -Wno-unused-variable (1514 occurrences, partial progress)
 - [ ] Step 5c: Remove -Wno-unused-but-set-variable (386 occurrences)
 - [ ] Step 5d: Remove -Wno-unused-label (153 occurrences)
