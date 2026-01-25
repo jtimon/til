@@ -192,23 +192,6 @@ fn find_enum_name_for_variant(context: &Context, variant_name: &str) -> Option<S
     None
 }
 
-/// Check if a case pattern contains nested enum patterns (e.g., Type.Variant(Inner.Variant))
-/// These are too complex to desugar and should be left for interpreter/ccodegen
-fn has_nested_enum_pattern(case_pattern: &Expr) -> bool {
-    if let NodeType::FCall(_) = &case_pattern.node_type {
-        // Check if any argument looks like an enum constructor (not a binding variable)
-        if case_pattern.params.len() > 1 {
-            let payload_expr = &case_pattern.params[1];
-            let info = get_case_variant_info(payload_expr);
-            // If we can extract variant info from the payload, it's a nested enum pattern
-            if !info.variant_name.is_empty() {
-                return true;
-            }
-        }
-    }
-    false
-}
-
 /// Desugar Switch to if/else chains
 /// For enum switches:
 ///   switch e { case Type.Variant(x): body }
@@ -321,7 +304,7 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         outer_body_stmts.push(variant_decl_expr);
     }
 
-    // Collect case/body pairs
+    // Collect case/body pairs and group nested enum patterns by outer variant
     let mut cases: Vec<(&Expr, &Expr)> = Vec::new();
     let mut default_body: Option<&Expr> = None;
     let mut i = 1;
@@ -336,23 +319,9 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         i += 2;
     }
 
-    // Check if any case has nested enum patterns - skip full desugaring if so
-    // These are too complex to desugar and are left for interpreter/ccodegen
-    for (case_pattern, _) in &cases {
-        if has_nested_enum_pattern(case_pattern) {
-            // Just desugar children but keep switch structure
-            let mut desugared_params = Vec::new();
-            for param in &e.params {
-                desugared_params.push(desugar_expr(context, param)?);
-            }
-            return Ok(Expr::new_explicit(
-                NodeType::Switch,
-                desugared_params,
-                e.line,
-                e.col,
-            ));
-        }
-    }
+    // Group cases by outer variant for nested enum patterns
+    // This ensures cases like TType(TEnumDef) and TType(TStructDef) share one outer if-block
+    let grouped_cases = group_nested_enum_cases(&cases);
 
     // Build if/else chain from end to beginning
     // Start with the default case (or empty body if no default)
@@ -362,39 +331,65 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         None
     };
 
-    // Process cases in reverse order to build the if chain
-    for (case_pattern, case_body) in cases.into_iter().rev() {
-        // Build condition based on case type
-        let condition = build_case_condition(
-            context,
-            case_pattern,
-            &switch_expr,
-            &variant_var,
-            is_enum_switch,
-            &switch_type,
-            line,
-            col,
-        )?;
+    // Process case groups in reverse order to build the if chain
+    for group in grouped_cases.into_iter().rev() {
+        if group.len() == 1 {
+            // Single case - process normally
+            let (case_pattern, case_body) = group[0];
+            let condition = build_case_condition(
+                context,
+                case_pattern,
+                &switch_expr,
+                &variant_var,
+                is_enum_switch,
+                &switch_type,
+                line,
+                col,
+            )?;
 
-        // Build case body with payload extraction if needed
-        let body_expr = build_case_body(
-            context,
-            case_pattern,
-            case_body,
-            &switch_expr,
-            &switch_type,
-            line,
-            col,
-        )?;
+            let body_expr = build_case_body(
+                context,
+                case_pattern,
+                case_body,
+                &switch_expr,
+                &switch_type,
+                line,
+                col,
+            )?;
 
-        // Build if node
-        let if_params = if let Some(else_expr) = current_else {
-            vec![condition, body_expr, else_expr]
+            let if_params = if let Some(else_expr) = current_else {
+                vec![condition, body_expr, else_expr]
+            } else {
+                vec![condition, body_expr]
+            };
+
+            current_else = Some(Expr::new_explicit(NodeType::If, if_params, line, col));
         } else {
-            vec![condition, body_expr]
-        };
+            // Multiple cases with same outer variant - generate grouped structure
+            // if (outer == "X") { extract_payload; if (inner == "A") {...} else if (inner == "B") {...} }
+            let (first_pattern, _) = group[0];
+            let outer_info = get_case_variant_info(first_pattern);
+            let full_outer_variant = format!("{}.{}", outer_info.type_name, outer_info.variant_name);
+            let outer_condition = build_str_eq_call(&variant_var, &full_outer_variant, line, col);
 
-        current_else = Some(Expr::new_explicit(NodeType::If, if_params, line, col));
+            // Build the inner if-else chain for all cases in this group
+            let grouped_body = build_grouped_inner_if_chain(
+                context,
+                &group,
+                &switch_expr,
+                &switch_type,
+                line,
+                col,
+            )?;
+
+            let if_params = if let Some(else_expr) = current_else {
+                vec![outer_condition, grouped_body, else_expr]
+            } else {
+                vec![outer_condition, grouped_body]
+            };
+
+            current_else = Some(Expr::new_explicit(NodeType::If, if_params, line, col));
+        }
     }
 
     // Add the if chain to outer body
@@ -403,6 +398,190 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     }
 
     Ok(Expr::new_explicit(NodeType::Body, outer_body_stmts, line, col))
+}
+
+/// Get the outer variant key for a case pattern (for grouping nested enum patterns)
+/// Returns Some((type_name, variant_name)) for nested enum patterns, None otherwise
+fn get_nested_outer_key(case_pattern: &Expr) -> Option<(String, String)> {
+    if let NodeType::FCall(_) = &case_pattern.node_type {
+        if case_pattern.params.len() > 1 {
+            let payload_expr = &case_pattern.params[1];
+            let nested_info = get_case_variant_info(payload_expr);
+            // Only consider it nested if the payload looks like an enum constructor
+            if !nested_info.variant_name.is_empty() && !nested_info.type_name.is_empty() {
+                let outer_info = get_case_variant_info(case_pattern);
+                if !outer_info.variant_name.is_empty() {
+                    return Some((outer_info.type_name.clone(), outer_info.variant_name.clone()));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Group consecutive cases that have the same outer variant (for nested enum patterns)
+/// Cases like TType(TEnumDef) and TType(TStructDef) will be grouped together
+fn group_nested_enum_cases<'a>(cases: &[(&'a Expr, &'a Expr)]) -> Vec<Vec<(&'a Expr, &'a Expr)>> {
+    let mut groups: Vec<Vec<(&'a Expr, &'a Expr)>> = Vec::new();
+
+    for case in cases {
+        let outer_key = get_nested_outer_key(case.0);
+
+        // Check if we can add to the previous group
+        let should_merge = if let (Some(ref key), Some(last_group)) = (&outer_key, groups.last()) {
+            // Check if the last case in the previous group has the same outer key
+            if let Some((last_pattern, _)) = last_group.last() {
+                if let Some(last_key) = get_nested_outer_key(last_pattern) {
+                    key.0 == last_key.0 && key.1 == last_key.1
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if should_merge {
+            groups.last_mut().unwrap().push(*case);
+        } else {
+            groups.push(vec![*case]);
+        }
+    }
+
+    groups
+}
+
+/// Build a grouped inner if-else chain for cases with the same outer variant
+/// Generates: { extract_payload; if (inner == "A") {...} else if (inner == "B") {...} }
+fn build_grouped_inner_if_chain(
+    context: &mut Context,
+    cases: &[(&Expr, &Expr)],
+    switch_expr: &Expr,
+    switch_type: &Option<ValueType>,
+    line: usize,
+    col: usize,
+) -> Result<Expr, String> {
+    let mut body_stmts: Vec<Expr> = Vec::new();
+
+    // Get payload type from the first case
+    let (first_pattern, _) = cases[0];
+    let outer_info = get_case_variant_info(first_pattern);
+
+    let outer_enum_name = if !outer_info.type_name.is_empty() {
+        outer_info.type_name.clone()
+    } else if let Some(ValueType::TCustom(name)) = switch_type {
+        name.clone()
+    } else {
+        return Err(first_pattern.lang_error(&context.path, "desugar", "Cannot determine enum type for nested pattern"));
+    };
+
+    let payload_type_opt: Option<ValueType> = context.scope_stack.lookup_enum(&outer_enum_name)
+        .and_then(|enum_def| enum_def.get(&outer_info.variant_name).cloned())
+        .flatten();
+
+    let payload_type = match payload_type_opt {
+        Some(pt) => pt,
+        None => return Err(first_pattern.lang_error(&context.path, "desugar", "Cannot determine payload type for nested pattern")),
+    };
+
+    // Generate unique name for extracted payload (shared by all cases in group)
+    let func_name = &context.current_precomp_func;
+    let payload_id = context.precomp_forin_counter;
+    context.precomp_forin_counter += 1;
+    let unique_payload_name = if !func_name.is_empty() {
+        format!("_switch_payload_{}_{}", func_name, payload_id)
+    } else {
+        format!("_switch_payload_{}", payload_id)
+    };
+
+    // Declare payload variable: mut _switch_payload_N := PayloadType.default()
+    let binding_decl = Declaration {
+        name: unique_payload_name.clone(),
+        value_type: payload_type.clone(),
+        is_mut: true,
+        is_copy: false,
+        is_own: false,
+        default_value: None,
+    };
+    let default_val = build_default_value(context, &payload_type, line, col);
+    let binding_decl_expr = Expr::new_explicit(
+        NodeType::Declaration(binding_decl),
+        vec![default_val],
+        line,
+        col,
+    );
+    body_stmts.push(binding_decl_expr);
+
+    // Build: enum_get_payload(switch_expr, PayloadType, _switch_payload_N)
+    let payload_type_name = value_type_to_str(&payload_type);
+    let get_payload_call = Expr::new_explicit(
+        NodeType::FCall(false),
+        vec![
+            Expr::new_explicit(NodeType::Identifier("enum_get_payload".to_string()), vec![], line, col),
+            switch_expr.clone(),
+            Expr::new_explicit(NodeType::Identifier(payload_type_name), vec![], line, col),
+            Expr::new_explicit(NodeType::Identifier(unique_payload_name.clone()), vec![], line, col),
+        ],
+        line,
+        col,
+    );
+    body_stmts.push(get_payload_call);
+
+    // Build inner if-else chain (process in reverse to build from end)
+    let mut inner_else: Option<Expr> = None;
+
+    for (case_pattern, case_body) in cases.iter().rev() {
+        let payload_expr = &case_pattern.params[1];
+        let nested_info = get_case_variant_info(payload_expr);
+
+        // Build inner condition: enum_to_str(_switch_payload_N).eq("InnerType.InnerVariant")
+        let inner_full_variant = format!("{}.{}", nested_info.type_name, nested_info.variant_name);
+        let enum_to_str_call = Expr::new_explicit(
+            NodeType::FCall(false),
+            vec![
+                Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
+                Expr::new_explicit(NodeType::Identifier(unique_payload_name.clone()), vec![], line, col),
+            ],
+            line,
+            col,
+        );
+        let inner_condition = Expr::new_explicit(
+            NodeType::FCall(false),
+            vec![
+                Expr::new_explicit(
+                    NodeType::Identifier("Str".to_string()),
+                    vec![Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col)],
+                    line,
+                    col,
+                ),
+                enum_to_str_call,
+                Expr::new_explicit(NodeType::LLiteral(Literal::Str(inner_full_variant)), vec![], line, col),
+            ],
+            line,
+            col,
+        );
+
+        // Desugar the case body
+        let desugared_body = desugar_expr(context, case_body)?;
+
+        // Build inner if (or if-else)
+        let inner_if_params = if let Some(else_expr) = inner_else {
+            vec![inner_condition, desugared_body, else_expr]
+        } else {
+            vec![inner_condition, desugared_body]
+        };
+
+        inner_else = Some(Expr::new_explicit(NodeType::If, inner_if_params, line, col));
+    }
+
+    // Add the inner if chain to body
+    if let Some(inner_if) = inner_else {
+        body_stmts.push(inner_if);
+    }
+
+    Ok(Expr::new_explicit(NodeType::Body, body_stmts, line, col))
 }
 
 /// Build the condition expression for a case
@@ -544,8 +723,9 @@ fn build_case_condition(
             let info = get_case_variant_info(case_pattern);
             if !info.variant_name.is_empty() && is_enum_switch {
                 // Build: Str.eq(_switch_variant, "Type.Variant")
-                // Note: Nested enum patterns (e.g., Type.Variant(Inner.Variant)) are detected
-                // and skipped at the switch level by has_nested_enum_pattern()
+                // Note: For nested enum patterns (e.g., Type.Variant(Inner.Variant)),
+                // the inner check is handled in build_case_body which wraps the body
+                // in an inner if-check
                 let full_variant = format!("{}.{}", info.type_name, info.variant_name);
                 Ok(build_str_eq_call(variant_var, &full_variant, line, col))
             } else {
@@ -822,6 +1002,211 @@ fn build_case_body(
             }
 
             return Ok(Expr::new_explicit(NodeType::Body, body_stmts, line, col));
+        }
+    }
+
+    // Handle FCall patterns with nested enum payloads (e.g., ValueType.TType(TTypeDef.TStructDef))
+    // or binding variables (e.g., ValueType.TMulti(type_name))
+    if let NodeType::FCall(_) = &case_pattern.node_type {
+        if case_pattern.params.len() > 1 {
+            let payload_expr = &case_pattern.params[1];
+            let nested_info = get_case_variant_info(payload_expr);
+            if !nested_info.variant_name.is_empty() && !nested_info.type_name.is_empty() {
+                // This is a nested enum pattern - payload is an enum constructor, not a binding
+                // The outer && inner condition is already handled in build_case_condition
+                // Here we just need to extract the payload and run the body
+                let outer_info = get_case_variant_info(case_pattern);
+
+                // Get the outer enum's payload type for this variant
+                let outer_enum_name = if !outer_info.type_name.is_empty() {
+                    outer_info.type_name.clone()
+                } else if let Some(ValueType::TCustom(name)) = switch_type {
+                    name.clone()
+                } else {
+                    String::new()
+                };
+
+                let payload_type_opt: Option<ValueType> = if !outer_enum_name.is_empty() {
+                    context.scope_stack.lookup_enum(&outer_enum_name)
+                        .and_then(|enum_def| enum_def.get(&outer_info.variant_name).cloned())
+                        .flatten()
+                } else {
+                    None
+                };
+
+                if let Some(payload_type) = payload_type_opt {
+                    // Generate unique name for extracted payload
+                    // This must match the name used in build_case_condition
+                    let func_name = &context.current_precomp_func;
+                    let payload_id = context.precomp_forin_counter;
+                    context.precomp_forin_counter += 1;
+                    let unique_payload_name = if !func_name.is_empty() {
+                        format!("_switch_payload_{}_{}", func_name, payload_id)
+                    } else {
+                        format!("_switch_payload_{}", payload_id)
+                    };
+
+                    let mut body_stmts: Vec<Expr> = Vec::new();
+
+                    // Declare payload variable: mut _switch_payload_N := PayloadType.default()
+                    let binding_decl = Declaration {
+                        name: unique_payload_name.clone(),
+                        value_type: payload_type.clone(),
+                        is_mut: true,
+                        is_copy: false,
+                        is_own: false,
+                        default_value: None,
+                    };
+                    let default_val = build_default_value(context, &payload_type, line, col);
+                    let binding_decl_expr = Expr::new_explicit(
+                        NodeType::Declaration(binding_decl),
+                        vec![default_val],
+                        line,
+                        col,
+                    );
+                    body_stmts.push(binding_decl_expr);
+
+                    // Build: enum_get_payload(switch_expr, PayloadType, _switch_payload_N)
+                    let payload_type_name = value_type_to_str(&payload_type);
+                    let get_payload_call = Expr::new_explicit(
+                        NodeType::FCall(false),
+                        vec![
+                            Expr::new_explicit(NodeType::Identifier("enum_get_payload".to_string()), vec![], line, col),
+                            switch_expr.clone(),
+                            Expr::new_explicit(NodeType::Identifier(payload_type_name), vec![], line, col),
+                            Expr::new_explicit(NodeType::Identifier(unique_payload_name.clone()), vec![], line, col),
+                        ],
+                        line,
+                        col,
+                    );
+                    body_stmts.push(get_payload_call);
+
+                    // Build inner condition: enum_to_str(_switch_payload_N).eq("InnerType.InnerVariant")
+                    let inner_full_variant = format!("{}.{}", nested_info.type_name, nested_info.variant_name);
+                    let enum_to_str_call = Expr::new_explicit(
+                        NodeType::FCall(false),
+                        vec![
+                            Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
+                            Expr::new_explicit(NodeType::Identifier(unique_payload_name.clone()), vec![], line, col),
+                        ],
+                        line,
+                        col,
+                    );
+                    let inner_condition = Expr::new_explicit(
+                        NodeType::FCall(false),
+                        vec![
+                            Expr::new_explicit(
+                                NodeType::Identifier("Str".to_string()),
+                                vec![Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col)],
+                                line,
+                                col,
+                            ),
+                            enum_to_str_call,
+                            Expr::new_explicit(NodeType::LLiteral(Literal::Str(inner_full_variant)), vec![], line, col),
+                        ],
+                        line,
+                        col,
+                    );
+
+                    // Desugar the actual body
+                    let desugared_body = desugar_expr(context, case_body)?;
+
+                    // Wrap body in inner if: if inner_condition { body }
+                    let inner_if = Expr::new_explicit(
+                        NodeType::If,
+                        vec![inner_condition, desugared_body],
+                        line,
+                        col,
+                    );
+                    body_stmts.push(inner_if);
+
+                    return Ok(Expr::new_explicit(NodeType::Body, body_stmts, line, col));
+                }
+            } else if let NodeType::Identifier(binding_var) = &payload_expr.node_type {
+                // FCall pattern with simple binding variable: Type.Variant(binding_var)
+                // This is NOT a nested enum pattern - we need to extract the payload into binding_var
+                let outer_info = get_case_variant_info(case_pattern);
+
+                // Get the outer enum's payload type for this variant
+                let outer_enum_name = if !outer_info.type_name.is_empty() {
+                    outer_info.type_name.clone()
+                } else if let Some(ValueType::TCustom(name)) = switch_type {
+                    name.clone()
+                } else {
+                    String::new()
+                };
+
+                let payload_type_opt: Option<ValueType> = if !outer_enum_name.is_empty() {
+                    context.scope_stack.lookup_enum(&outer_enum_name)
+                        .and_then(|enum_def| enum_def.get(&outer_info.variant_name).cloned())
+                        .flatten()
+                } else {
+                    None
+                };
+
+                if let Some(payload_type) = payload_type_opt {
+                    // Generate unique name for payload variable
+                    let func_name = &context.current_precomp_func;
+                    let payload_id = context.precomp_forin_counter;
+                    context.precomp_forin_counter += 1;
+                    let unique_payload_name = if !func_name.is_empty() {
+                        format!("_switch_payload_{}_{}", func_name, payload_id)
+                    } else {
+                        format!("_switch_payload_{}", payload_id)
+                    };
+
+                    let mut body_stmts: Vec<Expr> = Vec::new();
+
+                    // Declare payload variable: mut _switch_payload_N := PayloadType.default()
+                    let binding_decl = Declaration {
+                        name: unique_payload_name.clone(),
+                        value_type: payload_type.clone(),
+                        is_mut: true,
+                        is_copy: false,
+                        is_own: false,
+                        default_value: None,
+                    };
+                    let default_val = build_default_value(context, &payload_type, line, col);
+                    let binding_decl_expr = Expr::new_explicit(
+                        NodeType::Declaration(binding_decl),
+                        vec![default_val],
+                        line,
+                        col,
+                    );
+                    body_stmts.push(binding_decl_expr);
+
+                    // Build: enum_get_payload(switch_expr, PayloadType, _switch_payload_N)
+                    let payload_type_name = value_type_to_str(&payload_type);
+                    let get_payload_call = Expr::new_explicit(
+                        NodeType::FCall(false),
+                        vec![
+                            Expr::new_explicit(NodeType::Identifier("enum_get_payload".to_string()), vec![], line, col),
+                            switch_expr.clone(),
+                            Expr::new_explicit(NodeType::Identifier(payload_type_name), vec![], line, col),
+                            Expr::new_explicit(NodeType::Identifier(unique_payload_name.clone()), vec![], line, col),
+                        ],
+                        line,
+                        col,
+                    );
+                    body_stmts.push(get_payload_call);
+
+                    // Desugar the body THEN rename references from binding_var to unique_payload_name
+                    let desugared_body = desugar_expr(context, case_body)?;
+                    let renamed_body = replace_identifier(&desugared_body, binding_var, &unique_payload_name);
+
+                    // Add renamed body statements
+                    match &renamed_body.node_type {
+                        NodeType::Body => {
+                            body_stmts.extend(renamed_body.params.clone());
+                        },
+                        _ => {
+                            body_stmts.push(renamed_body);
+                        }
+                    }
+
+                    return Ok(Expr::new_explicit(NodeType::Body, body_stmts, line, col));
+                }
+            }
         }
     }
 

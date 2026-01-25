@@ -535,7 +535,7 @@ val: I64 = vec.get(0)  // direct return
 :PROPERTIES:
 :DISCOVERED: 2026-01-13
 :IMPACT: Simplify interpreter and ccodegen, reduce internal complexity
-:STATUS: In Progress (Step 1 partial - some patterns not desugared)
+:STATUS: In Progress (Step 1 COMPLETE - all patterns desugared)
 :RELATED: ccodegen payload hoisting, Issue #111 (enum_payload nicer with returns Dynamic)
 :END:
 
@@ -544,12 +544,13 @@ Remove switch as an internal construct. In desugarer phase, desugar switch/case 
 if/else chains with hoisted payload bindings (like ccodegen already does).
 
 *** Benefits
-After desugaring switch to if/else in desugarer, these phases can be simplified:
-- ~interpreter.rs~ (24 switch refs) - remove switch handling entirely
-- ~ccodegen.rs~ (57 switch refs) - remove switch handling and payload hoisting
+After desugaring switch to if/else in desugarer, post-desugarer phases can be simplified:
+- ~typer.rs~ (45 switch refs) - KEEP: validates switches before desugaring (pre-desugarer)
+- ~ufcs.rs~ (2 switch refs) - remove switch handling
 - ~precomp.rs~ (12 switch refs) - remove switch handling
 - ~scavenger.rs~ (1 switch ref) - remove switch handling
-- ~typer.rs~ (45 switch refs) - KEEP for validation before desugaring
+- ~interpreter.rs~ (24 switch refs) - remove switch handling entirely
+- ~ccodegen.rs~ (57 switch refs) - remove switch handling and payload hoisting
 
 Result: one construct post-desugarer (if/else), payload hoisting in single place
 
@@ -613,69 +614,65 @@ Also added RGB struct (with U8 r,g,b fields) test case to verify struct payloads
 
 *** Current State (2026-01-25)
 
-**** Step 1 PARTIAL: Switch desugaring in desugarer
+**** Step 1 COMPLETE: Switch desugaring in desugarer
 Branch: ~claude/fix-issue-110-IOhyZ~
 
-- Commit ~ae4e6b82~: Rust desugarer - added ~desugar_switch()~ (~740 lines)
-- Commit ~0d27a043~: TIL port - ported to ~src/self/desugarer.til~ (~750 lines)
+All switch patterns are now fully desugared to if/else chains. ~make benchmark~ passes (91/91 tests).
 
-***** What IS desugared (to if/else chains):
+***** Commits:
+- ~ae4e6b82~: Rust desugarer - initial ~desugar_switch()~
+- ~0d27a043~: TIL port - initial port to ~src/self/desugarer.til~
+- ~7b5a985e~: Nested enum patterns - grouping logic for same-outer-variant cases
+
+***** What IS desugared (ALL patterns now):
 - Enum switches with simple patterns: ~enum_to_str()~ + ~Str.eq()~
 - Non-enum switches with simple cases: ~val.eq(case_val)~
 - Payload extraction: ~enum_get_payload()~ with default-initialized bindings
 - Range patterns (e.g., ~case 10..20:~): ~val.gteq(lo).and(val.lteq(hi))~
+- Nested enum patterns (e.g., ~Type.Variant(Inner.Variant)~): grouped by outer variant
+- Binding variable patterns (e.g., ~Type.Variant(binding_var)~): payload extraction + rename
 
-***** What is NOT desugared (left for interpreter/ccodegen):
-- Nested enum patterns (e.g., ~Type.Variant(Inner.Variant)~) - too complex
+***** Nested enum pattern approach (grouping)
+The key insight: consecutive cases with the same outer variant must share one outer if-block.
 
-All tests pass (~make benchmark~ exit 0).
+Problem with naive approach:
+#+BEGIN_SRC til
+// case TType(TEnumDef): and case TType(TStructDef): generated:
+if outer == "TType" { ... TEnumDef ... }
+else if outer == "TType" { ... TStructDef ... }  // NEVER MATCHES!
+#+END_SRC
+
+Solution - group cases by outer variant:
+#+BEGIN_SRC til
+if outer == "ValueType.TType" {
+    mut _payload := TTypeDef.default()
+    enum_get_payload(val, TTypeDef, _payload)
+    if enum_to_str(_payload).eq("TTypeDef.TEnumDef") { ... }
+    else if enum_to_str(_payload).eq("TTypeDef.TStructDef") { ... }
+}
+#+END_SRC
+
+***** New helper functions (Rust + TIL):
+- ~get_nested_outer_key()~: identifies nested enum patterns, returns (type, variant)
+- ~group_nested_enum_cases()~: groups consecutive cases with same outer variant
+- ~build_grouped_inner_if_chain()~: builds inner if-else for grouped cases
 
 **** ccodegen hoisted_exprs fix (2026-01-25)
 Range patterns were initially skipped because ccodegen had a bug: ~hoisted_exprs~
 (HashMap for variadic call argument temps) wasn't saved/restored for nested functions.
 Fix: save and clear ~hoisted_exprs~ on nested function entry, restore on exit.
 
-**** REMAINING: Nested enum patterns
+**** NEXT STEPS: Cleanup (Steps 2-6)
+With Step 1 complete, post-desugarer phases can be simplified (in pipeline order):
 
-Before Steps 2-6 can proceed, Step 1 needs completion:
-- Desugar nested enum patterns
+- ~typer.rs~ (45 refs): KEEP - validates switches BEFORE desugaring
+- Step 2: Remove switch handling from ~ufcs.rs~ (2 refs)
+- Step 3: Remove switch handling from ~precomp.rs~ (12 refs)
+- Step 4: Remove switch handling from ~scavenger.rs~ (1 ref)
+- Step 5: Remove switch handling from ~interpreter.rs~ (24 refs)
+- Step 6: Remove switch handling from ~ccodegen.rs~ (57 refs) - including payload hoisting
 
-***** Example pattern
-~case ValueType.TType(TTypeDef.TStructDef):~ - used throughout TIL self-hosted compiler
-
-***** ccodegen approach (lines 6762-6774)
-Generates direct C struct access:
-#+BEGIN_SRC c
-switch_var.tag == til_ValueType_TType &&
-switch_var.payload.TType == til_TTypeDef_TStructDef
-#+END_SRC
-
-***** desugarer approach
-Generate nested ifs with enum_to_str and enum_get_payload:
-#+BEGIN_SRC til
-if enum_to_str(val).eq("ValueType.TType") {
-    mut _tmp_payload := TTypeDef.default()  // first variant as default
-    enum_get_payload(val, "TTypeDef", _tmp_payload)
-    if enum_to_str(_tmp_payload).eq("TTypeDef.TStructDef") {
-        // body
-    } else {
-        // next case or default
-    }
-} else {
-    // next case or default
-}
-#+END_SRC
-
-***** Implementation notes
-1. Detect nested pattern: already done in ~has_nested_enum_pattern~
-2. Instead of skipping, recursively desugar the payload pattern
-3. For nested enum check without binding (like ~TTypeDef.TStructDef~):
-   - Need temp var with default value for enum_get_payload inout param
-   - Generate inner if with enum_to_str check on extracted payload
-4. For nested enum with binding (like ~TTypeDef.TStructDef(x)~):
-   - Same as above, but also bind x to extracted inner payload
-
-Once ALL patterns are desugared, cleanup Steps 2-6 can remove switch handling from downstream phases.
+Pipeline order: Typer -> Desugarer -> UFCS -> Precomp -> Scavenger -> Interpret/Build
 
 *** Implementation Plan
 
