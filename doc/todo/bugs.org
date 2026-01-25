@@ -63,30 +63,6 @@ This requires restructuring ~emit_fcall_arg~ to:
 - Must be ported to both ccodegen.rs and ccodegen.til
 - May interact with existing ~ctx.hoisted_exprs~ mechanism
 
-** Bug #139: Type checker allows assigning I64 to Ptr field
-:PROPERTIES:
-:DISCOVERED: 2026-01-25
-:IMPACT: Type errors silently pass, causing gcc warnings
-:STATUS: Open
-:END:
-
-*** Description
-The type checker allows assigning an I64 value to a Ptr field without error.
-This was discovered when fixing Bug #99 Step 5f (-Wmissing-braces).
-
-*** Example
-~NULL := 0~ is defined as I64, but ~Declaration.default_value~ is Ptr:
-#+BEGIN_SRC til
-// This should be a type error but isn't:
-index_decl := Declaration(..., default_value=NULL)
-
-// Correct code:
-index_decl := Declaration(..., default_value=Ptr())
-#+END_SRC
-
-*** Fix Reference
-See commit 5031b866 which fixed the symptom by using Ptr() instead of NULL.
-
 ** Bug #133: Precomputed heap values (Vec, List, etc.) have invalid pointers at runtime
 :PROPERTIES:
 :DISCOVERED: 2026-01-22

@@ -7,6 +7,43 @@
 
 * Fixed Bugs
 
+** Bug #139: Type checker allows assigning I64 to Ptr field
+:PROPERTIES:
+:DISCOVERED: 2026-01-25
+:FIXED: 2026-01-25
+:IMPACT: Type errors silently pass, causing gcc warnings
+:STATUS: Fixed
+:END:
+
+*** Description
+The type checker allows assigning an I64 value to a Ptr field without error.
+This was discovered when fixing Bug #99 Step 5f (-Wmissing-braces).
+
+*** Example
+~NULL := 0~ is defined as I64, but ~Declaration.default_value~ is Ptr:
+#+BEGIN_SRC til
+// This should be a type error but isn't:
+index_decl := Declaration(..., default_value=NULL)
+
+// Correct code:
+index_decl := Declaration(..., default_value=Ptr())
+#+END_SRC
+
+*** Fix
+Added struct field type checking in the type checker (check_fcall function).
+For struct instantiations, when a named argument is provided, the type checker now:
+1. Looks up the struct field's expected type from the struct definition
+2. Gets the actual type of the provided value using get_value_type
+3. Compares the types and reports an error if they don't match
+
+Error format: "Struct 'X' field 'Y' expects 'ExpectedType', but 'ActualType' was provided."
+
+Also supports U8/I64 coercion for literals (Bug #124) and Dynamic/Type fields.
+
+*** Files Changed
+- src/rs/typer.rs: Added field type checking in struct instantiation block
+- src/self/typer.til: Same change for self-hosted type checker
+
 ** Bug #136: Switch on structs compares instance names, not values
 :PROPERTIES:
 :DISCOVERED: 2026-01-23

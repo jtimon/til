@@ -629,16 +629,11 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
     }
     catch (err: KeyNotFoundError) {
         // None case - struct or enum instantiation
-        // Validate field names for structs (Bug #85)
-        // Clone member names to avoid borrow conflict with check_types_with_context
+        // Validate field names and types for structs (Bug #85, Bug #139)
         mut is_struct := false
-        mut struct_member_names := Vec.new(Str)
-        mut _struct_def := SStructDef()
-        _struct_def = context.scope_stack.lookup_struct(f_name)?
+        mut struct_def := SStructDef()
+        struct_def = context.scope_stack.lookup_struct(f_name)?
         is_struct = true
-        for decl: Declaration in _struct_def.members {
-            struct_member_names.push(decl.name.clone())
-        }
         catch (err2: KeyNotFoundError) {
             // Not a struct - enum constructor, no field validation needed
         }
@@ -647,14 +642,71 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
         for struct_arg_idx in 1..e_clone.params.len() {
             mut struct_arg := Expr()
             struct_arg = e_clone.get(struct_arg_idx)?
-            // Only validate field names for structs
+            // Only validate field names and types for structs
             if is_struct {
                 switch struct_arg.node_type {
                 case NodeType.NamedArg(field_name):
-                    if not(struct_member_names.contains(field_name)) {
+                    // Bug #85: Check field name exists
+                    mut member_found := false
+                    mut member := Declaration()
+                    member = struct_def.get_member(field_name)?
+                    member_found = true
+                    catch (member_err: Str) {
+                        // Field not found
                         mut err_msg := format("Field '", field_name, "' does not exist in struct '", f_name, "'")
                         mut field_err := struct_arg.error(context.path, "type", err_msg)
                         errors.push(field_err)
+                    }
+                    // Bug #139: Check field type matches
+                    if member_found {
+                        // Get the value expression (first param of NamedArg)
+                        mut field_value_expr := Expr()
+                        field_value_expr = struct_arg.get(0)?
+                        mut field_found_type := ValueType.TCustom("")
+                        field_found_type = get_value_type(context, field_value_expr)?
+                        field_expected_type := member.value_type
+                        // Allow U8/I64 coercion for literals (Bug #124)
+                        mut field_is_u8_i64_coercion := false
+                        switch field_expected_type {
+                        case ValueType.TCustom(expected_tn):
+                            if expected_tn.eq("U8") {
+                                switch field_found_type {
+                                case ValueType.TCustom(found_tn):
+                                    if found_tn.eq("I64") {
+                                        switch field_value_expr.node_type {
+                                        case NodeType.LLiteral(literal):
+                                            switch literal {
+                                            case Literal.Number(_):
+                                                field_is_u8_i64_coercion = true
+                                            case:
+                                            }
+                                        case:
+                                        }
+                                    }
+                                case:
+                                }
+                            }
+                        case:
+                        }
+                        // Allow Dynamic and Type to accept any type
+                        mut field_types_ok := false
+                        switch field_expected_type {
+                        case ValueType.TCustom(tn):
+                            if tn.eq("Dynamic").or(tn.eq("Type")) {
+                                field_types_ok = true
+                            } else {
+                                field_types_ok = value_type_to_str(field_expected_type).eq(value_type_to_str(field_found_type)).or(field_is_u8_i64_coercion)
+                            }
+                        case:
+                            field_types_ok = value_type_to_str(field_expected_type).eq(value_type_to_str(field_found_type)).or(field_is_u8_i64_coercion)
+                        }
+                        if not(field_types_ok) {
+                            errors.push(struct_arg.error(context.path, "type", format(
+                                "Struct '", f_name, "' field '", field_name, "' expects '", value_type_to_str(field_expected_type), "', but '", value_type_to_str(field_found_type), "' was provided.")))
+                        }
+                        catch (get_err: Str) {
+                            // get_value_type error - already reported elsewhere
+                        }
                     }
                 case:
                 }

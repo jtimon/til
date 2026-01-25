@@ -513,19 +513,43 @@ fn check_fcall(context: &mut Context, e: &Expr, does_throw: bool) -> Vec<String>
         Ok(func_def_) => match func_def_ {
             Some(func_def_) => func_def_,
             None => {
-                // Struct or enum instantiation - validate field names for structs (Bug #85)
-                // Clone member names to avoid borrow conflict with check_types_with_context
-                let struct_member_names: Option<Vec<String>> = context.scope_stack
+                // Struct or enum instantiation - validate field names and types for structs (Bug #85, Bug #139)
+                // Clone struct definition to avoid borrow conflict with check_types_with_context
+                let struct_def_opt: Option<SStructDef> = context.scope_stack
                     .lookup_struct(&f_name)
-                    .map(|s| s.members.iter().map(|m| m.name.clone()).collect());
+                    .cloned();
 
                 for struct_arg_idx in 1..e.params.len() {
                     if let Ok(struct_arg) = e.get(struct_arg_idx) {
                         if let NodeType::NamedArg(field_name) = &struct_arg.node_type {
-                            if let Some(ref member_names) = struct_member_names {
-                                if !member_names.contains(field_name) {
+                            if let Some(ref struct_def) = struct_def_opt {
+                                // Bug #85: Check field name exists
+                                let member_opt = struct_def.get_member(field_name);
+                                if member_opt.is_none() {
                                     errors.push(struct_arg.error(&context.path, "type",
                                         &format!("Field '{}' does not exist in struct '{}'", field_name, f_name)));
+                                } else if let Some(member) = member_opt {
+                                    // Bug #139: Check field type matches
+                                    // Get the value expression (first param of NamedArg)
+                                    if let Ok(field_value_expr) = struct_arg.get(0) {
+                                        if let Ok(found_type) = get_value_type(&context, field_value_expr) {
+                                            let expected_type = &member.value_type;
+                                            // Allow U8/I64 coercion for literals (Bug #124)
+                                            let is_u8_i64_coercion = matches!(expected_type, ValueType::TCustom(tn) if tn == "U8")
+                                                && matches!(&found_type, ValueType::TCustom(ft) if ft == "I64")
+                                                && matches!(&field_value_expr.node_type, NodeType::LLiteral(Literal::Number(_)));
+                                            // Allow Dynamic and Type to accept any type
+                                            let types_ok = match expected_type {
+                                                ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => true,
+                                                _ => expected_type == &found_type || is_u8_i64_coercion,
+                                            };
+                                            if !types_ok {
+                                                errors.push(struct_arg.error(&context.path, "type",
+                                                    &format!("Struct '{}' field '{}' expects '{}', but '{}' was provided.",
+                                                        f_name, field_name, value_type_to_str(expected_type), value_type_to_str(&found_type))));
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
