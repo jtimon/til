@@ -409,7 +409,7 @@ static inline til_I64 til_run_cmd(til_Str* output_str, til_Array* args)
 // TODO: Implement actual eval_file functionality for compiled mode if needed
 // This would require reading, parsing, and evaluating TIL files at runtime,
 // which would essentially embed the full interpreter into the compiled binary.
-static inline void til_eval_file(const til_Str* path) {
+static inline void til_eval_file(const til_Str*) {
     printf("Error: eval_file is not available in compiled mode.\n");
     printf("Use 'til repl' with the interpreted version instead.\n");
     exit(1);

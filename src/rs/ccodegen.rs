@@ -2155,8 +2155,22 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         }
     }
 
-    // Main function
-    output.push_str("int main(int argc, char** argv) {\n");
+    // Check if main has variadic args (needs argc/argv)
+    let main_has_variadic = if context.mode_def.needs_main_proc {
+        match context.scope_stack.lookup_func("main") {
+            Some(fd) => fd.args.iter().any(|a| matches!(&a.value_type, ValueType::TMulti(_))),
+            None => false,
+        }
+    } else {
+        false
+    };
+
+    // Main function - use unnamed params if argc/argv not used
+    if main_has_variadic {
+        output.push_str("int main(int argc, char** argv) {\n");
+    } else {
+        output.push_str("int main(int, char**) {\n");
+    }
 
     // Clear hoisted_exprs to avoid cross-contamination from function passes
     ctx.hoisted_exprs.clear();
@@ -2194,22 +2208,6 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
 
     // Call til_main() for modes that require a main proc (like cli)
     if context.mode_def.needs_main_proc {
-        // Check if main has variadic args by looking up the function
-        // Variadic params have ValueType::TMulti as their type
-        let main_has_variadic = match context.scope_stack.lookup_func("main") {
-            Some(fd) => {
-                let mut has_multi = false;
-                for fd_arg in &fd.args {
-                    if matches!(&fd_arg.value_type, ValueType::TMulti(_)) {
-                        has_multi = true;
-                        break;
-                    }
-                }
-                has_multi
-            },
-            None => false,
-        };
-
         if main_has_variadic {
             // Convert argc/argv to til_Array and pass to til_main
             // Skip argv[0] (exe path) to match interpreter behavior
@@ -3188,8 +3186,11 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, context: &Context, 
                     output.push_str("* ");
                 }
             }
-            output.push_str(TIL_PREFIX);
-            output.push_str(&func_def_arg.name);
+            // Skip parameter name for underscore-prefixed params (intentionally unused)
+            if !func_def_arg.name.starts_with('_') {
+                output.push_str(TIL_PREFIX);
+                output.push_str(&func_def_arg.name);
+            }
             param_count += 1;
         }
     }

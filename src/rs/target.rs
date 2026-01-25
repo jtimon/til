@@ -156,7 +156,6 @@ pub fn toolchain_extra_args(target: &Target, _lang: &Lang) -> Vec<&'static str> 
         "-Wno-dangling-pointer",          // 971 occurrences (high priority to fix)
         "-Wno-unused-but-set-variable",   // 386 occurrences
         "-Wno-unused-label",              // 153 occurrences
-        "-Wno-unused-parameter",          // 7 occurrences
     ];
     match target {
         Target::MacosArm64 => [&["-target", "arm64-apple-macos11"], common].concat(),

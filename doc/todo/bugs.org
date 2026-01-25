@@ -644,9 +644,9 @@ Audit of generated C code with ~gcc -Wall -Wextra~:
 | -Wdangling-pointer           |   971 | High     | Statement expressions return &local_var    |
 | -Wunused-but-set-variable    |   386 | Low      | Similar to above                           |
 | -Wunused-label               |   153 | Low      | Catch labels generated but not jumped to   |
-| -Wunused-parameter           |     7 | Low      | ext.c has unused _err params               |
-| -Wmissing-braces             |     4 | Low      | Nested struct initializers                 |
-| -Wmissing-field-initializers |     1 | Low      | Struct initializer missing field           |
+| -Wunused-parameter           |     0 | Low      | FIXED 2026-01-25                           |
+| -Wmissing-braces             |     0 | Low      | FIXED 2026-01-25                           |
+| -Wmissing-field-initializers |     0 | Low      | FIXED 2026-01-25                           |
 | -Wreturn-type                |     0 | High     | FIXED 2026-01-25                           |
 | -Wincompatible-pointer-types |     0 | Medium   | FIXED 2026-01-13                           |
 
@@ -663,7 +663,6 @@ Now using ~-Wall -Wextra -Werror~ with suppressions for unfixed warnings (2026-0
 - ~-Wno-dangling-pointer~ (971 occurrences) - high priority to fix
 - ~-Wno-unused-but-set-variable~ (386 occurrences)
 - ~-Wno-unused-label~ (153 occurrences)
-- ~-Wno-unused-parameter~ (7 occurrences)
 
 To fix a warning category: remove the ~-Wno-~ flag and fix the resulting errors.
 
@@ -683,9 +682,9 @@ ccodegen.rs and ccodegen.til to escape null bytes as ~\0~ in C output.
 - [-] Step 5b: Remove -Wno-unused-variable (1514 occurrences, partial progress)
 - [ ] Step 5c: Remove -Wno-unused-but-set-variable (386 occurrences)
 - [ ] Step 5d: Remove -Wno-unused-label (153 occurrences)
-- [ ] Step 5e: Remove -Wno-unused-parameter (7 occurrences)
-- [X] Step 5f: Remove -Wno-missing-braces (2026-01-25) - use Ptr() instead of NULL for Declaration.default_value
-- [X] Step 5g: Remove -Wno-missing-field-initializers (2026-01-25) - add cap=0 to Str literals for Type params
+- [X] Step 5e: Remove -Wno-unused-parameter (2026-01-25) - emit unnamed C params for underscore-prefixed TIL params (e.g., ~const til_Str*~ instead of ~const til_Str* til__path~); also emit unnamed argc/argv in main() when not used
+- [X] Step 5f: Remove -Wno-missing-braces (2026-01-25) - use Ptr() instead of NULL for Declaration.default_value in desugarer.til/garbager.til; Ptr() emits ~((til_Ptr){0})~ with proper braces
+- [X] Step 5g: Remove -Wno-missing-field-initializers (2026-01-25) - add cap=0 to Str literals for Type params in ccodegen emit_main_args
 
 ** Bug #98: ext_proc errors should throw specific error types instead of panicking
 :PROPERTIES:
