@@ -477,8 +477,8 @@ til_I64 til_Array_len(const til_Array* til_self) {
 til_Array til_Array_new(til_Type til_T, const til_I64* til_capacity) {
     til_BadAlloc _thrown_BadAlloc__tmp_til_Array_new_0;
     til_Array til_arr = {.type_name = ((til_Str){((til_Ptr){(til_I64)"", 1}), 0, 0}), .type_size = 0, .ptr = 0, ._len = 0};
-    til_arr.type_name = ((til_Str){((til_Ptr){(til_I64)til_T, 1}), strlen(til_T)});
-    til_arr.type_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_T, 1}), strlen(til_T)}));
+    til_arr.type_name = ((til_Str){((til_Ptr){(til_I64)til_T, 1}), strlen(til_T), 0});
+    til_arr.type_size = til_size_of(&((til_Str){((til_Ptr){(til_I64)til_T, 1}), strlen(til_T), 0}));
     const til_I64 til_size_bytes = til_I64_mul(til_capacity, &til_arr.type_size);
     til_I64 _ret__tmp_til_Array_new_1;
     int __attribute__((unused)) _status__tmp_til_Array_new_1 = til_malloc(&_ret__tmp_til_Array_new_1, &til_size_bytes);

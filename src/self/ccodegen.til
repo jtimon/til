@@ -9005,7 +9005,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(", 1}), strlen(")
                 output.push_str(TIL_PREFIX)
                 output.push_str(type_name)
-                output.push_str(")})")
+                output.push_str("), 0})")
             } else {
                 // Literal type name - create Str compound literal
                 _ := context.scope_stack.lookup_struct("Str")?
@@ -9106,7 +9106,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(", 1}), strlen(")
                 output.push_str(TIL_PREFIX)
                 output.push_str(payload_type_name)
-                output.push_str(")})")
+                output.push_str("), 0})")
             } else {
                 // Literal type name - create Str compound literal
                 emit_str_literal(payload_type_name, output)
@@ -9160,7 +9160,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str(", 1}), strlen(")
                 output.push_str(TIL_PREFIX)
                 output.push_str(type_name)
-                output.push_str(")})")
+                output.push_str("), 0})")
             } else {
                 // Literal type name - create Str compound literal
                 emit_str_literal(type_name, output)
@@ -9178,7 +9178,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             emit_expr(size_type_arg, output, 0, ctx, context)?
             output.push_str(", 1}), strlen(")
             emit_expr(size_type_arg, output, 0, ctx, context)?
-            output.push_str(")})")
+            output.push_str("), 0})")
         }
         output.push_str(")")
         return

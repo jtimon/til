@@ -2215,7 +2215,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             // Skip argv[0] (exe path) to match interpreter behavior
             output.push_str("    til_Array _main_args = til_Array_new(\"Str\", &(til_I64){argc - 1});\n");
             output.push_str("    for (int i = 1; i < argc; i++) {\n");
-            output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1}), strlen(argv[i])};\n");
+            output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1}), strlen(argv[i]), 0};\n");
             output.push_str("        til_IndexOutOfBoundsError _set_err;\n");
             output.push_str("        til_Array_set(&_set_err, &_main_args, &(til_I64){i - 1}, (til_Dynamic*)&_arg);\n");
             output.push_str("    }\n");

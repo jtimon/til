@@ -293,7 +293,6 @@ toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec {
     result.push("-Wno-unused-but-set-variable")   // 386 occurrences
     result.push("-Wno-unused-label")              // 153 occurrences
     result.push("-Wno-unused-parameter")          // 7 occurrences
-    result.push("-Wno-missing-field-initializers") // 1 occurrence
     return result
 }
 

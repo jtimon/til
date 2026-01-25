@@ -157,7 +157,6 @@ pub fn toolchain_extra_args(target: &Target, _lang: &Lang) -> Vec<&'static str> 
         "-Wno-unused-but-set-variable",   // 386 occurrences
         "-Wno-unused-label",              // 153 occurrences
         "-Wno-unused-parameter",          // 7 occurrences
-        "-Wno-missing-field-initializers", // 1 occurrence
     ];
     match target {
         Target::MacosArm64 => [&["-target", "arm64-apple-macos11"], common].concat(),

@@ -664,7 +664,6 @@ Now using ~-Wall -Wextra -Werror~ with suppressions for unfixed warnings (2026-0
 - ~-Wno-unused-but-set-variable~ (386 occurrences)
 - ~-Wno-unused-label~ (153 occurrences)
 - ~-Wno-unused-parameter~ (7 occurrences)
-- ~-Wno-missing-field-initializers~ (1 occurrence)
 
 To fix a warning category: remove the ~-Wno-~ flag and fix the resulting errors.
 
@@ -686,7 +685,7 @@ ccodegen.rs and ccodegen.til to escape null bytes as ~\0~ in C output.
 - [ ] Step 5d: Remove -Wno-unused-label (153 occurrences)
 - [ ] Step 5e: Remove -Wno-unused-parameter (7 occurrences)
 - [X] Step 5f: Remove -Wno-missing-braces (2026-01-25) - use Ptr() instead of NULL for Declaration.default_value
-- [ ] Step 5g: Remove -Wno-missing-field-initializers (1 occurrence)
+- [X] Step 5g: Remove -Wno-missing-field-initializers (2026-01-25) - add cap=0 to Str literals for Type params
 
 ** Bug #98: ext_proc errors should throw specific error types instead of panicking
 :PROPERTIES:
