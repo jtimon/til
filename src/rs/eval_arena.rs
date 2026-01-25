@@ -603,7 +603,7 @@ impl EvalArena {
                             let absolute_offset = base_offset + existing_offset;
                             if existing_decl.name == "c_string" {
                                 EvalArena::g().set(absolute_offset, &string_offset_bytes)?;
-                            } else if existing_decl.name == "cap" {
+                            } else if existing_decl.name == "_len" {
                                 EvalArena::g().set(absolute_offset, &len_bytes)?;
                             }
 
@@ -632,7 +632,7 @@ impl EvalArena {
 
                         if decl.name == "c_string" {
                             EvalArena::g().set(struct_offset + current_offset, &string_offset_bytes)?;
-                        } else if decl.name == "cap" {
+                        } else if decl.name == "_len" {
                             EvalArena::g().set(struct_offset + current_offset, &len_bytes)?;
                         }
 
@@ -659,10 +659,10 @@ impl EvalArena {
             EvalArena::insert_struct(ctx, id, "Str", template_offset, e)?;
             let c_string_offset = ctx.scope_stack.lookup_var(&format!("{}.c_string", id))
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.c_string'", id)))?;
-            let cap_offset = ctx.scope_stack.lookup_var(&format!("{}.cap", id))
-                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.cap'", id)))?;
+            let len_offset = ctx.scope_stack.lookup_var(&format!("{}._len", id))
+                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}._len'", id)))?;
             EvalArena::g().set(c_string_offset, &info.string_offset_bytes)?;
-            EvalArena::g().set(cap_offset, &info.len_bytes)?;
+            EvalArena::g().set(len_offset, &info.len_bytes)?;
         }
         Ok(())
     }
@@ -677,11 +677,11 @@ impl EvalArena {
             let c_string_offset = frame.arena_index.get(&format!("{}.c_string", id))
                 .copied()
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string_into_frame: missing '{}.c_string'", id)))?;
-            let cap_offset = frame.arena_index.get(&format!("{}.cap", id))
+            let len_offset = frame.arena_index.get(&format!("{}._len", id))
                 .copied()
-                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string_into_frame: missing '{}.cap'", id)))?;
+                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string_into_frame: missing '{}._len'", id)))?;
             EvalArena::g().set(c_string_offset, &info.string_offset_bytes)?;
-            EvalArena::g().set(cap_offset, &info.len_bytes)?;
+            EvalArena::g().set(len_offset, &info.len_bytes)?;
         }
         Ok(())
     }

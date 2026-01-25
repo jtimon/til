@@ -5,27 +5,27 @@ import("core.mem")
 import("core.ptr")
 import("core.vec")
 
-/** Str - String type with c_string pointer and capacity. */
+/** Str - String type with c_string pointer, length, and capacity. */
 // TODO get rid of special cases for Str besides literals
 Str := struct {
     mut c_string : Ptr = Ptr()  // Pointer to null-terminated C string
-    mut cap      : I64 = 0
-    // mut len : I64 = 0 // TODO make sure double declarations inside the same struct give type errors
+    mut _len     : I64 = 0      // Length of string (not including null terminator)
+    mut cap      : I64 = 0      // Allocated capacity (0 = literal/unowned, >0 = owned)
 
     len := func(self: Str) returns I64 {
-        return self.cap
+        return self._len
     }
 
     is_empty := func(self: Str) returns Bool {
-        return self.cap.eq(0)
+        return self._len.eq(0)
     }
 
     eq := func(self: Str, other: Str) returns Bool {
-        if not(self.cap.eq(other.cap)) {
+        if not(self._len.eq(other._len)) {
             return false
         }
 
-        for i in 0..self.cap {
+        for i in 0..self._len {
             mut self_byte  : U8 = 0
             mut other_byte : U8 = 0
             memcpy(to_ptr(self_byte), self.c_string.offset(i).data, 1)
@@ -45,12 +45,14 @@ Str := struct {
 
     clone := func(self: Str) returns Str {
         mut cloned := Str()
-        cloned.cap = self.cap
-        cloned.c_string = Ptr.new_by_size(cloned.cap.add(1))  // +1 for null terminator
-        cloned.c_string.copy_from(self.c_string, self.cap)
+        cloned._len = self._len
+        cloned.cap = cloned._len.add(1)  // Allocated capacity
+        cloned.c_string = Ptr.new_by_size(cloned.cap)
+        cloned.c_string.is_borrowed = 0
+        cloned.c_string.copy_from(self.c_string, self._len)
         // Null-terminate the string
         zero : U8 = 0
-        memset(cloned.c_string.offset(cloned.cap).data, zero, 1)
+        memset(cloned.c_string.offset(cloned._len).data, zero, 1)
         return cloned
     }
 
@@ -60,7 +62,7 @@ Str := struct {
     }
 
     size := func(self: Str) returns I64 {
-        return self.cap
+        return self._len
     }
 
     /** Check if all characters in the string are uppercase (A-Z).
@@ -68,10 +70,10 @@ Str := struct {
      *  To check only the first character, use: str.get_substr(0, 1).is_uppercase()
      */
     is_uppercase := func(self: Str) returns Bool {
-        if self.cap.eq(0) {
+        if self._len.eq(0) {
             return false
         }
-        for i in 0..self.cap {
+        for i in 0..self._len {
             mut byte : U8 = 0
             memcpy(to_ptr(byte), self.c_string.offset(i).data, 1)
             // A = 65, Z = 90. Convert to I64 for comparison.
@@ -92,7 +94,7 @@ Str := struct {
      */
     to_lowercase := func(self: Str) returns Str {
         mut result := self.clone()
-        for i in 0..result.cap {
+        for i in 0..result._len {
             mut byte : U8 = 0
             memcpy(to_ptr(byte), result.c_string.offset(i).data, 1)
             mut byte_val : I64 = 0
@@ -255,8 +257,10 @@ Str := struct {
         mut new_len := self.len().sub(count.mul(from.len())).add(count.mul(to.len()))
 
         mut result := Str()
-        result.cap = new_len
-        result.c_string = Ptr.new_by_size(new_len.add(1))  // +1 for null terminator
+        result._len = new_len
+        result.cap = new_len.add(1)  // Allocated capacity
+        result.c_string = Ptr.new_by_size(result.cap)
+        result.c_string.is_borrowed = 0
 
         # Now build the result
         mut src_idx := 0
@@ -293,7 +297,7 @@ Str := struct {
 
         // Null-terminate the string
         zero : U8 = 0
-        memset(result.c_string.offset(result.cap).data, zero, 1)
+        memset(result.c_string.offset(result._len).data, zero, 1)
 
         return result
     }
@@ -362,10 +366,12 @@ Str := struct {
             one : U8 = 1
             byte_val = U8.add(byte_val, one)
             // Allocate new memory for the result
-            new_ptr := Ptr.new_by_size(2)
+            mut new_ptr := Ptr.new_by_size(2)
+            new_ptr.is_borrowed = 0
             memcpy(new_ptr.data, to_ptr(byte_val), 1)
             memset(new_ptr.offset(1).data, ZERO_U8, 1)
             self.c_string = new_ptr
+            self.cap = 2
         }
     }
 
@@ -379,10 +385,12 @@ Str := struct {
             one : U8 = 1
             byte_val = U8.sub(byte_val, one)
             // Allocate new memory for the result
-            new_ptr := Ptr.new_by_size(2)
+            mut new_ptr := Ptr.new_by_size(2)
+            new_ptr.is_borrowed = 0
             memcpy(new_ptr.data, to_ptr(byte_val), 1)
             memset(new_ptr.offset(1).data, ZERO_U8, 1)
             self.c_string = new_ptr
+            self.cap = 2
         }
     }
 
@@ -481,17 +489,19 @@ Str := struct {
         }
 
         mut result := Str()
-        result.cap = self.cap.mul(n)
-        result.c_string = Ptr.new_by_size(result.cap.add(1))
+        result._len = self._len.mul(n)
+        result.cap = result._len.add(1)  // Allocated capacity
+        result.c_string = Ptr.new_by_size(result.cap)
+        result.c_string.is_borrowed = 0
 
         mut offset := 0
         for i in 0..n {
-            memcpy(result.c_string.offset(offset).data, self.c_string.data, self.cap)
-            offset = offset.add(self.cap)
+            memcpy(result.c_string.offset(offset).data, self.c_string.data, self._len)
+            offset = offset.add(self._len)
         }
 
         // Null-terminate the string
-        memset(result.c_string.offset(result.cap).data, ZERO_U8, 1)
+        memset(result.c_string.offset(result._len).data, ZERO_U8, 1)
 
         return result
     }
@@ -506,7 +516,7 @@ Str := struct {
         FNV_PRIME : I64 = 1099511628211
 
         mut h := FNV_OFFSET_BASIS
-        for i in 0..self.cap {
+        for i in 0..self._len {
             mut byte_val : U8 = 0
             memcpy(to_ptr(byte_val), self.c_string.offset(i).data, 1)
             // h = h XOR byte
@@ -539,12 +549,14 @@ get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBo
     }
 
     mut substr := Str()
-    substr.cap = end.sub(start)
-    substr.c_string = Ptr.new_by_size(substr.cap.add(1))  // +1 for null terminator
-    memcpy(substr.c_string.data, s.c_string.offset(start).data, substr.cap)
+    substr._len = end.sub(start)
+    substr.cap = substr._len.add(1)  // Allocated capacity
+    substr.c_string = Ptr.new_by_size(substr.cap)
+    substr.c_string.is_borrowed = 0
+    memcpy(substr.c_string.data, s.c_string.offset(start).data, substr._len)
     // Null-terminate the string
     zero : U8 = 0
-    memset(substr.c_string.offset(substr.cap).data, zero, 1)
+    memset(substr.c_string.offset(substr._len).data, zero, 1)
 
     return substr
 }
@@ -623,19 +635,21 @@ strip_suffix := func(s: Str, suffix: Str) returns Str {
  */
 concat := func(a: Str, b: Str) returns Str {
     mut result := Str()
-    result.cap = a.cap.add(b.cap)
+    result._len = a._len.add(b._len)
 
-    if result.cap.lt(a.cap) {
+    if result._len.lt(a._len) {
         panic(loc(), "concat: integer overflow")
     }
 
-    result.c_string = Ptr.new_by_size(result.cap.add(1))  // +1 for null terminator
+    result.cap = result._len.add(1)  // Allocated capacity
+    result.c_string = Ptr.new_by_size(result.cap)
+    result.c_string.is_borrowed = 0
 
-    memcpy(result.c_string.data, a.c_string.data, a.cap)
-    memcpy(result.c_string.offset(a.cap).data, b.c_string.data, b.cap)
+    memcpy(result.c_string.data, a.c_string.data, a._len)
+    memcpy(result.c_string.offset(a._len).data, b.c_string.data, b._len)
     // Null-terminate the string
     zero : U8 = 0
-    memset(result.c_string.offset(result.cap).data, zero, 1)
+    memset(result.c_string.offset(result._len).data, zero, 1)
 
     return result
 }
@@ -643,31 +657,33 @@ concat := func(a: Str, b: Str) returns Str {
 /** Format a prefix with variadic string arguments, concatenating them all. */
 format := func(prefix: Str, args: ..Str) returns Str {
     mut result := Str()
-    result.cap = prefix.cap
+    result._len = prefix._len
 
     for i in 0..args.len() {
         mut arg := ""
         args.get(i, arg)?
-        result.cap = result.cap.add(arg.cap)
-        if result.cap.lt(arg.cap) {
+        result._len = result._len.add(arg._len)
+        if result._len.lt(arg._len) {
             panic(loc(), "format: integer overflow while summing cap")
         }
     }
 
-    result.c_string = Ptr.new_by_size(result.cap.add(1))  // +1 for null terminator
+    result.cap = result._len.add(1)  // Allocated capacity
+    result.c_string = Ptr.new_by_size(result.cap)
+    result.c_string.is_borrowed = 0
 
     mut fmt_offset := 0
-    memcpy(result.c_string.data, prefix.c_string.data, prefix.cap)
-    fmt_offset = prefix.cap
+    memcpy(result.c_string.data, prefix.c_string.data, prefix._len)
+    fmt_offset = prefix._len
 
     for s: Str in args {
-        memcpy(result.c_string.offset(fmt_offset).data, s.c_string.data, s.cap)
-        fmt_offset = fmt_offset.add(s.cap)
+        memcpy(result.c_string.offset(fmt_offset).data, s.c_string.data, s._len)
+        fmt_offset = fmt_offset.add(s._len)
     }
 
     // Null-terminate the string
     zero : U8 = 0
-    memset(result.c_string.offset(result.cap).data, zero, 1)
+    memset(result.c_string.offset(result._len).data, zero, 1)
 
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), err.msg)
@@ -695,8 +711,10 @@ join := func(parts: Vec, sep: Str) returns Str {
 
     // Allocate result
     mut result := Str()
-    result.cap = total_len
-    result.c_string = Ptr.new_by_size(total_len.add(1))
+    result._len = total_len
+    result.cap = total_len.add(1)  // Allocated capacity
+    result.c_string = Ptr.new_by_size(result.cap)
+    result.c_string.is_borrowed = 0
 
     // Copy parts with separator
     mut join_offset := 0
@@ -713,7 +731,7 @@ join := func(parts: Vec, sep: Str) returns Str {
 
     // Null-terminate
     zero : U8 = 0
-    memset(result.c_string.offset(result.cap).data, zero, 1)
+    memset(result.c_string.offset(result._len).data, zero, 1)
 
     return result
 }

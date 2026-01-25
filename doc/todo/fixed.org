@@ -3766,6 +3766,59 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #116: Refactor Str to use len/cap pattern
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:IMPLEMENTED: 2026-01-25
+:IMPACT: Enables Str.delete() and ownership tracking
+:STATUS: Fixed
+:RELATED: Issue #117 (ASAP destruction depends on this)
+:END:
+
+*** Description
+Str previously used ~cap~ field as length. Refactored to proper _len/cap layout
+like Vec, enabling ownership tracking (cap=0 means literal/unowned, cap>0 means
+heap/owned).
+
+*** Implementation
+Changed Str struct from 2 fields to 3 fields:
+#+BEGIN_SRC til
+Str := struct {
+    mut c_string: Ptr = Ptr()  // Pointer to null-terminated C string
+    mut _len: I64 = 0          // Length of string (not including null terminator)
+    mut cap: I64 = 0           // Allocated capacity (0 = literal/unowned, >0 = owned)
+}
+#+END_SRC
+
+Note: Field named ~_len~ (not ~len~) to avoid conflict with ~len()~ method.
+
+*** Ownership Semantics
+- ~cap = 0~: Literal/unowned - DO NOT free (points to .rodata)
+- ~cap > 0~: Owned - CAN free (heap allocated)
+- ~c_string.is_borrowed = 1~: Borrowed pointer (literals)
+- ~c_string.is_borrowed = 0~: Owned pointer (heap allocated)
+
+*** Changes Made
+- *src/core/str.til*: Renamed ~cap~ to ~_len~, added new ~cap~ field, updated all
+  allocating methods (clone, concat, format, join, repeat, get_substr, replace,
+  inc, dec) to set cap and is_borrowed correctly
+- *src/rs/ccodegen.rs*: Updated emit_str_literal to emit 3-field format with cap=0,
+  updated emit_enum_to_str_from_variants to include cap field
+- *src/self/ccodegen.til*: Same changes for TIL version
+- *src/ext.c*: Updated all Str handling to use 3-field format, changed .cap reads
+  to ._len for length access
+- *src/rs/interpreter.rs*: Fixed string_from_context to read ~._len~ instead of ~.cap~
+- *src/self/ext.til*: Fixed byte_to_str and string_from_context
+- *src/rs/eval_arena.rs*: Changed insert_string functions to write length to ~._len~,
+  fixed insert_string_core field name checks
+- *src/self/eval_arena.til*: Same changes for TIL version
+- *src/test/c_mem.til*: Updated size_of(Str) expectation from 24 to 32
+- *src/test/scope_isolation.til*: Changed ~msg.cap~ to ~msg.len()~
+
+*** ABI Change
+This changed til_Str struct size from 24 to 32 bytes. Required full rebuild with
+~make clean && make benchmark~.
+
 ** Issue #134: Ptr type refactor - distinguish pointer fields from I64
 :PROPERTIES:
 :DISCOVERED: 2026-01-23

@@ -154,8 +154,8 @@ pub fn string_from_context(context: &Context, id: &str, e: &Expr) -> Result<Stri
     // Note: c_string is a Ptr struct { data: I64, is_borrowed: I64 }, so we read .data
     let c_string_ptr = EvalArena::get_i64(context, &format!("{}.c_string.data", id), e)? as usize;
 
-    // Read the cap field (I64 length)
-    let length = EvalArena::get_i64(context, &format!("{}.cap", id), e)? as usize;
+    // Read the _len field (I64 length)
+    let length = EvalArena::get_i64(context, &format!("{}._len", id), e)? as usize;
 
     // Bounds check
     if c_string_ptr + length > EvalArena::g().len() {

@@ -713,7 +713,7 @@ EvalArena := struct {
                         if existing_decl.name.eq("c_string") {
                             g_arena.set(absolute_offset, to_ptr(string_offset), 8)
                         } else {
-                            if existing_decl.name.eq("cap") {
+                            if existing_decl.name.eq("_len") {
                                 g_arena.set(absolute_offset, to_ptr(str_len), 8)
                             }
                         }
@@ -747,7 +747,7 @@ EvalArena := struct {
                     if decl.name.eq("c_string") {
                         g_arena.set(field_offset, to_ptr(string_offset), 8)
                     } else {
-                        if decl.name.eq("cap") {
+                        if decl.name.eq("_len") {
                             g_arena.set(field_offset, to_ptr(str_len), 8)
                         }
                     }
@@ -784,12 +784,12 @@ EvalArena := struct {
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "context", format("insert_string: missing '", id, ".c_string'"))
         }
-        cap_offset := ctx.scope_stack.lookup_var(format(id, ".cap"))?
+        len_offset := ctx.scope_stack.lookup_var(format(id, "._len"))?
         catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "context", format("insert_string: missing '", id, ".cap'"))
+            throw e.lang_error(ctx.path, "context", format("insert_string: missing '", id, "._len'"))
         }
         g_arena.set(c_string_offset, to_ptr(info.string_offset), 8)
-        g_arena.set(cap_offset, to_ptr(info.str_len), 8)
+        g_arena.set(len_offset, to_ptr(info.str_len), 8)
 
     }
 
@@ -810,13 +810,13 @@ EvalArena := struct {
         catch (err: KeyNotFoundError) {
             throw e.lang_error(ctx.path, "context", format("insert_string_into_frame: missing '", id, ".c_string'"))
         }
-        mut cap_offset := 0
-        frame.arena_index.get(format(id, ".cap"), cap_offset)?
+        mut len_offset := 0
+        frame.arena_index.get(format(id, "._len"), len_offset)?
         catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "context", format("insert_string_into_frame: missing '", id, ".cap'"))
+            throw e.lang_error(ctx.path, "context", format("insert_string_into_frame: missing '", id, "._len'"))
         }
         g_arena.set(c_string_offset, to_ptr(info.string_offset), 8)
-        g_arena.set(cap_offset, to_ptr(info.str_len), 8)
+        g_arena.set(len_offset, to_ptr(info.str_len), 8)
     }
 
     // Helper function to insert primitive types (I64, U8, Str) based on value_type

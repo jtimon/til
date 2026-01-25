@@ -302,7 +302,7 @@ Files: garbager.rs, garbager.til (new)
 
 *** Implementation Steps
 
-**** Step 1: Add is_borrowed to Ptr
+**** Step 1: Add is_borrowed to Ptr (DONE)
 Add ownership tracking to Ptr:
 #+BEGIN_SRC til
 Ptr := struct {
@@ -332,7 +332,7 @@ This ensures ALL types have ~delete()~, simplifying the garbager phase.
 
 Files: i64.til, u8.til, bool.til
 
-**** Step 3: Garbager Phase - Auto-generate delete() for structs
+**** Step 3: Garbager Phase - Auto-generate delete() for structs (DONE)
 New phase after desugarer that auto-generates ~delete()~ method for any struct that lacks one.
 
 Algorithm:
@@ -414,98 +414,6 @@ Files: garbager.rs, garbager.til
 2. Double-free tests - delete() is idempotent
 3. Control flow tests - returns, throws, branches, loops
 4. ~make benchmark~ must pass
-
-** Issue #116: Refactor Str to use len/cap pattern
-:PROPERTIES:
-:DISCOVERED: 2026-01-15
-:IMPACT: Enables Str.delete() and ownership tracking
-:STATUS: Open
-:RELATED: Issue #117 (ASAP destruction depends on this)
-:END:
-
-*** Description
-Str currently uses ~cap~ field as length. Refactor to proper len/cap like Vec,
-enabling ownership tracking (cap=0 means literal/unowned, cap>0 means heap/owned).
-
-*** Problem
-String literals in generated C point to static .rodata memory:
-#+BEGIN_SRC c
-til_Str s = ((til_Str){(til_I64)"hello", 5});  // can't free this!
-#+END_SRC
-
-Dynamic strings (clone, concat) point to heap memory - CAN free.
-We need a way to distinguish them.
-
-*** Solution
-Use capacity field for ownership (like Vec):
-
-Current:
-#+BEGIN_SRC til
-Str := struct {
-    mut c_string: I64 = 0
-    mut cap: I64 = 0      // misleading - actually length
-}
-#+END_SRC
-
-New:
-#+BEGIN_SRC til
-Str := struct {
-    mut c_string: I64 = 0
-    mut len: I64 = 0      // length of string
-    mut cap: I64 = 0      // allocated capacity (0 = literal/unowned)
-}
-#+END_SRC
-
-*** Ownership Semantics
-- ~cap = 0~: Literal/unowned - DO NOT free (points to .rodata)
-- ~cap > 0~: Owned - CAN free (heap allocated, cap bytes)
-
-*** Benefits
-- Not a hack flag - actual useful capacity info
-- Enables future push_str optimization (append in-place if len < cap)
-- Consistent with Vec semantics (ptr, len, cap)
-- Ownership derived from meaningful data
-
-*** Implementation Steps
-
-**** Step 1: Update Str struct
-- Rename current ~cap~ to ~len~
-- Add new ~cap~ field (allocated capacity, 0 = literal)
-
-**** Step 2: Update Str methods
-All allocating methods must set cap:
-- clone(): cap = allocated size
-- concat(): cap = allocated size
-- replace(): cap = allocated size
-- get_substr(): cap = allocated size (when it allocates)
-- etc.
-
-**** Step 3: Add Str.delete()
-#+BEGIN_SRC til
-delete := proc(mut self: Str) {
-    if self.cap.gt(0) {  // Only free if owned
-        free(self.c_string)
-    }
-    self.c_string = 0
-    self.len = 0
-    self.cap = 0
-}
-#+END_SRC
-
-**** Step 4: Update ccodegen literal emission
-Emit ~{c_string, len, 0}~ for literals (cap=0 = unowned).
-
-*** ABI Change
-This changes til_Str struct size - requires:
-- Regenerate all C code
-- Update bootstrap/til.c
-- Full rebuild
-
-*** Files
-- src/core/str.til (struct + all methods)
-- src/rs/ccodegen.rs (literal emission)
-- src/self/ccodegen.til (literal emission)
-- bootstrap/til.c (regenerate)
 
 ** Issue #115: Owned struct fields and auto-generated methods
 :PROPERTIES:

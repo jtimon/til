@@ -16,7 +16,9 @@ import("std.io")            // readfile, input_read_line
 byte_to_str := func(byte: U8) returns Str {
     mut s := Str()
     s.c_string = Ptr.new_by_size(2)  // 1 byte + null terminator
-    s.cap = 1
+    s.c_string.is_borrowed = 0
+    s._len = 1
+    s.cap = 2  // Allocated capacity
     memcpy(s.c_string.data, to_ptr(byte), 1)
     mut zero : U8 = 0
     memcpy(s.c_string.offset(1).data, to_ptr(zero), 1)  // null terminator
@@ -68,14 +70,14 @@ validate_arg_count := proc(path: Str, e: Expr, func_name: Str, expected: I64, is
     }
 }
 
-// Read a Str value from context (reads c_string and cap from arena)
+// Read a Str value from context (reads c_string and _len from arena)
 string_from_context := proc(context: Context, id: Str, e: Expr) returns Str throws Str {
     // Read the c_string.data field (I64 pointer to string data in EvalArena)
     // Note: c_string is a Ptr struct { data: I64, is_borrowed: I64 }, so we read .data
     c_string_ptr := EvalArena.get_i64(context, format(id, ".c_string.data"), e)?
 
-    // Read the cap field (I64 length)
-    length := EvalArena.get_i64(context, format(id, ".cap"), e)?
+    // Read the _len field (I64 length)
+    length := EvalArena.get_i64(context, format(id, "._len"), e)?
 
     // Bounds check
     if c_string_ptr.add(length).gt(g_arena.len()) {

@@ -119,7 +119,7 @@ test_str_parameter_shadowing := proc() {
     msg := "outer"
 
     get_length := func(msg: Str) returns I64 {
-        return msg.cap
+        return msg.len()
     }
 
     result := get_length("inner")
