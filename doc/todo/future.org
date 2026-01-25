@@ -326,7 +326,7 @@ separately track nested Ptr fields.
 AST transformation in a new "garbager" phase. Inserts ~var.delete()~ calls directly
 into the AST after last use. Both compiler and interpreter benefit automatically.
 
-Pipeline position: parse -> desugar -> ufcs -> *garbager* -> precomp -> typer -> ...
+Pipeline position: typer -> desugar -> ufcs -> *garbager* -> precomp -> ...
 
 Files: garbager.rs, garbager.til (new)
 
@@ -363,7 +363,7 @@ This ensures ALL types have ~delete()~, simplifying the garbager phase.
 Files: i64.til, u8.til, bool.til
 
 **** Step 3: Garbager Phase - Auto-generate delete() for structs (DONE)
-New phase after desugarer that auto-generates ~delete()~ method for any struct that lacks one.
+New phase after ufcs that auto-generates ~delete()~ method for any struct that lacks one.
 
 Algorithm:
 1. When processing a struct definition, check if it has a ~delete~ method
@@ -392,8 +392,8 @@ delete := proc(mut self: MyStruct) {
 
 Files: garbager.rs, garbager.til (new)
 
-**** Step 4: Garbager Phase - Liveness Analysis Infrastructure
-Add liveness analysis to track when variables are last used.
+**** Step 4: Liveness Analysis and Delete Insertion
+Add liveness analysis to track when variables are last used, then insert ~var.delete()~ calls.
 
 Data structure:
 #+BEGIN_SRC rust
@@ -411,24 +411,12 @@ Algorithm:
 1. Analysis pass: Scan statements, track last use index per variable
 2. Transform pass: Insert ~var.delete()~ statement after last_use_stmt_idx
 
-Files: garbager.rs, garbager.til
+Handle control flow:
+- Early exits (return/throw): Insert deletes for all still-live variables before exit
+- Branches (if/else/switch): Conservative - only delete if ALL paths agree variable is dead, otherwise delete after branch
+- Loops: Most conservative - variables used in loop body deleted after loop ends
+- Scope exit: Safety net - insert deletes for any remaining live variables at function end
 
-**** Step 5: Handle Early Exits (return/throw)
-Before any return/throw statement, insert deletes for all still-live variables.
-Files: garbager.rs, garbager.til
-
-**** Step 6: Handle Branches (if/else/switch)
-Conservative: Only insert delete if ALL paths agree variable is dead.
-Otherwise, insert delete after the branch construct.
-Files: garbager.rs, garbager.til
-
-**** Step 7: Handle Loops
-Most conservative: Variables used in loop body deleted after loop ends.
-Special case: for-in loop variable deleted at end of each iteration.
-Files: garbager.rs, garbager.til
-
-**** Step 8: Scope Exit Safety Net
-Insert deletes for any remaining live variables at function end.
 Files: garbager.rs, garbager.til
 
 *** Design Decisions
