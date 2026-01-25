@@ -9,6 +9,30 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #139: Type checker allows assigning I64 to Ptr field
+:PROPERTIES:
+:DISCOVERED: 2026-01-25
+:IMPACT: Type errors silently pass, causing gcc warnings
+:STATUS: Open
+:END:
+
+*** Description
+The type checker allows assigning an I64 value to a Ptr field without error.
+This was discovered when fixing Bug #99 Step 5f (-Wmissing-braces).
+
+*** Example
+~NULL := 0~ is defined as I64, but ~Declaration.default_value~ is Ptr:
+#+BEGIN_SRC til
+// This should be a type error but isn't:
+index_decl := Declaration(..., default_value=NULL)
+
+// Correct code:
+index_decl := Declaration(..., default_value=Ptr())
+#+END_SRC
+
+*** Fix Reference
+See commit 5031b866 which fixed the symptom by using Ptr() instead of NULL.
+
 ** Bug #133: Precomputed heap values (Vec, List, etc.) have invalid pointers at runtime
 :PROPERTIES:
 :DISCOVERED: 2026-01-22
@@ -640,7 +664,6 @@ Now using ~-Wall -Wextra -Werror~ with suppressions for unfixed warnings (2026-0
 - ~-Wno-unused-but-set-variable~ (386 occurrences)
 - ~-Wno-unused-label~ (153 occurrences)
 - ~-Wno-unused-parameter~ (7 occurrences)
-- ~-Wno-missing-braces~ (4 occurrences)
 - ~-Wno-missing-field-initializers~ (1 occurrence)
 
 To fix a warning category: remove the ~-Wno-~ flag and fix the resulting errors.
