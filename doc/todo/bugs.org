@@ -276,7 +276,7 @@ The code path:
 :PROPERTIES:
 :DISCOVERED: 2026-01-21
 :IMPACT: Two separate passes (check_types + resolve_inferred_types) when one would suffice
-:STATUS: Open
+:STATUS: Open - Complex refactoring required
 :RELATED: Bug #128 (completed prerequisite work)
 :END:
 
@@ -289,11 +289,33 @@ both checks types and resolves INFER_TYPE in one traversal.
 Bug #128 cleaned up INFER_TYPE handling across the codebase (Steps 2-6). This is the
 remaining work (was Step 7) split into its own bug for clarity.
 
-*** Fix
-Merge check_types() and resolve_inferred_types() into a single function that:
-1. Validates types as it traverses
-2. Replaces INFER_TYPE with resolved types in the same pass
-3. Returns the modified AST with all types resolved
+*** Implementation Attempt (2026-01-25) - Deferred
+Attempted to merge by:
+1. Creating type_check_and_resolve() that does both validation and resolution
+2. Removing recursive calls from helper functions (check_if_statement, etc.)
+3. Having type_check_and_resolve handle all traversal and call helpers for validation only
+
+Challenges encountered:
+- Helper functions (check_declaration, check_func_proc_types) do more than validation:
+  - They register symbols in the scope stack (declare_symbol, declare_func)
+  - They manage scope-local state (function_locals, used_symbols)
+- Removing recursion from helpers caused scope population to break
+- Functions like 'mul', 'add' were not found because scope wasn't being populated correctly
+- Double declaration errors occurred when both type_check_and_resolve and helpers
+  tried to register the same symbols
+
+Root cause: The helper functions are tightly coupled with scope management.
+Simply removing recursion breaks the symbol registration needed for type checking.
+
+*** Proper Fix (future work)
+To properly fix this, need to:
+1. Separate validation logic from scope registration in helper functions
+2. Have type_check_and_resolve do all scope management and registration
+3. Helpers become pure validation functions that read from scope but don't modify it
+4. Carefully handle order of operations (register before validate body)
+
+This is a significant refactoring of ~500 lines in typer.rs and similar in typer.til.
+The current two-pass approach works correctly; this is an optimization.
 
 Files: src/rs/typer.rs, src/self/typer.til
 
