@@ -542,6 +542,9 @@ ufcs_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retur
         }
         if is_u8_decl.and(is_i64_value) {
             value_type = decl.value_type
+        } else if value_type_to_str(value_type).eq("Dynamic") {
+            // Issue #111: Coerce Dynamic return to the declared type
+            value_type = decl.value_type
         }
     }
 

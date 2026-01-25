@@ -1150,6 +1150,9 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             if decl.value_type != str_to_value_type(INFER_TYPE) {
                 if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
                     value_type = decl.value_type.clone();
+                } else if value_type == ValueType::TCustom("Dynamic".to_string()) {
+                    // Issue #111: Coerce Dynamic return to the declared type
+                    value_type = decl.value_type.clone();
                 } else if value_type != decl.value_type {
                     errors.push(e.error(&context.path, "init", &format!("'{}' declared of type '{}' but initialized to type '{}'.",
                                                          decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type))));

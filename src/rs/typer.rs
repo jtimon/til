@@ -993,7 +993,12 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
 
                             match get_value_type(&context, return_val_e) {
                                 Ok(actual_value_type) => {
-                                    if expected_value_type != &actual_value_type {
+                                    // Issue #111: When expected return type is Dynamic, accept any type
+                                    let type_matches = match expected_value_type {
+                                        ValueType::TCustom(tn) if tn == "Dynamic" => true,
+                                        _ => expected_value_type == &actual_value_type,
+                                    };
+                                    if !type_matches {
                                         errors.push(return_val_e.error(&context.path,
                                             "type", &format!("Return value in pos {} expected to be '{}', but found '{}' instead",
                                                              i, value_type_to_str(&expected_value_type), value_type_to_str(&actual_value_type))));
@@ -1349,18 +1354,26 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                 if let Some(initializer) = p.params.get(0) {
                     // Try to infer the type from the initializer (only if not already declared)
                     if context.scope_stack.lookup_symbol(&decl.name).is_none() {
-                        if let Ok(value_type) = get_value_type(&context, initializer) {
-                            context.scope_stack.declare_symbol(
-                                decl.name.clone(),
-                                SymbolInfo {
-                                    value_type,
-                                    is_mut: decl.is_mut,
-                                    is_copy: decl.is_copy,
-                                    is_own: decl.is_own,
-                                    is_comptime_const: false,
-                                }
-                            );
-                        }
+                        // Issue #111: Use explicit type from declaration if present, otherwise infer from RHS
+                        // If RHS is Dynamic and we have explicit type, use the explicit type
+                        let value_type = if decl.value_type != ValueType::TCustom(INFER_TYPE.to_string()) {
+                            decl.value_type.clone()
+                        } else if let Ok(inferred_type) = get_value_type(&context, initializer) {
+                            // If inferred type is Dynamic and we're using inference, this will be caught by check_declaration
+                            inferred_type
+                        } else {
+                            decl.value_type.clone()
+                        };
+                        context.scope_stack.declare_symbol(
+                            decl.name.clone(),
+                            SymbolInfo {
+                                value_type,
+                                is_mut: decl.is_mut,
+                                is_copy: decl.is_copy,
+                                is_own: decl.is_own,
+                                is_comptime_const: false,
+                            }
+                        );
                     }
 
                     if let NodeType::FCall(_) = initializer.node_type {
@@ -1619,7 +1632,8 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
 
     if context.scope_stack.lookup_symbol(&decl.name).is_none() {
         let mut value_type = decl.value_type.clone();
-        if value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
+        let used_type_inference = value_type == ValueType::TCustom(INFER_TYPE.to_string());
+        if used_type_inference {
             value_type = match get_value_type(&context, &inner_e) {
                 Ok(val_type) => val_type,
                 Err(error_string) => {
@@ -1627,6 +1641,12 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
                     return errors;
                 },
             };
+            // Issue #111: Disallow type inference for Dynamic returns
+            if value_type == ValueType::TCustom("Dynamic".to_string()) {
+                errors.push(e.error(&context.path, "type",
+                    &format!("Cannot infer type 'Dynamic' for variable '{}'.\nSuggestion: Add explicit type annotation, e.g. '{}: YourType = ...'", decl.name, decl.name)));
+                return errors;
+            }
         }
         // TODO move to init_context() ? inner contexts are not persisted in init_context
         context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });

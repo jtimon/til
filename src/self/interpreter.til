@@ -1320,6 +1320,9 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
         if value_is_i64 {
             value_type = declaration.value_type
         }
+    } else if value_type_to_str(value_type).eq("Dynamic") {
+        // Issue #111: Coerce Dynamic return to the declared type
+        value_type = declaration.value_type
     } else if not(value_type_to_str(value_type).eq(value_type_to_str(declaration.value_type))) {
         throw e.lang_error(context.path, "eval", format("'", declaration.name, "' declared of type ", value_type_to_str(declaration.value_type), " but initialized to type ", value_type_to_str(value_type), "."))
     }
@@ -3119,11 +3122,12 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         case:
         }
         if copy_ret_is_tcustom {
-            // Skip primitive types I64, U8, Str - they return values directly
+            // Skip primitive types I64, U8, Str, Dynamic - they return values directly
             switch copy_ret_custom_type_name {
             case "I64":
             case "U8":
             case "Str":
+            case "Dynamic":
                 // Do nothing for primitive types
             case:
                 mut copy_ret_custom_symbol := SymbolInfo()

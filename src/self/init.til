@@ -1570,6 +1570,9 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             }
             if is_u8_i64_coercion {
                 value_type = value_type_clone(decl.value_type)
+            } else if value_type_to_str(value_type).eq("Dynamic") {
+                // Issue #111: Coerce Dynamic return to the declared type
+                value_type = value_type_clone(decl.value_type)
             } else {
                 // Check type mismatch using string comparison
                 mut decl_vt_str := enum_to_str(decl.value_type)

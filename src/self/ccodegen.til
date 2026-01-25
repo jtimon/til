@@ -6418,13 +6418,18 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
     }
 
     // Track variable type for method mangling
-    // Prioritize struct/enum constructor types, then use get_value_type for other cases
+    // Issue #111: Use explicit declaration type when present (not INFER_TYPE)
+    // This ensures variables receiving Dynamic returns use their declared type
     mut var_type := decl.value_type
     if has_struct_type {
         var_type = ValueType.TCustom(struct_type.clone())
     } else if has_enum_type {
         var_type = ValueType.TCustom(enum_type.clone())
+    } else if not(value_type_to_str(decl.value_type).eq(INFER_TYPE)) {
+        // Explicit type annotation - use it
+        var_type = decl.value_type
     } else if not(expr.params.is_empty()) {
+        // Type inference - get type from RHS
         mut type_first_param := Expr()
         expr.params.get(0, type_first_param)?
         var_type = get_value_type(context, type_first_param)?
@@ -6723,8 +6728,23 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         output.push_str(til_name(name))
         if not(expr.params.is_empty()) {
             output.push_str(" = ")
+            // Issue #111: Cast from void* when RHS is a function returning Dynamic
+            mut rhs_returns_dynamic := false
+            mut decl_is_dynamic := value_type_to_str(decl.value_type).eq("Dynamic")
             mut mut_emit_first_param := Expr()
             expr.params.get(0, mut_emit_first_param)?
+            mut_rhs_type := get_value_type(context, mut_emit_first_param)?
+            if value_type_to_str(mut_rhs_type).eq("Dynamic") {
+                rhs_returns_dynamic = true
+            }
+            catch (err: Str) { }
+            if rhs_returns_dynamic.and(not(decl_is_dynamic)) {
+                output.push_str("(")
+                mut_cast_c_type := til_type_to_c(decl.value_type)?
+                output.push_str(mut_cast_c_type)
+                output.push_str(")")
+                catch (err: Str) { }
+            }
             emit_expr(mut_emit_first_param, output, 0, ctx, context)?
         }
         output.push_str(";\n")
@@ -6811,8 +6831,23 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         output.push_str(til_name(name))
         if not(expr.params.is_empty()) {
             output.push_str(" = ")
+            // Issue #111: Cast from void* when RHS is a function returning Dynamic
+            mut const_rhs_returns_dynamic := false
+            mut const_decl_is_dynamic := value_type_to_str(decl.value_type).eq("Dynamic")
             mut const_emit_first_param := Expr()
             expr.params.get(0, const_emit_first_param)?
+            const_rhs_type := get_value_type(context, const_emit_first_param)?
+            if value_type_to_str(const_rhs_type).eq("Dynamic") {
+                const_rhs_returns_dynamic = true
+            }
+            catch (err: Str) { }
+            if const_rhs_returns_dynamic.and(not(const_decl_is_dynamic)) {
+                output.push_str("(")
+                const_cast_c_type := til_type_to_c(decl.value_type)?
+                output.push_str(const_cast_c_type)
+                output.push_str(")")
+                catch (err: Str) { }
+            }
             emit_expr(const_emit_first_param, output, 0, ctx, context)?
         }
         output.push_str(";\n")
@@ -7230,6 +7265,21 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
         output.push_str("return")
         if not(expr.params.is_empty()) {
             output.push_str(" ")
+            // Issue #111: Cast return value to void* when function returns Dynamic
+            mut returns_dynamic := false
+            if not(ctx.current_return_types.is_empty()) {
+                mut first_ret_type := ValueType.TCustom("")
+                ctx.current_return_types.get(0, first_ret_type)?
+                if value_type_to_str(first_ret_type).eq("Dynamic") {
+                    returns_dynamic = true
+                }
+                catch (err: IndexOutOfBoundsError) { }
+            }
+            if returns_dynamic {
+                output.push_str("(")
+                output.push_str(TIL_PREFIX)
+                output.push_str("Dynamic)")
+            }
             mut ret_first_param := Expr()
             expr.params.get(0, ret_first_param)?
             emit_expr(ret_first_param, output, 0, ctx, context)?

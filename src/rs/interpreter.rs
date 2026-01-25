@@ -1243,6 +1243,9 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
     // Type checking - INFER_TYPE should have been resolved by typer
     if declaration.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
         value_type = declaration.value_type.clone();
+    } else if value_type == ValueType::TCustom("Dynamic".to_string()) {
+        // Issue #111: Coerce Dynamic return to the declared type
+        value_type = declaration.value_type.clone();
     } else if value_type != declaration.value_type {
         return Err(e.lang_error(&context.path, "eval", &format!("'{}' declared of type {} but initialized to type {:?}.", declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type))));
     }
@@ -2785,9 +2788,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     // NOTE: Frame already popped above, using saved_return_offset and saved_enum_value
     if func_def.return_types.len() == 1 {
         if let ValueType::TCustom(ref custom_type_name) = func_def.return_types[0] {
-            // Skip primitive types I64, U8, Str - they return values directly
+            // Skip primitive types I64, U8, Str, Dynamic - they return values directly
             match custom_type_name.as_str() {
-                "I64" | "U8" | "Str" => { /* Do nothing for primitive types */ },
+                "I64" | "U8" | "Str" | "Dynamic" => { /* Do nothing for primitive types */ },
                 _ => {
 
                     if let Some(custom_symbol) = context.scope_stack.lookup_symbol(custom_type_name) {

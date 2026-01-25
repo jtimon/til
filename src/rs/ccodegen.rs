@@ -5064,12 +5064,17 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     };
 
     // Track variable type for method mangling
-    // Prioritize struct/enum constructor types, then use get_value_type for other cases
+    // Issue #111: Use explicit declaration type when present (not INFER_TYPE)
+    // This ensures variables receiving Dynamic returns use their declared type
     let var_type = if let Some(ref type_name) = struct_type {
         ValueType::TCustom(type_name.clone())
     } else if let Some(ref type_name) = enum_type {
         ValueType::TCustom(type_name.clone())
+    } else if decl.value_type != ValueType::TCustom(INFER_TYPE.to_string()) {
+        // Explicit type annotation - use it
+        decl.value_type.clone()
     } else if !expr.params.is_empty() {
+        // Type inference - get type from RHS
         get_value_type(context, &expr.params[0]).ok()
             .unwrap_or_else(|| decl.value_type.clone())
     } else {
@@ -5296,6 +5301,17 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         output.push_str(&til_name(name));
         if !expr.params.is_empty() {
             output.push_str(" = ");
+            // Issue #111: Cast from void* when RHS is a function returning Dynamic
+            let rhs_returns_dynamic = get_value_type(context, &expr.params[0])
+                .map(|t| matches!(&t, ValueType::TCustom(s) if s == "Dynamic"))
+                .unwrap_or(false);
+            let decl_is_dynamic = matches!(&decl.value_type, ValueType::TCustom(s) if s == "Dynamic");
+            if rhs_returns_dynamic && !decl_is_dynamic {
+                output.push_str("(");
+                let c_type = til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
+                output.push_str(&c_type);
+                output.push_str(")");
+            }
             emit_expr(&expr.params[0], output, 0, ctx, context)?;
         }
         output.push_str(";\n");
@@ -5350,6 +5366,17 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         output.push_str(&til_name(name));
         if !expr.params.is_empty() {
             output.push_str(" = ");
+            // Issue #111: Cast from void* when RHS is a function returning Dynamic
+            let rhs_returns_dynamic = get_value_type(context, &expr.params[0])
+                .map(|t| matches!(&t, ValueType::TCustom(s) if s == "Dynamic"))
+                .unwrap_or(false);
+            let decl_is_dynamic = matches!(&decl.value_type, ValueType::TCustom(s) if s == "Dynamic");
+            if rhs_returns_dynamic && !decl_is_dynamic {
+                output.push_str("(");
+                let c_type = til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
+                output.push_str(&c_type);
+                output.push_str(")");
+            }
             emit_expr(&expr.params[0], output, 0, ctx, context)?;
         }
         output.push_str(";\n");
@@ -5612,6 +5639,15 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         output.push_str("return");
         if !expr.params.is_empty() {
             output.push_str(" ");
+            // Issue #111: Cast return value to void* when function returns Dynamic
+            let returns_dynamic = ctx.current_return_types.first()
+                .map(|rt| matches!(rt, ValueType::TCustom(t) if t == "Dynamic"))
+                .unwrap_or(false);
+            if returns_dynamic {
+                output.push_str("(");
+                output.push_str(TIL_PREFIX);
+                output.push_str("Dynamic)");
+            }
             emit_expr(&expr.params[0], output, 0, ctx, context)?;
         }
         output.push_str(";\n");

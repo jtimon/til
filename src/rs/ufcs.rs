@@ -385,6 +385,9 @@ fn ufcs_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser::D
     if decl.value_type != ValueType::TCustom(INFER_TYPE.to_string()) {
         if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
             value_type = decl.value_type.clone();
+        } else if value_type == ValueType::TCustom("Dynamic".to_string()) {
+            // Issue #111: Coerce Dynamic return to the declared type
+            value_type = decl.value_type.clone();
         }
     }
 

@@ -389,6 +389,9 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     // Type checking
     if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
         value_type = decl.value_type.clone();
+    } else if value_type == ValueType::TCustom("Dynamic".to_string()) {
+        // Issue #111: Coerce Dynamic return to the declared type
+        value_type = decl.value_type.clone();
     } else if value_type != decl.value_type {
         return Err(e.lang_error(&context.path, "precomp", &format!("'{}' declared of type {} but initialized to type {:?}.", decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type))));
     }
