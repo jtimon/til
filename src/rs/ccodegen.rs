@@ -3011,8 +3011,10 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     // Emit function body with catch pattern detection
     emit_stmts(&func_def.body, output, 1, ctx, context)?;
 
-    // For throwing void functions, add implicit return 0 at end
-    if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
+    // For throwing functions, add implicit return 0 at end
+    // All throwing functions return int (0=success, 1+=error), so return 0 is always valid
+    // This silences gcc -Wreturn-type warnings when all paths return/throw inside branches
+    if !func_def.throw_types.is_empty() {
         output.push_str("    return 0;\n");
     }
 
@@ -3301,8 +3303,10 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 // Emit function body with catch pattern detection
                 emit_stmts(&func_def.body, output, 1, ctx, context)?;
 
-                // For throwing void functions, add implicit return 0 at end
-                if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
+                // For throwing functions, add implicit return 0 at end
+                // All throwing functions return int (0=success, 1+=error), so return 0 is always valid
+                // This silences gcc -Wreturn-type warnings when all paths return/throw inside branches
+                if !func_def.throw_types.is_empty() {
                     output.push_str("    return 0;\n");
                 }
 
@@ -4997,7 +5001,8 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 emit_func_signature(&til_name(&mangled_name), func_def, context, &mut func_output)?;
                 func_output.push_str(" {\n");
                 emit_stmts(&func_def.body, &mut func_output, 1, ctx, context)?;
-                if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
+                // For throwing functions, add implicit return 0 at end
+                if !func_def.throw_types.is_empty() {
                     func_output.push_str("    return 0;\n");
                 }
                 func_output.push_str("}\n\n");

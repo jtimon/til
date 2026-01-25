@@ -3885,8 +3885,10 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     // Emit function body with catch pattern detection
     emit_stmts(func_def.body, output, 1, ctx, context)?
 
-    // For throwing void functions, add implicit return 0 at end
-    if not(func_def.throw_types.is_empty()).and(func_def.return_types.is_empty()) {
+    // For throwing functions, add implicit return 0 at end
+    // All throwing functions return int (0=success, 1+=error), so return 0 is always valid
+    // This silences gcc -Wreturn-type warnings when all paths return/throw inside branches
+    if not(func_def.throw_types.is_empty()) {
         output.push_str("    return 0;\n")
     }
 
@@ -4243,8 +4245,10 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
                 // Emit function body with catch pattern detection
                 emit_stmts(func_def.body, output, 1, ctx, context)?
 
-                // For throwing void functions, add implicit return 0 at end
-                if not(func_def.throw_types.is_empty()).and(func_def.return_types.is_empty()) {
+                // For throwing functions, add implicit return 0 at end
+                // All throwing functions return int (0=success, 1+=error), so return 0 is always valid
+                // This silences gcc -Wreturn-type warnings when all paths return/throw inside branches
+                if not(func_def.throw_types.is_empty()) {
                     output.push_str("    return 0;\n")
                 }
 
