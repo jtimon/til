@@ -26,7 +26,7 @@ generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I
         is_mut=true,
         is_copy=false,
         is_own=false,
-        default_value=NULL
+        default_value=Ptr()
     )
 
     // Build the body: call delete() on each field in reverse order
@@ -80,7 +80,7 @@ generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I
         is_mut=false,
         is_copy=false,
         is_own=false,
-        default_value=NULL
+        default_value=Ptr()
     )
 
     func_expr := Expr.new_explicit(NodeType.FuncDef(func_def), Vec.new(Expr), line, col)

@@ -128,7 +128,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     } else {
         index_var_name = format("_for_i_", I64.to_str(forin_id))
     }
-    index_decl := Declaration(name=index_var_name, value_type=str_to_value_type("I64"), is_mut=true, is_copy=false, is_own=false, default_value=NULL)
+    index_decl := Declaration(name=index_var_name, value_type=str_to_value_type("I64"), is_mut=true, is_copy=false, is_own=false, default_value=Ptr())
     mut zero_params := Vec.new(Expr)
     zero_literal := Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), zero_params, e.line, e.col)
     mut decl_params := Vec.new(Expr)
@@ -149,7 +149,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     cond_expr := Expr.new_explicit(NodeType.FCall(false), cond_params, e.line, e.col)
 
     // Build: mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
-    var_decl := Declaration(name=var_name, value_type=ValueType.TCustom(var_type_name), is_mut=true, is_copy=false, is_own=false, default_value=NULL)
+    var_decl := Declaration(name=var_name, value_type=ValueType.TCustom(var_type_name), is_mut=true, is_copy=false, is_own=false, default_value=Ptr())
 
     // Check if this is an enum type - enums need special handling since they don't have
     // a parameterless constructor. We need to use the first variant as a placeholder.

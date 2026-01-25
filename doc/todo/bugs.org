@@ -662,7 +662,7 @@ ccodegen.rs and ccodegen.til to escape null bytes as ~\0~ in C output.
 - [ ] Step 5c: Remove -Wno-unused-but-set-variable (386 occurrences)
 - [ ] Step 5d: Remove -Wno-unused-label (153 occurrences)
 - [ ] Step 5e: Remove -Wno-unused-parameter (7 occurrences)
-- [ ] Step 5f: Remove -Wno-missing-braces (4 occurrences)
+- [X] Step 5f: Remove -Wno-missing-braces (2026-01-25) - use Ptr() instead of NULL for Declaration.default_value
 - [ ] Step 5g: Remove -Wno-missing-field-initializers (1 occurrence)
 
 ** Bug #98: ext_proc errors should throw specific error types instead of panicking
