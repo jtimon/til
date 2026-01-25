@@ -326,10 +326,38 @@ Ptr := struct {
 - Add Str.delete() that calls c_string.delete()
 - Files: ptr.til, ptr.rs, str.til, str.rs, ccodegen.rs, ccodegen.til
 
-**** Step 2: Type System - Track has_delete
-- Check if type has ~delete~ method
-- Track in SStructDef or compute on demand
-- Files: typer.rs, typer.til
+**** Step 2: Auto-generate delete() for structs
+In desugarer phase, auto-generate ~delete()~ method for any struct that lacks one.
+
+Prerequisites:
+- Add ~delete()~ to primitive types (I64, U8, Bool) that does nothing
+- This ensures ALL types have ~delete()~, simplifying the garbage phase
+
+Algorithm:
+1. When processing a struct definition, check if it has a ~delete~ method
+2. If not, generate one that calls ~field.delete()~ for every field
+   - Fields processed in reverse declaration order (like C++/Rust destructors)
+3. Insert the generated method into the struct's members
+
+Example - given:
+#+BEGIN_SRC til
+MyStruct := struct {
+    mut name: Str = ""
+    mut data: Vec = Vec.new(I64)
+    mut count: I64 = 0
+}
+#+END_SRC
+
+Auto-generate:
+#+BEGIN_SRC til
+delete := proc(mut self: MyStruct) {
+    self.count.delete()  // I64.delete() is a no-op
+    self.data.delete()   // Vec.delete() frees memory
+    self.name.delete()   // Str.delete() frees memory
+}
+#+END_SRC
+
+Files: desugarer.rs, desugarer.til, i64.til (new), u8.til, bool.til
 
 **** Step 3: Garbage Phase Infrastructure
 New AST transformation pass that inserts delete() calls.
@@ -339,11 +367,12 @@ Data structure:
 struct VarLifetime {
     name: String,
     value_type: ValueType,
-    has_delete: bool,
     last_use_stmt_idx: Option<usize>,
     is_deleted: bool,
 }
 #+END_SRC
+
+Note: No need for ~has_delete~ field - after Step 2, every struct has ~delete()~.
 
 Algorithm:
 1. Analysis pass: Scan statements, track last use index per variable

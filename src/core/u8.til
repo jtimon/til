@@ -203,4 +203,8 @@ U8 := struct {
     size := func() returns I64 {
         return 1
     }
+
+    /** No-op delete for primitive type. Required for ASAP destruction. */
+    delete := proc(mut _self: U8) {
+    }
 }

@@ -190,6 +190,10 @@ I64 := struct {
     size := func() returns I64 {
         return 8
     }
+
+    /** No-op delete for primitive type. Required for ASAP destruction. */
+    delete := proc(mut _self: I64) {
+    }
 }
 
 // Constants defined after struct so I64.sub is available
