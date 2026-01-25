@@ -535,7 +535,7 @@ val: I64 = vec.get(0)  // direct return
 :PROPERTIES:
 :DISCOVERED: 2026-01-13
 :IMPACT: Simplify interpreter and ccodegen, reduce internal complexity
-:STATUS: Open
+:STATUS: In Progress (Step 1 partial - some patterns not desugared)
 :RELATED: ccodegen payload hoisting, Issue #111 (enum_payload nicer with returns Dynamic)
 :END:
 
@@ -611,13 +611,32 @@ of comparing against max type size.
 
 Also added RGB struct (with U8 r,g,b fields) test case to verify struct payloads work.
 
-*** Current State (2026-01-23)
+*** Current State (2026-01-25)
 
-- Desugarer phase EXISTS (from Issue #127) - handles ForIn, but NO switch desugaring yet
-- Switch still handled by: ufcs, precomp, interpreter, ccodegen
-- ccodegen's ~emit_switch()~ already generates if/else chains - reference implementation
-- enum_to_str and enum_get_payload ext_funcs ready to use
-- Scavenger has NO switch handling (only a comment mentioning switch)
+**** Step 1 PARTIAL: Switch desugaring in desugarer
+Branch: ~claude/fix-issue-110-IOhyZ~
+
+- Commit ~ae4e6b82~: Rust desugarer - added ~desugar_switch()~ (~740 lines)
+- Commit ~0d27a043~: TIL port - ported to ~src/self/desugarer.til~ (~750 lines)
+
+***** What IS desugared (to if/else chains):
+- Enum switches with simple patterns: ~enum_to_str()~ + ~Str.eq()~
+- Non-enum switches with simple cases: ~val.eq(case_val)~
+- Payload extraction: ~enum_get_payload()~ with default-initialized bindings
+
+***** What is NOT desugared (left for interpreter/ccodegen):
+- Nested enum patterns (e.g., ~Type.Variant(Inner.Variant)~) - too complex
+- Range patterns (e.g., ~case 10..20:~) - ccodegen has temp caching issues when desugared
+
+All tests pass (~make benchmark~ exit 0).
+
+**** REMAINING
+
+Before Steps 2-6 can proceed, Step 1 needs completion:
+- Desugar range patterns (requires fixing ccodegen temp caching)
+- Desugar nested enum patterns (or document why they can't be)
+
+Once ALL patterns are desugared, cleanup Steps 2-6 can remove switch handling from downstream phases.
 
 *** Implementation Plan
 
