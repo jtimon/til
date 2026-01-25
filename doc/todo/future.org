@@ -635,10 +635,45 @@ Range patterns were initially skipped because ccodegen had a bug: ~hoisted_exprs
 (HashMap for variadic call argument temps) wasn't saved/restored for nested functions.
 Fix: save and clear ~hoisted_exprs~ on nested function entry, restore on exit.
 
-**** REMAINING
+**** REMAINING: Nested enum patterns
 
 Before Steps 2-6 can proceed, Step 1 needs completion:
-- Desugar nested enum patterns (or document why they can't be)
+- Desugar nested enum patterns
+
+***** Example pattern
+~case ValueType.TType(TTypeDef.TStructDef):~ - used throughout TIL self-hosted compiler
+
+***** ccodegen approach (lines 6762-6774)
+Generates direct C struct access:
+#+BEGIN_SRC c
+switch_var.tag == til_ValueType_TType &&
+switch_var.payload.TType == til_TTypeDef_TStructDef
+#+END_SRC
+
+***** desugarer approach
+Generate nested ifs with enum_to_str and enum_get_payload:
+#+BEGIN_SRC til
+if enum_to_str(val).eq("ValueType.TType") {
+    mut _tmp_payload := TTypeDef.default()  // first variant as default
+    enum_get_payload(val, "TTypeDef", _tmp_payload)
+    if enum_to_str(_tmp_payload).eq("TTypeDef.TStructDef") {
+        // body
+    } else {
+        // next case or default
+    }
+} else {
+    // next case or default
+}
+#+END_SRC
+
+***** Implementation notes
+1. Detect nested pattern: already done in ~has_nested_enum_pattern~
+2. Instead of skipping, recursively desugar the payload pattern
+3. For nested enum check without binding (like ~TTypeDef.TStructDef~):
+   - Need temp var with default value for enum_get_payload inout param
+   - Generate inner if with enum_to_str check on extracted payload
+4. For nested enum with binding (like ~TTypeDef.TStructDef(x)~):
+   - Same as above, but also bind x to extracted inner payload
 
 Once ALL patterns are desugared, cleanup Steps 2-6 can remove switch handling from downstream phases.
 
