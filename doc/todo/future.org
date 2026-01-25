@@ -259,10 +259,28 @@ RegexMatch := struct {
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Fixes memory leaks automatically, Mojo-style memory management
-:STATUS: Open
+:STATUS: Partially Implemented - Disabled
 :DEPENDS: Issue #116 (Str len/cap), Bug #101 (unused warnings - shared infrastructure)
 :RELATED: Bug #114 (memory leak documentation)
 :END:
+
+*** Current Status (2026-01-25)
+Infrastructure is implemented in precomp.rs/precomp.til:
+- VarLifetime struct for tracking variable lifetimes
+- type_has_delete() - checks if type has delete() method
+- collect_var_uses() - collects variable uses in expressions
+- collect_returned_vars() - tracks variables that are returned (ownership transferred)
+- analyze_var_lifetimes() - tracks last use of deletable variables
+- create_delete_call() - creates AST node for Type.delete(var)
+- insert_asap_deletes() - inserts delete calls into statement list
+
+DISABLED: type_has_delete() returns false. Pre-existing double-free bug in test
+runner crashes benchmark (happens on master too, not caused by ASAP). Need to
+investigate Bug #138 (double-free in test runner) before re-enabling.
+
+Types excluded from ASAP (design decision):
+- Ptr: offset() returns non-owning pointers
+- Vec/Set: Complex reference patterns need ownership/borrowing tracking
 
 *** Description
 Implement Mojo-style automatic destructor calls on last use. When a variable with

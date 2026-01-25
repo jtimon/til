@@ -9,6 +9,35 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #138: Double-free in test runner during rs_compiled phase
+:PROPERTIES:
+:DISCOVERED: 2026-01-25
+:IMPACT: make benchmark fails with "free(): double free detected in tcache 2"
+:STATUS: Open
+:REPRODUCER: make benchmark (or ./bin/tests)
+:RELATED: Issue #117 (blocks ASAP destruction re-enabling)
+:END:
+
+*** Description
+The test runner (bin/tests) crashes with double-free when transitioning from
+rs_interpreted to rs_compiled test phase. This happens on master branch (pre-dating
+ASAP destruction work) and prevents completion of the full test suite.
+
+*** Symptoms
+- ~make benchmark~ passes til_common and rs_interpreted tests
+- Crashes at start of rs_compiled phase with "free(): double free detected"
+- Individual rs_compiled tests pass when run directly (~./bin/rstil run ...~)
+- Issue exists on master branch, not caused by recent changes
+
+*** Analysis
+Double-free indicates either:
+1. Manual delete() + some other delete
+2. Same memory freed twice by internal bookkeeping
+3. Test runner internal state corruption
+
+bin/tests is compiled from src/tests.til - need to investigate memory management
+in the test runner code, particularly around test category transitions.
+
 ** Bug #133: Precomputed heap values (Vec, List, etc.) have invalid pointers at runtime
 :PROPERTIES:
 :DISCOVERED: 2026-01-22

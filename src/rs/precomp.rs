@@ -653,11 +653,12 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 /// Note: Ptr is excluded because:
 /// - Ptr.offset() returns non-owning pointers (views into existing memory)
 /// - Raw pointer ownership is complex and requires explicit management
-fn type_has_delete(type_name: &str, _context: &Context) -> bool {
+fn type_has_delete(_type_name: &str, _context: &Context) -> bool {
+    // DISABLED: Pre-existing double-free bug needs investigation (Issue #117)
     // Types with delete() method AND clear allocation/ownership semantics
     // Vec, Array, Set: constructor allocates, delete() frees
     // Ptr: excluded - complex ownership (offset returns non-owning view)
-    matches!(type_name, "Vec" | "Array" | "Set")
+    false // matches!(_type_name, "Vec" | "Array" | "Set")
 }
 
 
