@@ -5,7 +5,7 @@
 use crate::rs::init::{Context, get_value_type, SymbolInfo, ScopeType};
 use crate::rs::typer::func_proc_has_multi_arg;
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SFuncDef, PatternInfo, INFER_TYPE,
+    Expr, NodeType, ValueType, SStructDef, SFuncDef, INFER_TYPE,
 };
 
 // ---------- Named argument reordering
@@ -194,7 +194,7 @@ pub fn ufcs_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::FCall(_) => ufcs_fcall(context, e),
         NodeType::If => ufcs_params(context, e),
         NodeType::While => ufcs_params(context, e),
-        NodeType::Switch => ufcs_switch(context, e),
+        // Switch is desugared to if/else before UFCS (Issue #110)
         NodeType::FuncDef(func_def) => ufcs_func_def(context, e, func_def.clone()),
         NodeType::Declaration(decl) => ufcs_declaration(context, e, decl),
         NodeType::Assignment(_) => ufcs_params(context, e),
@@ -218,9 +218,12 @@ pub fn ufcs_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
             Ok(Expr::new_clone(NodeType::NamedArg(name.clone()), e, new_params))
         },
-        // ForIn should have been desugared in desugarer phase
+        // ForIn and Switch should have been desugared in desugarer phase
         NodeType::ForIn(_) => {
             panic!("ForIn should have been desugared in desugarer phase");
+        },
+        NodeType::Switch => {
+            panic!("Switch should have been desugared in desugarer phase");
         },
     }
 }
@@ -243,86 +246,6 @@ fn ufcs_params(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         new_params.push(ufcs_expr(context, p)?);
     }
     Ok(Expr::new_clone(e.node_type.clone(), e, new_params))
-}
-
-/// Transform Switch - handle pattern binding variables by adding them to scope
-/// before processing the case body.
-fn ufcs_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
-    // Switch structure: params[0] is switch expression, then pairs of (case, body)
-    if e.params.is_empty() {
-        return Ok(e.clone());
-    }
-
-    let mut new_params = Vec::new();
-
-    // Transform switch expression
-    let switch_expr = &e.params[0];
-    new_params.push(ufcs_expr(context, switch_expr)?);
-
-    // Get the type of the switch expression for pattern binding resolution
-    let switch_expr_type = get_value_type(context, switch_expr).ok();
-
-    // Process case/body pairs
-    let mut i = 1;
-    while i + 1 < e.params.len() {
-        let case_expr = &e.params[i];
-        let body_expr = &e.params[i + 1];
-
-        // Transform case expression (no scope change needed for case itself)
-        new_params.push(ufcs_expr(context, case_expr)?);
-
-        // For pattern matching with binding variable, add binding to scope before processing body
-        if let NodeType::Pattern(PatternInfo { variant_name, binding_var }) = &case_expr.node_type {
-            if let Some(ValueType::TCustom(ref enum_name)) = switch_expr_type {
-                // Extract variant name (after the last dot)
-                let variant = if let Some(dot_pos) = variant_name.rfind('.') {
-                    &variant_name[dot_pos + 1..]
-                } else {
-                    variant_name.as_str()
-                };
-
-                // Get payload type from enum definition
-                let payload_type = context.scope_stack.lookup_enum(enum_name)
-                    .and_then(|e| e.get(variant).cloned())
-                    .flatten();
-
-                if let Some(payload_type) = payload_type {
-                    // Push block scope, declare binding variable, transform body, pop scope
-                    context.scope_stack.push(ScopeType::Block);
-                    context.scope_stack.declare_symbol(
-                        binding_var.clone(),
-                        SymbolInfo {
-                            value_type: payload_type,
-                            is_mut: false,
-                            is_copy: false,
-                            is_own: false,
-                            is_comptime_const: false,
-                        }
-                    );
-                    new_params.push(ufcs_expr(context, body_expr)?);
-                    let _ = context.scope_stack.pop();
-                } else {
-                    // No payload type found, transform body without binding
-                    new_params.push(ufcs_expr(context, body_expr)?);
-                }
-            } else {
-                // Switch type not found, transform body without binding
-                new_params.push(ufcs_expr(context, body_expr)?);
-            }
-        } else {
-            // Not a pattern, transform body normally
-            new_params.push(ufcs_expr(context, body_expr)?);
-        }
-
-        i += 2;
-    }
-
-    // Handle odd trailing element (default case body without case expression)
-    if i < e.params.len() {
-        new_params.push(ufcs_expr(context, &e.params[i])?);
-    }
-
-    Ok(Expr::new_clone(NodeType::Switch, e, new_params))
 }
 
 /// Transform StructDef - recursively transform default values (which contain function defs)
