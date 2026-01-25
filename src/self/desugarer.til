@@ -3,10 +3,300 @@ mode liba
 import("self.init")
 import("self.parser")
 
-// Desugarer phase: Desugars ForIn loops to while loops with get() calls.
-// Note: Switch desugaring is implemented in Rust (desugarer.rs) but not yet ported to TIL.
-// The TIL version passes switches through unchanged, using existing ccodegen/interpreter handling.
+// Desugarer phase: Desugars ForIn loops to while loops with get() calls,
+// and Switch statements to if/else chains with enum_to_str/enum_get_payload.
 // This phase runs after typer, before precomp.
+
+/// Helper struct for variant info extraction (mirrors ccodegen VariantInfo)
+/// Named DesugarVariantInfo to avoid conflict with ccodegen.til
+DesugarVariantInfo := struct {
+    mut type_name: Str = ""
+    mut variant_name: Str = ""
+}
+
+/// Extract type name and variant name from a case expression
+/// Handles: Identifier with params (Type.Variant), FCall (Type.Variant() or Type.Variant(arg))
+desugar_get_variant_info := func(expr: Expr) returns DesugarVariantInfo {
+    switch expr.node_type {
+    case NodeType.FCall(fcall_can_throw):
+        // FCall for Type.Variant (without payload extraction)
+        if expr.params.len().gt(0) {
+            mut first_param := Expr()
+            expr.params.get(0, first_param)?
+            switch first_param.node_type {
+            case NodeType.Identifier(fcall_type_name):
+                if first_param.params.len().gt(0) {
+                    mut variant_param := Expr()
+                    first_param.params.get(0, variant_param)?
+                    switch variant_param.node_type {
+                    case NodeType.Identifier(fcall_variant_name):
+                        return DesugarVariantInfo(type_name=fcall_type_name, variant_name=fcall_variant_name)
+                    case:
+                        // REM: not an identifier
+                    }
+                }
+            case:
+                // REM: not an identifier
+            }
+        }
+        return DesugarVariantInfo(type_name="", variant_name="")
+    case NodeType.Identifier(id_name):
+        // Identifier with nested params: Type.Variant
+        if expr.params.len().gt(0) {
+            mut id_variant_param := Expr()
+            expr.params.get(0, id_variant_param)?
+            switch id_variant_param.node_type {
+            case NodeType.Identifier(id_variant_name):
+                return DesugarVariantInfo(type_name=id_name, variant_name=id_variant_name)
+            case:
+                // REM: not an identifier
+            }
+        }
+        // Plain identifier without nested params - NOT an enum variant pattern
+        return DesugarVariantInfo(type_name="", variant_name="")
+    case:
+        return DesugarVariantInfo(type_name="", variant_name="")
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        // REM: shouldn't happen
+    }
+
+    return DesugarVariantInfo(type_name="", variant_name="")
+}
+
+/// Parse a Pattern's variant_name string (e.g., "Color.Green") into type and variant parts
+desugar_parse_variant_name := func(variant_name_str: Str) returns DesugarVariantInfo throws IndexOutOfBoundsError {
+    dot_pos := variant_name_str.rfind(".")
+    if dot_pos.gteq(0) {
+        // Split by "." and take first part as type, last as variant
+        parts := variant_name_str.split(".")?
+        if parts.len().gteq(2) {
+            mut type_part := ""
+            parts.get(0, type_part)?
+            mut var_part := ""
+            parts.get(parts.len().sub(1), var_part)?
+            return DesugarVariantInfo(type_name=type_part, variant_name=var_part)
+        } else {
+            return DesugarVariantInfo(type_name="", variant_name=variant_name_str)
+        }
+    } else {
+        // No dot - just variant name (shorthand syntax)
+        return DesugarVariantInfo(type_name="", variant_name=variant_name_str)
+    }
+}
+
+/// Search all enums in scope for a variant with the given name
+/// Returns the payload type if found, None otherwise
+/// This handles shorthand pattern syntax like "Identifier(x)" without "NodeType." prefix
+find_payload_type_for_variant := func(context: Context, variant_name_to_find: Str) returns Ptr throws IndexOutOfBoundsError, KeyNotFoundError {
+    // Iterate through all stack frames looking for enums with this variant
+    mut frame_idx := context.scope_stack.frames.len().sub(1)
+    while frame_idx.gteq(0) {
+        mut frame := ScopeFrame()
+        context.scope_stack.frames.get(frame_idx, frame)?
+        mut enum_idx := 0
+        while enum_idx.lt(frame.enums.keys.len()) {
+            mut enum_name := ""
+            frame.enums.keys.get(enum_idx, enum_name)?
+            mut enum_def := SEnumDef()
+            frame.enums.get(enum_name, enum_def)?
+            // Check if this enum has the variant
+            mut variant_idx := 0
+            while variant_idx.lt(enum_def.variants.len()) {
+                mut variant := EnumVariant()
+                enum_def.variants.get(variant_idx, variant)?
+                if variant.name.eq(variant_name_to_find) {
+                    return variant.payload_type
+                }
+                variant_idx.inc()
+            }
+            enum_idx.inc()
+        }
+        frame_idx.dec()
+    }
+
+    return Ptr()
+}
+
+/// Search all enums in scope to find the enum name that contains the given variant
+/// Returns the enum type name if found, empty string otherwise
+/// This handles shorthand pattern syntax like "Identifier" without "NodeType." prefix
+find_enum_name_for_variant := func(context: Context, variant_name_to_find: Str) returns Str throws IndexOutOfBoundsError, KeyNotFoundError {
+    // Iterate through all stack frames looking for enums with this variant
+    mut frame_idx2 := context.scope_stack.frames.len().sub(1)
+    while frame_idx2.gteq(0) {
+        mut frame2 := ScopeFrame()
+        context.scope_stack.frames.get(frame_idx2, frame2)?
+        mut enum_idx2 := 0
+        while enum_idx2.lt(frame2.enums.keys.len()) {
+            mut enum_name2 := ""
+            frame2.enums.keys.get(enum_idx2, enum_name2)?
+            mut enum_def2 := SEnumDef()
+            frame2.enums.get(enum_name2, enum_def2)?
+            // Check if this enum has the variant
+            mut variant_idx2 := 0
+            while variant_idx2.lt(enum_def2.variants.len()) {
+                mut variant2 := EnumVariant()
+                enum_def2.variants.get(variant_idx2, variant2)?
+                if variant2.name.eq(variant_name_to_find) {
+                    return enum_name2
+                }
+                variant_idx2.inc()
+            }
+            enum_idx2.inc()
+        }
+        frame_idx2.dec()
+    }
+
+    return ""
+}
+
+/// Check if a case pattern contains nested enum patterns (e.g., Type.Variant(Inner.Variant))
+/// These are too complex to desugar and should be left for interpreter/ccodegen
+has_nested_enum_pattern := func(case_pattern: Expr) returns Bool {
+    switch case_pattern.node_type {
+    case NodeType.FCall(nested_can_throw):
+        // Check if any argument looks like an enum constructor (not a binding variable)
+        if case_pattern.params.len().gt(1) {
+            mut payload_expr := Expr()
+            case_pattern.params.get(1, payload_expr)?
+            info := desugar_get_variant_info(payload_expr)
+            // If we can extract variant info from the payload, it's a nested enum pattern
+            if info.variant_name.len().gt(0) {
+                return true
+            }
+        }
+    case:
+        // REM: not an FCall
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        // REM: shouldn't happen
+    }
+
+    return false
+}
+
+/// Build a Str.eq call for comparing variant strings
+build_str_eq_call := func(variant_var: Str, expected_variant: Str, line: I64, col: I64) returns Expr {
+    // Build: Str.eq(_switch_variant, "Type.Variant")
+    mut str_eq_params := Vec.new(Expr)
+    mut eq_id := Vec.new(Expr)
+    eq_id.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), line, col))
+    str_eq_params.push(Expr.new_explicit(NodeType.Identifier("Str"), eq_id, line, col))
+    str_eq_params.push(Expr.new_explicit(NodeType.Identifier(variant_var), Vec.new(Expr), line, col))
+    str_eq_params.push(Expr.new_explicit(NodeType.LLiteral(Literal.Str(expected_variant)), Vec.new(Expr), line, col))
+    return Expr.new_explicit(NodeType.FCall(false), str_eq_params, line, col)
+}
+
+/// Build an eq call for comparing values (UFCS style: val.eq(other))
+build_eq_call := func(switch_expr: Expr, case_val: Expr, line: I64, col: I64) returns Expr {
+    // Build: eq(switch_expr, case_val) - UFCS will transform this
+    mut eq_params := Vec.new(Expr)
+    eq_params.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), line, col))
+    eq_params.push(switch_expr.clone())
+    eq_params.push(case_val.clone())
+    return Expr.new_explicit(NodeType.FCall(false), eq_params, line, col)
+}
+
+/// Build an eq call comparing variant_var with enum_to_str(case_val)
+/// Used when comparing enum values where case is a variable (not a constructor)
+build_enum_var_eq_call := func(variant_var: Str, case_val: Expr, line: I64, col: I64) returns Expr {
+    // Build: Str.eq(_switch_variant, enum_to_str(case_val))
+    mut enum_to_str_params := Vec.new(Expr)
+    enum_to_str_params.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), line, col))
+    enum_to_str_params.push(case_val.clone())
+    enum_to_str_case := Expr.new_explicit(NodeType.FCall(false), enum_to_str_params, line, col)
+
+    mut str_eq_params2 := Vec.new(Expr)
+    mut eq_id2 := Vec.new(Expr)
+    eq_id2.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), line, col))
+    str_eq_params2.push(Expr.new_explicit(NodeType.Identifier("Str"), eq_id2, line, col))
+    str_eq_params2.push(Expr.new_explicit(NodeType.Identifier(variant_var), Vec.new(Expr), line, col))
+    str_eq_params2.push(enum_to_str_case)
+    return Expr.new_explicit(NodeType.FCall(false), str_eq_params2, line, col)
+}
+
+/// Build an eq call comparing enum_to_str(switch_expr) with enum_to_str(case_val)
+/// Used when switch expression type wasn't detected as enum but case value is an enum variable
+build_enum_to_str_eq_call := func(switch_expr: Expr, case_val: Expr, line: I64, col: I64) returns Expr {
+    // Build: Str.eq(enum_to_str(switch_expr), enum_to_str(case_val))
+    mut enum_to_str_switch_params := Vec.new(Expr)
+    enum_to_str_switch_params.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), line, col))
+    enum_to_str_switch_params.push(switch_expr.clone())
+    enum_to_str_switch := Expr.new_explicit(NodeType.FCall(false), enum_to_str_switch_params, line, col)
+
+    mut enum_to_str_case_params := Vec.new(Expr)
+    enum_to_str_case_params.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), line, col))
+    enum_to_str_case_params.push(case_val.clone())
+    enum_to_str_case2 := Expr.new_explicit(NodeType.FCall(false), enum_to_str_case_params, line, col)
+
+    mut str_eq_params3 := Vec.new(Expr)
+    mut eq_id3 := Vec.new(Expr)
+    eq_id3.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), line, col))
+    str_eq_params3.push(Expr.new_explicit(NodeType.Identifier("Str"), eq_id3, line, col))
+    str_eq_params3.push(enum_to_str_switch)
+    str_eq_params3.push(enum_to_str_case2)
+    return Expr.new_explicit(NodeType.FCall(false), str_eq_params3, line, col)
+}
+
+/// Replace all Identifier nodes matching old_name with new_name in an expression tree
+replace_identifier := func(expr: Expr, old_name: Str, new_name: Str) returns Expr throws IndexOutOfBoundsError {
+    switch expr.node_type {
+    case NodeType.Identifier(repl_name):
+        if repl_name.eq(old_name) {
+            // Replace this identifier. Params are field/method names, NOT variable references,
+            // so we DON'T recurse into them - they belong to a different namespace.
+            return Expr.new_explicit(NodeType.Identifier(new_name), expr.params.clone(), expr.line, expr.col)
+        } else {
+            // This Identifier doesn't match our target. Its params are field/method names,
+            // NOT variable references, so we should NOT recurse into them.
+            return expr.clone()
+        }
+    case NodeType.Assignment(assign_name):
+        if assign_name.eq(old_name) {
+            // Replace assignment target, recurse into value expression
+            mut new_assign_params := Vec.new(Expr)
+            mut assign_idx := 0
+            while assign_idx.lt(expr.params.len()) {
+                mut assign_p := Expr()
+                expr.params.get(assign_idx, assign_p)?
+                new_assign_params.push(replace_identifier(assign_p, old_name, new_name)?)
+                assign_idx.inc()
+            }
+            return Expr.new_explicit(NodeType.Assignment(new_name), new_assign_params, expr.line, expr.col)
+        } else {
+            // Different assignment target, but still need to recurse into value expression
+            mut new_assign_params2 := Vec.new(Expr)
+            mut assign_idx2 := 0
+            while assign_idx2.lt(expr.params.len()) {
+                mut assign_p2 := Expr()
+                expr.params.get(assign_idx2, assign_p2)?
+                new_assign_params2.push(replace_identifier(assign_p2, old_name, new_name)?)
+                assign_idx2.inc()
+            }
+            return Expr.new_clone(expr.node_type, expr, new_assign_params2)
+        }
+    case:
+        // Recurse into params for all other node types
+        if expr.params.len().eq(0) {
+            return expr.clone()
+        } else {
+            mut new_repl_params := Vec.new(Expr)
+            mut repl_idx := 0
+            while repl_idx.lt(expr.params.len()) {
+                mut repl_p := Expr()
+                expr.params.get(repl_idx, repl_p)?
+                new_repl_params.push(replace_identifier(repl_p, old_name, new_name)?)
+                repl_idx.inc()
+            }
+            return Expr.new_clone(expr.node_type, expr, new_repl_params)
+        }
+    }
+
+    return expr.clone()
+}
 
 /// Build a default value expression for a given ValueType.
 /// Used when generating placeholder values for enum variant payloads in for-in loops.
@@ -78,6 +368,464 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
         // For function types and other types, use a placeholder (shouldn't typically happen)
         return Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), line, col)
     }
+}
+
+/// Build the condition expression for a case
+build_case_condition := proc(mut context: Context, case_pattern: Expr, switch_expr: Expr, variant_var: Str,
+                             is_enum_switch: Bool, switch_type: ValueType, switch_type_valid: Bool,
+                             line: I64, col: I64) returns Expr throws Str, IndexOutOfBoundsError, KeyNotFoundError {
+    switch case_pattern.node_type {
+    case NodeType.Pattern(pattern_info):
+        // Enum pattern with payload binding: compare variant string
+        info := desugar_parse_variant_name(pattern_info.variant_name)?
+        mut full_variant := ""
+        if info.type_name.len().gt(0) {
+            // Full type name provided in pattern (e.g., "NodeType.Identifier")
+            full_variant = format(info.type_name, ".", info.variant_name)
+        } else {
+            // Try to get type from switch expression type
+            if switch_type_valid {
+                switch switch_type {
+                case ValueType.TCustom(switch_type_name):
+                    full_variant = format(switch_type_name, ".", info.variant_name)
+                case:
+                    // Try to find enum name
+                    found_enum_name := find_enum_name_for_variant(context, info.variant_name)?
+                    if found_enum_name.len().gt(0) {
+                        full_variant = format(found_enum_name, ".", info.variant_name)
+                    } else {
+                        full_variant = info.variant_name
+                    }
+                }
+            } else {
+                // Search all enums for this variant (shorthand syntax)
+                found_enum_name2 := find_enum_name_for_variant(context, info.variant_name)?
+                if found_enum_name2.len().gt(0) {
+                    full_variant = format(found_enum_name2, ".", info.variant_name)
+                } else {
+                    // Fallback to just variant name (will likely fail comparison)
+                    full_variant = info.variant_name
+                }
+            }
+        }
+        // Build: Str.eq(_switch_variant, "Type.Variant")
+        return build_str_eq_call(variant_var, full_variant, line, col)
+
+    case NodeType.Range:
+        // Range case: val.gteq(start) && val.lteq(end)
+        if case_pattern.params.len().lt(2) {
+            throw case_pattern.lang_error(context.path, "desugar", "Range requires start and end values")
+        }
+        mut range_start := Expr()
+        case_pattern.params.get(0, range_start)?
+        mut range_end := Expr()
+        case_pattern.params.get(1, range_end)?
+        start_expr := desugar_expr(context, range_start)?
+        end_expr := desugar_expr(context, range_end)?
+
+        // Build: switch_expr.gteq(start)
+        mut gteq_params := Vec.new(Expr)
+        gteq_params.push(Expr.new_explicit(NodeType.Identifier("gteq"), Vec.new(Expr), line, col))
+        gteq_params.push(switch_expr.clone())
+        gteq_params.push(start_expr)
+        gteq_call := Expr.new_explicit(NodeType.FCall(false), gteq_params, line, col)
+
+        // Build: switch_expr.lteq(end)
+        mut lteq_params := Vec.new(Expr)
+        lteq_params.push(Expr.new_explicit(NodeType.Identifier("lteq"), Vec.new(Expr), line, col))
+        lteq_params.push(switch_expr.clone())
+        lteq_params.push(end_expr)
+        lteq_call := Expr.new_explicit(NodeType.FCall(false), lteq_params, line, col)
+
+        // Build: gteq_call && lteq_call using and()
+        mut and_params := Vec.new(Expr)
+        and_params.push(Expr.new_explicit(NodeType.Identifier("and"), Vec.new(Expr), line, col))
+        and_params.push(gteq_call)
+        and_params.push(lteq_call)
+        return Expr.new_explicit(NodeType.FCall(false), and_params, line, col)
+
+    case NodeType.Identifier(cond_id_name):
+        cond_info := desugar_get_variant_info(case_pattern)
+        if cond_info.variant_name.len().gt(0).and(is_enum_switch) {
+            // Enum variant without payload: compare variant string
+            cond_full_variant := format(cond_info.type_name, ".", cond_info.variant_name)
+            return build_str_eq_call(variant_var, cond_full_variant, line, col)
+        } else {
+            if is_enum_switch {
+                // Enum switch with variable case value: compare using enum_to_str on both
+                desugared_case := desugar_expr(context, case_pattern)?
+                return build_enum_var_eq_call(variant_var, desugared_case, line, col)
+            } else {
+                // Non-enum switch: use val.eq(case_val)
+                // Note: TIL version simplifies away the complex enum variable detection
+                // that the Rust version does for cases like switch token { case end_token: }
+                desugared_case3 := desugar_expr(context, case_pattern)?
+                return build_eq_call(switch_expr, desugared_case3, line, col)
+            }
+        }
+
+    case NodeType.FCall(cond_fcall_can_throw):
+        // FCall pattern: Type.Variant(payload) - enum variant with payload argument
+        fcall_info := desugar_get_variant_info(case_pattern)
+        if fcall_info.variant_name.len().gt(0).and(is_enum_switch) {
+            // Build: Str.eq(_switch_variant, "Type.Variant")
+            fcall_full_variant := format(fcall_info.type_name, ".", fcall_info.variant_name)
+            return build_str_eq_call(variant_var, fcall_full_variant, line, col)
+        } else {
+            // Not an enum pattern - fall through to generic comparison
+            desugared_case4 := desugar_expr(context, case_pattern)?
+            return build_eq_call(switch_expr, desugared_case4, line, col)
+        }
+
+    case NodeType.LLiteral(cond_lit):
+        // Literal comparison: val.eq(literal)
+        desugared_case5 := desugar_expr(context, case_pattern)?
+        return build_eq_call(switch_expr, desugared_case5, line, col)
+
+    case:
+        // Generic case: val.eq(case_val)
+        desugared_case6 := desugar_expr(context, case_pattern)?
+        return build_eq_call(switch_expr, desugared_case6, line, col)
+    }
+}
+
+/// Build the case body with payload extraction if needed
+build_case_body := proc(mut context: Context, case_pattern: Expr, case_body: Expr,
+                        switch_expr: Expr, switch_type: ValueType, switch_type_valid: Bool,
+                        line: I64, col: I64) returns Expr throws Str, IndexOutOfBoundsError, KeyNotFoundError {
+    // Check if this is a pattern with payload binding
+    switch case_pattern.node_type {
+    case NodeType.Pattern(body_pattern_info):
+        // Get the payload type from the enum definition
+        body_info := desugar_parse_variant_name(body_pattern_info.variant_name)?
+
+        // Try to get enum name from switch_type first, fallback to pattern's type name
+        mut body_enum_name := ""
+        if switch_type_valid {
+            switch switch_type {
+            case ValueType.TCustom(body_switch_type_name):
+                body_enum_name = body_switch_type_name
+            case:
+                body_enum_name = body_info.type_name
+            }
+        } else {
+            body_enum_name = body_info.type_name
+        }
+
+        // Search for the payload type
+        mut payload_type_ptr := Ptr()
+        mut found_enum := false
+        if body_enum_name.len().gt(0) {
+            // Known enum type - look it up directly
+            mut body_enum_def := context.scope_stack.lookup_enum(body_enum_name)?
+            found_enum = true
+            // Find the variant and get its payload type
+            mut body_variant_idx := 0
+            while body_variant_idx.lt(body_enum_def.variants.len()) {
+                mut body_variant := EnumVariant()
+                body_enum_def.variants.get(body_variant_idx, body_variant)?
+                if body_variant.name.eq(body_info.variant_name) {
+                    payload_type_ptr = body_variant.payload_type
+                }
+                body_variant_idx.inc()
+            }
+            catch (err: KeyNotFoundError) {
+                // Unknown enum - search all enums
+                payload_type_ptr = find_payload_type_for_variant(context, body_info.variant_name)?
+            }
+        }
+        if not(found_enum) {
+            // Unknown enum type (shorthand syntax)
+            payload_type_ptr = find_payload_type_for_variant(context, body_info.variant_name)?
+        }
+
+        if not(NULL.eq(payload_type_ptr.data)) {
+            // Generate unique name for payload variable to avoid name collisions
+            func_name := context.current_precomp_func
+            payload_id := context.precomp_forin_counter
+            context.precomp_forin_counter.inc()
+            mut unique_payload_name := ""
+            if func_name.len().gt(0) {
+                unique_payload_name = format("_switch_payload_", func_name, "_", I64.to_str(payload_id))
+            } else {
+                unique_payload_name = format("_switch_payload_", I64.to_str(payload_id))
+            }
+
+            // Get the payload type
+            mut payload_type := ValueType.TCustom("")
+            memcpy(to_ptr(payload_type), payload_type_ptr.data, size_of(ValueType))
+
+            // Build body with payload extraction
+            mut body_stmts := Vec.new(Expr)
+
+            // Declare payload variable with unique name
+            binding_decl := Declaration(name=unique_payload_name, value_type=payload_type, is_mut=true, is_copy=false, is_own=false, default_value=Ptr())
+            default_val := build_default_value(context, payload_type, line, col)
+            mut binding_decl_params := Vec.new(Expr)
+            binding_decl_params.push(default_val)
+            binding_decl_expr := Expr.new_explicit(NodeType.Declaration(binding_decl), binding_decl_params, line, col)
+            body_stmts.push(binding_decl_expr)
+
+            // Build: enum_get_payload(switch_expr, PayloadType, _unique)
+            payload_type_name := value_type_to_str(payload_type)
+            mut get_payload_params := Vec.new(Expr)
+            get_payload_params.push(Expr.new_explicit(NodeType.Identifier("enum_get_payload"), Vec.new(Expr), line, col))
+            get_payload_params.push(switch_expr.clone())
+            get_payload_params.push(Expr.new_explicit(NodeType.Identifier(payload_type_name), Vec.new(Expr), line, col))
+            get_payload_params.push(Expr.new_explicit(NodeType.Identifier(unique_payload_name), Vec.new(Expr), line, col))
+            get_payload_call := Expr.new_explicit(NodeType.FCall(false), get_payload_params, line, col)
+            body_stmts.push(get_payload_call)
+
+            // Desugar the body THEN rename references from binding_var to unique_payload_name
+            desugared_body := desugar_expr(context, case_body)?
+            renamed_body := replace_identifier(desugared_body, body_pattern_info.binding_var, unique_payload_name)?
+
+            // Add renamed body statements
+            switch renamed_body.node_type {
+            case NodeType.Body:
+                mut renamed_body_idx := 0
+                while renamed_body_idx.lt(renamed_body.params.len()) {
+                    mut renamed_body_stmt := Expr()
+                    renamed_body.params.get(renamed_body_idx, renamed_body_stmt)?
+                    body_stmts.push(renamed_body_stmt.clone())
+                    renamed_body_idx.inc()
+                }
+            case:
+                body_stmts.push(renamed_body)
+            }
+
+            return Expr.new_explicit(NodeType.Body, body_stmts, line, col)
+        }
+
+    case:
+        // REM: not a pattern
+    }
+
+    // No payload extraction needed - desugar and return as-is
+    desugared_body2 := desugar_expr(context, case_body)?
+    return desugared_body2
+}
+
+/// Desugar Switch to if/else chains
+/// For enum switches:
+///   switch e { case Type.Variant(x): body }
+///   becomes:
+///   { _switch_variant := enum_to_str(e)
+///     if Str.eq(_switch_variant, "Type.Variant") { mut x := default; enum_get_payload(e, PayloadType, x); body }
+///     else { default_body } }
+/// For non-enum switches:
+///   switch val { case x: body case lo..hi: body2 }
+///   becomes:
+///   if val.eq(x) { body } else if val.gteq(lo) && val.lteq(hi) { body2 }
+/// Note: Switches with nested enum patterns (e.g., Type.Variant(Inner.Variant)) are NOT desugared
+desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    if e.params.len().eq(0) {
+        throw e.lang_error(context.path, "desugar", "Switch requires expression")
+    }
+
+    line := e.line
+    col := e.col
+
+    // Determine the type of the switch expression BEFORE desugaring
+    mut switch_type := ValueType.TCustom("")
+    mut switch_type_valid := false
+    mut got_type := get_value_type(context, e.get(0)?)?
+    switch_type = got_type
+    switch_type_valid = true
+    catch (err: Str) {
+        // REM: couldn't get type
+    }
+
+    // Get the switch expression and desugar it
+    switch_expr := desugar_expr(context, e.get(0)?)?
+
+    // Determine if this is an enum switch
+    mut is_enum_switch := false
+
+    // Check if switch expression type is an enum
+    if switch_type_valid {
+        switch switch_type {
+        case ValueType.TCustom(sw_type_name):
+            mut _sw_enum_def := context.scope_stack.lookup_enum(sw_type_name)?
+            is_enum_switch = true
+            catch (err: KeyNotFoundError) {
+                // REM: not an enum
+            }
+        case:
+            // REM: not TCustom
+        }
+    }
+
+    // Also check case patterns for enum constructors
+    if not(is_enum_switch) {
+        mut case_check_i := 1
+        while case_check_i.lt(e.params.len()) {
+            if case_check_i.add(1).gteq(e.params.len()) {
+                // break out of while loop
+                case_check_i = e.params.len()
+            } else {
+                mut case_pattern_check := Expr()
+                e.params.get(case_check_i, case_pattern_check)?
+                switch case_pattern_check.node_type {
+                case NodeType.Pattern(check_pattern_info):
+                    is_enum_switch = true
+                case NodeType.Identifier(check_id_name):
+                    if case_pattern_check.params.len().gt(0).or(check_id_name.find(".").gteq(0)) {
+                        is_enum_switch = true
+                    }
+                case NodeType.FCall(check_fcall_can_throw):
+                    // Only mark as enum switch if this FCall looks like an enum constructor
+                    check_info := desugar_get_variant_info(case_pattern_check)
+                    if check_info.variant_name.len().gt(0) {
+                        is_enum_switch = true
+                    }
+                case:
+                    // REM: other case types
+                }
+                case_check_i = case_check_i.add(2)
+            }
+        }
+    }
+
+    // Generate unique variable names using counter
+    switch_id := context.precomp_forin_counter
+    context.precomp_forin_counter.inc()
+    func_name := context.current_precomp_func
+    mut variant_var := ""
+    if func_name.len().gt(0) {
+        variant_var = format("_switch_variant_", func_name, "_", I64.to_str(switch_id))
+    } else {
+        variant_var = format("_switch_variant_", I64.to_str(switch_id))
+    }
+
+    // Build the outer body that contains all generated code
+    mut outer_body_stmts := Vec.new(Expr)
+
+    // For enum switches, declare: _switch_variant := enum_to_str(switch_expr)
+    if is_enum_switch {
+        mut enum_to_str_params := Vec.new(Expr)
+        enum_to_str_params.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), line, col))
+        enum_to_str_params.push(switch_expr.clone())
+        enum_to_str_call := Expr.new_explicit(NodeType.FCall(false), enum_to_str_params, line, col)
+
+        variant_decl := Declaration(name=variant_var, value_type=ValueType.TCustom("Str"), is_mut=false, is_copy=false, is_own=false, default_value=Ptr())
+        mut variant_decl_params := Vec.new(Expr)
+        variant_decl_params.push(enum_to_str_call)
+        variant_decl_expr := Expr.new_explicit(NodeType.Declaration(variant_decl), variant_decl_params, line, col)
+        outer_body_stmts.push(variant_decl_expr)
+    }
+
+    // Collect case/body pairs
+    mut cases := Vec.new(Expr)  // alternating: pattern, body, pattern, body, ...
+    mut default_body := Expr()
+    mut has_default := false
+    mut collect_i := 1
+    while collect_i.add(1).lt(e.params.len()) {
+        mut collect_pattern := Expr()
+        e.params.get(collect_i, collect_pattern)?
+        mut collect_body := Expr()
+        e.params.get(collect_i.add(1), collect_body)?
+        switch collect_pattern.node_type {
+        case NodeType.DefaultCase:
+            default_body = collect_body
+            has_default = true
+        case:
+            cases.push(collect_pattern)
+            cases.push(collect_body)
+        }
+        collect_i = collect_i.add(2)
+    }
+
+    // Check if any case has nested enum patterns or Range patterns - skip full desugaring if so
+    // Range patterns cause ccodegen temporary caching issues when desugared
+    mut nested_check_i := 0
+    while nested_check_i.lt(cases.len()) {
+        mut nested_pattern := Expr()
+        cases.get(nested_check_i, nested_pattern)?
+        // Check for nested enum patterns
+        if has_nested_enum_pattern(nested_pattern) {
+            // Just desugar children but keep switch structure
+            mut desugared_params := Vec.new(Expr)
+            mut desugar_param_i := 0
+            while desugar_param_i.lt(e.params.len()) {
+                mut desugar_param := Expr()
+                e.params.get(desugar_param_i, desugar_param)?
+                desugared_params.push(desugar_expr(context, desugar_param)?)
+                desugar_param_i.inc()
+            }
+            return Expr.new_explicit(NodeType.Switch, desugared_params, e.line, e.col)
+        }
+        // Skip desugaring Range cases - ccodegen has issues with temporary caching
+        switch nested_pattern.node_type {
+        case NodeType.Range:
+            mut desugared_params2 := Vec.new(Expr)
+            mut desugar_param_i2 := 0
+            while desugar_param_i2.lt(e.params.len()) {
+                mut desugar_param2 := Expr()
+                e.params.get(desugar_param_i2, desugar_param2)?
+                desugared_params2.push(desugar_expr(context, desugar_param2)?)
+                desugar_param_i2.inc()
+            }
+            return Expr.new_explicit(NodeType.Switch, desugared_params2, e.line, e.col)
+        case:
+            // REM: not a Range
+        }
+        nested_check_i = nested_check_i.add(2)  // skip body, go to next pattern
+    }
+
+    // Build if/else chain from end to beginning
+    // Start with the default case (or empty body if no default)
+    mut current_else := Expr()
+    mut has_else := false
+    if has_default {
+        current_else = desugar_expr(context, default_body)?
+        has_else = true
+    }
+
+    // Process cases in reverse order to build the if chain
+    // cases is: [pattern0, body0, pattern1, body1, ...]
+    // We process from the end: (pattern_last, body_last), then (pattern_last-1, body_last-1), etc.
+    mut reverse_i := cases.len()
+    while reverse_i.gteq(2) {
+        mut rev_case_pattern := Expr()
+        cases.get(reverse_i.sub(2), rev_case_pattern)?
+        mut rev_case_body := Expr()
+        cases.get(reverse_i.sub(1), rev_case_body)?
+
+        // Build condition based on case type
+        condition := build_case_condition(context, rev_case_pattern, switch_expr, variant_var,
+                                          is_enum_switch, switch_type, switch_type_valid, line, col)?
+
+        // Build case body with payload extraction if needed
+        body_expr := build_case_body(context, rev_case_pattern, rev_case_body,
+                                     switch_expr, switch_type, switch_type_valid, line, col)?
+
+        // Build if node
+        mut if_params := Vec.new(Expr)
+        if_params.push(condition)
+        if_params.push(body_expr)
+        if has_else {
+            if_params.push(current_else)
+        }
+
+        current_else = Expr.new_explicit(NodeType.If, if_params, line, col)
+        has_else = true
+        reverse_i = reverse_i.sub(2)
+    }
+
+    // Add the if chain to outer body
+    if has_else {
+        outer_body_stmts.push(current_else)
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("desugar_switch: IndexOutOfBoundsError: ", err.msg)
+    }
+    catch (err: KeyNotFoundError) {
+        throw format("desugar_switch: KeyNotFoundError: ", err.msg)
+    }
+
+    return Expr.new_explicit(NodeType.Body, outer_body_stmts, line, col)
 }
 
 /// Desugar ForIn to a range-based for loop with get() calls
@@ -315,25 +1063,44 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         return desugar_forin(context, e, var_type_name)?
     // Switch: Just recurse into children, don't desugar
     // Full switch desugaring is in Rust version; TIL uses existing ccodegen/interpreter handling
+    // Switch desugaring: switch expr { case pattern: body } -> if/else chain
     case NodeType.Switch:
-        mut switch_params := Vec.new(Expr)
-        for sw_i in 0..e.params.len() {
-            mut sw_p := Expr()
-            e.params.get(sw_i, sw_p)?
-            switch_params.push(desugar_expr(context, sw_p)?)
-        }
-        return Expr.new_explicit(NodeType.Switch, switch_params, e.line, e.col)
+        return desugar_switch(context, e)?
     // Recurse into FuncDef bodies
     case NodeType.FuncDef(func_def):
         // Bug #130 fix: Reset counter per-function for deterministic output
         saved_counter := context.precomp_forin_counter
         context.precomp_forin_counter = 0
+
+        // Issue #110: Push function scope with parameters for switch desugaring
+        // This allows lookup_symbol to find function parameters when determining
+        // if a switch case value is an enum variable
+        context.scope_stack.push(ScopeType.Function)
+        mut func_arg_idx := 0
+        while func_arg_idx.lt(func_def.args.len()) {
+            mut func_arg := Declaration()
+            func_def.args.get(func_arg_idx, func_arg)?
+            arg_symbol := SymbolInfo(
+                value_type=func_arg.value_type,
+                is_mut=func_arg.is_mut,
+                is_copy=func_arg.is_copy,
+                is_own=func_arg.is_own,
+                is_comptime_const=false
+            )
+            context.scope_stack.declare_symbol(func_arg.name, arg_symbol)?
+            func_arg_idx.inc()
+        }
+
         mut new_body := Vec.new(Expr)
         for func_i in 0..func_def.body.len() {
             mut stmt := Expr()
             func_def.body.get(func_i, stmt)?
             new_body.push(desugar_expr(context, stmt)?)
         }
+
+        // Pop the function scope
+        _ := context.scope_stack.pop()?
+
         context.precomp_forin_counter = saved_counter
         new_func_def := SFuncDef(
             function_type=func_def.function_type,
@@ -361,6 +1128,30 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             default_values=new_default_values
         )
         return Expr.new_clone(NodeType.StructDef(new_struct_def), e, e.params)
+    // Track declarations in scope for switch type detection
+    case NodeType.Declaration(decl):
+        // Add this declaration to scope so switch desugaring can look up types
+        decl_symbol := SymbolInfo(
+            value_type=decl.value_type,
+            is_mut=decl.is_mut,
+            is_copy=decl.is_copy,
+            is_own=decl.is_own,
+            is_comptime_const=false
+        )
+        context.scope_stack.declare_symbol(decl.name, decl_symbol)?
+
+        // Desugar the initialization expression (if any)
+        if e.params.len().eq(0) {
+            return e.clone()
+        } else {
+            mut new_decl_params := Vec.new(Expr)
+            for decl_i in 0..e.params.len() {
+                mut decl_p := Expr()
+                e.params.get(decl_i, decl_p)?
+                new_decl_params.push(desugar_expr(context, decl_p)?)
+            }
+            return Expr.new_clone(e.node_type, e, new_decl_params)
+        }
     // For all other nodes, recurse into params
     case:
         if e.params.len().eq(0) {
