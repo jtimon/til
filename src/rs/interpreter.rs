@@ -11,6 +11,7 @@ use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg
 use crate::rs::lexer::lexer_from_source;
 use crate::rs::mode::{can_be_imported, parse_mode, DEFAULT_MODE};
 use crate::rs::desugarer::desugar_expr;
+use crate::rs::garbager::garbager_expr;
 use crate::rs::ufcs::ufcs_expr;
 use crate::rs::precomp::precomp_expr;
 use crate::rs::ext;
@@ -3034,6 +3035,9 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
         // Desugarer phase: Desugar ForIn loops to while loops
         e = desugar_expr(context, &e)?;
 
+        // Garbager phase: Auto-generate delete() methods for structs
+        e = garbager_expr(context, &e)?;
+
         // UFCS phase: Resolve UFCS calls and reorder named arguments
         e = ufcs_expr(context, &e)?;
 
@@ -3157,6 +3161,9 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
     // Run desugar on the imported AST (always - no separate tracking)
     let ast = desugar_expr(context, &ast)?;
+
+    // Run garbager on the imported AST (always - no separate tracking)
+    let ast = garbager_expr(context, &ast)?;
 
     // Run UFCS on the imported AST (always - no separate tracking)
     let ast = ufcs_expr(context, &ast)?;

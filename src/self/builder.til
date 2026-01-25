@@ -10,6 +10,7 @@ import("self.ccodegen")
 import("self.init")
 import("self.typer")
 import("self.desugarer")
+import("self.garbager")
 import("self.ufcs")
 import("self.precomp")
 import("self.scavenger")
@@ -93,7 +94,8 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
                                         saved_path := context.path.clone()
                                         context.path = file_path.clone()
                                         dep_desugared := desugar_expr(context, dep_resolved)?
-                                        dep_ufcs := ufcs_expr(context, dep_desugared)?
+                                        dep_garbaged := garbager_expr(context, dep_desugared)?
+                                        dep_ufcs := ufcs_expr(context, dep_garbaged)?
                                         dep_ast := precomp_expr(context, dep_ufcs)?
                                         // Update with precompiled version
                                         context.imported_asts.set(file_path.clone(), dep_ast.clone())
@@ -425,7 +427,8 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         context.path = core_path
         core_resolved := resolve_inferred_types(context, codegen_core_result.ast)?
         core_desugared := desugar_expr(context, core_resolved)?
-        core_ufcs_ast := ufcs_expr(context, core_desugared)?
+        core_garbaged := garbager_expr(context, core_desugared)?
+        core_ufcs_ast := ufcs_expr(context, core_garbaged)?
         core_precomp_ast := precomp_expr(context, core_ufcs_ast)?
         context.path = core_saved_path
         dep_asts.push(core_precomp_ast)
@@ -443,7 +446,8 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
             context.path = file_path.clone()
             mode_resolved := resolve_inferred_types(context, mode_result.ast)?
             mode_desugared := desugar_expr(context, mode_resolved)?
-            mode_ufcs_ast := ufcs_expr(context, mode_desugared)?
+            mode_garbaged := garbager_expr(context, mode_desugared)?
+            mode_ufcs_ast := ufcs_expr(context, mode_garbaged)?
             mode_precomp_ast := precomp_expr(context, mode_ufcs_ast)?
             context.path = mode_saved_path
             dep_asts.push(mode_precomp_ast)
@@ -456,7 +460,8 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     // Resolve types + Desugar + UFCS + Precomp main file with its own path (context.path should already be correct)
     main_resolved := resolve_inferred_types(context, main_result.ast)?
     main_desugared := desugar_expr(context, main_resolved)?
-    main_ufcs := ufcs_expr(context, main_desugared)?
+    main_garbaged := garbager_expr(context, main_desugared)?
+    main_ufcs := ufcs_expr(context, main_garbaged)?
     main_ast := precomp_expr(context, main_ufcs)?
 
     // Merge all precompiled ASTs for codegen

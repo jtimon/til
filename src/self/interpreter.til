@@ -4,6 +4,7 @@ import("self.init")
 import("self.parser")
 import("self.typer")
 import("self.desugarer")
+import("self.garbager")
 import("self.ufcs")
 import("self.precomp")
 import("self.ext")
@@ -3468,6 +3469,9 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
         // Desugarer phase: Transform ForIn to while loops
         e = desugar_expr(context, e)?
 
+        // Garbager phase: Auto-generate delete() methods for structs
+        e = garbager_expr(context, e)?
+
         // UFCS phase: Transform UFCS calls into regular function calls
         e = ufcs_expr(context, e)?
 
@@ -3588,10 +3592,11 @@ proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 
     context.path = path.clone()
 
-    // Run desugar + ufcs + precomp on the imported AST if not already done
+    // Run desugar + garbager + ufcs + precomp on the imported AST if not already done
     if not(context.imports_precomp_done.contains(path)) {
         _ := context.imports_precomp_done.insert(path.clone())
         ast = desugar_expr(context, ast)?
+        ast = garbager_expr(context, ast)?
         ast = ufcs_expr(context, ast)?
         ast = precomp_expr(context, ast)?
     }

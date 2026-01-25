@@ -12,6 +12,7 @@ use crate::rs::ccodegen;
 use crate::rs::init::{import_path_to_file_path, init_import_declarations, Context};
 use crate::rs::typer::{type_check, basic_mode_checks, typer_import_declarations, resolve_inferred_types};
 use crate::rs::desugarer::desugar_expr;
+use crate::rs::garbager::garbager_expr;
 use crate::rs::ufcs::ufcs_expr;
 use crate::rs::target::{Target, Lang, toolchain_command, toolchain_extra_args, executable_extension, validate_lang_for_target, lang_to_str};
 
@@ -73,7 +74,8 @@ fn collect_imports(ast: &Expr, imported: &mut HashSet<String>, all_asts: &mut Ve
                                     let saved_path = context.path.clone();
                                     context.path = file_path.clone();
                                     let dep_desugared = desugar_expr(context, &dep_resolved)?;
-                                    let dep_ufcs = ufcs_expr(context, &dep_desugared)?;
+                                    let dep_garbaged = garbager_expr(context, &dep_desugared)?;
+                                    let dep_ufcs = ufcs_expr(context, &dep_garbaged)?;
                                     let dep_ast = crate::rs::precomp::precomp_expr(context, &dep_ufcs)?;
                                     // Update with precompiled version
                                     context.imported_asts.insert(file_path, dep_ast.clone());
@@ -322,6 +324,7 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
         context.path = core_path.to_string();
         let core_ast = resolve_inferred_types(&mut context, &codegen_core_ast)?;
         let core_ast = desugar_expr(&mut context, &core_ast)?;
+        let core_ast = garbager_expr(&mut context, &core_ast)?;
         let core_ast = ufcs_expr(&mut context, &core_ast)?;
         let core_precomp_ast = crate::rs::precomp::precomp_expr(&mut context, &core_ast)?;
         context.path = core_saved_path;
@@ -340,6 +343,7 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
             context.path = file_path.clone();
             let mode_ast = resolve_inferred_types(&mut context, &mode_ast)?;
             let mode_ast = desugar_expr(&mut context, &mode_ast)?;
+            let mode_ast = garbager_expr(&mut context, &mode_ast)?;
             let mode_ast = ufcs_expr(&mut context, &mode_ast)?;
             let mode_precomp_ast = crate::rs::precomp::precomp_expr(&mut context, &mode_ast)?;
             context.path = mode_saved_path;
@@ -350,8 +354,9 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     // Collect main file's imports
     collect_imports(&resolved_main_ast, &mut imported, &mut dep_asts, &mut context)?;
 
-    // Desugar + UFCS + Precomp main file (already resolved by type_check above)
+    // Desugar + Garbager + UFCS + Precomp main file (already resolved by type_check above)
     let main_ast = desugar_expr(&mut context, &resolved_main_ast)?;
+    let main_ast = garbager_expr(&mut context, &main_ast)?;
     let main_ast = ufcs_expr(&mut context, &main_ast)?;
     let main_ast = crate::rs::precomp::precomp_expr(&mut context, &main_ast)?;
 

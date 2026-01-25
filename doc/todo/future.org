@@ -293,12 +293,12 @@ separately track nested Ptr fields.
 
 *** Implementation Approach
 
-AST transformation in a new "garbage" phase. Inserts ~var.delete()~ calls directly
+AST transformation in a new "garbager" phase. Inserts ~var.delete()~ calls directly
 into the AST after last use. Both compiler and interpreter benefit automatically.
 
-Pipeline position: parse -> desugar -> ufcs -> *garbage* -> precomp -> typer -> ...
+Pipeline position: parse -> desugar -> ufcs -> *garbager* -> precomp -> typer -> ...
 
-Files: garbage.rs, garbage.til (new)
+Files: garbager.rs, garbager.til (new)
 
 *** Implementation Steps
 
@@ -326,18 +326,21 @@ Ptr := struct {
 - Add Str.delete() that calls c_string.delete()
 - Files: ptr.til, ptr.rs, str.til, str.rs, ccodegen.rs, ccodegen.til
 
-**** Step 2: Auto-generate delete() for structs
-In desugarer phase, auto-generate ~delete()~ method for any struct that lacks one.
+**** Step 2: Add delete() to primitive types (DONE)
+Add no-op ~delete()~ to primitive types (I64, U8, Bool).
+This ensures ALL types have ~delete()~, simplifying the garbager phase.
 
-Prerequisites:
-- Add ~delete()~ to primitive types (I64, U8, Bool) that does nothing
-- This ensures ALL types have ~delete()~, simplifying the garbage phase
+Files: i64.til, u8.til, bool.til
+
+**** Step 3: Garbager Phase - Auto-generate delete() for structs
+New phase after desugarer that auto-generates ~delete()~ method for any struct that lacks one.
 
 Algorithm:
 1. When processing a struct definition, check if it has a ~delete~ method
-2. If not, generate one that calls ~field.delete()~ for every field
+2. If not, generate one that calls ~field.delete()~ for every mutable field
    - Fields processed in reverse declaration order (like C++/Rust destructors)
-3. Insert the generated method into the struct's members
+   - Skip structs with no mutable fields (error types like BadAlloc)
+3. Insert the generated method into the struct's members and default_values
 
 Example - given:
 #+BEGIN_SRC til
@@ -357,10 +360,10 @@ delete := proc(mut self: MyStruct) {
 }
 #+END_SRC
 
-Files: desugarer.rs, desugarer.til, i64.til (new), u8.til, bool.til
+Files: garbager.rs, garbager.til (new)
 
-**** Step 3: Garbage Phase Infrastructure
-New AST transformation pass that inserts delete() calls.
+**** Step 4: Garbager Phase - Liveness Analysis Infrastructure
+Add liveness analysis to track when variables are last used.
 
 Data structure:
 #+BEGIN_SRC rust
@@ -372,31 +375,31 @@ struct VarLifetime {
 }
 #+END_SRC
 
-Note: No need for ~has_delete~ field - after Step 2, every struct has ~delete()~.
+Note: No need for ~has_delete~ field - after Step 3, every struct has ~delete()~.
 
 Algorithm:
 1. Analysis pass: Scan statements, track last use index per variable
 2. Transform pass: Insert ~var.delete()~ statement after last_use_stmt_idx
 
-Files: garbage.rs, garbage.til
+Files: garbager.rs, garbager.til
 
-**** Step 4: Handle Early Exits (return/throw)
+**** Step 5: Handle Early Exits (return/throw)
 Before any return/throw statement, insert deletes for all still-live variables.
-Files: garbage.rs, garbage.til
+Files: garbager.rs, garbager.til
 
-**** Step 5: Handle Branches (if/else/switch)
+**** Step 6: Handle Branches (if/else/switch)
 Conservative: Only insert delete if ALL paths agree variable is dead.
 Otherwise, insert delete after the branch construct.
-Files: garbage.rs, garbage.til
+Files: garbager.rs, garbager.til
 
-**** Step 6: Handle Loops
+**** Step 7: Handle Loops
 Most conservative: Variables used in loop body deleted after loop ends.
 Special case: for-in loop variable deleted at end of each iteration.
-Files: garbage.rs, garbage.til
+Files: garbager.rs, garbager.til
 
-**** Step 7: Scope Exit Safety Net
+**** Step 8: Scope Exit Safety Net
 Insert deletes for any remaining live variables at function end.
-Files: garbage.rs, garbage.til
+Files: garbager.rs, garbager.til
 
 *** Design Decisions
 - Method name: Use existing ~delete()~
