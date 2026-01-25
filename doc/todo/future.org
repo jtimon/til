@@ -13,6 +13,36 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #138: Use Bool for Ptr.is_borrowed or separate BorrowedPtr type
+:PROPERTIES:
+:DISCOVERED: 2026-01-25
+:IMPACT: Cleaner ownership semantics
+:STATUS: Open
+:RELATED: Issue #117 (ASAP destruction)
+:END:
+
+*** Description
+Currently ~Ptr.is_borrowed~ is ~I64~ instead of ~Bool~ because Bool causes size
+alignment issues between interpreter and compiled code:
+- Interpreter: Bool = 1 byte, so Ptr = 9 bytes, Str = 25 bytes
+- Compiled: Bool = 1 byte + 7 padding, so Ptr = 16 bytes, Str = 32 bytes
+
+*** Options
+1. Fix interpreter's ~size_of~ to account for alignment padding
+2. Use separate types: ~Ptr~ (owned) vs ~BorrowedPtr~ (borrowed)
+   - Smaller size: Ptr = 8 bytes (just data) instead of 16 bytes (data + is_borrowed)
+   - Type system enforces ownership at compile time
+   - No runtime check needed in delete()
+
+*** Benefits of Bool
+Would allow cleaner syntax in Ptr.delete():
+#+BEGIN_SRC til
+if self.is_borrowed {  // instead of if self.is_borrowed.eq(1)
+    self.data = NULL
+    return
+}
+#+END_SRC
+
 ** Issue #135: True cross-compilation via precompiled ext.o per platform
 :PROPERTIES:
 :DISCOVERED: 2026-01-23
