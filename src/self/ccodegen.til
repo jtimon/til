@@ -9079,8 +9079,25 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         output.push_str(TIL_PREFIX)
         output.push_str("enum_get_payload((")
         output.push_str(TIL_PREFIX)
-        output.push_str("Dynamic*)&")
-        emit_expr(payload_enum_arg, output, 0, ctx, context)?
+        output.push_str("Dynamic*)")
+        // Check if the expression is already hoisted with & prefix (Bug: using line/col as cache key
+        // can cause same-location clones to return a value that already has &)
+        payload_enum_addr := payload_enum_arg.line.mul(1000000).add(payload_enum_arg.col)
+        mut payload_hoisted_val := ""
+        ctx.hoisted_exprs.get(payload_enum_addr, payload_hoisted_val)?
+        if payload_hoisted_val.starts_with("&") {
+            // Hoisted value already has &, use it directly
+            output.push_str(payload_hoisted_val)
+        } else {
+            // Add & and emit the expression
+            output.push_str("&")
+            emit_expr(payload_enum_arg, output, 0, ctx, context)?
+        }
+        catch (err: KeyNotFoundError) {
+            // Not hoisted, add & and emit normally
+            output.push_str("&")
+            emit_expr(payload_enum_arg, output, 0, ctx, context)?
+        }
         output.push_str(", &")
         // Emit type argument as Str (similar to size_of handling)
         switch payload_type_arg.node_type {
