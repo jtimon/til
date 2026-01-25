@@ -9,6 +9,64 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #141: ASAP destruction doesn't work for enums with payloads
+:PROPERTIES:
+:DISCOVERED: 2026-01-25
+:IMPACT: Memory leak when enums with heap-allocated payloads go out of scope
+:STATUS: Open
+:REPRODUCER: src/test/bug141.til
+:RELATED: Issue #117 (ASAP destruction)
+:END:
+
+*** Description
+Enums with heap-allocated payloads (Str, Vec, etc.) don't have their payloads
+deleted when the enum goes out of scope. The garbager phase skips enums entirely
+because they don't have a simple delete() method like structs.
+
+*** Example
+#+BEGIN_SRC til
+Result := enum {
+    Ok(value: Str)
+    Err(msg: Str)
+}
+
+test := proc() {
+    result := Result.Ok("hello")  // Str payload allocated on heap
+    // ... use result ...
+}  // result goes out of scope - Str payload is NOT freed (memory leak)
+#+END_SRC
+
+*** Root Cause
+In garbager.rs/garbager.til, the ~needs_delete~ function returns false for enums:
+#+BEGIN_SRC rust
+if context.scope_stack.lookup_enum(name).is_some() {
+    return false;  // Skip enums
+}
+#+END_SRC
+
+This was intentional because enums don't have a simple delete() method - deleting
+an enum requires knowing which variant is active and calling the appropriate
+payload's delete() method.
+
+*** Fix Required
+1. Auto-generate delete() methods for enums that have payloads with heap types
+2. The generated delete() must switch on the variant and call payload.delete()
+3. Example generated code:
+#+BEGIN_SRC til
+delete := proc(mut self: Result) {
+    switch self {
+    case Result.Ok(value):
+        Str.delete(value)
+    case Result.Err(msg):
+        Str.delete(msg)
+    }
+}
+#+END_SRC
+
+*** Workaround
+Manually delete enum payloads before they go out of scope, or use switch to
+extract and delete the payload.
+
 ** Bug #140: Dangling pointers in generated C code (undefined behavior)
 :PROPERTIES:
 :DISCOVERED: 2026-01-25

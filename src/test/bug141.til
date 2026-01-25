@@ -1,0 +1,45 @@
+mode script
+
+// Bug #141: ASAP destruction doesn't work for enums with payloads
+//
+// Problem: Enums with heap-allocated payloads (like Str, Vec) won't have
+// their payloads deleted because:
+// 1. Garbager skips enums when generating delete() methods
+// 2. Even if we generated delete() for enums, we'd need to switch on the
+//    variant and call the appropriate payload's delete()
+//
+// This test demonstrates the issue - not included in tests.til until fixed.
+
+// An enum with a payload that allocates heap memory
+Result := enum {
+    Ok(value: Str)
+    Err(msg: Str)
+}
+
+test_enum_payload := proc() {
+    // This creates a heap-allocated Str inside the enum
+    result := Result.Ok("hello world")
+
+    // When result goes out of scope, we need to:
+    // 1. Check which variant it is
+    // 2. Call Str.delete() on the payload
+    //
+    // Currently, garbager skips enums entirely, so this leaks memory.
+
+    switch result {
+    case Result.Ok(value):
+        println("Got Ok:", value)
+    case Result.Err(msg):
+        println("Got Err:", msg)
+    }
+
+    // result goes out of scope here - payload should be deleted but isn't
+}
+
+main := proc() {
+    println("Testing enum payload deletion...")
+    test_enum_payload()
+    println("Done - if we had ASAP destruction for enums, payload would be freed")
+}
+
+main()

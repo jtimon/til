@@ -14,6 +14,7 @@ The pipeline processes source code through these phases in order:
 | Init      | AST, Context   | Context        | Register declarations in scope             |
 | Typer     | AST, Context   | AST            | Type checking, validation, type completion |
 | Desugarer | AST, Context   | AST            | Desugar syntactic sugar constructs         |
+| Garbager  | AST, Context   | AST            | Auto-generate delete methods, ASAP destroy |
 | UFCS      | AST, Context   | AST            | Desugar uniform function call syntax       |
 | Precomp   | AST, Context   | AST            | Const-folding, macros                      |
 | Scavenger | AST, Context   | AST            | Remove unused declarations (build only)    |
@@ -63,10 +64,18 @@ The pipeline processes source code through these phases in order:
 - Runs after typer because AST is annotated with resolved types
 - Entry: desugar_expr()
 
+*** Garbager (src/rs/garbager.rs, src/self/garbager.til)
+- Auto-generates delete() methods for structs that lack them
+- Inserts automatic delete() calls for ASAP destruction
+- Runs after desugarer, before UFCS:
+  - After desugarer: desugared constructs may need delete calls
+  - Before UFCS: generated x.delete() calls get transformed by UFCS
+- Entry: garbager_expr()
+
 *** UFCS (src/rs/ufcs.rs, src/self/ufcs.til)
 - Desugars uniform function call syntax:
   - x.method(y) -> Type.method(x, y)
-- Runs after sugar because sugar may generate UFCS calls
+- Runs after garbager because garbager generates UFCS calls
 - Entry: ufcs_expr()
 
 *** Precomp (src/rs/precomp.rs, src/self/precomp.til)
@@ -97,10 +106,10 @@ The builder (src/rs/builder.rs) and interpreter (src/rs/interpreter.rs) share
 the same phases up through scavenger, but diverge afterward:
 
 Build pipeline:
-  Lexer -> Parser -> Mode -> Init -> Typer -> Desugarer -> UFCS -> Precomp -> Scavenger -> Build -> GCC
+  Lexer -> Parser -> Mode -> Init -> Typer -> Desugarer -> Garbager -> UFCS -> Precomp -> Scavenger -> Build -> GCC
 
 Interpret pipeline:
-  Lexer -> Parser -> Mode -> Init -> Typer -> Desugarer -> UFCS -> Precomp -> Interpret
+  Lexer -> Parser -> Mode -> Init -> Typer -> Desugarer -> Garbager -> UFCS -> Precomp -> Interpret
 
 ** Import Processing
 
@@ -108,6 +117,7 @@ Imports are processed in multiple phases with tracking to handle circular import
 - context.imports_init_done - Files that completed init phase
 - context.imports_typer_done - Files that completed typer phase
 - context.imports_desugar_done - Files that completed desugarer phase
+- context.imports_garbager_done - Files that completed garbager phase
 - context.imports_ufcs_done - Files that completed ufcs phase
 - context.imports_precomp_done - Files that completed precomp phase
 - context.imports_eval_done - Files that completed eval phase

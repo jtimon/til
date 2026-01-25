@@ -289,9 +289,9 @@ RegexMatch := struct {
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Fixes memory leaks automatically, Mojo-style memory management
-:STATUS: Open
+:STATUS: Open (Steps 1-3 done, Step 4 pending)
 :DEPENDS: Bug #101 (unused warnings - shared infrastructure)
-:RELATED: Bug #114 (memory leak documentation)
+:RELATED: Bug #114 (memory leak documentation), Bug #141 (enum payloads)
 :END:
 
 *** Description
@@ -326,7 +326,7 @@ separately track nested Ptr fields.
 AST transformation in a new "garbager" phase. Inserts ~var.delete()~ calls directly
 into the AST after last use. Both compiler and interpreter benefit automatically.
 
-Pipeline position: typer -> desugar -> ufcs -> *garbager* -> precomp -> ...
+Pipeline position: typer -> desugar -> *garbager* -> ufcs -> precomp -> ...
 
 Files: garbager.rs, garbager.til (new)
 
@@ -363,14 +363,21 @@ This ensures ALL types have ~delete()~, simplifying the garbager phase.
 Files: i64.til, u8.til, bool.til
 
 **** Step 3: Garbager Phase - Auto-generate delete() for structs (DONE)
-New phase after ufcs that auto-generates ~delete()~ method for any struct that lacks one.
+New phase after desugarer, before ufcs that auto-generates ~delete()~ method for
+any struct that lacks one.
 
 Algorithm:
 1. When processing a struct definition, check if it has a ~delete~ method
-2. If not, generate one that calls ~field.delete()~ for every mutable field
+2. If not, generate one that calls ~Type.delete(self.field)~ for every mutable field
    - Fields processed in reverse declaration order (like C++/Rust destructors)
-   - Skip structs with no mutable fields (error types like BadAlloc)
+   - Skip enum fields (enums don't have delete methods)
+   - Skip primitive fields (I64, U8, Bool, Type, Dynamic)
+   - Skip structs with no deletable fields
 3. Insert the generated method into the struct's members and default_values
+4. Register the modified struct in Context so UFCS can find the new method
+
+Note: Uses post-UFCS form (~Type.delete(self.field)~) because garbager runs after
+typer, so generated nodes don't have type annotations that UFCS needs.
 
 Example - given:
 #+BEGIN_SRC til
@@ -384,28 +391,41 @@ MyStruct := struct {
 Auto-generate:
 #+BEGIN_SRC til
 delete := proc(mut self: MyStruct) {
-    self.count.delete()  // I64.delete() is a no-op
-    self.data.delete()   // Vec.delete() frees memory
-    self.name.delete()   // Str.delete() frees memory
+    // count skipped - I64 is a primitive
+    Vec.delete(self.data)   // Vec.delete() frees memory
+    Str.delete(self.name)   // Str.delete() frees memory
 }
 #+END_SRC
 
-Files: garbager.rs, garbager.til (new)
+Files: garbager.rs (DONE), garbager.til (DONE)
 
-**** Step 4: Liveness Analysis and Delete Insertion
-Add liveness analysis to track when variables are last used, then insert ~var.delete()~ calls.
+**** Step 4: Delete insertion infrastructure (DONE)
+Built the infrastructure for inserting delete() calls, but disabled until Step 5.
 
 Data structure:
 #+BEGIN_SRC rust
 struct VarLifetime {
     name: String,
-    value_type: ValueType,
+    type_name: String,  // For post-UFCS delete calls
     last_use_stmt_idx: Option<usize>,
     is_deleted: bool,
 }
 #+END_SRC
 
-Note: No need for ~has_delete~ field - after Step 3, every struct has ~delete()~.
+Helper functions implemented:
+- ~collect_var_declarations~: Collect mutable variables that need deletion
+- ~generate_delete_call~: Generate ~Type.delete(var)~ in post-UFCS form
+- ~generate_deletes_for_vars~: Generate deletes for all live vars in reverse order
+- ~needs_delete~: Check if type needs deletion (skips primitives, enums)
+
+Why disabled: Naive insertion at function end caused double-free errors for variables
+that were returned, assigned to other variables, or escaped scope. Proper liveness
+analysis (Step 5) is required to know when a variable is truly dead.
+
+Files: garbager.rs (DONE), garbager.til (DONE)
+
+**** Step 5: Liveness analysis for safe delete insertion
+Add liveness analysis to track when variables are truly last used, avoiding double-frees.
 
 Algorithm:
 1. Analysis pass: Scan statements, track last use index per variable
@@ -413,9 +433,10 @@ Algorithm:
 
 Handle control flow:
 - Early exits (return/throw): Insert deletes for all still-live variables before exit
-- Branches (if/else/switch): Conservative - only delete if ALL paths agree variable is dead, otherwise delete after branch
+- Branches (if/else/switch): Conservative - only delete if ALL paths agree variable is dead
 - Loops: Most conservative - variables used in loop body deleted after loop ends
-- Scope exit: Safety net - insert deletes for any remaining live variables at function end
+- Returns: Do NOT delete variables that are being returned
+- Assignments: Track when ownership transfers to another variable
 
 Files: garbager.rs, garbager.til
 
