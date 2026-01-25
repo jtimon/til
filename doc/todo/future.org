@@ -260,7 +260,7 @@ RegexMatch := struct {
 :DISCOVERED: 2026-01-15
 :IMPACT: Fixes memory leaks automatically, Mojo-style memory management
 :STATUS: Open
-:DEPENDS: Issue #116 (Str len/cap), Bug #101 (unused warnings - shared infrastructure)
+:DEPENDS: Bug #101 (unused warnings - shared infrastructure)
 :RELATED: Bug #114 (memory leak documentation)
 :END:
 
@@ -269,22 +269,70 @@ Implement Mojo-style automatic destructor calls on last use. When a variable wit
 heap data is last used, the compiler automatically inserts a ~delete()~ call.
 
 *** Prerequisites
-- Issue #116: Str needs len/cap refactor for ownership tracking
 - Bug #101: Unused variable warnings use similar liveness analysis
 
 *** Types with delete()
-Already implemented: Vec, Array, Set, Map, List, Ptr
-After Issue #116: Str
+
+**** Delete Hierarchy (after Ptr refactor)
+Types use Ptr internally, so delete() cascades automatically:
+
+| Type  | Internal Storage    | delete() behavior                    |
+|-------+---------------------+--------------------------------------|
+| Ptr   | raw heap pointer    | checks is_borrowed, then free()      |
+| Vec   | Ptr                 | calls ptr.delete()                   |
+| Array | raw I64 ptr         | calls free() directly (not Ptr type) |
+| Str   | Ptr                 | calls c_string.delete()              |
+| Set   | Vec                 | calls elements.delete()              |
+| Map   | Vec x2              | calls keys.delete(), values.delete() |
+| List  | Ptr + Vec x2        | calls data/type_names/type_sizes.delete() |
+
+**** Implication for ASAP destruction
+ASAP destruction only needs to track top-level variables. When we call
+~map.delete()~, it cascades: Map -> Vec -> Ptr -> free(). No need to
+separately track nested Ptr fields.
+
+*** Implementation Approach
+
+AST transformation in a new "garbage" phase. Inserts ~var.delete()~ calls directly
+into the AST after last use. Both compiler and interpreter benefit automatically.
+
+Pipeline position: parse -> desugar -> ufcs -> *garbage* -> precomp -> typer -> ...
+
+Files: garbage.rs, garbage.til (new)
 
 *** Implementation Steps
 
-**** Step 1: Type System - Track has_delete
+**** Step 1: Add is_borrowed to Ptr
+Add ownership tracking to Ptr:
+#+BEGIN_SRC til
+Ptr := struct {
+    mut data : I64 = 0
+    mut is_borrowed : Bool = false
+
+    new := proc(T: Type, is_borrowed: Bool = false) returns Ptr { ... }
+    new_by_size := proc(size: I64, is_borrowed: Bool = false) returns Ptr { ... }
+
+    delete := proc(mut self: Ptr) {
+        if not(self.is_borrowed) and not(self.is_null()) {
+            free(self.data)
+        }
+        self.data = 0
+    }
+}
+#+END_SRC
+
+- String literals in ccodegen set is_borrowed=true
+- Ptr.new_by_size() defaults to is_borrowed=false (owned)
+- Add Str.delete() that calls c_string.delete()
+- Files: ptr.til, ptr.rs, str.til, str.rs, ccodegen.rs, ccodegen.til
+
+**** Step 2: Type System - Track has_delete
 - Check if type has ~delete~ method
 - Track in SStructDef or compute on demand
 - Files: typer.rs, typer.til
 
-**** Step 2: Liveness Analysis Infrastructure
-Track last use of variables - core algorithm.
+**** Step 3: Garbage Phase Infrastructure
+New AST transformation pass that inserts delete() calls.
 
 Data structure:
 #+BEGIN_SRC rust
@@ -299,37 +347,35 @@ struct VarLifetime {
 
 Algorithm:
 1. Analysis pass: Scan statements, track last use index per variable
-2. Emission pass: After emitting stmt at last_use_index, emit ~var.delete()~
+2. Transform pass: Insert ~var.delete()~ statement after last_use_stmt_idx
 
-Files: ccodegen.rs, ccodegen.til
+Files: garbage.rs, garbage.til
 
-**** Step 3: Handle Early Exits (return/throw)
-Before any exit point, delete all still-live variables with delete().
-Files: ccodegen.rs, ccodegen.til
+**** Step 4: Handle Early Exits (return/throw)
+Before any return/throw statement, insert deletes for all still-live variables.
+Files: garbage.rs, garbage.til
 
-**** Step 4: Handle Branches (if/else/switch)
-Conservative: Only delete if ALL paths agree variable is dead.
-Otherwise, postpone delete to after branch.
-Files: ccodegen.rs, ccodegen.til
+**** Step 5: Handle Branches (if/else/switch)
+Conservative: Only insert delete if ALL paths agree variable is dead.
+Otherwise, insert delete after the branch construct.
+Files: garbage.rs, garbage.til
 
-**** Step 5: Handle Loops
+**** Step 6: Handle Loops
 Most conservative: Variables used in loop body deleted after loop ends.
 Special case: for-in loop variable deleted at end of each iteration.
-Files: ccodegen.rs, ccodegen.til
+Files: garbage.rs, garbage.til
 
-**** Step 6: Scope Exit Safety Net
-Delete any remaining live variables at function end.
-Files: ccodegen.rs, ccodegen.til
-
-**** Step 7: Interpreter Support
-Mirror same logic in interpreter for consistency.
-Files: interpreter.rs, interpreter.til
+**** Step 7: Scope Exit Safety Net
+Insert deletes for any remaining live variables at function end.
+Files: garbage.rs, garbage.til
 
 *** Design Decisions
 - Method name: Use existing ~delete()~
-- Double-free prevention: Existing delete() sets ptr to 0 after free
+- Double-free prevention: Existing delete() sets ptr/data to 0 after free
 - Destruction order: Reverse order of declaration (like C++/Rust)
-- Scope: Both compiler and interpreter for consistency
+- AST transformation: Insert delete() calls in garbage phase, so both compiler and interpreter benefit
+- Cascading deletes: Only track top-level variables; nested Ptr fields handled by type's delete()
+- Borrowed vs owned: Ptr.is_borrowed distinguishes static memory (literals) from heap allocations
 
 *** Verification
 1. Run under valgrind - no leaks
