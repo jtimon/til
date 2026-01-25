@@ -650,3 +650,27 @@ test_optional_before_variadic := proc() {
     assert_eq_str(loc(), "[1] hello world", log_with_level("hello ", "world"))
 }
 test_optional_before_variadic()
+
+// === Bug #139 regression test: Struct field type checking ===
+// The type checker now validates that struct field types match during instantiation.
+// This tests that valid field assignments work correctly.
+
+StructWithPtr := struct {
+    mut name : Str = ""
+    mut ptr_field : Ptr = Ptr()
+}
+
+test_struct_field_types := proc() {
+    // Valid: Ptr field assigned Ptr value
+    s1 := StructWithPtr(name="test", ptr_field=Ptr())
+    assert_eq_str(loc(), "test", s1.name)
+
+    // Valid: Using default value for Ptr field
+    s2 := StructWithPtr(name="default_ptr")
+    assert_eq_str(loc(), "default_ptr", s2.name)
+
+    // Valid: Named args in any order
+    s3 := StructWithPtr(ptr_field=Ptr(), name="reversed")
+    assert_eq_str(loc(), "reversed", s3.name)
+}
+test_struct_field_types()
