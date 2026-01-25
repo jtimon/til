@@ -1161,17 +1161,20 @@ til_Vec_push(&_err, &vec, &_tmp_str);  // _tmp_str is til_Str*
 Function ~til_get_value_type~ at line 13360 - control reaches end without return.
 
 *** Progress (2026-01-25)
-Commit 129ba21a fixed -Wreturn-type by adding implicit ~return 0;~ at end of ALL
-throwing functions (not just void ones). All throwing functions return int
-(0=success, 1+=error), so return 0 is always valid as an unreachable fallback.
+Most warning issues now consolidated into Bug #99 (gcc warnings) and Bug #140 (dangling pointers).
 
 *** TODO
 - [X] Investigate why ~til run bug47.til~ fails - OOM during ccodegen
 - [X] Fix missing return statement (commit 129ba21a)
-- [ ] Fix til ccodegen memory usage (high priority - OOM on large files)
-- [ ] Fix dangling pointer pattern in ccodegen (high priority)
-- [ ] Add casts for Vec_push calls or specialize per type
-- [ ] Consider which unused-* warnings to fix vs suppress
+- [X] Add casts for Vec_push calls - fixed in Bug #99 Step 3a (-Wincompatible-pointer-types)
+- [X] Consider which unused-* warnings to fix vs suppress - done in Bug #99 Step 4
+- [ ] Fix til ccodegen memory usage (OOM on large files) - may be fixed by Issue #117 (borrow checker)
+- [ ] Fix dangling pointer pattern - see Bug #140
+
+*** Related Issues
+- Bug #99: Eliminate all C compiler warnings and enable -Werror (main tracking)
+- Bug #140: Dangling pointers in generated C code (undefined behavior)
+- Issue #117: Borrow checker / memory management (may fix OOM)
 
 ** Bug #92: Range loops should allow explicit iterator type annotation
 :PROPERTIES:
