@@ -13,15 +13,16 @@ bin/rstil: $(RSTIL_SRCS)
 	rustc -D warnings src/rstil.rs -o bin/rstil
 
 # Compiled make.til for faster builds
+# Bug #141: rstil outputs to bin/rs/
 MAKE_TIL_DEPS := make.til $(wildcard src/std/*.til) $(wildcard src/core/*.til)
 
-bin/make: bin/rstil $(MAKE_TIL_DEPS)
+bin/rs/make: bin/rstil $(MAKE_TIL_DEPS)
 	./bin/rstil build make.til
 
 # Prevent .rs, .til files and Makefile from matching the % pattern.
 # The % pattern below delegates unknown targets to compiled make.til, but:
 # - .rs files would create circular deps (bin/rstil depends on them)
-# - .til files would create circular deps (bin/make depends on them)
+# - .til files would create circular deps (bin/rs/make depends on them)
 # - Makefile gets checked by Make's automatic remaking feature
 %.rs:
 %.til:
@@ -29,5 +30,5 @@ Makefile:
 	@:
 
 # Everything else delegates to compiled make.til
-%: bin/make
-	./bin/make $@
+%: bin/rs/make
+	./bin/rs/make $@

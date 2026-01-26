@@ -112,9 +112,9 @@ get_cmd_prefix := func(test_mode: Str) returns Str {
     case "rs_compiled":
         return "./bin/rstil run "
     case "til_interpreted":
-        return "./bin/til interpret "
+        return "./bin/rs/til interpret "
     case "til_compiled":
-        return "./bin/til run "
+        return "./bin/rs/til run "
     case:
         return ""
     }

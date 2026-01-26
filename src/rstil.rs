@@ -22,7 +22,7 @@ mod rs {
     pub mod ccodegen;
     pub mod builder;
 }
-use rs::lexer::LANG_NAME;
+use rs::lexer::{LANG_NAME, LANG_NAME_141};
 use rs::interpreter::interpret_file;
 use rs::builder;
 use rs::eval_arena::EvalArena;
@@ -50,13 +50,14 @@ fn file_mtime(path: &str) -> i64 {
 
 // Compute the binary output path from a TIL source path
 // Mirrors the logic in builder.rs
+// Bug #141: Use bin/{LANG_NAME_141}/ to separate rstil (rs) from rstil_til (til)
 fn source_to_binary_path(path: &str, target: &Target) -> String {
     let exe_extension = executable_extension(target);
     let bin_filename = path.replace(".til", exe_extension);
     if bin_filename.starts_with("src/") {
-        bin_filename.replacen("src/", "bin/", 1)
+        bin_filename.replacen("src/", &format!("bin/{}/", LANG_NAME_141), 1)
     } else {
-        format!("bin/{}", bin_filename)
+        format!("bin/{}/{}", LANG_NAME_141, bin_filename)
     }
 }
 

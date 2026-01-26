@@ -473,13 +473,15 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     // Generate C code
     c_code := emit(merged_ast2, context)?
 
-    // Write output file to ./gen/c/ directory instead of alongside source
+    // Write output file to ./gen/{LANG_NAME_141}/c/ directory instead of alongside source
+    // Bug #141: Separate gen dirs for rstil (rs) vs rstil_til (til)
     c_filename := path.replace(".til", ".c")
     mut source_output_path := c_filename.clone()
+    gen_prefix := concat("gen/", LANG_NAME_141).concat("/c/")
     if c_filename.starts_with("src/") {
-        source_output_path = c_filename.replace("src/", "gen/c/")
+        source_output_path = c_filename.replace("src/", gen_prefix)
     } else {
-        source_output_path = concat("gen/c/", c_filename)
+        source_output_path = concat(gen_prefix, c_filename)
     }
     // Create output directory if it doesn't exist
     parent_dir := fs_parent_dir(source_output_path)
@@ -499,15 +501,17 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     // Get toolchain command for target
     compiler := toolchain_command(target, lang)?
 
-    // Compile - output to bin/ directory in project root, preserving relative path
-    // e.g., src/til.til -> bin/til, src/examples/hello_script.til -> bin/examples/hello_script
+    // Compile - output to bin/{LANG_NAME_141}/ directory in project root, preserving relative path
+    // Bug #141: Separate bin dirs for rstil (rs) vs rstil_til (til)
+    // e.g., src/til.til -> bin/til/til, src/examples/hello_script.til -> bin/til/examples/hello_script
     exe_extension := executable_extension(target)
     bin_filename := path.replace(".til", exe_extension)
     mut exe_path_str := bin_filename.clone()
+    bin_prefix := concat("bin/", LANG_NAME_141).concat("/")
     if bin_filename.starts_with("src/") {
-        exe_path_str = bin_filename.replace("src/", "bin/")
+        exe_path_str = bin_filename.replace("src/", bin_prefix)
     } else {
-        exe_path_str = concat("bin/", bin_filename)
+        exe_path_str = concat(bin_prefix, bin_filename)
     }
     // Create bin directory if it doesn't exist
     bin_parent_dir := fs_parent_dir(exe_path_str)

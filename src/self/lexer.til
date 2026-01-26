@@ -3,7 +3,8 @@ mode liba
 import("core.vec")
 import("std.io")            // readfile
 
-LANG_NAME := "til"
+LANG_NAME     := "til"
+LANG_NAME_141 := "til"  // Bug #141: Separate gen/bin dirs for rstil vs rstil_til
 
 TokenType := enum {
     // basic
