@@ -2,7 +2,7 @@
 // and performs compile-time constant folding for pure functions.
 // This phase runs after typer, before interpreter/builder.
 
-use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType};
+use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType, PrecomputedHeapValue};
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::HashMap;
 use crate::rs::parser::{
@@ -531,6 +531,15 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
                         let saved_path = context.path.clone();
                         eval_declaration(decl, context, e)?;
                         context.path = saved_path;
+
+                        // Bug #133 fix: Track precomputed heap values for static array serialization
+                        if EvalArena::type_needs_heap_serialization(context, custom_type_name) {
+                            context.precomputed_heap_values.push(PrecomputedHeapValue {
+                                var_name: decl.name.clone(),
+                                instance_name: decl.name.clone(),
+                                type_name: custom_type_name.clone(),
+                            });
+                        }
                     }
                 }
             }

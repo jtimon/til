@@ -2,9 +2,11 @@
 // Translates TIL AST to C source code
 
 use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType, Declaration, INFER_TYPE};
-use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType};
+use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType, PrecomputedHeapValue};
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
+use crate::rs::eval_arena::{EvalArena, VecContents};
 use std::collections::{HashMap, HashSet};
+use std::convert::TryInto;
 
 // Prefix for all TIL-generated names in C code (structs, functions, types)
 const TIL_PREFIX: &str = "til_";
@@ -45,6 +47,16 @@ struct CodegenContext {
     // Map of hoisted struct default expressions ("struct_name:member_name" -> temp var name)
     // Used to track which struct literal defaults were hoisted as temp vars
     hoisted_struct_defaults: HashMap<String, String>,
+    // Bug #133 fix: Map var_name -> static array name for precomputed heap values
+    // When emitting assignments in main(), Ptr fields will use these static pointers
+    precomputed_static_arrays: HashMap<String, PrecomputedStaticInfo>,
+}
+
+// Bug #133: Info about a precomputed Vec's static array serialization
+#[derive(Clone, Debug)]
+struct PrecomputedStaticInfo {
+    data_array_name: String,      // Name of the static array (e.g., "_precomp_chromatic_data")
+    type_name_array_name: String, // Name of the type_name string (e.g., "_precomp_chromatic_type_name")
 }
 
 impl CodegenContext {
@@ -65,6 +77,7 @@ impl CodegenContext {
             hoisted_prototypes: Vec::new(),
             nested_func_names: HashMap::new(),
             hoisted_struct_defaults: HashMap::new(),
+            precomputed_static_arrays: HashMap::new(),
         }
     }
 }
@@ -2122,6 +2135,10 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         }
     }
 
+    // Pass 4c2 (Bug #133 fix): emit static arrays for precomputed heap values
+    // This serializes Vec/List contents to static arrays so Ptr fields can reference them
+    emit_precomputed_static_arrays(&mut output, &mut ctx, context)?;
+
     // Pass 4d: emit til_size_of function (runtime type size lookup)
     emit_size_of_function(&mut output, &ctx);
 
@@ -2630,6 +2647,288 @@ fn emit_enum_size_of_constant(expr: &Expr, output: &mut String, ctx: &mut Codege
             }
         }
     }
+    Ok(())
+}
+
+// Bug #133 fix: Emit static arrays for precomputed heap values (Vec, List, etc.)
+// This serializes interpreter heap contents to static C arrays so Ptr fields can reference them
+fn emit_precomputed_static_arrays(output: &mut String, ctx: &mut CodegenContext, context: &Context) -> Result<(), String> {
+    if context.precomputed_heap_values.is_empty() {
+        return Ok(());
+    }
+
+    output.push_str("\n// Bug #133: Static arrays for precomputed heap values\n");
+
+    for phv in &context.precomputed_heap_values {
+        if phv.type_name == "Vec" {
+            emit_precomputed_vec_static(output, ctx, context, phv)?;
+        }
+        // TODO: Add List, Map support as needed
+    }
+
+    Ok(())
+}
+
+// Emit static arrays for a single precomputed Vec
+fn emit_precomputed_vec_static(
+    output: &mut String,
+    ctx: &mut CodegenContext,
+    context: &Context,
+    phv: &PrecomputedHeapValue,
+) -> Result<(), String> {
+    // Extract Vec contents from EvalArena
+    let contents = EvalArena::extract_vec_contents(context, &phv.instance_name)
+        .map_err(|e| format!("emit_precomputed_vec_static: {}", e))?;
+
+    let var_name = &phv.var_name;
+    let elem_type = &contents.element_type_name;
+    let elem_count = contents.element_bytes.len();
+
+    // Generate static array names
+    let data_array_name = format!("_precomp_{}_data", var_name);
+    let type_name_array_name = format!("_precomp_{}_type_name", var_name);
+
+    // Emit type_name string literal
+    output.push_str("static const char ");
+    output.push_str(&type_name_array_name);
+    output.push_str("[] = \"");
+    output.push_str(elem_type);
+    output.push_str("\";\n");
+
+    // Handle different element types
+    if elem_type == "Str" {
+        // Vec<Str> needs two-level serialization: string data + Str structs
+        emit_precomputed_vec_str_static(output, ctx, context, var_name, &contents)?;
+    } else if elem_type == "I64" {
+        // Vec<I64> - emit array of I64 values
+        output.push_str("static ");
+        output.push_str(TIL_PREFIX);
+        output.push_str("I64 ");
+        output.push_str(&data_array_name);
+        output.push_str("[");
+        output.push_str(&elem_count.to_string());
+        output.push_str("] = {");
+        for (i, bytes) in contents.element_bytes.iter().enumerate() {
+            if i > 0 {
+                output.push_str(", ");
+            }
+            let val = i64::from_ne_bytes(bytes[..8].try_into().unwrap_or([0; 8]));
+            output.push_str(&val.to_string());
+        }
+        output.push_str("};\n");
+    } else if elem_type == "U8" {
+        // Vec<U8> - emit array of U8 values
+        output.push_str("static ");
+        output.push_str(TIL_PREFIX);
+        output.push_str("U8 ");
+        output.push_str(&data_array_name);
+        output.push_str("[");
+        output.push_str(&elem_count.to_string());
+        output.push_str("] = {");
+        for (i, bytes) in contents.element_bytes.iter().enumerate() {
+            if i > 0 {
+                output.push_str(", ");
+            }
+            let val: u8 = bytes.first().copied().unwrap_or(0);
+            output.push_str(&val.to_string());
+        }
+        output.push_str("};\n");
+    } else {
+        // Other struct types - emit raw bytes as array
+        // This is a fallback that may need refinement for complex nested types
+        let total_bytes: usize = contents.element_bytes.iter().map(|b: &Vec<u8>| b.len()).sum();
+        output.push_str("static unsigned char ");
+        output.push_str(&data_array_name);
+        output.push_str("[");
+        output.push_str(&total_bytes.to_string());
+        output.push_str("] = {");
+        let mut first = true;
+        for bytes in &contents.element_bytes {
+            for b in bytes.iter() {
+                if !first {
+                    output.push_str(", ");
+                }
+                first = false;
+                output.push_str(&(*b as u8).to_string());
+            }
+        }
+        output.push_str("};\n");
+    }
+
+    // Store info for later use when emitting assignments in main()
+    ctx.precomputed_static_arrays.insert(var_name.clone(), PrecomputedStaticInfo {
+        data_array_name,
+        type_name_array_name,
+    });
+
+    Ok(())
+}
+
+// Emit static arrays for Vec<Str> - two-level: string literals + Str structs
+fn emit_precomputed_vec_str_static(
+    output: &mut String,
+    _ctx: &mut CodegenContext,
+    context: &Context,
+    var_name: &str,
+    contents: &VecContents,
+) -> Result<(), String> {
+    let elem_count = contents.element_bytes.len();
+    let ptr_size = context.get_type_size("Ptr")?;
+
+    // First, emit the individual string literals
+    for (idx, bytes) in contents.element_bytes.iter().enumerate() {
+        // Extract string data from Str struct bytes
+        // Str layout: c_string (Ptr with data+is_borrowed), _len (I64), cap (I64)
+        // We need to read c_string.data (ptr to string) and _len
+        let c_string_ptr = i64::from_ne_bytes(bytes[..8].try_into().unwrap_or([0; 8])) as usize;
+        let len = i64::from_ne_bytes(bytes[ptr_size..ptr_size+8].try_into().unwrap_or([0; 8])) as usize;
+
+        // Read the actual string bytes from arena
+        let string_bytes = if c_string_ptr > 0 && len > 0 {
+            EvalArena::g().get(c_string_ptr, len)
+        } else {
+            &[]
+        };
+        let string_data = String::from_utf8_lossy(string_bytes);
+
+        output.push_str("static const char _precomp_");
+        output.push_str(var_name);
+        output.push_str("_str_");
+        output.push_str(&idx.to_string());
+        output.push_str("[] = \"");
+        // Escape special characters in the string
+        for ch in string_data.chars() {
+            match ch {
+                '"' => output.push_str("\\\""),
+                '\\' => output.push_str("\\\\"),
+                '\n' => output.push_str("\\n"),
+                '\r' => output.push_str("\\r"),
+                '\t' => output.push_str("\\t"),
+                c if c.is_ascii_control() => {
+                    output.push_str(&format!("\\x{:02x}", c as u8));
+                }
+                c => output.push(c),
+            }
+        }
+        output.push_str("\";\n");
+    }
+
+    // Now emit the Str struct array
+    let data_array_name = format!("_precomp_{}_data", var_name);
+    output.push_str("static ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str ");
+    output.push_str(&data_array_name);
+    output.push_str("[");
+    output.push_str(&elem_count.to_string());
+    output.push_str("] = {\n");
+
+    for (idx, bytes) in contents.element_bytes.iter().enumerate() {
+        // Extract _len from Str struct bytes
+        let len = i64::from_ne_bytes(bytes[ptr_size..ptr_size+8].try_into().unwrap_or([0; 8]));
+
+        output.push_str("    {.c_string = (");
+        output.push_str(TIL_PREFIX);
+        output.push_str("Ptr){(");
+        output.push_str(TIL_PREFIX);
+        output.push_str("I64)_precomp_");
+        output.push_str(var_name);
+        output.push_str("_str_");
+        output.push_str(&idx.to_string());
+        output.push_str(", 1}, ._len = ");  // is_borrowed = 1 (static string)
+        output.push_str(&len.to_string());
+        output.push_str(", .cap = 0}");
+        if idx + 1 < elem_count {
+            output.push_str(",");
+        }
+        output.push_str("\n");
+    }
+
+    output.push_str("};\n");
+
+    Ok(())
+}
+
+// Bug #133 fix: Emit assignment for a precomputed Vec with patched Ptr fields
+fn emit_precomputed_vec_assignment(
+    var_name: &str,
+    is_mut: bool,
+    static_info: &PrecomputedStaticInfo,
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &Context,
+) -> Result<(), String> {
+    let indent_str = "    ".repeat(indent);
+    let already_declared = ctx.declared_vars.contains(&til_name(var_name));
+
+    // Extract Vec contents to get element count and type info
+    let contents = EvalArena::extract_vec_contents(context, var_name)
+        .map_err(|e| format!("emit_precomputed_vec_assignment: {}", e))?;
+
+    let elem_count = contents.element_bytes.len() as i64;
+    let type_size = contents.type_size as i64;
+    let elem_type = &contents.element_type_name;
+
+    output.push_str(&indent_str);
+    if !already_declared {
+        if !is_mut {
+            output.push_str("const ");
+        }
+        output.push_str(TIL_PREFIX);
+        output.push_str("Vec ");
+        ctx.declared_vars.insert(til_name(var_name));
+    }
+    output.push_str(&til_name(var_name));
+    output.push_str(" = (");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Vec){\n");
+
+    // type_name field - point to static string
+    output.push_str(&indent_str);
+    output.push_str("    .type_name = (");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str){(");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Ptr){(");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64)");
+    output.push_str(&static_info.type_name_array_name);
+    output.push_str(", 1}, ");  // is_borrowed = 1
+    output.push_str(&elem_type.len().to_string());
+    output.push_str(", 0},\n");
+
+    // type_size field
+    output.push_str(&indent_str);
+    output.push_str("    .type_size = ");
+    output.push_str(&type_size.to_string());
+    output.push_str(",\n");
+
+    // ptr field - point to static data array
+    output.push_str(&indent_str);
+    output.push_str("    .ptr = (");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Ptr){(");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64)");
+    output.push_str(&static_info.data_array_name);
+    output.push_str(", 1},\n");  // is_borrowed = 1 (static data, don't free)
+
+    // _len field
+    output.push_str(&indent_str);
+    output.push_str("    ._len = ");
+    output.push_str(&elem_count.to_string());
+    output.push_str(",\n");
+
+    // cap field
+    output.push_str(&indent_str);
+    output.push_str("    .cap = ");
+    output.push_str(&elem_count.to_string());
+    output.push_str("\n");
+
+    output.push_str(&indent_str);
+    output.push_str("};\n");
+
     Ok(())
 }
 
@@ -5064,6 +5363,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
     let name = &decl.name;
     let is_mut = decl.is_mut;
+
+    // Bug #133 fix: Check if this is a precomputed heap value that needs patching
+    if let Some(static_info) = ctx.precomputed_static_arrays.get(name).cloned() {
+        return emit_precomputed_vec_assignment(name, is_mut, &static_info, output, indent, ctx, context);
+    }
 
     // Check if this is a struct construction (TypeName())
     let struct_type = if !expr.params.is_empty() {
