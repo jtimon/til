@@ -36,7 +36,8 @@ main := proc(file_path: Str) {
     til_c = til_c.concat(base_name)
     til_c = til_c.concat(".c")
 
-    // Build gen path: src/examples/hello_script.til -> gen/c/examples/hello_script.c
+    // Build gen path: src/examples/hello_script.til -> examples/hello_script.c
+    // Bug #141: rstil outputs to gen/rs/c/, til outputs to gen/til/c/
     mut gen_path := file_path.clone()
     if gen_path.starts_with("src/") {
         gen_path = get_substr(gen_path, 4, gen_path.len())
@@ -45,8 +46,10 @@ main := proc(file_path: Str) {
         gen_path = get_substr(gen_path, 0, gen_path.len().sub(4))
     }
     gen_path = gen_path.concat(".c")
-    mut gen_full := "gen/c/"
-    gen_full = gen_full.concat(gen_path)
+    mut rstil_gen := "gen/rs/c/"
+    rstil_gen = rstil_gen.concat(gen_path)
+    mut til_gen := "gen/til/c/"
+    til_gen = til_gen.concat(gen_path)
 
     // Run rstil translate
     println("Running: ./bin/rstil translate ", file_path)
@@ -60,7 +63,7 @@ main := proc(file_path: Str) {
 
     // Copy generated C to temp location
     mut cp1_output := ""
-    _ := cp1_output.run_cmd("cp", gen_full, rstil_c)
+    _ := cp1_output.run_cmd("cp", rstil_gen, rstil_c)
 
     // Run rstil_til translate (use bash since ./bin/rstil_til not in whitelist)
     mut til_cmd := "./bin/rstil_til translate "
@@ -76,7 +79,7 @@ main := proc(file_path: Str) {
 
     // Copy generated C to temp location
     mut cp2_output := ""
-    _ := cp2_output.run_cmd("cp", gen_full, til_c)
+    _ := cp2_output.run_cmd("cp", til_gen, til_c)
 
     // Diff the two files
     println("Diffing: ", rstil_c, " vs ", til_c)

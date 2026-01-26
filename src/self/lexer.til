@@ -4,6 +4,7 @@ import("core.vec")
 import("std.io")            // readfile
 
 LANG_NAME := "til"
+LANG_NAME_141 := "til"  // Bug #141: separate gen/bin dirs for parallel tests
 
 TokenType := enum {
     // basic

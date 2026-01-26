@@ -1,4 +1,5 @@
 pub const LANG_NAME  : &str = "til";
+pub const LANG_NAME_141: &str = "rs";  // Bug #141: separate gen/bin dirs for parallel tests
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {

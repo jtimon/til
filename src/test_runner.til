@@ -106,15 +106,16 @@ format_expected := func(cmd_args: Str, exit_code: I64, output: Str) returns Str 
 
 // Get command prefix for mode
 get_cmd_prefix := func(test_mode: Str) returns Str {
+    // Bug #141: til compiler is at bin/rs/til (built by rstil)
     switch test_mode {
     case "rs_interpreted":
         return "./bin/rstil interpret "
     case "rs_compiled":
         return "./bin/rstil run "
     case "til_interpreted":
-        return "./bin/til interpret "
+        return "./bin/rs/til interpret "
     case "til_compiled":
-        return "./bin/til run "
+        return "./bin/rs/til run "
     case:
         return ""
     }

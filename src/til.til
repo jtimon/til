@@ -73,13 +73,15 @@ parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws St
 
 // Compute the binary output path from a TIL source path
 // Mirrors the logic in builder.til
+// Bug #141: outputs to bin/{LANG_NAME_141}/ for parallel test isolation
 source_to_binary_path := func(path: Str, target: Target) returns Str {
     exe_extension := executable_extension(target)
     bin_filename := path.replace(".til", exe_extension)
+    bin_prefix := format("bin/", LANG_NAME_141, "/")
     if bin_filename.starts_with("src/") {
-        return bin_filename.replace("src/", "bin/")
+        return bin_filename.replace("src/", bin_prefix)
     } else {
-        return concat("bin/", bin_filename)
+        return concat(bin_prefix, bin_filename)
     }
 }
 
