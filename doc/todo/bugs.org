@@ -289,7 +289,7 @@ both checks types and resolves INFER_TYPE in one traversal.
 Bug #128 cleaned up INFER_TYPE handling across the codebase (Steps 2-6). This is the
 remaining work (was Step 7) split into its own bug for clarity.
 
-*** Implementation Attempt (2026-01-25) - Deferred
+*** Implementation Attempt (2026-01-25/26) - Deferred
 Attempted to merge by:
 1. Creating type_check_and_resolve() that does both validation and resolution
 2. Removing recursive calls from helper functions (check_if_statement, etc.)
@@ -301,18 +301,29 @@ Challenges encountered:
   - They manage scope-local state (function_locals, used_symbols)
 - Removing recursion from helpers caused scope population to break
 - Functions like 'mul', 'add' were not found because scope wasn't being populated correctly
-- Double declaration errors occurred when both type_check_and_resolve and helpers
-  tried to register the same symbols
 
-Root cause: The helper functions are tightly coupled with scope management.
-Simply removing recursion breaks the symbol registration needed for type checking.
+Additional findings from second attempt:
+- Split check_func_proc_types into setup/finish functions to fix unused variable check timing
+- External functions need special handling (skip unused var check for params without bodies)
+- Scope management for Body nodes differs between check_types (no scope push) and
+  resolve_inferred_types (push Block scope) - unified function must match check_types
+- Issue with local function declarations inside struct methods: symbols get registered
+  but function definitions don't, causing "Cannot call 'X', it is not a function" errors
+- Root cause appears to be interaction between init_context (which pre-registers some
+  symbols) and type checking (which expects to register functions itself)
+
+The problem is deep: symbols can be pre-registered by init_context, causing check_declaration
+to skip function registration (it only registers if symbol doesn't exist). This worked in
+two-pass because check_types ran first and registered everything before init affected scope.
 
 *** Proper Fix (future work)
 To properly fix this, need to:
-1. Separate validation logic from scope registration in helper functions
-2. Have type_check_and_resolve do all scope management and registration
-3. Helpers become pure validation functions that read from scope but don't modify it
-4. Carefully handle order of operations (register before validate body)
+1. Audit interaction between init_context and type_check for function registration
+2. Possibly change check_declaration to always register func definition even if symbol exists
+3. Separate validation logic from scope registration in helper functions
+4. Have type_check_and_resolve do all scope management and registration
+5. Helpers become pure validation functions that read from scope but don't modify it
+6. Carefully handle order of operations (register before validate body)
 
 This is a significant refactoring of ~500 lines in typer.rs and similar in typer.til.
 The current two-pass approach works correctly; this is an optimization.
