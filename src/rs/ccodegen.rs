@@ -1084,39 +1084,51 @@ fn hoist_for_dynamic_params(
             NodeType::LLiteral(Literal::Number(_)) => Ok("til_I64".to_string()),
             NodeType::LLiteral(Literal::List(_)) => Ok("til_I64".to_string()), // TODO: proper list type
             NodeType::Identifier(var_name) if !arg.params.is_empty() => {
-                // Could be: enum constructor (Type.Variant), field access (var.field), or method call
-                let first_param = arg.params.first()
-                    .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Expected param"))?;
-                if let NodeType::Identifier(field_or_variant) = &first_param.node_type {
-                    // Check if this is an enum constructor
-                    if context.scope_stack.lookup_enum(var_name)
-                        .map(|e| e.contains_key(field_or_variant))
-                        .unwrap_or(false) {
-                        // Enum constructor returns the enum type
-                        Ok(til_name(var_name))
-                    } else if let Some(sym) = context.scope_stack.lookup_symbol(var_name) {
-                        // Field access - look up variable's type, then field's type
-                        if let ValueType::TCustom(struct_name) = &sym.value_type {
-                            let struct_def = context.scope_stack.lookup_struct(struct_name)
-                                .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", &format!("Struct not found: {}", struct_name)))?;
-                            let mut member_opt: Option<&Declaration> = None;
-                            for m in &struct_def.members {
-                                if &m.name == field_or_variant {
-                                    member_opt = Some(m);
-                                    break;
-                                }
-                            }
-                            let member = member_opt.ok_or_else(|| arg.lang_error(&context.path, "ccodegen", &format!("Field not found: {}", field_or_variant)))?;
-                            til_type_to_c(&member.value_type)
-                                .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
-                        } else {
-                            Err(arg.lang_error(&context.path, "ccodegen", &format!("Expected struct type for field access on {}", var_name)))
-                        }
+                // Handle special _ pattern for chained field access on expression results
+                // e.g., _.func()?.field becomes Identifier("_") with params [FCall, Identifier("field")]
+                if var_name == "_" {
+                    // Get the type of the base expression (params[0]) and traverse field chain
+                    if let Ok(final_type) = get_value_type(context, arg) {
+                        til_type_to_c(&final_type).map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
                     } else {
-                        Err(arg.lang_error(&context.path, "ccodegen", &format!("Symbol not found: {}", var_name)))
+                        // Fall back to auto type if we can't determine
+                        Ok("__auto_type".to_string())
                     }
                 } else {
-                    Err(arg.lang_error(&context.path, "ccodegen", "Expected identifier for field/variant"))
+                    // Could be: enum constructor (Type.Variant), field access (var.field), or method call
+                    let first_param = arg.params.first()
+                        .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Expected param"))?;
+                    if let NodeType::Identifier(field_or_variant) = &first_param.node_type {
+                        // Check if this is an enum constructor
+                        if context.scope_stack.lookup_enum(var_name)
+                            .map(|e| e.contains_key(field_or_variant))
+                            .unwrap_or(false) {
+                            // Enum constructor returns the enum type
+                            Ok(til_name(var_name))
+                        } else if let Some(sym) = context.scope_stack.lookup_symbol(var_name) {
+                            // Field access - look up variable's type, then field's type
+                            if let ValueType::TCustom(struct_name) = &sym.value_type {
+                                let struct_def = context.scope_stack.lookup_struct(struct_name)
+                                    .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", &format!("Struct not found: {}", struct_name)))?;
+                                let mut member_opt: Option<&Declaration> = None;
+                                for m in &struct_def.members {
+                                    if &m.name == field_or_variant {
+                                        member_opt = Some(m);
+                                        break;
+                                    }
+                                }
+                                let member = member_opt.ok_or_else(|| arg.lang_error(&context.path, "ccodegen", &format!("Field not found: {}", field_or_variant)))?;
+                                til_type_to_c(&member.value_type)
+                                    .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))
+                            } else {
+                                Err(arg.lang_error(&context.path, "ccodegen", &format!("Expected struct type for field access on {}", var_name)))
+                            }
+                        } else {
+                            Err(arg.lang_error(&context.path, "ccodegen", &format!("Symbol not found: {}", var_name)))
+                        }
+                    } else {
+                        Err(arg.lang_error(&context.path, "ccodegen", "Expected identifier for field/variant"))
+                    }
                 }
             }
             NodeType::Identifier(type_name) if arg.params.is_empty() => {

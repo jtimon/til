@@ -373,6 +373,51 @@ impl ScopeStack {
         self.is_enum_constructor(combined_name) || self.is_struct_constructor(combined_name)
     }
 
+    /// Find which enum contains a given variant name.
+    /// Used for shorthand switch patterns like `case Variant(binding)` where we need
+    /// to find the enum type from just the variant name.
+    pub fn find_enum_with_variant(&self, variant_name: &str) -> Option<String> {
+        for frame in self.frames.iter().rev() {
+            for (enum_name, enum_def) in &frame.enums {
+                if enum_def.contains_key(variant_name) {
+                    return Some(enum_name.clone());
+                }
+            }
+        }
+        None
+    }
+
+    /// Find an enum containing a variant with a payload.
+    /// When multiple enums have the same variant name, prefers the one with a payload.
+    /// This is useful for shorthand pattern matching like `case Identifier(x)` where
+    /// we need to find the enum that has `Identifier` with a payload, not just any enum
+    /// with an `Identifier` variant.
+    pub fn find_enum_with_variant_payload(&self, variant_name: &str) -> Option<String> {
+        let mut enum_with_payload: Option<String> = None;
+        let mut enum_without_payload: Option<String> = None;
+
+        for frame in self.frames.iter().rev() {
+            for (enum_name, enum_def) in &frame.enums {
+                if let Some(payload_opt) = enum_def.get(variant_name) {
+                    if payload_opt.is_some() {
+                        // This variant has a payload - prefer this one
+                        if enum_with_payload.is_none() {
+                            enum_with_payload = Some(enum_name.clone());
+                        }
+                    } else {
+                        // Variant exists but has no payload - use as fallback
+                        if enum_without_payload.is_none() {
+                            enum_without_payload = Some(enum_name.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Prefer enum with payload, fall back to one without
+        enum_with_payload.or(enum_without_payload)
+    }
+
     pub fn all_structs(&self) -> Vec<&SStructDef> {
         let mut result = Vec::new();
         for frame in self.frames.iter().rev() {
