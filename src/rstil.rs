@@ -80,10 +80,11 @@ fn needs_rebuild(binary_path: &str, deps: &[String]) -> bool {
 }
 
 // Parse --target=X and --lang=X options from args, return (remaining_args, target, lang, translate_only, force_rebuild)
-fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, bool, bool), String> {
+fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, Option<String>, bool, bool), String> {
     let mut remaining = Vec::new();
     let mut target: Option<Target> = None;
     let mut lang: Option<Lang> = None;
+    let mut cc: Option<String> = None;
     let mut translate_only = false;
     let mut force_rebuild = false;
 
@@ -94,6 +95,9 @@ fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, bo
         } else if opt_arg.starts_with("--lang=") {
             let lang_value = &opt_arg[7..];
             lang = Some(lang_from_str(lang_value)?);
+        } else if opt_arg.starts_with("--cc=") {
+            // Issue #131: Allow specifying C compiler (e.g., --cc=clang)
+            cc = Some(opt_arg[5..].to_string());
         } else if opt_arg == "--translate" {
             translate_only = true;
         } else if opt_arg == "--force-rebuild" {
@@ -108,7 +112,7 @@ fn parse_build_options(args: &[String]) -> Result<(Vec<String>, Target, Lang, bo
     // Default lang is determined by target
     let final_lang = lang.unwrap_or_else(|| default_lang_for_target(&final_target));
 
-    Ok((remaining, final_target, final_lang, translate_only, force_rebuild))
+    Ok((remaining, final_target, final_lang, cc, translate_only, force_rebuild))
 }
 
 // ---------- main, usage, args, etc
@@ -132,6 +136,8 @@ fn usage() {
     println!("                  Supported: linux-x64, linux-arm64, windows-x64, macos-x64, macos-arm64");
     println!("--lang=LANG       Output language for codegen (default: c).");
     println!("                  Supported: c");
+    println!("--cc=COMPILER     C compiler to use (default: gcc on Linux/Windows, clang on macOS).");
+    println!("                  Example: --cc=clang");
     println!("--force-rebuild   Force rebuild even if binary is up-to-date.\n");
 }
 
@@ -148,7 +154,7 @@ fn interpret_file_or_exit(path: &String, args: Vec<String>) {
     }
 }
 
-fn build_file_or_exit(path: &String, target: &Target, lang: &Lang, translate_only: bool, force_rebuild: bool) {
+fn build_file_or_exit(path: &String, target: &Target, lang: &Lang, cc: Option<&str>, translate_only: bool, force_rebuild: bool) {
     // Skip rebuild check for translate (always regenerate source)
     if !translate_only && !force_rebuild {
         let exe_path = source_to_binary_path(path, target);
@@ -161,7 +167,7 @@ fn build_file_or_exit(path: &String, target: &Target, lang: &Lang, translate_onl
         }
     }
 
-    match builder::build(path, target, lang, translate_only) {
+    match builder::build(path, target, lang, cc, translate_only) {
         Ok(output_path) => {
             if translate_only {
                 println!("Generated: {}", output_path);
@@ -174,7 +180,7 @@ fn build_file_or_exit(path: &String, target: &Target, lang: &Lang, translate_onl
     };
 }
 
-fn run_file_or_exit(path: &String, target: &Target, lang: &Lang, extra_args: &[String], force_rebuild: bool) {
+fn run_file_or_exit(path: &String, target: &Target, lang: &Lang, cc: Option<&str>, extra_args: &[String], force_rebuild: bool) {
     // Compute expected binary path
     let exe_path = source_to_binary_path(path, target);
 
@@ -190,7 +196,7 @@ fn run_file_or_exit(path: &String, target: &Target, lang: &Lang, extra_args: &[S
 
     // Only build if needed
     if should_rebuild {
-        match builder::build(path, target, lang, false) {
+        match builder::build(path, target, lang, cc, false) {
             Ok(_) => {},
             Err(err) => {
                 println!("ERROR: {err}");
@@ -235,14 +241,14 @@ fn main() {
             "build" | "translate" => {
                 // Parse build options from remaining args
                 match parse_build_options(&remaining_args) {
-                    Ok((paths, target, lang, translate_flag, force_rebuild)) => {
+                    Ok((paths, target, lang, cc, translate_flag, force_rebuild)) => {
                         if paths.is_empty() {
                             println!("Error: No path specified");
                             usage();
                             std::process::exit(1);
                         }
                         let translate_only = command == "translate" || translate_flag;
-                        build_file_or_exit(&paths[0], &target, &lang, translate_only, force_rebuild);
+                        build_file_or_exit(&paths[0], &target, &lang, cc.as_deref(), translate_only, force_rebuild);
                     },
                     Err(err) => {
                         println!("Error: {}", err);
@@ -253,7 +259,7 @@ fn main() {
             "run" => {
                 // Parse build options from remaining args
                 match parse_build_options(&remaining_args) {
-                    Ok((paths, target, lang, _, force_rebuild)) => {
+                    Ok((paths, target, lang, cc, _, force_rebuild)) => {
                         if paths.is_empty() {
                             println!("Error: No path specified");
                             usage();
@@ -261,7 +267,7 @@ fn main() {
                         }
                         // Pass remaining paths as arguments to the compiled program
                         let extra_args = if paths.len() > 1 { &paths[1..] } else { &[] };
-                        run_file_or_exit(&paths[0], &target, &lang, extra_args, force_rebuild);
+                        run_file_or_exit(&paths[0], &target, &lang, cc.as_deref(), extra_args, force_rebuild);
                     },
                     Err(err) => {
                         println!("Error: {}", err);

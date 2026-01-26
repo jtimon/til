@@ -11,12 +11,13 @@ import("std.sys")
 
 REPL_PATH := "src/modes/repl.til"
 
-// Parse --target=X and --lang=X options from args, return (remaining_args, target, lang, translate_only, force_rebuild)
+// Parse --target=X and --lang=X options from args, return (remaining_args, target, lang, cc, translate_only, force_rebuild)
 // Returns ParseBuildOptionsResult struct (TIL doesn't have tuples)
 ParseBuildOptionsResult := struct {
     mut remaining: Vec = Vec.new(Str)
     mut target: Target = Target.LinuxX64
     mut lang: Lang = Lang.C
+    mut cc: Str = ""  // Issue #131: --cc=COMPILER flag (empty = use default)
     mut translate_only: Bool = false
     mut force_rebuild: Bool = false
 }
@@ -27,6 +28,7 @@ parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws St
     mut target := Target.LinuxX64
     mut lang_set := false
     mut lang := Lang.C
+    mut cc := ""
     mut translate_only := false
     mut force_rebuild := false
 
@@ -39,6 +41,9 @@ parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws St
             lang_value := opt_arg.get_substr(7, opt_arg.len())?
             lang = lang_from_str(lang_value)?
             lang_set = true
+        } else if opt_arg.starts_with("--cc=") {
+            // Issue #131: Allow specifying C compiler (e.g., --cc=clang)
+            cc = opt_arg.get_substr(5, opt_arg.len())?
         } else if opt_arg.eq("--translate") {
             translate_only = true
         } else if opt_arg.eq("--force-rebuild") {
@@ -63,6 +68,7 @@ parse_build_options := proc(args: Vec) returns ParseBuildOptionsResult throws St
     result.remaining = remaining
     result.target = final_target
     result.lang = final_lang
+    result.cc = cc
     result.translate_only = translate_only
     result.force_rebuild = force_rebuild
 
@@ -138,7 +144,7 @@ interpret_file_or_exit := proc(path: Str, args: Vec) {
     }
 }
 
-build_file_or_exit := proc(path: Str, target: Target, lang: Lang, translate_only: Bool, force_rebuild: Bool) {
+build_file_or_exit := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bool, force_rebuild: Bool) {
     // Skip rebuild check for translate (always regenerate source)
     if not(translate_only).and(not(force_rebuild)) {
         exe_path := source_to_binary_path(path, target)
@@ -153,7 +159,7 @@ build_file_or_exit := proc(path: Str, target: Target, lang: Lang, translate_only
         }
     }
 
-    output_path := build(path, target, lang, translate_only)?
+    output_path := build(path, target, lang, cc, translate_only)?
     if translate_only {
         println("Generated: ", output_path)
     }
@@ -163,7 +169,7 @@ build_file_or_exit := proc(path: Str, target: Target, lang: Lang, translate_only
     }
 }
 
-run_file_or_exit := proc(path: Str, target: Target, lang: Lang, extra_args: Vec, force_rebuild: Bool) {
+run_file_or_exit := proc(path: Str, target: Target, lang: Lang, cc: Str, extra_args: Vec, force_rebuild: Bool) {
     // Compute expected binary path
     exe_path := source_to_binary_path(path, target)
 
@@ -182,7 +188,7 @@ run_file_or_exit := proc(path: Str, target: Target, lang: Lang, extra_args: Vec,
 
     // Only build if needed
     if should_rebuild {
-        _ := build(path, target, lang, false)?
+        _ := build(path, target, lang, cc, false)?
         catch (err: Str) {
             println("ERROR: ", err)
             exit(1)
@@ -241,7 +247,7 @@ main := proc(args: ..Str) {
             mut build_first_path := ""
             build_opts.remaining.get(0, build_first_path)?
             translate_only := build_opts.translate_only
-            build_file_or_exit(build_first_path, build_opts.target, build_opts.lang, translate_only, build_opts.force_rebuild)
+            build_file_or_exit(build_first_path, build_opts.target, build_opts.lang, build_opts.cc, translate_only, build_opts.force_rebuild)
             catch (err: Str) {
                 println("Error: ", err)
                 exit(1)
@@ -258,7 +264,7 @@ main := proc(args: ..Str) {
             }
             mut translate_first_path := ""
             translate_opts.remaining.get(0, translate_first_path)?
-            build_file_or_exit(translate_first_path, translate_opts.target, translate_opts.lang, true, translate_opts.force_rebuild)
+            build_file_or_exit(translate_first_path, translate_opts.target, translate_opts.lang, translate_opts.cc, true, translate_opts.force_rebuild)
             catch (err: Str) {
                 println("Error: ", err)
                 exit(1)
@@ -286,7 +292,7 @@ main := proc(args: ..Str) {
                     k.inc()
                 }
             }
-            run_file_or_exit(run_first_path, run_opts.target, run_opts.lang, extra_args, run_opts.force_rebuild)
+            run_file_or_exit(run_first_path, run_opts.target, run_opts.lang, run_opts.cc, extra_args, run_opts.force_rebuild)
             catch (err: Str) {
                 println("Error: ", err)
                 exit(1)

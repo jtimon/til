@@ -194,30 +194,6 @@ Move all OS-specific code into ~ext.c~ and precompile it for each target:
 - Size impact of shipping multiple .o files?
 - Alternative: use ~zig cc~ which bundles everything (simpler but adds dependency)
 
-** Issue #131: Clang support (gcc/clang interchangeable)
-:PROPERTIES:
-:DISCOVERED: 2026-01-21
-:IMPACT: Broader platform support, developer choice
-:STATUS: Open
-:END:
-
-*** Description
-Make gcc and clang interchangeable as C compilers. Currently gcc is required,
-but clang should work as an alternative. Update README to reflect that either
-compiler satisfies the dependency.
-
-*** Goals
-- gcc remains the default compiler
-- If clang is available but gcc isn't, use clang
-- README should list "gcc OR clang" as dependency
-- Both compilers should produce working binaries
-- Handle any compiler-specific flags or warnings
-
-*** Implementation notes
-- Check for gcc first, fall back to clang
-- May need separate warning flag handling (some -W flags differ)
-- Test on both compilers in CI if possible
-
 ** Issue #122: Add regex support to standard library
 :PROPERTIES:
 :DISCOVERED: 2026-01-15

@@ -291,7 +291,8 @@ collect_all_deps := proc(path: Str) returns Vec throws Str {
 
 // Build a TIL source file with target, lang, and translate_only options
 // Returns the output path (executable or source file)
-build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) returns Str throws Str {
+// cc: Compiler override (Issue #131). If empty, uses default for target.
+build := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bool) returns Str throws Str {
     // Validate lang is supported for target
     validate_lang_for_target(lang, target)?
 
@@ -498,8 +499,11 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
         return source_output_path
     }
 
-    // Get toolchain command for target
-    compiler := toolchain_command(target, lang)?
+    // Get toolchain command for target (Issue #131: use --cc override if provided)
+    mut compiler := cc
+    if cc.is_empty() {
+        compiler = toolchain_command(target, lang)?
+    }
 
     // Compile - output to bin/{LANG_NAME_141}/ directory in project root, preserving relative path
     // Bug #141: Use LANG_NAME_141 to separate rstil (rs) and til outputs
@@ -523,7 +527,7 @@ build := proc(path: Str, target: Target, lang: Lang, translate_only: Bool) retur
     mut cmd_args := Vec.new(Str)
     cmd_args.push("-I")
     cmd_args.push("src")
-    extra_args := toolchain_extra_args(target, lang)
+    extra_args := toolchain_extra_args(target, lang, compiler)
     for extra_arg: Str in extra_args {
         cmd_args.push(extra_arg.clone())
     }

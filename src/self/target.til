@@ -199,10 +199,15 @@ validate_lang_for_target := func(lang: Lang, target: Target) throws Str {
 
 // ---------- Toolchain commands
 
+// Check if a compiler command is clang (for warning flag selection)
+is_clang := func(cmd: Str) returns Bool {
+    return cmd.contains("clang")
+}
+
 toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
+    // TODO Issue #131: Add TIL_CC environment variable support when TIL has getenv()
     switch target {
     // Linux: gcc by default
-    // TODO Issue #131: Support clang as alternative (e.g. TIL_CC=clang)
     case Target.LinuxX64:
         switch lang {
         case Lang.C:
@@ -222,7 +227,6 @@ toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
         case:
         }
     // Windows: mingw-gcc by default
-    // TODO Issue #131: Support clang as alternative
     case Target.WindowsX64:
         switch lang {
         case Lang.C:
@@ -230,7 +234,6 @@ toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
         case:
         }
     // macOS: clang only (Apple's default, gcc is symlink to clang)
-    // TODO Issue #131: Support Homebrew gcc as alternative (e.g. gcc-14)
     case Target.MacosX64:
         switch lang {
         case Lang.C:
@@ -262,31 +265,30 @@ toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
     )
 }
 
-toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec {
+toolchain_extra_args := func(target: Target, _lang: Lang, compiler: Str) returns Vec {
     // Bug #99: -Wall -Wextra -Werror with suppressions for unfixed warnings.
     // Remove suppressions as warnings get fixed.
-    // Note: Some flags are GCC-only (clang doesn't recognize them)
+    // Note: Some flags are compiler-specific (gcc vs clang)
     mut result := Vec.new(Str)
-    mut uses_clang := false
+    // Issue #131: Use compiler command to determine which flags to use
+    use_clang := is_clang(compiler)
     switch target {
+    // macOS and wasm always use clang target flags
     case Target.MacosArm64:
         result.push("-target")
         result.push("arm64-apple-macos11")
-        uses_clang = true
     case Target.MacosX64:
         result.push("-target")
         result.push("x86_64-apple-macos10.12")
-        uses_clang = true
     case Target.Wasm32:
         result.push("--target=wasm32")
         result.push("-nostdlib")
         result.push("-Wl,--no-entry")
         result.push("-Wl,--export-all")
-        uses_clang = true
     case Target.TempleosX86:
         panic(loc(), "HolyC doesn't support these flags")
     case:
-        // Linux/Windows use gcc
+        // Linux/Windows - no target-specific flags
     }
     // Common flags for all targets (work on both gcc and clang)
     result.push("-Wall")
@@ -296,13 +298,11 @@ toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec {
     result.push("-Wno-unused-variable")           // 1514 occurrences
     result.push("-Wno-unused-but-set-variable")   // 386 occurrences
     result.push("-Wno-unused-label")              // 153 occurrences
-    // GCC-only flags (clang doesn't recognize these)
-    if not(uses_clang) {
-        result.push("-Wno-dangling-pointer")          // 971 occurrences (high priority to fix) - GCC only
-    }
-    // Clang-only flags
-    if uses_clang {
+    // Compiler-specific flags based on --cc flag
+    if use_clang {
         result.push("-Wno-sometimes-uninitialized")   // clang-specific warning about exception control flow
+    } else {
+        result.push("-Wno-dangling-pointer")          // 971 occurrences (high priority to fix) - GCC only
     }
     return result
 }

@@ -3801,6 +3801,33 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #131: Clang support (gcc/clang interchangeable)
+:PROPERTIES:
+:DISCOVERED: 2026-01-21
+:IMPLEMENTED: 2026-01-26
+:IMPACT: Broader platform support, developer choice
+:STATUS: Fixed
+:END:
+
+*** Description
+Make gcc and clang interchangeable as C compilers via ~--cc=COMPILER~ flag.
+
+*** Implementation
+Added ~--cc=COMPILER~ flag to rstil and til:
+- ~--cc=clang~ to use clang instead of gcc on Linux
+- Default remains gcc on Linux/Windows, clang on macOS
+- Compiler-specific warning flags handled automatically:
+  - GCC-only: ~-Wno-dangling-pointer~
+  - Clang-only: ~-Wno-sometimes-uninitialized~
+
+*** Files Modified
+- ~src/rstil.rs~ - parse ~--cc=~ flag, pass to build functions
+- ~src/rs/builder.rs~ - accept cc parameter, use if provided
+- ~src/rs/target.rs~ - add ~is_clang()~ helper, update ~toolchain_extra_args~
+- ~src/til.til~ - parse ~--cc=~ flag, pass to build functions
+- ~src/self/builder.til~ - accept cc parameter, use if provided
+- ~src/self/target.til~ - add ~is_clang()~ helper, update ~toolchain_extra_args~
+
 ** Issue #116: Refactor Str to use len/cap pattern
 :PROPERTIES:
 :DISCOVERED: 2026-01-15

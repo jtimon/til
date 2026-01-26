@@ -121,22 +121,24 @@ pub fn validate_lang_for_target(lang: &Lang, target: &Target) -> Result<(), Stri
 
 // ---------- Toolchain commands
 
-pub fn toolchain_command(target: &Target, lang: &Lang) -> Result<&'static str, String> {
+// Issue #131: Check if a compiler command is clang (for warning flag selection)
+pub fn is_clang(cmd: &str) -> bool {
+    cmd.contains("clang")
+}
+
+pub fn toolchain_command(target: &Target, lang: &Lang) -> Result<String, String> {
     match (target, lang) {
-        // Linux: gcc by default
-        // TODO Issue #131: Support clang as alternative (e.g. TIL_CC=clang)
-        (Target::LinuxX64, Lang::C) => Ok("gcc"),
-        (Target::LinuxArm64, Lang::C) => Ok("aarch64-linux-gnu-gcc"),
-        (Target::LinuxRiscv64, Lang::C) => Ok("riscv64-linux-gnu-gcc"),
-        // Windows: mingw-gcc by default
-        // TODO Issue #131: Support clang as alternative
-        (Target::WindowsX64, Lang::C) => Ok("x86_64-w64-mingw32-gcc"),
+        // Linux: gcc by default (use --cc=clang to override)
+        (Target::LinuxX64, Lang::C) => Ok("gcc".to_string()),
+        (Target::LinuxArm64, Lang::C) => Ok("aarch64-linux-gnu-gcc".to_string()),
+        (Target::LinuxRiscv64, Lang::C) => Ok("riscv64-linux-gnu-gcc".to_string()),
+        // Windows: mingw-gcc by default (use --cc=clang to override)
+        (Target::WindowsX64, Lang::C) => Ok("x86_64-w64-mingw32-gcc".to_string()),
         // macOS: clang only (Apple's default, gcc is symlink to clang)
-        // TODO Issue #131: Support Homebrew gcc as alternative (e.g. gcc-14)
-        (Target::MacosX64, Lang::C) => Ok("clang"),
-        (Target::MacosArm64, Lang::C) => Ok("clang"),
-        (Target::Wasm32, Lang::C) => Ok("clang"),
-        (Target::TempleosX86, Lang::HolyC) => Ok("holyc"),
+        (Target::MacosX64, Lang::C) => Ok("clang".to_string()),
+        (Target::MacosArm64, Lang::C) => Ok("clang".to_string()),
+        (Target::Wasm32, Lang::C) => Ok("clang".to_string()),
+        (Target::TempleosX86, Lang::HolyC) => Ok("holyc".to_string()),
         // Invalid combinations
         _ => Err(format!(
             "No toolchain available for target '{}' with lang '{}'",
@@ -146,10 +148,10 @@ pub fn toolchain_command(target: &Target, lang: &Lang) -> Result<&'static str, S
     }
 }
 
-pub fn toolchain_extra_args(target: &Target, _lang: &Lang) -> Vec<&'static str> {
+pub fn toolchain_extra_args(target: &Target, _lang: &Lang, compiler: &str) -> Vec<&'static str> {
     // Bug #99: -Wall -Wextra -Werror with suppressions for unfixed warnings.
     // Remove suppressions as warnings get fixed.
-    // Note: Some flags are GCC-only (clang doesn't recognize them)
+    // Note: Some flags are compiler-specific (gcc vs clang)
     let common: &[&str] = &[
         "-Wall", "-Wextra", "-Werror",
         // Suppressions for unfixed warnings (Bug #99):
@@ -163,14 +165,20 @@ pub fn toolchain_extra_args(target: &Target, _lang: &Lang) -> Vec<&'static str> 
     let clang_only: &[&str] = &[
         "-Wno-sometimes-uninitialized",   // clang-specific warning about exception control flow
     ];
+    // Issue #131: Use compiler command to determine which flags to use
+    let use_clang = is_clang(compiler);
     match target {
-        // macOS and wasm use clang - include clang-only flags
+        // macOS and wasm always use clang target flags
         Target::MacosArm64 => [&["-target", "arm64-apple-macos11"], common, clang_only].concat(),
         Target::MacosX64 => [&["-target", "x86_64-apple-macos10.12"], common, clang_only].concat(),
         Target::Wasm32 => [&["--target=wasm32", "-nostdlib", "-Wl,--no-entry", "-Wl,--export-all"], common, clang_only].concat(),
         Target::TempleosX86 => todo!("HolyC doesn't support these flags"),
-        // Linux and Windows use gcc - include gcc-only flags
-        _ => [common, gcc_only].concat(),
+        // Linux and Windows: use compiler-specific flags based on --cc flag
+        _ => if use_clang {
+            [common, clang_only].concat()
+        } else {
+            [common, gcc_only].concat()
+        },
     }
 }
 
