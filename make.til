@@ -74,6 +74,33 @@ build_rstil := proc() {
     }
 }
 
+/**
+ * Self-bootstrap: ensure rstil is up-to-date before running any target.
+ * If rstil was rebuilt, re-exec make.til to use the new compiler.
+ * This allows ./make.til to work without needing Make for dependency tracking.
+ * Inspired by tsoding's "nobuild" pattern.
+ */
+go_build_yourself := proc(args: Vec) {
+    // Record rstil mtime before potential rebuild
+    rstil_mtime_before := file_mtime("bin/rstil")
+
+    // build_rstil() only rebuilds if Rust sources changed
+    build_rstil()
+
+    // Check if rstil was actually rebuilt
+    rstil_mtime_after := file_mtime("bin/rstil")
+    if not(rstil_mtime_after.eq(rstil_mtime_before)) {
+        // rstil was rebuilt - re-run to use new compiler
+        println("rstil rebuilt, re-running make.til...")
+        mut cmd := "./make.til"
+        for arg: Str in args {
+            cmd = cmd.concat(" ").concat(arg)
+        }
+        status := run_stream_cmd(cmd)
+        exit(status)
+    }
+}
+
 build_rstil_til := proc() {
     // .til dependency tracking is automatic via `rstil build`
     // But automatic tracking only knows about .til files, not the compiler itself.
@@ -221,6 +248,14 @@ main := proc(args: ..Str) {
     mut target := ""
     args.get(0, target)?
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+
+    // Self-bootstrap: ensure rstil is current (skip for clean)
+    if not(target.eq("clean")) {
+        mut args_vec := Vec.new(Str)
+        args_vec.push(target)
+        go_build_yourself(args_vec)
+    }
+
     switch target {
     case "clean":
         run_clean()
