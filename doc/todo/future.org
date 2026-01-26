@@ -676,13 +676,24 @@ of comparing against max type size.
 
 Also added RGB struct (with U8 r,g,b fields) test case to verify struct payloads work.
 
-*** Current State (2026-01-23)
+*** Current State (2026-01-26)
 
-- Desugarer phase EXISTS (from Issue #127) - handles ForIn, but NO switch desugaring yet
-- Switch still handled by: ufcs, precomp, interpreter, ccodegen
-- ccodegen's ~emit_switch()~ already generates if/else chains - reference implementation
+- Desugarer phase has switch desugaring (desugar_switch in desugarer.rs)
+- Switch handling removed from: ccodegen (emit_switch deleted)
+- Switch handling still in: ufcs, precomp, interpreter (to be removed)
 - enum_to_str and enum_get_payload ext_funcs ready to use
 - Scavenger has NO switch handling (only a comment mentioning switch)
+
+*** Progress Tracking
+
+| File           | Rust | TIL | Notes                                    |
+|----------------+------+-----+------------------------------------------|
+| desugarer      | DONE |     | desugar_switch added                     |
+| ccodegen       | DONE |     | emit_switch + helpers removed            |
+| ufcs           |      |     | ufcs_switch to remove                    |
+| precomp        |      |     | precomp_switch to remove                 |
+| interpreter    |      |     | Switch eval to remove                    |
+| typer          | KEEP | KEEP| Validation before desugaring             |
 
 *** Implementation Plan
 
@@ -691,18 +702,16 @@ Incremental approach: Rust first, test, TIL port, test. One file per commit.
 Pipeline reminder: Typer -> Desugarer -> UFCS -> Precomp -> ...
 The desugared ~val.eq(other)~ calls will be handled by UFCS (transforms to ~Type.eq(val, other)~).
 
-**** Step 1: Add switch desugaring to desugarer (2 commits)
+**** Step 1: Add switch desugaring to desugarer (2 commits) [Rust DONE]
 
 Reference: ccodegen's ~emit_switch()~ (lines ~6309-6400) already does this work.
 
-***** Commit 1a: Rust desugarer
-- ~src/rs/desugarer.rs~ - add ~desugar_switch()~, handle Switch case in ~desugar_expr()~
-- Use ~context.precomp_forin_counter~ for unique temp var names
-- For enum switches: use ~enum_to_str()~ + ~Str.eq()~
-- For non-enum switches: use direct ~val.eq(case_val)~
-- For range cases: use ~val.gteq(lo) && val.lteq(hi)~
-- For payload patterns: generate ~enum_get_payload()~ with default-initialized bindings
-- Run ~make benchmark~ - must pass
+***** Commit 1a: Rust desugarer [DONE 2026-01-26]
+- ~src/rs/desugarer.rs~ - added ~desugar_switch()~, ~desugar_enum_switch()~, ~desugar_non_enum_switch()~
+- Handles: enum switches, struct switches (eq method), range patterns, payload extraction
+- Uses unique binding names ~_sw_<binding>_<case_idx>~ for TIL's function-level scoping
+- Added ~find_enum_with_variant()~, ~find_enum_with_variant_payload()~ to init.rs
+- All 94 tests pass
 
 ***** Commit 1b: TIL port
 - Read ~doc/rs2til.org~ and the Rust diff before porting
@@ -742,11 +751,12 @@ Reference: ccodegen's ~emit_switch()~ (lines ~6309-6400) already does this work.
 - ~src/self/interpreter.til~ - port same changes following rs2til.org rules strictly
 - Run ~make benchmark~ - must pass
 
-**** Step 5: Remove switch handling from ccodegen (2 commits)
+**** Step 5: Remove switch handling from ccodegen (2 commits) [Rust DONE]
 
-***** Commit 5a: Rust ccodegen
-- ~src/rs/ccodegen.rs~ - remove ~emit_switch()~ (lines 6309-6400), add panic for Switch node
-- Run ~make benchmark~ - must pass
+***** Commit 5a: Rust ccodegen [DONE 2026-01-26]
+- ~src/rs/ccodegen.rs~ - removed ~emit_switch()~, ~VariantInfo~, ~get_case_variant_info()~, ~parse_pattern_variant_name()~
+- NodeType::Switch/DefaultCase/Range/Pattern now return error "should have been desugared"
+- All 94 tests pass
 
 ***** Commit 5b: TIL port
 - Read ~doc/rs2til.org~ and the Rust diff before porting
