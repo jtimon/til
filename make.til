@@ -214,10 +214,20 @@ diff_til := proc() {
     }
 }
 
+// Compare C output from rstil vs til for a given file
+run_diff := proc(file_path: Str) {
+    build_rstil_til()
+    mut status := 0
+    status = run_stream_cmd(concat("./bin/rstil interpret src/til_diff.til ", file_path))
+    if status.eq(0).not() {
+        exit(1)
+    }
+}
+
 main := proc(args: ..Str) {
-    if not(args.len().eq(1)) {
-        println("Usage: make.til <target>")
-        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff_til")
+    if args.len().eq(0) {
+        println("Usage: make.til <target> [args]")
+        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff <file>, diff_til")
         exit(1)
     }
     mut target := ""
@@ -244,11 +254,20 @@ main := proc(args: ..Str) {
         run_benchmark()
     case "test-cross":
         run_test_cross()
+    case "diff":
+        if args.len().lt(2) {
+            println("Usage: make diff <file.til>")
+            exit(1)
+        }
+        mut file_path := ""
+        args.get(1, file_path)?
+        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+        run_diff(file_path)
     case "diff_til":
         diff_til()
     case:
         println("Unknown target: ", target)
-        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff_til")
+        println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff <file>, diff_til")
         exit(1)
     }
 }

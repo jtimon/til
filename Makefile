@@ -30,5 +30,6 @@ Makefile:
 	@:
 
 # Everything else delegates to compiled make.til
+# Use $(MAKECMDGOALS) to pass all args (e.g., "make diff src/file.til")
 %: bin/rs/make
-	./bin/rs/make $@
+	./bin/rs/make $(MAKECMDGOALS)
