@@ -1200,79 +1200,68 @@ File stat would need new builtins:
 :PROPERTIES:
 :DISCOVERED: 2026-01-07
 :IMPACT: Language feature, metaprogramming, compile-time computation
-:STATUS: Open
+:STATUS: Partial (Step 1 done, Step 2 open)
 :RELATED: doc/metaprogramming.org (full vision)
 :END:
 
 *** Background
 
-The ~macro~ keyword is parsed and creates ~FTMacro~ function type, but macros
-are currently executed identically to funcs at runtime. This issue tracks
-implementing true compile-time macro evaluation.
+The ~macro~ keyword is parsed and creates ~FTMacro~ function type. This issue
+tracks implementing true compile-time macro evaluation in two steps.
 
-*** Core Semantics
+*** Step 1: Forced Compile-Time Evaluation [DONE 2026-01-26]
 
-1. *Forced compile-time evaluation*: Macros are always evaluated during precomp,
-   never deferred to runtime (unlike funcs which fall back to runtime if args
-   aren't comptime-known)
+Macros are now forced to evaluate at compile-time (at global scope). If arguments
+are not compile-time constants, an error is raised instead of deferring to runtime.
 
-2. *All arguments must be compile-time known*: If any argument cannot be resolved
-   at compile-time, emit an error. No runtime fallback.
+Changes made:
+- Added ~is_macro()~ helper to SFuncDef (parser.rs/parser.til)
+- Added ~is_macro_fcall()~ and macro handling in precomp (precomp.rs/precomp.til)
+- Added src/test/macros.til with tests including recursive factorial/fibonacci
 
-3. *Can call procs*: Macros have proc permissions (side effects allowed during
-   compile-time evaluation). The existing typer check that prevents funcs from
-   calling procs already doesn't apply to macros.
-
-4. *Return types*: Initially limited to what's currently supported (primitives,
-   struct instances). Types can be passed as arguments but not returned yet.
-
-*** Current Constant Folding (for reference)
-
-The existing constant folding for funcs in ~precomp_expr()~ (precomp.til:299-308):
-- Only folds at global scope
-- Silently skips if not comptime-evaluable (defers to runtime)
-- Rejects proc calls via ~is_comptime_evaluable()~ check
-
-Macros need different behavior:
 | Aspect              | Funcs                       | Macros           |
 |---------------------|-----------------------------|------------------|
 | Args not comptime   | Silent skip, run at runtime | ERROR            |
 | Evaluation          | Optional optimization       | Mandatory        |
 
-*** Implementation Steps
+Note: This is essentially "strict constant folding" - macros can compute values
+at compile-time (factorial, fibonacci, etc.) but cannot yet generate types or code.
 
-1. *Add ~is_macro()~ helper to SFuncDef*
-   - File: src/rs/parser.rs, src/self/parser.til
-   - Pattern: like ~is_proc()~ but checks ~FunctionType::FTMacro~
+*** Step 2: Code/Type Generation [OPEN]
 
-2. *Add macro handling in ~precomp_expr()~ FCall case*
-   - File: src/rs/precomp.rs, src/self/precomp.til
-   - Location: After ~precomp_fcall()~ call, before existing constant folding
-   - Logic: Detect macro call, error if args not comptime, force evaluation
+The real metaprogramming power - macros that generate types and code:
 
-3. *Port to TIL*
-   - Mirror all changes in src/self/*.til
+1. *Return StructDef*: Generate types at compile-time
+   #+BEGIN_SRC til
+   make_point := macro(n: I64) returns StructDef {
+       // Generate Point2D, Point3D, etc. based on n
+   }
+   #+END_SRC
 
-4. *Add tests*
-   - Basic macro returning I64/Str
-   - Macro calling proc (allowed)
-   - Macro with non-const arg (should error)
-   - Macro inside function body (should work)
+2. *Return FuncDef*: Generate functions at compile-time
+   #+BEGIN_SRC til
+   make_getter := macro(field_name: Str) returns FuncDef {
+       // Generate a getter function for the given field
+   }
+   #+END_SRC
 
-*** Key Files
-- src/rs/parser.rs / src/self/parser.til (add is_macro helper)
-- src/rs/precomp.rs / src/self/precomp.til (main changes)
+3. *Return Expr*: Generate AST/code to be inserted
+   #+BEGIN_SRC til
+   debug_print := macro(expr: Expr) returns Expr {
+       // Generate: println("expr = ", expr)
+   }
+   #+END_SRC
 
-*** Future Extensions
+4. *Quote/unquote syntax*: ~quote { $var }~ for AST building
 
-Once core mechanism works, expand capabilities:
-- Return Types (StructDef) for generic type generation
-- Return/pass FuncDefs for function generation
-- Quote/unquote syntax (~quote { $var }~) for AST building
-- Full metaprogramming per doc/metaprogramming.org
+This requires:
+- Extending return type handling to allow StructDef, FuncDef, Expr
+- AST quoting mechanism
+- See doc/metaprogramming.org for full design
 
 *** References
 - doc/metaprogramming.org: Full macro/generics design vision
+- src/test/macros.til: Current macro tests
 
 ** Issue #91: First-Class Functions
 :PROPERTIES:
