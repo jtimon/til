@@ -27,7 +27,8 @@ create_chromatic := proc() returns Vec {
 }
 
 // TODO: Bug #133 workaround - using proc instead of func
-create_base_notes := proc() returns Vec {
+// Solfege notation: do, re, mi, fa, sol, la, si
+create_notes_solfege := proc() returns Vec {
     mut v := Vec.new(Str)
     v.push("do")
     v.push("re")
@@ -40,13 +41,53 @@ create_base_notes := proc() returns Vec {
 }
 
 // TODO: Bug #133 workaround - using proc instead of func
+// American notation: C, D, E, F, G, A, B
+create_notes_american := proc() returns Vec {
+    mut v := Vec.new(Str)
+    v.push("C")
+    v.push("D")
+    v.push("E")
+    v.push("F")
+    v.push("G")
+    v.push("A")
+    v.push("B")
+    return v
+}
+
+// Get notes array for given notation
+get_notes_for_notation := proc(notation: Str) returns Vec {
+    if notation.eq("american") {
+        return create_notes_american()
+    }
+    return create_notes_solfege()
+}
+
+// Base notes for American input parsing (lowercase)
+create_base_notes_american := proc() returns Vec {
+    mut v := Vec.new(Str)
+    v.push("c")
+    v.push("d")
+    v.push("e")
+    v.push("f")
+    v.push("g")
+    v.push("a")
+    v.push("b")
+    return v
+}
+
+// Input always uses solfege (user types do, re, mi, etc.)
+create_base_notes := proc() returns Vec {
+    return create_notes_solfege()
+}
+
+// TODO: Bug #133 workaround - using proc instead of func
 // Mode intervals ordered from brightest to darkest.
 // Major tonality: lydian, ionian, mixolydian (have major 3rd)
 // Minor tonality: dorian, aeolian, phrygian, locrian (have minor 3rd)
 create_mode_intervals := proc() returns Vec {
     mut all := Vec.new(Vec)
 
-    // Lydian - brightest (major, #4)
+    // Lydian - brightest (major, raised 4th degree)
     mut lydian := Vec.new(I64)
     lydian.push(2)
     lydian.push(2)
@@ -68,7 +109,7 @@ create_mode_intervals := proc() returns Vec {
     ionian.push(1)
     all.push(ionian)
 
-    // Mixolydian - major with b7
+    // Mixolydian - major with flat 7th degree
     mut mixolydian := Vec.new(I64)
     mixolydian.push(2)
     mixolydian.push(2)
@@ -79,7 +120,7 @@ create_mode_intervals := proc() returns Vec {
     mixolydian.push(2)
     all.push(mixolydian)
 
-    // Dorian - minor with natural 6
+    // Dorian - minor with natural 6th degree
     mut dorian := Vec.new(I64)
     dorian.push(2)
     dorian.push(1)
@@ -90,7 +131,7 @@ create_mode_intervals := proc() returns Vec {
     dorian.push(2)
     all.push(dorian)
 
-    // Aeolian - natural minor scale
+    // Aeolian - natural minor scale (reference)
     mut aeolian := Vec.new(I64)
     aeolian.push(2)
     aeolian.push(1)
@@ -101,7 +142,7 @@ create_mode_intervals := proc() returns Vec {
     aeolian.push(2)
     all.push(aeolian)
 
-    // Phrygian - minor with b2
+    // Phrygian - minor with flat 2nd degree
     mut phrygian := Vec.new(I64)
     phrygian.push(1)
     phrygian.push(2)
@@ -112,7 +153,7 @@ create_mode_intervals := proc() returns Vec {
     phrygian.push(2)
     all.push(phrygian)
 
-    // Locrian - darkest (minor, b2, b5)
+    // Locrian - darkest (minor, flat 2nd and 5th degrees)
     mut locrian := Vec.new(I64)
     locrian.push(1)
     locrian.push(2)
@@ -145,13 +186,36 @@ diatonic_to_chromatic := func(diatonic_idx: I64) returns I64 {
     }
 }
 
-// Returns diatonic index (0-6) for a base note name
+// Returns diatonic index (0-6) for a base note name (solfege)
 get_diatonic_index := proc(note_base: Str) returns I64 {
     mut i := 0
     target := note_base.to_lowercase()
     while i.lt(base_notes.len()) {
         mut note := ""
         base_notes.get(i, note)?
+        if note.eq(target) {
+            return i
+        }
+        i = i.add(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), err.msg)
+    }
+    neg_one := I64.sub(0, 1)
+    return neg_one
+}
+
+// Returns diatonic index (0-6) for a base note name, using given notation
+get_diatonic_index_for_notation := proc(note_base: Str, notation: Str) returns I64 {
+    mut i := 0
+    target := note_base.to_lowercase()
+    mut search_notes := base_notes
+    if notation.eq("american") {
+        search_notes = create_base_notes_american()
+    }
+    while i.lt(search_notes.len()) {
+        mut note := ""
+        search_notes.get(i, note)?
         if note.eq(target) {
             return i
         }
@@ -173,10 +237,10 @@ get_base_index := proc(note_base: Str) returns I64 {
     return diatonic_to_chromatic(diatonic)
 }
 
-// Format a note given its diatonic index and target chromatic position
-format_note := proc(diatonic_idx: I64, chromatic_pos: I64) returns Str {
+// Format a note given its diatonic index, chromatic position, and notes array
+format_note_with := proc(diatonic_idx: I64, chromatic_pos: I64, notes: Vec) returns Str {
     mut note_name := ""
-    base_notes.get(diatonic_idx, note_name)?
+    notes.get(diatonic_idx, note_name)?
     natural_chromatic := diatonic_to_chromatic(diatonic_idx)
 
     mut diff := chromatic_pos.sub(natural_chromatic)
@@ -208,6 +272,11 @@ format_note := proc(diatonic_idx: I64, chromatic_pos: I64) returns Str {
     return note_name
 }
 
+// Format a note using default solfege notation
+format_note := proc(diatonic_idx: I64, chromatic_pos: I64) returns Str {
+    return format_note_with(diatonic_idx, chromatic_pos, base_notes)
+}
+
 apply_accidentals := proc(base_idx: I64, acc_str: Str) returns I64 {
     mut semitones := 0
     mut j := 0
@@ -232,7 +301,7 @@ apply_accidentals := proc(base_idx: I64, acc_str: Str) returns I64 {
     return idx
 }
 
-generate_scale := proc(root_idx: I64, root_diatonic: I64, steps: Vec) returns Str {
+generate_scale := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) returns Str {
     mut result := ""
     mut chromatic_pos := root_idx
     mut diatonic_pos := root_diatonic
@@ -241,7 +310,7 @@ generate_scale := proc(root_idx: I64, root_diatonic: I64, steps: Vec) returns St
         if k.gt(0) {
             result = result.concat(" ")
         }
-        note := format_note(diatonic_pos, chromatic_pos)
+        note := format_note_with(diatonic_pos, chromatic_pos, notes)
         result = result.concat(note)
         mut step := 0
         steps.get(k, step)?
@@ -250,7 +319,7 @@ generate_scale := proc(root_idx: I64, root_diatonic: I64, steps: Vec) returns St
         k = k.add(1)
     }
     // Add octave note in parentheses
-    root_note := format_note(root_diatonic, root_idx)
+    root_note := format_note_with(root_diatonic, root_idx, notes)
     result = result.concat(" (")
     result = result.concat(root_note)
     result = result.concat(")")
@@ -409,7 +478,7 @@ get_roman := func(degree: I64, triad_type: Str) returns Str {
 }
 
 // Build triads for a scale and print them grouped by type
-print_triads := proc(root_idx: I64, root_diatonic: I64, steps: Vec, _lang: Str) {
+print_triads := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) {
     // Build array of chromatic positions for each scale degree
     mut scale_chromatic := Vec.new(I64)
     mut scale_diatonic := Vec.new(I64)
@@ -465,9 +534,9 @@ print_triads := proc(root_idx: I64, root_diatonic: I64, steps: Vec, _lang: Str) 
         roman := get_roman(degree.add(1), triad_type)
 
         // Format the triad notes
-        root_note := format_note(root_dia, root_chrom)
-        third_note := format_note(third_dia, third_chrom)
-        fifth_note := format_note(fifth_dia, fifth_chrom)
+        root_note := format_note_with(root_dia, root_chrom, notes)
+        third_note := format_note_with(third_dia, third_chrom, notes)
+        fifth_note := format_note_with(fifth_dia, fifth_chrom, notes)
 
         mut triad_str := root_note.concat("-")
         triad_str = triad_str.concat(third_note)
@@ -537,7 +606,7 @@ get_staff_position := func(diatonic_idx: I64, octave: I64) returns I64 {
 }
 
 // Get natural note name for a staff position (for side labels)
-get_position_note_name := proc(pos: I64) returns Str {
+get_position_note_name := proc(pos: I64, notes: Vec) returns Str {
     // Map position back to diatonic: pos = diatonic - 2 + octave*7
     // So diatonic = (pos + 2) mod 7
     mut diatonic := pos.add(2).mod(7)
@@ -545,7 +614,7 @@ get_position_note_name := proc(pos: I64) returns Str {
         diatonic = diatonic.add(7)
     }
     mut name := ""
-    base_notes.get(diatonic, name)?
+    notes.get(diatonic, name)?
 
     catch (err: IndexOutOfBoundsError) {
         return "?"
@@ -590,7 +659,7 @@ repeat_char := func(ch: Str, n: I64) returns Str {
     return result
 }
 
-print_pentagram := proc(root_idx: I64, root_diatonic: I64, steps: Vec) {
+print_pentagram := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) {
     // Build scale notes with their staff positions
     mut note_names := Vec.new(Str)
     mut note_positions := Vec.new(I64)
@@ -603,7 +672,7 @@ print_pentagram := proc(root_idx: I64, root_diatonic: I64, steps: Vec) {
     mut k := 0
     while k.lt(8) {
         // Get note name with accidentals
-        note := format_note(diatonic_pos, chromatic_pos)
+        note := format_note_with(diatonic_pos, chromatic_pos, notes)
         note_names.push(note)
 
         // Calculate staff position
@@ -729,7 +798,7 @@ print_pentagram := proc(root_idx: I64, root_diatonic: I64, steps: Vec) {
         }
 
         // Add side label (natural note name)
-        note_label := get_position_note_name(row)
+        note_label := get_position_note_name(row, notes)
         line = line.concat("  ")
         line = line.concat(note_label)
 
@@ -758,7 +827,7 @@ print_pentagram := proc(root_idx: I64, root_diatonic: I64, steps: Vec) {
     }
 }
 
-print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
+print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str, notation: Str) {
     mut canon := canonical_mode(mode_arg)
     if canon.eq("") {
         msg := "Unknown mode: "
@@ -769,6 +838,7 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
 
     mut mode_index := mode_index_from_canonical(canon)
     mut mode_name := localized_mode_name(canon, lang)
+    notes := get_notes_for_notation(notation)
 
     // Parse root note with suffix accidentals (e.g., "fa#", "sib", "solx")
     // 'x' is a workaround for '#' which causes issues in test filenames
@@ -787,11 +857,15 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
     base = input.get_substr(0, i)?
     acc = input.get_substr(i, input.len())?
 
-    root_diatonic := get_diatonic_index(base)
+    root_diatonic := get_diatonic_index_for_notation(base, notation)
     if root_diatonic.lt(0) {
         msg2 := "Invalid base note: "
         println(msg2.concat(base))
-        println("Use: do re mi fa sol la si")
+        if notation.eq("american") {
+            println("Use: C D E F G A B")
+        } else {
+            println("Use: do re mi fa sol la si")
+        }
         return
     }
 
@@ -801,15 +875,15 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
     mut steps := Vec.new(I64)
     mode_intervals.get(mode_index, steps)?
 
-    scale_str := generate_scale(root_idx, root_diatonic, steps)
+    scale_str := generate_scale(root_idx, root_diatonic, steps, notes)
 
     header := mode_name.concat(" starting on ")
     header2 := header.concat(root_arg)
     println(header2.concat(":"))
     println(scale_str)
 
-    print_pentagram(root_idx, root_diatonic, steps)
-    print_triads(root_idx, root_diatonic, steps, lang)
+    print_pentagram(root_idx, root_diatonic, steps, notes)
+    print_triads(root_idx, root_diatonic, steps, notes)
 
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), err.msg)
@@ -819,28 +893,29 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
 usage := proc(lang: Str) {
     mut lower_lang := lang.to_lowercase()
     if lower_lang.eq("en") {
-        println("Usage: ./bin/til music.til [-lang=pt|en|es] <mode> [root]")
+        println("Usage: ./bin/til music.til [-lang=pt|en|es] [-notation=solfege|american] <mode> [root]")
         println("Examples:")
         println("  ./bin/til music.til ionian do")
         println("  ./bin/til music.til -lang=en lydian fax")
-        println("  ./bin/til music.til dorian re")
+        println("  ./bin/til music.til -notation=american dorian C")
     } else if lower_lang.eq("es") {
-        println("Uso: ./bin/til music.til [-lang=pt|en|es] <modo> [raiz]")
+        println("Uso: ./bin/til music.til [-lang=pt|en|es] [-notation=solfege|american] <modo> [raiz]")
         println("Ejemplos:")
         println("  ./bin/til music.til jonico do")
         println("  ./bin/til music.til -lang=es lidio fax")
-        println("  ./bin/til music.til dorico re")
+        println("  ./bin/til music.til -notation=american dorico C")
     } else {  // pt
-        println("Uso: ./bin/til music.til [-lang=pt|en|es] <modo> [raiz]")
+        println("Uso: ./bin/til music.til [-lang=pt|en|es] [-notation=solfege|american] <modo> [raiz]")
         println("Exemplos:")
         println("  ./bin/til music.til jonio do")
         println("  ./bin/til music.til -lang=pt lidio fax")
-        println("  ./bin/til music.til dorico re")
+        println("  ./bin/til music.til -notation=american dorico C")
     }
 }
 
 main := proc(args: ..Str) {
     mut lang := "pt"
+    mut notation := "solfege"
     mut mode_arg := ""
     mut root_arg := "do"
 
@@ -863,6 +938,21 @@ main := proc(args: ..Str) {
             continue
         }
 
+        if lower_arg.starts_with("-notation=") {
+            mut notation_val := lower_arg.get_substr(10, lower_arg.len())?
+
+            switch notation_val {
+            case "solfege": notation = "solfege"
+            case "american": notation = "american"
+            case:
+                notation_warn1 := "Unknown notation '"
+                notation_warn2 := notation_warn1.concat(notation_val)
+                println(notation_warn2.concat("' - using solfege"))
+            }
+
+            continue
+        }
+
         if mode_arg.eq("") {
             mode_arg = arg
         } else if root_arg.eq("do") {
@@ -875,7 +965,7 @@ main := proc(args: ..Str) {
         return
     }
 
-    print_scale(mode_arg, root_arg, lang)
+    print_scale(mode_arg, root_arg, lang, notation)
 
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), err.msg)

@@ -45,7 +45,7 @@ RunningTest := struct {
 }
 
 // Helper to add music.til tests to a Vec
-// music.til: 12 tests covering all 7 modes, accidentals, and languages
+// music.til: 14 tests covering all 7 modes, accidentals, languages, and notation
 // All tests now show pentagram and triads by default
 // Accidentals use suffix notation: sib (si flat), fax (fa sharp, x = #)
 add_music_tests := proc(mut tests: Vec) {
@@ -66,6 +66,9 @@ add_music_tests := proc(mut tests: Vec) {
     tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=es jonico mib"))
     tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=es locrio rex"))
     tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=es eolico sib"))
+    // 2 tests with -notation=american (input uses American notation: C, D, E, F, G, A, B)
+    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-notation=american ionian C"))
+    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-notation=american phrygian G"))
 }
 
 // Parse time output like "real\t0m0.042s" -> milliseconds
