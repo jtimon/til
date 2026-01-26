@@ -369,12 +369,14 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     // Generate C code
     let c_code = ccodegen::emit(&merged_ast, &mut context)?;
 
-    // Write output file to ./gen/c/ directory instead of alongside source
+    // Write output file to ./gen/{LANG_NAME_141}/c/ directory instead of alongside source
+    // Bug #141: Use LANG_NAME_141 to separate rstil (rs) and til outputs
     let c_filename = path.replace(".til", ".c");
+    let gen_prefix = format!("gen/{}/c/", crate::rs::lexer::LANG_NAME_141);
     let source_output_path = if c_filename.starts_with("src/") {
-        c_filename.replacen("src/", "gen/c/", 1)
+        c_filename.replacen("src/", &gen_prefix, 1)
     } else {
-        format!("gen/c/{}", c_filename)
+        format!("{}{}", gen_prefix, c_filename)
     };
     // Create output directory if it doesn't exist
     if let Some(parent) = std::path::Path::new(&source_output_path).parent() {
@@ -393,14 +395,16 @@ pub fn build(path: &str, target: &Target, lang: &Lang, translate_only: bool) -> 
     // Get toolchain command for target
     let compiler = toolchain_command(target, lang)?;
 
-    // Compile - output to bin/ directory in project root, preserving relative path
-    // e.g., src/til.til -> bin/til, src/examples/hello_script.til -> bin/examples/hello_script
+    // Compile - output to bin/{LANG_NAME_141}/ directory in project root, preserving relative path
+    // Bug #141: Use LANG_NAME_141 to separate rstil (rs) and til outputs
+    // e.g., src/til.til -> bin/rs/til, src/examples/hello_script.til -> bin/rs/examples/hello_script
     let exe_extension = executable_extension(target);
     let bin_filename = path.replace(".til", exe_extension);
+    let bin_prefix = format!("bin/{}/", crate::rs::lexer::LANG_NAME_141);
     let exe_path_str = if bin_filename.starts_with("src/") {
-        bin_filename.replacen("src/", "bin/", 1)
+        bin_filename.replacen("src/", &bin_prefix, 1)
     } else {
-        format!("bin/{}", bin_filename)
+        format!("{}{}", bin_prefix, bin_filename)
     };
     // Create bin directory if it doesn't exist
     if let Some(parent) = std::path::Path::new(&exe_path_str).parent() {

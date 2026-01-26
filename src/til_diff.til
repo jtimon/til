@@ -36,7 +36,8 @@ main := proc(file_path: Str) {
     til_c = til_c.concat(base_name)
     til_c = til_c.concat(".c")
 
-    // Build gen path: src/examples/hello_script.til -> gen/c/examples/hello_script.c
+    // Build gen path: src/examples/hello_script.til -> examples/hello_script.c
+    // Bug #141: rstil outputs to gen/rs/c/, til outputs to gen/til/c/
     mut gen_path := file_path.clone()
     if gen_path.starts_with("src/") {
         gen_path = get_substr(gen_path, 4, gen_path.len())
@@ -45,8 +46,10 @@ main := proc(file_path: Str) {
         gen_path = get_substr(gen_path, 0, gen_path.len().sub(4))
     }
     gen_path = gen_path.concat(".c")
-    mut gen_full := "gen/c/"
-    gen_full = gen_full.concat(gen_path)
+    mut rs_gen_full := "gen/rs/c/"
+    rs_gen_full = rs_gen_full.concat(gen_path)
+    mut til_gen_full := "gen/til/c/"
+    til_gen_full = til_gen_full.concat(gen_path)
 
     // Run rstil translate
     println("Running: ./bin/rstil translate ", file_path)
@@ -60,23 +63,23 @@ main := proc(file_path: Str) {
 
     // Copy generated C to temp location
     mut cp1_output := ""
-    _ := cp1_output.run_cmd("cp", gen_full, rstil_c)
+    _ := cp1_output.run_cmd("cp", rs_gen_full, rstil_c)
 
-    // Run rstil_til translate (use bash since ./bin/rstil_til not in whitelist)
-    mut til_cmd := "./bin/rstil_til translate "
+    // Run til translate (til built by rstil)
+    mut til_cmd := "./bin/rs/til translate "
     til_cmd = til_cmd.concat(file_path)
     println("Running: ", til_cmd)
     mut til_output := ""
     til_status := til_output.run_cmd("bash", "-c", til_cmd)
     if not(til_status.eq(0)) {
-        println("ERROR: rstil_til translate failed:")
+        println("ERROR: til translate failed:")
         println(til_output)
         exit(1)
     }
 
     // Copy generated C to temp location
     mut cp2_output := ""
-    _ := cp2_output.run_cmd("cp", gen_full, til_c)
+    _ := cp2_output.run_cmd("cp", til_gen_full, til_c)
 
     // Diff the two files
     println("Diffing: ", rstil_c, " vs ", til_c)

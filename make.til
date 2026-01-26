@@ -78,11 +78,12 @@ build_rstil_til := proc() {
     // .til dependency tracking is automatic via `rstil build`
     // But automatic tracking only knows about .til files, not the compiler itself.
     // If bin/rstil changed, we must force rebuild even if .til files are unchanged.
+    // Bug #141: rstil outputs to bin/rs/ and gen/rs/c/
     mut deps := Vec.new(Str)
     deps.push("bin/rstil")
     mut status := 0
-    status = run_stream_cmd("mkdir -p bin")
-    if needs_rebuild("bin/til", deps) {
+    status = run_stream_cmd("mkdir -p bin/rs")
+    if needs_rebuild("bin/rs/til", deps) {
         // Compiler changed - force rebuild (automatic tracking wouldn't catch this)
         // Also set global flag so tests know to force rebuild
         g_compiler_changed = true
@@ -94,18 +95,18 @@ build_rstil_til := proc() {
     if status.eq(0).not() {
         exit(1)
     }
-    _ := run_stream_cmd("cp gen/c/til.c bootstrap/til.c")
-    _ := run_stream_cmd("cp bin/til bin/rstil_til")
+    _ := run_stream_cmd("cp gen/rs/c/til.c bootstrap/til.c")
 }
 
 // WARNING: This target currently hangs!
-// ./bin/til translate src/til.til takes >2min and doesn't complete
+// ./bin/rs/til translate src/til.til takes >2min and doesn't complete
+// Bug #141: til outputs to bin/til/ and gen/til/c/
 build_til_til := proc() {
     mut status := 0
     status = run_stream_cmd("mkdir -p tmp")
-    status = run_stream_cmd("./bin/til build src/til.til")
-    status = run_stream_cmd("cp gen/c/til.c tmp/til_by_til.c")
-    status = run_stream_cmd("cp bin/til bin/til_til")
+    status = run_stream_cmd("./bin/rs/til build src/til.til")
+    status = run_stream_cmd("cp gen/til/c/til.c tmp/til_by_til.c")
+    status = run_stream_cmd("cp bin/til/til bin/til_til")
     if status.eq(0).not() {
         exit(1)
     }
@@ -114,6 +115,7 @@ build_til_til := proc() {
 build_test_runner := proc() {
     build_rstil_til()
     // .til dependency tracking is automatic via `rstil build`
+    // Bug #141: rstil outputs to bin/rs/
     mut status := 0
     status = run_stream_cmd("./bin/rstil build src/test_runner.til")
     if status.eq(0).not() {
@@ -136,13 +138,14 @@ run_tests := proc() {
     mut status := 0
     // Pass --force-rebuild to tests if compiler changed
     // This ensures tests rebuild when rstil changed, even if test .til files didn't
+    // Bug #141: rstil outputs to bin/rs/ and gen/rs/c/
     if g_compiler_changed {
-        status = run_stream_cmd("./bin/tests --force-rebuild")
+        status = run_stream_cmd("./bin/rs/tests --force-rebuild")
     } else {
-        status = run_stream_cmd("./bin/tests")
+        status = run_stream_cmd("./bin/rs/tests")
     }
     tests_status := status
-    status = run_stream_cmd("cp gen/c/test/constfold.c src/test/constfold.c")
+    status = run_stream_cmd("cp gen/rs/c/test/constfold.c src/test/constfold.c")
     println("Remember to add generated files to commit: bootstrap/til.c, src/test/constfold.c")
     if tests_status.eq(0).not() {
         exit(1)
@@ -153,10 +156,11 @@ run_regen := proc() {
     build_tests()
     mut status := 0
     // Pass --force-rebuild to regen if compiler changed
+    // Bug #141: rstil outputs to bin/rs/
     if g_compiler_changed {
-        status = run_stream_cmd("./bin/tests --force-rebuild regen")
+        status = run_stream_cmd("./bin/rs/tests --force-rebuild regen")
     } else {
-        status = run_stream_cmd("./bin/tests regen")
+        status = run_stream_cmd("./bin/rs/tests regen")
     }
     println("Regenerated all test outputs")
     if status.eq(0).not() {
@@ -173,25 +177,27 @@ run_benchmark := proc() {
 run_test_cross := proc() {
     mut status := 0
     println("=== Cross-compilation tests ===")
+    // Bug #141: rstil outputs to bin/rs/
     println("linux-arm64...")
     status = run_stream_cmd("./bin/rstil build src/examples/hello_script.til --target=linux-arm64")
-    status = run_stream_cmd("qemu-aarch64 -L /usr/aarch64-linux-gnu ./bin/examples/hello_script")
+    status = run_stream_cmd("qemu-aarch64 -L /usr/aarch64-linux-gnu ./bin/rs/examples/hello_script")
     println("linux-riscv64...")
     status = run_stream_cmd("./bin/rstil build src/examples/hello_script.til --target=linux-riscv64")
-    status = run_stream_cmd("qemu-riscv64 -L /usr/riscv64-linux-gnu ./bin/examples/hello_script")
+    status = run_stream_cmd("qemu-riscv64 -L /usr/riscv64-linux-gnu ./bin/rs/examples/hello_script")
     println("windows-x64...")
     status = run_stream_cmd("./bin/rstil build src/examples/hello_script.til --target=windows-x64")
-    status = run_stream_cmd("wine ./bin/examples/hello_script.exe")
+    status = run_stream_cmd("wine ./bin/rs/examples/hello_script.exe")
     // TODO: macos-x64, macos-arm64 (no emulator available)
     // TODO: wasm32 (needs libc/wasi support)
     println("=== All cross-compilation tests passed ===")
 }
 
 // Build til with debug symbols and run gdb
+// Bug #141: rstil outputs to gen/rs/c/
 build_til_debug := proc() {
     build_rstil_til()
     mut status := 0
-    status = run_stream_cmd("gcc -g -O0 -o bin/til_debug gen/c/til.c -lm -I src")
+    status = run_stream_cmd("gcc -g -O0 -o bin/til_debug gen/rs/c/til.c -lm -I src")
     if status.eq(0).not() {
         exit(1)
     }
