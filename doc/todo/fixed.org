@@ -3819,7 +3819,7 @@ Added ~--cc=COMPILER~ flag to rstil and til:
 - Compiler-specific warning flags handled automatically:
   - GCC-only: ~-Wno-dangling-pointer~
   - Clang-only: ~-Wno-sometimes-uninitialized~, ~-Wno-self-assign~,
-    ~-Wno-c23-extensions~, ~-Wno-uninitialized~
+    ~-Wno-c23-extensions~, ~-Wno-uninitialized~, ~-Wno-unused-function~
 
 *** Usage
 To build til.til with clang (this is what fails in macOS CI):

@@ -167,6 +167,7 @@ pub fn toolchain_extra_args(target: &Target, _lang: &Lang, compiler: &str) -> Ve
         "-Wno-self-assign",               // til_result = til_result patterns in generated code
         "-Wno-c23-extensions",            // unnamed parameters in function definitions
         "-Wno-uninitialized",             // variable used before initialization in some paths
+        "-Wno-unused-function",           // enum to_str functions generated but not always used
     ];
     // Issue #131: Use compiler command to determine which flags to use
     let use_clang = is_clang(compiler);

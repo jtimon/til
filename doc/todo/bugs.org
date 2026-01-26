@@ -727,6 +727,7 @@ Now using ~-Wall -Wextra -Werror~ with suppressions for unfixed warnings (2026-0
 - ~-Wno-self-assign~ - til_result = til_result patterns in generated code
 - ~-Wno-c23-extensions~ - unnamed parameters in function definitions
 - ~-Wno-uninitialized~ - variable used before initialization in some paths
+- ~-Wno-unused-function~ - enum to_str functions generated but not always used
 
 To fix a warning category: remove the ~-Wno-~ flag and fix the resulting errors.
 

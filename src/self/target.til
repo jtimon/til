@@ -304,6 +304,7 @@ toolchain_extra_args := func(target: Target, _lang: Lang, compiler: Str) returns
         result.push("-Wno-self-assign")               // til_result = til_result patterns in generated code
         result.push("-Wno-c23-extensions")            // unnamed parameters in function definitions
         result.push("-Wno-uninitialized")             // variable used before initialization in some paths
+        result.push("-Wno-unused-function")           // enum to_str functions generated but not always used
     } else {
         result.push("-Wno-dangling-pointer")          // 971 occurrences (high priority to fix) - GCC only
     }
