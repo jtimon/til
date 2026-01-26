@@ -13,6 +13,95 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #142: Code Simplification - Context Error Helpers
+:PROPERTIES:
+:DISCOVERED: 2026-01-26
+:IMPACT: Reduces boilerplate, improves readability
+:STATUS: Open
+:END:
+
+*** Description
+Add helper methods to Context struct to reduce repetitive error creation boilerplate.
+Currently there are 301 calls to error methods that redundantly pass ~context.path~.
+
+*** Current Pattern
+#+BEGIN_SRC til
+errors.push(e.error(context.path, "type", format("...", foo, "...")))
+errors.push(e.lang_error(context.path, "type", "..."))
+errors.push(e.todo_error(context.path, "type", "..."))
+#+END_SRC
+
+Every call redundantly passes ~context.path~. The error methods are defined on Expr (parser.til:443).
+
+*** Proposed Simplification
+Add Context helper methods in init.til:
+#+BEGIN_SRC til
+// In init.til, add to Context struct:
+type_error := func(self: Context, e: Expr, msg: Str) returns Str {
+    return e.error(self.path, "type", msg)
+}
+type_lang_error := func(self: Context, e: Expr, msg: Str) returns Str {
+    return e.lang_error(self.path, "type", msg)
+}
+type_todo_error := func(self: Context, e: Expr, msg: Str) returns Str {
+    return e.todo_error(self.path, "type", msg)
+}
+#+END_SRC
+
+*** Usage After Change
+#+BEGIN_SRC til
+// Before (65 chars):
+errors.push(e.error(context.path, "type", format("Undefined symbol '", name, "'")))
+// After (52 chars):
+errors.push(context.type_error(e, format("Undefined symbol '", name, "'")))
+#+END_SRC
+
+*** Impact Analysis
+| File | Approximate calls |
+|------|-------------------|
+| typer.til | 89 |
+| interpreter.til | 98 |
+| init.til | 63 |
+| others | ~50 |
+| Total | ~301 |
+
+Estimated savings: ~13 chars per call x 301 calls = ~3900 chars saved
+
+*** Files to Modify
+| File | Changes |
+|------|---------|
+| src/self/init.til | Add Context helper methods |
+| src/rs/init.rs | Port Context helpers |
+| src/self/typer.til | Use new Context helpers (~89 calls) |
+| src/rs/typer.rs | Port helper usage |
+| src/self/interpreter.til | Use new Context helpers (~98 calls) |
+| src/rs/interpreter.rs | Port helper usage |
+
+*** Verification
+1. ~make benchmark~ - all tests pass before and after
+2. Line count comparison: ~wc -l src/self/typer.til~ before/after
+3. No functional changes - pure refactoring
+
+*** Additional Opportunities (Lower Priority)
+
+**** ccodegen push_str Chains (1438 calls)
+Many consecutive ~output.push_str()~ calls could be combined with ~format()~:
+#+BEGIN_SRC til
+// Current:
+output.push_str(indent_str)
+output.push_str(c_type)
+output.push_str(" ")
+output.push_str(temp_var)
+output.push_str(";\n")
+
+// Potential:
+output.push_str(format(indent_str, c_type, " ", temp_var, ";\n"))
+#+END_SRC
+This is tedious but safe - consider as follow-up work.
+
+**** I64Range.get() Dynamic Pattern
+Uses Dynamic for interface compatibility with for-in loops. By design - cannot simplify without language-level template support.
+
 ** Issue #138: Use Bool for Ptr.is_borrowed or separate BorrowedPtr type
 :PROPERTIES:
 :DISCOVERED: 2026-01-25
