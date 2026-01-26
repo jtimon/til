@@ -1,8 +1,8 @@
 // music.til  - CLI for diatonic modes (EN/ES/PT)
 // Generates scale from given mode + root (with accidentals)
-// Output shows the 7 notes + octave repeat in parentheses
+// Output shows: scale notes, ASCII pentagram, and triads
 //
-// Use --triades flag to show triads grouped by type after the scale
+// Triads are grouped by type:
 // 4 types: mayor (1-3-5), menor (1-b3-5), aumentado (1-3-#5), disminuido (1-b3-b5)
 
 mode cli
@@ -40,39 +40,13 @@ create_base_notes := proc() returns Vec {
 }
 
 // TODO: Bug #133 workaround - using proc instead of func
+// Mode intervals ordered from brightest to darkest.
+// Major tonality: lydian, ionian, mixolydian (have major 3rd)
+// Minor tonality: dorian, aeolian, phrygian, locrian (have minor 3rd)
 create_mode_intervals := proc() returns Vec {
     mut all := Vec.new(Vec)
 
-    mut ionian := Vec.new(I64)
-    ionian.push(2)
-    ionian.push(2)
-    ionian.push(1)
-    ionian.push(2)
-    ionian.push(2)
-    ionian.push(2)
-    ionian.push(1)
-    all.push(ionian)
-
-    mut dorian := Vec.new(I64)
-    dorian.push(2)
-    dorian.push(1)
-    dorian.push(2)
-    dorian.push(2)
-    dorian.push(2)
-    dorian.push(1)
-    dorian.push(2)
-    all.push(dorian)
-
-    mut phrygian := Vec.new(I64)
-    phrygian.push(1)
-    phrygian.push(2)
-    phrygian.push(2)
-    phrygian.push(2)
-    phrygian.push(1)
-    phrygian.push(2)
-    phrygian.push(2)
-    all.push(phrygian)
-
+    // Lydian - brightest (major, #4)
     mut lydian := Vec.new(I64)
     lydian.push(2)
     lydian.push(2)
@@ -83,6 +57,18 @@ create_mode_intervals := proc() returns Vec {
     lydian.push(1)
     all.push(lydian)
 
+    // Ionian - major scale (reference)
+    mut ionian := Vec.new(I64)
+    ionian.push(2)
+    ionian.push(2)
+    ionian.push(1)
+    ionian.push(2)
+    ionian.push(2)
+    ionian.push(2)
+    ionian.push(1)
+    all.push(ionian)
+
+    // Mixolydian - major with b7
     mut mixolydian := Vec.new(I64)
     mixolydian.push(2)
     mixolydian.push(2)
@@ -93,6 +79,18 @@ create_mode_intervals := proc() returns Vec {
     mixolydian.push(2)
     all.push(mixolydian)
 
+    // Dorian - minor with natural 6
+    mut dorian := Vec.new(I64)
+    dorian.push(2)
+    dorian.push(1)
+    dorian.push(2)
+    dorian.push(2)
+    dorian.push(2)
+    dorian.push(1)
+    dorian.push(2)
+    all.push(dorian)
+
+    // Aeolian - natural minor scale
     mut aeolian := Vec.new(I64)
     aeolian.push(2)
     aeolian.push(1)
@@ -103,6 +101,18 @@ create_mode_intervals := proc() returns Vec {
     aeolian.push(2)
     all.push(aeolian)
 
+    // Phrygian - minor with b2
+    mut phrygian := Vec.new(I64)
+    phrygian.push(1)
+    phrygian.push(2)
+    phrygian.push(2)
+    phrygian.push(2)
+    phrygian.push(1)
+    phrygian.push(2)
+    phrygian.push(2)
+    all.push(phrygian)
+
+    // Locrian - darkest (minor, b2, b5)
     mut locrian := Vec.new(I64)
     locrian.push(1)
     locrian.push(2)
@@ -283,15 +293,16 @@ canonical_mode := proc(mode_arg: Str) returns Str {
     }
 }
 
+// Index matches order in create_mode_intervals (brightest to darkest)
 mode_index_from_canonical := proc(canonical: Str) returns I64 {
     switch canonical {
-    case "ionian":     return 0
-    case "dorian":     return 1
-    case "phrygian":   return 2
-    case "lydian":     return 3
-    case "mixolydian": return 4
-    case "aeolian":    return 5
-    case "locrian":    return 6
+    case "lydian":     return 0  // brightest (major)
+    case "ionian":     return 1  // major
+    case "mixolydian": return 2  // major
+    case "dorian":     return 3  // minor
+    case "aeolian":    return 4  // minor
+    case "phrygian":   return 5  // minor
+    case "locrian":    return 6  // darkest (minor)
     case:              neg_one := I64.sub(0, 1)
     return neg_one
     }
@@ -518,7 +529,236 @@ print_triad_line := proc(label: Str, triads: Vec) {
     }
 }
 
-print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str, show_triads: Bool) {
+// Get staff position for a note (mi=0, fa=1, sol=2, la=3, si=4, do'=5, etc.)
+// Lines are at even positions: 0(mi), 2(sol), 4(si), 6(re'), 8(fa')
+// Spaces are at odd positions: 1(fa), 3(la), 5(do'), 7(mi')
+get_staff_position := func(diatonic_idx: I64, octave: I64) returns I64 {
+    return diatonic_idx.sub(2).add(octave.mul(7))
+}
+
+// Get natural note name for a staff position (for side labels)
+get_position_note_name := proc(pos: I64) returns Str {
+    // Map position back to diatonic: pos = diatonic - 2 + octave*7
+    // So diatonic = (pos + 2) mod 7
+    mut diatonic := pos.add(2).mod(7)
+    if diatonic.lt(0) {
+        diatonic = diatonic.add(7)
+    }
+    mut name := ""
+    base_notes.get(diatonic, name)?
+
+    catch (err: IndexOutOfBoundsError) {
+        return "?"
+    }
+    return name
+}
+
+// Extract accidental from a note name (e.g., "fa#" -> "#", "sib" -> "b", "do" -> "")
+get_accidental := proc(note_name: Str) returns Str {
+    mut acc := ""
+    mut i := 0
+    while i.lt(note_name.len()) {
+        ch := note_name.get_char(i)?
+        if ch.eq("#").or(ch.eq("b")) {
+            acc = acc.concat(ch)
+        }
+        i = i.add(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        return ""
+    }
+    return acc
+}
+
+// Pad string to width (right-aligned for notes)
+pad_right := func(s: Str, width: I64) returns Str {
+    mut result := s
+    while result.len().lt(width) {
+        result = result.concat(" ")
+    }
+    return result
+}
+
+// Repeat a character n times
+repeat_char := func(ch: Str, n: I64) returns Str {
+    mut result := ""
+    mut i := 0
+    while i.lt(n) {
+        result = result.concat(ch)
+        i = i.add(1)
+    }
+    return result
+}
+
+print_pentagram := proc(root_idx: I64, root_diatonic: I64, steps: Vec) {
+    // Build scale notes with their staff positions
+    mut note_names := Vec.new(Str)
+    mut note_positions := Vec.new(I64)
+
+    mut chromatic_pos := root_idx
+    mut diatonic_pos := root_diatonic
+    mut octave := 0
+    mut prev_diatonic := root_diatonic
+
+    mut k := 0
+    while k.lt(8) {
+        // Get note name with accidentals
+        note := format_note(diatonic_pos, chromatic_pos)
+        note_names.push(note)
+
+        // Calculate staff position
+        staff_pos := get_staff_position(diatonic_pos, octave)
+        note_positions.push(staff_pos)
+
+        // Move to next note
+        if k.lt(7) {
+            mut step := 0
+            steps.get(k, step)?
+            chromatic_pos = chromatic_pos.add(step).mod(12)
+            prev_diatonic = diatonic_pos
+            diatonic_pos = diatonic_pos.add(1).mod(7)
+            // Check if we wrapped to a new octave
+            if diatonic_pos.lt(prev_diatonic) {
+                octave = octave.add(1)
+            }
+        }
+        k = k.add(1)
+    }
+
+    // Find min and max staff positions
+    mut min_pos := 100
+    mut max_pos := I64.sub(0, 100)
+    k = 0
+    while k.lt(note_positions.len()) {
+        mut pos := 0
+        note_positions.get(k, pos)?
+        if pos.lt(min_pos) {
+            min_pos = pos
+        }
+        if pos.gt(max_pos) {
+            max_pos = pos
+        }
+        k = k.add(1)
+    }
+
+    // Ensure we show at least the 5 staff lines (positions 0,2,4,6,8)
+    if min_pos.gt(0) {
+        min_pos = 0
+    }
+    if max_pos.lt(8) {
+        max_pos = 8
+    }
+
+    // Column width for each note
+    col_width := 7
+
+    // Render from top to bottom
+    println("")
+    println("Pentagram:")
+
+    mut row := max_pos
+    while row.gt(min_pos).or(row.eq(min_pos)) {
+        mut line := "  "
+
+        // Determine if this row is a staff line (positions 0,2,4,6,8)
+        is_staff_line := row.gt(I64.sub(0,1)).and(row.lt(9)).and(row.mod(2).eq(0))
+        // Ledger line below staff
+        is_ledger_below := row.lt(0).and(row.mod(2).eq(0))
+        // Ledger line above staff
+        is_ledger_above := row.gt(8).and(row.mod(2).eq(0))
+
+        // Build the row
+        mut col := 0
+        while col.lt(8) {
+            mut note_pos := 0
+            note_positions.get(col, note_pos)?
+
+            mut note_name := ""
+            note_names.get(col, note_name)?
+            acc := get_accidental(note_name)
+
+            // Check if note is at this row
+            if note_pos.eq(row) {
+                // Note is here
+                if is_staff_line {
+                    // Note on a staff line: ---o--- or --#o--- or --bo---
+                    if acc.eq("#") {
+                        line = line.concat("--#o---")
+                    } else if acc.eq("b") {
+                        line = line.concat("--bo---")
+                    } else if acc.eq("##") {
+                        line = line.concat("-##o---")
+                    } else if acc.eq("bb") {
+                        line = line.concat("-bbo---")
+                    } else {
+                        line = line.concat("---o---")
+                    }
+                } else if is_ledger_below.or(is_ledger_above) {
+                    // Note on a ledger line: -o- centered
+                    if acc.eq("#") {
+                        line = line.concat("  -#o- ")
+                    } else if acc.eq("b") {
+                        line = line.concat("  -bo- ")
+                    } else {
+                        line = line.concat("  -o-  ")
+                    }
+                } else {
+                    // Note in a space: just the note symbol
+                    if acc.eq("#") {
+                        line = line.concat("  #o   ")
+                    } else if acc.eq("b") {
+                        line = line.concat("  bo   ")
+                    } else if acc.eq("##") {
+                        line = line.concat("  ##o  ")
+                    } else if acc.eq("bb") {
+                        line = line.concat("  bbo  ")
+                    } else {
+                        line = line.concat("   o   ")
+                    }
+                }
+            } else {
+                // No note at this position
+                if is_staff_line {
+                    line = line.concat("-------")
+                } else {
+                    line = line.concat("       ")
+                }
+            }
+
+            col = col.add(1)
+        }
+
+        // Add side label (natural note name)
+        note_label := get_position_note_name(row)
+        line = line.concat("  ")
+        line = line.concat(note_label)
+
+        println(line)
+        row = row.sub(1)
+    }
+
+    // Print note labels at bottom
+    println("")
+    mut label_line := "  "
+    k = 0
+    while k.lt(note_names.len()) {
+        mut name := ""
+        note_names.get(k, name)?
+        // Add ' for octave note (last note)
+        if k.eq(7) {
+            name = name.concat("'")
+        }
+        label_line = label_line.concat(pad_right(name, col_width))
+        k = k.add(1)
+    }
+    println(label_line)
+
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), err.msg)
+    }
+}
+
+print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
     mut canon := canonical_mode(mode_arg)
     if canon.eq("") {
         msg := "Unknown mode: "
@@ -568,9 +808,8 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str, show_triads: Bool) 
     println(header2.concat(":"))
     println(scale_str)
 
-    if show_triads {
-        print_triads(root_idx, root_diatonic, steps, lang)
-    }
+    print_pentagram(root_idx, root_diatonic, steps)
+    print_triads(root_idx, root_diatonic, steps, lang)
 
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), err.msg)
@@ -580,23 +819,23 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str, show_triads: Bool) 
 usage := proc(lang: Str) {
     mut lower_lang := lang.to_lowercase()
     if lower_lang.eq("en") {
-        println("Usage: ./bin/til music.til [-lang=pt|en|es] [--triades] <mode> [root]")
+        println("Usage: ./bin/til music.til [-lang=pt|en|es] <mode> [root]")
         println("Examples:")
         println("  ./bin/til music.til ionian do")
         println("  ./bin/til music.til -lang=en lydian fax")
-        println("  ./bin/til music.til --triades dorian re")
+        println("  ./bin/til music.til dorian re")
     } else if lower_lang.eq("es") {
-        println("Uso: ./bin/til music.til [-lang=pt|en|es] [--triades] <modo> [raiz]")
+        println("Uso: ./bin/til music.til [-lang=pt|en|es] <modo> [raiz]")
         println("Ejemplos:")
         println("  ./bin/til music.til jonico do")
         println("  ./bin/til music.til -lang=es lidio fax")
-        println("  ./bin/til music.til --triades dorico re")
+        println("  ./bin/til music.til dorico re")
     } else {  // pt
-        println("Uso: ./bin/til music.til [-lang=pt|en|es] [--triades] <modo> [raiz]")
+        println("Uso: ./bin/til music.til [-lang=pt|en|es] <modo> [raiz]")
         println("Exemplos:")
         println("  ./bin/til music.til jonio do")
         println("  ./bin/til music.til -lang=pt lidio fax")
-        println("  ./bin/til music.til --triades dorico re")
+        println("  ./bin/til music.til dorico re")
     }
 }
 
@@ -604,7 +843,6 @@ main := proc(args: ..Str) {
     mut lang := "pt"
     mut mode_arg := ""
     mut root_arg := "do"
-    mut show_triads := false
 
     for arg: Str in args {
         mut lower_arg := arg.to_lowercase()
@@ -625,11 +863,6 @@ main := proc(args: ..Str) {
             continue
         }
 
-        if lower_arg.eq("--triades").or(lower_arg.eq("--triads")) {
-            show_triads = true
-            continue
-        }
-
         if mode_arg.eq("") {
             mode_arg = arg
         } else if root_arg.eq("do") {
@@ -642,7 +875,7 @@ main := proc(args: ..Str) {
         return
     }
 
-    print_scale(mode_arg, root_arg, lang, show_triads)
+    print_scale(mode_arg, root_arg, lang)
 
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), err.msg)

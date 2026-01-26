@@ -45,8 +45,9 @@ RunningTest := struct {
 }
 
 // Helper to add music.til tests to a Vec
-// music.til: 16 tests covering all 7 modes, accidentals, languages, triads
-// TODO: use 'x' instead of '#' for sharps - test framework has issues with # in filenames
+// music.til: 12 tests covering all 7 modes, accidentals, and languages
+// All tests now show pentagram and triads by default
+// Accidentals use suffix notation: sib (si flat), fax (fa sharp, x = #)
 add_music_tests := proc(mut tests: Vec) {
     MUSIC_PATH := "src/examples/music.til"
     // 3 tests with default language (pt)
@@ -54,23 +55,17 @@ add_music_tests := proc(mut tests: Vec) {
     tests.push(TestEntry(path=MUSIC_PATH, cmd_args="dorico re"))
     tests.push(TestEntry(path=MUSIC_PATH, cmd_args="frigio mi"))
     // 3 tests with -lang=pt
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=pt lidio xfa"))
+    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=pt lidio fax"))
     tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=pt mixolidio sol"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=pt eolio bla"))
+    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=pt eolio lab"))
     // 3 tests with -lang=en
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=en locrian xsi"))
+    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=en locrian six"))
     tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=en aeolian la"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=en ionian xsol"))
+    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=en ionian solx"))
     // 3 tests with -lang=es
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=es jonico bmi"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=es locrio xre"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=es eolico bsi"))
-    // 4 tests with --triades (one per triad type: mayor, menor, disminuido, aumentado)
-    // jonio has mayor (I,IV,V), menor (ii,iii,vi), disminuido (vii), no aumentado
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="--triades jonio do"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="--triades dorico re"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="--triades locrio si"))
-    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="--triades lidio fa"))
+    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=es jonico mib"))
+    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=es locrio rex"))
+    tests.push(TestEntry(path=MUSIC_PATH, cmd_args="-lang=es eolico sib"))
 }
 
 // Parse time output like "real\t0m0.042s" -> milliseconds
