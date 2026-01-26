@@ -662,6 +662,18 @@ Range patterns were initially skipped because ccodegen had a bug: ~hoisted_exprs
 (HashMap for variadic call argument temps) wasn't saved/restored for nested functions.
 Fix: save and clear ~hoisted_exprs~ on nested function entry, restore on exit.
 
+**** BLOCKING: CI failures after Step 2 (commit 910be03)
+Two tests fail in ~rs_compiled~ mode after removing switch handling from UFCS:
+
+1. ~src/test/flow.til~ - assert_eq failed at line 111: expected '2', found '0'
+   - Desugared switch code produces wrong result
+   - Likely issue with if/else chain generation for some case pattern
+
+2. ~src/test/test_lexer.til~ - exit code 1 (no output)
+   - May be related to same desugaring issue
+
+These must be fixed before continuing with Steps 3-6.
+
 **** NEXT STEPS: Cleanup (Steps 2-6)
 With Step 1 complete, post-desugarer phases can be simplified (in pipeline order):
 
