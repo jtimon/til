@@ -1,6 +1,9 @@
 // music.til  - CLI for diatonic modes (EN/ES/PT)
 // Generates scale from given mode + root (with accidentals)
 // Output shows the 7 notes + octave repeat in parentheses
+//
+// Use --triades flag to show triads grouped by type after the scale
+// 4 types: mayor (1-3-5), menor (1-b3-5), aumentado (1-3-#5), disminuido (1-b3-b5)
 
 mode cli
 
@@ -359,7 +362,163 @@ localized_mode_name := proc(canonical: Str, lang: Str) returns Str {
     }
 }
 
-print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
+// Returns the triad type based on intervals from root to 3rd and 3rd to 5th
+// mayor: 4+3, menor: 3+4, aumentado: 4+4, disminuido: 3+3
+get_triad_type := func(interval_to_3rd: I64, interval_to_5th: I64) returns Str {
+    if interval_to_3rd.eq(4).and(interval_to_5th.eq(7)) {
+        return "mayor"
+    } else if interval_to_3rd.eq(3).and(interval_to_5th.eq(7)) {
+        return "menor"
+    } else if interval_to_3rd.eq(4).and(interval_to_5th.eq(8)) {
+        return "aumentado"
+    } else if interval_to_3rd.eq(3).and(interval_to_5th.eq(6)) {
+        return "disminuido"
+    }
+    return "?"
+}
+
+// Get the roman numeral for a scale degree (1-7)
+get_roman := func(degree: I64, triad_type: Str) returns Str {
+    mut roman := ""
+    switch degree {
+    case 1: roman = "I"
+    case 2: roman = "II"
+    case 3: roman = "III"
+    case 4: roman = "IV"
+    case 5: roman = "V"
+    case 6: roman = "VI"
+    case 7: roman = "VII"
+    case: roman = "?"
+    }
+    // Lowercase for minor/diminished
+    if triad_type.eq("menor").or(triad_type.eq("disminuido")) {
+        roman = roman.to_lowercase()
+    }
+    return roman
+}
+
+// Build triads for a scale and print them grouped by type
+print_triads := proc(root_idx: I64, root_diatonic: I64, steps: Vec, _lang: Str) {
+    // Build array of chromatic positions for each scale degree
+    mut scale_chromatic := Vec.new(I64)
+    mut scale_diatonic := Vec.new(I64)
+    mut chromatic_pos := root_idx
+    mut diatonic_pos := root_diatonic
+
+    mut k := 0
+    while k.lt(7) {
+        scale_chromatic.push(chromatic_pos)
+        scale_diatonic.push(diatonic_pos)
+        mut step := 0
+        steps.get(k, step)?
+        chromatic_pos = chromatic_pos.add(step).mod(12)
+        diatonic_pos = diatonic_pos.add(1).mod(7)
+        k = k.add(1)
+    }
+
+    // Collect triads by type
+    mut mayor_triads := Vec.new(Str)
+    mut menor_triads := Vec.new(Str)
+    mut aumentado_triads := Vec.new(Str)
+    mut disminuido_triads := Vec.new(Str)
+
+    mut degree := 0
+    while degree.lt(7) {
+        // Get chromatic positions for root, 3rd, 5th of this triad
+        mut root_chrom := 0
+        mut third_chrom := 0
+        mut fifth_chrom := 0
+        scale_chromatic.get(degree, root_chrom)?
+        scale_chromatic.get(degree.add(2).mod(7), third_chrom)?
+        scale_chromatic.get(degree.add(4).mod(7), fifth_chrom)?
+
+        // Get diatonic positions for note names
+        mut root_dia := 0
+        mut third_dia := 0
+        mut fifth_dia := 0
+        scale_diatonic.get(degree, root_dia)?
+        scale_diatonic.get(degree.add(2).mod(7), third_dia)?
+        scale_diatonic.get(degree.add(4).mod(7), fifth_dia)?
+
+        // Calculate intervals
+        mut interval_to_3rd := third_chrom.sub(root_chrom)
+        if interval_to_3rd.lt(0) {
+            interval_to_3rd = interval_to_3rd.add(12)
+        }
+        mut interval_to_5th := fifth_chrom.sub(root_chrom)
+        if interval_to_5th.lt(0) {
+            interval_to_5th = interval_to_5th.add(12)
+        }
+
+        triad_type := get_triad_type(interval_to_3rd, interval_to_5th)
+        roman := get_roman(degree.add(1), triad_type)
+
+        // Format the triad notes
+        root_note := format_note(root_dia, root_chrom)
+        third_note := format_note(third_dia, third_chrom)
+        fifth_note := format_note(fifth_dia, fifth_chrom)
+
+        mut triad_str := root_note.concat("-")
+        triad_str = triad_str.concat(third_note)
+        triad_str = triad_str.concat("-")
+        triad_str = triad_str.concat(fifth_note)
+        triad_str = triad_str.concat(" (")
+        triad_str = triad_str.concat(roman)
+        triad_str = triad_str.concat(")")
+
+        // Add to appropriate list
+        if triad_type.eq("mayor") {
+            mayor_triads.push(triad_str)
+        } else if triad_type.eq("menor") {
+            menor_triads.push(triad_str)
+        } else if triad_type.eq("aumentado") {
+            aumentado_triads.push(triad_str)
+        } else if triad_type.eq("disminuido") {
+            disminuido_triads.push(triad_str)
+        }
+
+        degree = degree.add(1)
+    }
+
+    // Print grouped by type
+    println("")
+    println("Triades:")
+
+    // Helper to print a triad list
+    print_triad_line("  Mayor: ", mayor_triads)
+    print_triad_line("  Menor: ", menor_triads)
+    print_triad_line("  Disminuido: ", disminuido_triads)
+    print_triad_line("  Aumentado: ", aumentado_triads)
+
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), err.msg)
+    }
+}
+
+print_triad_line := proc(label: Str, triads: Vec) {
+    mut line := label
+    if triads.len().eq(0) {
+        line = line.concat("-")
+    } else {
+        mut i := 0
+        while i.lt(triads.len()) {
+            if i.gt(0) {
+                line = line.concat(", ")
+            }
+            mut t := ""
+            triads.get(i, t)?
+            line = line.concat(t)
+            i = i.add(1)
+        }
+    }
+    println(line)
+
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), err.msg)
+    }
+}
+
+print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str, show_triads: Bool) {
     mut canon := canonical_mode(mode_arg)
     if canon.eq("") {
         msg := "Unknown mode: "
@@ -409,6 +568,10 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
     println(header2.concat(":"))
     println(scale_str)
 
+    if show_triads {
+        print_triads(root_idx, root_diatonic, steps, lang)
+    }
+
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), err.msg)
     }
@@ -417,23 +580,23 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str) {
 usage := proc(lang: Str) {
     mut lower_lang := lang.to_lowercase()
     if lower_lang.eq("en") {
-        println("Usage: ./bin/til music.til [-lang=pt|en|es] <mode> [root]")
+        println("Usage: ./bin/til music.til [-lang=pt|en|es] [--triades] <mode> [root]")
         println("Examples:")
         println("  ./bin/til music.til ionian do")
         println("  ./bin/til music.til -lang=en lydian fax")
-        println("  ./bin/til music.til -lang=es eolico reb")
+        println("  ./bin/til music.til --triades dorian re")
     } else if lower_lang.eq("es") {
-        println("Uso: ./bin/til music.til [-lang=pt|en|es] <modo> [raiz]")
+        println("Uso: ./bin/til music.til [-lang=pt|en|es] [--triades] <modo> [raiz]")
         println("Ejemplos:")
         println("  ./bin/til music.til jonico do")
         println("  ./bin/til music.til -lang=es lidio fax")
-        println("  ./bin/til music.til -lang=es eolico reb")
+        println("  ./bin/til music.til --triades dorico re")
     } else {  // pt
-        println("Uso: ./bin/til music.til [-lang=pt|en|es] <modo> [raiz]")
+        println("Uso: ./bin/til music.til [-lang=pt|en|es] [--triades] <modo> [raiz]")
         println("Exemplos:")
         println("  ./bin/til music.til jonio do")
         println("  ./bin/til music.til -lang=pt lidio fax")
-        println("  ./bin/til music.til -lang=es eolico reb")
+        println("  ./bin/til music.til --triades dorico re")
     }
 }
 
@@ -441,6 +604,7 @@ main := proc(args: ..Str) {
     mut lang := "pt"
     mut mode_arg := ""
     mut root_arg := "do"
+    mut show_triads := false
 
     for arg: Str in args {
         mut lower_arg := arg.to_lowercase()
@@ -461,6 +625,11 @@ main := proc(args: ..Str) {
             continue
         }
 
+        if lower_arg.eq("--triades").or(lower_arg.eq("--triads")) {
+            show_triads = true
+            continue
+        }
+
         if mode_arg.eq("") {
             mode_arg = arg
         } else if root_arg.eq("do") {
@@ -473,7 +642,7 @@ main := proc(args: ..Str) {
         return
     }
 
-    print_scale(mode_arg, root_arg, lang)
+    print_scale(mode_arg, root_arg, lang, show_triads)
 
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), err.msg)
