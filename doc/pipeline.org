@@ -13,7 +13,8 @@ The pipeline processes source code through these phases in order:
 | Mode      | Lexer          | ModeDef        | Parse mode declaration (test, script, etc) |
 | Init      | AST, Context   | Context        | Register declarations in scope             |
 | Typer     | AST, Context   | AST            | Type checking, validation, type completion |
-| Desugarer | AST, Context   | AST            | Desugar syntactic sugar constructs         |
+| Desugarer | AST, Context   | AST            | Desugar syntactic sugar (switch, for-in)   |
+| Garbager  | AST, Context   | AST            | Auto-generate delete() methods for structs |
 | UFCS      | AST, Context   | AST            | Desugar uniform function call syntax       |
 | Precomp   | AST, Context   | AST            | Const-folding, macros                      |
 | Scavenger | AST, Context   | AST            | Remove unused declarations (build only)    |
@@ -59,9 +60,15 @@ The pipeline processes source code through these phases in order:
 - Desugars syntactic sugar constructs:
   - range for: for i in 0..10 -> while loop (type from AST annotation)
   - forin: for x: T in collection -> while loop with len/get calls
-  - switch: (TODO Issue #110) switch/case on enums -> if/else chains
+  - switch: switch/case -> if/else chains (Issue #110)
 - Runs after typer because AST is annotated with resolved types
 - Entry: desugar_expr()
+
+*** Garbager (src/rs/garbager.rs, src/self/garbager.til)
+- Auto-generates delete() methods for structs that don't have one
+- Calls field.delete() for each mutable field in reverse declaration order
+- Runs after desugarer, before UFCS
+- Entry: garbager_expr()
 
 *** UFCS (src/rs/ufcs.rs, src/self/ufcs.til)
 - Desugars uniform function call syntax:
@@ -97,10 +104,10 @@ The builder (src/rs/builder.rs) and interpreter (src/rs/interpreter.rs) share
 the same phases up through scavenger, but diverge afterward:
 
 Build pipeline:
-  Lexer -> Parser -> Mode -> Init -> Typer -> Desugarer -> UFCS -> Precomp -> Scavenger -> Build -> GCC
+  Lexer -> Parser -> Mode -> Init -> Typer -> Desugarer -> Garbager -> UFCS -> Precomp -> Scavenger -> Build -> GCC
 
 Interpret pipeline:
-  Lexer -> Parser -> Mode -> Init -> Typer -> Desugarer -> UFCS -> Precomp -> Interpret
+  Lexer -> Parser -> Mode -> Init -> Typer -> Desugarer -> Garbager -> UFCS -> Precomp -> Interpret
 
 ** Import Processing
 

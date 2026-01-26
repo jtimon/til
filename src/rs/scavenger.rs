@@ -596,6 +596,11 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         return Ok(Expr::new_clone(e.node_type.clone(), e, new_params));
     }
 
+    // Switch should have been desugared before scavenger
+    if let NodeType::Switch = &e.node_type {
+        return Err(e.lang_error(&context.path, "scavenger", "Switch should have been desugared before scavenger"));
+    }
+
     // Not a Body node - return unchanged
     Ok(e.clone())
 }

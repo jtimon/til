@@ -181,6 +181,10 @@ pub fn garbager_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             };
             Ok(Expr::new_clone(NodeType::StructDef(sdef_new_struct_def), e, e.params.clone()))
         },
+        // Switch should have been desugared before garbager
+        NodeType::Switch => {
+            Err(e.lang_error(&context.path, "garbager", "Switch should have been desugared before garbager"))
+        },
         // For all other nodes, recurse into params
         _ => {
             if e.params.is_empty() {
