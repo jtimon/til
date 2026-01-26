@@ -9,6 +9,47 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #143: TIL ccodegen generates invalid C for desugared switch expressions
+:PROPERTIES:
+:DISCOVERED: 2026-01-26
+:IMPACT: til_compiled tests fail (enums.til, bug52.til, test_lexer.til)
+:STATUS: Open
+:RELATED: Issue #110
+:END:
+
+*** Description
+After porting switch desugaring from Rust to TIL (Issue #110), the TIL compiler
+generates invalid C code for desugared switch expressions. The Rust compiler
+generates correct C code.
+
+*** Symptoms
+- gcc errors: "label used but not defined", "undeclared identifier"
+- Only affects til_compiled mode (rstil generates correct C)
+- 4 test failures: bug52.til, enums.til, test_lexer.til (til_compiled)
+
+*** Root Cause (from diff)
+TIL's ccodegen generates:
+#+BEGIN_SRC c
+// Missing declaration:
+_switch_variant_0 = til_Color_to_str(...);  // undeclared!
+
+// Wrong syntax - double ampersand (label address) instead of single (variable address):
+til_enum_get_payload((til_Dynamic*)&&_tmp_foo_0, ...);  // should be &variable
+#+END_SRC
+
+While Rust's ccodegen generates:
+#+BEGIN_SRC c
+// Correct - has declaration:
+const til_Str _switch_variant_0 = til_Color_to_str(...);
+
+// Correct - single ampersand:
+til_enum_get_payload((til_Dynamic*)&til_s.color, ...);
+#+END_SRC
+
+*** Files to Investigate
+- ~src/self/desugarer.til~ - switch desugaring logic
+- ~src/self/ccodegen.til~ - C code generation for desugared if/else
+
 ** Bug #142: Remove LANG_NAME directory separation after Bug #100
 :PROPERTIES:
 :DISCOVERED: 2026-01-25
