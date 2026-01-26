@@ -731,6 +731,11 @@ Now using ~-Wall -Wextra -Werror~ with suppressions for unfixed warnings (2026-0
 To fix a warning category: remove the ~-Wno-~ flag and fix the resulting errors.
 
 *** Testing with clang locally (Issue #131)
+To build til.til with clang (this is what fails in macOS CI):
+#+begin_src bash
+./bin/rstil build src/til.til --cc=clang --force-rebuild
+#+end_src
+
 To run tests with clang instead of gcc:
 #+begin_src bash
 ./bin/rs/make tests --cc=clang
