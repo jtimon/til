@@ -1132,6 +1132,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/lists.til"))
     all_common.push(TestEntry(path="src/test/literals.til"))
     all_common.push(TestEntry(path="src/test/loops.til"))
+    all_common.push(TestEntry(path="src/test/macros.til"))
     all_common.push(TestEntry(path="src/test/maps.til"))
     all_common.push(TestEntry(path="src/test/modes.til"))
     all_common.push(TestEntry(path="src/test/mut_test.til"))

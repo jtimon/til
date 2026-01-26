@@ -100,6 +100,13 @@ impl SFuncDef {
             FunctionType::FTFunc | FunctionType::FTProc | FunctionType::FTMacro => false,
         }
     }
+
+    pub fn is_macro(self: &SFuncDef) -> bool {
+        match self.function_type {
+            FunctionType::FTMacro => true,
+            FunctionType::FTFunc | FunctionType::FTProc | FunctionType::FTFuncExt | FunctionType::FTProcExt => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

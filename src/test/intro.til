@@ -62,11 +62,11 @@ my_func_multi := func(a: Bool, b: Bool) returns Bool, Bool {
 // _a, _b := my_func_multi(true, true) // TODO multiple declarations
 // _a, _b = my_func_multi(true, true) // TODO multiple assignments
 
-// TODO treat macros differently, currently they're equivalent to procs
-my_macro := macro(a: Bool, b: Bool) returns Bool {
-    return a.and(b)
+// Macros are evaluated at compile-time (Issue #88)
+my_macro := macro(a: I64, b: I64) returns I64 {
+    return a.add(b)
 }
-test(loc(), my_macro(true, true), "my_macro(true, true) didn't return true")
+assert_eq(loc(), 7, my_macro(3, 4))
 
 my_str_func := func(a: Str) returns Str {
     return a

@@ -24,6 +24,23 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         // modules may not be available yet (import ordering). Interpreter doesn't
         // evaluate function bodies during import either.
         at_global_scope := context.scope_stack.frames.len().eq(1)
+
+        // Check if this is a macro call - macros MUST be evaluated at compile-time
+        // but only when called at global scope with comptime args (same as funcs,
+        // just with an error if args aren't comptime instead of silent skip)
+        is_macro_call := is_macro_fcall(context, const_folded)
+        if at_global_scope.and(is_macro_call) {
+            // Macros require all arguments to be compile-time evaluable
+            if not(is_comptime_evaluable(context, const_folded)) {
+                f_name := get_func_name_in_call(const_folded)?
+                throw const_folded.error(context.path, "precomp",
+                    format("Macro '", f_name, "' requires all arguments to be compile-time constants"))
+            }
+            // Force compile-time evaluation
+            const_folded = eval_comptime(context, const_folded)?
+            return const_folded
+        }
+
         if at_global_scope.and(is_comptime_evaluable(context, const_folded)) {
             const_folded = eval_comptime(context, const_folded)?
         }
@@ -82,6 +99,22 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
 }
 
 // ---------- Compile-time constant folding
+
+/// Check if an FCall is a macro call.
+is_macro_fcall := proc(context: Context, e: Expr) returns Bool {
+    mut e_clone := e.clone()
+    func_def := get_func_def_for_fcall_with_expr(context, e_clone)?
+    result := func_def.is_macro()
+
+    catch (_err: Str) {
+        return false
+    }
+    catch (_err: KeyNotFoundError) {
+        return false
+    }
+
+    return result
+}
 
 /// Check if an expression can be evaluated at compile time.
 /// Currently only handles literals and pure function calls with literal arguments.

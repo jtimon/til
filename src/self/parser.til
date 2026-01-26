@@ -195,6 +195,16 @@ SFuncDef := struct {
             return false
         }
     }
+
+    is_macro := func(self: SFuncDef) returns Bool {
+        ft := self.function_type
+        switch ft {
+        case FunctionType.FTMacro:
+            return true
+        case:
+            return false
+        }
+    }
 }
 
 SStructDef := struct {

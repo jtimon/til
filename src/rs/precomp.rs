@@ -28,11 +28,29 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::Body => precomp_body(context, e),
         NodeType::FCall(_) => {
             let mut const_folded = precomp_fcall(context, e)?;
+
             // Try compile-time constant folding for pure functions with literal args.
             // Only fold at global scope - inside function definitions, values from other
             // modules may not be available yet (import ordering). Interpreter doesn't
             // evaluate function bodies during import either.
             let at_global_scope = context.scope_stack.frames.len() == 1;
+
+            // Check if this is a macro call - macros MUST be evaluated at compile-time
+            // but only when called at global scope with comptime args (same as funcs,
+            // just with an error if args aren't comptime instead of silent skip)
+            let is_macro_call = is_macro_fcall(context, &const_folded);
+            if at_global_scope && is_macro_call {
+                // Macros require all arguments to be compile-time evaluable
+                if !is_comptime_evaluable(context, &const_folded) {
+                    let f_name = get_func_name_in_call(&const_folded);
+                    return Err(const_folded.error(&context.path, "precomp",
+                        &format!("Macro '{}' requires all arguments to be compile-time constants", f_name)));
+                }
+                // Force compile-time evaluation
+                const_folded = eval_comptime(context, &const_folded)?;
+                return Ok(const_folded);
+            }
+
             if at_global_scope && is_comptime_evaluable(context, &const_folded) {
                 const_folded = eval_comptime(context, &const_folded)?;
             }
@@ -72,6 +90,15 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 }
 
 // ---------- Compile-time constant folding
+
+/// Check if an FCall is a macro call.
+fn is_macro_fcall(context: &Context, e: &Expr) -> bool {
+    let mut e_clone = e.clone();
+    match get_func_def_for_fcall_with_expr(context, &mut e_clone) {
+        Ok(Some(func_def)) => func_def.is_macro(),
+        Ok(None) | Err(_) => false,
+    }
+}
 
 /// Check if an expression can be evaluated at compile time.
 /// Currently only handles literals and pure function calls with literal arguments.
