@@ -7,6 +7,34 @@
 
 * Fixed Bugs
 
+** Bug #129: Parser cannot handle explicit ~auto~ type annotation
+:PROPERTIES:
+:DISCOVERED: 2026-01-21
+:FIXED: 2026-01-26
+:IMPACT: Inconsistent syntax - ~a := 69~ works but ~a : auto = 69~ fails
+:STATUS: Fixed
+:END:
+
+*** Description
+The syntax ~a := 69~ is internally parsed as a Declaration with value_type="auto" (INFER_TYPE).
+However, writing ~a : auto = 69~ explicitly fails with a parse error.
+
+*** Root Cause
+In parser.rs, parse_declaration uses ~explicit_type != INFER_TYPE~ to determine whether
+to skip a type token. When user writes ~: auto~, the parser passes "auto" as explicit_type.
+Since "auto" == INFER_TYPE, the condition is false and the parser doesn't skip the type token,
+causing it to see ~=~ where it expects the value expression.
+
+*** Fix
+Added ~has_explicit_type: bool~ parameter to ~parse_declaration~ instead of relying on
+string comparison. Callers now pass ~true~ when there's a type token to skip, ~false~ otherwise.
+This decouples the token-skipping logic from the type value.
+
+*** Files Modified
+- ~src/rs/parser.rs~ - add has_explicit_type parameter, use it for advance decision
+- ~src/self/parser.til~ - port same fix to TIL parser
+- ~src/test/test_parser.til~ - update test call to pass new parameter
+
 ** Bug #141: Race condition in parallel tests - rstil and rstil_til share gen/bin directories
 :PROPERTIES:
 :DISCOVERED: 2026-01-26

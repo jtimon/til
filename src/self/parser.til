@@ -1445,9 +1445,9 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, In
         switch nntt {
         case TokenType.Identifier:
             type_name := next_next_t.token_str
-            return parse_declaration(lexer, false, false, type_name)?
+            return parse_declaration(lexer, false, false, type_name, true)?
         case TokenType.Equal:
-            return parse_declaration(lexer, false, false, INFER_TYPE)?
+            return parse_declaration(lexer, false, false, INFER_TYPE, false)?
         case:
             throw t.error(lexer.path, format("Expected Type or '=' after '", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
         }
@@ -2113,14 +2113,14 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
     throw t.error(lexer.path, "Expected '}}' to end switch.")
 }
 
-parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit_type: Str) returns Expr throws Str, IndexOutOfBoundsError {
+parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit_type: Str, has_explicit_type: Bool) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()?
     decl_name := t.token_str
     initial_current := lexer.current
 
-    lexer.advance(3)? // skip identifier, colon and equal
-    if not(explicit_type.eq(INFER_TYPE)) {
-        lexer.advance(1)? // skip type identifier
+    lexer.advance(3)? // skip identifier, colon and equal (or identifier, colon, type)
+    if has_explicit_type {
+        lexer.advance(1)? // skip equal after type token (Bug #129: use boolean, not string comparison)
     }
 
     mut params := Vec.new(Expr)
@@ -2163,9 +2163,9 @@ parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
             switch nntt {
             case TokenType.Identifier:
                 type_name := next_next_t.token_str
-                return parse_declaration(lexer, true, false, type_name)?
+                return parse_declaration(lexer, true, false, type_name, true)?
             case TokenType.Equal:
-                return parse_declaration(lexer, true, false, INFER_TYPE)?
+                return parse_declaration(lexer, true, false, INFER_TYPE, false)?
             case:
                 throw t.error(lexer.path, format("Expected a type identifier or '=' after 'mut ", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
             }

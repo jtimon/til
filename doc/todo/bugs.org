@@ -237,41 +237,6 @@ For Vec<Vec<T>>: Recursively emit inner arrays first, then outer.
 - List would need similar treatment (linked nodes -> static array)
 - Start with Vec only, extend to List/Map later if needed
 
-** Bug #129: Parser cannot handle explicit ~auto~ type annotation
-:PROPERTIES:
-:DISCOVERED: 2026-01-21
-:IMPACT: Inconsistent syntax - ~a := 69~ works but ~a : auto = 69~ fails
-:STATUS: Open
-:END:
-
-*** Description
-The syntax ~a := 69~ is internally parsed as a Declaration with value_type="auto" (INFER_TYPE).
-However, writing ~a : auto = 69~ explicitly fails with a parse error.
-
-Similarly, ~for elem: auto in collection~ parses but typer doesn't resolve the element type,
-causing type errors downstream.
-
-*** Root Cause
-In parser.rs, parse_declaration uses ~explicit_type != INFER_TYPE~ to determine whether
-to skip a type token. When user writes ~: auto~, the parser passes "auto" as explicit_type.
-Since "auto" == INFER_TYPE, the condition is false and the parser doesn't skip the type token,
-causing it to see ~=~ where it expects the value expression.
-
-The code path:
-1. ~a : auto = 69~ tokens: [a, :, auto, =, 69]
-2. Parser sees ~auto~ (Identifier), passes "auto" to parse_declaration
-3. advance(3) skips [a, :, auto], now at ~=~
-4. ~"auto" != INFER_TYPE~ is FALSE, no extra advance
-5. parse_primary() sees ~=~ instead of ~69~ -> error
-
-*** Expected Behavior
-~a : auto = 69~ should parse identically to ~a := 69~.
-
-*** Possible Fixes
-1. Use a different internal sentinel for INFER_TYPE (not "auto")
-2. Pass a boolean ~has_type_token~ to parse_declaration instead of relying on value
-3. Re-architect parsing to handle this case
-
 ** Bug #130: Unify type resolution with type checking into single pass
 :PROPERTIES:
 :DISCOVERED: 2026-01-21

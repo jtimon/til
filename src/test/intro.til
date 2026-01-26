@@ -12,6 +12,7 @@ assert_eq_str(loc(), loc(), "src/test/intro.til:5:22:") // TODO fix, the col sho
 
 AAA : Bool = true.and(false); // Explicit types are allowed in declarations, but optional
 BBB := false.or(true.and(true)) // It is a strongly typed language, but allows type inference (not in arguments yet, never in return types)
+DDD : auto = 42 // Explicit 'auto' is also allowed (Bug #129)
 // AAA := true // fails, re-declaration of user constant 'AAA'
 // AAA = false // fails, assignment to a constant, all declarations are constant by default
 mut CCC := true // variables need the mut keyword, both as variables and as arguments

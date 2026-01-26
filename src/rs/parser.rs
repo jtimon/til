@@ -1056,10 +1056,10 @@ fn parse_statement_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
             match next_next_token_type {
                 TokenType::Identifier => {
                     let type_name = &next_next_t.token_str;
-                    return parse_declaration(lexer, false, false, type_name)
+                    return parse_declaration(lexer, false, false, type_name, true)
                 }
                 TokenType::Equal => {
-                    return parse_declaration(lexer, false, false, INFER_TYPE)
+                    return parse_declaration(lexer, false, false, INFER_TYPE, false)
                 },
                 _ => {
                     Err(t.error(&lexer.path, &format!("Expected Type or '=' after '{} :' in statement, found '{:?}'.", identifier, next_next_token_type)))
@@ -1601,14 +1601,14 @@ fn parse_switch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     return Err(t.error(&lexer.path, "Expected '}}' to end switch."));
 }
 
-fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_type: &str) -> Result<Expr, String> {
+fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_type: &str, has_explicit_type: bool) -> Result<Expr, String> {
     let t = lexer.peek();
     let decl_name = &t.token_str;
     let initial_current = lexer.current;
 
-    lexer.advance(3)?; // skip identifier, colon and equal
-    if explicit_type != INFER_TYPE {
-        lexer.advance(1)?; // skip type identifier
+    lexer.advance(3)?; // skip identifier, colon and equal (or identifier, colon, type)
+    if has_explicit_type {
+        lexer.advance(1)?; // skip equal after type token (Bug #129: use boolean, not string comparison)
     }
 
     let mut params : Vec<Expr> = Vec::new();
@@ -1638,10 +1638,10 @@ fn parse_mut_declaration(lexer: &mut Lexer) -> Result<Expr, String> {
     match next_next_token_type {
         TokenType::Identifier => {
             let type_name = &next_next_t.token_str;
-            return parse_declaration(lexer, true, false, type_name)
+            return parse_declaration(lexer, true, false, type_name, true)
         }
         TokenType::Equal => {
-            return parse_declaration(lexer, true, false, INFER_TYPE)
+            return parse_declaration(lexer, true, false, INFER_TYPE, false)
         },
         _ => {
             Err(t.error(&lexer.path, &format!("Expected a type identifier or '=' after 'mut {} :' in statement, found '{:?}'.",

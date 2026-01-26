@@ -204,7 +204,7 @@ test_parse_statement_identifier := proc() {
 
 test_parse_declaration := proc() {
     mut lexer := Lexer.new("x := 42")?
-    _decl := parse_declaration(lexer, false, false, INFER_TYPE)?
+    _decl := parse_declaration(lexer, false, false, INFER_TYPE, false)?
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
