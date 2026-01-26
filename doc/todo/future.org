@@ -690,7 +690,7 @@ Also added RGB struct (with U8 r,g,b fields) test case to verify struct payloads
 |----------------+------+-----+------------------------------------------|
 | desugarer      | DONE |     | desugar_switch added                     |
 | ccodegen       | DONE |     | emit_switch + helpers removed            |
-| ufcs           |      |     | ufcs_switch to remove                    |
+| ufcs           | DONE |     | ufcs_switch removed                      |
 | precomp        |      |     | precomp_switch to remove                 |
 | interpreter    |      |     | Switch eval to remove                    |
 | typer          | KEEP | KEEP| Validation before desugaring             |
@@ -718,11 +718,12 @@ Reference: ccodegen's ~emit_switch()~ (lines ~6309-6400) already does this work.
 - ~src/self/desugarer.til~ - port same changes following rs2til.org rules strictly
 - Run ~make benchmark~ - must pass
 
-**** Step 2: Remove switch handling from ufcs (2 commits)
+**** Step 2: Remove switch handling from ufcs (2 commits) [Rust DONE]
 
-***** Commit 2a: Rust ufcs
-- ~src/rs/ufcs.rs~ - remove ~ufcs_switch()~ (lines 248-326), add panic for Switch node
-- Run ~make benchmark~ - must pass
+***** Commit 2a: Rust ufcs [DONE 2026-01-26]
+- ~src/rs/ufcs.rs~ - removed ~ufcs_switch()~ (~80 lines), Switch returns error
+- Removed unused PatternInfo import
+- All 94 tests pass
 
 ***** Commit 2b: TIL port
 - Read ~doc/rs2til.org~ and the Rust diff before porting
