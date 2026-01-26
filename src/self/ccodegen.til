@@ -8573,7 +8573,7 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                 output.push_str(switch_var)
                 output.push_str(" <= ")
                 mut else_range_end := Expr()
-            case_pattern.params.get(1, else_range_end)?
+                case_pattern.params.get(1, else_range_end)?
                 emit_expr(else_range_end, output, 0, ctx, context)?
             }
             output.push_str(") {\n")
