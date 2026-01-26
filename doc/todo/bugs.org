@@ -46,6 +46,10 @@ const til_Str _switch_variant_0 = til_Color_to_str(...);
 til_enum_get_payload((til_Dynamic*)&til_s.color, ...);
 #+END_SRC
 
+*** Likely Culprit Commit
+~c9b1252f~ - "fix: Issue #110 - desugar nested enum patterns in switch (Step 1 complete)"
+This commit added +529 lines to desugarer.til for nested enum pattern handling.
+
 *** Files to Investigate
 - ~src/self/desugarer.til~ - switch desugaring logic
 - ~src/self/ccodegen.til~ - C code generation for desugared if/else
