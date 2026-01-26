@@ -265,33 +265,41 @@ toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
 toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec {
     // Bug #99: -Wall -Wextra -Werror with suppressions for unfixed warnings.
     // Remove suppressions as warnings get fixed.
+    // Note: Some flags are GCC-only (clang doesn't recognize them)
     mut result := Vec.new(Str)
+    mut uses_clang := false
     switch target {
     case Target.MacosArm64:
         result.push("-target")
         result.push("arm64-apple-macos11")
+        uses_clang = true
     case Target.MacosX64:
         result.push("-target")
         result.push("x86_64-apple-macos10.12")
+        uses_clang = true
     case Target.Wasm32:
         result.push("--target=wasm32")
         result.push("-nostdlib")
         result.push("-Wl,--no-entry")
         result.push("-Wl,--export-all")
+        uses_clang = true
     case Target.TempleosX86:
         panic(loc(), "HolyC doesn't support these flags")
     case:
-        // No target-specific flags needed
+        // Linux/Windows use gcc
     }
-    // Common flags for all targets
+    // Common flags for all targets (work on both gcc and clang)
     result.push("-Wall")
     result.push("-Wextra")
     result.push("-Werror")
     // Suppressions for unfixed warnings (Bug #99):
     result.push("-Wno-unused-variable")           // 1514 occurrences
-    result.push("-Wno-dangling-pointer")          // 971 occurrences (high priority to fix)
     result.push("-Wno-unused-but-set-variable")   // 386 occurrences
     result.push("-Wno-unused-label")              // 153 occurrences
+    // GCC-only flags (clang doesn't recognize these)
+    if not(uses_clang) {
+        result.push("-Wno-dangling-pointer")          // 971 occurrences (high priority to fix) - GCC only
+    }
     return result
 }
 

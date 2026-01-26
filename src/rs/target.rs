@@ -149,20 +149,25 @@ pub fn toolchain_command(target: &Target, lang: &Lang) -> Result<&'static str, S
 pub fn toolchain_extra_args(target: &Target, _lang: &Lang) -> Vec<&'static str> {
     // Bug #99: -Wall -Wextra -Werror with suppressions for unfixed warnings.
     // Remove suppressions as warnings get fixed.
+    // Note: Some flags are GCC-only (clang doesn't recognize them)
     let common: &[&str] = &[
         "-Wall", "-Wextra", "-Werror",
         // Suppressions for unfixed warnings (Bug #99):
         "-Wno-unused-variable",           // 1514 occurrences
-        "-Wno-dangling-pointer",          // 971 occurrences (high priority to fix)
         "-Wno-unused-but-set-variable",   // 386 occurrences
         "-Wno-unused-label",              // 153 occurrences
     ];
+    let gcc_only: &[&str] = &[
+        "-Wno-dangling-pointer",          // 971 occurrences (high priority to fix) - GCC only
+    ];
     match target {
+        // macOS and wasm use clang - don't include gcc-only flags
         Target::MacosArm64 => [&["-target", "arm64-apple-macos11"], common].concat(),
         Target::MacosX64 => [&["-target", "x86_64-apple-macos10.12"], common].concat(),
         Target::Wasm32 => [&["--target=wasm32", "-nostdlib", "-Wl,--no-entry", "-Wl,--export-all"], common].concat(),
         Target::TempleosX86 => todo!("HolyC doesn't support these flags"),
-        _ => common.to_vec(),
+        // Linux and Windows use gcc - include gcc-only flags
+        _ => [common, gcc_only].concat(),
     }
 }
 
