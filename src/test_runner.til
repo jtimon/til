@@ -4,6 +4,9 @@ mode cli
 import("std.sys")
 import("std.io")
 
+// Global flag: --cc=COMPILER override (Issue #131)
+mut g_cc := ""
+
 // test_runner.til - Single test executor
 // Called by tests.til for parallel execution
 //
@@ -106,16 +109,23 @@ format_expected := func(cmd_args: Str, exit_code: I64, output: Str) returns Str 
 
 // Get command prefix for mode
 // Bug #141: Use bin/rs/til (til built by rstil) for til modes
+// Issue #131: Include --cc flag for compiled modes
 get_cmd_prefix := func(test_mode: Str) returns Str {
+    // Build --cc suffix for compiled modes
+    mut cc_suffix := ""
+    if not(g_cc.is_empty()) {
+        cc_suffix = concat(" --cc=", g_cc)
+    }
+
     switch test_mode {
     case "rs_interpreted":
         return "./bin/rstil interpret "
     case "rs_compiled":
-        return "./bin/rstil run "
+        return concat("./bin/rstil run", cc_suffix).concat(" ")
     case "til_interpreted":
         return "./bin/rs/til interpret "
     case "til_compiled":
-        return "./bin/rs/til run "
+        return concat("./bin/rs/til run", cc_suffix).concat(" ")
     case:
         return ""
     }
@@ -284,15 +294,19 @@ main := proc(args: ..Str) {
 
     expected_status := expected_status_str.to_i64()
 
-    // Collect extra args into single string
+    // Collect extra args into single string, filtering out --cc= (Issue #131)
     mut cmd_args := ""
     for i in 5..args.len() {
         mut arg := ""
         args.get(i, arg)?
-        if cmd_args.len().gt(0) {
-            cmd_args = cmd_args.concat(" ")
+        if arg.starts_with("--cc=") {
+            g_cc = arg.get_substr(5, arg.len())?
+        } else {
+            if cmd_args.len().gt(0) {
+                cmd_args = cmd_args.concat(" ")
+            }
+            cmd_args = cmd_args.concat(arg)
         }
-        cmd_args = cmd_args.concat(arg)
     }
 
     switch command {

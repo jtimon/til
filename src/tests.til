@@ -12,6 +12,9 @@ mut g_force_rebuild := false
 // Global flag: run only Rust-based tests, skip all TIL self-hosted modes (set by --rust-only arg)
 mut g_rust_only := false
 
+// Global flag: --cc=COMPILER override (Issue #131)
+mut g_cc := ""
+
 // tests.til - TIL test runner
 // Runs compiled tests and compares output against .out files
 
@@ -296,7 +299,12 @@ get_actual_path := func(path: Str, test_mode: Str, cmd_args: Str) returns Str {
 // Output is redirected to a result file for later reading
 spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns RunningTest throws SpawnError {
     // Build command: ./bin/rs/test_runner test <mode> <out_mode> <expected_status> <file> [args...]
-    mut cmd := format("./bin/rs/test_runner test ", phase.test_mode, " ", phase.out_mode, " ", entry.expected_status.to_str(), " ", entry.path)
+    // Issue #131: Pass --cc flag to test_runner
+    mut cc_flag := ""
+    if not(g_cc.is_empty()) {
+        cc_flag = concat(" --cc=", g_cc)
+    }
+    mut cmd := format("./bin/rs/test_runner test ", phase.test_mode, " ", phase.out_mode, " ", entry.expected_status.to_str(), " ", entry.path, cc_flag)
     if entry.cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
@@ -518,7 +526,12 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
                         mut next_phase := TestPhase()
                         phases.get(next_phase_idx, next_phase)?
 
-                        mut cmd := format("./bin/rs/test_runner test ", next_phase.test_mode, " ", next_phase.out_mode, " ", current.entry.expected_status.to_str(), " ", current.entry.path)
+                        // Issue #131: Pass --cc flag to test_runner
+                        mut cc_flag := ""
+                        if not(g_cc.is_empty()) {
+                            cc_flag = concat(" --cc=", g_cc)
+                        }
+                        mut cmd := format("./bin/rs/test_runner test ", next_phase.test_mode, " ", next_phase.out_mode, " ", current.entry.expected_status.to_str(), " ", current.entry.path, cc_flag)
                         if current.entry.cmd_args.len().gt(0) {
                             cmd = cmd.concat(" ").concat(current.entry.cmd_args)
                         }
@@ -959,7 +972,12 @@ test_til_common := proc(entry: TestEntry, mut interpret_ms: I64, mut compile_ms:
 }
 
 regen_test := proc(entry: TestEntry) {
-    mut cmd := format("./bin/rs/test_runner regen rs_interpreted rs_interpreted ", entry.expected_status.to_str(), " ", entry.path)
+    // Issue #131: Pass --cc flag to test_runner
+    mut cc_flag := ""
+    if not(g_cc.is_empty()) {
+        cc_flag = concat(" --cc=", g_cc)
+    }
+    mut cmd := format("./bin/rs/test_runner regen rs_interpreted rs_interpreted ", entry.expected_status.to_str(), " ", entry.path, cc_flag)
     if entry.cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
@@ -969,7 +987,12 @@ regen_test := proc(entry: TestEntry) {
 }
 
 regen_test_compiled := proc(entry: TestEntry) {
-    mut cmd := format("./bin/rs/test_runner regen rs_compiled rs_compiled ", entry.expected_status.to_str(), " ", entry.path)
+    // Issue #131: Pass --cc flag to test_runner
+    mut cc_flag := ""
+    if not(g_cc.is_empty()) {
+        cc_flag = concat(" --cc=", g_cc)
+    }
+    mut cmd := format("./bin/rs/test_runner regen rs_compiled rs_compiled ", entry.expected_status.to_str(), " ", entry.path, cc_flag)
     if entry.cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
@@ -979,7 +1002,12 @@ regen_test_compiled := proc(entry: TestEntry) {
 }
 
 regen_test_til := proc(entry: TestEntry) {
-    mut cmd := format("./bin/rs/test_runner regen til_interpreted til_interpreted ", entry.expected_status.to_str(), " ", entry.path)
+    // Issue #131: Pass --cc flag to test_runner
+    mut cc_flag := ""
+    if not(g_cc.is_empty()) {
+        cc_flag = concat(" --cc=", g_cc)
+    }
+    mut cmd := format("./bin/rs/test_runner regen til_interpreted til_interpreted ", entry.expected_status.to_str(), " ", entry.path, cc_flag)
     if entry.cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
@@ -989,7 +1017,12 @@ regen_test_til := proc(entry: TestEntry) {
 }
 
 regen_test_til_compiled := proc(entry: TestEntry) {
-    mut cmd := format("./bin/rs/test_runner regen til_compiled til_compiled ", entry.expected_status.to_str(), " ", entry.path)
+    // Issue #131: Pass --cc flag to test_runner
+    mut cc_flag := ""
+    if not(g_cc.is_empty()) {
+        cc_flag = concat(" --cc=", g_cc)
+    }
+    mut cmd := format("./bin/rs/test_runner regen til_compiled til_compiled ", entry.expected_status.to_str(), " ", entry.path, cc_flag)
     if entry.cmd_args.len().gt(0) {
         cmd = cmd.concat(" ").concat(entry.cmd_args)
     }
@@ -1038,6 +1071,9 @@ main := proc(args: ..Str) {
             g_force_rebuild = true
         } else if arg.eq("--rust-only") {
             g_rust_only = true
+        } else if arg.starts_with("--cc=") {
+            // Issue #131: --cc=COMPILER override
+            g_cc = arg.get_substr(5, arg.len())?
         } else {
             remaining_args.push(arg)
         }

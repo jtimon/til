@@ -3818,7 +3818,19 @@ Added ~--cc=COMPILER~ flag to rstil and til:
 - Default remains gcc on Linux/Windows, clang on macOS
 - Compiler-specific warning flags handled automatically:
   - GCC-only: ~-Wno-dangling-pointer~
-  - Clang-only: ~-Wno-sometimes-uninitialized~
+  - Clang-only: ~-Wno-sometimes-uninitialized~, ~-Wno-self-assign~,
+    ~-Wno-c23-extensions~, ~-Wno-uninitialized~
+
+*** Usage
+To run tests with clang locally:
+#+begin_src bash
+./bin/rs/make tests --cc=clang
+#+end_src
+
+Note: Using ~./make.til tests --cc=clang~ does NOT work because the shebang
+(~#!/usr/bin/env -S ./bin/rstil run~) causes rstil to consume the ~--cc=~ flag
+for its own compilation rather than passing it to the make.til program.
+Use the compiled binary ~./bin/rs/make~ directly instead.
 
 *** Files Modified
 - ~src/rstil.rs~ - parse ~--cc=~ flag, pass to build functions
@@ -3827,6 +3839,9 @@ Added ~--cc=COMPILER~ flag to rstil and til:
 - ~src/til.til~ - parse ~--cc=~ flag, pass to build functions
 - ~src/self/builder.til~ - accept cc parameter, use if provided
 - ~src/self/target.til~ - add ~is_clang()~ helper, update ~toolchain_extra_args~
+- ~make.til~ - parse ~--cc=~ flag, pass to build and test commands
+- ~src/tests.til~ - parse ~--cc=~ flag, pass to test_runner
+- ~src/test_runner.til~ - parse ~--cc=~ flag, add to compiled test commands
 
 ** Issue #116: Refactor Str to use len/cap pattern
 :PROPERTIES:

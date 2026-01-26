@@ -712,14 +712,32 @@ Audit of generated C code with ~gcc -Wall -Wextra~:
 5. Remove suppressions one by one as each warning category is fixed
 
 *** Current Build Flags (target.rs/til)
-Now using ~-Wall -Wextra -Werror~ with suppressions for unfixed warnings (2026-01-25):
+Now using ~-Wall -Wextra -Werror~ with suppressions for unfixed warnings (2026-01-26):
+
+**** Common flags (both gcc and clang)
 - ~-Wno-unused-variable~ (1514 occurrences)
 - ~-Wno-unused-but-set-variable~ (386 occurrences)
 - ~-Wno-unused-label~ (153 occurrences)
-- ~-Wno-dangling-pointer~ (971 occurrences) - GCC only, high priority to fix
-- ~-Wno-sometimes-uninitialized~ - clang only, exception control flow paths
+
+**** GCC-only flags
+- ~-Wno-dangling-pointer~ (971 occurrences) - high priority to fix
+
+**** Clang-only flags
+- ~-Wno-sometimes-uninitialized~ - exception control flow paths
+- ~-Wno-self-assign~ - til_result = til_result patterns in generated code
+- ~-Wno-c23-extensions~ - unnamed parameters in function definitions
+- ~-Wno-uninitialized~ - variable used before initialization in some paths
 
 To fix a warning category: remove the ~-Wno-~ flag and fix the resulting errors.
+
+*** Testing with clang locally (Issue #131)
+To run tests with clang instead of gcc:
+#+begin_src bash
+./bin/rs/make tests --cc=clang
+#+end_src
+
+Note: ~./make.til tests --cc=clang~ does NOT work because the shebang causes
+rstil to consume the flag. Use the compiled binary ~./bin/rs/make~ directly.
 
 *** Additional Fix: Null byte escaping in ccodegen (2026-01-13)
 GCC 13 errors on raw null bytes in string literals. Fixed emit_str_literal() in

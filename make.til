@@ -11,6 +11,18 @@ import("core.vec")
 // Used to pass --force-rebuild to tests
 mut g_compiler_changed := false
 
+// Global flag: --cc=COMPILER override (Issue #131)
+// Empty string means use default
+mut g_cc := ""
+
+// Get --cc flag string for commands (returns "" if not set, " --cc=X" if set)
+get_cc_flag := func() returns Str {
+    if g_cc.is_empty() {
+        return ""
+    }
+    return concat(" --cc=", g_cc)
+}
+
 // Run command with streaming output (prints as it goes)
 run_stream_cmd := proc(cmd: Str) returns I64 {
     println(cmd)
@@ -83,14 +95,15 @@ build_rstil_til := proc() {
     deps.push("bin/rstil")
     mut status := 0
     status = run_stream_cmd("mkdir -p bin/rs")
+    cc_flag := get_cc_flag()
     if needs_rebuild("bin/rs/til", deps) {
         // Compiler changed - force rebuild (automatic tracking wouldn't catch this)
         // Also set global flag so tests know to force rebuild
         g_compiler_changed = true
-        status = run_stream_cmd("./bin/rstil build src/til.til --force-rebuild")
+        status = run_stream_cmd(concat("./bin/rstil build src/til.til --force-rebuild", cc_flag))
     } else {
         // Compiler unchanged - let automatic .til dep tracking decide
-        status = run_stream_cmd("./bin/rstil build src/til.til")
+        status = run_stream_cmd(concat("./bin/rstil build src/til.til", cc_flag))
     }
     if status.eq(0).not() {
         exit(1)
@@ -117,7 +130,7 @@ build_test_runner := proc() {
     // .til dependency tracking is automatic via `rstil build`
     // Bug #141: rstil outputs to bin/rs/
     mut status := 0
-    status = run_stream_cmd("./bin/rstil build src/test_runner.til")
+    status = run_stream_cmd(concat("./bin/rstil build src/test_runner.til", get_cc_flag()))
     if status.eq(0).not() {
         exit(1)
     }
@@ -127,7 +140,7 @@ build_tests := proc() {
     build_test_runner()  // tests.til spawns test_runner for each test
     // .til dependency tracking is automatic via `rstil build`
     mut status := 0
-    status = run_stream_cmd("./bin/rstil build src/tests.til")
+    status = run_stream_cmd(concat("./bin/rstil build src/tests.til", get_cc_flag()))
     if status.eq(0).not() {
         exit(1)
     }
@@ -139,10 +152,12 @@ run_tests := proc() {
     // Pass --force-rebuild to tests if compiler changed
     // This ensures tests rebuild when rstil changed, even if test .til files didn't
     // Bug #141: rstil outputs to bin/rs/ and gen/rs/c/
+    // Issue #131: Pass --cc flag to tests
+    cc_flag := get_cc_flag()
     if g_compiler_changed {
-        status = run_stream_cmd("./bin/rs/tests --force-rebuild")
+        status = run_stream_cmd(concat("./bin/rs/tests --force-rebuild", cc_flag))
     } else {
-        status = run_stream_cmd("./bin/rs/tests")
+        status = run_stream_cmd(concat("./bin/rs/tests", cc_flag))
     }
     tests_status := status
     status = run_stream_cmd("cp gen/rs/c/test/constfold.c src/test/constfold.c")
@@ -157,10 +172,12 @@ run_regen := proc() {
     mut status := 0
     // Pass --force-rebuild to regen if compiler changed
     // Bug #141: rstil outputs to bin/rs/
+    // Issue #131: Pass --cc flag to tests
+    cc_flag := get_cc_flag()
     if g_compiler_changed {
-        status = run_stream_cmd("./bin/rs/tests --force-rebuild regen")
+        status = run_stream_cmd(concat("./bin/rs/tests --force-rebuild", cc_flag).concat(" regen"))
     } else {
-        status = run_stream_cmd("./bin/rs/tests regen")
+        status = run_stream_cmd(concat("./bin/rs/tests", cc_flag).concat(" regen"))
     }
     println("Regenerated all test outputs")
     if status.eq(0).not() {
@@ -226,12 +243,27 @@ run_diff := proc(file_path: Str) {
 
 main := proc(args: ..Str) {
     if args.len().eq(0) {
-        println("Usage: make.til <target> [args]")
+        println("Usage: make.til <target> [options]")
         println("Available targets: clean, rstil, repl, rstil_til, til_til, til_debug, tests, regen, benchmark, test-cross, diff <file>, diff_til")
+        println("Options: --cc=COMPILER (e.g., --cc=clang)")
+        exit(1)
+    }
+    // Parse --cc= option (Issue #131)
+    mut remaining_args := Vec.new(Str)
+    for arg: Str in args {
+        if arg.starts_with("--cc=") {
+            g_cc = arg.get_substr(5, arg.len())?
+        } else {
+            remaining_args.push(arg)
+        }
+    }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    if remaining_args.len().eq(0) {
+        println("Usage: make.til <target> [options]")
         exit(1)
     }
     mut target := ""
-    args.get(0, target)?
+    remaining_args.get(0, target)?
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
     switch target {
     case "clean":
