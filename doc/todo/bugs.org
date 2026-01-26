@@ -9,6 +9,26 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #142: Remove LANG_NAME directory separation after Bug #100
+:PROPERTIES:
+:DISCOVERED: 2026-01-25
+:IMPACT: Cleanup - simplify directory structure once single compiler
+:STATUS: Blocked by Bug #100
+:RELATED: Bug #141
+:END:
+
+*** Description
+Bug #141 adds separate directories for rstil and rstil_til (e.g., ~gen/rs/~ vs ~gen/til/~)
+to fix parallel test race conditions.
+
+Once Bug #100 is complete (rstil removed, only TIL compiler remains), this separation
+becomes unnecessary. This bug tracks reverting to the simpler flat structure:
+- ~gen/c/~ instead of ~gen/til/c/~
+- ~bin/~ instead of ~bin/til/~
+
+*** When to Do This
+After Bug #100 is complete and rstil is fully removed.
+
 ** Bug #141: Race condition in parallel tests - rstil and rstil_til share gen/bin directories
 :PROPERTIES:
 :DISCOVERED: 2026-01-25
@@ -641,6 +661,7 @@ Currently we rely on rustc to catch these. Once rstil is gone, TIL needs this it
 :DISCOVERED: 2026-01-12
 :IMPACT: Remove dependency on Rust implementation
 :STATUS: Blocked
+:RELATED: Bug #141 (parallel test race condition), Bug #142 (cleanup after completion)
 :END:
 
 *** Description
@@ -683,6 +704,8 @@ can finally be idiomatic Til instead of "Til that looks like Rust."
   - Two fewer dependencies: rustc and make gone, only gcc remains
 - [ ] Verify feature parity: all modes work (interpret, run, build, translate, repl)
 - [X] Bug #102: Automatic dependency tracking from imports (Fixed 2026-01-16)
+- [ ] Bug #141: Race condition in parallel tests - rstil and rstil_til share gen/bin directories
+- [ ] Bug #142: Remove LANG_NAME directory separation after Bug #100 (post-completion cleanup)
 - [ ] Decide on acceptable performance and binary size criteria
   - Current state:
     - Size: til 2.3M vs rstil 6.8M
