@@ -692,7 +692,7 @@ Also added RGB struct (with U8 r,g,b fields) test case to verify struct payloads
 | ccodegen       | DONE |     | emit_switch + helpers removed            |
 | ufcs           | DONE |     | ufcs_switch removed                      |
 | precomp        | DONE |     | precomp_switch removed                   |
-| interpreter    |      |     | Switch eval to remove                    |
+| interpreter    | DONE |     | Switch eval removed (~360 lines)         |
 | typer          | KEEP | KEEP| Validation before desugaring             |
 
 *** Implementation Plan
@@ -742,11 +742,12 @@ Reference: ccodegen's ~emit_switch()~ (lines ~6309-6400) already does this work.
 - ~src/self/precomp.til~ - port same changes following rs2til.org rules strictly
 - Run ~make benchmark~ - must pass
 
-**** Step 4: Remove switch handling from interpreter (2 commits)
+**** Step 4: Remove switch handling from interpreter (2 commits) [Rust DONE]
 
-***** Commit 4a: Rust interpreter
-- ~src/rs/interpreter.rs~ - remove switch evaluation (lines 462-~600), add panic for Switch node
-- Run ~make benchmark~ - must pass
+***** Commit 4a: Rust interpreter [DONE 2026-01-26]
+- ~src/rs/interpreter.rs~ - removed switch evaluation (~360 lines), Switch returns error
+- Removed unused PatternInfo import
+- All 94 tests pass
 
 ***** Commit 4b: TIL port
 - Read ~doc/rs2til.org~ and the Rust diff before porting
