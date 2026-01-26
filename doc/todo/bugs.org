@@ -714,9 +714,10 @@ Audit of generated C code with ~gcc -Wall -Wextra~:
 *** Current Build Flags (target.rs/til)
 Now using ~-Wall -Wextra -Werror~ with suppressions for unfixed warnings (2026-01-25):
 - ~-Wno-unused-variable~ (1514 occurrences)
-- ~-Wno-dangling-pointer~ (971 occurrences) - high priority to fix
 - ~-Wno-unused-but-set-variable~ (386 occurrences)
 - ~-Wno-unused-label~ (153 occurrences)
+- ~-Wno-dangling-pointer~ (971 occurrences) - GCC only, high priority to fix
+- ~-Wno-sometimes-uninitialized~ - clang only, exception control flow paths
 
 To fix a warning category: remove the ~-Wno-~ flag and fix the resulting errors.
 

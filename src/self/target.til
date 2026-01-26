@@ -300,6 +300,10 @@ toolchain_extra_args := func(target: Target, _lang: Lang) returns Vec {
     if not(uses_clang) {
         result.push("-Wno-dangling-pointer")          // 971 occurrences (high priority to fix) - GCC only
     }
+    // Clang-only flags
+    if uses_clang {
+        result.push("-Wno-sometimes-uninitialized")   // clang-specific warning about exception control flow
+    }
     return result
 }
 
