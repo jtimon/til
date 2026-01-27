@@ -600,8 +600,9 @@ val: I64 = vec.get(0)  // direct return
 :PROPERTIES:
 :DISCOVERED: 2026-01-13
 :IMPACT: Simplify interpreter and ccodegen, reduce internal complexity
-:STATUS: Open
-:RELATED: ccodegen payload hoisting, Issue #111 (enum_payload nicer with returns Dynamic)
+:STATUS: In Progress (blocked by Bug #143 or #144)
+:BRANCH: wip110final
+:RELATED: Bug #143, Bug #144, Issue #111 (enum_payload nicer with returns Dynamic)
 :END:
 
 *** Description
@@ -663,6 +664,37 @@ enum_payload := ext_func(e: Dynamic, payload_type: Type) returns Dynamic {}
 Merged commit ~08865594~ (enum_get_payload branch) providing:
 - ~enum_get_payload(e: Dynamic, payload_type: Type, mut out: Dynamic)~ ext_func
 - ~test_color_match_if~ in enums.til - working reference implementation
+
+*** Switch desugaring implementation [IN PROGRESS]
+Branch: ~wip110final~
+
+**** Rust desugarer changes [DONE]
+The Rust desugarer (~src/rs/desugarer.rs~) correctly implements switch-to-if/else:
+- ~desugar_switch~: Entry point, handles enum vs non-enum cases
+- ~build_non_enum_if_chain~: Builds if/else chain for non-enum switches
+- ~build_non_enum_case_condition_and_body~: Handles Range, Pattern, default cases
+- ~build_enum_if_chain~: Builds if/else chain for enum switches with payload extraction
+- Range cases: ~gteq(x, start).and(lteq(x, end))~
+- Enum cases: ~enum_to_str(x).eq("Type.Variant")~ with ~enum_get_payload~ for payloads
+
+**** TIL desugarer port [BLOCKED by Bug #143 or #144]
+Cannot port to ~src/self/desugarer.til~ because:
+- Desugarer creates multiple expressions with same line/col (from switch statement)
+- TIL ccodegen uses ~line*1000000+col~ as hoisted_exprs key
+- These expressions collide, causing hoisting failures and segfaults
+
+Two paths to unblock:
+1. **Bug #143**: Redesign hoisted_exprs identity mechanism (unique IDs, explicit passing,
+   or single-pass approach)
+2. **Bug #144**: Fix for-in to iterate by reference instead of copy. This would make
+   ~to_ptr(expr)~ return consistent addresses, allowing the Rust memory-address approach
+   to work in TIL too (simpler fix, also improves performance)
+
+**** Tests
+- 92/94 tests pass with Rust compiler
+- 2/94 fail with TIL compiler (til_compiled mode) due to Bug #143:
+  - ~src/test/test_lexer.til~ - segfault
+  - ~src/test/enums.til~ - segfault (via hoisting failures)
 
 *** enum_get_payload fix for nested enums [DONE]
 The original ~enum_get_payload~ implementation only worked for primitives (Bool, I64, Str)
