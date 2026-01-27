@@ -13,8 +13,8 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :PROPERTIES:
 :DISCOVERED: 2026-01-27
 :IMPACT: til_interpreted crashes when func returns Vec used in global initialization
-:STATUS: Open
-:REPRODUCER: See tmp/test_global_init.til
+:STATUS: Open - regression on branch current133, not present on master
+:REPRODUCER: See src/test/test_bug133.til (run on branch current133)
 :RELATED: Bug #133 (similar workaround, different root cause)
 :END:
 
@@ -22,21 +22,33 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 When a ~func~ returns a Vec and is used in global initialization, til_interpreted
 fails with "Ptr.new_by_size: invalid size" while rs_interpreted works correctly.
 
-*** Test Results
+NOTE: This bug is a regression introduced by changes on branch ~current133~.
+On master, til_interpreted works fine for this case. The bug only manifests
+after applying the Bug #133 fix.
+
+*** Test Results on master
 #+BEGIN_SRC
 create_data := func() returns Vec { ... }
 data := create_data()  // Global initialization
 
 rs_interpreted:  PASS
-rs_compiled:     PASS
-til_interpreted: FAIL ("Ptr.new_by_size: invalid size")
-til_compiled:    PASS
+rs_compiled:     SEGFAULT (Bug #133)
+til_interpreted: PASS
+til_compiled:    SEGFAULT (Bug #133)
+#+END_SRC
+
+*** Test Results on branch current133
+#+BEGIN_SRC
+rs_interpreted:  PASS
+rs_compiled:     PASS (Bug #133 fix works)
+til_interpreted: FAIL ("Ptr.new_by_size: invalid size") <-- Bug #145
+til_compiled:    PASS (Bug #133 fix works)
 #+END_SRC
 
 *** Root Cause
-Unknown. The TIL interpreter handles func return values differently during module
-initialization than the Rust interpreter. May be related to precomputation attempts
-in the TIL interpreter that don't exist in the Rust version.
+Unknown. The Bug #133 fix changed something in how precomputation or initialization
+works. The TIL interpreter on branch current133 handles func return values differently
+during module initialization than the Rust interpreter.
 
 *** Workaround
 Use ~proc~ instead of ~func~ for functions that return Vec and are called during
@@ -266,7 +278,7 @@ See commit 5031b866 which fixed the symptom by using Ptr() instead of NULL.
 :DISCOVERED: 2026-01-22
 :IMPACT: Compiled programs crash/segfault when using precomputed collections
 :STATUS: Partial - Steps 1-4 done for simple types; Vec<Vec<T>>, List, Map still broken
-:REPRODUCER: rstil run src/examples/music.til jonio do (mode_intervals is Vec<Vec<I64>>)
+:REPRODUCER: src/test/test_bug133.til (segfaults in compiled modes on master)
 :RELATED: Bug #145 (similar issue in til_interpreted mode)
 :BRANCH: current133
 :END:

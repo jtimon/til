@@ -1,0 +1,41 @@
+// Test for Bug #133: Precomputed heap values have invalid pointers at runtime
+// func returning Vec in global initialization triggers the bug in compiled modes
+//
+// Expected on master:
+//   rs_interpreted:  PASS
+//   rs_compiled:     SEGFAULT (Bug #133 - precomputed Vec has invalid pointers)
+//   til_interpreted: PASS
+//   til_compiled:    SEGFAULT (Bug #133)
+//
+// Workaround: Change func to proc (prevents precomputation)
+
+mode cli
+
+// func that returns Vec - triggers Bug #133 when used in global init
+create_data := func() returns Vec {
+    mut v := Vec.new(Str)
+    v.push("hello")
+    v.push("world")
+    return v
+}
+
+// Global initialization - this is what triggers the bug
+data := create_data()
+
+main := proc() {
+    println("data len: ", data.len().to_str())
+
+    mut item := ""
+    data.get(0, item)?
+    println("data[0]: ", item)
+
+    data.get(1, item)?
+    println("data[1]: ", item)
+
+    println("Bug #133 test PASSED")
+
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR: ", err.msg)
+        exit(1)
+    }
+}
