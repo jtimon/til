@@ -3,6 +3,7 @@ mode liba
 import("std.arena")
 import("self.init")
 import("self.parser")
+import("self.ext")  // for byte_to_str
 
 // EvalArena: Memory management for the TIL interpreter
 // Extracted from interpreter.rs to enable incremental translation to TIL.
@@ -36,6 +37,19 @@ EnumInsertResult := struct {
     mut mapping_name: Str = ""
     mut mapping_offset: I64 = 0
     mut enum_val: EnumVal = EnumVal()
+}
+
+// Bug #133: Structs for extracting heap contents for serialization to static arrays
+// Contents of a Vec for serialization to static C arrays
+VecContents := struct {
+    mut element_type_name: Str = ""
+    mut type_size: I64 = 0
+    mut element_bytes: Vec = Vec.new(Vec)  // Vec of Vec<U8> (each inner Vec is raw bytes of one element)
+}
+
+// Contents of a Str for serialization
+StrContents := struct {
+    mut string_data: Str = ""
 }
 
 EvalArena := struct {
@@ -1411,6 +1425,129 @@ EvalArena := struct {
         }
 
         return result
+    }
+
+    // ============================================================
+    // Bug #133: Extract heap contents for serialization to static arrays
+    // ============================================================
+
+    // Extract the contents of a Vec instance from arena memory.
+    // Returns the element type name, size, and raw bytes for each element.
+    extract_vec_contents := func(ctx: Context, instance_name: Str) returns VecContents throws Str {
+        // Get Vec base offset
+        mut vec_offset := 0
+        vec_offset = ctx.scope_stack.lookup_var(instance_name)?
+        catch (err: KeyNotFoundError) {
+            throw format("extract_vec_contents: instance '", instance_name, "' not found")
+        }
+
+        // Vec layout: type_name (Str), type_size (I64), ptr (Ptr), _len (I64), cap (I64)
+        // Get sizes
+        str_size := ctx.get_type_size("Str")?
+        ptr_size := ctx.get_type_size("Ptr")?
+
+        // Read type_name (Str) - need to extract the string value
+        type_name_str := EvalArena.extract_str_at_offset(ctx, vec_offset)?
+
+        // Read type_size (I64) - after Str
+        type_size_offset := vec_offset.add(str_size)
+        mut type_size := 0
+        memcpy(to_ptr(type_size), g_arena.get(type_size_offset, 8), 8)
+
+        // Read ptr.data (I64) - after type_size
+        ptr_offset := type_size_offset.add(8)
+        mut data_ptr := 0
+        memcpy(to_ptr(data_ptr), g_arena.get(ptr_offset, 8), 8)
+
+        // Read _len (I64) - after ptr (Ptr is 16 bytes: data + is_borrowed)
+        vec_len_offset := ptr_offset.add(ptr_size)
+        mut vec_len := 0
+        memcpy(to_ptr(vec_len), g_arena.get(vec_len_offset, 8), 8)
+
+        // Extract element bytes
+        mut element_bytes := Vec.new(Vec)
+        for elem_i in 0..vec_len {
+            elem_offset := data_ptr.add(elem_i.mul(type_size))
+            mut bytes := Vec.new(U8)
+            for byte_j in 0..type_size {
+                mut byte_val : U8 = 0
+                memcpy(to_ptr(byte_val), g_arena.get(elem_offset.add(byte_j), 1), 1)
+                bytes.push(byte_val)
+            }
+            element_bytes.push(bytes)
+        }
+
+        result := VecContents(
+            element_type_name=type_name_str,
+            type_size=type_size,
+            element_bytes=element_bytes
+        )
+        return result
+    }
+
+    // Extract string data from a Str at a given offset.
+    // Used by extract_vec_contents for type_name and for Vec<Str> elements.
+    extract_str_at_offset := func(ctx: Context, str_offset: I64) returns Str throws Str {
+        // Str layout: c_string (Ptr), _len (I64), cap (I64)
+        ptr_size := ctx.get_type_size("Ptr")?
+
+        // Read c_string.data (first field of Ptr)
+        mut c_string_ptr := 0
+        memcpy(to_ptr(c_string_ptr), g_arena.get(str_offset, 8), 8)
+
+        // Read _len (I64) - after c_string Ptr
+        str_len_offset := str_offset.add(ptr_size)
+        mut str_len := 0
+        memcpy(to_ptr(str_len), g_arena.get(str_len_offset, 8), 8)
+
+        // Read the actual string bytes
+        if c_string_ptr.eq(0).or(str_len.eq(0)) {
+            return ""
+        }
+        mut result := ""
+        for char_i in 0..str_len {
+            mut byte_val : U8 = 0
+            memcpy(to_ptr(byte_val), g_arena.get(c_string_ptr.add(char_i), 1), 1)
+            result = result.concat(byte_to_str(byte_val))
+        }
+        return result
+    }
+
+    // Check if a type requires heap serialization (contains Ptr fields that point to heap data)
+    type_needs_heap_serialization := func(ctx: Context, type_name: Str) returns Bool {
+        if type_name.eq("Vec").or(type_name.eq("List")) {
+            return true
+        }
+        // Str doesn't need it because string literals are already static in C
+        // (the c_string pointer points to string literal data)
+
+        // Check if this is a struct with Vec/List fields
+        mut has_struct := false
+        mut struct_def := SStructDef()
+        struct_def = ctx.scope_stack.lookup_struct(type_name)?
+        has_struct = true
+        catch (err: KeyNotFoundError) {
+            // Not a struct
+        }
+        if has_struct {
+            for member_i in 0..struct_def.members.len() {
+                mut member := Declaration()
+                struct_def.members.get(member_i, member)?
+                catch (err: IndexOutOfBoundsError) {
+                    continue
+                }
+                if member.is_mut {
+                    switch member.value_type {
+                    case ValueType.TCustom(field_type):
+                        if EvalArena.type_needs_heap_serialization(ctx, field_type) {
+                            return true
+                        }
+                    case:
+                    }
+                }
+            }
+        }
+        return false
     }
 }
 
