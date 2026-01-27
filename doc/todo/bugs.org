@@ -9,6 +9,82 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #143: ccodegen hoisted_exprs uses fragile identity mechanism
+:PROPERTIES:
+:DISCOVERED: 2026-01-27
+:IMPACT: TIL ccodegen fails when multiple expressions share same line/col (e.g., desugared switch)
+:STATUS: Open
+:RELATED: Issue #110 (switch desugaring)
+:END:
+
+*** Description
+The ccodegen hoisted_exprs map tracks which expressions have been "hoisted" (extracted
+to separate statements with temp variables) so that emit_expr can use the temp var
+instead of re-emitting the expression.
+
+The identity mechanism differs between Rust and TIL:
+- Rust uses memory address: ~expr as *const Expr as usize~
+- TIL uses line*1000000+col as workaround: ~expr.line.mul(1000000).add(expr.col)~
+
+Both approaches are fragile:
+- Memory addresses depend on how/when expressions are accessed
+- Line/col collides when expressions share locations (desugared switch statements)
+
+The TIL workaround exists because TIL copies Vec elements into local variables
+(~vec.get(i, expr)?~), while Rust iterates by reference. Same logical expression
+accessed in hoisting vs emission has different local variable addresses in TIL.
+
+*** Why hoisted_exprs exists
+Hoisting happens in a pre-pass, but the same expression may be encountered later
+in emit_expr through a different code path. The lookup asks "is this the exact
+same expression I hoisted earlier?" This is needed for:
+1. Deeply nested expressions hoisted at outer level
+2. Expressions in emit_expr that were hoisted by hoist_throwing_args
+
+*** Solution Roadmap
+
+**** Solution A: Unique ID on Expr (short-term fix)
+Add ~id: I64~ field to Expr, assigned during parsing/desugaring. Use ID as
+hoisted_exprs key instead of address or line/col.
+
+Pros:
+- Minimal refactor
+- Works in both Rust and TIL
+- No collision issues
+
+Cons:
+- Adds memory overhead to every Expr
+- Still relies on hoisted_exprs map
+
+**** Solution B: Pass hoisted info explicitly (medium-term)
+Restructure so hoisted info flows through all code paths explicitly, eliminating
+the need to "rediscover" what was hoisted.
+
+Pros:
+- No fragile identity mechanism
+- Clearer data flow
+
+Cons:
+- Larger refactor
+- Must update all emit_* functions
+
+**** Solution C: Single-pass hoist+emit (long-term, preferred)
+Combine hoisting and emission into a single pass. When we encounter an expression
+that needs hoisting, we hoist and emit in one step - no need to look up later.
+
+Pros:
+- Eliminates hoisted_exprs entirely
+- Simplest conceptual model
+- No identity tracking needed
+
+Cons:
+- Significant refactor of ccodegen architecture
+- Must ensure Rust and TIL stay in sync during refactor
+
+*** Current Symptoms
+- 2/94 tests fail in til_compiled mode after switch desugaring (Issue #110)
+- Segfaults from dangling pointers when hoisting fails to match
+
 ** Bug #140: Dangling pointers in generated C code (undefined behavior)
 :PROPERTIES:
 :DISCOVERED: 2026-01-25
