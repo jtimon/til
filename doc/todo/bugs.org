@@ -9,6 +9,52 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #145: til_interpreted diverges from rs_interpreted for func in global init
+:PROPERTIES:
+:DISCOVERED: 2026-01-27
+:IMPACT: til_interpreted crashes when func returns Vec used in global initialization
+:STATUS: Open
+:REPRODUCER: See tmp/test_global_init.til
+:RELATED: Bug #133 (similar workaround, different root cause)
+:END:
+
+*** Description
+When a ~func~ returns a Vec and is used in global initialization, til_interpreted
+fails with "Ptr.new_by_size: invalid size" while rs_interpreted works correctly.
+
+*** Test Results
+#+BEGIN_SRC
+create_data := func() returns Vec { ... }
+data := create_data()  // Global initialization
+
+rs_interpreted:  PASS
+rs_compiled:     PASS
+til_interpreted: FAIL ("Ptr.new_by_size: invalid size")
+til_compiled:    PASS
+#+END_SRC
+
+*** Root Cause
+Unknown. The TIL interpreter handles func return values differently during module
+initialization than the Rust interpreter. May be related to precomputation attempts
+in the TIL interpreter that don't exist in the Rust version.
+
+*** Workaround
+Use ~proc~ instead of ~func~ for functions that return Vec and are called during
+global initialization:
+
+#+BEGIN_SRC til
+// FAILS in til_interpreted:
+create_data := func() returns Vec { ... }
+data := create_data()  // Global init
+
+// WORKS:
+create_data := proc() returns Vec { ... }
+data := create_data()  // Global init
+#+END_SRC
+
+*** Affected Files
+- src/examples/music.til (create_chromatic, create_notes_solfege, create_base_notes)
+
 ** Bug #144: for-in loops iterate by copy instead of by reference
 :PROPERTIES:
 :DISCOVERED: 2026-01-27
@@ -215,13 +261,18 @@ index_decl := Declaration(..., default_value=Ptr())
 *** Fix Reference
 See commit 5031b866 which fixed the symptom by using Ptr() instead of NULL.
 
-** Bug #133: Precomputed heap values (Vec, List, etc.) have invalid pointers at runtime
+** Bug #133: Precomputed heap values (Vec, List, etc.) have invalid pointers at runtime (COMPILED MODES)
 :PROPERTIES:
 :DISCOVERED: 2026-01-22
 :IMPACT: Compiled programs crash/segfault when using precomputed collections
-:STATUS: Open
-:REPRODUCER: rstil run src/examples/music.til jonio fa
+:STATUS: Partial - Steps 1-4 done for simple types; Vec<Vec<T>>, List, Map still broken
+:REPRODUCER: rstil run src/examples/music.til jonio do (mode_intervals is Vec<Vec<I64>>)
+:RELATED: Bug #145 (similar issue in til_interpreted mode)
+:BRANCH: current133
 :END:
+
+NOTE: This bug affects COMPILED modes only (rs_compiled, til_compiled).
+For a related issue in til_interpreted mode, see Bug #145.
 
 *** Description
 When global declarations like ~chromatic := create_chromatic()~ are precomputed
@@ -262,20 +313,47 @@ arrays and patch the pointers to reference them. This preserves the
 optimization benefit of precomputation.
 
 *** Workaround (current)
-Change ~func~ to ~proc~ for functions that return heap types. Since precomp
-only evaluates ~func~ (pure functions), using ~proc~ forces runtime evaluation:
+Change ~func~ to ~proc~ for functions that return unsupported heap types.
+Since precomp only evaluates ~func~ (pure functions), using ~proc~ forces runtime evaluation:
 
 #+BEGIN_SRC til
-// Before (broken - precomputed Vec has invalid pointers):
+// Works (Vec<Str> - supported):
 create_chromatic := func() returns Vec { ... }
-chromatic := create_chromatic()
 
-// After (works - evaluated at runtime):
-create_chromatic := proc() returns Vec { ... }
-chromatic := create_chromatic()
+// Broken (Vec<Vec<I64>> - not yet supported), use proc:
+create_mode_intervals := proc() returns Vec { ... }
 #+END_SRC
 
 See src/examples/music.til for example usage.
+
+*** Progress (2026-01-27)
+Steps 1-4 implemented for simple Vec types on branch ~current133~. Files modified:
+- ~src/rs/eval_arena.rs~ - VecContents, StrContents extraction functions
+- ~src/rs/init.rs~ - PrecomputedHeapValue struct
+- ~src/rs/precomp.rs~ - track precomputed heap values
+- ~src/rs/ccodegen.rs~ - emit static arrays and patched assignments
+- Ported to TIL: eval_arena.til, init.til, precomp.til, ccodegen.til
+
+**** What works now:
+- ~Vec<I64>~ - emits static I64 array
+- ~Vec<U8>~ - emits static U8 array
+- ~Vec<Str>~ - emits string literals + Str struct array (two-level)
+
+**** Still broken:
+- ~Vec<Vec<T>>~ - inner Vecs contain invalid pointers (falls back to raw bytes)
+- ~List~ - linked node pointers not serialized
+- ~Map~ - internal structure not serialized
+
+**** Blockers for merging branch ~current133~:
+1. **Bug #145**: Even with the fix, til_interpreted mode crashes when func returns
+   Vec in global init. music.til workarounds must stay as proc, defeating the
+   benefit of the fix for that file.
+2. **Vec<Vec<T>> not supported**: music.til's ~mode_intervals~ (Vec<Vec<I64>>) would
+   still crash in compiled mode. Must either:
+   - Implement recursive serialization for nested Vecs, OR
+   - Keep ~create_mode_intervals~ as proc (current workaround)
+3. **Partial benefit**: The fix only helps compiled modes (rs_compiled, til_compiled).
+   til_interpreted still needs proc workaround due to Bug #145.
 
 *** Implementation Plan
 Serialize heap contents to static C arrays and patch pointers to reference them.
@@ -295,7 +373,7 @@ static til_Str _precomp_chromatic_data[12] = {
 til_chromatic = (til_Vec){.ptr = (til_Ptr){(til_I64)_precomp_chromatic_data}, ._len = 12, ...};
 #+END_SRC
 
-**** Step 1: Add Vec/Str extraction to eval_arena.rs
+**** Step 1: Add Vec/Str extraction to eval_arena.rs [DONE]
 Add struct and function to extract Vec contents given an instance name:
 #+BEGIN_SRC rust
 pub struct VecContents {
@@ -308,7 +386,7 @@ pub fn extract_vec_contents(ctx: &Context, instance_name: &str)
     -> Result<VecContents, String>
 #+END_SRC
 
-**** Step 2: Track precomputed heap values in precomp.rs
+**** Step 2: Track precomputed heap values in precomp.rs [DONE]
 Add struct for tracking precomputed heap values:
 #+BEGIN_SRC rust
 pub struct PrecomputedHeapValue {
@@ -321,7 +399,7 @@ pub struct PrecomputedHeapValue {
 In ~precomp_declaration()~, when a global declaration has a precomputed Vec/List:
 - Store in new ~Context.precomputed_heap_values: Vec<PrecomputedHeapValue>~
 
-**** Step 3: Emit static arrays in ccodegen.rs
+**** Step 3: Emit static arrays in ccodegen.rs [DONE for simple types]
 Before emitting main(), add a new pass:
 #+BEGIN_SRC rust
 for phv in &context.precomputed_heap_values {
@@ -332,19 +410,19 @@ for phv in &context.precomputed_heap_values {
 }
 #+END_SRC
 
-**** Step 4: Patch struct literals to use static pointers
+**** Step 4: Patch struct literals to use static pointers [DONE]
 When emitting a global declaration in ~precomputed_heap_values~:
 - Instead of ~.ptr = (til_Ptr){1234}~
 - Emit ~.ptr = (til_Ptr){(til_I64)_precomp_{var_name}_data}~
 
 **** Handling Nested Types
-For Vec<I64>:
+For Vec<I64>: [DONE]
 #+BEGIN_SRC c
 static til_I64 _precomp_myints_data[5] = {1, 2, 3, 4, 5};
 til_myints = (til_Vec){.ptr = (til_Ptr){(til_I64)_precomp_myints_data}, ._len = 5, ...};
 #+END_SRC
 
-For Vec<Str> (two-level):
+For Vec<Str> (two-level): [DONE]
 #+BEGIN_SRC c
 static const char _precomp_chromatic_str_0[] = "do";
 static const char _precomp_chromatic_str_1[] = "do#";
@@ -357,12 +435,12 @@ static til_Str _precomp_chromatic_data[12] = {
 til_chromatic = (til_Vec){.ptr = (til_Ptr){(til_I64)_precomp_chromatic_data}, ...};
 #+END_SRC
 
-For Vec<Vec<T>>: Recursively emit inner arrays first, then outer.
+For Vec<Vec<T>>: Recursively emit inner arrays first, then outer. [TODO]
 
 **** Complexity Notes
-- Vec<Str> requires two-level static arrays (strings + Str structs)
-- Vec<Vec<T>> requires recursive serialization
-- List would need similar treatment (linked nodes -> static array)
+- Vec<Str> requires two-level static arrays (strings + Str structs) [DONE]
+- Vec<Vec<T>> requires recursive serialization [TODO]
+- List would need similar treatment (linked nodes -> static array) [TODO]
 - Start with Vec only, extend to List/Map later if needed
 
 ** Bug #130: Unify type resolution with type checking into single pass
