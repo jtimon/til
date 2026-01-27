@@ -325,6 +325,33 @@ executable_extension := func(target: Target) returns Str {
 // ---------- Detect current platform
 
 detect_current_target := func() returns Target {
-    // Default fallback (TIL has no cfg macros)
+    // Use uname to detect OS and architecture (TIL has no cfg macros like Rust)
+    mut uname_s := ""
+    _ := uname_s.run_cmd("uname", "-s")
+    mut uname_m := ""
+    _ := uname_m.run_cmd("uname", "-m")
+
+    // Strip trailing newlines
+    os := uname_s.replace("\n", "")
+    arch := uname_m.replace("\n", "")
+
+    // Detect based on OS and architecture
+    if os.eq("Darwin") {
+        if arch.eq("arm64") {
+            return Target.MacosArm64
+        }
+        return Target.MacosX64
+    }
+    if os.eq("Linux") {
+        if arch.eq("aarch64") {
+            return Target.LinuxArm64
+        }
+        if arch.eq("riscv64") {
+            return Target.LinuxRiscv64
+        }
+        return Target.LinuxX64
+    }
+    // Windows would need different detection (MINGW, CYGWIN, etc.)
+    // Default fallback
     return Target.LinuxX64
 }
