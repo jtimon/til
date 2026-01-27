@@ -9,6 +9,58 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #144: for-in loops iterate by copy instead of by reference
+:PROPERTIES:
+:DISCOVERED: 2026-01-27
+:IMPACT: Performance overhead, breaks pointer identity assumptions
+:STATUS: Open
+:RELATED: Bug #143 (hoisted_exprs identity depends on this)
+:END:
+
+*** Description
+When iterating over a Vec with ~for x: T in vec~, TIL copies each element into
+the loop variable instead of providing a reference to the element in the Vec.
+
+Current behavior:
+#+BEGIN_SRC til
+for expr: Expr in exprs {
+    // expr is a COPY of exprs[i]
+    // to_ptr(expr) gives address of local variable, not element in Vec
+}
+#+END_SRC
+
+This differs from Rust where ~for expr in exprs.iter()~ gives references to
+the actual elements in the Vec.
+
+*** Problems
+1. **Performance**: Unnecessary copying of potentially large structs
+2. **Pointer identity**: ~to_ptr(expr)~ gives different addresses in different
+   contexts for the "same" logical element, breaking identity-based lookups
+3. **Mutation**: Cannot mutate elements in-place (must use index-based access)
+
+*** Proposed Solution
+Default to iteration by reference, or provide syntax for both:
+
+#+BEGIN_SRC til
+// Option A: Default to reference
+for expr: Expr in exprs {
+    // expr is a reference to exprs[i]
+}
+
+// Option B: Explicit syntax
+for expr: Expr in exprs {        // by reference (default)
+for copy expr: Expr in exprs {   // by copy (explicit)
+
+// Option C: Different keywords
+for ref expr: Expr in exprs {    // by reference
+for expr: Expr in exprs {        // by copy (current behavior)
+#+END_SRC
+
+*** Impact on Bug #143
+If for-in iterated by reference, ~to_ptr(expr)~ would give the same address
+for the same element regardless of which function is iterating. This would
+make the Rust-style memory address approach work in TIL too.
+
 ** Bug #143: ccodegen hoisted_exprs uses fragile identity mechanism
 :PROPERTIES:
 :DISCOVERED: 2026-01-27
