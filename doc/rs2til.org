@@ -107,6 +107,45 @@ v.push(b)
 v.push(c)
 #+end_src
 
+** Array concatenation (no literal syntax)
+
+Rust uses inline array concatenation with ~[arr1, arr2].concat()~:
+
+#+begin_src rust
+let common: &[&str] = &["-Wall", "-Wextra"];
+let extra: &[&str] = &["-Wno-unused"];
+// Return concatenated arrays
+[&["-target", "arm64"], common, extra].concat()
+#+end_src
+
+TIL has no array literal syntax. Use helper procs that push to a Vec:
+
+#+begin_src til
+// Helper procs that mutate Vec
+push_common := proc(mut result: Vec) {
+    result.push("-Wall")
+    result.push("-Wextra")
+}
+
+push_extra := proc(mut result: Vec) {
+    result.push("-Wno-unused")
+}
+
+// TODO: Bug #133 workaround - using proc instead of func to prevent precomputation
+// of heap values. The returned Vec has pointers that are invalid at compile time.
+get_flags := proc() returns Vec {
+    mut result := Vec.new(Str)
+    result.push("-target")
+    result.push("arm64")
+    push_common(result)
+    push_extra(result)
+    return result
+}
+#+end_src
+
+Note: Functions returning Vec with heap data must use ~proc~ instead of ~func~ due to Bug #133.
+Add a TODO comment referencing Bug #133 to track this workaround.
+
 ** Struct literals
 
 Rust:

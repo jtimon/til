@@ -265,7 +265,9 @@ toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
     )
 }
 
-toolchain_extra_args := func(target: Target, _lang: Lang, compiler: Str) returns Vec {
+// TODO: Bug #133 workaround - using proc instead of func to prevent precomputation
+// of heap values. The returned Vec has pointers that are invalid at compile time.
+toolchain_extra_args := proc(target: Target, _lang: Lang, compiler: Str) returns Vec {
     // Bug #99: -Wall -Wextra -Werror with suppressions for unfixed warnings.
     // Remove suppressions as warnings get fixed.
     // Note: Some flags are compiler-specific (gcc vs clang)
@@ -277,20 +279,39 @@ toolchain_extra_args := func(target: Target, _lang: Lang, compiler: Str) returns
     case Target.MacosArm64:
         result.push("-target")
         result.push("arm64-apple-macos11")
+        push_common_flags(result)
+        push_clang_flags(result)
+        return result
     case Target.MacosX64:
         result.push("-target")
         result.push("x86_64-apple-macos10.12")
+        push_common_flags(result)
+        push_clang_flags(result)
+        return result
     case Target.Wasm32:
         result.push("--target=wasm32")
         result.push("-nostdlib")
         result.push("-Wl,--no-entry")
         result.push("-Wl,--export-all")
+        push_common_flags(result)
+        push_clang_flags(result)
+        return result
     case Target.TempleosX86:
         panic(loc(), "HolyC doesn't support these flags")
     case:
-        // Linux/Windows - no target-specific flags
+        // Linux/Windows - use compiler-specific flags based on --cc flag
+        push_common_flags(result)
+        if use_clang {
+            push_clang_flags(result)
+        } else {
+            push_gcc_flags(result)
+        }
+        return result
     }
-    // Common flags for all targets (work on both gcc and clang)
+}
+
+// Helper: push common warning flags (work on both gcc and clang)
+push_common_flags := proc(mut result: Vec) {
     result.push("-Wall")
     result.push("-Wextra")
     result.push("-Werror")
@@ -298,17 +319,20 @@ toolchain_extra_args := func(target: Target, _lang: Lang, compiler: Str) returns
     result.push("-Wno-unused-variable")           // 1514 occurrences
     result.push("-Wno-unused-but-set-variable")   // 386 occurrences
     result.push("-Wno-unused-label")              // 153 occurrences
-    // Compiler-specific flags based on --cc flag
-    if use_clang {
-        result.push("-Wno-sometimes-uninitialized")   // clang-specific warning about exception control flow
-        result.push("-Wno-self-assign")               // til_result = til_result patterns in generated code
-        result.push("-Wno-c23-extensions")            // unnamed parameters in function definitions
-        result.push("-Wno-uninitialized")             // variable used before initialization in some paths
-        result.push("-Wno-unused-function")           // enum to_str functions generated but not always used
-    } else {
-        result.push("-Wno-dangling-pointer")          // 971 occurrences (high priority to fix) - GCC only
-    }
-    return result
+}
+
+// Helper: push clang-specific flags
+push_clang_flags := proc(mut result: Vec) {
+    result.push("-Wno-sometimes-uninitialized")   // clang-specific warning about exception control flow
+    result.push("-Wno-self-assign")               // til_result = til_result patterns in generated code
+    result.push("-Wno-c23-extensions")            // unnamed parameters in function definitions
+    result.push("-Wno-uninitialized")             // variable used before initialization in some paths
+    result.push("-Wno-unused-function")           // enum to_str functions generated but not always used
+}
+
+// Helper: push GCC-specific flags
+push_gcc_flags := proc(mut result: Vec) {
+    result.push("-Wno-dangling-pointer")          // 971 occurrences (high priority to fix) - GCC only
 }
 
 executable_extension := func(target: Target) returns Str {
