@@ -7,42 +7,6 @@
 
 * Fixed Bugs
 
-** Bug #133: Precomputed heap values (Vec, List, etc.) have invalid pointers at runtime
-:PROPERTIES:
-:DISCOVERED: 2026-01-22
-:FIXED: 2026-01-27
-:IMPACT: Compiled programs crash/segfault when using precomputed collections
-:STATUS: Fixed
-:END:
-
-*** Description
-When global declarations like ~chromatic := create_chromatic()~ are precomputed
-at compile time, the resulting Vec values contain heap pointers from the
-interpreter's memory space. At runtime, these pointers point to invalid memory.
-
-*** Root Cause
-precomp.rs evaluates global declarations at compile time via eval_comptime().
-The Vec struct fields (including Ptr fields) are serialized as integer literals.
-At runtime, the compiled program has different memory layout - those pointers are garbage.
-
-*** Fix
-Serialize heap data to static C arrays and patch pointers to reference them:
-1. Added VecContents/StrContents extraction functions in eval_arena
-2. Track precomputed heap values in Context.precomputed_heap_values
-3. Emit static arrays for Vec contents before main()
-4. Patch struct literals to use static array pointers
-
-*** Files Modified
-- ~src/rs/eval_arena.rs~ - add VecContents, StrContents structs and extraction functions
-- ~src/rs/init.rs~ - add PrecomputedHeapValue struct and precomputed_heap_values field
-- ~src/rs/precomp.rs~ - track precomputed heap values after eval_declaration
-- ~src/rs/ccodegen.rs~ - emit static arrays and patched assignments
-- ~src/self/eval_arena.til~ - port extraction functions
-- ~src/self/init.til~ - port PrecomputedHeapValue and field
-- ~src/self/precomp.til~ - port tracking code
-- ~src/self/ccodegen.til~ - port static array emission
-- ~src/examples/music.til~ - can now use ~func~ instead of ~proc~ workaround
-
 ** Bug #129: Parser cannot handle explicit ~auto~ type annotation
 :PROPERTIES:
 :DISCOVERED: 2026-01-21

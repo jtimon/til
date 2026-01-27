@@ -265,8 +265,7 @@ toolchain_command := func(target: Target, lang: Lang) returns Str throws Str {
     )
 }
 
-// TODO: Bug #133 workaround - using proc instead of func to prevent precomputation
-// of heap values. The returned Vec has pointers that are invalid at compile time.
+// Must be proc because it calls Vec.push (a proc) via push_common_flags etc.
 toolchain_extra_args := proc(target: Target, _lang: Lang, compiler: Str) returns Vec {
     // Bug #99: -Wall -Wextra -Werror with suppressions for unfixed warnings.
     // Remove suppressions as warnings get fixed.

@@ -9,6 +9,52 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #145: til_interpreted diverges from rs_interpreted for func in global init
+:PROPERTIES:
+:DISCOVERED: 2026-01-27
+:IMPACT: til_interpreted crashes when func returns Vec used in global initialization
+:STATUS: Open
+:REPRODUCER: See tmp/test_global_init.til
+:RELATED: Bug #133 (similar workaround, different root cause)
+:END:
+
+*** Description
+When a ~func~ returns a Vec and is used in global initialization, til_interpreted
+fails with "Ptr.new_by_size: invalid size" while rs_interpreted works correctly.
+
+*** Test Results
+#+BEGIN_SRC
+create_data := func() returns Vec { ... }
+data := create_data()  // Global initialization
+
+rs_interpreted:  PASS
+rs_compiled:     PASS
+til_interpreted: FAIL ("Ptr.new_by_size: invalid size")
+til_compiled:    PASS
+#+END_SRC
+
+*** Root Cause
+Unknown. The TIL interpreter handles func return values differently during module
+initialization than the Rust interpreter. May be related to precomputation attempts
+in the TIL interpreter that don't exist in the Rust version.
+
+*** Workaround
+Use ~proc~ instead of ~func~ for functions that return Vec and are called during
+global initialization:
+
+#+BEGIN_SRC til
+// FAILS in til_interpreted:
+create_data := func() returns Vec { ... }
+data := create_data()  // Global init
+
+// WORKS:
+create_data := proc() returns Vec { ... }
+data := create_data()  // Global init
+#+END_SRC
+
+*** Affected Files
+- src/examples/music.til (create_chromatic, create_notes_solfege, create_base_notes)
+
 ** Bug #144: for-in loops iterate by copy instead of by reference
 :PROPERTIES:
 :DISCOVERED: 2026-01-27
@@ -214,6 +260,176 @@ index_decl := Declaration(..., default_value=Ptr())
 
 *** Fix Reference
 See commit 5031b866 which fixed the symptom by using Ptr() instead of NULL.
+
+** Bug #133: Precomputed heap values (Vec, List, etc.) have invalid pointers at runtime (COMPILED MODES)
+:PROPERTIES:
+:DISCOVERED: 2026-01-22
+:IMPACT: Compiled programs crash/segfault when using precomputed collections
+:STATUS: Partial - Steps 1-4 done for simple types; Vec<Vec<T>>, List, Map still broken
+:REPRODUCER: rstil run src/examples/music.til jonio do (mode_intervals is Vec<Vec<I64>>)
+:RELATED: Bug #145 (similar issue in til_interpreted mode)
+:END:
+
+NOTE: This bug affects COMPILED modes only (rs_compiled, til_compiled).
+For a related issue in til_interpreted mode, see Bug #145.
+
+*** Description
+When global declarations like ~chromatic := create_chromatic()~ are precomputed
+at compile time, the resulting Vec/List values contain heap pointers from the
+interpreter's memory space. These raw pointer values are serialized directly
+into C struct literals, causing segfaults at runtime.
+
+*** Example
+In music.til:
+#+BEGIN_SRC til
+chromatic := create_chromatic()  // Returns Vec of Str
+#+END_SRC
+
+Generated C code (in main()):
+#+BEGIN_SRC c
+til_chromatic = (til_Vec){.type_name = (til_Str){.c_string = (til_Ptr){2146}, .cap = 3},
+                          .type_size = 16, .ptr = (til_Ptr){3615}, ._len = 12, .cap = 16};
+#+END_SRC
+
+Those values (2146, 3615) are raw pointers from the precomp interpreter's arena.
+At runtime they point to invalid memory, causing segfaults in Vec.get().
+
+*** Root Cause
+1. precomp.rs evaluates global declarations at compile time via eval_comptime()
+2. eval_comptime() runs the interpreter, which allocates Vec contents on heap
+3. The Vec struct fields (including Ptr fields) are serialized as integer literals
+4. At runtime, the compiled program has different memory layout - those pointers are garbage
+
+*** Affected Types
+- Vec (Ptr field points to heap-allocated element array)
+- List (likely same issue with Ptr node pointers)
+- Any struct with Ptr fields pointing to heap data
+- Str when dynamically allocated (c_string Ptr field)
+
+*** Fix
+Serialize heap data to static arrays: Copy the heap contents into C static
+arrays and patch the pointers to reference them. This preserves the
+optimization benefit of precomputation.
+
+*** Workaround (current)
+Change ~func~ to ~proc~ for functions that return unsupported heap types.
+Since precomp only evaluates ~func~ (pure functions), using ~proc~ forces runtime evaluation:
+
+#+BEGIN_SRC til
+// Works (Vec<Str> - supported):
+create_chromatic := func() returns Vec { ... }
+
+// Broken (Vec<Vec<I64>> - not yet supported), use proc:
+create_mode_intervals := proc() returns Vec { ... }
+#+END_SRC
+
+See src/examples/music.til for example usage.
+
+*** Progress (2026-01-27)
+Steps 1-4 implemented for simple Vec types. Files modified:
+- ~src/rs/eval_arena.rs~ - VecContents, StrContents extraction functions
+- ~src/rs/init.rs~ - PrecomputedHeapValue struct
+- ~src/rs/precomp.rs~ - track precomputed heap values
+- ~src/rs/ccodegen.rs~ - emit static arrays and patched assignments
+- Ported to TIL: eval_arena.til, init.til, precomp.til, ccodegen.til
+
+**** What works now:
+- ~Vec<I64>~ - emits static I64 array
+- ~Vec<U8>~ - emits static U8 array
+- ~Vec<Str>~ - emits string literals + Str struct array (two-level)
+
+**** Still broken:
+- ~Vec<Vec<T>>~ - inner Vecs contain invalid pointers (falls back to raw bytes)
+- ~List~ - linked node pointers not serialized
+- ~Map~ - internal structure not serialized
+
+*** Implementation Plan
+Serialize heap contents to static C arrays and patch pointers to reference them.
+
+**** Before (broken):
+#+BEGIN_SRC c
+til_chromatic = (til_Vec){.ptr = (til_Ptr){3615}, ._len = 12, ...};  // 3615 is garbage
+#+END_SRC
+
+**** After (working):
+#+BEGIN_SRC c
+static til_Str _precomp_chromatic_data[12] = {
+    {.c_string = (til_Ptr){(til_I64)"do"}, .cap = 2},
+    {.c_string = (til_Ptr){(til_I64)"do#"}, .cap = 3},
+    // ...
+};
+til_chromatic = (til_Vec){.ptr = (til_Ptr){(til_I64)_precomp_chromatic_data}, ._len = 12, ...};
+#+END_SRC
+
+**** Step 1: Add Vec/Str extraction to eval_arena.rs [DONE]
+Add struct and function to extract Vec contents given an instance name:
+#+BEGIN_SRC rust
+pub struct VecContents {
+    pub element_type_name: String,
+    pub type_size: i64,
+    pub element_bytes: Vec<Vec<u8>>,
+}
+
+pub fn extract_vec_contents(ctx: &Context, instance_name: &str)
+    -> Result<VecContents, String>
+#+END_SRC
+
+**** Step 2: Track precomputed heap values in precomp.rs [DONE]
+Add struct for tracking precomputed heap values:
+#+BEGIN_SRC rust
+pub struct PrecomputedHeapValue {
+    pub var_name: String,
+    pub instance_name: String,
+    pub type_name: String,
+}
+#+END_SRC
+
+In ~precomp_declaration()~, when a global declaration has a precomputed Vec/List:
+- Store in new ~Context.precomputed_heap_values: Vec<PrecomputedHeapValue>~
+
+**** Step 3: Emit static arrays in ccodegen.rs [DONE for simple types]
+Before emitting main(), add a new pass:
+#+BEGIN_SRC rust
+for phv in &context.precomputed_heap_values {
+    if phv.type_name == "Vec" {
+        let contents = EvalArena::extract_vec_contents(ctx, &phv.instance_name)?;
+        emit_static_vec_data(&phv.var_name, &contents, output)?;
+    }
+}
+#+END_SRC
+
+**** Step 4: Patch struct literals to use static pointers [DONE]
+When emitting a global declaration in ~precomputed_heap_values~:
+- Instead of ~.ptr = (til_Ptr){1234}~
+- Emit ~.ptr = (til_Ptr){(til_I64)_precomp_{var_name}_data}~
+
+**** Handling Nested Types
+For Vec<I64>: [DONE]
+#+BEGIN_SRC c
+static til_I64 _precomp_myints_data[5] = {1, 2, 3, 4, 5};
+til_myints = (til_Vec){.ptr = (til_Ptr){(til_I64)_precomp_myints_data}, ._len = 5, ...};
+#+END_SRC
+
+For Vec<Str> (two-level): [DONE]
+#+BEGIN_SRC c
+static const char _precomp_chromatic_str_0[] = "do";
+static const char _precomp_chromatic_str_1[] = "do#";
+// ...
+static til_Str _precomp_chromatic_data[12] = {
+    {.c_string = (til_Ptr){(til_I64)_precomp_chromatic_str_0}, .cap = 2},
+    {.c_string = (til_Ptr){(til_I64)_precomp_chromatic_str_1}, .cap = 3},
+    // ...
+};
+til_chromatic = (til_Vec){.ptr = (til_Ptr){(til_I64)_precomp_chromatic_data}, ...};
+#+END_SRC
+
+For Vec<Vec<T>>: Recursively emit inner arrays first, then outer. [TODO]
+
+**** Complexity Notes
+- Vec<Str> requires two-level static arrays (strings + Str structs) [DONE]
+- Vec<Vec<T>> requires recursive serialization [TODO]
+- List would need similar treatment (linked nodes -> static array) [TODO]
+- Start with Vec only, extend to List/Map later if needed
 
 ** Bug #130: Unify type resolution with type checking into single pass
 :PROPERTIES:
