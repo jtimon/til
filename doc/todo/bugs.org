@@ -882,11 +882,12 @@ Audit of generated C code with ~gcc -Wall -Wextra~:
 | -Wdangling-pointer           |   971 | High     | Statement expressions return &local_var    |
 | -Wunused-but-set-variable    |   386 | Low      | Similar to above                           |
 | -Wunused-label               |   153 | Low      | Catch labels generated but not jumped to   |
-| -Wunused-parameter           |     0 | Low      | FIXED 2026-01-25                           |
+| -Wunused-parameter           |     ? | Low      | Suppressed - underscore params intentional |
 | -Wmissing-braces             |     0 | Low      | FIXED 2026-01-25                           |
 | -Wmissing-field-initializers |     0 | Low      | FIXED 2026-01-25                           |
 | -Wreturn-type                |     0 | High     | FIXED 2026-01-25                           |
 | -Wincompatible-pointer-types |     0 | Medium   | FIXED 2026-01-13                           |
+| -Wc23-extensions             |     0 | Low      | FIXED 2026-01-28 - emit param names always |
 
 *** Fix Strategy (Incremental)
 1. Suppress current warnings to get clean baseline (DONE)
