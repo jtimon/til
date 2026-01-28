@@ -1990,7 +1990,6 @@ fn is_pure_lvalue(arg: &Expr, context: &Context) -> bool {
 /// This is the core of the single-pass hoist+emit approach (Bug #143 fix).
 /// By processing each arg once and returning the string directly, we avoid
 /// the fragile expression identity mechanism in hoisted_exprs.
-#[allow(dead_code)]
 fn emit_arg_string(
     arg: &Expr,
     param_type: Option<&ValueType>,
@@ -2134,7 +2133,6 @@ fn emit_arg_string(
 }
 
 /// Helper: Emit a throwing FCall arg, hoisting it and returning temp var string
-#[allow(dead_code)]
 fn emit_throwing_arg_string(
     arg: &Expr,
     fd: &SFuncDef,
@@ -2278,7 +2276,6 @@ fn emit_throwing_arg_string(
 }
 
 /// Helper: Emit error propagation code
-#[allow(dead_code)]
 fn emit_error_propagation(
     throw_types: &[ValueType],
     temp_suffix: &str,
@@ -2332,7 +2329,6 @@ fn emit_error_propagation(
 }
 
 /// Helper: Format a hoisted temp var with appropriate prefix for param type
-#[allow(dead_code)]
 fn format_hoisted_result(
     temp_var: &str,
     param_type: Option<&ValueType>,
@@ -2349,7 +2345,6 @@ fn format_hoisted_result(
 }
 
 /// Helper: Emit a non-throwing variadic FCall arg
-#[allow(dead_code)]
 fn emit_variadic_arg_string(
     arg: &Expr,
     vi: &VariadicFCallInfo,
@@ -2450,7 +2445,6 @@ fn emit_variadic_arg_string(
 
 /// Helper: Build variadic array using pre-computed arg strings
 /// Mirrors hoist_variadic_args but uses pre-computed arg_strings instead of emit_expr
-#[allow(dead_code)]
 fn emit_variadic_array_with_strings(
     elem_type: &str,
     arg_strings: &[String],
@@ -2565,157 +2559,7 @@ fn emit_variadic_array_with_strings(
     Ok(arr_var)
 }
 
-/// Helper: Try to hoist for Dynamic param, return Some(string) if hoisted
-#[allow(dead_code)]
-fn try_hoist_for_dynamic(
-    arg: &Expr,
-    hoist_output: &mut String,
-    indent: usize,
-    ctx: &mut CodegenContext,
-    context: &mut Context,
-) -> Result<Option<String>, String> {
-    // Check if arg needs hoisting for Dynamic (non-lvalue)
-    let needs_hoisting = match &arg.node_type {
-        NodeType::Identifier(_) if arg.params.is_empty() => false,  // Simple identifier is lvalue
-        NodeType::Identifier(_) => true,  // Type-qualified call needs hoisting
-        NodeType::LLiteral(Literal::Str(_)) => true,
-        NodeType::FCall(_) => true,
-        _ => true,
-    };
-
-    if !needs_hoisting {
-        return Ok(None);
-    }
-
-    let indent_str = "    ".repeat(indent);
-
-    // Determine C type
-    let c_type = get_c_type_for_expr(arg, context)?;
-
-    let temp_var = next_mangled(ctx);
-
-    // Emit: Type _tmpXX = <expression>;
-    hoist_output.push_str(&indent_str);
-    hoist_output.push_str(&c_type);
-    hoist_output.push_str(" ");
-    hoist_output.push_str(&temp_var);
-    hoist_output.push_str(" = ");
-    emit_expr(arg, hoist_output, 0, ctx, context)?;
-    hoist_output.push_str(";\n");
-
-    Ok(Some(format!("({}Dynamic*)&{}", TIL_PREFIX, temp_var)))
-}
-
-/// Helper: Try to hoist for by-ref param, return Some(string) if hoisted
-#[allow(dead_code)]
-fn try_hoist_for_ref(
-    arg: &Expr,
-    hoist_output: &mut String,
-    indent: usize,
-    ctx: &mut CodegenContext,
-    context: &mut Context,
-) -> Result<Option<String>, String> {
-    // Check if arg needs hoisting (rvalues that can't have & taken)
-    let needs_hoisting = match &arg.node_type {
-        NodeType::Identifier(_name) if arg.params.is_empty() => false,  // Simple identifier is lvalue
-        NodeType::Identifier(name) => {
-            // Check if this is a type-qualified method call (not field access)
-            let is_variable = context.scope_stack.lookup_symbol(name).is_some();
-            let is_function = context.scope_stack.lookup_func(name).is_some();
-            !is_variable && !is_function
-        },
-        NodeType::LLiteral(Literal::Str(_)) => false,  // Compound literal, can use &
-        NodeType::LLiteral(Literal::Number(_)) => true,  // Can't take address of integer literal
-        NodeType::FCall(_) => {
-            // Check if this is an enum or struct constructor - those become compound literals
-            if let Some(first) = arg.params.first() {
-                let combined = crate::rs::parser::get_combined_name(&context.path, first).unwrap_or_default();
-                !context.scope_stack.is_type_constructor(&combined)
-            } else {
-                true
-            }
-        }
-        _ => false,
-    };
-
-    if !needs_hoisting {
-        return Ok(None);
-    }
-
-    let indent_str = "    ".repeat(indent);
-
-    // Determine C type
-    let c_type = get_c_type_for_expr(arg, context)?;
-
-    let temp_var = next_mangled(ctx);
-
-    // Emit: Type _tmpXX = <expression>;
-    hoist_output.push_str(&indent_str);
-    hoist_output.push_str(&c_type);
-    hoist_output.push_str(" ");
-    hoist_output.push_str(&temp_var);
-    hoist_output.push_str(" = ");
-    emit_expr(arg, hoist_output, 0, ctx, context)?;
-    hoist_output.push_str(";\n");
-
-    Ok(Some(format!("&{}", temp_var)))
-}
-
-/// Helper: Format Dynamic arg (doesn't need hoisting but needs cast)
-#[allow(dead_code)]
-fn format_dynamic_arg(
-    arg: &Expr,
-    ctx: &mut CodegenContext,
-    context: &mut Context,
-) -> Result<String, String> {
-    if let NodeType::Identifier(name) = &arg.node_type {
-        if arg.params.is_empty() {
-            // Check if already a pointer
-            let is_already_pointer = ctx.current_ref_params.contains(name)
-                || ctx.current_variadic_params.contains_key(name)
-                || context.scope_stack.lookup_symbol(name)
-                    .map(|sym| matches!(&sym.value_type, ValueType::TCustom(t) if t == "Dynamic"))
-                    .unwrap_or(false);
-            if is_already_pointer {
-                return Ok(format!("({}Dynamic*){}", TIL_PREFIX, til_name(name)));
-            } else {
-                return Ok(format!("({}Dynamic*)&{}", TIL_PREFIX, til_name(name)));
-            }
-        }
-    }
-    // Fallback: emit and wrap
-    let mut expr_str = String::new();
-    emit_expr(arg, &mut expr_str, 0, ctx, context)?;
-    Ok(format!("({}Dynamic*)&{}", TIL_PREFIX, expr_str))
-}
-
-/// Helper: Format by-ref arg (doesn't need hoisting but needs & prefix)
-#[allow(dead_code)]
-fn format_byref_arg(
-    arg: &Expr,
-    ctx: &mut CodegenContext,
-    context: &mut Context,
-) -> Result<String, String> {
-    if let NodeType::Identifier(name) = &arg.node_type {
-        if arg.params.is_empty() {
-            // Check if already a pointer
-            let is_already_pointer = ctx.current_ref_params.contains(name)
-                || ctx.current_variadic_params.contains_key(name);
-            if is_already_pointer {
-                return Ok(til_name(name));
-            } else {
-                return Ok(format!("&{}", til_name(name)));
-            }
-        }
-    }
-    // Fallback: emit and add &
-    let mut expr_str = String::new();
-    emit_expr(arg, &mut expr_str, 0, ctx, context)?;
-    Ok(format!("&{}", expr_str))
-}
-
 /// Helper: Emit a non-throwing, non-variadic FCall, recursively processing args
-#[allow(dead_code)]
 fn emit_fcall_arg_string(
     arg: &Expr,
     hoist_output: &mut String,
@@ -2808,14 +2652,52 @@ fn emit_fcall_arg_string(
             let value_type = get_value_type(context, inner_arg)?;
             if let ValueType::TCustom(enum_type_name) = value_type {
                 if context.scope_stack.lookup_enum(&enum_type_name).is_some() {
-                    let inner_str = emit_arg_string(inner_arg, None, false, hoist_output, indent, ctx, context)?;
-                    return Ok(format!("{}_to_str(&{})", til_name(&enum_type_name), inner_str));
+                    // Pass Dynamic param type so enum constructors get hoisted properly
+                    let dynamic_type = ValueType::TCustom("Dynamic".to_string());
+                    let inner_str = emit_arg_string(inner_arg, Some(&dynamic_type), false, hoist_output, indent, ctx, context)?;
+                    // inner_str will be "(til_Dynamic*)&x" for lvalues or "(til_Dynamic*)&_tmpX" for hoisted
+                    // Strip the Dynamic prefix and keep just the &...
+                    let dynamic_prefix = format!("({}Dynamic*)", TIL_PREFIX);
+                    let ref_str = if inner_str.starts_with(&dynamic_prefix) {
+                        inner_str[dynamic_prefix.len()..].to_string()
+                    } else {
+                        format!("&{}", inner_str)
+                    };
+                    return Ok(format!("{}_to_str({})", til_name(&enum_type_name), ref_str));
                 }
             }
             // Fall through to emit_expr for non-enum case
             let mut expr_str = String::new();
             emit_expr(arg, &mut expr_str, 0, ctx, context)?;
             return Ok(expr_str);
+        },
+
+        // type_as_str: generates Str literal or Str from Type variable
+        "type_as_str" => {
+            if arg.params.len() < 2 {
+                return Err(arg.lang_error(&context.path, "ccodegen", "type_as_str requires 1 argument"));
+            }
+            let type_arg = &arg.params[1];
+            if let NodeType::Identifier(type_name) = &type_arg.node_type {
+                // Check if this is a Type variable or a literal type name
+                let is_type_var = if let Some(sym) = context.scope_stack.lookup_symbol(type_name) {
+                    matches!(&sym.value_type, ValueType::TCustom(t) if t == "Type")
+                } else {
+                    false
+                };
+                if is_type_var {
+                    // Type variable - already a const char*, wrap in Str struct literal
+                    return Ok(format!("(({}Str){{(({}Ptr){{({}I64){}{}, 1}}), strlen({}{}), 0}})",
+                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, type_name, TIL_PREFIX, type_name));
+                } else {
+                    // Literal type name - create Str compound literal
+                    return Ok(format!("(({}Str){{(({}Ptr){{({}I64)\"{}\", 1}}), {}, 0}})",
+                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, type_name, type_name.len()));
+                }
+            } else {
+                return Ok(format!("(({}Str){{(({}Ptr){{({}I64)\"unknown\", 1}}), 7, 0}})",
+                    TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
+            }
         },
 
         _ => {}  // Not a special builtin, continue below
@@ -2879,7 +2761,6 @@ fn emit_fcall_arg_string(
 }
 
 /// Helper: Get C type for an expression (for hoisting declarations)
-#[allow(dead_code)]
 fn get_c_type_for_expr(
     arg: &Expr,
     context: &Context,
@@ -2919,7 +2800,7 @@ fn get_c_type_for_expr(
                         .unwrap_or(false) {
                         return Ok(til_name(name));
                     }
-                    // Check field access
+                    // Check instance field access (variable.field)
                     if let Some(sym) = context.scope_stack.lookup_symbol(name) {
                         if let ValueType::TCustom(struct_name) = &sym.value_type {
                             if let Some(struct_def) = context.scope_stack.lookup_struct(struct_name) {
@@ -2929,6 +2810,15 @@ fn get_c_type_for_expr(
                                             .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e));
                                     }
                                 }
+                            }
+                        }
+                    }
+                    // Check static field access on struct/namespace (StructName.field)
+                    if let Some(struct_def) = context.scope_stack.lookup_struct(name) {
+                        for m in &struct_def.members {
+                            if &m.name == field_or_variant {
+                                return til_type_to_c(&m.value_type)
+                                    .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e));
                             }
                         }
                     }
@@ -4789,7 +4679,6 @@ fn prescan_func_level_catches<'a>(stmts: &'a [Expr]) -> Vec<&'a Expr> {
 
 /// Emit a non-throwing variadic function call at statement level
 /// Handles constructing the variadic array and cleaning it up after the call
-#[allow(dead_code)]
 fn emit_variadic_call(
     fcall: &Expr,
     elem_type: &str,
@@ -7950,7 +7839,17 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 by_ref: param_needs_by_ref(fd_arg)
             }).collect()
         } else {
-            Vec::new()
+            // Handle builtins that don't have function definitions
+            match orig_func_name.as_str() {
+                "enum_to_str" | "type_as_str" => {
+                    // These builtins take Dynamic arg - need proper hoisting
+                    vec![ParamTypeInfo {
+                        value_type: Some(ValueType::TCustom("Dynamic".to_string())),
+                        by_ref: false,
+                    }]
+                }
+                _ => Vec::new()
+            }
         };
         let mut strings = Vec::new();
         for (i, arg) in expr.params.iter().skip(1).enumerate() {

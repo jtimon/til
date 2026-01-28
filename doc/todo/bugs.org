@@ -233,19 +233,6 @@ same expression I hoisted earlier?" This is needed for:
 
 *** Solution Roadmap
 
-**** Solution A: Unique ID on Expr (short-term fix)
-Add ~id: I64~ field to Expr, assigned during parsing/desugaring. Use ID as
-hoisted_exprs key instead of address or line/col.
-
-Pros:
-- Minimal refactor
-- Works in both Rust and TIL
-- No collision issues
-
-Cons:
-- Adds memory overhead to every Expr
-- Still relies on hoisted_exprs map
-
 **** Solution B: Pass hoisted info explicitly (medium-term)
 Restructure so hoisted info flows through all code paths explicitly, eliminating
 the need to "rediscover" what was hoisted.
