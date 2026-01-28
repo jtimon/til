@@ -75,4 +75,9 @@ Ptr := struct {
     copy_to_dynamic := proc(self: Ptr, mut dest: Dynamic, size: I64) {
         memcpy(to_ptr(dest), self.data, size)
     }
+
+    /** Dereference pointer - copy value at this address into dest. */
+    dereference := proc(self: Ptr, T: Type, mut dest: Dynamic) {
+        memcpy(to_ptr(dest), self.data, size_of(T))
+    }
 }

@@ -21,6 +21,15 @@ test_pointers := proc() {
     mut s := Ptr.new(I64)
     test(loc(), gt(s.data, 0), "Typed pointer allocation should succeed")
 
+    // Test dereference method
+    mut t := Ptr.new(I64)
+    mut src_val: I64 = 42
+    t.copy_from_dynamic(src_val, size_of(I64))
+    mut dest_val: I64 = 0
+    t.dereference(I64, dest_val)
+    assert_eq(loc(), 42, dest_val)
+    t.delete()
+
     // TODO actually free things after self hosting, when we move on from an interpreted arena (very wasteful, but feels like garbage collection for free)
     p.delete()
 

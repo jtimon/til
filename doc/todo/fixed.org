@@ -3860,6 +3860,31 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #147: Add Ptr.dereference method for cleaner pointer dereferencing
+:PROPERTIES:
+:DISCOVERED: 2026-01-28
+:IMPLEMENTED: 2026-01-28
+:IMPACT: Cleaner API for reading values from pointers
+:STATUS: Fixed
+:END:
+
+*** Description
+Add a ~dereference~ method to Ptr that copies the value at the pointer address
+into a destination variable.
+
+*** Implementation
+#+BEGIN_SRC til
+/** Dereference pointer - copy value at this address into dest. */
+dereference := proc(self: Ptr, T: Type, mut dest: Dynamic) {
+    memcpy(to_ptr(dest), self.data, size_of(T))
+}
+#+END_SRC
+
+Note: Takes Type parameter because ~type_of~ builtin doesn't exist yet.
+
+*** Future
+Parser syntax ~*ptr~ that desugars to ~ptr.dereference(dest)~.
+
 ** Issue #131: Clang support (gcc/clang interchangeable)
 :PROPERTIES:
 :DISCOVERED: 2026-01-21
