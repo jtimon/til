@@ -1193,6 +1193,7 @@ fn hoist_for_dynamic_params(
 
 /// Bug #60: Hoist function call results and number literals when passed to by-ref params
 /// These are rvalues that can't have & taken directly
+#[allow(dead_code)]  // TODO: Remove this function entirely
 fn hoist_for_ref_params(
     args: &[Expr],
     param_by_ref: &[bool],
@@ -1601,6 +1602,7 @@ fn emit_fcall_name_and_args_for_throwing(
 
 /// Emit an argument, using hoisted temp var if available
 /// Also handles Type arguments by emitting them as string literals
+#[allow(dead_code)]  // TODO: Remove this function entirely
 fn emit_arg_or_hoisted(
     arg: &Expr,
     arg_idx: usize,
@@ -2572,11 +2574,57 @@ fn emit_fcall_arg_string(
     let func_name = get_func_name_string(&arg.params[0])
         .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
 
-    // Struct constructors should be emitted as compound literals via emit_expr
-    if context.scope_stack.lookup_struct(&func_name).is_some() {
-        let mut expr_str = String::new();
-        emit_expr(arg, &mut expr_str, 0, ctx, context)?;
-        return Ok(expr_str);
+    // Struct constructors should be emitted as compound literals
+    // But we need to recursively process named args in case they contain variadic/throwing calls
+    if let Some(struct_def) = context.scope_stack.lookup_struct(&func_name).cloned() {
+        // Process named args (field values) with emit_arg_string
+        let mut field_values: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        for named_arg in arg.params.iter().skip(1) {
+            if let NodeType::NamedArg(field_name) = &named_arg.node_type {
+                if let Some(value_expr) = named_arg.params.first() {
+                    // Find the field's expected type
+                    let field_type = struct_def.members.iter()
+                        .find(|m| &m.name == field_name)
+                        .map(|m| &m.value_type);
+                    // Process the value with emit_arg_string
+                    let value_str = emit_arg_string(value_expr, field_type, false, hoist_output, indent, ctx, context)?;
+                    field_values.insert(field_name.clone(), value_str);
+                }
+            }
+        }
+
+        // Build the compound literal
+        let mut result = format!("({}{})", TIL_PREFIX, func_name);
+        if struct_def.members.is_empty() || struct_def.default_values.is_empty() {
+            result.push_str("{}");
+        } else {
+            result.push('{');
+            let mut first = true;
+            for member in &struct_def.members {
+                if !member.is_mut {
+                    continue;  // Skip static members
+                }
+                if !first {
+                    result.push_str(", ");
+                }
+                first = false;
+                result.push('.');
+                result.push_str(&member.name);
+                result.push_str(" = ");
+                if let Some(value_str) = field_values.get(&member.name) {
+                    result.push_str(value_str);
+                } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
+                    // Use emit_arg_string for defaults too (may contain variadic/throwing calls)
+                    let default_str = emit_arg_string(default_expr, Some(&member.value_type), false, hoist_output, indent, ctx, context)?;
+                    result.push_str(&default_str);
+                } else {
+                    // No value and no default - use zero
+                    result.push('0');
+                }
+            }
+            result.push('}');
+        }
+        return Ok(result);
     }
 
     let orig_func_name = get_til_func_name_string(&arg.params[0]).unwrap_or_else(|| func_name.clone());
@@ -4698,29 +4746,27 @@ fn emit_variadic_call(
 
     // Calculate param info for by-ref param handling
     let func_def_opt = get_fcall_func_def(context, fcall);
-    let param_by_ref: Vec<bool> = {
-        fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| param_needs_by_ref(a)).unwrap_or(false))
-            .collect()
-    };
-    let param_types: Vec<Option<ValueType>> = {
-        fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
-            .collect()
-    };
 
-    // Hoist any throwing function calls in arguments BEFORE constructing variadic array
-    let hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
-        let args = &fcall.params[1..];
-        let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-        hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
-    } else {
-        std::collections::HashMap::new()
-    };
+    // Use new mechanism: emit_arg_string for each arg
+    // For variadic args (i >= regular_count), use by_ref=false
+    let mut arg_strings = Vec::new();
+    if fcall.params.len() > 1 {
+        for (i, arg) in fcall.params.iter().skip(1).enumerate() {
+            let is_variadic_arg = i >= regular_count;
+            let param_type = func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| &a.value_type));
+            let by_ref = if is_variadic_arg {
+                false
+            } else {
+                func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| param_needs_by_ref(a))).unwrap_or(false)
+            };
+            let arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            arg_strings.push(arg_str);
+        }
+    }
 
-    // Construct variadic array
-    let variadic_args: Vec<_> = fcall.params.iter().skip(1 + regular_count).collect();
-    let variadic_arr_var = hoist_variadic_args(elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?;
+    // Construct variadic array using pre-computed arg_strings
+    let variadic_arg_strings: Vec<String> = arg_strings.iter().skip(regular_count).cloned().collect();
+    let variadic_arr_var = emit_variadic_array_with_strings(elem_type, &variadic_arg_strings, output, indent, ctx)?;
 
     // Determine return type if we need to declare a variable
     let ret_type = if decl_name.is_some() || assign_name.is_some() {
@@ -4732,62 +4778,42 @@ fn emit_variadic_call(
         "int".to_string()
     };
 
+    // Helper to emit the function call with pre-computed arg_strings
+    let emit_call = |out: &mut String| {
+        out.push_str(TIL_PREFIX);
+        out.push_str(&func_name.replace('.', "_"));
+        out.push_str("(");
+        // Emit regular args using pre-computed arg_strings
+        for (i, arg_str) in arg_strings.iter().take(regular_count).enumerate() {
+            if i > 0 {
+                out.push_str(", ");
+            }
+            out.push_str(arg_str);
+        }
+        // Emit variadic array pointer
+        if regular_count > 0 {
+            out.push_str(", ");
+        }
+        out.push_str("&");
+        out.push_str(&variadic_arr_var);
+        out.push_str(")");
+    };
+
     // For declarations: declare the variable (skip for "_" - Bug #35)
     if let Some(var_name) = decl_name {
         if var_name == "_" {
             // Bug #35: For underscore, just call the function (discard result)
             output.push_str(&indent_str);
-            output.push_str(TIL_PREFIX);
-            output.push_str(&func_name.replace('.', "_"));
-            output.push_str("(");
-
-            let args: Vec<_> = fcall.params.iter().skip(1).collect();
-            for (i, arg) in args.iter().take(regular_count).enumerate() {
-                if i > 0 {
-                    output.push_str(", ");
-                }
-                let param_type = param_types.get(i).and_then(|p| p.as_ref());
-                let by_ref = param_by_ref.get(i).copied().unwrap_or(false);
-                emit_arg_with_param_type(arg, i, &hoisted, param_type, by_ref, output, ctx, context)?;
-            }
-
-            if regular_count > 0 {
-                output.push_str(", ");
-            }
-            output.push_str("&");
-            output.push_str(&variadic_arr_var);
-            output.push_str(");\n");
+            emit_call(output);
+            output.push_str(";\n");
         } else {
             output.push_str(&indent_str);
             output.push_str(&ret_type);
             output.push_str(" ");
             output.push_str(&til_name(var_name));
             output.push_str(" = ");
-
-            // Emit function call
-            output.push_str(TIL_PREFIX);
-            output.push_str(&func_name.replace('.', "_"));
-            output.push_str("(");
-
-            // Emit regular args first
-            let args: Vec<_> = fcall.params.iter().skip(1).collect();
-            for (i, arg) in args.iter().take(regular_count).enumerate() {
-                if i > 0 {
-                    output.push_str(", ");
-                }
-                let param_type = param_types.get(i).and_then(|p| p.as_ref());
-                let by_ref = param_by_ref.get(i).copied().unwrap_or(false);
-                emit_arg_with_param_type(arg, i, &hoisted, param_type, by_ref, output, ctx, context)?;
-            }
-
-            // Emit variadic array pointer
-            if regular_count > 0 {
-                output.push_str(", ");
-            }
-            output.push_str("&");
-            output.push_str(&variadic_arr_var);
-
-            output.push_str(");\n");
+            emit_call(output);
+            output.push_str(";\n");
 
             // Add variable to scope
             if let Some(fd) = get_fcall_func_def(context, fcall) {
@@ -4824,57 +4850,13 @@ fn emit_variadic_call(
             output.push_str(&til_name(var_name));
         }
         output.push_str(" = ");
-
-        // Emit function call
-        output.push_str(TIL_PREFIX);
-        output.push_str(&func_name.replace('.', "_"));
-        output.push_str("(");
-
-        // Emit regular args first
-        let args: Vec<_> = fcall.params.iter().skip(1).collect();
-        for (i, arg) in args.iter().take(regular_count).enumerate() {
-            if i > 0 {
-                output.push_str(", ");
-            }
-            let param_type = param_types.get(i).and_then(|p| p.as_ref());
-            let by_ref = param_by_ref.get(i).copied().unwrap_or(false);
-            emit_arg_with_param_type(arg, i, &hoisted, param_type, by_ref, output, ctx, context)?;
-        }
-
-        // Emit variadic array pointer
-        if regular_count > 0 {
-            output.push_str(", ");
-        }
-        output.push_str("&");
-        output.push_str(&variadic_arr_var);
-
-        output.push_str(");\n");
+        emit_call(output);
+        output.push_str(";\n");
     } else {
         // Standalone variadic call (no return value used)
         output.push_str(&indent_str);
-        output.push_str(TIL_PREFIX);
-        output.push_str(&func_name.replace('.', "_"));
-        output.push_str("(");
-
-        // Emit regular args first
-        let args: Vec<_> = fcall.params.iter().skip(1).collect();
-        for (i, arg) in args.iter().take(regular_count).enumerate() {
-            if i > 0 {
-                output.push_str(", ");
-            }
-            let param_type = param_types.get(i).and_then(|p| p.as_ref());
-            let by_ref = param_by_ref.get(i).copied().unwrap_or(false);
-            emit_arg_with_param_type(arg, i, &hoisted, param_type, by_ref, output, ctx, context)?;
-        }
-
-        // Emit variadic array pointer
-        if regular_count > 0 {
-            output.push_str(", ");
-        }
-        output.push_str("&");
-        output.push_str(&variadic_arr_var);
-
-        output.push_str(");\n");
+        emit_call(output);
+        output.push_str(";\n");
     }
 
     // Clean up variadic array
@@ -4921,43 +4903,23 @@ fn emit_throwing_call(
         .unwrap_or(false);
     let needs_ret = func_has_return && (decl_name.is_some() || assign_name.is_some());
 
-    // Calculate param_types early for Dynamic hoisting
-    let param_types: Vec<Option<ValueType>> = {
-        fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
-            .collect()
-    };
-    // Calculate param_by_ref for pointer passing
-    let param_by_ref: Vec<bool> = {
-        fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| param_needs_by_ref(a)).unwrap_or(false))
-            .collect()
-    };
+    // Check if this is a variadic function call
+    let variadic_info = detect_variadic_fcall(fcall, ctx);
+    let variadic_regular_count = variadic_info.as_ref().map(|vi| vi.regular_count).unwrap_or(usize::MAX);
 
-    // Hoist any throwing function calls in arguments BEFORE emitting this call
-    let mut hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
-        let args = &fcall.params[1..];
-        let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-        hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
-    } else {
-        std::collections::HashMap::new()
-    };
-
-    // Hoist non-lvalue args (string literals, function calls) when param type is Dynamic
+    // Use new mechanism: emit_arg_string for each arg
+    let mut arg_strings = Vec::new();
     if fcall.params.len() > 1 {
-        let args = &fcall.params[1..];
-        let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &hoisted, output, indent, ctx, context)?;
-        for h in dynamic_hoisted {
-            hoisted.insert(h.index, h.temp_var);
-        }
-    }
-
-    // Hoist struct-returning FCall args when param is by-ref (can't use compound literal for structs)
-    if fcall.params.len() > 1 {
-        let args = &fcall.params[1..];
-        let ref_hoisted = hoist_for_ref_params(args, &param_by_ref, &hoisted, output, indent, ctx, context)?;
-        for h in ref_hoisted {
-            hoisted.insert(h.index, h.temp_var);
+        for (i, arg) in fcall.params.iter().skip(1).enumerate() {
+            let is_variadic_arg = i >= variadic_regular_count;
+            let param_type = func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| &a.value_type));
+            let by_ref = if is_variadic_arg {
+                false
+            } else {
+                func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| param_needs_by_ref(a))).unwrap_or(false)
+            };
+            let arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            arg_strings.push(arg_str);
         }
     }
 
@@ -5019,11 +4981,10 @@ fn emit_throwing_call(
         }
     }
 
-    // Check if this is a variadic function call and construct array BEFORE the call
-    let variadic_info = detect_variadic_fcall(fcall, ctx);
+    // Construct variadic array if needed, using pre-computed arg_strings
     let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
-        let variadic_args: Vec<_> = fcall.params.iter().skip(1 + vi.regular_count).collect();
-        Some(hoist_variadic_args(&vi.elem_type, &variadic_args, &hoisted, vi.regular_count, output, indent, ctx, context)?)
+        let variadic_arg_strings: Vec<String> = arg_strings.iter().skip(vi.regular_count).cloned().collect();
+        Some(emit_variadic_array_with_strings(&vi.elem_type, &variadic_arg_strings, output, indent, ctx)?)
     } else {
         None
     };
@@ -5058,16 +5019,14 @@ fn emit_throwing_call(
         has_emitted_params = true;
     }
 
-    // Emit arguments - handle variadic separately from regular args
+    // Emit arguments using pre-computed arg_strings
     if let Some(ref vi) = variadic_info {
         // Variadic call: emit regular args first, then variadic array pointer
-        for (vi_arg_idx, vi_arg) in fcall.params.iter().skip(1).take(vi.regular_count).enumerate() {
-            if has_emitted_params || vi_arg_idx > 0 {
+        for (i, arg_str) in arg_strings.iter().take(vi.regular_count).enumerate() {
+            if has_emitted_params || i > 0 {
                 output.push_str(", ");
             }
-            let vi_param_type = param_types.get(vi_arg_idx).and_then(|p| p.as_ref());
-            let vi_by_ref = param_by_ref.get(vi_arg_idx).copied().unwrap_or(false);
-            emit_arg_with_param_type(vi_arg, vi_arg_idx, &hoisted, vi_param_type, vi_by_ref, output, ctx, context)?;
+            output.push_str(arg_str);
         }
 
         // Emit variadic array pointer
@@ -5080,16 +5039,11 @@ fn emit_throwing_call(
         }
     } else {
         // Non-variadic: emit all args directly
-        let mut nv_args_started = false;
-        for (nv_arg_idx, nv_arg) in fcall.params.iter().skip(1).enumerate() {
-            if has_emitted_params || nv_args_started {
+        for (i, arg_str) in arg_strings.iter().enumerate() {
+            if has_emitted_params || i > 0 {
                 output.push_str(", ");
             }
-            // Get parameter type and mutability for this argument
-            let nv_param_type = param_types.get(nv_arg_idx).and_then(|p| p.as_ref());
-            let nv_by_ref = param_by_ref.get(nv_arg_idx).copied().unwrap_or(false);
-            emit_arg_with_param_type(nv_arg, nv_arg_idx, &hoisted, nv_param_type, nv_by_ref, output, ctx, context)?;
-            nv_args_started = true;
+            output.push_str(arg_str);
         }
     }
 
@@ -5248,43 +5202,23 @@ fn emit_throwing_call_propagate(
         .unwrap_or(false);
     let needs_ret = func_has_return && (decl_name.is_some() || assign_name.is_some());
 
-    // Calculate param_types early for Dynamic hoisting
-    let param_types: Vec<Option<ValueType>> = {
-        fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
-            .collect()
-    };
-    // Calculate param_by_ref for pointer passing
-    let param_by_ref: Vec<bool> = {
-        fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| param_needs_by_ref(a)).unwrap_or(false))
-            .collect()
-    };
+    // Check if this is a variadic function call
+    let variadic_info = detect_variadic_fcall(fcall, ctx);
+    let variadic_regular_count = variadic_info.as_ref().map(|vi| vi.regular_count).unwrap_or(usize::MAX);
 
-    // Hoist any throwing function calls in arguments BEFORE emitting this call
-    let mut hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
-        let args = &fcall.params[1..];
-        let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-        hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
-    } else {
-        std::collections::HashMap::new()
-    };
-
-    // Hoist non-lvalue args (string literals, function calls) when param type is Dynamic
+    // Use new mechanism: emit_arg_string for each arg
+    let mut arg_strings = Vec::new();
     if fcall.params.len() > 1 {
-        let args = &fcall.params[1..];
-        let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &hoisted, output, indent, ctx, context)?;
-        for h in dynamic_hoisted {
-            hoisted.insert(h.index, h.temp_var);
-        }
-    }
-
-    // Hoist struct-returning FCall args when param is by-ref
-    if fcall.params.len() > 1 {
-        let args = &fcall.params[1..];
-        let ref_hoisted = hoist_for_ref_params(args, &param_by_ref, &hoisted, output, indent, ctx, context)?;
-        for h in ref_hoisted {
-            hoisted.insert(h.index, h.temp_var);
+        for (i, arg) in fcall.params.iter().skip(1).enumerate() {
+            let is_variadic_arg = i >= variadic_regular_count;
+            let param_type = func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| &a.value_type));
+            let by_ref = if is_variadic_arg {
+                false
+            } else {
+                func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| param_needs_by_ref(a))).unwrap_or(false)
+            };
+            let arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            arg_strings.push(arg_str);
         }
     }
 
@@ -5346,11 +5280,10 @@ fn emit_throwing_call_propagate(
         }
     }
 
-    // Check if this is a variadic function call and construct array BEFORE the call
-    let variadic_info = detect_variadic_fcall(fcall, ctx);
+    // Construct variadic array if needed, using pre-computed arg_strings
     let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
-        let variadic_args: Vec<_> = fcall.params.iter().skip(1 + vi.regular_count).collect();
-        Some(hoist_variadic_args(&vi.elem_type, &variadic_args, &hoisted, vi.regular_count, output, indent, ctx, context)?)
+        let variadic_arg_strings: Vec<String> = arg_strings.iter().skip(vi.regular_count).cloned().collect();
+        Some(emit_variadic_array_with_strings(&vi.elem_type, &variadic_arg_strings, output, indent, ctx)?)
     } else {
         None
     };
@@ -5385,16 +5318,14 @@ fn emit_throwing_call_propagate(
         has_emitted_params = true;
     }
 
-    // Emit arguments - handle variadic separately from regular args
+    // Emit arguments using pre-computed arg_strings
     if let Some(ref vi) = variadic_info {
         // Variadic call: emit regular args first, then variadic array pointer
-        for (arg_idx, arg) in fcall.params.iter().skip(1).take(vi.regular_count).enumerate() {
-            if has_emitted_params || arg_idx > 0 {
+        for (i, arg_str) in arg_strings.iter().take(vi.regular_count).enumerate() {
+            if has_emitted_params || i > 0 {
                 output.push_str(", ");
             }
-            let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-            let by_ref = param_by_ref.get(arg_idx).copied().unwrap_or(false);
-            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, by_ref, output, ctx, context)?;
+            output.push_str(arg_str);
         }
 
         // Emit variadic array pointer
@@ -5407,16 +5338,11 @@ fn emit_throwing_call_propagate(
         }
     } else {
         // Non-variadic: emit all args directly
-        let mut args_started = false;
-        for (arg_idx, arg) in fcall.params.iter().skip(1).enumerate() {
-            if has_emitted_params || args_started {
+        for (i, arg_str) in arg_strings.iter().enumerate() {
+            if has_emitted_params || i > 0 {
                 output.push_str(", ");
             }
-            // Get parameter type and mutability for this argument
-            let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-            let by_ref = param_by_ref.get(arg_idx).copied().unwrap_or(false);
-            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, by_ref, output, ctx, context)?;
-            args_started = true;
+            output.push_str(arg_str);
         }
     }
 
@@ -5536,42 +5462,23 @@ fn emit_throwing_call_with_goto(
         .unwrap_or(false);
     let needs_ret = func_has_return && (decl_name.is_some() || assign_name.is_some());
 
-    // Calculate param_types and param_by_ref
-    let param_types: Vec<Option<ValueType>> = {
-        fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| a.value_type.clone()))
-            .collect()
-    };
-    let param_by_ref: Vec<bool> = {
-        fcall.params.iter().skip(1).enumerate()
-            .map(|(i, _)| func_def_opt.as_ref().and_then(|fd| fd.args.get(i)).map(|a| param_needs_by_ref(a)).unwrap_or(false))
-            .collect()
-    };
+    // Check if this is a variadic function call
+    let variadic_info = detect_variadic_fcall(fcall, ctx);
+    let variadic_regular_count = variadic_info.as_ref().map(|vi| vi.regular_count).unwrap_or(usize::MAX);
 
-    // Hoist any throwing function calls in arguments BEFORE emitting this call
-    let mut hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
-        let args = &fcall.params[1..];
-        let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-        hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
-    } else {
-        std::collections::HashMap::new()
-    };
-
-    // Hoist non-lvalue args when param type is Dynamic
+    // Use new mechanism: emit_arg_string for each arg
+    let mut arg_strings = Vec::new();
     if fcall.params.len() > 1 {
-        let args = &fcall.params[1..];
-        let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &hoisted, output, indent, ctx, context)?;
-        for h in dynamic_hoisted {
-            hoisted.insert(h.index, h.temp_var);
-        }
-    }
-
-    // Hoist struct-returning FCall args when param is by-ref
-    if fcall.params.len() > 1 {
-        let args = &fcall.params[1..];
-        let ref_hoisted = hoist_for_ref_params(args, &param_by_ref, &hoisted, output, indent, ctx, context)?;
-        for h in ref_hoisted {
-            hoisted.insert(h.index, h.temp_var);
+        for (i, arg) in fcall.params.iter().skip(1).enumerate() {
+            let is_variadic_arg = i >= variadic_regular_count;
+            let param_type = func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| &a.value_type));
+            let by_ref = if is_variadic_arg {
+                false
+            } else {
+                func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| param_needs_by_ref(a))).unwrap_or(false)
+            };
+            let arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            arg_strings.push(arg_str);
         }
     }
 
@@ -5632,11 +5539,10 @@ fn emit_throwing_call_with_goto(
         }
     }
 
-    // Check for variadic function call
-    let variadic_info = detect_variadic_fcall(fcall, ctx);
+    // Construct variadic array if needed, using pre-computed arg_strings
     let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
-        let variadic_args: Vec<_> = fcall.params.iter().skip(1 + vi.regular_count).collect();
-        Some(hoist_variadic_args(&vi.elem_type, &variadic_args, &hoisted, vi.regular_count, output, indent, ctx, context)?)
+        let variadic_arg_strings: Vec<String> = arg_strings.iter().skip(vi.regular_count).cloned().collect();
+        Some(emit_variadic_array_with_strings(&vi.elem_type, &variadic_arg_strings, output, indent, ctx)?)
     } else {
         None
     };
@@ -5671,25 +5577,18 @@ fn emit_throwing_call_with_goto(
         has_emitted_params = true;
     }
 
-    // Emit arguments
-    let mut args_started = false;
+    // Emit arguments using pre-computed arg_strings
     let regular_arg_count = variadic_info.as_ref().map(|vi| vi.regular_count).unwrap_or(usize::MAX);
-    for (arg_idx, arg) in fcall.params.iter().skip(1).enumerate() {
-        if arg_idx >= regular_arg_count {
-            break;
-        }
-        if has_emitted_params || args_started {
+    for (i, arg_str) in arg_strings.iter().take(regular_arg_count).enumerate() {
+        if has_emitted_params || i > 0 {
             output.push_str(", ");
         }
-        let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-        let by_ref = param_by_ref.get(arg_idx).copied().unwrap_or(false);
-        emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, by_ref, output, ctx, context)?;
-        args_started = true;
+        output.push_str(arg_str);
     }
 
     // Add variadic array if present
     if let Some(arr_var) = &variadic_arr_var {
-        if has_emitted_params || args_started {
+        if has_emitted_params || !arg_strings.is_empty() {
             output.push_str(", ");
         }
         output.push_str("&");
@@ -5914,11 +5813,54 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
     let indent_str = "    ".repeat(indent);
 
-    // Hoist any throwing function calls in the RHS expression before emitting the declaration
-    // This ensures throwing calls are properly handled with error checking
-    if !expr.params.is_empty() {
-        hoist_throwing_expr(&expr.params[0], output, indent, ctx, context)?;
-    }
+    // Bug #143: Use new mechanism - process RHS FCall args with emit_arg_string
+    // This handles throwing calls, by-ref params, and Dynamic params properly
+    let rhs_fcall_string: Option<String> = if !expr.params.is_empty() {
+        if let NodeType::FCall(_) = &expr.params[0].node_type {
+            let rhs_fcall = &expr.params[0];
+            if let Some(fd) = get_fcall_func_def(context, rhs_fcall) {
+                // Process all args with emit_arg_string
+                let mut arg_strings = Vec::new();
+                for (i, arg) in rhs_fcall.params.iter().skip(1).enumerate() {
+                    let param_type = fd.args.get(i).map(|a| &a.value_type);
+                    let by_ref = fd.args.get(i).map(|a| param_needs_by_ref(a)).unwrap_or(false);
+                    let arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+                    arg_strings.push(arg_str);
+                }
+                // Build the function call string
+                let func_name = match get_func_name_string(&rhs_fcall.params[0]) {
+                    Some(name) => name,
+                    None => return Err(expr.lang_error(&context.path, "ccodegen", "FCall first param not Identifier")),
+                };
+                // Check if enum constructor
+                let is_enum_constructor = if func_name.contains('_') {
+                    let parts: Vec<&str> = func_name.splitn(2, '_').collect();
+                    if parts.len() == 2 {
+                        context.scope_stack.lookup_enum(parts[0])
+                            .map(|e| e.contains_key(parts[1]))
+                            .unwrap_or(false)
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                let call_str = if is_enum_constructor {
+                    let parts: Vec<&str> = func_name.splitn(2, '_').collect();
+                    format!("{}{}_make_{}({})", TIL_PREFIX, parts[0], parts[1], arg_strings.join(", "))
+                } else {
+                    format!("{}{}({})", TIL_PREFIX, func_name, arg_strings.join(", "))
+                };
+                Some(call_str)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
 
     // Bug #35: For underscore declarations, just emit the expression (discard result)
     // This avoids C redeclaration errors and matches the semantics of discarding
@@ -6125,7 +6067,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             emit_struct_literal_assign(output, &type_name, already_declared, "{0}");
         }
     } else if let Some(type_name) = enum_type {
-        // Enum variable declaration
+        // Enum variable declaration - Bug #143: Use rhs_fcall_string if available
         output.push_str(&indent_str);
         if !already_declared {
             if !is_mut {
@@ -6137,43 +6079,14 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         }
         output.push_str(&til_name(name));
         output.push_str(" = ");
-        emit_expr(&expr.params[0], output, 0, ctx, context)?;
+        if let Some(ref call_str) = rhs_fcall_string {
+            output.push_str(call_str);
+        } else {
+            emit_expr(&expr.params[0], output, 0, ctx, context)?;
+        }
         output.push_str(";\n");
     } else if is_mut {
-        // Hoist Dynamic and ref params in RHS if it's an FCall
-        if !expr.params.is_empty() {
-            if let NodeType::FCall(_) = &expr.params[0].node_type {
-                let rhs_fcall = &expr.params[0];
-                if rhs_fcall.params.len() > 1 {
-                    if let Some(fd) = get_fcall_func_def(context, rhs_fcall) {
-                        let param_types: Vec<Option<ValueType>> = fd.args.iter()
-                            .map(|fd_arg| Some(fd_arg.value_type.clone()))
-                            .collect();
-                        let param_by_ref: Vec<bool> = fd.args.iter()
-                            .map(|fd_arg| param_needs_by_ref(fd_arg))
-                            .collect();
-                        let args = &rhs_fcall.params[1..];
-                        let empty_hoisted = std::collections::HashMap::new();
-                        let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
-                        for h in &dynamic_hoisted {
-                            if let Some(hoisted_arg) = args.get(h.index) {
-                                let expr_addr = hoisted_arg as *const Expr as usize;
-                                ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
-                            }
-                        }
-                        let mut hoisted_map: std::collections::HashMap<usize, String> = dynamic_hoisted.into_iter().map(|h| (h.index, h.temp_var)).collect();
-                        let ref_hoisted = hoist_for_ref_params(args, &param_by_ref, &hoisted_map, output, indent, ctx, context)?;
-                        for h in ref_hoisted {
-                            if let Some(ref_arg) = args.get(h.index) {
-                                let expr_addr = ref_arg as *const Expr as usize;
-                                ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
-                            }
-                            hoisted_map.insert(h.index, h.temp_var);
-                        }
-                    }
-                }
-            }
-        }
+        // Bug #143: Use rhs_fcall_string if available (already hoisted args)
         output.push_str(&indent_str);
         if !already_declared {
             // INFER_TYPE should have been resolved by typer
@@ -6188,45 +6101,15 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         output.push_str(&til_name(name));
         if !expr.params.is_empty() {
             output.push_str(" = ");
-            emit_expr(&expr.params[0], output, 0, ctx, context)?;
+            if let Some(ref call_str) = rhs_fcall_string {
+                output.push_str(call_str);
+            } else {
+                emit_expr(&expr.params[0], output, 0, ctx, context)?;
+            }
         }
         output.push_str(";\n");
     } else {
-        // const declaration
-        // Hoist Dynamic and ref params in RHS if it's an FCall
-        if !expr.params.is_empty() {
-            if let NodeType::FCall(_) = &expr.params[0].node_type {
-                let rhs_fcall = &expr.params[0];
-                if rhs_fcall.params.len() > 1 {
-                    if let Some(fd) = get_fcall_func_def(context, rhs_fcall) {
-                        let param_types: Vec<Option<ValueType>> = fd.args.iter()
-                            .map(|fd_arg| Some(fd_arg.value_type.clone()))
-                            .collect();
-                        let param_by_ref: Vec<bool> = fd.args.iter()
-                            .map(|fd_arg| param_needs_by_ref(fd_arg))
-                            .collect();
-                        let args = &rhs_fcall.params[1..];
-                        let empty_hoisted = std::collections::HashMap::new();
-                        let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
-                        for h in &dynamic_hoisted {
-                            if let Some(hoisted_arg) = args.get(h.index) {
-                                let expr_addr = hoisted_arg as *const Expr as usize;
-                                ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
-                            }
-                        }
-                        let mut hoisted_map: std::collections::HashMap<usize, String> = dynamic_hoisted.into_iter().map(|h| (h.index, h.temp_var)).collect();
-                        let ref_hoisted = hoist_for_ref_params(args, &param_by_ref, &hoisted_map, output, indent, ctx, context)?;
-                        for h in ref_hoisted {
-                            if let Some(ref_arg) = args.get(h.index) {
-                                let expr_addr = ref_arg as *const Expr as usize;
-                                ctx.hoisted_exprs.insert(expr_addr, format!("&{}", h.temp_var));
-                            }
-                            hoisted_map.insert(h.index, h.temp_var);
-                        }
-                    }
-                }
-            }
-        }
+        // const declaration - Bug #143: Use rhs_fcall_string if available (already hoisted args)
         output.push_str(&indent_str);
         if !already_declared {
             // INFER_TYPE should have been resolved by typer
@@ -6242,7 +6125,11 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         output.push_str(&til_name(name));
         if !expr.params.is_empty() {
             output.push_str(" = ");
-            emit_expr(&expr.params[0], output, 0, ctx, context)?;
+            if let Some(ref call_str) = rhs_fcall_string {
+                output.push_str(call_str);
+            } else {
+                emit_expr(&expr.params[0], output, 0, ctx, context)?;
+            }
         }
         output.push_str(";\n");
     }
@@ -6330,7 +6217,8 @@ fn emit_funcdef(_func_def: &SFuncDef, expr: &Expr, output: &mut String, indent: 
 fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     let indent_str = "    ".repeat(indent);
 
-    if !expr.params.is_empty() {
+    // Bug #143: Use emit_arg_string to handle RHS hoisting
+    let rhs_str: Option<String> = if !expr.params.is_empty() {
         let rhs_expr = &expr.params[0];
 
         // Check if RHS is a call to a throwing function
@@ -6344,9 +6232,11 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
             }
         }
 
-        // Hoist any throwing function calls nested in the RHS expression
-        hoist_throwing_expr(rhs_expr, output, indent, ctx, context)?;
-    }
+        // Process RHS with emit_arg_string (handles hoisting)
+        Some(emit_arg_string(rhs_expr, None, false, output, indent, ctx, context)?)
+    } else {
+        None
+    };
 
     // Regular assignment
     output.push_str(&indent_str);
@@ -6377,13 +6267,13 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
         .map(|sym| matches!(&sym.value_type, ValueType::TCustom(t) if t == "Dynamic"))
         .unwrap_or(false);
 
-    if is_dynamic_target && !expr.params.is_empty() {
-        output.push_str("(");
-        output.push_str(TIL_PREFIX);
-        output.push_str("Dynamic)");
-        emit_expr(&expr.params[0], output, 0, ctx, context)?;
-    } else if !expr.params.is_empty() {
-        emit_expr(&expr.params[0], output, 0, ctx, context)?;
+    if let Some(ref rhs) = rhs_str {
+        if is_dynamic_target {
+            output.push_str("(");
+            output.push_str(TIL_PREFIX);
+            output.push_str("Dynamic)");
+        }
+        output.push_str(rhs);
     }
     output.push_str(";\n");
     Ok(())
@@ -6410,13 +6300,13 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 }
             }
 
-            // Hoist any throwing function calls nested in the return expression
-            hoist_throwing_expr(return_expr, output, indent, ctx, context)?;
+            // Bug #143: Use emit_arg_string to handle hoisting
+            let return_str = emit_arg_string(return_expr, None, false, output, indent, ctx, context)?;
 
             // Regular return value - just emit it
             output.push_str(&indent_str);
             output.push_str("*_ret = ");
-            emit_expr(&expr.params[0], output, 0, ctx, context)?;
+            output.push_str(&return_str);
             output.push_str(";\n");
         }
         output.push_str(&indent_str);
@@ -6494,17 +6384,19 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
             }
         }
 
-        // Hoist any throwing function calls nested in the return expression
-        if !expr.params.is_empty() {
-            hoist_throwing_expr(&expr.params[0], output, indent, ctx, context)?;
-        }
+        // Bug #143: Use emit_arg_string to handle hoisting
+        let return_str = if !expr.params.is_empty() {
+            Some(emit_arg_string(&expr.params[0], None, false, output, indent, ctx, context)?)
+        } else {
+            None
+        };
 
         // Regular non-variadic return
         output.push_str(&indent_str);
         output.push_str("return");
-        if !expr.params.is_empty() {
+        if let Some(ref ret_str) = return_str {
             output.push_str(" ");
-            emit_expr(&expr.params[0], output, 0, ctx, context)?;
+            output.push_str(ret_str);
         }
         output.push_str(";\n");
     }
@@ -6520,73 +6412,8 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     let indent_str = "    ".repeat(indent);
     let thrown_expr = &expr.params[0];
 
-    // Check if the thrown expression itself is a throwing function call (e.g., throw format(...))
-    // If so, we need to hoist it first to ensure proper error handling
-    if let Some(hoisted_temp) = hoist_throwing_expr(thrown_expr, output, indent, ctx, context)? {
-        // The thrown expression was hoisted to a temp variable
-        // Now we just need to throw the temp variable value
-        // Get the type of the hoisted value
-        let thrown_type_name = if let Some(fd) = get_fcall_func_def(context, thrown_expr) {
-            if let Some(ret_type) = fd.return_types.first() {
-                if let crate::rs::parser::ValueType::TCustom(type_name) = ret_type {
-                    type_name.clone()
-                } else {
-                    crate::rs::parser::value_type_to_str(ret_type)
-                }
-            } else {
-                return Err("ccodegen: throwing function has no return type".to_string());
-            }
-        } else {
-            return Err("ccodegen: could not find throwing function definition".to_string());
-        };
-
-        // Check if this type is locally caught
-        if let Some(catch_info) = ctx.local_catch_labels.get(&thrown_type_name) {
-            let label = catch_info.label.clone();
-            let temp_var = catch_info.temp_var.clone();
-            output.push_str(&indent_str);
-            output.push_str(&temp_var);
-            output.push_str(" = ");
-            output.push_str(&hoisted_temp);
-            output.push_str(";\n");
-            output.push_str(&indent_str);
-            output.push_str("goto ");
-            output.push_str(&label);
-            output.push_str(";\n");
-            return Ok(());
-        }
-
-        // Find the index of this type in current_throw_types
-        let mut error_index: Option<usize> = None;
-        for (i, vt) in ctx.current_throw_types.iter().enumerate() {
-            if let crate::rs::parser::ValueType::TCustom(name) = vt {
-                if name == &thrown_type_name {
-                    error_index = Some(i);
-                    break;
-                }
-            }
-        }
-
-        match error_index {
-            Some(idx) => {
-                // Issue #119: Skip assigning empty struct errors
-                let nh_err_type = &ctx.current_throw_types[idx];
-                if !is_empty_error_struct(context, nh_err_type) {
-                    output.push_str(&indent_str);
-                    output.push_str(&format!("*_err{} = ", idx + 1));
-                    output.push_str(&hoisted_temp);
-                    output.push_str(";\n");
-                }
-                output.push_str(&indent_str);
-                output.push_str(&format!("return {};\n", idx + 1));
-                return Ok(());
-            }
-            None => return Err(format!(
-                "ccodegen: thrown type '{}' not found in function's throw types: {:?}",
-                thrown_type_name, ctx.current_throw_types
-            )),
-        }
-    }
+    // Bug #143: Use emit_arg_string to handle hoisting of thrown expression
+    let thrown_str = emit_arg_string(thrown_expr, None, false, output, indent, ctx, context)?;
 
     // Get the thrown type name from the expression
     // For FCall, we need to determine if it's:
@@ -6667,30 +6494,11 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             return Ok(());
         }
 
-        // Hoist any throwing function calls in the thrown expression
-        let nh_hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall(_) = &thrown_expr.node_type {
-            if thrown_expr.params.len() > 1 {
-                let nh_args = &thrown_expr.params[1..];
-                let nh_hoisted_vec = hoist_throwing_args(nh_args, output, indent, ctx, context)?;
-                nh_hoisted_vec.into_iter().map(|nh_h| (nh_h.index, nh_h.temp_var)).collect()
-            } else {
-                std::collections::HashMap::new()
-            }
-        } else {
-            std::collections::HashMap::new()
-        };
-
-        // Store the error value in temp variable
+        // Bug #143: Use thrown_str (already hoisted by emit_arg_string)
         output.push_str(&indent_str);
         output.push_str(&nh_temp_var);
         output.push_str(" = ");
-
-        // Emit the thrown expression
-        if let NodeType::FCall(_) = &thrown_expr.node_type {
-            emit_fcall_with_hoisted(thrown_expr, &nh_hoisted, output, ctx, context)?;
-        } else {
-            emit_expr(thrown_expr, output, 0, ctx, context)?;
-        }
+        output.push_str(&thrown_str);
         output.push_str(";\n");
 
         // Jump to the catch block
@@ -6719,38 +6527,12 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             let nh_prop_err_type = &ctx.current_throw_types[idx];
             let is_empty_err = is_empty_error_struct(context, nh_prop_err_type);
 
-            // Hoist throwing function calls from arguments of the thrown expression
-            // E.g., throw Error.new(format(...)) needs to hoist format() first
-            // (Skip if empty struct - no need to hoist anything)
-            let nh_prop_hoisted: std::collections::HashMap<usize, String> = if !is_empty_err {
-                if let NodeType::FCall(_) = &thrown_expr.node_type {
-                    if thrown_expr.params.len() > 1 {
-                        let nh_prop_args = &thrown_expr.params[1..];
-                        let nh_prop_hoisted_vec = hoist_throwing_args(nh_prop_args, output, indent, ctx, context)?;
-                        nh_prop_hoisted_vec.into_iter().map(|nh_prop_h| (nh_prop_h.index, nh_prop_h.temp_var)).collect()
-                    } else {
-                        std::collections::HashMap::new()
-                    }
-                } else {
-                    std::collections::HashMap::new()
-                }
-            } else {
-                std::collections::HashMap::new()
-            };
-
             // Issue #119: Skip storing error value for empty struct errors
             if !is_empty_err {
-                // Store the error value in the appropriate error pointer
-                // Note: error params are 1-based (_err1, _err2, etc.)
+                // Bug #143: Use thrown_str (already hoisted by emit_arg_string)
                 output.push_str(&indent_str);
                 output.push_str(&format!("*_err{} = ", idx + 1));
-
-                // Emit the thrown expression, using hoisted temp vars for arguments
-                if let NodeType::FCall(_) = &thrown_expr.node_type {
-                    emit_fcall_with_hoisted(thrown_expr, &nh_prop_hoisted, output, ctx, context)?;
-                } else {
-                    emit_expr(thrown_expr, output, 0, ctx, context)?;
-                }
+                output.push_str(&thrown_str);
                 output.push_str(";\n");
             }
 
@@ -6767,6 +6549,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 }
 
 /// Emit an FCall expression using pre-hoisted temp vars for arguments
+#[allow(dead_code)]  // TODO: Remove this function entirely
 fn emit_fcall_with_hoisted(
     expr: &Expr,
     hoisted: &std::collections::HashMap<usize, String>,
@@ -6990,11 +6773,11 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
         }
     }
 
-    // Hoist any throwing function calls in the condition
-    hoist_throwing_expr(&expr.params[0], output, indent, ctx, context)?;
+    // Bug #143: Use emit_arg_string to handle hoisting in condition
+    let cond_str = emit_arg_string(&expr.params[0], None, false, output, indent, ctx, context)?;
     output.push_str(&indent_str);
     output.push_str("if (");
-    emit_expr(&expr.params[0], output, 0, ctx, context)?;
+    output.push_str(&cond_str);
     // Bool is a struct with .data field - extract for C truthiness
     if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, &expr.params[0]) {
         if type_name == "Bool" {
@@ -7066,15 +6849,16 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         }
     }
 
-    // Check if condition contains throwing calls by trying to hoist to a temp buffer
-    let mut hoist_output = String::new();
-    hoist_throwing_expr(&expr.params[0], &mut hoist_output, indent + 1, ctx, context)?;
+    // Bug #143: Use emit_arg_string to process condition (handles hoisting for by-ref/throwing)
+    // Emit hoisting to a separate buffer first to detect if needed
+    let mut hoist_buffer = String::new();
+    let cond_str = emit_arg_string(&expr.params[0], None, false, &mut hoist_buffer, indent + 1, ctx, context)?;
 
-    if hoist_output.is_empty() {
-        // No throwing calls in condition - use simple while
+    if hoist_buffer.is_empty() {
+        // No hoisting needed - use simple while
         output.push_str(&indent_str);
         output.push_str("while (");
-        emit_expr(&expr.params[0], output, 0, ctx, context)?;
+        output.push_str(&cond_str);
         // Bool is a struct with .data field - extract for C truthiness
         if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, &expr.params[0]) {
             if type_name == "Bool" {
@@ -7083,18 +6867,18 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         }
         output.push_str(") {\n");
     } else {
-        // Throwing calls in condition - transform to while(1) with hoisted calls and break
+        // Hoisting needed in condition - transform to while(1) with hoisted calls and break
         output.push_str(&indent_str);
         output.push_str("while (1) {\n");
 
-        // Emit hoisted throwing calls inside the loop
-        output.push_str(&hoist_output);
+        // Emit hoisted statements inside the loop
+        output.push_str(&hoist_buffer);
 
         // Emit condition check with break
         let inner_indent_str = "    ".repeat(indent + 1);
         output.push_str(&inner_indent_str);
         output.push_str("if (!(");
-        emit_expr(&expr.params[0], output, 0, ctx, context)?;
+        output.push_str(&cond_str);
         // Bool is a struct with .data field - extract for C truthiness
         if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, &expr.params[0]) {
             if type_name == "Bool" {
@@ -7335,8 +7119,8 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     // Get the switch expression
     let switch_expr = &expr.params[0];
 
-    // Hoist any throwing function calls in the switch expression
-    hoist_throwing_expr(switch_expr, output, indent, ctx, context)?;
+    // Bug #143: Use emit_arg_string to handle hoisting in switch expression
+    let switch_expr_str = emit_arg_string(switch_expr, None, false, output, indent, ctx, context)?;
 
     // Determine the type of the switch expression for proper comparison
     // Type inference may fail - that's okay, we'll use None (default)
@@ -7401,7 +7185,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     output.push_str("__auto_type ");
     output.push_str(&switch_var);
     output.push_str(" = ");
-    emit_expr(switch_expr, output, 0, ctx, context)?;
+    output.push_str(&switch_expr_str);
     output.push_str(";\n");
 
     // Hoist declarations from all case bodies to before the if/else chain
@@ -7816,23 +7600,14 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // - indent == 0: expression level (nested in larger expression, no hoisting, no semicolons)
     let is_stmt_level = indent > 0;
 
-    // Bug #143: Check if we should use the new single-pass mechanism
-    // Use new mechanism for ALL statement-level calls (including variadic)
-    let _is_variadic = ctx.func_variadic_args.contains_key(&orig_func_name);
-    let use_new_mechanism = is_stmt_level;
-
-    // Bug #143: Process ALL args upfront when using new mechanism
-    // This replaces the old hoisting mechanism (hoist_throwing_args, hoist_for_dynamic_params, etc.)
-    // Clear hoisted_exprs to avoid stale entries from previous calls (e.g., emit_declaration)
-    // polluting the new mechanism's emit_expr calls
-    if use_new_mechanism {
-        ctx.hoisted_exprs.clear();
-    }
     // Get variadic info to know which args are variadic (need different handling)
     let variadic_regular_count = ctx.func_variadic_args.get(&orig_func_name)
         .map(|vi| vi.regular_count)
         .unwrap_or(usize::MAX);
-    let arg_strings: Vec<String> = if use_new_mechanism && expr.params.len() > 1 {
+
+    // Bug #143: Process ALL args upfront using single-pass emit_arg_string
+    // This replaces the old hoisting mechanism (hoist_throwing_args, hoist_for_dynamic_params, etc.)
+    let arg_strings: Vec<String> = if is_stmt_level && expr.params.len() > 1 {
         let param_info: Vec<ParamTypeInfo> = if let Some(fd) = get_fcall_func_def(context, expr) {
             fd.args.iter().map(|fd_arg| ParamTypeInfo {
                 value_type: Some(fd_arg.value_type.clone()),
@@ -7868,36 +7643,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         Vec::new()
     };
 
-    // OLD hoisting mechanism: only used when NOT using new mechanism (variadic or expression level)
-    let mut hoisted: std::collections::HashMap<usize, String> = if !use_new_mechanism && is_stmt_level && expr.params.len() > 1 {
-        let args = &expr.params[1..];
-        let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
-        hoisted_vec.into_iter().map(|h| (h.index, h.temp_var)).collect()
-    } else {
-        std::collections::HashMap::new()
-    };
-
-    // OLD: Hoist non-lvalue args when param type is Dynamic (only when not using new mechanism)
-    if !use_new_mechanism && is_stmt_level && expr.params.len() > 1 {
-        if let Some(fd) = get_fcall_func_def(context, expr) {
-            let param_types: Vec<Option<ValueType>> = fd.args.iter()
-                .map(|a| Some(a.value_type.clone()))
-                .collect();
-            let param_by_ref: Vec<bool> = fd.args.iter()
-                .map(|a| param_needs_by_ref(a))
-                .collect();
-            let args = &expr.params[1..];
-            let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &hoisted, output, indent, ctx, context)?;
-            for h in dynamic_hoisted {
-                hoisted.insert(h.index, h.temp_var);
-            }
-            // Hoist struct-returning FCall args when param is by-ref
-            let ref_hoisted = hoist_for_ref_params(args, &param_by_ref, &hoisted, output, indent, ctx, context)?;
-            for h in ref_hoisted {
-                hoisted.insert(h.index, h.temp_var);
-            }
-        }
-    }
+    // For statement-level calls, we use arg_strings. For expression-level, we use direct emit.
 
     // Hardcoded builtins (compile-time intrinsics that can't be implemented in TIL)
     match orig_func_name.as_str() {
@@ -7955,7 +7701,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     output.push_str(&til_name(&enum_type_name));
                     output.push_str("_to_str(");
                     // Bug #143: Use pre-computed arg_strings when available
-                    if use_new_mechanism && !arg_strings.is_empty() {
+                    if is_stmt_level && !arg_strings.is_empty() {
                         // arg_strings[0] already has the proper (til_Dynamic*)& prefix
                         // But enum_to_str expects just &arg, so strip the Dynamic cast if present
                         let arg_str = &arg_strings[0];
@@ -8076,8 +7822,24 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             if expr.params.len() < 2 {
                 return Err("ccodegen: to_ptr requires 1 argument".to_string());
             }
-            // Bug #143: Use pre-computed arg_strings when available
-            if use_new_mechanism && !arg_strings.is_empty() {
+            let arg = &expr.params[1];
+            // Check if arg is a Dynamic parameter (void*) - just use the pointer directly
+            let is_dynamic_param = if let NodeType::Identifier(name) = &arg.node_type {
+                if arg.params.is_empty() {
+                    if let Some(sym) = context.scope_stack.lookup_symbol(name) {
+                        matches!(&sym.value_type, ValueType::TCustom(t) if t == "Dynamic")
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            // Bug #143: Use pre-computed arg_strings when available (statement-level)
+            if is_stmt_level && !arg_strings.is_empty() {
                 // arg_strings[0] is like "(til_Dynamic*)&x" or just "x"
                 // to_ptr wants (til_I64)&x, so convert the cast
                 let arg_str = &arg_strings[0];
@@ -8097,22 +7859,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 }
                 return Ok(());
             }
-            // OLD mechanism below
-            let arg = &expr.params[1];
-            // Check if arg is a Dynamic parameter (void*) - just use the pointer directly
-            let is_dynamic_param = if let NodeType::Identifier(name) = &arg.node_type {
-                if arg.params.is_empty() {
-                    if let Some(sym) = context.scope_stack.lookup_symbol(name) {
-                        matches!(&sym.value_type, ValueType::TCustom(t) if t == "Dynamic")
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            } else {
-                false
-            };
+
+            // Expression-level: emit directly
             output.push_str("(");
             output.push_str(TIL_PREFIX);
             output.push_str("I64)");
@@ -8121,18 +7869,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     output.push_str(&til_name(name));
                 }
             } else {
-                let arg_addr = arg as *const Expr as usize;
-                if let Some(temp_var) = ctx.hoisted_exprs.get(&arg_addr) {
-                    if temp_var.starts_with('&') {
-                        output.push_str(temp_var);
-                    } else {
-                        output.push_str("&");
-                        output.push_str(temp_var);
-                    }
-                } else {
-                    output.push_str("&");
-                    emit_arg_or_hoisted(arg, 0, &hoisted, output, ctx, context)?;
-                }
+                output.push_str("&");
+                emit_expr(arg, output, 0, ctx, context)?;
             }
             Ok(())
         },
@@ -8285,15 +8023,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if let Some(variadic_info) = ctx.func_variadic_args.get(&orig_func_name) {
                     let elem_type = variadic_info.elem_type.clone();
                     let regular_count = variadic_info.regular_count;
-                    if use_new_mechanism && !arg_strings.is_empty() {
-                        // New mechanism: use pre-computed arg_strings
-                        let variadic_arg_strings = &arg_strings[regular_count..];
-                        Some(emit_variadic_array_with_strings(&elem_type, variadic_arg_strings, output, indent, ctx)?)
-                    } else {
-                        // Old mechanism: use hoisted map
-                        let variadic_args: Vec<_> = expr.params.iter().skip(1 + regular_count).collect();
-                        Some(hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?)
-                    }
+                    // Bug #143: Use pre-computed arg_strings (new mechanism)
+                    let variadic_arg_strings = &arg_strings[regular_count..];
+                    Some(emit_variadic_array_with_strings(&elem_type, variadic_arg_strings, output, indent, ctx)?)
                 } else {
                     None
                 }
@@ -8334,8 +8066,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // Check if this is a variadic function call
             if let Some(variadic_info) = ctx.func_variadic_args.get(&orig_func_name) {
                 let regular_count = variadic_info.regular_count;
-                // Bug #143: Use pre-computed arg_strings when available (new mechanism)
-                if use_new_mechanism && !arg_strings.is_empty() {
+                // Bug #143: Use pre-computed arg_strings (new mechanism)
+                if is_stmt_level {
                     // Emit regular args from arg_strings
                     for (i, arg_str) in arg_strings.iter().take(regular_count).enumerate() {
                         if i > 0 {
@@ -8344,27 +8076,36 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         output.push_str(arg_str);
                     }
                 } else {
-                    // OLD mechanism: Look up function param info for proper by-ref handling of regular args
-                    let param_info: Vec<ParamTypeInfo> = if let Some(fd) = get_fcall_func_def(context, expr) {
-                        fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
-                    } else if let Some(fd) = context.scope_stack.lookup_func(&orig_func_name) {
-                        // Fallback: lookup via scope_stack directly
-                        fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
+                    // Expression-level variadic calls - emit regular args with by-ref handling
+                    let param_info: Vec<(Option<ValueType>, bool)> = if let Some(fd) = get_fcall_func_def(context, expr) {
+                        fd.args.iter().map(|fd_arg| (Some(fd_arg.value_type.clone()), param_needs_by_ref(fd_arg))).collect()
                     } else {
                         Vec::new()
                     };
-                    // Emit regular args first (skip first param which is function name)
-                    let args: Vec<_> = expr.params.iter().skip(1).collect();
-                    for (i, arg) in args.iter().take(regular_count).enumerate() {
+                    for (i, arg) in expr.params.iter().skip(1).take(regular_count).enumerate() {
                         if i > 0 {
                             output.push_str(", ");
                         }
-                        // Bug #60: If we couldn't find param info, default to by_ref=true
-                        // (all non-copy params are by-ref, and we can't determine copy without param info)
-                        let (param_type, by_ref) = param_info.get(i)
-                            .map(|info| (info.value_type.as_ref(), info.by_ref))
-                            .unwrap_or((None, true));
-                        emit_arg_with_param_type(arg, i, &hoisted, param_type, by_ref, output, ctx, context)?;
+                        let by_ref = param_info.get(i).map(|(_, b)| *b).unwrap_or(false);
+                        if by_ref && is_pure_lvalue(arg, context) {
+                            let is_already_ptr = if let NodeType::Identifier(name) = &arg.node_type {
+                                if arg.params.is_empty() {
+                                    ctx.current_ref_params.contains(name) || ctx.current_variadic_params.contains_key(name)
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            };
+                            if is_already_ptr {
+                                emit_expr(arg, output, 0, ctx, context)?;
+                            } else {
+                                output.push_str("&");
+                                emit_expr(arg, output, 0, ctx, context)?;
+                            }
+                        } else {
+                            emit_expr(arg, output, 0, ctx, context)?;
+                        }
                     }
                 }
 
@@ -8378,8 +8119,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 }
             } else {
                 // Regular non-variadic function call
-                // Bug #143: Use pre-computed arg_strings when available (new mechanism)
-                if use_new_mechanism && !arg_strings.is_empty() {
+                // Bug #143: Use pre-computed arg_strings (new mechanism)
+                if is_stmt_level {
                     for (i, arg_str) in arg_strings.iter().enumerate() {
                         if i > 0 {
                             output.push_str(", ");
@@ -8387,9 +8128,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         output.push_str(arg_str);
                     }
                 } else {
-                    // OLD mechanism: Look up function to get parameter info
-                    let param_info: Vec<ParamTypeInfo> = if let Some(fd) = get_fcall_func_def(context, expr) {
-                        fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
+                    // Expression-level call: emit args with by-ref handling
+                    // Throwing/variadic args at expression level should have been hoisted by caller
+                    // Look up function to get param info for by-ref handling
+                    let param_info: Vec<(Option<ValueType>, bool)> = if let Some(fd) = get_fcall_func_def(context, expr) {
+                        fd.args.iter().map(|fd_arg| (Some(fd_arg.value_type.clone()), param_needs_by_ref(fd_arg))).collect()
                     } else {
                         Vec::new()
                     };
@@ -8404,13 +8147,30 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                             output.push_str("\"");
                             output.push_str(&type_name);
                             output.push_str("\"");
-                        } else if !param_info.is_empty() {
-                            let (param_type, by_ref) = param_info.get(i)
-                                .map(|info| (info.value_type.as_ref(), info.by_ref))
-                                .unwrap_or((None, false));
-                            emit_arg_with_param_type(arg, i, &hoisted, param_type, by_ref, output, ctx, context)?;
                         } else {
-                            emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
+                            // Check if this param needs by-ref
+                            let by_ref = param_info.get(i).map(|(_, b)| *b).unwrap_or(false);
+                            if by_ref && is_pure_lvalue(arg, context) {
+                                // Lvalue passed to by-ref param - add &
+                                // But first check if it's already a pointer (ref param or variadic param)
+                                let is_already_ptr = if let NodeType::Identifier(name) = &arg.node_type {
+                                    if arg.params.is_empty() {
+                                        ctx.current_ref_params.contains(name) || ctx.current_variadic_params.contains_key(name)
+                                    } else {
+                                        false
+                                    }
+                                } else {
+                                    false
+                                };
+                                if is_already_ptr {
+                                    emit_expr(arg, output, 0, ctx, context)?;
+                                } else {
+                                    output.push_str("&");
+                                    emit_expr(arg, output, 0, ctx, context)?;
+                                }
+                            } else {
+                                emit_expr(arg, output, 0, ctx, context)?;
+                            }
                         }
                     }
                 }
