@@ -787,37 +787,6 @@ uint64_t fnv1a(const char* str, size_t len) {
 - Load factor: resize when > 0.75 full
 - For TIL: can use ~ext_proc~ for C hash function, or implement in pure TIL
 
-** Bug #101: Warn/error on unused things
-:PROPERTIES:
-:DISCOVERED: 2026-01-12
-:FIXED: 2026-01-13
-:IMPACT: Code quality, catch dead code
-:STATUS: Fixed
-:END:
-
-*** Description
-Add warnings or errors for unused variables, functions, imports, struct fields, etc.
-Currently we rely on rustc to catch these. Once rstil is gone, TIL needs this itself.
-
-*** Implementation
-- Error (not warning) for unused local variables and function arguments
-- Suppression: prefix with underscore (e.g., ~_unused_var~)
-- Tracks usage via ~used_symbols~ HashSet in ScopeStack
-- ~mark_symbol_used()~ called when Identifier is checked
-- ~get_unused_symbols()~ returns declared-but-unused symbols at function end
-- Nested functions: inner usage merges back to outer scope
-
-*** Files Changed
-- src/rs/init.rs, src/self/init.til: Added used_symbols, mark_symbol_used, get_unused_symbols
-- src/rs/typer.rs, src/self/typer.til: Mark symbols used, check at function end
-- Various test and compiler files: Prefixed intentionally unused vars with ~_~
-
-*** Decisions Made
-- Error not warning: forces action, matches Go's approach
-- Underscore prefix: simple, familiar convention from Python/Rust/Go
-- Function-local only: global unused detection is more complex (may be used by other files)
-- Nested function propagation: fixes false positives for outer vars used by inner functions
-
 ** Bug #100: Get rid of rstil
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
