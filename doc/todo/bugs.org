@@ -1397,6 +1397,14 @@ Range loops (e.g., ~for i in 0..100~) infer the iterator type automatically.
 However, there's no way to explicitly specify the iterator type when desired
 for clarity or type safety.
 
+All of these should be valid:
+- ~for i in 0..100~ - no annotation, infers I64 (current behavior)
+- ~for i: I64 in 0..100~ - explicit I64
+- ~for i: U8 in 0..100~ - explicit U8 (overrides default I64 inference)
+- ~for i: auto in 0..100~ - explicit auto (same as no annotation, infers I64)
+
+Note: Literal numbers default to I64 unless explicitly annotated otherwise.
+
 *** Failed Attempt (2026-01-08): Unified iteration via I64Range struct
 
 **** Approach
