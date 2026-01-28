@@ -158,6 +158,7 @@ pub fn toolchain_extra_args(target: &Target, _lang: &Lang, compiler: &str) -> Ve
         "-Wno-unused-variable",           // 1514 occurrences
         "-Wno-unused-but-set-variable",   // 386 occurrences
         "-Wno-unused-label",              // 153 occurrences
+        "-Wno-unused-parameter",          // underscore-prefixed params are intentionally unused
     ];
     let gcc_only: &[&str] = &[
         "-Wno-dangling-pointer",          // 971 occurrences (high priority to fix) - GCC only
@@ -165,7 +166,7 @@ pub fn toolchain_extra_args(target: &Target, _lang: &Lang, compiler: &str) -> Ve
     let clang_only: &[&str] = &[
         "-Wno-sometimes-uninitialized",   // clang-specific warning about exception control flow
         "-Wno-self-assign",               // til_result = til_result patterns in generated code
-        "-Wno-c23-extensions",            // unnamed parameters in function definitions
+        // REMOVED: -Wno-c23-extensions - fixed by always emitting parameter names
         "-Wno-uninitialized",             // variable used before initialization in some paths
         "-Wno-unused-function",           // enum to_str functions generated but not always used
     ];

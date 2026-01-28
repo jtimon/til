@@ -319,13 +319,14 @@ push_common_flags := proc(mut result: Vec) {
     result.push("-Wno-unused-variable")           // 1514 occurrences
     result.push("-Wno-unused-but-set-variable")   // 386 occurrences
     result.push("-Wno-unused-label")              // 153 occurrences
+    result.push("-Wno-unused-parameter")          // underscore-prefixed params are intentionally unused
 }
 
 // Helper: push clang-specific flags
 push_clang_flags := proc(mut result: Vec) {
     result.push("-Wno-sometimes-uninitialized")   // clang-specific warning about exception control flow
     result.push("-Wno-self-assign")               // til_result = til_result patterns in generated code
-    result.push("-Wno-c23-extensions")            // unnamed parameters in function definitions
+    // REMOVED: -Wno-c23-extensions - fixed by always emitting parameter names
     result.push("-Wno-uninitialized")             // variable used before initialization in some paths
     result.push("-Wno-unused-function")           // enum to_str functions generated but not always used
 }

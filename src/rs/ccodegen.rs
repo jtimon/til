@@ -3186,11 +3186,8 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, context: &Context, 
                     output.push_str("* ");
                 }
             }
-            // Skip parameter name for underscore-prefixed params (intentionally unused)
-            if !func_def_arg.name.starts_with('_') {
-                output.push_str(TIL_PREFIX);
-                output.push_str(&func_def_arg.name);
-            }
+            output.push_str(TIL_PREFIX);
+            output.push_str(&func_def_arg.name);
             param_count += 1;
         }
     }
