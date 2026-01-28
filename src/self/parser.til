@@ -10,12 +10,27 @@ import("self.mode")
 INFER_TYPE := "auto"
 
 // Counter for generating unique loop variable names when _ is used
+// Bug #146: Reset per-function for deterministic output (like Issue #127 fix for precomp_forin_counter)
 mut LOOP_VAR_COUNTER := 0
 
 next_loop_var := func() returns Str {
     n := LOOP_VAR_COUNTER
     LOOP_VAR_COUNTER = add(LOOP_VAR_COUNTER, 1)
     return concat("_loop_", n.to_str())
+}
+
+save_loop_var_counter := func() returns I64 {
+    return LOOP_VAR_COUNTER
+}
+
+reset_loop_var_counter := func() returns I64 {
+    LOOP_VAR_COUNTER = 0
+    return 0
+}
+
+restore_loop_var_counter := func(saved: I64) returns I64 {
+    LOOP_VAR_COUNTER = saved
+    return 0
 }
 
 // Bug #38 fix: Use a Vec to preserve variant order instead of Map
@@ -965,8 +980,14 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
     return_types := func_proc_returns(lexer)?
     throw_types := func_proc_throws(lexer)?
 
+    // Bug #146: Reset loop var counter per-function for deterministic output
+    saved_loop_counter := save_loop_var_counter()
+    mut _ignore := reset_loop_var_counter()
+
     body_expr := parse_body(lexer, TokenType.RightBrace)?
     body := body_expr.params
+
+    _ignore = restore_loop_var_counter(saved_loop_counter)
 
     // ext_func/ext_proc cannot have a body
     mut is_ext := false

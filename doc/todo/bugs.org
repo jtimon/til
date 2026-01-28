@@ -13,7 +13,7 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :PROPERTIES:
 :DISCOVERED: 2026-01-28
 :IMPACT: Generated C code differs between builds, complicating diffs and version control
-:STATUS: Open
+:STATUS: Fixed (Option B - per-function counter reset)
 :REPRODUCER: Run `make clean && make benchmark` twice, diff bootstrap/til.c
 :END:
 

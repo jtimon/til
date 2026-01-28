@@ -6,11 +6,24 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use rs::lexer::{LANG_NAME, TokenType, Token, Lexer};
 
 // Counter for generating unique loop variable names when _ is used
+// Bug #146: Reset per-function for deterministic output (like Issue #127 fix for precomp_forin_counter)
 static LOOP_VAR_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 fn next_loop_var() -> String {
     let n = LOOP_VAR_COUNTER.fetch_add(1, Ordering::SeqCst);
     format!("_loop_{}", n)
+}
+
+fn save_loop_var_counter() -> usize {
+    LOOP_VAR_COUNTER.load(Ordering::SeqCst)
+}
+
+fn reset_loop_var_counter() {
+    LOOP_VAR_COUNTER.store(0, Ordering::SeqCst);
+}
+
+fn restore_loop_var_counter(saved: usize) {
+    LOOP_VAR_COUNTER.store(saved, Ordering::SeqCst);
 }
 
 pub const INFER_TYPE : &str = "auto";
@@ -677,16 +690,26 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType) ->
     let return_types = func_proc_returns(lexer)?;
     let throw_types = func_proc_throws(lexer)?;
 
+    // Bug #146: Reset loop var counter per-function for deterministic output
+    let saved_loop_counter = save_loop_var_counter();
+    reset_loop_var_counter();
+
     let body = match parse_body(lexer, TokenType::RightBrace) {
         Ok(body) => {
             // ext_func/ext_proc cannot have a body
             if (function_type == FunctionType::FTFuncExt || function_type == FunctionType::FTProcExt) && !body.params.is_empty() {
+                restore_loop_var_counter(saved_loop_counter);
                 return Err(t.error(&lexer.path, "ext_func/ext_proc cannot have a body"));
             }
             body.params
         },
-        Err(err_str) => return Err(err_str),
+        Err(err_str) => {
+            restore_loop_var_counter(saved_loop_counter);
+            return Err(err_str);
+        },
     };
+
+    restore_loop_var_counter(saved_loop_counter);
 
     let func_def = SFuncDef{
         function_type: function_type,
