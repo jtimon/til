@@ -33,9 +33,48 @@ in another.
 #+END_SRC
 
 *** Root Cause
-Unknown. Likely a counter used for generating unique variable names is not
-being reset consistently between compilation runs, or iteration order over
-some data structure (Map?) is non-deterministic.
+Introduced in commit 511ac894 (Dec 14, 2025) - "Add struct/enum constructor type inference".
+
+The ~LOOP_VAR_COUNTER~ in ~src/rs/parser.rs~ (and ~src/self/parser.til~) is a
+global static counter that generates ~_loop_N~ names for ~for _ in~ loops.
+Unlike ~precomp_forin_counter~ (fixed in Issue #127), this counter is NEVER
+reset - not per-file, not per-function.
+
+#+BEGIN_SRC rust
+// src/rs/parser.rs lines 9-14
+static LOOP_VAR_COUNTER: AtomicUsize = AtomicUsize::new(0);
+fn next_loop_var() -> String {
+    let n = LOOP_VAR_COUNTER.fetch_add(1, Ordering::SeqCst);
+    format!("_loop_{}", n)
+}
+#+END_SRC
+
+The counter value when parsing a file depends on which other files have already
+been parsed. Only 2 files have ~for _ in~ loops:
+- ~src/core/vec.til:220~
+- ~src/self/interpreter.til:37~
+
+**** Secondary issue: Non-deterministic file processing order
+The file processing order itself appears non-deterministic between builds.
+This may be due to HashMap iteration order (Rust HashMaps use randomized
+hashing by default). Even if the counter is reset per-file, different file
+orders would still produce different counter values.
+
+*** Proposed Fixes
+
+**** Option A: Reset counter per-file (simpler)
+Reset ~LOOP_VAR_COUNTER~ at the start of ~parse_tokens()~. This ensures
+deterministic naming within each file, but different files may still get
+different values if processed in different orders.
+
+**** Option B: Reset counter per-function (like Issue #127)
+Reset the counter for each function definition, similar to how Issue #127
+fixed ~precomp_forin_counter~. This provides stronger determinism guarantees.
+
+**** Option C: Fix file processing order (addresses root cause)
+Investigate why files are processed in different orders between builds.
+Replace HashMap with Vec or use sorted iteration where iteration order matters.
+This would provide complete determinism regardless of counter reset strategy.
 
 *** Impact
 - Makes git diffs noisy when regenerating bootstrap/til.c
