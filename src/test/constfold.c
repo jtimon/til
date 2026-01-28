@@ -246,10 +246,12 @@ til_Str til_concat(const til_Str* til_a, const til_Str* til_b) {
     til_result.c_string = til_Ptr_new_by_size(&til_result.cap);
     til_result.c_string.is_borrowed = 0;
     til_memcpy(&til_result.c_string.data, &til_a->c_string.data, &til_a->_len);
-    til_memcpy(({ til_I64 _tmp_concat_4 = til_Ptr_offset(&til_result.c_string, &til_a->_len).data; &_tmp_concat_4; }), &til_b->c_string.data, &til_b->_len);
+    til_I64 _tmp_concat_4 = til_Ptr_offset(&til_result.c_string, &til_a->_len).data;
+    til_memcpy(&_tmp_concat_4, &til_b->c_string.data, &til_b->_len);
     const til_U8 til_zero = 0;
-    til_I64 _tmp_concat_5 = 1;
-    til_memset(({ til_I64 _tmp_concat_6 = til_Ptr_offset(&til_result.c_string, &til_result._len).data; &_tmp_concat_6; }), &til_zero, &_tmp_concat_5);
+    til_I64 _tmp_concat_5 = til_Ptr_offset(&til_result.c_string, &til_result._len).data;
+    til_I64 _tmp_concat_6 = 1;
+    til_memset(&_tmp_concat_5, &til_zero, &_tmp_concat_6);
     return til_result;
     return (til_Str){0};
 }
@@ -322,13 +324,15 @@ til_Str til_format(const til_Str* til_prefix, til_Array* til_args) {
             til_panic(&((til_Str){((til_Ptr){(til_I64)"src/core/str.til:679:5:", 1}), 23, 0}), &til_err.msg, &_tmp_format_13);
             til_Array_delete(&_tmp_format_13);
         }
-        til_memcpy(({ til_I64 _tmp_format_17 = til_Ptr_offset(&til_result.c_string, &til_fmt_offset).data; &_tmp_format_17; }), &til_s.c_string.data, &til_s._len);
+        til_I64 _tmp_format_17 = til_Ptr_offset(&til_result.c_string, &til_fmt_offset).data;
+        til_memcpy(&_tmp_format_17, &til_s.c_string.data, &til_s._len);
         til_fmt_offset = til_I64_add(&til_fmt_offset, &til_s._len);
         _for_i_0 = til_I64_add(&_for_i_0, &(til_I64){1});
     }
     const til_U8 til_zero = 0;
-    til_I64 _tmp_format_18 = 1;
-    til_memset(({ til_I64 _tmp_format_19 = til_Ptr_offset(&til_result.c_string, &til_result._len).data; &_tmp_format_19; }), &til_zero, &_tmp_format_18);
+    til_I64 _tmp_format_18 = til_Ptr_offset(&til_result.c_string, &til_result._len).data;
+    til_I64 _tmp_format_19 = 1;
+    til_memset(&_tmp_format_18, &til_zero, &_tmp_format_19);
     if (0) { _catch_IndexOutOfBoundsError__tmp_format_0:;
         til_IndexOutOfBoundsError til_err = _thrown_IndexOutOfBoundsError__tmp_format_0;
         til_Array _tmp_format_20;
@@ -397,24 +401,27 @@ void til_test_simple_add(void) {
     til_I64 _tmp_test_simple_add_0 = 1;
     til_I64 _tmp_test_simple_add_1 = 2;
     const til_I64 til_result = til_I64_add(&_tmp_test_simple_add_0, &_tmp_test_simple_add_1);
-    til_Bool _tmp_test_simple_add_2 = til_I64_eq(&til_result, &(til_I64){3});
-    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:8:10:", 1}), 28, 0}), &_tmp_test_simple_add_2, &((til_Str){((til_Ptr){(til_I64)"add(1, 2) should be 3", 1}), 21, 0}));
+    til_I64 _tmp_test_simple_add_2 = 3;
+    til_Bool _tmp_test_simple_add_3 = til_I64_eq(&til_result, &_tmp_test_simple_add_2);
+    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:8:10:", 1}), 28, 0}), &_tmp_test_simple_add_3, &((til_Str){((til_Ptr){(til_I64)"add(1, 2) should be 3", 1}), 21, 0}));
 }
 
 void til_test_nested_arithmetic(void) {
     til_I64 _tmp_test_nested_arithmetic_0 = til_I64_add(&(til_I64){1}, &(til_I64){2});
     til_I64 _tmp_test_nested_arithmetic_1 = til_I64_sub(&(til_I64){10}, &(til_I64){5});
     const til_I64 til_result = til_I64_mul(&_tmp_test_nested_arithmetic_0, &_tmp_test_nested_arithmetic_1);
-    til_Bool _tmp_test_nested_arithmetic_2 = til_I64_eq(&til_result, &(til_I64){15});
-    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:15:10:", 1}), 29, 0}), &_tmp_test_nested_arithmetic_2, &((til_Str){((til_Ptr){(til_I64)"mul(add(1, 2), sub(10, 5)) should be 15", 1}), 39, 0}));
+    til_I64 _tmp_test_nested_arithmetic_2 = 15;
+    til_Bool _tmp_test_nested_arithmetic_3 = til_I64_eq(&til_result, &_tmp_test_nested_arithmetic_2);
+    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:15:10:", 1}), 29, 0}), &_tmp_test_nested_arithmetic_3, &((til_Str){((til_Ptr){(til_I64)"mul(add(1, 2), sub(10, 5)) should be 15", 1}), 39, 0}));
 }
 
 void til_test_deeply_nested(void) {
     til_I64 _tmp_test_deeply_nested_0 = til_I64_mul(&(til_I64){2}, &(til_I64){3});
     til_I64 _tmp_test_deeply_nested_1 = til_I64_mul(&(til_I64){4}, &(til_I64){5});
     const til_I64 til_result = til_I64_add(&_tmp_test_deeply_nested_0, &_tmp_test_deeply_nested_1);
-    til_Bool _tmp_test_deeply_nested_2 = til_I64_eq(&til_result, &(til_I64){26});
-    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:22:10:", 1}), 29, 0}), &_tmp_test_deeply_nested_2, &((til_Str){((til_Ptr){(til_I64)"add(mul(2, 3), mul(4, 5)) should be 26", 1}), 38, 0}));
+    til_I64 _tmp_test_deeply_nested_2 = 26;
+    til_Bool _tmp_test_deeply_nested_3 = til_I64_eq(&til_result, &_tmp_test_deeply_nested_2);
+    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:22:10:", 1}), 29, 0}), &_tmp_test_deeply_nested_3, &((til_Str){((til_Ptr){(til_I64)"add(mul(2, 3), mul(4, 5)) should be 26", 1}), 38, 0}));
 }
 
 void til_test_string_concat(void) {
@@ -427,8 +434,9 @@ void til_test_fold_variable(void) {
     const til_I64 til_x = 5;
     til_I64 _tmp_test_fold_variable_0 = 3;
     const til_I64 til_result = til_I64_add(&til_x, &_tmp_test_fold_variable_0);
-    til_Bool _tmp_test_fold_variable_1 = til_I64_eq(&til_result, &(til_I64){8});
-    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:38:10:", 1}), 29, 0}), &_tmp_test_fold_variable_1, &((til_Str){((til_Ptr){(til_I64)"add(x, 3) should fold to 8", 1}), 26, 0}));
+    til_I64 _tmp_test_fold_variable_1 = 8;
+    til_Bool _tmp_test_fold_variable_2 = til_I64_eq(&til_result, &_tmp_test_fold_variable_1);
+    til_test(&((til_Str){((til_Ptr){(til_I64)"src/test/constfold.til:38:10:", 1}), 29, 0}), &_tmp_test_fold_variable_2, &((til_Str){((til_Ptr){(til_I64)"add(x, 3) should fold to 8", 1}), 26, 0}));
 }
 
 void til_test_loc_folded_correctly(void) {
@@ -725,11 +733,13 @@ til_Bool til_Str_eq(const til_Str* til_self, const til_Str* til_other) {
             til_self_byte = 0;
             til_other_byte = 0;
             til_I64 _tmp_til_Str_eq_1 = (til_I64)&til_self_byte;
-            til_I64 _tmp_til_Str_eq_2 = 1;
-            til_memcpy(&_tmp_til_Str_eq_1, ({ til_I64 _tmp_til_Str_eq_3 = til_Ptr_offset(&til_self->c_string, &til_i).data; &_tmp_til_Str_eq_3; }), &_tmp_til_Str_eq_2);
+            til_I64 _tmp_til_Str_eq_2 = til_Ptr_offset(&til_self->c_string, &til_i).data;
+            til_I64 _tmp_til_Str_eq_3 = 1;
+            til_memcpy(&_tmp_til_Str_eq_1, &_tmp_til_Str_eq_2, &_tmp_til_Str_eq_3);
             til_I64 _tmp_til_Str_eq_4 = (til_I64)&til_other_byte;
-            til_I64 _tmp_til_Str_eq_5 = 1;
-            til_memcpy(&_tmp_til_Str_eq_4, ({ til_I64 _tmp_til_Str_eq_6 = til_Ptr_offset(&til_other->c_string, &til_i).data; &_tmp_til_Str_eq_6; }), &_tmp_til_Str_eq_5);
+            til_I64 _tmp_til_Str_eq_5 = til_Ptr_offset(&til_other->c_string, &til_i).data;
+            til_I64 _tmp_til_Str_eq_6 = 1;
+            til_memcpy(&_tmp_til_Str_eq_4, &_tmp_til_Str_eq_5, &_tmp_til_Str_eq_6);
             if (til_not(({ til_Bool _tmp_til_Str_eq_7 = til_U8_eq(&til_self_byte, &til_other_byte); &_tmp_til_Str_eq_7; })).data) {
                 return false;
             }
@@ -740,11 +750,13 @@ til_Bool til_Str_eq(const til_Str* til_self, const til_Str* til_other) {
             til_self_byte = 0;
             til_other_byte = 0;
             til_I64 _tmp_til_Str_eq_8 = (til_I64)&til_self_byte;
-            til_I64 _tmp_til_Str_eq_9 = 1;
-            til_memcpy(&_tmp_til_Str_eq_8, ({ til_I64 _tmp_til_Str_eq_10 = til_Ptr_offset(&til_self->c_string, &til_i).data; &_tmp_til_Str_eq_10; }), &_tmp_til_Str_eq_9);
+            til_I64 _tmp_til_Str_eq_9 = til_Ptr_offset(&til_self->c_string, &til_i).data;
+            til_I64 _tmp_til_Str_eq_10 = 1;
+            til_memcpy(&_tmp_til_Str_eq_8, &_tmp_til_Str_eq_9, &_tmp_til_Str_eq_10);
             til_I64 _tmp_til_Str_eq_11 = (til_I64)&til_other_byte;
-            til_I64 _tmp_til_Str_eq_12 = 1;
-            til_memcpy(&_tmp_til_Str_eq_11, ({ til_I64 _tmp_til_Str_eq_13 = til_Ptr_offset(&til_other->c_string, &til_i).data; &_tmp_til_Str_eq_13; }), &_tmp_til_Str_eq_12);
+            til_I64 _tmp_til_Str_eq_12 = til_Ptr_offset(&til_other->c_string, &til_i).data;
+            til_I64 _tmp_til_Str_eq_13 = 1;
+            til_memcpy(&_tmp_til_Str_eq_11, &_tmp_til_Str_eq_12, &_tmp_til_Str_eq_13);
             if (til_not(({ til_Bool _tmp_til_Str_eq_14 = til_U8_eq(&til_self_byte, &til_other_byte); &_tmp_til_Str_eq_14; })).data) {
                 return false;
             }
@@ -779,11 +791,13 @@ til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle) {
                     til_self_byte = 0;
                     til_needle_byte = 0;
                     til_I64 _tmp_til_Str_contains_2 = (til_I64)&til_self_byte;
-                    til_I64 _tmp_til_Str_contains_3 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_2, ({ til_I64 _tmp_til_Str_contains_4 = til_Ptr_offset(&til_self->c_string, &(til_I64){til_I64_add(&til_start_idx, &til_needle_idx)}).data; &_tmp_til_Str_contains_4; }), &_tmp_til_Str_contains_3);
+                    til_I64 _tmp_til_Str_contains_3 = til_Ptr_offset(&til_self->c_string, &(til_I64){til_I64_add(&til_start_idx, &til_needle_idx)}).data;
+                    til_I64 _tmp_til_Str_contains_4 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_2, &_tmp_til_Str_contains_3, &_tmp_til_Str_contains_4);
                     til_I64 _tmp_til_Str_contains_5 = (til_I64)&til_needle_byte;
-                    til_I64 _tmp_til_Str_contains_6 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_5, ({ til_I64 _tmp_til_Str_contains_7 = til_Ptr_offset(&til_needle->c_string, &til_needle_idx).data; &_tmp_til_Str_contains_7; }), &_tmp_til_Str_contains_6);
+                    til_I64 _tmp_til_Str_contains_6 = til_Ptr_offset(&til_needle->c_string, &til_needle_idx).data;
+                    til_I64 _tmp_til_Str_contains_7 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_5, &_tmp_til_Str_contains_6, &_tmp_til_Str_contains_7);
                     if (til_not(({ til_Bool _tmp_til_Str_contains_8 = til_U8_eq(&til_self_byte, &til_needle_byte); &_tmp_til_Str_contains_8; })).data) {
                         til_matches = false;
                     }
@@ -794,11 +808,13 @@ til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle) {
                     til_self_byte = 0;
                     til_needle_byte = 0;
                     til_I64 _tmp_til_Str_contains_9 = (til_I64)&til_self_byte;
-                    til_I64 _tmp_til_Str_contains_10 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_9, ({ til_I64 _tmp_til_Str_contains_11 = til_Ptr_offset(&til_self->c_string, &(til_I64){til_I64_add(&til_start_idx, &til_needle_idx)}).data; &_tmp_til_Str_contains_11; }), &_tmp_til_Str_contains_10);
+                    til_I64 _tmp_til_Str_contains_10 = til_Ptr_offset(&til_self->c_string, &(til_I64){til_I64_add(&til_start_idx, &til_needle_idx)}).data;
+                    til_I64 _tmp_til_Str_contains_11 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_9, &_tmp_til_Str_contains_10, &_tmp_til_Str_contains_11);
                     til_I64 _tmp_til_Str_contains_12 = (til_I64)&til_needle_byte;
-                    til_I64 _tmp_til_Str_contains_13 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_12, ({ til_I64 _tmp_til_Str_contains_14 = til_Ptr_offset(&til_needle->c_string, &til_needle_idx).data; &_tmp_til_Str_contains_14; }), &_tmp_til_Str_contains_13);
+                    til_I64 _tmp_til_Str_contains_13 = til_Ptr_offset(&til_needle->c_string, &til_needle_idx).data;
+                    til_I64 _tmp_til_Str_contains_14 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_12, &_tmp_til_Str_contains_13, &_tmp_til_Str_contains_14);
                     if (til_not(({ til_Bool _tmp_til_Str_contains_15 = til_U8_eq(&til_self_byte, &til_needle_byte); &_tmp_til_Str_contains_15; })).data) {
                         til_matches = false;
                     }
@@ -819,11 +835,13 @@ til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle) {
                     til_self_byte = 0;
                     til_needle_byte = 0;
                     til_I64 _tmp_til_Str_contains_16 = (til_I64)&til_self_byte;
-                    til_I64 _tmp_til_Str_contains_17 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_16, ({ til_I64 _tmp_til_Str_contains_18 = til_Ptr_offset(&til_self->c_string, &(til_I64){til_I64_add(&til_start_idx, &til_needle_idx)}).data; &_tmp_til_Str_contains_18; }), &_tmp_til_Str_contains_17);
+                    til_I64 _tmp_til_Str_contains_17 = til_Ptr_offset(&til_self->c_string, &(til_I64){til_I64_add(&til_start_idx, &til_needle_idx)}).data;
+                    til_I64 _tmp_til_Str_contains_18 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_16, &_tmp_til_Str_contains_17, &_tmp_til_Str_contains_18);
                     til_I64 _tmp_til_Str_contains_19 = (til_I64)&til_needle_byte;
-                    til_I64 _tmp_til_Str_contains_20 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_19, ({ til_I64 _tmp_til_Str_contains_21 = til_Ptr_offset(&til_needle->c_string, &til_needle_idx).data; &_tmp_til_Str_contains_21; }), &_tmp_til_Str_contains_20);
+                    til_I64 _tmp_til_Str_contains_20 = til_Ptr_offset(&til_needle->c_string, &til_needle_idx).data;
+                    til_I64 _tmp_til_Str_contains_21 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_19, &_tmp_til_Str_contains_20, &_tmp_til_Str_contains_21);
                     if (til_not(({ til_Bool _tmp_til_Str_contains_22 = til_U8_eq(&til_self_byte, &til_needle_byte); &_tmp_til_Str_contains_22; })).data) {
                         til_matches = false;
                     }
@@ -834,11 +852,13 @@ til_Bool til_Str_contains(const til_Str* til_self, const til_Str* til_needle) {
                     til_self_byte = 0;
                     til_needle_byte = 0;
                     til_I64 _tmp_til_Str_contains_23 = (til_I64)&til_self_byte;
-                    til_I64 _tmp_til_Str_contains_24 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_23, ({ til_I64 _tmp_til_Str_contains_25 = til_Ptr_offset(&til_self->c_string, &(til_I64){til_I64_add(&til_start_idx, &til_needle_idx)}).data; &_tmp_til_Str_contains_25; }), &_tmp_til_Str_contains_24);
+                    til_I64 _tmp_til_Str_contains_24 = til_Ptr_offset(&til_self->c_string, &(til_I64){til_I64_add(&til_start_idx, &til_needle_idx)}).data;
+                    til_I64 _tmp_til_Str_contains_25 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_23, &_tmp_til_Str_contains_24, &_tmp_til_Str_contains_25);
                     til_I64 _tmp_til_Str_contains_26 = (til_I64)&til_needle_byte;
-                    til_I64 _tmp_til_Str_contains_27 = 1;
-                    til_memcpy(&_tmp_til_Str_contains_26, ({ til_I64 _tmp_til_Str_contains_28 = til_Ptr_offset(&til_needle->c_string, &til_needle_idx).data; &_tmp_til_Str_contains_28; }), &_tmp_til_Str_contains_27);
+                    til_I64 _tmp_til_Str_contains_27 = til_Ptr_offset(&til_needle->c_string, &til_needle_idx).data;
+                    til_I64 _tmp_til_Str_contains_28 = 1;
+                    til_memcpy(&_tmp_til_Str_contains_26, &_tmp_til_Str_contains_27, &_tmp_til_Str_contains_28);
                     if (til_not(({ til_Bool _tmp_til_Str_contains_29 = til_U8_eq(&til_self_byte, &til_needle_byte); &_tmp_til_Str_contains_29; })).data) {
                         til_matches = false;
                     }
