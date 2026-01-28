@@ -13,7 +13,7 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :PROPERTIES:
 :DISCOVERED: 2026-01-28
 :IMPACT: Generated C code differs between builds, complicating diffs and version control
-:STATUS: Fixed (Option B - per-function counter reset)
+:STATUS: Partial fix (counter reset done, file order indeterminism remains)
 :REPRODUCER: Run `make clean && make benchmark` twice, diff bootstrap/til.c
 :END:
 
@@ -60,21 +60,30 @@ This may be due to HashMap iteration order (Rust HashMaps use randomized
 hashing by default). Even if the counter is reset per-file, different file
 orders would still produce different counter values.
 
-*** Proposed Fixes
+*** Fix Applied
 
-**** Option A: Reset counter per-file (simpler)
-Reset ~LOOP_VAR_COUNTER~ at the start of ~parse_tokens()~. This ensures
-deterministic naming within each file, but different files may still get
-different values if processed in different orders.
+**** Done: Reset counter per-function (like Issue #127)
+Reset ~LOOP_VAR_COUNTER~ at the start of each function definition, similar to
+how Issue #127 fixed ~precomp_forin_counter~. This ensures deterministic
+~_loop_N~ names within each function.
 
-**** Option B: Reset counter per-function (like Issue #127)
-Reset the counter for each function definition, similar to how Issue #127
-fixed ~precomp_forin_counter~. This provides stronger determinism guarantees.
+Files modified:
+- ~src/rs/parser.rs~: Added ~save_loop_var_counter~, ~reset_loop_var_counter~,
+  ~restore_loop_var_counter~ functions; wrap body parsing in ~parse_func_proc_definition~
+- ~src/self/parser.til~: Ported the same fix
 
-**** Option C: Fix file processing order (addresses root cause)
-Investigate why files are processed in different orders between builds.
-Replace HashMap with Vec or use sorted iteration where iteration order matters.
-This would provide complete determinism regardless of counter reset strategy.
+*** Remaining Issue
+
+**** TODO: Fix file processing order (addresses root cause)
+The file processing order itself is still non-deterministic between builds,
+likely due to Rust HashMap iteration order (randomized hashing by default).
+
+Possible solutions:
+- Replace HashMap with Vec where iteration order matters
+- Use sorted iteration over HashMap keys
+- Implement an OrderedMap in Rust similar to TIL's Map (which uses Vec for keys)
+
+This would provide complete determinism and is worth fixing separately.
 
 *** Impact
 - Makes git diffs noisy when regenerating bootstrap/til.c
