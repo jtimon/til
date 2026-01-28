@@ -2165,11 +2165,11 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         false
     };
 
-    // Main function - use unnamed params if argc/argv not used
-    if main_has_variadic {
-        output.push_str("int main(int argc, char** argv) {\n");
-    } else {
-        output.push_str("int main(int, char**) {\n");
+    // Main function - always name params (unnamed triggers -Wc23-extensions on clang)
+    output.push_str("int main(int argc, char** argv) {\n");
+    if !main_has_variadic {
+        // Suppress -Wunused-parameter when argc/argv not used
+        output.push_str("    (void)argc; (void)argv;\n");
     }
 
     // Clear hoisted_exprs to avoid cross-contamination from function passes

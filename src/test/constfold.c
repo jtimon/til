@@ -897,7 +897,8 @@ til_CfRect til_CfRect_sample(void) {
     return (til_CfRect){0};
 }
 
-int main(int, char**) {
+int main(int argc, char** argv) {
+    (void)argc; (void)argv;
     til_test_simple_add();
     til_test_nested_arithmetic();
     til_test_deeply_nested();
