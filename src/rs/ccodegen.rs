@@ -1950,6 +1950,702 @@ fn emit_arg_with_param_type(
     emit_expr(arg, output, 0, ctx, context)
 }
 
+/// Process an arg for use in a function call, returning the string to emit.
+/// If the arg needs hoisting (throwing/variadic), emit hoisting code to `hoist_output`
+/// and return the temp var name (with any needed prefix like & or cast).
+/// Otherwise, build and return the expression string directly.
+///
+/// This is the core of the single-pass hoist+emit approach (Bug #143 fix).
+/// By processing each arg once and returning the string directly, we avoid
+/// the fragile expression identity mechanism in hoisted_exprs.
+#[allow(dead_code)]
+fn emit_arg_string(
+    arg: &Expr,
+    param_type: Option<&ValueType>,
+    param_by_ref: bool,
+    hoist_output: &mut String,  // For emitting hoisting statements
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<String, String> {
+    let _indent_str = "    ".repeat(indent);
+
+    // Check if arg is a type identifier - emit as string literal
+    if let Some(type_name) = get_type_arg_name(arg, context) {
+        return Ok(format!("\"{}\"", type_name));
+    }
+
+    // Check if this is a throwing FCall - needs hoisting
+    if let NodeType::FCall(_) = &arg.node_type {
+        if let Some(fd) = get_fcall_func_def(context, arg) {
+            if !fd.throw_types.is_empty() {
+                // This is a throwing call - must hoist
+                return emit_throwing_arg_string(arg, &fd, param_type, param_by_ref, hoist_output, indent, ctx, context);
+            }
+        }
+    }
+
+    // Check if this is a variadic FCall (even if not throwing) - needs hoisting
+    if let NodeType::FCall(_) = &arg.node_type {
+        if let Some(vi) = detect_variadic_fcall(arg, ctx) {
+            return emit_variadic_arg_string(arg, &vi, param_type, param_by_ref, hoist_output, indent, ctx, context);
+        }
+    }
+
+    // NOTE: Dynamic/ref param hoisting is NOT handled here.
+    // That logic is complex and still uses the old hoisting mechanism.
+    // This function only handles throwing and variadic calls to eliminate
+    // the fragile hoisted_exprs identity mechanism for those cases.
+
+    // For non-throwing, non-variadic FCalls, recursively process nested args
+    // This ensures any nested throwing/variadic calls get hoisted properly
+    if let NodeType::FCall(_) = &arg.node_type {
+        return emit_fcall_arg_string(arg, hoist_output, indent, ctx, context);
+    }
+
+    // For other expressions, emit to a temp string and return
+    let mut expr_str = String::new();
+    emit_expr(arg, &mut expr_str, 0, ctx, context)?;
+    Ok(expr_str)
+}
+
+/// Helper: Emit a throwing FCall arg, hoisting it and returning temp var string
+#[allow(dead_code)]
+fn emit_throwing_arg_string(
+    arg: &Expr,
+    fd: &SFuncDef,
+    param_type: Option<&ValueType>,
+    param_by_ref: bool,
+    hoist_output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<String, String> {
+    let indent_str = "    ".repeat(indent);
+
+    // First, recursively process this call's arguments
+    let mut nested_arg_strings = Vec::new();
+    if arg.params.len() > 1 {
+        for (i, nested_arg) in arg.params[1..].iter().enumerate() {
+            let nested_param_type = fd.args.get(i).map(|a| &a.value_type);
+            let nested_by_ref = fd.args.get(i).map(|a| param_needs_by_ref(a)).unwrap_or(false);
+            let nested_str = emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?;
+            nested_arg_strings.push(nested_str);
+        }
+    }
+
+    // Generate temp variable for result
+    let temp_var = next_mangled(ctx);
+    let temp_suffix = next_mangled(ctx);
+
+    // Get return type
+    let c_type = til_type_to_c(fd.return_types.first()
+        .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Throwing call has no return type"))?)
+        .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))?;
+
+    // Declare temp variable
+    hoist_output.push_str(&indent_str);
+    hoist_output.push_str(&c_type);
+    hoist_output.push_str(" ");
+    hoist_output.push_str(&temp_var);
+    hoist_output.push_str(";\n");
+
+    // Declare error variables for each throw type (skip empty struct errors)
+    for (err_idx, throw_type) in fd.throw_types.iter().enumerate() {
+        if is_empty_error_struct(context, throw_type) {
+            continue;
+        }
+        if let ValueType::TCustom(type_name) = throw_type {
+            hoist_output.push_str(&indent_str);
+            hoist_output.push_str(&til_name(type_name));
+            hoist_output.push_str(" _err");
+            hoist_output.push_str(&err_idx.to_string());
+            hoist_output.push_str("_");
+            hoist_output.push_str(&temp_suffix);
+            hoist_output.push_str(";\n");
+        }
+    }
+
+    // Check for variadic and construct array if needed
+    let variadic_info = detect_variadic_fcall(arg, ctx);
+    let variadic_arr_var: Option<String> = if let Some(ref vi) = variadic_info {
+        // Build variadic array using the nested arg strings
+        Some(emit_variadic_array_with_strings(
+            &vi.elem_type,
+            &arg.params[1 + vi.regular_count..],
+            &nested_arg_strings[vi.regular_count..],
+            hoist_output, indent, ctx, context
+        )?)
+    } else {
+        None
+    };
+
+    // Emit the function call with output pointers
+    hoist_output.push_str(&indent_str);
+    hoist_output.push_str("int __attribute__((unused)) _status_");
+    hoist_output.push_str(&temp_suffix);
+    hoist_output.push_str(" = ");
+
+    // Get function name
+    let func_name = get_func_name_string(&arg.params[0])
+        .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
+    let orig_func_name = get_til_func_name_string(&arg.params[0]).unwrap_or_else(|| func_name.clone());
+    let mangled_name = ctx.nested_func_names.get(&orig_func_name).cloned().unwrap_or(func_name.clone());
+
+    // Emit function name
+    hoist_output.push_str(TIL_PREFIX);
+    hoist_output.push_str(&mangled_name);
+    hoist_output.push('(');
+
+    // First arg: output pointer for return value
+    hoist_output.push_str("&");
+    hoist_output.push_str(&temp_var);
+
+    // Error output pointers
+    for (err_idx, throw_type) in fd.throw_types.iter().enumerate() {
+        hoist_output.push_str(", ");
+        if is_empty_error_struct(context, throw_type) {
+            hoist_output.push_str("NULL");
+        } else {
+            hoist_output.push_str("&_err");
+            hoist_output.push_str(&err_idx.to_string());
+            hoist_output.push_str("_");
+            hoist_output.push_str(&temp_suffix);
+        }
+    }
+
+    // Regular arguments (using pre-computed strings)
+    let regular_count = variadic_info.as_ref().map(|vi| vi.regular_count).unwrap_or(nested_arg_strings.len());
+    for arg_str in nested_arg_strings.iter().take(regular_count) {
+        hoist_output.push_str(", ");
+        hoist_output.push_str(arg_str);
+    }
+
+    // Variadic array pointer if present
+    if let Some(arr_var) = &variadic_arr_var {
+        hoist_output.push_str(", &");
+        hoist_output.push_str(arr_var);
+    }
+
+    hoist_output.push_str(");\n");
+
+    // Emit error propagation
+    emit_error_propagation(&fd.throw_types, &temp_suffix, hoist_output, indent, ctx, context)?;
+
+    // Delete variadic array if constructed
+    if let Some(arr_var) = &variadic_arr_var {
+        hoist_output.push_str(&indent_str);
+        hoist_output.push_str(TIL_PREFIX);
+        hoist_output.push_str("Array_delete(&");
+        hoist_output.push_str(arr_var);
+        hoist_output.push_str(");\n");
+    }
+
+    // Return the temp var name with appropriate prefix
+    format_hoisted_result(&temp_var, param_type, param_by_ref)
+}
+
+/// Helper: Emit error propagation code
+#[allow(dead_code)]
+fn emit_error_propagation(
+    throw_types: &[ValueType],
+    temp_suffix: &str,
+    output: &mut String,
+    indent: usize,
+    ctx: &CodegenContext,
+    context: &Context,
+) -> Result<(), String> {
+    let indent_str = "    ".repeat(indent);
+
+    output.push_str(&indent_str);
+    output.push_str("if (_status_");
+    output.push_str(temp_suffix);
+    output.push_str(" != 0) {\n");
+
+    for (err_idx, throw_type) in throw_types.iter().enumerate() {
+        if let ValueType::TCustom(type_name) = throw_type {
+            // Find matching throw type in current function
+            for (curr_idx, curr_throw) in ctx.current_throw_types.iter().enumerate() {
+                if let ValueType::TCustom(curr_type_name) = curr_throw {
+                    if curr_type_name == type_name {
+                        output.push_str(&indent_str);
+                        output.push_str("    if (_status_");
+                        output.push_str(temp_suffix);
+                        output.push_str(" == ");
+                        output.push_str(&(err_idx + 1).to_string());
+                        output.push_str(") { ");
+                        if !is_empty_error_struct(context, throw_type) {
+                            output.push_str("*_err");
+                            output.push_str(&(curr_idx + 1).to_string());
+                            output.push_str(" = _err");
+                            output.push_str(&err_idx.to_string());
+                            output.push_str("_");
+                            output.push_str(temp_suffix);
+                            output.push_str("; ");
+                        }
+                        output.push_str("return ");
+                        output.push_str(&(curr_idx + 1).to_string());
+                        output.push_str("; }\n");
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    output.push_str(&indent_str);
+    output.push_str("}\n");
+
+    Ok(())
+}
+
+/// Helper: Format a hoisted temp var with appropriate prefix for param type
+#[allow(dead_code)]
+fn format_hoisted_result(
+    temp_var: &str,
+    param_type: Option<&ValueType>,
+    param_by_ref: bool,
+) -> Result<String, String> {
+    let is_dynamic = matches!(param_type, Some(ValueType::TCustom(name)) if name == "Dynamic");
+    if is_dynamic {
+        return Ok(format!("({}Dynamic*)&{}", TIL_PREFIX, temp_var));
+    }
+    if param_by_ref {
+        return Ok(format!("&{}", temp_var));
+    }
+    Ok(temp_var.to_string())
+}
+
+/// Helper: Emit a non-throwing variadic FCall arg
+#[allow(dead_code)]
+fn emit_variadic_arg_string(
+    arg: &Expr,
+    vi: &VariadicFCallInfo,
+    param_type: Option<&ValueType>,
+    param_by_ref: bool,
+    hoist_output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<String, String> {
+    let indent_str = "    ".repeat(indent);
+
+    // Get function definition
+    let fd = get_fcall_func_def(context, arg)
+        .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Cannot find function definition for variadic call"))?;
+
+    // First, recursively process this call's arguments
+    let mut nested_arg_strings = Vec::new();
+    if arg.params.len() > 1 {
+        for (i, nested_arg) in arg.params[1..].iter().enumerate() {
+            let nested_param_type = fd.args.get(i).map(|a| &a.value_type);
+            let nested_by_ref = fd.args.get(i).map(|a| param_needs_by_ref(a)).unwrap_or(false);
+            let nested_str = emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?;
+            nested_arg_strings.push(nested_str);
+        }
+    }
+
+    // Generate temp variable for result
+    let temp_var = next_mangled(ctx);
+
+    // Get return type
+    let c_type = til_type_to_c(fd.return_types.first()
+        .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Function has no return type"))?)
+        .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e))?;
+
+    // Declare temp variable
+    hoist_output.push_str(&indent_str);
+    hoist_output.push_str(&c_type);
+    hoist_output.push_str(" ");
+    hoist_output.push_str(&temp_var);
+    hoist_output.push_str(";\n");
+
+    // Build variadic array using the nested arg strings
+    let variadic_arr_var = emit_variadic_array_with_strings(
+        &vi.elem_type,
+        &arg.params[1 + vi.regular_count..],
+        &nested_arg_strings[vi.regular_count..],
+        hoist_output, indent, ctx, context
+    )?;
+
+    // Emit the function call
+    hoist_output.push_str(&indent_str);
+    hoist_output.push_str(&temp_var);
+    hoist_output.push_str(" = ");
+
+    // Get function name
+    let func_name = get_func_name_string(&arg.params[0])
+        .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
+    let orig_func_name = get_til_func_name_string(&arg.params[0]).unwrap_or_else(|| func_name.clone());
+    let mangled_name = ctx.nested_func_names.get(&orig_func_name).cloned().unwrap_or(func_name.clone());
+
+    hoist_output.push_str(&til_func_name(&mangled_name));
+    hoist_output.push('(');
+
+    // Regular arguments
+    let mut first = true;
+    for arg_str in nested_arg_strings.iter().take(vi.regular_count) {
+        if !first {
+            hoist_output.push_str(", ");
+        }
+        first = false;
+        hoist_output.push_str(arg_str);
+    }
+
+    // Variadic array pointer
+    if !first {
+        hoist_output.push_str(", ");
+    }
+    hoist_output.push_str("&");
+    hoist_output.push_str(&variadic_arr_var);
+    hoist_output.push_str(");\n");
+
+    // Delete variadic array
+    hoist_output.push_str(&indent_str);
+    hoist_output.push_str(TIL_PREFIX);
+    hoist_output.push_str("Array_delete(&");
+    hoist_output.push_str(&variadic_arr_var);
+    hoist_output.push_str(");\n");
+
+    // Return the temp var name with appropriate prefix
+    format_hoisted_result(&temp_var, param_type, param_by_ref)
+}
+
+/// Helper: Build variadic array using pre-computed arg strings
+#[allow(dead_code)]
+fn emit_variadic_array_with_strings(
+    elem_type: &str,
+    variadic_args: &[Expr],
+    arg_strings: &[String],
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    _context: &Context,
+) -> Result<String, String> {
+    let indent_str = "    ".repeat(indent);
+    let arr_var = next_mangled(ctx);
+    let err_suffix = next_mangled(ctx);
+
+    let elem_count = variadic_args.len();
+    let c_elem_type = til_type_to_c(&ValueType::TCustom(elem_type.to_string()))
+        .unwrap_or_else(|_| format!("{}I64", TIL_PREFIX));
+
+    // Declare array variable
+    output.push_str(&indent_str);
+    output.push_str(TIL_PREFIX);
+    output.push_str("Array ");
+    output.push_str(&arr_var);
+    output.push_str(";\n");
+
+    // Declare error variable for Array.new
+    output.push_str(&indent_str);
+    output.push_str(TIL_PREFIX);
+    output.push_str("AllocationError _aerr_");
+    output.push_str(&err_suffix);
+    output.push_str(";\n");
+
+    // Call Array.new
+    output.push_str(&indent_str);
+    output.push_str("int __attribute__((unused)) _astatus_");
+    output.push_str(&err_suffix);
+    output.push_str(" = ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Array_new(&");
+    output.push_str(&arr_var);
+    output.push_str(", &_aerr_");
+    output.push_str(&err_suffix);
+    output.push_str(", \"");
+    output.push_str(elem_type);
+    output.push_str("\", ");
+    output.push_str(&elem_count.to_string());
+    output.push_str(");\n");
+
+    // Set each element
+    for (i, arg_str) in arg_strings.iter().enumerate() {
+        output.push_str(&indent_str);
+        output.push_str("(*(");
+        output.push_str(&c_elem_type);
+        output.push_str("*)((char*)");
+        output.push_str(&arr_var);
+        output.push_str(".ptr.data + ");
+        output.push_str(&i.to_string());
+        output.push_str(" * ");
+        output.push_str(&arr_var);
+        output.push_str(".elem_size)) = ");
+        output.push_str(arg_str);
+        output.push_str(";\n");
+    }
+
+    Ok(arr_var)
+}
+
+/// Helper: Try to hoist for Dynamic param, return Some(string) if hoisted
+#[allow(dead_code)]
+fn try_hoist_for_dynamic(
+    arg: &Expr,
+    hoist_output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<Option<String>, String> {
+    // Check if arg needs hoisting for Dynamic (non-lvalue)
+    let needs_hoisting = match &arg.node_type {
+        NodeType::Identifier(_) if arg.params.is_empty() => false,  // Simple identifier is lvalue
+        NodeType::Identifier(_) => true,  // Type-qualified call needs hoisting
+        NodeType::LLiteral(Literal::Str(_)) => true,
+        NodeType::FCall(_) => true,
+        _ => true,
+    };
+
+    if !needs_hoisting {
+        return Ok(None);
+    }
+
+    let indent_str = "    ".repeat(indent);
+
+    // Determine C type
+    let c_type = get_c_type_for_expr(arg, context)?;
+
+    let temp_var = next_mangled(ctx);
+
+    // Emit: Type _tmpXX = <expression>;
+    hoist_output.push_str(&indent_str);
+    hoist_output.push_str(&c_type);
+    hoist_output.push_str(" ");
+    hoist_output.push_str(&temp_var);
+    hoist_output.push_str(" = ");
+    emit_expr(arg, hoist_output, 0, ctx, context)?;
+    hoist_output.push_str(";\n");
+
+    Ok(Some(format!("({}Dynamic*)&{}", TIL_PREFIX, temp_var)))
+}
+
+/// Helper: Try to hoist for by-ref param, return Some(string) if hoisted
+#[allow(dead_code)]
+fn try_hoist_for_ref(
+    arg: &Expr,
+    hoist_output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<Option<String>, String> {
+    // Check if arg needs hoisting (rvalues that can't have & taken)
+    let needs_hoisting = match &arg.node_type {
+        NodeType::Identifier(_name) if arg.params.is_empty() => false,  // Simple identifier is lvalue
+        NodeType::Identifier(name) => {
+            // Check if this is a type-qualified method call (not field access)
+            let is_variable = context.scope_stack.lookup_symbol(name).is_some();
+            let is_function = context.scope_stack.lookup_func(name).is_some();
+            !is_variable && !is_function
+        },
+        NodeType::LLiteral(Literal::Str(_)) => false,  // Compound literal, can use &
+        NodeType::LLiteral(Literal::Number(_)) => true,  // Can't take address of integer literal
+        NodeType::FCall(_) => {
+            // Check if this is an enum or struct constructor - those become compound literals
+            if let Some(first) = arg.params.first() {
+                let combined = crate::rs::parser::get_combined_name(&context.path, first).unwrap_or_default();
+                !context.scope_stack.is_type_constructor(&combined)
+            } else {
+                true
+            }
+        }
+        _ => false,
+    };
+
+    if !needs_hoisting {
+        return Ok(None);
+    }
+
+    let indent_str = "    ".repeat(indent);
+
+    // Determine C type
+    let c_type = get_c_type_for_expr(arg, context)?;
+
+    let temp_var = next_mangled(ctx);
+
+    // Emit: Type _tmpXX = <expression>;
+    hoist_output.push_str(&indent_str);
+    hoist_output.push_str(&c_type);
+    hoist_output.push_str(" ");
+    hoist_output.push_str(&temp_var);
+    hoist_output.push_str(" = ");
+    emit_expr(arg, hoist_output, 0, ctx, context)?;
+    hoist_output.push_str(";\n");
+
+    Ok(Some(format!("&{}", temp_var)))
+}
+
+/// Helper: Format Dynamic arg (doesn't need hoisting but needs cast)
+#[allow(dead_code)]
+fn format_dynamic_arg(
+    arg: &Expr,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<String, String> {
+    if let NodeType::Identifier(name) = &arg.node_type {
+        if arg.params.is_empty() {
+            // Check if already a pointer
+            let is_already_pointer = ctx.current_ref_params.contains(name)
+                || ctx.current_variadic_params.contains_key(name)
+                || context.scope_stack.lookup_symbol(name)
+                    .map(|sym| matches!(&sym.value_type, ValueType::TCustom(t) if t == "Dynamic"))
+                    .unwrap_or(false);
+            if is_already_pointer {
+                return Ok(format!("({}Dynamic*){}", TIL_PREFIX, til_name(name)));
+            } else {
+                return Ok(format!("({}Dynamic*)&{}", TIL_PREFIX, til_name(name)));
+            }
+        }
+    }
+    // Fallback: emit and wrap
+    let mut expr_str = String::new();
+    emit_expr(arg, &mut expr_str, 0, ctx, context)?;
+    Ok(format!("({}Dynamic*)&{}", TIL_PREFIX, expr_str))
+}
+
+/// Helper: Format by-ref arg (doesn't need hoisting but needs & prefix)
+#[allow(dead_code)]
+fn format_byref_arg(
+    arg: &Expr,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<String, String> {
+    if let NodeType::Identifier(name) = &arg.node_type {
+        if arg.params.is_empty() {
+            // Check if already a pointer
+            let is_already_pointer = ctx.current_ref_params.contains(name)
+                || ctx.current_variadic_params.contains_key(name);
+            if is_already_pointer {
+                return Ok(til_name(name));
+            } else {
+                return Ok(format!("&{}", til_name(name)));
+            }
+        }
+    }
+    // Fallback: emit and add &
+    let mut expr_str = String::new();
+    emit_expr(arg, &mut expr_str, 0, ctx, context)?;
+    Ok(format!("&{}", expr_str))
+}
+
+/// Helper: Emit a non-throwing, non-variadic FCall, recursively processing args
+#[allow(dead_code)]
+fn emit_fcall_arg_string(
+    arg: &Expr,
+    hoist_output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<String, String> {
+    // Check if this is a struct constructor with named args - emit directly via emit_expr
+    // (emit_expr handles struct constructors properly, but emit_arg_string doesn't)
+    let has_named_args = arg.params.iter().skip(1).any(|p| matches!(&p.node_type, NodeType::NamedArg(_)));
+    if has_named_args {
+        let mut expr_str = String::new();
+        emit_expr(arg, &mut expr_str, 0, ctx, context)?;
+        return Ok(expr_str);
+    }
+
+    // For non-throwing, non-variadic FCalls, we still need to recursively process args
+    // to hoist any nested throwing/variadic calls
+
+    let fd_opt = get_fcall_func_def(context, arg);
+
+    // Process nested args
+    let mut nested_arg_strings = Vec::new();
+    if arg.params.len() > 1 {
+        for (i, nested_arg) in arg.params[1..].iter().enumerate() {
+            let nested_param_type = fd_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| &a.value_type));
+            let nested_by_ref = fd_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| param_needs_by_ref(a))).unwrap_or(false);
+            let nested_str = emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?;
+            nested_arg_strings.push(nested_str);
+        }
+    }
+
+    // Build the call string
+    let func_name = get_func_name_string(&arg.params[0])
+        .ok_or_else(|| arg.lang_error(&context.path, "ccodegen", "Cannot determine function name"))?;
+    let orig_func_name = get_til_func_name_string(&arg.params[0]).unwrap_or_else(|| func_name.clone());
+    let mangled_name = ctx.nested_func_names.get(&orig_func_name).cloned().unwrap_or(func_name.clone());
+
+    let mut call_str = String::new();
+    call_str.push_str(&til_func_name(&mangled_name));
+    call_str.push('(');
+
+    for (i, arg_str) in nested_arg_strings.iter().enumerate() {
+        if i > 0 {
+            call_str.push_str(", ");
+        }
+        call_str.push_str(arg_str);
+    }
+
+    call_str.push(')');
+
+    Ok(call_str)
+}
+
+/// Helper: Get C type for an expression (for hoisting declarations)
+#[allow(dead_code)]
+fn get_c_type_for_expr(
+    arg: &Expr,
+    context: &Context,
+) -> Result<String, String> {
+    match &arg.node_type {
+        NodeType::LLiteral(Literal::Str(_)) => Ok(format!("{}Str", TIL_PREFIX)),
+        NodeType::LLiteral(Literal::Number(_)) => Ok(format!("{}I64", TIL_PREFIX)),
+        NodeType::FCall(_) => {
+            if let Some(fd) = get_fcall_func_def(context, arg) {
+                if let Some(ret_type) = fd.return_types.first() {
+                    return til_type_to_c(ret_type)
+                        .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e));
+                }
+            }
+            // Check for struct/enum constructor
+            if let Some(func_name) = get_fcall_func_name(arg) {
+                if context.scope_stack.lookup_struct(&func_name).is_some() {
+                    return Ok(til_name(&func_name));
+                }
+                // Check enum constructor
+                if func_name.contains('_') {
+                    let parts: Vec<&str> = func_name.splitn(2, '_').collect();
+                    if parts.len() == 2 && context.scope_stack.lookup_enum(parts[0]).is_some() {
+                        return Ok(til_name(parts[0]));
+                    }
+                }
+            }
+            Err(arg.lang_error(&context.path, "ccodegen", "Cannot determine type for FCall"))
+        }
+        NodeType::Identifier(name) if !arg.params.is_empty() => {
+            // Type-qualified call or field access
+            if let Some(first_param) = arg.params.first() {
+                if let NodeType::Identifier(field_or_variant) = &first_param.node_type {
+                    // Check enum constructor
+                    if context.scope_stack.lookup_enum(name)
+                        .map(|e| e.contains_key(field_or_variant))
+                        .unwrap_or(false) {
+                        return Ok(til_name(name));
+                    }
+                    // Check field access
+                    if let Some(sym) = context.scope_stack.lookup_symbol(name) {
+                        if let ValueType::TCustom(struct_name) = &sym.value_type {
+                            if let Some(struct_def) = context.scope_stack.lookup_struct(struct_name) {
+                                for m in &struct_def.members {
+                                    if &m.name == field_or_variant {
+                                        return til_type_to_c(&m.value_type)
+                                            .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Err(arg.lang_error(&context.path, "ccodegen", "Cannot determine type"))
+        }
+        _ => Err(arg.lang_error(&context.path, "ccodegen", "Cannot determine type for expression")),
+    }
+}
+
 // Emit C code from AST (multi-pass architecture)
 pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     let mut output = String::new();

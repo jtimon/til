@@ -275,6 +275,41 @@ Cons:
 - 2/94 tests fail in til_compiled mode after switch desugaring (Issue #110)
 - Segfaults from dangling pointers when hoisting fails to match
 
+*** Implementation Attempt: Solution C (2026-01-28)
+Attempted to implement single-pass hoist+emit via ~emit_arg_string~ function.
+
+**** What was added
+- New functions in ~src/rs/ccodegen.rs~ (lines ~1961-2589):
+  - ~emit_arg_string~: Process arg for FCall, return string (hoisting if needed)
+  - ~emit_throwing_arg_string~: Handle throwing calls
+  - ~emit_variadic_arg_string~: Handle variadic calls
+  - ~emit_fcall_arg_string~: Recursively process nested FCall args
+  - Helper functions for Dynamic/ref params
+
+**** Why it failed to integrate
+1. **Dynamic/ref param hoisting requires expression type determination**
+   - Must declare temp var with correct C type
+   - Type determination logic is complex (~hoist_for_dynamic_params~ lines 1082-1170)
+   - New code was incomplete, causing "Cannot determine type" errors
+
+2. **Arg string approach conflicts with emit-as-you-go pattern**
+   - Current code: emit function name, then emit args inline
+   - New approach: collect arg strings first, then emit call
+   - Hoisting must happen BEFORE function name is emitted
+   - Required restructuring the entire emit_fcall flow
+
+3. **Struct constructors with NamedArgs need special handling**
+   - NamedArgs are only valid in struct constructors
+   - ~emit_arg_string~ must detect and delegate to ~emit_expr~ for these
+
+4. **Mixing old and new mechanisms caused incorrect code generation**
+   - Attempt to use new mechanism for throwing calls + old mechanism for Dynamic/ref
+   - Led to incorrect C code (type mismatches, missing & operators)
+
+**** Recommendation
+Solution A (unique ID on Expr) is simpler and would fix the immediate bug.
+Solution C requires more careful architectural work and should be planned separately.
+
 ** Bug #140: Dangling pointers in generated C code (undefined behavior)
 :PROPERTIES:
 :DISCOVERED: 2026-01-25
