@@ -9,6 +9,38 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #146: C translation non-determinism in loop variable naming
+:PROPERTIES:
+:DISCOVERED: 2026-01-28
+:IMPACT: Generated C code differs between builds, complicating diffs and version control
+:STATUS: Open
+:REPRODUCER: Run `make clean && make benchmark` twice, diff bootstrap/til.c
+:END:
+
+*** Description
+The C code generator produces different loop variable names between builds.
+For example, the same loop may be named ~_loop_3~ in one build and ~_loop_1~
+in another.
+
+*** Observed Diff
+#+BEGIN_SRC c
+// Build 1:
+-    til_I64 _loop_3 = 0;
+-    while (til_I64_lt(&_loop_3, til_size).data) {
++// Build 2:
++    til_I64 _loop_1 = 0;
++    while (til_I64_lt(&_loop_1, til_size).data) {
+#+END_SRC
+
+*** Root Cause
+Unknown. Likely a counter used for generating unique variable names is not
+being reset consistently between compilation runs, or iteration order over
+some data structure (Map?) is non-deterministic.
+
+*** Impact
+- Makes git diffs noisy when regenerating bootstrap/til.c
+- Harder to verify that code changes are intentional vs artifacts
+
 ** Bug #145: til_interpreted diverges from rs_interpreted for func in global init
 :PROPERTIES:
 :DISCOVERED: 2026-01-27
