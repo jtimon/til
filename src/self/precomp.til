@@ -176,7 +176,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                 while struct_j.lt(e.params.len()) {
                     mut struct_arg := Expr()
                     e.params.get(struct_j, struct_arg)?
-                    catch (err4: IndexOutOfBoundsError) {
+                    catch (err4: OutOfBounds) {
                         return false
                     }
                     // Handle named args - check the value inside
@@ -185,7 +185,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                     case NodeType.NamedArg(_):
                         if struct_arg.params.len().gt(0) {
                             struct_arg.params.get(0, arg_to_check)?
-                            catch (err5: IndexOutOfBoundsError) {
+                            catch (err5: OutOfBounds) {
                                 return false
                             }
                         }
@@ -205,7 +205,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
                 while k.lt(e.params.len()) {
                     mut arg := Expr()
                     e.params.get(k, arg)?
-                    catch (err_arg: IndexOutOfBoundsError) {
+                    catch (err_arg: OutOfBounds) {
                         return false
                     }
                     if not(is_comptime_evaluable(context, arg)) {
@@ -238,7 +238,7 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         while fcall_i.lt(e.params.len()) {
             mut fcall_arg := Expr()
             e.params.get(fcall_i, fcall_arg)?
-            catch (err: IndexOutOfBoundsError) {
+            catch (err: OutOfBounds) {
                 return false
             }
             if not(is_comptime_evaluable(context, fcall_arg)) {
@@ -425,7 +425,7 @@ precomp_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         new_params.push(precomp_expr(context, trailing)?)
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("precomp_switch: ", err.msg)
     }
     return Expr.new_clone(NodeType.Switch, e, new_params)
@@ -469,7 +469,7 @@ precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef
     new_struct_def.members = struct_def.members.clone()
     new_struct_def.default_values = new_default_values
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("precomp_struct_def: ", err.msg)
     }
     catch (err: KeyNotFoundError) {
@@ -505,7 +505,7 @@ precomp_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) retu
     new_func_def.body = new_body
     new_func_def.source_path = func_def.source_path.clone()
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("precomp_func_def: ", err.msg)
     }
 
@@ -694,7 +694,7 @@ precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
         }
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("precomp_declaration: ", err.msg)
     }
 
@@ -756,7 +756,7 @@ precomp_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     new_params.push(type_expr)
     new_params.push(new_body)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("precomp_catch: ", err.msg)
     }
 
@@ -863,7 +863,7 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("precomp_fcall: ", err.msg)
     }
 

@@ -112,7 +112,7 @@ fn build_default_value(context: &Context, vt: &ValueType, line: usize, col: usiz
 /// for _for_i in 0..collection.len() {
 ///     mut VAR := TYPE()
 ///     collection.get(_for_i, VAR)
-///     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+///     catch (err: OutOfBounds) { panic(loc(), err.msg) }
 ///     body
 /// }
 fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result<Expr, String> {
@@ -266,7 +266,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
         e.col,
     );
 
-    // Build: catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    // Build: catch (err: OutOfBounds) { panic(loc(), err.msg) }
     // Catch structure: params[0]=error type identifier, params[1]=error var name, params[2]=body
     let panic_call = Expr::new_explicit(
         NodeType::FCall(false),  // Issue #132: desugared calls don't throw
@@ -294,7 +294,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
         NodeType::Catch,
         vec![
             Expr::new_explicit(NodeType::Identifier("err".to_string()), vec![], e.line, e.col),
-            Expr::new_explicit(NodeType::Identifier("IndexOutOfBoundsError".to_string()), vec![], e.line, e.col),
+            Expr::new_explicit(NodeType::Identifier("OutOfBounds".to_string()), vec![], e.line, e.col),
             catch_body,
         ],
         e.line,
@@ -321,7 +321,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     );
 
     // Build while body: var_decl, get_call + catch (together), original body statements, inc
-    // The catch must be right after get_call so it only catches IndexOutOfBoundsError from get,
+    // The catch must be right after get_call so it only catches OutOfBounds from get,
     // not from user code in the loop body
     let mut while_body_params = vec![var_decl_expr, get_call, catch_expr];
     // Bug #57 fix: Transform continue statements to include increment before continue

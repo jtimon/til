@@ -51,7 +51,7 @@ parse_file := proc(path: Str) returns ParseFileResult throws Str {
     result.ast = ast
     result.mode_def = mode_def
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     return result
 }
@@ -121,7 +121,7 @@ collect_imports := proc(ast: Expr, mut imported: Set, mut all_asts: Vec, mut con
         // REM: not a Body
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -178,7 +178,7 @@ is_import_call := func(expr: Expr) returns Bool {
             case:
                 return false
             }
-            catch (err: IndexOutOfBoundsError) {
+            catch (err: OutOfBounds) {
                 return false
             }
         }
@@ -236,7 +236,7 @@ collect_import_paths := proc(ast: Expr, mut collected: Set) {
         // REM: not a Body
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         // Ignore index errors for deps checking
     }
 }

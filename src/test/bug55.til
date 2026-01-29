@@ -20,7 +20,7 @@ test_clone_in_struct_literal_pushed_to_vec := proc() {
     items.get(0, item)?
     assert_eq_str(loc(), "hello", item.name)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
 }

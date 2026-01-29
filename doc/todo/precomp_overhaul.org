@@ -17,7 +17,7 @@ This file tracks the implementation work to make the code match the design.
 ** Original Diff Summary
 
 1. *~src/rs/precomp.rs~*:
-   - Modified ~is_comptime_evaluable~: Instead of blocking ALL throwing functions, now only blocks those throwing ~AllocError~, ~IndexOutOfBoundsError~, or ~KeyNotFoundError~ (runtime-dependent errors)
+   - Modified ~is_comptime_evaluable~: Instead of blocking ALL throwing functions, now only blocks those throwing ~AllocError~, ~OutOfBounds~, or ~KeyNotFoundError~ (runtime-dependent errors)
    - Added U8 support in ~eval_comptime~
 
 2. *~src/self/precomp.til~*:

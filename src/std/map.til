@@ -143,8 +143,8 @@ Map := struct {
         self.values.insert_at(search.index, value)?
         self._size = self._size.add(1)
 
-        catch (err: IndexOutOfBoundsError) {
-            panic(loc(), "Map.insert: unexpected IndexOutOfBoundsError: ", err.msg)
+        catch (err: OutOfBounds) {
+            panic(loc(), "Map.insert: unexpected OutOfBounds: ", err.msg)
         }
     }
 
@@ -165,8 +165,8 @@ Map := struct {
             self._size = self._size.add(1)
         }
 
-        catch (err: IndexOutOfBoundsError) {
-            panic(loc(), "Map.set: unexpected IndexOutOfBoundsError: ", err.msg)
+        catch (err: OutOfBounds) {
+            panic(loc(), "Map.set: unexpected OutOfBounds: ", err.msg)
         }
     }
 
@@ -202,8 +202,8 @@ Map := struct {
             self._size = self._size.sub(1)
         }
 
-        catch (err: IndexOutOfBoundsError) {
-            panic(loc(), "Map.remove: unexpected IndexOutOfBoundsError: ", err.msg)
+        catch (err: OutOfBounds) {
+            panic(loc(), "Map.remove: unexpected OutOfBounds: ", err.msg)
         }
     }
 

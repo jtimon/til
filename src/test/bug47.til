@@ -23,7 +23,7 @@ test_bug47 := proc() {
         println("ERROR:", loc(), err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         println("ERROR:", loc(), err.msg)
         exit(1)
     }

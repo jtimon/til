@@ -37,7 +37,7 @@ make_allowed_commands := proc() returns Array {
     arr.set(6, "bash")?
     arr.set(7, "rm")?
     arr.set(8, "cp")?
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
     return arr
 }
 ALLOWED_COMMANDS := make_allowed_commands()
@@ -47,7 +47,7 @@ make_safe_commands := proc() returns Array {
     mut arr := Array.new(Str, 2)
     arr.set(0, "ls")?
     arr.set(1, "mkdir")?
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
     return arr
 }
 SAFE_COMMANDS := make_safe_commands()

@@ -71,7 +71,7 @@ build_rstil := proc() {
     mut deps := Vec.new(Str)
     deps.push("src/rstil.rs")
     rs_files := glob_files("src/rs/*.rs")?
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
     for f: Str in rs_files { deps.push(f) }
 
     if needs_rebuild("bin/rstil", deps).not() {
@@ -257,14 +257,14 @@ main := proc(args: ..Str) {
             remaining_args.push(arg)
         }
     }
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
     if remaining_args.len().eq(0) {
         println("Usage: make.til <target> [options]")
         exit(1)
     }
     mut target := ""
     remaining_args.get(0, target)?
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
     switch target {
     case "clean":
         run_clean()
@@ -293,7 +293,7 @@ main := proc(args: ..Str) {
         }
         mut file_path := ""
         args.get(1, file_path)?
-        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+        catch (err: OutOfBounds) { panic(loc(), err.msg) }
         run_diff(file_path)
     case "diff_til":
         diff_til()

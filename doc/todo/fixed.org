@@ -643,7 +643,7 @@ for key: Str in map.keys {
 
 *** Notes
 - The keys._len pattern at lines 2011, 2044, 2391 is kept for future HashMap support
-- Removed now-unnecessary IndexOutOfBoundsError catch blocks
+- Removed now-unnecessary OutOfBounds catch blocks
 - No performance impact (within noise margin)
 
 ** Bug #86: For-in loop fails with enum that has enum payload
@@ -2031,7 +2031,7 @@ exceptions (lines 291-296) and report them as precomp errors.
 
 *** Solution
 Removed the blanket throw_types check. Now only functions throwing ~AllocError~,
-~IndexOutOfBoundsError~, or ~KeyNotFoundError~ are excluded (these depend on runtime state).
+~OutOfBounds~, or ~KeyNotFoundError~ are excluded (these depend on runtime state).
 Other throwing functions are evaluated at compile time, and if they throw, the exception
 is caught by ~eval_comptime~ and reported as a compile-time error.
 
@@ -3755,7 +3755,7 @@ When catching an error in a catch block, accessing string fields of the error st
 *** Example
 #+BEGIN_EXAMPLE
 arr.set(999, 84)
-catch (err: IndexOutOfBoundsError) {
+catch (err: OutOfBounds) {
     println(err.msg)  // FAILS: missing field 'err.msg.c_string'
 }
 #+END_EXAMPLE
@@ -3771,7 +3771,7 @@ The bug ONLY occurs when errors are thrown from UFCS method calls. When an error
 
 Working cases:
 - Direct throw: `throw IndexOutOfBounds Error.new("msg")` ✅
-- Throw with format: `throw IndexOutOfBoundsError.new(format(...))` ✅
+- Throw with format: `throw OutOfBounds.new(format(...))` ✅
 - Throw from regular function ✅
 
 Failing case:
@@ -3801,7 +3801,7 @@ This mirrors the logic already in place for returning struct values, but applies
 *Now works:*
 #+BEGIN_EXAMPLE
 arr.set(999, 84)
-catch (err: IndexOutOfBoundsError) {
+catch (err: OutOfBounds) {
     println(err.msg)  // ✅ Works! Prints the error message
 }
 #+END_EXAMPLE

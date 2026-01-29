@@ -25,7 +25,7 @@ mut g_cc := ""
 // Example: gen/out/til.rs_interpreted.help.actual.out
 
 // Parse time output like "real\t0m0.042s" -> milliseconds
-parse_time_ms := func(time_output: Str) returns I64 throws IndexOutOfBoundsError {
+parse_time_ms := func(time_output: Str) returns I64 throws OutOfBounds {
     lines := time_output.split("\n")?
     for line: Str in lines {
         if line.starts_with("real") {
@@ -145,7 +145,7 @@ ensure_parent_dir := proc(file_path: Str) {
         _ := result.run_cmd("mkdir", "-p", dir)
     }
 
-    catch (err: IndexOutOfBoundsError) { /* ignore */ }
+    catch (err: OutOfBounds) { /* ignore */ }
 }
 
 // Regenerate .out file for a test
@@ -268,7 +268,7 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
     // Format: PASS <time_ms>
     println("PASS ", time_ms.to_str())
 
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
 }
 
 // test_mode: rs_interpreted, rs_compiled, til_interpreted, til_compiled
@@ -320,5 +320,5 @@ main := proc(args: ..Str) {
         exit(1)
     }
 
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
 }

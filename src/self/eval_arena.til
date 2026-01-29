@@ -103,7 +103,7 @@ EvalArena := struct {
         catch (err: KeyNotFoundError) {
             return false
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             return false
         }
     }
@@ -510,7 +510,7 @@ EvalArena := struct {
             }
         }
 
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw e.lang_error(ctx.path, "context", format("insert_struct_core: ", err.msg))
         }
         catch (err: U8_Overflow) {
@@ -673,8 +673,8 @@ EvalArena := struct {
             frame.symbols.set(s.name, s.info)
         }
 
-        catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "insert_struct_into_frame", "IndexOutOfBoundsError")
+        catch (err: OutOfBounds) {
+            throw e.lang_error(ctx.path, "insert_struct_into_frame", "OutOfBounds")
         }
         catch (err: BadAlloc) {
             panic(loc(), "insert_struct_into_frame: buy more ram")
@@ -859,7 +859,7 @@ EvalArena := struct {
         catch (err: KeyNotFoundError) {
             // No payload
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             // Should never happen
         }
 
@@ -1003,7 +1003,7 @@ EvalArena := struct {
         catch (err: KeyNotFoundError) {
             // No payload type
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             // Should never happen
         }
 
@@ -1102,7 +1102,7 @@ EvalArena := struct {
         if parts.len().gt(0) {
             parts.get(sub(parts.len(), 1), enum_name)?
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw e.lang_error(ctx.path, "context", format("insert_enum: Invalid enum name format '", pre_normalized_enum_name, "'"))
         }
 
@@ -1194,8 +1194,8 @@ EvalArena := struct {
             result.enum_val.payload_type.data = to_ptr(payload_type)
         }
 
-        catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "insert_enum_core", "IndexOutOfBoundsError while processing payload")
+        catch (err: OutOfBounds) {
+            throw e.lang_error(ctx.path, "insert_enum_core", "OutOfBounds while processing payload")
         }
 
         return result
@@ -1225,8 +1225,8 @@ EvalArena := struct {
             frame.arena_index.set(result.mapping_name, result.mapping_offset)
         }
 
-        catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "insert_enum_into_frame", "IndexOutOfBoundsError")
+        catch (err: OutOfBounds) {
+            throw e.lang_error(ctx.path, "insert_enum_into_frame", "OutOfBounds")
         }
 
         return result.enum_val
@@ -1338,8 +1338,8 @@ EvalArena := struct {
         str_size := ctx.get_type_size("Str")?
         g_arena.set(type_name_offset, g_arena.get(temp_str_offset, str_size), str_size)
 
-        catch (err: IndexOutOfBoundsError) {
-            throw e.lang_error(ctx.path, "insert_array_into_frame", "IndexOutOfBoundsError")
+        catch (err: OutOfBounds) {
+            throw e.lang_error(ctx.path, "insert_array_into_frame", "OutOfBounds")
         }
         catch (err: U8_Overflow) {
             throw e.lang_error(ctx.path, "insert_array_into_frame", err.msg)

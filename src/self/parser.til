@@ -62,7 +62,7 @@ SEnumDef := struct {
             self.variants.get(i, v)?
             result.variants.push(v.clone())
         }
-        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+        catch (err: OutOfBounds) { panic(loc(), err.msg) }
         return result
     }
 
@@ -75,7 +75,7 @@ SEnumDef := struct {
     }
 
     // Helper methods for backward compatibility
-    get := func(self: SEnumDef, variant_name: Str) returns Ptr throws KeyNotFoundError, IndexOutOfBoundsError {
+    get := func(self: SEnumDef, variant_name: Str) returns Ptr throws KeyNotFoundError, OutOfBounds {
         for i in 0..self.variants.len() {
             mut v := EnumVariant()
             self.variants.get(i, v)?
@@ -94,7 +94,7 @@ SEnumDef := struct {
                 return true
             }
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }  // Should never happen with 0..len()
+        catch (err: OutOfBounds) { throw err.msg }  // Should never happen with 0..len()
         return false
     }
 }
@@ -182,7 +182,7 @@ SFuncDef := struct {
             self.body.get(body_idx, e)?
             result.body.push(e.clone())
         }
-        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+        catch (err: OutOfBounds) { panic(loc(), err.msg) }
         result.source_path = self.source_path.clone()
         return result
     }
@@ -242,7 +242,7 @@ SStructDef := struct {
             self.default_values.values.get(dv_idx, v)?
             result.default_values.set(k.clone(), v.clone())
         }
-        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+        catch (err: OutOfBounds) { panic(loc(), err.msg) }
         return result
     }
 
@@ -255,7 +255,7 @@ SStructDef := struct {
                 return member
             }
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
         throw format(loc(), "Member '", member_name, "' not found")
@@ -418,7 +418,7 @@ Expr := struct {
             self.params.get(i, result)?
             return result
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
         throw self.lang_error("<internal>", "assert", format("Expr index ", i.to_str(), " out of bounds (len: ", self.params.len().to_str(), ")."))
@@ -432,7 +432,7 @@ Expr := struct {
             self.params.get(i, e)?
             cloned_params.push(e.clone())
         }
-        catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+        catch (err: OutOfBounds) { panic(loc(), err.msg) }
         return Expr(node_type=node_type_clone(self.node_type), params=cloned_params, line=self.line, col=self.col)
     }
 
@@ -480,7 +480,7 @@ Expr := struct {
             self.params.get(i, elem)?
             cloned.push(elem)
         }
-        catch (err: IndexOutOfBoundsError) { throw concat("Expr.params_clone: ", err.msg) }
+        catch (err: OutOfBounds) { throw concat("Expr.params_clone: ", err.msg) }
         return cloned
     }
 }
@@ -591,7 +591,7 @@ parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str {
     return e
 }
 
-parse_args := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_args := func(mut lexer: Lexer) returns Expr throws Str, OutOfBounds {
     mut rightparent_found := false
     mut params := Vec.new(Expr)
     initial_current := lexer.current
@@ -697,7 +697,7 @@ validate_mut_copy_own_modifiers := func(t: Token, path: Str, modifier: Str, is_m
     }
 }
 
-parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoundsError {
+parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, OutOfBounds {
     _ := lexer.expect(TokenType.LeftParen)?
     mut rightparent_found := false
     mut args := Vec.new(Declaration)
@@ -860,7 +860,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
     }
 }
 
-func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoundsError {
+func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, OutOfBounds {
     mut end_found := false
     mut return_types := Vec.new(ValueType)
     mut t := lexer.peek()?
@@ -914,7 +914,7 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
 }
 
 // TODO DRY with func_proc_returns ?
-func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBoundsError {
+func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, OutOfBounds {
     mut end_found := false
     mut return_types := Vec.new(ValueType)
     mut t := lexer.previous()?
@@ -1013,7 +1013,7 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
 
     params := Vec.new(Expr)
     e := Expr.new_parse(NodeType.FuncDef(func_def), t.clone(), params)
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
     return e
@@ -1100,7 +1100,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
     enum_def.variants = variants
     initial_token := lexer.get_token(initial_current)?.clone()
     e := Expr.new_parse(NodeType.EnumDef(enum_def), initial_token, params)
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
     return e
@@ -1170,7 +1170,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
     struct_def.default_values = default_values
     params := Vec.new(Expr)
     result := Expr.new_parse(NodeType.StructDef(struct_def), t.clone(), params)
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw concat("parse_struct_definition: ", err.msg)
     }
     return result
@@ -1375,7 +1375,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
     case:
         result = e
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
     return result
@@ -1407,11 +1407,11 @@ get_combined_name := func(path: Str, e: Expr) returns Str throws Str {
 
     // Remove the last '.'
     to_return = to_return.get_substr(0, to_return.len().sub(1))?
-    catch (err: IndexOutOfBoundsError) { throw concat("get_combined_name: ", err.msg) }
+    catch (err: OutOfBounds) { throw concat("get_combined_name: ", err.msg) }
     return to_return
 }
 
-parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, OutOfBounds {
     t := lexer.peek()?
     mut next_t := lexer.next()?
     mut next_token_type := next_t.token_type
@@ -1509,13 +1509,13 @@ parse_primary := func(mut lexer: Lexer) returns Expr throws Str {
     case:
         throw t.error(lexer.path, format("Expected primary expression, found '", token_type_to_str(t.token_type), "'."))
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw concat("parse_primary: ", err.msg)
     }
     return result
 }
 
-return_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+return_statement := func(mut lexer: Lexer) returns Expr throws Str, OutOfBounds {
     initial_current := lexer.current
     lexer.advance(1)?
     mut params := Vec.new(Expr)
@@ -1564,7 +1564,7 @@ parse_continue_statement := func(mut lexer: Lexer) returns Expr throws Str {
     return Expr.new_parse(NodeType.Continue, initial_token, params)
 }
 
-parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, OutOfBounds {
     initial_current := lexer.current
     lexer.advance(1)?
     mut params := Vec.new(Expr)
@@ -1594,7 +1594,7 @@ parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
     return Expr.new_parse(NodeType.Throw, initial_token, params)
 }
 
-parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, OutOfBounds {
     initial_current := lexer.current
     lexer.advance(1)? // consume 'catch'
 
@@ -1633,7 +1633,7 @@ parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
     return Expr.new_parse(NodeType.Catch, initial_token, params)
 }
 
-if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+if_statement := func(mut lexer: Lexer) returns Expr throws Str, OutOfBounds {
     initial_current := lexer.current
     lexer.advance(1)?
     mut params := Vec.new(Expr)
@@ -1681,7 +1681,7 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBounds
     return Expr.new_parse(NodeType.If, initial_token, params)
 }
 
-while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+while_statement := func(mut lexer: Lexer) returns Expr throws Str, OutOfBounds {
     initial_current := lexer.current
     lexer.advance(1)?
     mut params := Vec.new(Expr)
@@ -1710,7 +1710,7 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
 // Bug #57 fix: Transform continue statements to include the step expression before continue.
 // This ensures the loop variable is incremented/decremented even when continue is used.
 // Transforms: continue -> { step_expr; continue }
-transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr throws IndexOutOfBoundsError {
+transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr throws OutOfBounds {
     switch expr.node_type {
     case NodeType.Continue:
         // Replace continue with { step_expr; continue }
@@ -1736,7 +1736,7 @@ transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr t
     }
 }
 
-parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, OutOfBounds {
     initial_token := lexer.peek()?
     lexer.advance(1)? // consume 'for'
 
@@ -1869,7 +1869,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         while_params.push(cond)
         while_params.push(while_body)
 
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: OutOfBounds) { throw err.msg }
         return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
     }
 
@@ -1902,7 +1902,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         while_params.push(cond)
         while_params.push(while_body)
 
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: OutOfBounds) { throw err.msg }
         return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
     }
 
@@ -1979,11 +1979,11 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str {
             }
         case:
     }
-    catch (err: IndexOutOfBoundsError) { throw concat("get_full_identifier_name: ", err.msg) }
+    catch (err: OutOfBounds) { throw concat("get_full_identifier_name: ", err.msg) }
     return result
 }
 
-parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, OutOfBounds {
     left := parse_primary(lexer)?
     t := lexer.peek()?
     tt := t.token_type
@@ -2046,7 +2046,7 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     return left
 }
 
-parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, OutOfBounds {
     t := lexer.peek()?
     initial_current := lexer.current
     lexer.advance(1)?
@@ -2134,7 +2134,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
     throw t.error(lexer.path, "Expected '}}' to end switch.")
 }
 
-parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit_type: Str, has_explicit_type: Bool) returns Expr throws Str, IndexOutOfBoundsError {
+parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit_type: Str, has_explicit_type: Bool) returns Expr throws Str, OutOfBounds {
     t := lexer.peek()?
     decl_name := t.token_str
     initial_current := lexer.current
@@ -2161,7 +2161,7 @@ parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explici
     return Expr.new_parse(NodeType.Declaration(decl), initial_token, params)
 }
 
-parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, OutOfBounds {
     t := lexer.peek()?
     mut next_t := lexer.next()?
     mut next_token_type := next_t.token_type
@@ -2198,7 +2198,7 @@ parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
     }
 }
 
-parse_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_statement := func(mut lexer: Lexer) returns Expr throws Str, OutOfBounds {
     t := lexer.peek()?
     tt := t.token_type
 
@@ -2233,7 +2233,7 @@ parse_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     }
 }
 
-parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, IndexOutOfBoundsError {
+parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, OutOfBounds {
     initial_current := lexer.current
     mut params := Vec.new(Expr)
     mut end_found := false
@@ -2272,7 +2272,7 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
     throw t.error(lexer.path, format("Expected '", token_type_to_str(end_token), "' to end body."))
 }
 
-parse_tokens := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_tokens := proc(mut lexer: Lexer) returns Expr throws Str, OutOfBounds {
     e := parse_body(lexer, TokenType.Eof)?
 
     lexer_len_val := lexer.len()

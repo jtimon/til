@@ -599,7 +599,7 @@ test_it := proc() {
     test(loc(), val.eq(42), "test with val")
 
     catch (err: AllocError) { exit(1) }
-    catch (err: IndexOutOfBoundsError) { exit(1) }
+    catch (err: OutOfBounds) { exit(1) }
 }
 test_it()
 #+END_SRC
@@ -1333,7 +1333,7 @@ path as collection loops (for-in over Vec, Array, etc.):
 - Range loops would then use standard len()/get() desugaring
 
 **** Why It Failed
-The I64Range.get() method throws IndexOutOfBoundsError. The for-in desugaring
+The I64Range.get() method throws OutOfBounds. The for-in desugaring
 generates a catch block for this error that panics. This catch block contains
 a variable ~til_err~.
 
@@ -1360,10 +1360,10 @@ NEW (I64Range approach):
 til_I64 _for_i_func_0 = 0;
 til_I64 til_i;
 while (til_lt(&_for_i_func_0, &(til_I64){til_I64Range_len(...)}).data) {
-    til_IndexOutOfBoundsError _thrown_...;
+    til_OutOfBounds _thrown_...;
     til_I64Range_get(...);  // throws
     if (0) { _catch_...:
-        til_IndexOutOfBoundsError til_err = ...;  // PROBLEM: hoisted
+        til_OutOfBounds til_err = ...;  // PROBLEM: hoisted
         til_panic(...);
     }
     // body
@@ -1397,9 +1397,9 @@ I64Range := struct {
         return self.start.sub(self.end)
     }
 
-    get := proc(self: I64Range, index: I64, mut out: Dynamic) throws IndexOutOfBoundsError {
+    get := proc(self: I64Range, index: I64, mut out: Dynamic) throws OutOfBounds {
         if index.gteq(self.len()) {
-            throw IndexOutOfBoundsError(msg="I64Range.get: index out of bounds")
+            throw OutOfBounds(msg="I64Range.get: index out of bounds")
         }
         if self.end.gteq(self.start) {
             out = self.start.add(index)  // Forward: 0..10 -> 0,1,2...
@@ -2062,7 +2062,7 @@ Affects 5 locations in hello_script.til (lines 101, 132, 165, 185, 233)
 Root cause: Several interrelated bugs in argument emission for throwing function calls.
 
 1. Catch block placement: Catch blocks were placed AFTER emit_arg_with_param_type(),
-   so when param_by_ref.get() or param_types.get() threw IndexOutOfBoundsError,
+   so when param_by_ref.get() or param_types.get() threw OutOfBounds,
    emit_arg_with_param_type was skipped entirely, causing missing arguments.
 
 2. param_types type mismatch: emit_throwing_call_propagate and emit_throwing_call_with_goto
@@ -2110,11 +2110,11 @@ Both are valid C but cause temp variable numbering drift.
 rstil hoists format call:
 #+BEGIN_SRC c
 til_Str _tmp_til_Array_get_7 = til_format(...);
-*_err1 = (til_IndexOutOfBoundsError){.msg = _tmp_til_Array_get_7};
+*_err1 = (til_OutOfBounds){.msg = _tmp_til_Array_get_7};
 #+END_SRC
 til inlines:
 #+BEGIN_SRC c
-*_err1 = (til_IndexOutOfBoundsError){.msg = til_format(...)};
+*_err1 = (til_OutOfBounds){.msg = til_format(...)};
 #+END_SRC
 
 ****** 2026-01-12: Fixed - is_struct_constructor catch placement in init.til

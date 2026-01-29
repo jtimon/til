@@ -20,7 +20,7 @@ test_list_dir := proc() {
         panic(loc(), "list_dir did not find syscalls.til in src/test")
     }
 
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
 }
 test_list_dir()
 
@@ -42,7 +42,7 @@ test_glob_files := proc() {
         panic(loc(), "glob_files did not find src/test/syscalls.til")
     }
 
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
 }
 test_glob_files()
 

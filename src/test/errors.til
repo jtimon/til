@@ -210,7 +210,7 @@ trigger_out_of_bounds := func(_dummy: I64) returns I64 throws Str {
     mut val := 0
     arr.get(10, val)?  // Intentionally out of bounds
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg  // Rethrow the message field as Str
     }
 
@@ -229,7 +229,7 @@ test_rethrow_error_field := proc() {
         error_msg = err
     }
     assert(loc(), caught)
-    assert_eq_str(loc(), "src/core/array.til:43:52:Array.get: index out of bounds", error_msg)
+    assert_eq_str(loc(), "src/core/array.til:43:42:Array.get: index out of bounds", error_msg)
 }
 test_rethrow_error_field()
 
@@ -240,7 +240,7 @@ trigger_out_of_bounds_assign := func(_dummy: I64) returns I64 throws Str {
     mut val := 0
     arr.get(10, val)?
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         msg := err.msg  // Assign to variable first
         throw msg
     }
@@ -260,7 +260,7 @@ test_rethrow_error_field_via_assign := proc() {
         error_msg = err
     }
     assert(loc(), caught)
-    assert_eq_str(loc(), "src/core/array.til:43:52:Array.get: index out of bounds", error_msg)
+    assert_eq_str(loc(), "src/core/array.til:43:42:Array.get: index out of bounds", error_msg)
 }
 test_rethrow_error_field_via_assign()
 

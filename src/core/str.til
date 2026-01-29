@@ -421,12 +421,12 @@ Str := struct {
             result = prefix.concat(to).concat(rest)
         }
 
-        catch (err: IndexOutOfBoundsError) { result = self.clone() }
+        catch (err: OutOfBounds) { result = self.clone() }
 
         return result
     }
 
-    split := func(self: Str, delimiter: Str) returns Vec throws IndexOutOfBoundsError {
+    split := func(self: Str, delimiter: Str) returns Vec throws OutOfBounds {
         # Split string by delimiter, return Vec of Str
         mut parts := Vec.new(Str)
 
@@ -529,19 +529,19 @@ Str := struct {
 }
 
 /** Get a substring from start (inclusive) to end (exclusive). */
-get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBoundsError {
+get_substr := func(s: Str, start: I64, end: I64) returns Str throws OutOfBounds {
 
     if start.lt(0) {
-        throw IndexOutOfBoundsError(msg=format(loc(), "get_substr: start index ", start.to_str(), " cannot be negative"))
+        throw OutOfBounds(msg=format(loc(), "get_substr: start index ", start.to_str(), " cannot be negative"))
     }
     if end.lt(0) {
-        throw IndexOutOfBoundsError(msg=format(loc(), "get_substr: end index ", end.to_str(), " cannot be negative"))
+        throw OutOfBounds(msg=format(loc(), "get_substr: end index ", end.to_str(), " cannot be negative"))
     }
     if start.gt(end) {
-        throw IndexOutOfBoundsError(msg=format(loc(), "get_substr: start index ", start.to_str(), " is greater than end index ", end.to_str()))
+        throw OutOfBounds(msg=format(loc(), "get_substr: start index ", start.to_str(), " is greater than end index ", end.to_str()))
     }
     if end.gt(s.len()) {
-        throw IndexOutOfBoundsError(msg=format(loc(), "get_substr: end index ", end.to_str(), " is greater than string length ", I64.to_str(s.len())))
+        throw OutOfBounds(msg=format(loc(), "get_substr: end index ", end.to_str(), " is greater than string length ", I64.to_str(s.len())))
     }
     if start.eq(end) {
         // Return empty string when start==end (like Rust's s[0..0])
@@ -562,7 +562,7 @@ get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBo
 }
 
 /** Get a single character at position pos as a Str. */
-get_char := func(s: Str, pos: I64) returns Str throws IndexOutOfBoundsError {
+get_char := func(s: Str, pos: I64) returns Str throws OutOfBounds {
     return s.get_substr(pos, pos.add(1))?
 }
 
@@ -611,7 +611,7 @@ strip_prefix := func(s: Str, prefix: Str) returns Str {
         return ""
     }
     result := get_substr(s, prefix.len(), s.len())?
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         return ""
     }
     return result
@@ -623,7 +623,7 @@ strip_suffix := func(s: Str, suffix: Str) returns Str {
         return ""
     }
     result := get_substr(s, 0, s.len().sub(suffix.len()))?
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         return ""
     }
     return result
@@ -685,7 +685,7 @@ format := func(prefix: Str, args: ..Str) returns Str {
     zero : U8 = 0
     memset(result.c_string.offset(result._len).data, zero, 1)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
 

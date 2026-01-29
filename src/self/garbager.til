@@ -37,7 +37,7 @@ generate_delete_method := func(struct_name: Str, struct_def: SStructDef, line: I
     while member_i.gteq(0) {
         mut member := Declaration()
         struct_def.members.get(member_i, member)?
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             // Shouldn't happen
         }
 
@@ -97,7 +97,7 @@ garbager_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         if e.params.len().gt(0) {
             mut value_expr := Expr()
             e.params.get(0, value_expr)?
-            catch (err: IndexOutOfBoundsError) {
+            catch (err: OutOfBounds) {
                 // Shouldn't happen since we checked len > 0
             }
             switch value_expr.node_type {
@@ -107,7 +107,7 @@ garbager_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 for mi in 0..struct_def.members.len() {
                     mut m := Declaration()
                     struct_def.members.get(mi, m)?
-                    catch (err: IndexOutOfBoundsError) {}
+                    catch (err: OutOfBounds) {}
                     if m.name.eq("delete") {
                         has_delete_in_members = true
                     }
@@ -126,7 +126,7 @@ garbager_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 for mfi in 0..struct_def.members.len() {
                     mut mf := Declaration()
                     struct_def.members.get(mfi, mf)?
-                    catch (err: IndexOutOfBoundsError) {}
+                    catch (err: OutOfBounds) {}
                     if mf.is_mut {
                         has_mut_fields = true
                     }
@@ -145,7 +145,7 @@ garbager_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     while dvi.lt(struct_def.default_values.keys.len()) {
                         mut decl_name := ""
                         struct_def.default_values.keys.get(dvi, decl_name)?
-                        catch (err: IndexOutOfBoundsError) {}
+                        catch (err: OutOfBounds) {}
                         mut decl_val_expr := Expr()
                         struct_def.default_values.get(decl_name, decl_val_expr)?
                         catch (err: KeyNotFoundError) {}
@@ -179,7 +179,7 @@ garbager_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         for dpi in 0..e.params.len() {
             mut decl_p := Expr()
             e.params.get(dpi, decl_p)?
-            catch (err: IndexOutOfBoundsError) {}
+            catch (err: OutOfBounds) {}
             decl_new_params2.push(garbager_expr(context, decl_p)?)
         }
         return Expr.new_clone(e.node_type, e, decl_new_params2)
@@ -232,8 +232,8 @@ garbager_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         }
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw format("garbager_expr: IndexOutOfBoundsError: ", err.msg)
+    catch (err: OutOfBounds) {
+        throw format("garbager_expr: OutOfBounds: ", err.msg)
     }
     catch (err: KeyNotFoundError) {
         throw format("garbager_expr: KeyNotFoundError: ", err.msg)

@@ -110,8 +110,8 @@ main := proc() {
         println("")
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        println("IndexOutOfBoundsError:", err.msg)
+    catch (err: OutOfBounds) {
+        println("OutOfBounds:", err.msg)
         exit(1)
     }
 }

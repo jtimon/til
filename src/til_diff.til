@@ -95,5 +95,5 @@ main := proc(file_path: Str) {
         exit(1)
     }
 
-    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: OutOfBounds) { panic(loc(), err.msg) }
 }

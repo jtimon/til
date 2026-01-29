@@ -21,24 +21,24 @@ test_list_push_heterogeneous := proc() {
 
     // Push I64
     list.push(I64, 42)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
 
     // Push Str
     list.push(Str, "hello")?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
 
     // Push Bool
     list.push(Bool, true)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -60,8 +60,8 @@ test_list_get := proc() {
     // Get I64 at index 0
     mut val0 := 0
     list.get(0, val0)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -70,8 +70,8 @@ test_list_get := proc() {
     // Get Str at index 1
     mut val1 := ""
     list.get(1, val1)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -80,8 +80,8 @@ test_list_get := proc() {
     // Get Bool at index 2
     mut val2 := true
     list.get(2, val2)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -101,16 +101,16 @@ test_list_set_same_size := proc() {
 
     // Set index 1 to new I64
     list.set(1, I64, 999)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
 
     mut val := 0
     list.get(1, val)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -130,8 +130,8 @@ test_list_set_different_size := proc() {
 
     // Replace I64 at index 1 with Str (different size)
     list.set(1, Str, "replaced")?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -139,8 +139,8 @@ test_list_set_different_size := proc() {
     // Verify element at index 1 is now Str
     mut val := ""
     list.get(1, val)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -149,8 +149,8 @@ test_list_set_different_size := proc() {
     // Verify element at index 2 is still correct
     mut val2 := 0
     list.get(2, val2)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -182,8 +182,8 @@ test_list_with_struct := proc() {
     // Get Vec2 at index 0
     mut result := Vec2()
     list.get(0, result)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -193,8 +193,8 @@ test_list_with_struct := proc() {
     // Get I64 at index 1
     mut num := 0
     list.get(1, num)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -213,8 +213,8 @@ test_list_len := proc() {
     list.push(I64, 1)?
     list.push(I64, 2)?
     list.push(I64, 3)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -233,10 +233,10 @@ test_list_out_of_bounds := proc() {
 
     mut val := 0
     list.get(5, val)?
-    panic(loc(), "Expected IndexOutOfBoundsError")
+    panic(loc(), "Expected OutOfBounds")
 
-    catch (err: IndexOutOfBoundsError) {
-        test(loc(), true, "IndexOutOfBoundsError correctly thrown")
+    catch (err: OutOfBounds) {
+        test(loc(), true, "OutOfBounds correctly thrown")
     }
 
     list.delete()
@@ -251,8 +251,8 @@ test_list_multiple_pushes := proc() {
     for i in 0..10 {
         list.push(I64, i)?
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -262,16 +262,16 @@ test_list_multiple_pushes := proc() {
     // Verify values are correct
     mut val := 0
     list.get(0, val)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
     test(loc(), val.eq(0), "First element")
 
     list.get(9, val)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -299,8 +299,8 @@ test_nested_lists := proc() {
     mut retrieved_inner := List.new()
 
     outer.get(0, retrieved_inner)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -310,8 +310,8 @@ test_nested_lists := proc() {
     // Get value from nested list
     mut nested_val := 0
     retrieved_inner.get(0, nested_val)?
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -367,13 +367,13 @@ test_list_pop := proc() {
 
     // Test popping from empty List - should throw
     stack.pop(i_val)?
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         // Expected error
         stack.delete()
         return
     }
 
-    println("ERROR:", loc(), "Should have thrown IndexOutOfBoundsError")
+    println("ERROR:", loc(), "Should have thrown OutOfBounds")
     exit(1)
 
 }

@@ -140,7 +140,7 @@ check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Ve
         }
         // else: NULL means None (no payload), nothing to check
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
     return errors
@@ -314,7 +314,7 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
         // Other node types not handled
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
     return errors
@@ -346,7 +346,7 @@ validate_func_arg_count := func(path: Str, e: Expr, f_name: Str, func_def: SFunc
         if NULL.eq(arg_decl.default_value.data) {
             required_args.inc()
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw format("validate_func_arg_count: ", err.msg)
         }
     }
@@ -407,7 +407,7 @@ check_if_statement := proc(mut context: Context, e: Expr) returns Vec throws Str
         }
         errors.extend(check_types_with_context(context, p, ctx)?)
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
     return errors
@@ -447,7 +447,7 @@ check_while_statement := proc(mut context: Context, e: Expr) returns Vec throws 
         }
         errors.extend(check_types_with_context(context, p, ctx)?)
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
     return errors
@@ -539,7 +539,7 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
     get_method := format(type_name, ".get")
     mut get_func := SFuncDef()
     get_func = context.scope_stack.lookup_func(get_method)?
-    // Verify signature: get(self, I64, mut Dynamic) throws IndexOutOfBoundsError
+    // Verify signature: get(self, I64, mut Dynamic) throws OutOfBounds
     mut valid := get_func.args.len().gteq(3)
     if valid {
         mut arg1 := Declaration()
@@ -569,14 +569,14 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
         }
     }
     if valid {
-        // Check throws IndexOutOfBoundsError
+        // Check throws OutOfBounds
         mut throws_index_error := false
         for i in 0..get_func.throw_types.len() {
             mut throw_type := ValueType.TCustom("")
             get_func.throw_types.get(i, throw_type)?
             switch throw_type {
             case ValueType.TCustom(throw_name):
-                if throw_name.eq("IndexOutOfBoundsError") {
+                if throw_name.eq("OutOfBounds") {
                     throws_index_error = true
                 }
             case:
@@ -587,10 +587,10 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
         }
     }
     if not(valid) {
-        errors.push(e.error(context.path, "type", format("for-in loop: '", type_name, ".get()' has wrong signature.\nRequired: ", type_name, ".get(self, index: I64, mut item: Dynamic) throws IndexOutOfBoundsError")))
+        errors.push(e.error(context.path, "type", format("for-in loop: '", type_name, ".get()' has wrong signature.\nRequired: ", type_name, ".get(self, index: I64, mut item: Dynamic) throws OutOfBounds")))
     }
     catch (err: KeyNotFoundError) {
-        errors.push(e.error(context.path, "type", format("for-in loop: type '", type_name, "' does not have a 'get()' method.\nRequired: ", type_name, ".get(self, index: I64, mut item: Dynamic) throws IndexOutOfBoundsError")))
+        errors.push(e.error(context.path, "type", format("for-in loop: type '", type_name, "' does not have a 'get()' method.\nRequired: ", type_name, ".get(self, index: I64, mut item: Dynamic) throws OutOfBounds")))
     }
 
     // Push scope for loop body, declare loop variable
@@ -605,7 +605,7 @@ check_forin_statement := proc(mut context: Context, e: Expr) returns Vec throws 
 
     _ := context.scope_stack.pop()?
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
     return errors
@@ -684,7 +684,7 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
         for ti in 0..func_def.throw_types.len() {
             mut tt := ValueType.TCustom("")
             func_def.throw_types.get(ti, tt)?
-            catch (idx_err: IndexOutOfBoundsError) {
+            catch (idx_err: OutOfBounds) {
                 // REM: Should not happen - iterating within bounds
             }
             if ti.gt(0) {
@@ -730,7 +730,7 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
         while def_arg_idx.lt(max_arg_def) {
             mut current_def := Declaration()
             func_def.args.get(def_arg_idx, current_def)?
-            catch (idx_err: IndexOutOfBoundsError) {
+            catch (idx_err: OutOfBounds) {
                 break
             }
 
@@ -787,7 +787,7 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
             if def_arg_idx.add(1).lt(max_arg_def) {
                 mut next_def := Declaration()
                 func_def.args.get(def_arg_idx.add(1), next_def)?
-                catch (idx_err: IndexOutOfBoundsError) {}
+                catch (idx_err: OutOfBounds) {}
                 switch next_def.value_type {
                 case ValueType.TMulti(_):
                     variadic_follows = true
@@ -811,7 +811,7 @@ check_fcall := proc(mut context: Context, e: Expr, does_throw: Bool) returns Vec
 
         mut arg := Declaration()
         func_def.args.get(arg_idx, arg)?
-        catch (idx_err: IndexOutOfBoundsError) {
+        catch (idx_err: OutOfBounds) {
             errors.push(e_clone.lang_error(context.path, "type", format("argument index ", I64.to_str(def_arg_idx), " out of bounds for function '", f_name, "'")))
             return errors
         }
@@ -1183,7 +1183,7 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
     context.scope_stack.function_locals = saved_function_locals
     context.scope_stack.used_symbols = saved_used_symbols
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 
@@ -1219,7 +1219,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                         mut expected_value_type := ValueType.TCustom("")
                         mut have_expected := true
                         func_def.return_types.get(i, expected_value_type)?
-                        catch (err: IndexOutOfBoundsError) {
+                        catch (err: OutOfBounds) {
                             errors.push(e.lang_error(context.path, "type", format("Fewer return values than provided at position ", I64.to_str(i))))
                             have_expected = false
                         }
@@ -1227,7 +1227,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                         mut return_val_e := Expr()
                         mut have_return_val := true
                         p.params.get(i, return_val_e)?
-                        catch (err: IndexOutOfBoundsError) {
+                        catch (err: OutOfBounds) {
                             errors.push(e.lang_error(context.path, "type", format("Missing return value at position ", I64.to_str(i))))
                             have_return_val = false
                         }
@@ -1680,7 +1680,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 case:
                                 }
                                 catch (err: KeyNotFoundError) { }
-                                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                                catch (err: OutOfBounds) { throw err.msg }
                             }
                         case:
                         }
@@ -1756,7 +1756,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 case:
                                 }
                                 catch (err: KeyNotFoundError) { }
-                                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                                catch (err: OutOfBounds) { throw err.msg }
                             }
                         case:
                         }
@@ -1800,7 +1800,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
         }
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
     return errors
@@ -1868,7 +1868,7 @@ check_catch_statement := proc(mut context: Context, e: Expr) returns Vec throws 
         // Ignore pop error
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
     return errors
@@ -2093,7 +2093,7 @@ check_assignment := proc(mut context: Context, e: Expr, var_name: Str) returns V
         errors.push(err)
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
     return errors
@@ -2289,7 +2289,7 @@ check_switch_statement := proc(mut context: Context, e: Expr) returns Vec throws
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 
@@ -2594,7 +2594,7 @@ check_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) 
         }
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
     catch (err: KeyNotFoundError) {
@@ -2824,7 +2824,7 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
         throw func_expr.lang_error(context.path, "type", "Expected Identifier node type")
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 
@@ -3115,8 +3115,8 @@ resolve_params := proc(mut context: Context, e: Expr) returns Vec throws Str {
         e.params.get(idx, param)?
         result.push(resolve_inferred_types(context, param)?)
     }
-    catch (err: IndexOutOfBoundsError) {
-        throw e.lang_error(context.path, "resolve_types", format("IndexOutOfBoundsError: ", err.msg))
+    catch (err: OutOfBounds) {
+        throw e.lang_error(context.path, "resolve_types", format("OutOfBounds: ", err.msg))
     }
     return result
 }
@@ -3400,8 +3400,8 @@ resolve_inferred_types := proc(mut context: Context, e: Expr) returns Expr throw
         return Expr.new_clone(e.node_type, e, default_params)
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw e.lang_error(context.path, "resolve_types", format("IndexOutOfBoundsError: ", err.msg))
+    catch (err: OutOfBounds) {
+        throw e.lang_error(context.path, "resolve_types", format("OutOfBounds: ", err.msg))
     }
 }
 
@@ -3475,8 +3475,8 @@ resolve_declaration := proc(mut context: Context, e: Expr, decl: Declaration) re
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
-        throw e.lang_error(context.path, "resolve_types", format("IndexOutOfBoundsError: ", err.msg))
+    catch (err: OutOfBounds) {
+        throw e.lang_error(context.path, "resolve_types", format("OutOfBounds: ", err.msg))
     }
 
     return Expr.new_explicit(NodeType.Declaration(new_decl), decl_params, e.line, e.col)
@@ -3510,8 +3510,8 @@ resolve_funcdef := proc(mut context: Context, e: Expr, func_def: SFuncDef) retur
 
     _ := context.scope_stack.pop()?
 
-    catch (err: IndexOutOfBoundsError) {
-        throw e.lang_error(context.path, "resolve_types", format("IndexOutOfBoundsError in FuncDef: ", err.msg))
+    catch (err: OutOfBounds) {
+        throw e.lang_error(context.path, "resolve_types", format("OutOfBounds in FuncDef: ", err.msg))
     }
 
     new_func_def := SFuncDef(

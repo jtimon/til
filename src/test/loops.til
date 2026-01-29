@@ -75,9 +75,9 @@ test_for_in_array_i64 := proc() {
     assert_eq(loc(), 600, arr_total)
     arr.delete()
 
-    catch (err: IndexOutOfBoundsError) {
-        // This catches IndexOutOfBoundsError from arr.set() calls above
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        // This catches OutOfBounds from arr.set() calls above
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }

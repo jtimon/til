@@ -174,7 +174,7 @@ parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str {
 
     _ := lexer.expect(TokenType.Identifier)?  // Add one for the identifier of the mode
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 

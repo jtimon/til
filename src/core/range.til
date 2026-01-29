@@ -20,9 +20,9 @@ I64Range := struct {
         return self.start.sub(self.end)
     }
 
-    get := proc(self: I64Range, index: I64, mut out: Dynamic) throws IndexOutOfBoundsError {
+    get := proc(self: I64Range, index: I64, mut out: Dynamic) throws OutOfBounds {
         if index.gteq(self.len()) {
-            throw IndexOutOfBoundsError(msg="I64Range.get: index out of bounds")
+            throw OutOfBounds(msg="I64Range.get: index out of bounds")
         }
         if self.end.gteq(self.start) {
             out = self.start.add(index)  // Forward: 0..10 -> 0,1,2...

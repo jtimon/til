@@ -112,9 +112,9 @@ Vec := struct {
     }
 
     /** Get element at index. */
-    get := proc(self: Vec, index: I64, mut T: Dynamic) throws IndexOutOfBoundsError {
+    get := proc(self: Vec, index: I64, mut T: Dynamic) throws OutOfBounds {
         if index.gteq(self._len) {
-            throw IndexOutOfBoundsError(msg=format(loc(), "Vec.get: index out of bounds"))
+            throw OutOfBounds(msg=format(loc(), "Vec.get: index out of bounds"))
         }
 
         // if not(Str.eq(type_as_str(T), self.type_name)) { // TODO FIX
@@ -126,9 +126,9 @@ Vec := struct {
     }
 
     /** Set element at index. */
-    set := proc(mut self: Vec, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
+    set := proc(mut self: Vec, index: I64, value: Dynamic) throws OutOfBounds {
         if index.gteq(self._len) {
-            throw IndexOutOfBoundsError(msg=format(loc(), "Vec.set: index out of bounds"))
+            throw OutOfBounds(msg=format(loc(), "Vec.set: index out of bounds"))
         }
 
         // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
@@ -140,9 +140,9 @@ Vec := struct {
     }
 
     /** Pop last element from vec. */
-    pop := proc(mut self: Vec, mut dest: Dynamic) throws IndexOutOfBoundsError {
+    pop := proc(mut self: Vec, mut dest: Dynamic) throws OutOfBounds {
         if self._len.eq(0) {
-            throw IndexOutOfBoundsError(msg=format(loc(), "Vec.pop: cannot pop from empty Vec"))
+            throw OutOfBounds(msg=format(loc(), "Vec.pop: cannot pop from empty Vec"))
         }
 
         // Get last element
@@ -248,9 +248,9 @@ Vec := struct {
     }
 
     /** Remove element at index, shifting remaining elements left. */
-    remove := proc(mut self: Vec, index: I64) throws IndexOutOfBoundsError {
+    remove := proc(mut self: Vec, index: I64) throws OutOfBounds {
         if index.gteq(self._len) {
-            throw IndexOutOfBoundsError(msg=format(loc(), "Vec.remove: index out of bounds"))
+            throw OutOfBounds(msg=format(loc(), "Vec.remove: index out of bounds"))
         }
 
         // Shift elements left
@@ -267,9 +267,9 @@ Vec := struct {
 
     /** Insert element at index, shifting remaining elements right.
      *  Index must be in range [0, len] (can insert at end). */
-    insert_at := proc(mut self: Vec, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
+    insert_at := proc(mut self: Vec, index: I64, value: Dynamic) throws OutOfBounds {
         if index.gt(self._len) {
-            throw IndexOutOfBoundsError(msg=format(loc(), "Vec.insert_at: index out of bounds"))
+            throw OutOfBounds(msg=format(loc(), "Vec.insert_at: index out of bounds"))
         }
 
         // Grow if needed (same logic as push)
@@ -344,7 +344,7 @@ sort_str_vec := proc(mut v: Vec) {
                 v.set(i, prev)?
                 new_n = i
             }
-            catch (err: IndexOutOfBoundsError) {
+            catch (err: OutOfBounds) {
                 panic(loc(), "sort_str_vec: ", err.msg)
             }
         }

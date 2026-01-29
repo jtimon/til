@@ -242,7 +242,7 @@ reorder_named_args := func(context: Context, e: Expr, func_def: SFuncDef) return
 
     final_result := Expr.new_clone(NodeType.FCall(get_fcall_does_throw(e)), e, result)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("reorder_named_args: ", err.msg)
     }
     return final_result
@@ -437,7 +437,7 @@ ufcs_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         new_params.push(ufcs_expr(context, trailing)?)
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("ufcs_switch: ", err.msg)
     }
     return Expr.new_clone(NodeType.Switch, e, new_params)
@@ -459,7 +459,7 @@ ufcs_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) r
     new_struct_def.members = struct_def.members.clone()
     new_struct_def.default_values = new_default_values
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("ufcs_struct_def: ", err.msg)
     }
     catch (err: KeyNotFoundError) {
@@ -495,7 +495,7 @@ ufcs_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) returns
     new_func_def.body = new_body
     new_func_def.source_path = func_def.source_path.clone()
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("ufcs_func_def: ", err.msg)
     }
 
@@ -590,7 +590,7 @@ ufcs_declaration := proc(mut context: Context, e: Expr, decl: Declaration) retur
         }
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("ufcs_declaration: ", err.msg)
     }
 
@@ -650,7 +650,7 @@ ufcs_catch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     new_params.push(type_expr)
     new_params.push(new_body)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("ufcs_catch: ", err.msg)
     }
 
@@ -834,7 +834,7 @@ ufcs_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw format("ufcs_fcall: ", err.msg)
     }
 

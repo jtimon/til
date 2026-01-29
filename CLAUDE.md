@@ -225,7 +225,7 @@ trigger_out_of_bounds_assign := func(_dummy: I64) returns I64 throws Str {
     mut val := 0
     arr.get(10, val)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         msg := err.msg  // <- line 244: init ERROR: Undefined symbol 'err'
         throw msg
     }

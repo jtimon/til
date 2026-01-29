@@ -99,7 +99,7 @@ collect_used_types_from_func := proc(context: Context, func_def: SFuncDef, mut u
     for stmt: Expr in func_def.body {
         collect_used_types_from_expr(context, stmt, used_types)?
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 }
 
 // ---------- Helper functions
@@ -224,7 +224,7 @@ get_combined_name_from_identifier := proc(e: Expr) returns Str throws Str {
         return ""
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 }
 
 /// Helper to add a function to both reachable and worklist at the same time
@@ -400,7 +400,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
                     found_enum = true
                     catch (err: KeyNotFoundError) {
                     }
-                    catch (err: IndexOutOfBoundsError) {
+                    catch (err: OutOfBounds) {
                     }
                 }
 
@@ -500,7 +500,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
         }
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
     // Always add ext.c required types since ext.c is always included in generated C
     ext_c_types := get_ext_c_types()
     for ext_type: Str in ext_c_types {
@@ -625,7 +625,7 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
         }
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
     return ComputeReachableResult(reachable=reachable, used_types=used_types, needs_variadic_support=needs_variadic_support)
 }
 
@@ -793,7 +793,7 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 }
             }
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: OutOfBounds) { throw err.msg }
 
         // Step 3: Build new AST - only include reachable function declarations
         // For structs, rebuild them without unreachable methods

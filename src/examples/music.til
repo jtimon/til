@@ -198,7 +198,7 @@ get_diatonic_index := proc(note_base: Str) returns I64 {
         }
         i = i.add(1)
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
     neg_one := I64.sub(0, 1)
@@ -221,7 +221,7 @@ get_diatonic_index_for_notation := proc(note_base: Str, notation: Str) returns I
         }
         i = i.add(1)
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
     neg_one := I64.sub(0, 1)
@@ -266,7 +266,7 @@ format_note_with := proc(diatonic_idx: I64, chromatic_pos: I64, notes: Vec) retu
         }
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
     return note_name
@@ -295,7 +295,7 @@ apply_accidentals := proc(base_idx: I64, acc_str: Str) returns I64 {
         idx = idx.add(12)
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
     return idx
@@ -324,7 +324,7 @@ generate_scale := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec
     result = result.concat(root_note)
     result = result.concat(")")
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
     return result
@@ -570,7 +570,7 @@ print_triads := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Vec) 
     print_triad_line("  Disminuido: ", disminuido_triads)
     print_triad_line("  Aumentado: ", aumentado_triads)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
 }
@@ -593,7 +593,7 @@ print_triad_line := proc(label: Str, triads: Vec) {
     }
     println(line)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
 }
@@ -616,7 +616,7 @@ get_position_note_name := proc(pos: I64, notes: Vec) returns Str {
     mut name := ""
     notes.get(diatonic, name)?
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         return "?"
     }
     return name
@@ -633,7 +633,7 @@ get_accidental := proc(note_name: Str) returns Str {
         }
         i = i.add(1)
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         return ""
     }
     return acc
@@ -822,7 +822,7 @@ print_pentagram := proc(root_idx: I64, root_diatonic: I64, steps: Vec, notes: Ve
     }
     println(label_line)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
 }
@@ -885,7 +885,7 @@ print_scale := proc(mode_arg: Str, root_arg: Str, lang: Str, notation: Str) {
     print_pentagram(root_idx, root_diatonic, steps, notes)
     print_triads(root_idx, root_diatonic, steps, notes)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
 }
@@ -967,7 +967,7 @@ main := proc(args: ..Str) {
 
     print_scale(mode_arg, root_arg, lang, notation)
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         panic(loc(), err.msg)
     }
 }

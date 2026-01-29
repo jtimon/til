@@ -136,7 +136,7 @@ ScopeStack := struct {
         self.frames.push(frame)
     }
 
-    pop := proc(mut self: ScopeStack) returns ScopeFrame throws Str, IndexOutOfBoundsError {
+    pop := proc(mut self: ScopeStack) returns ScopeFrame throws Str, OutOfBounds {
         if self.frames.len().lteq(1) {
             throw "Cannot pop global scope"
         }
@@ -155,7 +155,7 @@ ScopeStack := struct {
     }
 
     // REM TODO Use this approach instead of the other workaround in files other than interpreter.til
-    last_frame := func(self: ScopeStack) returns ScopeFrame throws IndexOutOfBoundsError {
+    last_frame := func(self: ScopeStack) returns ScopeFrame throws OutOfBounds {
         mut out := ScopeFrame()
         self.frames.get(self.frames.len().sub(1), out)?
         return out
@@ -177,8 +177,8 @@ ScopeStack := struct {
             }
         }
 
-        catch (err: IndexOutOfBoundsError) {
-            panic(loc(), "IndexOutOfBoundsError in lookup_var: ", err.msg)
+        catch (err: OutOfBounds) {
+            panic(loc(), "OutOfBounds in lookup_var: ", err.msg)
         }
         throw KeyNotFoundError(msg="lookup_var: Var not found in ScopeStack")
     }
@@ -198,8 +198,8 @@ ScopeStack := struct {
             }
         }
 
-        catch (err: IndexOutOfBoundsError) {
-            panic(loc(), "IndexOutOfBoundsError in lookup_symbol: ", err.msg)
+        catch (err: OutOfBounds) {
+            panic(loc(), "OutOfBounds in lookup_symbol: ", err.msg)
         }
         throw KeyNotFoundError(msg="lookup_symbol: Symbol not found in ScopeStack")
     }
@@ -243,8 +243,8 @@ ScopeStack := struct {
             }
         }
 
-        catch (err: IndexOutOfBoundsError) {
-            panic(loc(), "IndexOutOfBoundsError in is_closure_capture: ", err.msg)
+        catch (err: OutOfBounds) {
+            panic(loc(), "OutOfBounds in is_closure_capture: ", err.msg)
         }
         return false
     }
@@ -268,7 +268,7 @@ ScopeStack := struct {
         current_frame.symbols.set(name, symbol)
         self.frames.set(last_idx, current_frame)?
 
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
     }
@@ -281,7 +281,7 @@ ScopeStack := struct {
             current_frame.symbols.set(name, symbol)
             self.frames.set(last_idx, current_frame)?
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
     }
@@ -299,7 +299,7 @@ ScopeStack := struct {
                 return ptr
             }
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
         return Ptr()  // NULL - not found
@@ -320,7 +320,7 @@ ScopeStack := struct {
                 return ptr
             }
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
         catch (err: KeyNotFoundError) {
@@ -338,7 +338,7 @@ ScopeStack := struct {
             current_frame.arena_index.set(name, offset)
             self.frames.set(last_idx, current_frame)?
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
     }
@@ -358,8 +358,8 @@ ScopeStack := struct {
             }
         }
 
-        catch (err: IndexOutOfBoundsError) {
-            panic(loc(), "IndexOutOfBoundsError in lookup_func: ", err.msg)
+        catch (err: OutOfBounds) {
+            panic(loc(), "OutOfBounds in lookup_func: ", err.msg)
         }
         throw KeyNotFoundError(msg="lookup_func: Function not found in Context")
     }
@@ -376,7 +376,7 @@ ScopeStack := struct {
             current_frame.funcs.set(name, func_def)
             self.frames.set(last_idx, current_frame)?
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
     }
@@ -396,8 +396,8 @@ ScopeStack := struct {
             }
         }
 
-        catch (err: IndexOutOfBoundsError) {
-            panic(loc(), "IndexOutOfBoundsError in lookup_enum: ", err.msg)
+        catch (err: OutOfBounds) {
+            panic(loc(), "OutOfBounds in lookup_enum: ", err.msg)
         }
         throw KeyNotFoundError(msg="lookup_enum: Enum not found in ScopeStack")
     }
@@ -410,7 +410,7 @@ ScopeStack := struct {
             current_frame.enums.set(name, enum_def)
             self.frames.set(last_idx, current_frame)?
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
     }
@@ -430,8 +430,8 @@ ScopeStack := struct {
             }
         }
 
-        catch (err: IndexOutOfBoundsError) {
-            panic(loc(), "IndexOutOfBoundsError in lookup_struct: ", err.msg)
+        catch (err: OutOfBounds) {
+            panic(loc(), "OutOfBounds in lookup_struct: ", err.msg)
         }
         throw KeyNotFoundError(msg="lookup_struct: Struct not found in ScopeStack")
     }
@@ -454,7 +454,7 @@ ScopeStack := struct {
             }
             return result
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             return false
         }
         return false
@@ -475,7 +475,7 @@ ScopeStack := struct {
             }
             return true
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             return false
         }
         return false
@@ -497,8 +497,8 @@ ScopeStack := struct {
             }
         }
 
-        catch (err: IndexOutOfBoundsError) {
-            throw loc().concat("IndexOutOfBoundsError in all_structs: ").concat(err.msg)
+        catch (err: OutOfBounds) {
+            throw loc().concat("OutOfBounds in all_structs: ").concat(err.msg)
         }
         return result
     }
@@ -511,7 +511,7 @@ ScopeStack := struct {
             current_frame.structs.set(name, struct_def)
             self.frames.set(last_idx, current_frame)?
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
     }
@@ -554,7 +554,7 @@ ScopeStack := struct {
             case:
             }
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             // No frames, not inside function
         }
         return false
@@ -586,7 +586,7 @@ ScopeStack := struct {
             case:
             }
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             // No more frames
         }
         throw KeyNotFoundError(msg="lookup_symbol_in_enclosing_scope: Symbol not found in enclosing scope")
@@ -693,7 +693,7 @@ value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) 
     if returns_len.eq(1) {
         mut return_type := ValueType.TCustom("")  # Dummy init, will be overwritten by get()
         func_def.return_types.get(0, return_type)?
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
         switch return_type {
@@ -763,7 +763,7 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
     case:
         throw e.error(context.path, "init", format("'", f_name, "' of type '", value_type_to_str(target_type), "' doesn't support methods"))
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -891,7 +891,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         case:
             throw e.lang_error(context.path, "init", format("Expected identifier after '", f_name, ".' found '", enum_to_str(after_dot.node_type), "'"))
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
 
@@ -1170,7 +1170,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         case:
             return get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)?
         }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
     throw e.error(context.path, "init", format("Undefined symbol '", f_name, "'"))
@@ -1333,7 +1333,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
         throw e.error(context.path, "init", format("get_value_type() not implemented for '", enum_to_str(e.node_type), "' yet."))
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -1378,7 +1378,7 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
     }
@@ -1422,7 +1422,7 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         context.mode_def = previous_mode
         context.path = original_path.clone()
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
@@ -1785,7 +1785,7 @@ Context := struct {
             selfi.variants.get(name_idx, name_v)?
             names.push(name_v.name)
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
         throw e.lang_error(path, "context", format("Error: Enum variant '", variant_name, "' not found in variants: ", names.to_str(), "."))
@@ -1800,7 +1800,7 @@ Context := struct {
                 selfi.variants.get(err_idx, err_v)?
                 err_names.push(err_v.name)
             }
-            catch (err: IndexOutOfBoundsError) {
+            catch (err: OutOfBounds) {
                 throw err.msg
             }
             throw e.lang_error(path, "context", format("Error: Invalid position '", I64.to_str(position), "' for enum variant in '", err_names.to_str(), "'."))
@@ -1809,7 +1809,7 @@ Context := struct {
         mut pos_v := EnumVariant()
         selfi.variants.get(position, pos_v)?
         mut result := pos_v.name.clone()
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
         return result
@@ -1918,7 +1918,7 @@ Context := struct {
     pop_function_scope := proc(mut self: Context, saved_path: Str) throws Str {
         self.path = saved_path
         _ := self.scope_stack.pop()?
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
     }
@@ -2038,7 +2038,7 @@ Context := struct {
 
         mut base_var := ""
         parts.get(0, base_var)?
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw "get_field_offset: empty field path"
         }
 
@@ -2107,7 +2107,7 @@ Context := struct {
             }
             idx.inc()
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
 
@@ -2123,7 +2123,7 @@ Context := struct {
 
         mut base_var := ""
         parts.get(0, base_var)?
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw "get_field_type: empty field path"
         }
 
@@ -2173,7 +2173,7 @@ Context := struct {
             current_type = value_type_clone(field_decl.value_type)
             idx.inc()
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             throw err.msg
         }
 

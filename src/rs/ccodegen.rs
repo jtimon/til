@@ -417,10 +417,10 @@ fn hoist_variadic_args(
     output.push_str(&arr_var);
     output.push_str(";\n");
 
-    // Declare error var for Array.set (IndexOutOfBoundsError)
+    // Declare error var for Array.set (OutOfBounds)
     output.push_str(&indent_str);
     output.push_str(TIL_PREFIX);
-    output.push_str("IndexOutOfBoundsError __attribute__((unused)) _err_idx_");
+    output.push_str("OutOfBounds __attribute__((unused)) _err_idx_");
     output.push_str(&err_suffix);
     output.push_str(";\n");
 
@@ -517,14 +517,14 @@ fn hoist_variadic_args(
         output.push_str(temp);
         output.push_str(");\n");
 
-        // Error check for Array.set (IndexOutOfBoundsError - shouldn't happen but propagate if thrown)
+        // Error check for Array.set (OutOfBounds - shouldn't happen but propagate if thrown)
         output.push_str(&indent_str);
         output.push_str("if (_arr_status_");
         output.push_str(&err_suffix);
         output.push_str(" != 0) {\n");
         for (curr_idx, curr_throw) in ctx.current_throw_types.iter().enumerate() {
             if let ValueType::TCustom(curr_type_name) = curr_throw {
-                if curr_type_name == "IndexOutOfBoundsError" {
+                if curr_type_name == "OutOfBounds" {
                     output.push_str(&indent_str);
                     output.push_str("    *_err");
                     output.push_str(&(curr_idx + 1).to_string());
@@ -1178,10 +1178,10 @@ fn emit_variadic_array_with_strings(
     output.push_str(&arr_var);
     output.push_str(";\n");
 
-    // Declare error var for Array.set (IndexOutOfBoundsError)
+    // Declare error var for Array.set (OutOfBounds)
     output.push_str(&indent_str);
     output.push_str(TIL_PREFIX);
-    output.push_str("IndexOutOfBoundsError __attribute__((unused)) _err_idx_");
+    output.push_str("OutOfBounds __attribute__((unused)) _err_idx_");
     output.push_str(&err_suffix);
     output.push_str(";\n");
 
@@ -1894,7 +1894,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             output.push_str("    til_Array _main_args = til_Array_new(\"Str\", &(til_I64){argc - 1});\n");
             output.push_str("    for (int i = 1; i < argc; i++) {\n");
             output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1}), strlen(argv[i]), 0};\n");
-            output.push_str("        til_IndexOutOfBoundsError _set_err;\n");
+            output.push_str("        til_OutOfBounds _set_err;\n");
             output.push_str("        til_Array_set(&_set_err, &_main_args, &(til_I64){i - 1}, (til_Dynamic*)&_arg);\n");
             output.push_str("    }\n");
             output.push_str("    til_main(&_main_args);\n");
@@ -5419,7 +5419,7 @@ struct VariantInfo {
 // Note: TIL version also has catch_block field, but Rust accesses stmts[i] directly
 struct CatchLabelInfoEntry {
     stmt_index: usize,      // Index in stmts array
-    type_name: String,      // Error type being caught (e.g., "Str", "IndexOutOfBoundsError")
+    type_name: String,      // Error type being caught (e.g., "Str", "OutOfBounds")
     label: String,          // Goto label for this catch
     temp_var: String,       // Temp variable holding the thrown value
 }

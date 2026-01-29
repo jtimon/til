@@ -1000,7 +1000,7 @@ The forin loop validates ~len~ and ~get~ methods in typer.rs (lines 415-458) wit
 clear error messages showing required signatures:
 #+BEGIN_SRC
 for-in loop: type 'Things' does not have a 'get()' method.
-Required: Things.get(self, index: I64, mut item: Dynamic) throws IndexOutOfBoundsError
+Required: Things.get(self, index: I64, mut item: Dynamic) throws OutOfBounds
 #+END_SRC
 
 Switch desugaring should add similar validation in typer for context-specific errors:

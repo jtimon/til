@@ -20,7 +20,7 @@ Entity := struct {
         self.components.push(comp)
     }
 
-    get_component := proc(self: Entity, index: I64) returns Component throws IndexOutOfBoundsError {
+    get_component := proc(self: Entity, index: I64) returns Component throws OutOfBounds {
         mut comp := Component()
         self.components.get(index, comp)?
         return comp

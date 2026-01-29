@@ -25,7 +25,7 @@ sort_enum_variants := proc(mut v: Vec) {
                 v.set(i, prev)?
                 new_n = i
             }
-            catch (err: IndexOutOfBoundsError) {
+            catch (err: OutOfBounds) {
                 panic(loc(), "sort_enum_variants: ", err.msg)
             }
         }
@@ -294,7 +294,7 @@ get_struct_dependencies := func(expr: Expr) returns Vec throws Str {
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     return deps
 }
@@ -315,7 +315,7 @@ get_struct_name := func(expr: Expr) returns Str throws KeyNotFoundError, Str {
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     throw KeyNotFoundError(msg="not a struct declaration")
 }
@@ -350,7 +350,7 @@ get_enum_dependencies := func(expr: Expr) returns Vec throws Str {
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     return deps
 }
@@ -371,7 +371,7 @@ get_enum_name := func(expr: Expr) returns Str throws KeyNotFoundError, Str {
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     throw KeyNotFoundError(msg="not an enum declaration")
 }
@@ -525,7 +525,7 @@ topological_sort_types := func(types: Vec) returns Vec throws Str {
         }
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
 
     return result
@@ -547,10 +547,10 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     output.push_str(arr_var)
     output.push_str(";\n")
 
-    // Declare error var for Array.set (IndexOutOfBoundsError)
+    // Declare error var for Array.set (OutOfBounds)
     output.push_str(indent_str)
     output.push_str(TIL_PREFIX)
-    output.push_str("IndexOutOfBoundsError __attribute__((unused)) _err_idx_")
+    output.push_str("OutOfBounds __attribute__((unused)) _err_idx_")
     output.push_str(err_suffix)
     output.push_str(";\n")
 
@@ -656,7 +656,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         output.push_str(temp_item)
         output.push_str(");\n")
 
-        // Error check for Array.set (IndexOutOfBoundsError - shouldn't happen but propagate if thrown)
+        // Error check for Array.set (OutOfBounds - shouldn't happen but propagate if thrown)
         output.push_str(indent_str)
         output.push_str("if (_arr_status_")
         output.push_str(err_suffix)
@@ -665,7 +665,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         for curr_throw: ValueType in ctx.current_throw_types {
             switch curr_throw {
             case ValueType.TCustom(curr_type_name):
-                if curr_type_name.eq("IndexOutOfBoundsError") {
+                if curr_type_name.eq("OutOfBounds") {
                     output.push_str(indent_str)
                     output.push_str("    *_err")
                     output.push_str(add(curr_idx, 1).to_str())
@@ -685,7 +685,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         ti.inc()
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
     catch (err: KeyNotFoundError) { throw format("KeyNotFoundError: ", err.msg) }
 
     return arr_var
@@ -706,7 +706,7 @@ detect_variadic_fcall := func(expr: Expr, ctx: CodegenContext) returns VariadicF
     mut info := VariadicFCallInfo()
     ctx.func_variadic_args.get(orig_func_name, info)?
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw KeyNotFoundError(msg="Not variadic: index error")
     }
     catch (err: Str) {
@@ -752,7 +752,7 @@ is_pure_lvalue := func(arg: Expr, context: Context) returns Bool {
                     }
                 case:
                 }
-                catch (err: IndexOutOfBoundsError) { return false }
+                catch (err: OutOfBounds) { return false }
             }
             // Field access chain: all params must also be pure identifiers (field names)
             for p: Expr in arg.params {
@@ -887,7 +887,7 @@ emit_arg_string := proc(arg: Expr, param_type: Ptr, param_by_ref: Bool, mut hois
     mut final_expr_str := ""
     emit_expr(arg, final_expr_str, 0, ctx, context)?
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     return final_expr_str
 }
@@ -1050,7 +1050,7 @@ emit_arg_string_by_ref := proc(arg: Expr, mut hoist_output: Str, indent: I64, in
     hoist_output.push_str(ref_expr_str)
     hoist_output.push_str(";\n")
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     return format("&", ref_temp)
 }
@@ -1235,7 +1235,7 @@ emit_throwing_arg_string := proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param
         hoist_output.push_str(");\n")
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
     catch (err: KeyNotFoundError) { throw format("KeyNotFoundError: ", err.msg) }
 
     // Return the temp var name with appropriate prefix
@@ -1495,7 +1495,7 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
     hoist_output.push_str(variadic_arr_var)
     hoist_output.push_str(");\n")
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
     catch (err: KeyNotFoundError) { throw format("KeyNotFoundError: ", err.msg) }
 
     // Return the temp var name with appropriate prefix
@@ -1523,10 +1523,10 @@ emit_variadic_array_with_strings := proc(elem_type: Str, arg_strings: Vec, mut o
     output.push_str(arr_var)
     output.push_str(";\n")
 
-    // Declare error var for Array.set (IndexOutOfBoundsError)
+    // Declare error var for Array.set (OutOfBounds)
     output.push_str(indent_str)
     output.push_str(TIL_PREFIX)
-    output.push_str("IndexOutOfBoundsError __attribute__((unused)) _err_idx_")
+    output.push_str("OutOfBounds __attribute__((unused)) _err_idx_")
     output.push_str(err_suffix)
     output.push_str(";\n")
 
@@ -1620,7 +1620,7 @@ emit_variadic_array_with_strings := proc(elem_type: Str, arg_strings: Vec, mut o
         ti.inc()
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     return arr_var
 }
@@ -1962,7 +1962,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
 
     call_str.push_str(")")
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
     catch (err: KeyNotFoundError) { throw format("KeyNotFoundError: ", err.msg) }
 
     return call_str
@@ -2116,7 +2116,7 @@ get_c_type_for_expr := proc(arg: Expr, context: Context) returns Str throws Str 
         }
     case:
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     throw arg.lang_error(context.path, "ccodegen", "Cannot determine type for expression")
 }
@@ -2429,7 +2429,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             output.push_str("    til_Array _main_args = til_Array_new(\"Str\", &(til_I64){argc - 1});\n")
             output.push_str("    for (int i = 1; i < argc; i++) {\n")
             output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1}), strlen(argv[i]), 0};\n")
-            output.push_str("        til_IndexOutOfBoundsError _set_err;\n")
+            output.push_str("        til_OutOfBounds _set_err;\n")
             output.push_str("        til_Array_set(&_set_err, &_main_args, &(til_I64){i - 1}, (til_Dynamic*)&_arg);\n")
             output.push_str("    }\n")
             output.push_str("    til_main(&_main_args);\n")
@@ -2441,7 +2441,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     output.push_str("    return 0;\n")
     output.push_str("}\n")
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
     return output
 }
 
@@ -2461,7 +2461,7 @@ is_struct_declaration := func(expr: Expr) returns Bool {
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: OutOfBounds) { }
 
     return false
 }
@@ -2482,7 +2482,7 @@ is_enum_declaration := func(expr: Expr) returns Bool {
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: OutOfBounds) { }
 
     return false
 }
@@ -2524,7 +2524,7 @@ is_constant_declaration := func(expr: Expr) returns Bool {
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) { }
+    catch (err: OutOfBounds) { }
 
     return false
 }
@@ -2616,7 +2616,7 @@ emit_constant_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenC
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -2660,7 +2660,7 @@ is_global_declaration := func(expr: Expr) returns Bool {
             case:
                 return true
             }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: OutOfBounds) { }
         }
     case:
     }
@@ -2718,7 +2718,7 @@ emit_global_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -2782,7 +2782,7 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -2861,7 +2861,7 @@ collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, context: C
         }
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -2903,7 +2903,7 @@ emit_struct_declaration := proc(expr: Expr, mut output: Str) throws Str {
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 
@@ -2975,7 +2975,7 @@ emit_struct_constants := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
     }
     // Not a struct, nothing to emit
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -3007,7 +3007,7 @@ emit_enum_size_of_constant := proc(expr: Expr, mut output: Str, mut ctx: Codegen
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -3061,7 +3061,7 @@ is_enum_with_payloads := func(expr: Expr) returns Bool {
                 return enum_has_payloads(enum_def)
             case:
             }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: OutOfBounds) { }
         }
     case:
     }
@@ -3255,7 +3255,7 @@ emit_enum_declaration := proc(expr: Expr, mut output: Str) throws Str {
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 
@@ -3316,7 +3316,7 @@ emit_enum_to_str_function := proc(enum_name: Str, enum_def: SEnumDef, mut output
     output.push_str(I64.to_str(unknown_name.len()))
     output.push_str(", 0});\n}\n\n")
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 }
 
 // Emit _to_str function for an enum declaration node
@@ -3370,7 +3370,7 @@ emit_struct_func_prototypes := proc(expr: Expr, context: Context, mut output: St
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -3463,7 +3463,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     ctx.current_throw_types.clear()
     ctx.current_return_types.clear()
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -3497,7 +3497,7 @@ emit_struct_func_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -3670,7 +3670,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, context: Context
 
     output.push_str(")")
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -3699,7 +3699,7 @@ emit_func_prototype := proc(expr: Expr, context: Context, mut output: Str) throw
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 
@@ -3718,7 +3718,7 @@ is_func_declaration := func(expr: Expr) returns Bool {
                 return true
             case:
             }
-            catch (err: IndexOutOfBoundsError) { }
+            catch (err: OutOfBounds) { }
         }
     case:
     }
@@ -3831,7 +3831,7 @@ emit_func_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenConte
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 
@@ -3989,7 +3989,7 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
     case:
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -4376,7 +4376,7 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
         ctx.local_catch_labels.remove(catch_entry.type_name)
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -4389,7 +4389,7 @@ get_fcall_func_name := func(expr: Expr) returns Str throws KeyNotFoundError, Str
     // and precomp'd strings ("Type.method"), returning "Type_method" format
     mut first_param := Expr()
     expr.params.get(0, first_param)?
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw KeyNotFoundError()
     }
     return get_func_name_string(first_param)?
@@ -4479,7 +4479,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             catch (err: Str) {
                 ret_type = "int"
             }
-            catch (err: IndexOutOfBoundsError) {
+            catch (err: OutOfBounds) {
                 ret_type = "int"
             }
         }
@@ -4626,7 +4626,7 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
         output.push_str(");\n")
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     // Clean up variadic array
     output.push_str(indent_str)
@@ -4703,7 +4703,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             arg_idx.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     // Declare local variables for return value and errors
     mut ret_type := "int"
@@ -4718,7 +4718,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             }
         }
         catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
+        catch (err: OutOfBounds) { }
     }
 
     if needs_ret {
@@ -4752,7 +4752,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             context.scope_stack.declare_symbol(decl_name.clone(), sym_info)?
         }
         catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
+        catch (err: OutOfBounds) { }
     }
 
     // Declare error structs for each throw type (Issue #119: skip empty struct errors)
@@ -4793,7 +4793,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     has_variadic = true
     catch (err: KeyNotFoundError) {
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     // Generate the function call with output parameters
     output.push_str(indent_str)
@@ -4860,7 +4860,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             nv_arg_i.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     output.push_str(");\n")
 
@@ -4991,7 +4991,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     output.push_str("\n")
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -5060,7 +5060,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             arg_idx.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     // Look up the actual return type
     mut ret_type := "int"
@@ -5073,7 +5073,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             catch (err: Str) { ret_type = "int" }
         }
         catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
+        catch (err: OutOfBounds) { }
     }
 
     // Declare temp for return value if needed
@@ -5106,7 +5106,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             context.scope_stack.declare_symbol(decl_name.clone(), sym_info)?
         }
         catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
+        catch (err: OutOfBounds) { }
     }
 
     // Declare error structs for each throw type of the called function (Issue #119: skip empty struct errors)
@@ -5148,7 +5148,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     catch (err: KeyNotFoundError) {
         // REM: Not variadic
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     // Generate the function call with output parameters
     output.push_str(indent_str)
@@ -5213,7 +5213,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             nv_arg_i.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     output.push_str(");\n")
 
@@ -5296,7 +5296,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         output.push_str(";\n")
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -5365,7 +5365,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             arg_idx.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     // Look up the actual return type
     mut ret_type := "int"
@@ -5378,7 +5378,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             catch (err: Str) { ret_type = "int" }
         }
         catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
+        catch (err: OutOfBounds) { }
     }
 
     // Declare temp for return value if needed
@@ -5411,7 +5411,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             context.scope_stack.declare_symbol(decl_name.clone(), sym_info)?
         }
         catch (err: KeyNotFoundError) { }
-        catch (err: IndexOutOfBoundsError) { }
+        catch (err: OutOfBounds) { }
     }
 
     // Declare error structs for each throw type of the called function (Issue #119: skip empty struct errors)
@@ -5453,7 +5453,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     catch (err: KeyNotFoundError) {
         // REM: Not variadic
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     // Generate the function call with output parameters
     output.push_str(indent_str)
@@ -5518,7 +5518,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             nv_arg_i.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     output.push_str(");\n")
 
@@ -5624,7 +5624,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         output.push_str(";\n")
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -6052,7 +6052,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         output.push_str(";\n")
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -6098,7 +6098,7 @@ get_struct_construction_type := func(expr: Expr, context: Context) returns Str {
         }
     case:
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         return ""
     }
     return ""
@@ -6164,7 +6164,7 @@ get_enum_construction_type := func(expr: Expr, context: Context) returns Str thr
         }
     case:
     }
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         return ""
     }
     return ""
@@ -6268,7 +6268,7 @@ emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut
     }
     output.push_str(";\n")
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -6454,7 +6454,7 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
         output.push_str(";\n")
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -6633,7 +6633,7 @@ emit_throw := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         throw concat("ccodegen: thrown type '", nh_thrown_type_name).concat("' not found in function's throw types")
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -6757,7 +6757,7 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
         output.push_str("\n")
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -6865,7 +6865,7 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
     output.push_str(indent_str)
     output.push_str("}\n")
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -6905,7 +6905,7 @@ VariantInfo := struct {
 // Note: TIL version also has catch_block field, but Rust accesses stmts[i] directly
 CatchLabelInfoEntry := struct {
     mut stmt_index: I64 = 0        // Index in stmts array
-    mut type_name: Str = ""        // Error type being caught (e.g., "Str", "IndexOutOfBoundsError")
+    mut type_name: Str = ""        // Error type being caught (e.g., "Str", "OutOfBounds")
     mut label: Str = ""            // Goto label for this catch
     mut temp_var: Str = ""         // Temp variable holding the thrown value
 }
@@ -6980,7 +6980,7 @@ get_case_variant_info := proc(expr: Expr) returns VariantInfo {
         return VariantInfo()
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         return VariantInfo()
     }
 }
@@ -7002,7 +7002,7 @@ parse_pattern_variant_name := proc(variant_name: Str) returns VariantInfo throws
         return else_result
     }
 
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 }
 
 /// Collect all variable declarations in a body (recursively) for hoisting
@@ -7094,7 +7094,7 @@ collect_declarations_recursive := proc(expr: Expr, mut decls: Vec, mut collected
         // REM: other node types don't contain declarations
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         // REM: ignore
     }
 }
@@ -7556,7 +7556,7 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                         catch (err: KeyNotFoundError) {
                             have_payload_ptr = false
                         }
-                        catch (err: IndexOutOfBoundsError) {
+                        catch (err: OutOfBounds) {
                             throw err.msg
                         }
                         // Now check if we got a payload type (Ptr not NULL)
@@ -7603,7 +7603,7 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
         output.push_str("}\n")
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -7783,7 +7783,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             prep_arg_idx.inc()
         }
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: OutOfBounds) { throw err.msg }
 
     // Hardcoded builtins (compile-time intrinsics that can't be implemented in TIL)
     if orig_func_name.eq("type_as_str") {
@@ -8171,7 +8171,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         catch (err: KeyNotFoundError) {
             panic(loc(), "func_variadic_args.get failed: ", err.msg)
         }
-        catch (err: IndexOutOfBoundsError) {
+        catch (err: OutOfBounds) {
             panic(loc(), "arg_strings indexing failed: ", err.msg)
         }
     }
@@ -8380,7 +8380,7 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         output.push_str(");\n")
     }
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         throw err.msg
     }
 }
@@ -8420,8 +8420,8 @@ emit_str_literal := proc(s: Str, mut output: Str) {
             output.push_str("\\\"")
         } else {
             char_str := s.get_substr(i, add(i, 1))?
-            catch (err: IndexOutOfBoundsError) {
-                panic(loc(), "IndexOutOfBoundsError in emit_str_literal: ", err.msg)
+            catch (err: OutOfBounds) {
+                panic(loc(), "OutOfBounds in emit_str_literal: ", err.msg)
             }
             output.push_str(char_str)
         }

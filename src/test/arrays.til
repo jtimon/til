@@ -18,8 +18,8 @@ test_array_static_u8 := proc() {
     stat.delete()
 
     // Catch unexpected errors at end
-    catch(err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch(err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -45,8 +45,8 @@ test_array_static_str := proc() {
     stat.delete()
 
     // Catch unexpected errors at end
-    catch(err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch(err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -67,8 +67,8 @@ test_array_contains := proc() {
 
     arr.delete()
 
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch (err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -89,8 +89,8 @@ test_array_static_bool := proc() {
     stat.delete()
 
     // Catch unexpected errors at end
-    catch(err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch(err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -111,8 +111,8 @@ test_array_static_i64 := proc() {
     stat.delete()
 
     // Catch unexpected errors at end
-    catch(err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch(err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }
@@ -145,8 +145,8 @@ test_array_static_vec2 := proc() {
     stat.delete()
 
     // Catch unexpected errors at end
-    catch(err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+    catch(err: OutOfBounds) {
+        println("ERROR:", loc(), "Unexpected OutOfBounds")
         println(err.msg)
         exit(1)
     }

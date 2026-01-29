@@ -34,7 +34,7 @@ main := proc() {
 
     println("Bug #133 test PASSED")
 
-    catch (err: IndexOutOfBoundsError) {
+    catch (err: OutOfBounds) {
         println("ERROR: ", err.msg)
         exit(1)
     }
