@@ -1,0 +1,12 @@
+mode test
+
+// Bug #139: Type checker allows assigning I64 to Ptr field
+// This should be caught by typer as a type mismatch error
+
+TestStruct := struct {
+    mut ptr_field: Ptr = Ptr()
+}
+
+// This should be a type error: I64 (0) assigned to Ptr field
+// NULL := 0 is I64, but ptr_field is Ptr
+_s := TestStruct(ptr_field=0)
