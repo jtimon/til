@@ -1564,9 +1564,9 @@ fn get_c_type_for_expr(
                         let mut current_type = struct_name.to_string();
                         for field_param in arg.params.iter().skip(1) {
                             if let NodeType::Identifier(field_name) = &field_param.node_type {
-                                if let Some(struct_def) = context.scope_stack.lookup_struct(&current_type) {
+                                if let Some(chain_struct_def) = context.scope_stack.lookup_struct(&current_type) {
                                     let mut found = false;
-                                    for m in &struct_def.members {
+                                    for m in &chain_struct_def.members {
                                         if &m.name == field_name {
                                             if let ValueType::TCustom(next_struct) = &m.value_type {
                                                 current_type = next_struct.clone();
@@ -1595,8 +1595,8 @@ fn get_c_type_for_expr(
                 }
             }
             // Type-qualified call or field access
-            if let Some(first_param) = arg.params.first() {
-                if let NodeType::Identifier(field_or_variant) = &first_param.node_type {
+            if let Some(typeq_first_param) = arg.params.first() {
+                if let NodeType::Identifier(field_or_variant) = &typeq_first_param.node_type {
                     // Check enum constructor
                     if context.scope_stack.lookup_enum(name)
                         .map(|e| e.contains_key(field_or_variant))
@@ -1606,8 +1606,8 @@ fn get_c_type_for_expr(
                     // Check instance field access (variable.field)
                     if let Some(sym) = context.scope_stack.lookup_symbol(name) {
                         if let ValueType::TCustom(struct_name) = &sym.value_type {
-                            if let Some(struct_def) = context.scope_stack.lookup_struct(struct_name) {
-                                for m in &struct_def.members {
+                            if let Some(instance_struct_def) = context.scope_stack.lookup_struct(struct_name) {
+                                for m in &instance_struct_def.members {
                                     if &m.name == field_or_variant {
                                         return til_type_to_c(&m.value_type)
                                             .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e));
@@ -1617,8 +1617,8 @@ fn get_c_type_for_expr(
                         }
                     }
                     // Check static field access on struct/namespace (StructName.field)
-                    if let Some(struct_def) = context.scope_stack.lookup_struct(name) {
-                        for m in &struct_def.members {
+                    if let Some(static_struct_def) = context.scope_stack.lookup_struct(name) {
+                        for m in &static_struct_def.members {
                             if &m.name == field_or_variant {
                                 return til_type_to_c(&m.value_type)
                                     .map_err(|e| arg.lang_error(&context.path, "ccodegen", &e));
@@ -3516,11 +3516,11 @@ fn emit_variadic_call(
         out.push_str(&func_name.replace('.', "_"));
         out.push_str("(");
         // Emit regular args using pre-computed arg_strings
-        for (i, arg_str) in arg_strings.iter().take(regular_count).enumerate() {
-            if i > 0 {
+        for (vret_arg_i, vret_arg_str) in arg_strings.iter().take(regular_count).enumerate() {
+            if vret_arg_i > 0 {
                 out.push_str(", ");
             }
-            out.push_str(arg_str);
+            out.push_str(vret_arg_str);
         }
         // Emit variadic array pointer
         if regular_count > 0 {
@@ -6499,39 +6499,39 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 // Bug #143: Use pre-computed arg_strings
                 if is_stmt_level {
                     // Emit regular args from arg_strings
-                    for (i, arg_str) in arg_strings.iter().take(regular_count).enumerate() {
-                        if i > 0 {
+                    for (vstmt_arg_i, vstmt_arg_str) in arg_strings.iter().take(regular_count).enumerate() {
+                        if vstmt_arg_i > 0 {
                             output.push_str(", ");
                         }
-                        output.push_str(arg_str);
+                        output.push_str(vstmt_arg_str);
                     }
                 } else {
                     // Expression-level variadic calls - emit regular args with by-ref handling
-                    let param_info: Vec<(Option<ValueType>, bool)> = if let Some(fd) = get_fcall_func_def(context, expr) {
+                    let vexpr_param_info: Vec<(Option<ValueType>, bool)> = if let Some(fd) = get_fcall_func_def(context, expr) {
                         fd.args.iter().map(|fd_arg| (Some(fd_arg.value_type.clone()), param_needs_by_ref(fd_arg))).collect()
                     } else {
                         Vec::new()
                     };
-                    for (i, arg) in expr.params.iter().skip(1).take(regular_count).enumerate() {
-                        if i > 0 {
+                    for (vexpr_arg_i, vexpr_arg) in expr.params.iter().skip(1).take(regular_count).enumerate() {
+                        if vexpr_arg_i > 0 {
                             output.push_str(", ");
                         }
-                        let by_ref = param_info.get(i).map(|(_, b)| *b).unwrap_or(false);
-                        if by_ref && is_pure_lvalue(arg, context) {
-                            if let NodeType::Identifier(name) = &arg.node_type {
-                                if arg.params.is_empty() && (ctx.current_ref_params.contains(name) || ctx.current_variadic_params.contains_key(name)) {
+                        let vexpr_by_ref = vexpr_param_info.get(vexpr_arg_i).map(|(_, b)| *b).unwrap_or(false);
+                        if vexpr_by_ref && is_pure_lvalue(vexpr_arg, context) {
+                            if let NodeType::Identifier(name) = &vexpr_arg.node_type {
+                                if vexpr_arg.params.is_empty() && (ctx.current_ref_params.contains(name) || ctx.current_variadic_params.contains_key(name)) {
                                     // Already a pointer - emit name directly without dereference
                                     output.push_str(&til_name(name));
                                 } else {
                                     output.push_str("&");
-                                    emit_expr(arg, output, 0, ctx, context)?;
+                                    emit_expr(vexpr_arg, output, 0, ctx, context)?;
                                 }
                             } else {
                                 output.push_str("&");
-                                emit_expr(arg, output, 0, ctx, context)?;
+                                emit_expr(vexpr_arg, output, 0, ctx, context)?;
                             }
                         } else {
-                            emit_expr(arg, output, 0, ctx, context)?;
+                            emit_expr(vexpr_arg, output, 0, ctx, context)?;
                         }
                     }
                 }
@@ -6548,11 +6548,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 // Regular non-variadic function call
                 // Bug #143: Use pre-computed arg_strings
                 if is_stmt_level {
-                    for (i, arg_str) in arg_strings.iter().enumerate() {
-                        if i > 0 {
+                    for (nstmt_arg_i, nstmt_arg_str) in arg_strings.iter().enumerate() {
+                        if nstmt_arg_i > 0 {
                             output.push_str(", ");
                         }
-                        output.push_str(arg_str);
+                        output.push_str(nstmt_arg_str);
                     }
                 } else {
                     // Expression-level call: emit args with by-ref handling
@@ -6566,16 +6566,16 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
                     // Bug #143: Process all args through emit_arg_string to handle hoisting
                     // Collect hoisting code and arg strings
-                    let mut arg_hoist = String::new();
-                    let mut expr_arg_strings: Vec<String> = Vec::new();
-                    for (i, arg) in expr.params.iter().skip(1).enumerate() {
-                        if let Some(type_name) = get_type_arg_name(arg, context) {
-                            expr_arg_strings.push(format!("\"{}\"", type_name));
+                    let mut nexpr_arg_hoist = String::new();
+                    let mut nexpr_arg_strings: Vec<String> = Vec::new();
+                    for (nexpr_arg_i, nexpr_arg) in expr.params.iter().skip(1).enumerate() {
+                        if let Some(nexpr_type_name) = get_type_arg_name(nexpr_arg, context) {
+                            nexpr_arg_strings.push(format!("\"{}\"", nexpr_type_name));
                         } else {
-                            let param_type = param_info.get(i).and_then(|(t, _)| t.as_ref());
-                            let by_ref = param_info.get(i).map(|(_, b)| *b).unwrap_or(false);
-                            let arg_str = emit_arg_string(arg, param_type, by_ref, &mut arg_hoist, indent, ctx, context)?;
-                            expr_arg_strings.push(arg_str);
+                            let nexpr_param_type = param_info.get(nexpr_arg_i).and_then(|(t, _)| t.as_ref());
+                            let nexpr_by_ref = param_info.get(nexpr_arg_i).map(|(_, b)| *b).unwrap_or(false);
+                            let nexpr_arg_str = emit_arg_string(nexpr_arg, nexpr_param_type, nexpr_by_ref, &mut nexpr_arg_hoist, indent, ctx, context)?;
+                            nexpr_arg_strings.push(nexpr_arg_str);
                         }
                     }
 
@@ -6584,18 +6584,18 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     // This is problematic - we'd need to restructure the entire call
                     // For now, emit args normally and hope the hoisting was handled elsewhere
                     // TODO: Proper fix would require emit_fcall to return a string, not write to output
-                    if !arg_hoist.is_empty() {
+                    if !nexpr_arg_hoist.is_empty() {
                         // WORKAROUND: Can't properly hoist mid-expression
                         // This shouldn't happen for common cases where calls are at statement level
                         // For now, just emit what we have (may cause compilation errors)
                         // A proper fix would require restructuring emit_fcall
                     }
 
-                    for (i, arg_str) in expr_arg_strings.iter().enumerate() {
-                        if i > 0 {
+                    for (nexpr_out_i, nexpr_out_str) in nexpr_arg_strings.iter().enumerate() {
+                        if nexpr_out_i > 0 {
                             output.push_str(", ");
                         }
-                        output.push_str(arg_str);
+                        output.push_str(nexpr_out_str);
                     }
                 }
             }
