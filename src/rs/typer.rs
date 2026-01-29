@@ -2006,6 +2006,9 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                     },
                     // For other types of members, check type and purity
                     _ => {
+                        // Bug #148: Type-check the default value expression (catches ? on non-throwing calls)
+                        errors.extend(check_types_with_context(context, inner_e, ExprContext::ValueUsed));
+
                         // Check if default value calls procs (violates purity of constructors)
                         if is_expr_calling_procs(context, inner_e) {
                             errors.push(inner_e.exit_error("type",

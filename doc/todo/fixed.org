@@ -7,6 +7,32 @@
 
 * Fixed Bugs
 
+** Bug #148: No typer error when ? is used on non-throwing call
+:PROPERTIES:
+:DISCOVERED: 2026-01-29
+:FIXED: 2026-01-29
+:IMPACT: Unnecessary ? operators silently accepted, may cause unneeded hoisting code
+:STATUS: Fixed
+:END:
+
+*** Description
+When the ~?~ operator is used on a function call that doesn't throw, the typer
+should emit an error. Previously it silently accepted the unnecessary ~?~.
+
+*** Root Cause
+The ~check_struct_def~ function in the typer was checking struct field default
+values for type compatibility and purity (no proc calls), but never called
+~check_types_with_context~ on the expression. This meant FCall nodes with ~?~
+on non-throwing functions were never validated by ~check_fcall~.
+
+*** Fix
+Added a call to ~check_types_with_context(context, inner_e, ExprContext::ValueUsed)~
+at the beginning of the default value handling branch in ~check_struct_def~.
+
+Files modified:
+- ~src/rs/typer.rs~: Added check_types_with_context call for struct default values
+- ~src/self/typer.til~: Ported the same fix
+
 ** Bug #146: C translation non-determinism in loop variable naming
 :PROPERTIES:
 :DISCOVERED: 2026-01-28
