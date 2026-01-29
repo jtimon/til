@@ -346,6 +346,41 @@ impl ScopeStack {
         None
     }
 
+    /// Bug #114: Check if a variable exists in the scope stack.
+    /// Returns true if found, false otherwise.
+    /// More efficient than lookup_var when you only need existence check.
+    pub fn has_var(&self, name: &str) -> bool {
+        self.lookup_var(name).is_some()
+    }
+
+    /// Bug #114: Check if a symbol exists in the scope stack.
+    /// Returns true if found, false otherwise.
+    /// More efficient than lookup_symbol when you only need existence check.
+    pub fn has_symbol(&self, name: &str) -> bool {
+        self.lookup_symbol(name).is_some()
+    }
+
+    /// Bug #114: Check if a function exists in the scope stack.
+    /// Returns true if found, false otherwise.
+    /// More efficient than lookup_func when you only need existence check.
+    pub fn has_func(&self, name: &str) -> bool {
+        self.lookup_func(name).is_some()
+    }
+
+    /// Bug #114: Check if an enum exists in the scope stack.
+    /// Returns true if found, false otherwise.
+    /// More efficient than lookup_enum when you only need existence check.
+    pub fn has_enum(&self, name: &str) -> bool {
+        self.lookup_enum(name).is_some()
+    }
+
+    /// Bug #114: Check if a struct exists in the scope stack.
+    /// Returns true if found, false otherwise.
+    /// More efficient than lookup_struct when you only need existence check.
+    pub fn has_struct(&self, name: &str) -> bool {
+        self.lookup_struct(name).is_some()
+    }
+
     /// Check if a combined name (e.g., "Color.Green") refers to an enum constructor
     pub fn is_enum_constructor(&self, combined_name: &str) -> bool {
         let parts: Vec<&str> = combined_name.split('.').collect();
@@ -363,7 +398,7 @@ impl ScopeStack {
     pub fn is_struct_constructor(&self, combined_name: &str) -> bool {
         let parts: Vec<&str> = combined_name.split('.').collect();
         if parts.len() == 1 {
-            return self.lookup_struct(parts[0]).is_some();
+            return self.has_struct(parts[0]);
         }
         false
     }
@@ -638,7 +673,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
             },
             ValueType::TCustom(custom_type_name) => {
                 // Check if it's an enum first
-                if context.scope_stack.lookup_enum(custom_type_name).is_some() {
+                if context.scope_stack.has_enum(custom_type_name) {
                     // It's an enum - try UFCS method call
                     let enum_after_dot = match id_expr.params.get(0) {
                         Some(_after_dot) => _after_dot,
@@ -1126,7 +1161,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
         },
         NodeType::Declaration(decl) => {
             // Bug #35: Skip "already declared" check for "_" - it's special for discarding return values
-            if decl.name != "_" && (context.scope_stack.lookup_func(&decl.name).is_some() || context.scope_stack.lookup_symbol(&decl.name).is_some()) {
+            if decl.name != "_" && (context.scope_stack.has_func(&decl.name) || context.scope_stack.has_symbol(&decl.name)) {
                 errors.push(e.error(&context.path, "init", &format!("'{}' already declared.", decl.name)));
             }
             if e.params.len() != 1 {
@@ -1380,7 +1415,7 @@ impl Context {
                 );
 
                 if let ValueType::TCustom(type_name) = &decl.value_type {
-                    if self.scope_stack.lookup_struct(type_name).is_some() {
+                    if self.scope_stack.has_struct(type_name) {
                         self.map_instance_fields(type_name, &combined_name, e).map_err(|_| {
                             e.lang_error(&self.path, "context", &format!("map_instance_fields: failed to map nested struct field '{}'", combined_name))
                         })?;
@@ -1403,7 +1438,7 @@ impl Context {
 
     pub fn get_struct(&self, id: &str, e: &Expr) -> Result<String, String> {
         // Validate that the struct variable exists by checking if we can get its offset
-        if self.scope_stack.lookup_var(id).is_some() {
+        if self.scope_stack.has_var(id) {
             // Direct variable lookup succeeded
             Ok(id.to_string())
         } else if id.contains('.') {
@@ -1437,7 +1472,7 @@ impl Context {
             );
 
             if let ValueType::TCustom(nested_type_name) = &decl.value_type {
-                if self.scope_stack.lookup_struct(nested_type_name).is_some() {
+                if self.scope_stack.has_struct(nested_type_name) {
                     self.register_struct_fields_for_typecheck(&combined_name, nested_type_name);
                 }
             }

@@ -277,7 +277,7 @@ impl EvalArena {
                     EvalArena::g().set(dest_offset, &data)?;
 
                     if let ValueType::TCustom(type_name) = &decl.value_type {
-                        if ctx.scope_stack.lookup_struct(type_name).is_some() {
+                        if ctx.scope_stack.has_struct(type_name) {
                             EvalArena::copy_fields(ctx, type_name, &src_key, &dest_key, e).map_err(|_| {
                                 e.lang_error(&ctx.path, "context", &format!("copy_fields: failed to recursively copy field '{}'", dest_key))
                             })?;
@@ -375,7 +375,7 @@ impl EvalArena {
                                 EvalArena::g().set(offset + field_offset, &i64_val.to_ne_bytes())?;
                             },
                             _ => {
-                                if ctx.scope_stack.lookup_struct(type_name).is_some() {
+                                if ctx.scope_stack.has_struct(type_name) {
                                     let nested_combined_name = format!("{}.{}", id, decl.name);
                                     let nested_symbol = SymbolInfo {
                                         value_type: ValueType::TCustom(type_name.clone()),
@@ -495,7 +495,7 @@ impl EvalArena {
                 // Handle nested structs recursively
                 if let ValueType::TCustom(type_name) = &decl.value_type {
                     if type_name != "U8" && type_name != "I64" {
-                        if ctx.scope_stack.lookup_struct(type_name).is_some() {
+                        if ctx.scope_stack.has_struct(type_name) {
                             // Declare nested symbol first
                             ctx.scope_stack.declare_symbol(combined_name.clone(), SymbolInfo {
                                 value_type: ValueType::TCustom(type_name.clone()),
@@ -1137,7 +1137,7 @@ impl EvalArena {
             },
             ValueType::TCustom(ref nested_type) => {
                 // Check if nested struct
-                if ctx.scope_stack.lookup_struct(nested_type).is_some() {
+                if ctx.scope_stack.has_struct(nested_type) {
                     return Self::to_struct_literal(ctx, field_id, nested_type, e);
                 }
                 Err(e.lang_error(&ctx.path, "arena", &format!("to_struct_literal: unsupported nested type '{}'", nested_type)))

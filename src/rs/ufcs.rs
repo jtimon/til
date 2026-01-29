@@ -516,7 +516,7 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 };
                 if let Some(type_name) = custom_type_name {
                     let method_name = format!("{}.{}", type_name, combined_name);
-                    if context.scope_stack.lookup_func(&method_name).is_some() {
+                    if context.scope_stack.has_func(&method_name) {
                         // Transform: func(target, args...) -> Type.func(target, args...)
                         let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), e.get(0)?, Vec::new());
                         let mut new_args = Vec::new();
@@ -554,7 +554,7 @@ fn ufcs_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                         };
                         if let Some(ref type_name) = custom_type_name {
                             let assoc_method_name = format!("{}.{}", type_name, ufcs_func_name);
-                            if context.scope_stack.lookup_func(&assoc_method_name).is_some() {
+                            if context.scope_stack.has_func(&assoc_method_name) {
                                 let assoc_new_id_e = Expr::new_clone(NodeType::Identifier(assoc_method_name.clone()), e.get(0)?, Vec::new());
                                 let mut assoc_new_args = Vec::new();
                                 assoc_new_args.push(assoc_new_id_e);

@@ -585,7 +585,7 @@ fn is_pure_lvalue(arg: &Expr, context: &Context) -> bool {
                             return false; // Enum constructor is NOT an lvalue
                         }
                         // Check if it's a struct type (struct constructor like Type.CONSTANT)
-                        if context.scope_stack.lookup_struct(name).is_some() {
+                        if context.scope_stack.has_struct(name) {
                             return false; // Struct constant access is NOT an lvalue (it's a global)
                         }
                     }
@@ -1408,7 +1408,7 @@ fn emit_fcall_arg_string(
             let inner_arg = &arg.params[1];
             let value_type = get_value_type(context, inner_arg)?;
             if let ValueType::TCustom(enum_type_name) = value_type {
-                if context.scope_stack.lookup_enum(&enum_type_name).is_some() {
+                if context.scope_stack.has_enum(&enum_type_name) {
                     // Pass Dynamic param type so enum constructors get hoisted properly
                     let dynamic_type = ValueType::TCustom("Dynamic".to_string());
                     let inner_str = emit_arg_string(inner_arg, Some(&dynamic_type), false, hoist_output, indent, ctx, context)?;
@@ -1534,13 +1534,13 @@ fn get_c_type_for_expr(
             }
             // Check for struct/enum constructor
             if let Some(func_name) = get_fcall_func_name(arg) {
-                if context.scope_stack.lookup_struct(&func_name).is_some() {
+                if context.scope_stack.has_struct(&func_name) {
                     return Ok(til_name(&func_name));
                 }
                 // Check enum constructor
                 if func_name.contains('_') {
                     let parts: Vec<&str> = func_name.splitn(2, '_').collect();
-                    if parts.len() == 2 && context.scope_stack.lookup_enum(parts[0]).is_some() {
+                    if parts.len() == 2 && context.scope_stack.has_enum(parts[0]) {
                         return Ok(til_name(parts[0]));
                     }
                 }
@@ -1969,7 +1969,7 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &mut Codegen
 
             // Handle literal constants (numbers, strings)
             if let NodeType::LLiteral(lit) = &expr.params[0].node_type {
-                let has_str = context.scope_stack.lookup_struct("Str").is_some();
+                let has_str = context.scope_stack.has_struct("Str");
                 // Use the declaration's explicit type if available, otherwise infer from literal
                 let c_type = match lit {
                     Literal::Number(_) => {
@@ -3039,7 +3039,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
                         }
                     }
                     // Check if this is a struct constant access
-                    if context.scope_stack.lookup_struct(name).is_some() {
+                    if context.scope_stack.has_struct(name) {
                         // Struct constant: Type.constant -> til_Type_constant
                         output.push_str(&til_name(name));
                         output.push_str("_");
@@ -4792,7 +4792,7 @@ fn get_struct_construction_type(expr: &Expr, context: &Context) -> Option<String
             if let NodeType::Identifier(name) = &expr.params[0].node_type {
                 // Use lookup_struct to check if this is a known struct type
                 if expr.params[0].params.is_empty()
-                    && context.scope_stack.lookup_struct(name).is_some() {
+                    && context.scope_stack.has_struct(name) {
                     let only_named_args = expr.params.len() == 1 ||
                         expr.params.iter().skip(1).all(|arg| matches!(&arg.node_type, NodeType::NamedArg(_)));
                     if only_named_args {
@@ -5606,9 +5606,9 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     if let Some(ValueType::TCustom(type_name)) = &switch_type {
         let is_primitive = type_name == "Str" || type_name == "I64" || type_name == "U8" || type_name == "Bool";
         if !is_primitive {
-            if context.scope_stack.lookup_struct(type_name).is_some() {
+            if context.scope_stack.has_struct(type_name) {
                 let eq_method_name = format!("{}.eq", type_name);
-                if context.scope_stack.lookup_func(&eq_method_name).is_some() {
+                if context.scope_stack.has_func(&eq_method_name) {
                     is_struct_switch = true;
                     struct_type_name = type_name.clone();
                 }
@@ -6157,7 +6157,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, type_name, TIL_PREFIX, type_name));
                 } else {
                     // Literal type name - create Str compound literal
-                    if context.scope_stack.lookup_struct("Str").is_some() {
+                    if context.scope_stack.has_struct("Str") {
                         emit_str_literal(type_name, output);
                     } else {
                         output.push_str("\"");
@@ -6182,7 +6182,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             let value_type = get_value_type(context, arg)?;
             if let ValueType::TCustom(enum_type_name) = value_type {
                 // Verify it's an enum type
-                if context.scope_stack.lookup_enum(&enum_type_name).is_some() {
+                if context.scope_stack.has_enum(&enum_type_name) {
                     output.push_str(&til_name(&enum_type_name));
                     output.push_str("_to_str(");
                     // Bug #143: Use pre-computed arg_strings when available
@@ -6367,7 +6367,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     if let Ok(fcall_ret_type) = get_value_type(context, &expr.params[1]) {
                         if let ValueType::TCustom(type_name) = &fcall_ret_type {
                             let candidate = format!("{}.{}", type_name, orig_func_name);
-                            if context.scope_stack.lookup_func(&candidate).is_some() {
+                            if context.scope_stack.has_func(&candidate) {
                                 // Emit as Type_method(fcall_result, args...)
                                 output.push_str(TIL_PREFIX);
                                 output.push_str(type_name);
@@ -6644,7 +6644,7 @@ fn emit_str_literal(s: &str, output: &mut String) {
 fn emit_literal(lit: &Literal, output: &mut String, context: &Context) -> Result<(), String> {
     match lit {
         Literal::Str(s) => {
-            let has_str = context.scope_stack.lookup_struct("Str").is_some();
+            let has_str = context.scope_stack.has_struct("Str");
             if has_str {
                 emit_str_literal(s, output);
             } else {

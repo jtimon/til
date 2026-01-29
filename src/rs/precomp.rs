@@ -138,7 +138,7 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
                 Ok(None) => {
                     // Could be a struct constructor - check if all args are comptime
                     let combined_name = crate::rs::parser::get_combined_name(&context.path, e.params.first().unwrap()).unwrap_or_default();
-                    if context.scope_stack.lookup_struct(&combined_name).is_some() {
+                    if context.scope_stack.has_struct(&combined_name) {
                         // It's a struct constructor - check all args are comptime
                         for i in 1..e.params.len() {
                             // Handle named args - check the value inside
@@ -223,7 +223,7 @@ fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         },
         ValueType::TCustom(ref type_name) => {
             // Check if it's a struct type - result.value is the instance name
-            if context.scope_stack.lookup_struct(type_name).is_some() {
+            if context.scope_stack.has_struct(type_name) {
                 // Try to convert struct back to literal, fall back to original expr if unsupported
                 return EvalArena::to_struct_literal(context, &result.value, type_name, e)
                     .or_else(|_| Ok(e.clone()));
@@ -606,7 +606,7 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     };
 
     // 2. Struct constructor - create instance like eval does (before arg transform)
-    if !combined_name.is_empty() && context.scope_stack.lookup_struct(&combined_name).is_some() {
+    if !combined_name.is_empty() && context.scope_stack.has_struct(&combined_name) {
         create_default_instance(context, &combined_name, &e)?;
         if let NodeType::Identifier(id_name) = &func_expr.node_type {
             if func_expr.params.is_empty() {

@@ -436,6 +436,101 @@ ScopeStack := struct {
         throw KeyNotFoundError(msg="lookup_struct: Struct not found in ScopeStack")
     }
 
+    // Bug #114: Check if a variable exists in the scope stack.
+    // Returns true if found, false otherwise.
+    // More efficient than lookup_var when you only need existence check.
+    has_var := func(self: ScopeStack, name: Str) returns Bool {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)?
+
+            if frame.arena_index.contains_key(name) {
+                return true
+            }
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            // No frames or out of bounds - variable not found
+        }
+        return false
+    }
+
+    // Bug #114: Check if a symbol exists in the scope stack.
+    // Returns true if found, false otherwise.
+    // More efficient than lookup_symbol when you only need existence check.
+    has_symbol := func(self: ScopeStack, name: Str) returns Bool {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)?
+
+            if frame.symbols.contains_key(name) {
+                return true
+            }
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            // No frames or out of bounds - symbol not found
+        }
+        return false
+    }
+
+    // Bug #114: Check if a function exists in the scope stack.
+    // Returns true if found, false otherwise.
+    // More efficient than lookup_func when you only need existence check.
+    has_func := func(self: ScopeStack, name: Str) returns Bool {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)?
+
+            if frame.funcs.contains_key(name) {
+                return true
+            }
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            // No frames or out of bounds - function not found
+        }
+        return false
+    }
+
+    // Bug #114: Check if an enum exists in the scope stack.
+    // Returns true if found, false otherwise.
+    // More efficient than lookup_enum when you only need existence check.
+    has_enum := func(self: ScopeStack, name: Str) returns Bool {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)?
+
+            if frame.enums.contains_key(name) {
+                return true
+            }
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            // No frames or out of bounds - enum not found
+        }
+        return false
+    }
+
+    // Bug #114: Check if a struct exists in the scope stack.
+    // Returns true if found, false otherwise.
+    // More efficient than lookup_struct when you only need existence check.
+    has_struct := func(self: ScopeStack, name: Str) returns Bool {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)?
+
+            if frame.structs.contains_key(name) {
+                return true
+            }
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            // No frames or out of bounds - struct not found
+        }
+        return false
+    }
+
     // Check if a combined name (e.g., "Color.Green") refers to an enum constructor
     is_enum_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
         mut parts := combined_name.split(".")?
@@ -466,14 +561,7 @@ ScopeStack := struct {
         if parts.len().eq(1) {
             mut struct_name := Str()
             parts.get(0, struct_name)?
-            _ := self.lookup_struct(struct_name)?
-            // Bug fix: catch MUST be inside the if block to catch exceptions
-            // from lookup_struct. TIL catch semantics require the catch to be
-            // in the same scope as the throwing code.
-            catch (err: KeyNotFoundError) {
-                return false
-            }
-            return true
+            return self.has_struct(struct_name)
         }
         catch (err: IndexOutOfBoundsError) {
             return false

@@ -263,7 +263,7 @@ fn read_struct_primitive_fields(ctx: &Context, instance_id: &str, struct_type: &
                     _ => {
                         // For nested structs (Vec, etc.), recursively read primitive fields
                         // This ensures we get actual cap, _len values from Vec.new while skipping ptr
-                        if ctx.scope_stack.lookup_struct(type_name).is_some() {
+                        if ctx.scope_stack.has_struct(type_name) {
                             let nested_key = if prefix.is_empty() {
                                 decl.name.clone()
                             } else {
@@ -300,7 +300,7 @@ fn eval_struct_defaults(ctx: &mut Context, struct_type: &str, e: &Expr) -> Resul
                     // Skip primitives, enums, and Str (handled specially)
                     if type_name != "U8" && type_name != "I64" && type_name != "Str" {
                         if ctx.scope_stack.lookup_enum(type_name).is_none() {
-                            if ctx.scope_stack.lookup_struct(type_name).is_some() {
+                            if ctx.scope_stack.has_struct(type_name) {
                                 // Eagerly create template for nested struct (handles forward refs)
                                 create_default_instance(ctx, type_name, e)?;
                             }
@@ -325,7 +325,7 @@ fn eval_struct_defaults(ctx: &mut Context, struct_type: &str, e: &Expr) -> Resul
                 if let ValueType::TCustom(type_name) = &decl.value_type {
                     if type_name != "U8" && type_name != "I64" && type_name != "Str" {
                         if ctx.scope_stack.lookup_enum(type_name).is_none() {
-                            if ctx.scope_stack.lookup_struct(type_name).is_some() {
+                            if ctx.scope_stack.has_struct(type_name) {
                                 // First, get static defaults for nested structs (Str, Vec fields)
                                 let static_defaults = eval_struct_defaults(ctx, type_name, e)?;
                                 for (k, v) in static_defaults {
@@ -767,10 +767,10 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                         if let ValueType::TCustom(type_name) = &value_type {
                             let is_primitive = type_name == "Str" || type_name == "I64" || type_name == "U8" || type_name == "Bool";
                             // Check if this is a non-primitive struct type
-                            if !is_primitive && context.scope_stack.lookup_struct(type_name).is_some() {
+                            if !is_primitive && context.scope_stack.has_struct(type_name) {
                                 // Check if the struct has an eq() method
                                 let eq_method_name = format!("{}.eq", type_name);
-                                if context.scope_stack.lookup_func(&eq_method_name).is_some() {
+                                if context.scope_stack.has_func(&eq_method_name) {
                                     // Construct FCall for StructName.eq(switch_val, case_val)
                                     let method_id = Expr::new_explicit(
                                         NodeType::Identifier(eq_method_name.clone()),
@@ -1390,7 +1390,7 @@ pub fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Ex
                         if matches!(inner_e.node_type, NodeType::FCall(_)) && inner_e.params.len() == 1 {
                             if let NodeType::Identifier(potentially_struct_name) = &inner_e.params[0].node_type {
                                 if inner_e.params[0].params.is_empty() {
-                                    if context.scope_stack.lookup_struct(potentially_struct_name).is_some() {
+                                    if context.scope_stack.has_struct(potentially_struct_name) {
                                         insert_struct_instance(context, &declaration.name, custom_type_name, e)?;
                                         return Ok(EvalResult::new(""))
                                     }
