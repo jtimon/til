@@ -28,9 +28,6 @@ struct CodegenContext {
     current_variadic_params: HashMap<String, String>,
     // All known type names for generating til_size_of function
     known_types: Vec<String>,
-    // Map of hoisted expression addresses to their temp variable names
-    // Used to track deeply nested variadic/throwing calls that have been hoisted
-    hoisted_exprs: HashMap<usize, String>,
     // Map of locally-caught error types to catch label info
     // For explicit throw statements that have a local catch block
     local_catch_labels: HashMap<String, CatchLabelInfo>,
@@ -55,7 +52,6 @@ impl CodegenContext {
             current_ref_params: HashSet::new(),
             current_variadic_params: HashMap::new(),
             known_types: Vec::new(),
-            hoisted_exprs: HashMap::new(),
             local_catch_labels: HashMap::new(),
             current_function_name: String::new(),
             hoisted_functions: Vec::new(),
@@ -604,7 +600,7 @@ fn is_pure_lvalue(arg: &Expr, context: &Context) -> bool {
 
 /// This is the core of the single-pass hoist+emit approach (Bug #143 fix).
 /// By processing each arg once and returning the string directly, we avoid
-/// the fragile expression identity mechanism in hoisted_exprs.
+/// the need for expression identity tracking.
 fn emit_arg_string(
     arg: &Expr,
     param_type: Option<&ValueType>,
@@ -1859,9 +1855,6 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         output.push_str("    (void)argc; (void)argv;\n");
     }
 
-    // Clear hoisted_exprs to avoid cross-contamination from function passes
-    ctx.hoisted_exprs.clear();
-
     // Re-populate declared_vars with global declarations (functions clear declared_vars)
     // This ensures global declarations emit only assignments in main(), not redeclarations
     if let NodeType::Body = &ast.node_type {
@@ -3008,13 +3001,6 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
 }
 
 fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
-    // Check if this expression has been hoisted (for nested variadic/throwing calls)
-    let expr_addr = expr as *const Expr as usize;
-    if let Some(temp_var) = ctx.hoisted_exprs.get(&expr_addr) {
-        output.push_str(temp_var);
-        return Ok(());
-    }
-
     match &expr.node_type {
         NodeType::Body => emit_body(expr, output, indent, ctx, context),
         NodeType::FCall(_) => emit_fcall(expr, output, indent, ctx, context),
@@ -6214,14 +6200,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                             output.push_str(arg_str);
                         }
                     } else {
-                        // OLD mechanism: Check if argument was already hoisted
-                        let arg_addr = arg as *const Expr as usize;
-                        if ctx.hoisted_exprs.contains_key(&arg_addr) {
-                            emit_expr(arg, output, 0, ctx, context)?;
-                        } else {
-                            output.push_str("&");
-                            emit_expr(arg, output, 0, ctx, context)?;
-                        }
+                        output.push_str("&");
+                        emit_expr(arg, output, 0, ctx, context)?;
                     }
                     output.push_str(")");
                     Ok(())
