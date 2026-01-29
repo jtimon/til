@@ -225,7 +225,7 @@ make the Rust-style memory address approach work in TIL too.
 :PROPERTIES:
 :DISCOVERED: 2026-01-27
 :IMPACT: TIL ccodegen fails when multiple expressions share same line/col (e.g., desugared switch)
-:STATUS: Open
+:STATUS: Rust FIXED (2026-01-29), TIL port pending
 :RELATED: Issue #110 (switch desugaring)
 :END:
 
@@ -315,9 +315,64 @@ Attempted to implement single-pass hoist+emit via ~emit_arg_string~ function.
    - Attempt to use new mechanism for throwing calls + old mechanism for Dynamic/ref
    - Led to incorrect C code (type mismatches, missing & operators)
 
-**** Recommendation
-Solution A (unique ID on Expr) is simpler and would fix the immediate bug.
-Solution C requires more careful architectural work and should be planned separately.
+**** Rust Fix Completed (2026-01-29)
+Solution C (single-pass hoist+emit) was successfully implemented in Rust.
+
+**What was done:**
+
+1. **Converted all call sites to use ~emit_arg_string~**
+   - ~emit_fcall~: Process all args upfront, then emit call with pre-computed strings
+   - ~emit_variadic_call~, ~emit_throwing_call~, ~emit_throwing_call_propagate~, etc.
+   - Return statement variadic call handling
+   - Declaration RHS handling
+
+2. **Removed old hoisting functions (now dead code)**
+   - ~hoist_throwing_expr~ (-290 lines)
+   - ~hoist_throwing_args~ (-285 lines)
+   - ~hoist_for_dynamic_params~ (-160 lines)
+   - ~emit_fcall_name_and_args_for_throwing~ (-110 lines)
+   - ~emit_arg_with_param_type~ (-340 lines)
+   - ~HoistedArg~ struct
+
+3. **Removed ~hoisted_exprs~ HashMap entirely**
+   - Removed field from ~CodegenContext~
+   - Removed all lookups in ~emit_expr~, ~emit_fcall~, etc.
+   - No more fragile memory-address-based identity tracking
+
+**Result:** ~-1400 lines of code removed, simpler architecture, no identity tracking needed.
+
+**** TIL Porting Plan
+
+**Step 1: Generate diff file**
+#+BEGIN_SRC bash
+git diff b8fab027..HEAD -- src/rs/ccodegen.rs > tmp/bug143_rust_diff.txt
+#+END_SRC
+
+**Step 2: Port changes following ~doc/rs2til.org~ strictly**
+- Go through ~tmp/bug143_rust_diff.txt~ section by section
+- Apply equivalent changes to ~src/self/ccodegen.til~
+- Follow rs2til.org translation rules exactly
+
+**Step 3: Sync naming and comments**
+- Variable names must match between Rust and TIL
+- Comments must be identical (copy verbatim)
+- TIL was using ~expr.line.mul(1000000).add(expr.col)~ workaround instead of addresses,
+  but after the port both versions should look similar since hoisted_exprs is removed
+
+**Step 4: Handle TIL-specific issues, port back to Rust**
+- **Shadowing:** If TIL needs variable renames to avoid shadowing, port those
+  renames back to Rust so both stay in sync
+- **Tuples:** If Rust uses tuples that TIL can't handle, create a struct in both
+  Rust and TIL (TIL doesn't have tuple syntax)
+- Goal: After porting, both files should differ only in syntax, not in structure
+
+**Step 5: Verify**
+#+BEGIN_SRC bash
+make benchmark
+#+END_SRC
+
+**Step 6: Move bug to fixed.org**
+Once TIL port is complete and all tests pass, move Bug #143 to ~doc/todo/fixed.org~
 
 ** Bug #140: Dangling pointers in generated C code (undefined behavior)
 :PROPERTIES:

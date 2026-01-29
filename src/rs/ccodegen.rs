@@ -3479,7 +3479,7 @@ fn emit_variadic_call(
     // Calculate param info for by-ref param handling
     let func_def_opt = get_fcall_func_def(context, fcall);
 
-    // Use new mechanism: emit_arg_string for each arg
+    // Bug #143: Use emit_arg_string for each arg
     // For variadic args (i >= regular_count), use by_ref=false
     let mut arg_strings = Vec::new();
     if fcall.params.len() > 1 {
@@ -3639,7 +3639,7 @@ fn emit_throwing_call(
     let variadic_info = detect_variadic_fcall(fcall, ctx);
     let variadic_regular_count = variadic_info.as_ref().map(|vi| vi.regular_count).unwrap_or(usize::MAX);
 
-    // Use new mechanism: emit_arg_string for each arg
+    // Bug #143: Use emit_arg_string for each arg
     let mut arg_strings = Vec::new();
     if fcall.params.len() > 1 {
         for (i, arg) in fcall.params.iter().skip(1).enumerate() {
@@ -3938,7 +3938,7 @@ fn emit_throwing_call_propagate(
     let variadic_info = detect_variadic_fcall(fcall, ctx);
     let variadic_regular_count = variadic_info.as_ref().map(|vi| vi.regular_count).unwrap_or(usize::MAX);
 
-    // Use new mechanism: emit_arg_string for each arg
+    // Bug #143: Use emit_arg_string for each arg
     let mut arg_strings = Vec::new();
     if fcall.params.len() > 1 {
         for (i, arg) in fcall.params.iter().skip(1).enumerate() {
@@ -4198,7 +4198,7 @@ fn emit_throwing_call_with_goto(
     let variadic_info = detect_variadic_fcall(fcall, ctx);
     let variadic_regular_count = variadic_info.as_ref().map(|vi| vi.regular_count).unwrap_or(usize::MAX);
 
-    // Use new mechanism: emit_arg_string for each arg
+    // Bug #143: Use emit_arg_string for each arg
     let mut arg_strings = Vec::new();
     if fcall.params.len() > 1 {
         for (i, arg) in fcall.params.iter().skip(1).enumerate() {
@@ -4545,7 +4545,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
     let indent_str = "    ".repeat(indent);
 
-    // Bug #143: Use new mechanism - process RHS FCall with emit_arg_string
+    // Bug #143: Process RHS FCall with emit_arg_string
     // This handles builtins (to_ptr, size_of, etc.), throwing calls, by-ref params, and Dynamic params properly
     let rhs_string: Option<String> = if !expr.params.is_empty() {
         let rhs = &expr.params[0];
@@ -6092,7 +6092,6 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         .unwrap_or(usize::MAX);
 
     // Bug #143: Process ALL args upfront using single-pass emit_arg_string
-    // This replaces the old hoisting mechanism (hoist_throwing_args, hoist_for_dynamic_params, etc.)
     let arg_strings: Vec<String> = if is_stmt_level && expr.params.len() > 1 {
         let param_info: Vec<ParamTypeInfo> = if let Some(fd) = get_fcall_func_def(context, expr) {
             fd.args.iter().map(|fd_arg| ParamTypeInfo {
@@ -6454,7 +6453,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if let Some(variadic_info) = ctx.func_variadic_args.get(&orig_func_name) {
                     let elem_type = variadic_info.elem_type.clone();
                     let regular_count = variadic_info.regular_count;
-                    // Bug #143: Use pre-computed arg_strings (new mechanism)
+                    // Bug #143: Use pre-computed arg_strings
                     let variadic_arg_strings = &arg_strings[regular_count..];
                     Some(emit_variadic_array_with_strings(&elem_type, variadic_arg_strings, output, indent, ctx)?)
                 } else {
@@ -6497,7 +6496,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // Check if this is a variadic function call
             if let Some(variadic_info) = ctx.func_variadic_args.get(&orig_func_name) {
                 let regular_count = variadic_info.regular_count;
-                // Bug #143: Use pre-computed arg_strings (new mechanism)
+                // Bug #143: Use pre-computed arg_strings
                 if is_stmt_level {
                     // Emit regular args from arg_strings
                     for (i, arg_str) in arg_strings.iter().take(regular_count).enumerate() {
@@ -6547,7 +6546,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 }
             } else {
                 // Regular non-variadic function call
-                // Bug #143: Use pre-computed arg_strings (new mechanism)
+                // Bug #143: Use pre-computed arg_strings
                 if is_stmt_level {
                     for (i, arg_str) in arg_strings.iter().enumerate() {
                         if i > 0 {
