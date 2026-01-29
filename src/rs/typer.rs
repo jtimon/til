@@ -227,7 +227,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                 // Only check the base expression (params[0])
                 // params[1..] are field identifiers that don't need symbol lookup
                 errors.extend(check_types_with_context(context, e.get(0).unwrap(), ExprContext::ValueUsed));
-            } else if !(context.scope_stack.lookup_func(name).is_some() || context.scope_stack.lookup_symbol(name).is_some()) {
+            } else if !(context.scope_stack.has_func(name) || context.scope_stack.has_symbol(name)) {
                 errors.push(e.error(&context.path, "type", &format!("Undefined symbol '{}'", name)));
             } else if context.scope_stack.is_closure_capture(name) {
                 // Bug #50: Closures not supported yet
@@ -1638,7 +1638,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
                 }
                 // During type checking, register struct fields so they can be accessed in the code
                 // Memory allocation and default value evaluation happens during runtime in eval_declaration
-                if context.scope_stack.lookup_struct(&custom_type).is_some() {
+                if context.scope_stack.has_struct(&custom_type) {
                     context.register_struct_fields_for_typecheck(&decl.name, &custom_type);
                 }
             }
@@ -1671,9 +1671,9 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
         return errors
     }
 
-    if context.scope_stack.lookup_func(var_name).is_some()  {
+    if context.scope_stack.has_func(var_name)  {
         errors.push(e.error(&context.path, "type", &format!("function '{}' cannot be assigned to.", var_name)));
-    } else if context.scope_stack.lookup_symbol(var_name).is_some() {
+    } else if context.scope_stack.has_symbol(var_name) {
         // Bug #101: Mark the variable as used (even though we're assigning to it)
         context.scope_stack.mark_symbol_used(var_name);
         let symbol_info = match context.scope_stack.lookup_symbol(var_name) {
@@ -1869,7 +1869,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                     // Variant exists but has no payload
                     errors.push(case_expr.error(&context.path, "type", &format!("Variant '{}' has no payload, cannot use pattern matching", variant)));
                     errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
-                } else if context.scope_stack.lookup_enum(enum_name).is_some() {
+                } else if context.scope_stack.has_enum(enum_name) {
                     // Enum exists but variant doesn't
                     errors.push(case_expr.error(&context.path, "type", &format!("Unknown variant '{}'", variant)));
                     errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));

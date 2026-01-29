@@ -436,6 +436,77 @@ ScopeStack := struct {
         throw KeyNotFoundError(msg="lookup_struct: Struct not found in ScopeStack")
     }
 
+    // Existence check methods - avoid full struct retrieval when only checking presence
+    has_var := func(self: ScopeStack, name: Str) returns Bool {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)?
+            if frame.arena_index.contains_key(name) {
+                return true
+            }
+        }
+        catch (err: IndexOutOfBoundsError) {
+            // No frames or out of bounds - var not found
+        }
+        return false
+    }
+
+    has_symbol := func(self: ScopeStack, name: Str) returns Bool {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)?
+            if frame.symbols.contains_key(name) {
+                return true
+            }
+        }
+        catch (err: IndexOutOfBoundsError) {
+            // No frames or out of bounds - symbol not found
+        }
+        return false
+    }
+
+    has_func := func(self: ScopeStack, name: Str) returns Bool {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)?
+            if frame.funcs.contains_key(name) {
+                return true
+            }
+        }
+        catch (err: IndexOutOfBoundsError) {
+            // No frames or out of bounds - func not found
+        }
+        return false
+    }
+
+    has_enum := func(self: ScopeStack, name: Str) returns Bool {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)?
+            if frame.enums.contains_key(name) {
+                return true
+            }
+        }
+        catch (err: IndexOutOfBoundsError) {
+            // No frames or out of bounds - enum not found
+        }
+        return false
+    }
+
+    has_struct := func(self: ScopeStack, name: Str) returns Bool {
+        for i in self.frames.len().sub(1)..sub(0, 1) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)?
+            if frame.structs.contains_key(name) {
+                return true
+            }
+        }
+        catch (err: IndexOutOfBoundsError) {
+            // No frames or out of bounds - struct not found
+        }
+        return false
+    }
+
     // Check if a combined name (e.g., "Color.Green") refers to an enum constructor
     is_enum_constructor := func(self: ScopeStack, combined_name: Str) returns Bool {
         mut parts := combined_name.split(".")?
@@ -466,14 +537,7 @@ ScopeStack := struct {
         if parts.len().eq(1) {
             mut struct_name := Str()
             parts.get(0, struct_name)?
-            _ := self.lookup_struct(struct_name)?
-            // Bug fix: catch MUST be inside the if block to catch exceptions
-            // from lookup_struct. TIL catch semantics require the catch to be
-            // in the same scope as the throwing code.
-            catch (err: KeyNotFoundError) {
-                return false
-            }
-            return true
+            return self.has_struct(struct_name)
         }
         catch (err: IndexOutOfBoundsError) {
             return false
