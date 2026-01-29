@@ -33,6 +33,45 @@ Files modified:
 - ~src/rs/typer.rs~: Added check_types_with_context call for struct default values
 - ~src/self/typer.til~: Ported the same fix
 
+** Bug #140: Dangling pointers in generated C code (undefined behavior)
+:PROPERTIES:
+:DISCOVERED: 2026-01-25
+:FIXED: 2026-01-29
+:IMPACT: Undefined behavior in generated C code; works by luck, may break with optimization
+:STATUS: Fixed
+:RELATED: Bug #99 Step 5a, Bug #143
+:END:
+
+*** Description
+The C codegen generated undefined behavior when passing rvalue results by-reference.
+GCC's ~-Wdangling-pointer~ warning (971 occurrences) revealed the problem:
+#+BEGIN_SRC c
+til_foo(({ til_Str _tmp = til_bar(); &_tmp; }))
+#+END_SRC
+
+The ~_tmp~ variable is local to the statement expression, so ~&_tmp~ is a dangling
+pointer once the expression ends.
+
+*** Root Cause
+Statement expressions were used to create temporary variables for rvalue-to-reference
+conversion. The temp variables went out of scope immediately after the statement
+expression ended, leaving dangling pointers.
+
+*** Fix (Bug #143)
+Bug #143 restructured the ccodegen architecture with a single-pass hoist+emit approach
+using ~emit_arg_string~ and ~hoist_output~. This change:
+1. Processes each argument once through ~emit_arg_string~
+2. Hoists non-lvalue arguments to temp variables BEFORE the function call
+3. Returns the hoisted temp var name for use in the call
+
+This completely eliminates statement expressions for temporary variables.
+
+*** Files Changed
+- src/rs/target.rs: Removed ~-Wno-dangling-pointer~ flag
+- src/self/target.til: Removed ~-Wno-dangling-pointer~ flag
+
+The architectural fix was already implemented in Bug #143 (commit b6f616a).
+
 ** Bug #146: C translation non-determinism in loop variable naming
 :PROPERTIES:
 :DISCOVERED: 2026-01-28

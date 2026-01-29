@@ -119,60 +119,6 @@ If for-in iterated by reference, ~to_ptr(expr)~ would give the same address
 for the same element regardless of which function is iterating. This would
 make the Rust-style memory address approach work in TIL too.
 
-** Bug #140: Dangling pointers in generated C code (undefined behavior)
-:PROPERTIES:
-:DISCOVERED: 2026-01-25
-:IMPACT: Undefined behavior in generated C code; works by luck, may break with optimization
-:STATUS: Open
-:RELATED: Bug #99 Step 5a
-:END:
-
-*** Description
-The C codegen generates undefined behavior when passing rvalue results by-reference.
-GCC's ~-Wdangling-pointer~ warning (971 occurrences) reveals the problem:
-#+BEGIN_SRC c
-til_foo(({ til_Str _tmp = til_bar(); &_tmp; }))
-#+END_SRC
-
-The ~_tmp~ variable is local to the statement expression, so ~&_tmp~ is a dangling
-pointer once the expression ends. GCC warns about this with ~-Wdangling-pointer~.
-
-*** Why It Works (By Luck)
-The temp is on the stack and the outer function call happens immediately, before the
-stack location is overwritten. This is undefined behavior that happens to work because:
-- No optimization reorders the operations
-- Stack isn't clobbered between statement expression end and function call
-- Compiler doesn't exploit UB for optimization
-
-This could break with different optimization levels, compilers, or future gcc versions.
-
-*** Affected Patterns (ccodegen.rs lines)
-- Enum constructors needing address-of (line 1812)
-- UFCS placeholder "_" chained expressions (line 1835)
-- FCall results for struct types (line 1890)
-- Custom type constructors (line 1913)
-
-*** Fix Approach
-Hoist temp variables to statement level instead of using statement expressions:
-#+BEGIN_SRC c
-// Before (dangling):
-til_foo(({ til_Str _tmp = til_bar(); &_tmp; }))
-
-// After (safe):
-til_Str _tmp_42 = til_bar();
-til_foo(&_tmp_42);
-#+END_SRC
-
-This requires restructuring ~emit_fcall_arg~ to:
-1. Pre-scan arguments to identify which need temp variables
-2. Emit temp declarations before the call
-3. Reference the temps in the call arguments
-
-*** Complexity Notes
-- Affects core function call emission logic
-- Must be ported to both ccodegen.rs and ccodegen.til
-- May interact with existing ~ctx.hoisted_exprs~ mechanism
-
 ** Bug #139: Type checker allows assigning I64 to Ptr field
 :PROPERTIES:
 :DISCOVERED: 2026-01-25
@@ -834,7 +780,7 @@ ccodegen.rs and ccodegen.til to escape null bytes as ~\0~ in C output.
 - [X] Step 3c: Fix and re-enable -Wint-conversion (2026-01-13) - cast RHS to Dynamic in emit_assignment
 - [X] Step 3e: Enable and fix -Wreturn-type (2026-01-25) - add implicit return 0 to throwing functions, add zero-initialized fallback return to non-throwing functions with return types
 - [X] Step 4: Switch to -Wall -Wextra -Werror with suppressions (2026-01-25)
-- [ ] Step 5a: Remove -Wno-dangling-pointer (971 occurrences) - see Bug #140
+- [X] Step 5a: Remove -Wno-dangling-pointer (971 occurrences) - fixed by Bug #143, flag removed in Bug #140 fix
 - [-] Step 5b: Remove -Wno-unused-variable (1514 occurrences, partial progress)
 - [ ] Step 5c: Remove -Wno-unused-but-set-variable (386 occurrences)
 - [ ] Step 5d: Remove -Wno-unused-label (153 occurrences)
@@ -1263,7 +1209,7 @@ til_Vec_push(&_err, &vec, &_tmp_str);  // _tmp_str is til_Str*
 Function ~til_get_value_type~ at line 13360 - control reaches end without return.
 
 *** Progress (2026-01-25)
-Most warning issues now consolidated into Bug #99 (gcc warnings) and Bug #140 (dangling pointers).
+Most warning issues now consolidated into Bug #99 (gcc warnings). Bug #140 (dangling pointers) fixed via Bug #143.
 
 *** TODO
 - [X] Investigate why ~til run bug47.til~ fails - OOM during ccodegen
@@ -1271,11 +1217,11 @@ Most warning issues now consolidated into Bug #99 (gcc warnings) and Bug #140 (d
 - [X] Add casts for Vec_push calls - fixed in Bug #99 Step 3a (-Wincompatible-pointer-types)
 - [X] Consider which unused-* warnings to fix vs suppress - done in Bug #99 Step 4
 - [ ] Fix til ccodegen memory usage (OOM on large files) - may be fixed by Issue #117 (borrow checker)
-- [ ] Fix dangling pointer pattern - see Bug #140
+- [X] Fix dangling pointer pattern - fixed by Bug #143
 
 *** Related Issues
 - Bug #99: Eliminate all C compiler warnings and enable -Werror (main tracking)
-- Bug #140: Dangling pointers in generated C code (undefined behavior)
+- Bug #140: Dangling pointers in generated C code (FIXED via Bug #143)
 - Issue #117: Borrow checker / memory management (may fix OOM)
 
 ** Bug #92: Range loops should allow explicit iterator type annotation

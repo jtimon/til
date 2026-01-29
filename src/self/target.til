@@ -332,8 +332,8 @@ push_clang_flags := proc(mut result: Vec) {
 }
 
 // Helper: push GCC-specific flags
-push_gcc_flags := proc(mut result: Vec) {
-    result.push("-Wno-dangling-pointer")          // 971 occurrences (high priority to fix) - GCC only
+push_gcc_flags := proc(mut _result: Vec) {
+    // Bug #140: -Wno-dangling-pointer removed - fixed by Bug #143 hoisting architecture
 }
 
 executable_extension := func(target: Target) returns Str {

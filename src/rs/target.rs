@@ -161,7 +161,7 @@ pub fn toolchain_extra_args(target: &Target, _lang: &Lang, compiler: &str) -> Ve
         "-Wno-unused-parameter",          // underscore-prefixed params are intentionally unused
     ];
     let gcc_only: &[&str] = &[
-        "-Wno-dangling-pointer",          // 971 occurrences (high priority to fix) - GCC only
+        // Bug #140: -Wno-dangling-pointer removed - fixed by Bug #143 hoisting architecture
     ];
     let clang_only: &[&str] = &[
         "-Wno-sometimes-uninitialized",   // clang-specific warning about exception control flow
