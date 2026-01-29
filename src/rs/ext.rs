@@ -607,7 +607,7 @@ pub fn func_enum_get_payload(context: &mut Context, e: &Expr) -> Result<EvalResu
         return Err(e.lang_error(&context.path, "eval", "enum_get_payload: type argument must be a type name"));
     };
     // Check if payload type is an enum (for nested enums)
-    let is_enum_payload = context.scope_stack.lookup_enum(&type_name).is_some();
+    let is_enum_payload = context.scope_stack.has_enum(&type_name);
     // Get expected type size
     let type_size = context.get_type_size(&type_name)?;
     // After eval_expr, context.temp_enum_payload should contain the payload data
