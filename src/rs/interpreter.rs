@@ -462,6 +462,8 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             Ok(EvalResult::new(""))
         },
         NodeType::Switch => {
+            return Err(e.lang_error(&context.path, "eval", "Switch should have been desugared to if/else by desugarer phase"));
+            #[allow(unreachable_code)]
             if e.params.len() < 3 {
                 return Err(e.lang_error(&context.path, "eval", "switch nodes must have at least 3 parameters."));
             }

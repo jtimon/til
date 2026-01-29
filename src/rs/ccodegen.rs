@@ -6128,7 +6128,10 @@ fn collect_declarations_recursive(expr: &Expr, decls: &mut Vec<CollectedDeclarat
     }
 }
 
+#[allow(unused_variables)]
 fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+    return Err(expr.lang_error(&context.path, "ccodegen", "Switch should have been desugared to if/else by desugarer phase"));
+    #[allow(unreachable_code)]
     // Switch: params[0] = switch expression
     // params[1..] = alternating (case_pattern, body) pairs
     // We emit if/else chains instead of C switch because:

@@ -264,6 +264,8 @@ fn precomp_params(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 /// Transform Switch - handle pattern binding variables by adding them to scope
 /// before processing the case body. This mirrors the typer's handling of Bug #28.
 fn precomp_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
+    return Err(e.lang_error(&context.path, "precomp", "Switch should have been desugared to if/else by desugarer phase"));
+    #[allow(unreachable_code)]
     // Switch structure: params[0] is switch expression, then pairs of (case, body)
     if e.params.is_empty() {
         return Ok(e.clone());
