@@ -1,5 +1,5 @@
-// Garbager phase: Auto-generates delete() methods for structs and (future) inserts
-// automatic delete() calls for ASAP destruction.
+// Garbager phase: Auto-generates delete() methods for structs and inserts
+// automatic delete() calls for ASAP destruction (Issue #117).
 // This phase runs after desugarer, before precomp.
 
 use crate::rs::init::Context;
@@ -13,6 +13,32 @@ use crate::rs::parser::{
 struct DeleteMethodResult {
     decl: Declaration,
     expr: Expr,
+}
+
+/// Check if a type needs delete() - primitives and enums don't need delete
+fn needs_delete(value_type: &ValueType) -> bool {
+    match value_type {
+        ValueType::TCustom(type_name) => {
+            // Primitives have no-op delete(), skip them for efficiency
+            // Ptr is excluded because Ptr ownership semantics are manual (is_borrowed flag)
+            // and Ptr.offset() creates non-owning views that shouldn't be auto-deleted
+            // Str is excluded because Vec.get does shallow copy - both the Vec and the
+            // copied Str share underlying memory. Deleting one invalidates the other.
+            // Enums don't have delete() methods
+            match type_name.as_str() {
+                // Primitives
+                "I64" | "U8" | "Bool" | "Type" | "Ptr" | "Str" => false,
+                // Enum types (don't have delete methods)
+                "TokenType" | "FunctionType" | "Literal" | "NodeType" |
+                "TTypeDef" | "ValueType" | "ScopeType" | "MutArgValue" |
+                "PatternInfo" | "Target" | "Lang" => false,
+                _ => true  // All other types (Vec, Array, Map, etc. and custom structs)
+            }
+        }
+        ValueType::TFunction(_) => false,  // Functions don't need delete
+        ValueType::TType(_) => false,      // Type definitions don't need delete
+        ValueType::TMulti(_) => true,      // Multiple return types may need delete
+    }
 }
 
 /// Generate a delete() method for a struct that doesn't have one.
@@ -37,6 +63,11 @@ fn generate_delete_method(struct_name: &str, struct_def: &SStructDef, line: usiz
     for member in struct_def.members.iter().rev() {
         // Skip non-mut fields (constants/methods don't need delete)
         if !member.is_mut {
+            continue;
+        }
+
+        // Skip fields whose types don't need delete (primitives, enums, etc.)
+        if !needs_delete(&member.value_type) {
             continue;
         }
 
@@ -90,6 +121,17 @@ fn generate_delete_method(struct_name: &str, struct_def: &SStructDef, line: usiz
         expr: func_expr,
     }
 }
+
+// =============================================================================
+// Step 4: Liveness Analysis and Delete Insertion (Issue #117)
+// STATUS: DISABLED - pending UFCS integration
+// =============================================================================
+// The garbager runs after UFCS, so generated delete() calls don't get proper
+// method call transformation. To enable Step 4, need to either:
+// 1. Generate post-UFCS AST directly (understand how ccodegen expects method calls), or
+// 2. Move garbager before UFCS and let UFCS transform the calls
+// For now, only Step 3 (auto-generating struct delete methods) is active.
+// =============================================================================
 
 /// Garbager phase entry point: Recursively process AST to auto-generate delete methods.
 pub fn garbager_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
@@ -154,6 +196,12 @@ pub fn garbager_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             Ok(Expr::new_clone(e.node_type.clone(), e, decl_new_params))
         },
         // Recurse into FuncDef bodies
+        // NOTE: Step 4 (liveness-based delete insertion) is disabled pending UFCS integration.
+        // The garbager runs after UFCS, so generated delete() calls don't get proper
+        // method call transformation. This needs design work to either:
+        // 1. Generate post-UFCS AST directly, or
+        // 2. Move garbager before UFCS and let UFCS transform the calls
+        // For now, only Step 3 (auto-generating struct delete methods) is active.
         NodeType::FuncDef(func_def) => {
             let mut new_body = Vec::new();
             for stmt in &func_def.body {
