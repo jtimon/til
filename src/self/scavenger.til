@@ -740,6 +740,61 @@ scavenger_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             // Ignore needs_variadic_support on second pass
         }
 
+        // Step 2b: Add enum payload types and their transitive dependencies to used_types
+        // Bug #143: Enums are always kept, so their struct payload types must be kept too
+        // We need to collect payload types AND compute transitive closure of those
+        mut enum_payload_types := Vec.new(Str)
+        for step2b_stmt: Expr in e.params {
+            switch step2b_stmt.node_type {
+            case NodeType.Declaration(_):
+                if step2b_stmt.params.len().gt(0) {
+                    step2b_inner := step2b_stmt.get(0)?
+                    switch step2b_inner.node_type {
+                    case NodeType.EnumDef(step2b_enum_def):
+                        for step2b_variant: EnumVariant in step2b_enum_def.variants {
+                            if not(step2b_variant.payload_type.is_null()) {
+                                mut step2b_vt := ValueType.TCustom("")
+                                memcpy(to_ptr(step2b_vt), step2b_variant.payload_type.data, size_of(ValueType))
+                                step2b_payload_name := extract_type_name(step2b_vt)
+                                if step2b_payload_name.len().gt(0) {
+                                    if not(used_types.contains(step2b_payload_name)) {
+                                        enum_payload_types.push(step2b_payload_name)
+                                    }
+                                }
+                            }
+                        }
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+        // Now compute transitive closure of enum payload types
+        while enum_payload_types.len().gt(0) {
+            mut step2b_type_name := ""
+            enum_payload_types.pop(step2b_type_name)?
+            if used_types.contains(step2b_type_name) {
+                continue
+            }
+            _ := used_types.insert(step2b_type_name.clone())
+            // Check struct field types
+            mut step2b_found_struct := false
+            step2b_struct_def := context.scope_stack.lookup_struct(step2b_type_name)?
+            step2b_found_struct = true
+            catch (err: KeyNotFoundError) { }
+            if step2b_found_struct {
+                for step2b_member: Declaration in step2b_struct_def.members {
+                    step2b_field_type := extract_type_name(step2b_member.value_type)
+                    if step2b_field_type.len().gt(0) {
+                        if not(used_types.contains(step2b_field_type)) {
+                            enum_payload_types.push(step2b_field_type)
+                        }
+                    }
+                }
+            }
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+
         // Step 3: Build new AST - only include reachable function declarations
         // For structs, rebuild them without unreachable methods
         mut new_params := Vec.new(Expr)

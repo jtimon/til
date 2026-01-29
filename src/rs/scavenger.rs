@@ -559,6 +559,45 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             // Ignore needs_variadic_support on second pass
         }
 
+        // Step 2b: Add enum payload types and their transitive dependencies to used_types
+        // Bug #143: Enums are always kept, so their struct payload types must be kept too
+        // We need to collect payload types AND compute transitive closure of those
+        let mut enum_payload_types: Vec<String> = Vec::new();
+        for stmt in &e.params {
+            if let NodeType::Declaration(_) = &stmt.node_type {
+                if !stmt.params.is_empty() {
+                    if let NodeType::EnumDef(enum_def) = &stmt.params[0].node_type {
+                        for variant in &enum_def.variants {
+                            if let Some(payload_type) = &variant.payload_type {
+                                if let Some(payload_type_name) = extract_type_name(payload_type) {
+                                    if !used_types.contains(&payload_type_name) {
+                                        enum_payload_types.push(payload_type_name);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Now compute transitive closure of enum payload types
+        while let Some(type_name) = enum_payload_types.pop() {
+            if used_types.contains(&type_name) {
+                continue;
+            }
+            used_types.insert(type_name.clone());
+            // Check struct field types
+            if let Some(closure_struct_def) = context.scope_stack.lookup_struct(&type_name) {
+                for member in &closure_struct_def.members {
+                    if let Some(field_type) = extract_type_name(&member.value_type) {
+                        if !used_types.contains(&field_type) {
+                            enum_payload_types.push(field_type);
+                        }
+                    }
+                }
+            }
+        }
+
         // Step 3: Build new AST - only include reachable function declarations
         // For structs, rebuild them without unreachable methods
         let mut new_params: Vec<Expr> = Vec::new();
@@ -578,7 +617,7 @@ pub fn scavenger_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                                 new_params.push(new_struct);
                             }
                         } else {
-                            // Non-function, non-struct declaration - always keep
+                            // Non-function, non-struct declaration (including enums) - always keep
                             new_params.push(stmt.clone());
                         }
                     } else {

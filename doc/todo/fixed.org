@@ -7,6 +7,39 @@
 
 * Fixed Bugs
 
+** Bug #149: Scavenger removes enum payload types
+:PROPERTIES:
+:DISCOVERED: 2026-01-29
+:FIXED: 2026-01-29
+:IMPACT: GCC errors when compiling code that uses enums with struct payloads
+:STATUS: Fixed
+:END:
+
+*** Description
+The scavenger phase was removing struct types that are used as enum payloads
+(e.g., Declaration, SFuncDef, SEnumDef, SStructDef, PatternInfo in NodeType enum).
+
+This caused GCC errors like:
+~error: unknown type name 'til_Declaration'~
+
+The root cause:
+1. Enums are always kept in the output (not filtered by used_types)
+2. But their payload types (which are structs) were only kept if in used_types
+3. Enum payload types weren't being added to used_types during reachability analysis
+
+*** Implementation
+Added Step 2b to scavenger that:
+- Collects all enum payload types from the AST
+- Computes transitive closure (struct field types of payload types)
+- Adds them to used_types before the filtering step
+
+*** Files Changed
+- src/rs/scavenger.rs: Added Step 2b after variadic support handling
+- src/self/scavenger.til: Ported same fix
+
+*** Discovered While
+Working on Bug #143 (single-pass hoist+emit port to TIL)
+
 ** Bug #101: Warn/error on unused things
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
