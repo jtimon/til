@@ -739,14 +739,20 @@ is_pure_lvalue := func(arg: Expr, context: Context) returns Bool {
                         return false  // Enum constructor is NOT an lvalue
                     }
                     // Check if it's a struct type (struct constructor like Type.CONSTANT)
+                    // Rust: if context.scope_stack.lookup_struct(name).is_some() { return false; }
+                    // TIL: use flag pattern since lookup_struct throws on not found
+                    mut is_struct := false
                     _ := context.scope_stack.lookup_struct(name)?
-                    // If we get here, it's a struct - return false
-                    return false  // Struct constant access is NOT an lvalue (it's a global)
+                    is_struct = true
+                    catch (err: KeyNotFoundError) {
+                        // REM: Not a struct, continue checking
+                    }
+                    if is_struct {
+                        return false  // Struct constant access is NOT an lvalue (it's a global)
+                    }
                 case:
                 }
-                catch (err: KeyNotFoundError) {
-                    // REM: Not a struct, continue checking
-                }
+                catch (err: IndexOutOfBoundsError) { return false }
             }
             // Field access chain: all params must also be pure identifiers (field names)
             for p: Expr in arg.params {
@@ -764,8 +770,6 @@ is_pure_lvalue := func(arg: Expr, context: Context) returns Bool {
     case:
         return false
     }
-
-    catch (err: IndexOutOfBoundsError) { return false }
 }
 
 /// This is the core of the single-pass hoist+emit approach (Bug #143 fix).
@@ -5748,6 +5752,21 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
 
     indent_str := repeat("    ", indent)
 
+    // Bug #143: Process RHS FCall with emit_arg_string
+    // This handles builtins (to_ptr, size_of, etc.), throwing calls, by-ref params, and Dynamic params properly
+    mut rhs_string := ""
+    mut has_rhs_string := false
+    if not(expr.params.is_empty()) {
+        mut rhs := Expr()
+        expr.params.get(0, rhs)?
+        switch rhs.node_type {
+        case NodeType.FCall(_):
+            rhs_string = emit_arg_string(rhs, Ptr(), false, output, indent, ctx, context)?
+            has_rhs_string = true
+        case:
+        }
+    }
+
     // Bug #35: For underscore declarations, just emit the expression (discard result)
     // This avoids C redeclaration errors and matches the semantics of discarding
     if decl.name.eq("_") {
@@ -5987,14 +6006,18 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         output.push_str(til_name(name))
         if not(expr.params.is_empty()) {
             output.push_str(" = ")
-            mut mut_emit_first_param := Expr()
-            expr.params.get(0, mut_emit_first_param)?
-            emit_expr(mut_emit_first_param, output, 0, ctx, context)?
+            // Bug #143: Use rhs_string if available (already hoisted args)
+            if has_rhs_string {
+                output.push_str(rhs_string)
+            } else {
+                mut mut_emit_first_param := Expr()
+                expr.params.get(0, mut_emit_first_param)?
+                emit_expr(mut_emit_first_param, output, 0, ctx, context)?
+            }
         }
         output.push_str(";\n")
     } else {
-        // const declaration
-        // Bug #143: emit_fcall handles hoisting via emit_arg_string
+        // const declaration - Bug #143: Use rhs_string if available (already hoisted args)
         output.push_str(indent_str)
         if not(already_declared) {
             // INFER_TYPE should have been resolved by typer
@@ -6017,9 +6040,14 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         output.push_str(til_name(name))
         if not(expr.params.is_empty()) {
             output.push_str(" = ")
-            mut const_emit_first_param := Expr()
-            expr.params.get(0, const_emit_first_param)?
-            emit_expr(const_emit_first_param, output, 0, ctx, context)?
+            // Bug #143: Use rhs_string if available (already hoisted args)
+            if has_rhs_string {
+                output.push_str(rhs_string)
+            } else {
+                mut const_emit_first_param := Expr()
+                expr.params.get(0, const_emit_first_param)?
+                emit_expr(const_emit_first_param, output, 0, ctx, context)?
+            }
         }
         output.push_str(";\n")
     }
@@ -6158,6 +6186,9 @@ emit_funcdef := proc(_func_def: SFuncDef, expr: Expr, mut output: Str, indent: I
 emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) throws Str {
     indent_str := repeat("    ", indent)
 
+    // Bug #143: Use emit_arg_string to handle RHS hoisting
+    mut rhs_str := ""
+    mut has_rhs := false
     if not(expr.params.is_empty()) {
         mut rhs_expr := Expr()
         expr.params.get(0, rhs_expr)?
@@ -6183,6 +6214,9 @@ emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut
         case:
         }
 
+        // Process RHS with emit_arg_string (handles hoisting)
+        rhs_str = emit_arg_string(rhs_expr, Ptr(), false, output, indent, ctx, context)?
+        has_rhs = true
     }
 
     // Regular assignment
@@ -6224,15 +6258,13 @@ emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut
         // REM: Symbol not found means we don't know its type, so is_dynamic_target stays false
     }
 
-    if is_dynamic_target {
-        output.push_str("(")
-        output.push_str(TIL_PREFIX)
-        output.push_str("Dynamic)")
-    }
-    if not(expr.params.is_empty()) {
-        mut assign_rhs := Expr()
-        expr.params.get(0, assign_rhs)?
-        emit_expr(assign_rhs, output, 0, ctx, context)?
+    if has_rhs {
+        if is_dynamic_target {
+            output.push_str("(")
+            output.push_str(TIL_PREFIX)
+            output.push_str("Dynamic)")
+        }
+        output.push_str(rhs_str)
     }
     output.push_str(";\n")
 
@@ -6273,12 +6305,13 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
             case:
             }
 
+            // Bug #143: Use emit_arg_string to handle hoisting
+            return_str := emit_arg_string(thr_return_expr, Ptr(), false, output, indent, ctx, context)?
+
             // Regular return value - just emit it
             output.push_str(indent_str)
             output.push_str("*_ret = ")
-            mut thr_first_param := Expr()
-            expr.params.get(0, thr_first_param)?
-            emit_expr(thr_first_param, output, 0, ctx, context)?
+            output.push_str(return_str)
             output.push_str(";\n")
         }
         output.push_str(indent_str)
@@ -6297,44 +6330,48 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                     // REM: not variadic - variadic_fcall_info stays at default
                 }
                 if not(variadic_fcall_info.elem_type.is_empty()) {
-                    // Variadic call in return - use emit_arg_string for each arg
+                    // Variadic call in return - need to hoist it
+                    // Bug #143: Use emit_arg_string for regular args, pass empty map to hoist_variadic_args
+                    // (hoist_variadic_args already uses emit_arg_string internally)
+                    mut variadic_args := Vec.new(Expr)
+                    mut va_idx := add(1, variadic_fcall_info.regular_count)
+                    while va_idx.lt(return_expr.params.len()) {
+                        mut va_arg := Expr()
+                        return_expr.params.get(va_idx, va_arg)?
+                        variadic_args.push(va_arg)
+                        va_idx.inc()
+                    }
+                    empty_hoisted := Map.new(I64, Str)
+                    arr_var := hoist_variadic_args(variadic_fcall_info.elem_type, variadic_args, empty_hoisted, variadic_fcall_info.regular_count, output, indent, ctx, context)?
+
+                    // Bug #143: Get regular arg strings using emit_arg_string
+                    mut regular_args := Vec.new(Expr)
+                    mut ra_idx := 1
+                    while ra_idx.lt(add(1, variadic_fcall_info.regular_count)).and(ra_idx.lt(return_expr.params.len())) {
+                        mut ra_arg := Expr()
+                        return_expr.params.get(ra_idx, ra_arg)?
+                        regular_args.push(ra_arg)
+                        ra_idx.inc()
+                    }
                     var_fd := get_fcall_func_def(context, return_expr)?
                     catch (err: KeyNotFoundError) { }
-
-                    mut arg_strings := Vec.new(Str)
+                    mut regular_arg_strings := Vec.new(Str)
                     mut i := 0
-                    mut arg_idx := 1
-                    while arg_idx.lt(return_expr.params.len()) {
+                    while i.lt(regular_args.len()) {
                         mut arg := Expr()
-                        return_expr.params.get(arg_idx, arg)?
-                        is_variadic_arg := i.gteq(variadic_fcall_info.regular_count)
+                        regular_args.get(i, arg)?
                         mut param_type := Ptr()
-                        mut by_ref := false
+                        mut by_ref := true
                         if i.lt(var_fd.args.len()) {
                             mut param_decl := Declaration()
                             var_fd.args.get(i, param_decl)?
                             param_type.data = to_ptr(param_decl.value_type)
-                            if not(is_variadic_arg) {
-                                by_ref = param_needs_by_ref(param_decl)
-                            }
+                            by_ref = param_needs_by_ref(param_decl)
                         }
                         arg_str := emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?
-                        arg_strings.push(arg_str)
+                        regular_arg_strings.push(arg_str)
                         i.inc()
-                        arg_idx.inc()
-                        catch (err: IndexOutOfBoundsError) { }
                     }
-
-                    // Build variadic array using emit_variadic_array_with_strings
-                    mut variadic_arg_strings := Vec.new(Str)
-                    mut va_idx := variadic_fcall_info.regular_count
-                    while va_idx.lt(arg_strings.len()) {
-                        mut va_s := ""
-                        arg_strings.get(va_idx, va_s)?
-                        variadic_arg_strings.push(va_s)
-                        va_idx.inc()
-                    }
-                    arr_var := emit_variadic_array_with_strings(variadic_fcall_info.elem_type, variadic_arg_strings, output, indent, ctx)?
 
                     // Emit the function call storing result
                     temp_var := next_mangled(ctx)
@@ -6360,14 +6397,14 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                     case:
                     }
                     output.push_str("(")
-                    // Emit regular args using pre-computed arg_strings
+                    // Emit regular args
                     mut vret_arg_i := 0
-                    while vret_arg_i.lt(variadic_fcall_info.regular_count) {
+                    while vret_arg_i.lt(regular_arg_strings.len()) {
                         if vret_arg_i.gt(0) {
                             output.push_str(", ")
                         }
                         mut vret_arg_str := ""
-                        arg_strings.get(vret_arg_i, vret_arg_str)?
+                        regular_arg_strings.get(vret_arg_i, vret_arg_str)?
                         output.push_str(vret_arg_str)
                         vret_arg_i.inc()
                     }
@@ -6397,14 +6434,22 @@ emit_return := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
             }
         }
 
+        // Bug #143: Use emit_arg_string to handle hoisting
+        mut nv_return_str := ""
+        mut has_nv_return := false
+        if not(expr.params.is_empty()) {
+            mut ret_first_param := Expr()
+            expr.params.get(0, ret_first_param)?
+            nv_return_str = emit_arg_string(ret_first_param, Ptr(), false, output, indent, ctx, context)?
+            has_nv_return = true
+        }
+
         // Regular non-variadic return
         output.push_str(indent_str)
         output.push_str("return")
-        if not(expr.params.is_empty()) {
+        if has_nv_return {
             output.push_str(" ")
-            mut ret_first_param := Expr()
-            expr.params.get(0, ret_first_param)?
-            emit_expr(ret_first_param, output, 0, ctx, context)?
+            output.push_str(nv_return_str)
         }
         output.push_str(";\n")
     }
@@ -7430,10 +7475,33 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                 output.push_str(").data) {\n")
             } else {
                 // Not an enum pattern - fall through to generic comparison
-                output.push_str(switch_var)
-                output.push_str(" == ")
-                emit_expr(case_pattern, output, 0, ctx, context)?
-                output.push_str(") {\n")
+                // Bug #143: Use emit_arg_string to handle hoisting in case patterns like add(40, 2)
+                // We need to emit hoisting BEFORE the condition, so collect it first
+                mut case_hoist := ""
+                case_pattern_str := emit_arg_string(case_pattern, Ptr(), false, case_hoist, indent, ctx, context)?
+                // If there's hoisting code, we need to close the current if/else-if, emit hoisting, then reopen
+                // Actually, hoisting should go before the "if (" which we've already emitted
+                // For now, emit hoisting inline (it will appear inside the condition, which is invalid C)
+                // TODO: Restructure to emit hoisting before the "if ("
+                if not(case_hoist.is_empty()) {
+                    // We have hoisting code - this is a problem because we're already inside "if ("
+                    // Workaround: emit a compound statement expression (GNU extension)
+                    // ({ hoisting_code; switch_var == expr; })
+                    output.push_str("({\n")
+                    output.push_str(case_hoist)
+                    output.push_str(repeat("    ", indent.add(1)))
+                    output.push_str(switch_var)
+                    output.push_str(" == ")
+                    output.push_str(case_pattern_str)
+                    output.push_str(";\n")
+                    output.push_str(repeat("    ", indent))
+                    output.push_str("})) {\n")
+                } else {
+                    output.push_str(switch_var)
+                    output.push_str(" == ")
+                    output.push_str(case_pattern_str)
+                    output.push_str(") {\n")
+                }
             }
         case:
             // Generic case: emit equality comparison
