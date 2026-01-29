@@ -7,6 +7,34 @@
 
 * Fixed Bugs
 
+** Bug #150: C codegen doesn't emit struct definitions for local structs used only in globals
+:PROPERTIES:
+:DISCOVERED: 2026-01-29
+:FIXED: 2026-01-29
+:IMPACT: Compiled modes fail with gcc error "unknown type name"
+:STATUS: Fixed
+:RELATED: Found while testing Bug #139
+:END:
+
+*** Description
+When a struct is defined locally in a file and only used in a global variable
+declaration, the C code generator doesn't emit the struct definition. This
+causes gcc to fail with "unknown type name".
+
+*** Fix
+The scavenger's ~compute_reachable~ function processed struct constructor calls
+but didn't add the struct name to ~used_types~. When a struct was only used in
+a global variable (via constructor call), it was never marked as a used type,
+so the scavenger removed it.
+
+Fixed by adding ~used_types.insert(func_name.clone())~ when processing struct
+constructors in ~compute_reachable~ (both Rust and TIL versions).
+
+Files changed:
+- ~src/rs/scavenger.rs~: Added ~used_types.insert()~ in struct constructor branch
+- ~src/self/scavenger.til~: Same fix ported to TIL
+- ~src/tests.til~: Moved bug139.til from rs_interpreted/til_interpreted to all_common
+
 ** Bug #92: Range loops should allow explicit iterator type annotation
 :PROPERTIES:
 :DISCOVERED: 2026-01-08

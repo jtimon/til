@@ -1099,7 +1099,7 @@ main := proc(args: ..Str) {
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
     rs_interpreted.push(TestEntry(path="src/test/introspections.til")) // TODO: Add C impl for Introspection.has_const/has_field in src/ext.c
-    rs_interpreted.push(TestEntry(path="src/test/bug139.til"))  // TODO: expected_status=1 once Bug #139 is fixed; not in all_common due to Bug #150 (compiled modes)
+    // Bug #139 test moved to all_common now that Bug #150 is fixed
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
     // run_cmd doesn't support stdin, would need bash -c wrapper or new ext_proc
@@ -1109,7 +1109,7 @@ main := proc(args: ..Str) {
     // til_interpreted: tests that pass with til interpret but NOT yet with til_compiled
     // (tests that pass all 4 modes are in all_common)
     mut til_interpreted := Vec.new(TestEntry)
-    til_interpreted.push(TestEntry(path="src/test/bug139.til"))  // TODO: expected_status=1 once Bug #139 is fixed; not in all_common due to Bug #150 (compiled modes)
+    // Bug #139 test moved to all_common now that Bug #150 is fixed
 
     // til_compiled: tests run with the self-hosted TIL compiler only
     mut til_compiled := Vec.new(TestEntry)
@@ -1130,6 +1130,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/bug55.til"))
     all_common.push(TestEntry(path="src/test/bug56.til"))
     all_common.push(TestEntry(path="src/test/bug57.til"))
+    all_common.push(TestEntry(path="src/test/bug139.til"))  // TODO: expected_status=1 once Bug #139 is fixed
     all_common.push(TestEntry(path="src/test/c_mem.til"))
     all_common.push(TestEntry(path="src/test/cross_file_forward.til"))
     all_common.push(TestEntry(path="src/test/deterministic.til"))

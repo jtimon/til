@@ -9,57 +9,6 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #150: C codegen doesn't emit struct definitions for local structs used only in globals
-:PROPERTIES:
-:DISCOVERED: 2026-01-29
-:IMPACT: Compiled modes fail with gcc error "unknown type name"
-:STATUS: Open
-:RELATED: Found while testing Bug #139
-:END:
-
-*** Description
-When a struct is defined locally in a file and only used in a global variable
-declaration, the C code generator doesn't emit the struct definition. This
-causes gcc to fail with "unknown type name".
-
-*** Example
-#+BEGIN_SRC til
-mode test
-
-TestStruct := struct {
-    mut ptr_field: Ptr = Ptr()
-}
-
-_s := TestStruct(ptr_field=0)  // Only usage is in global
-#+END_SRC
-
-Generated C code has:
-#+BEGIN_SRC c
-static til_TestStruct _s;  // ERROR: til_TestStruct not defined
-#+END_SRC
-
-But the struct definition is never emitted.
-
-*** Affected Modes
-- rs_compiled: FAIL (gcc error)
-- til_compiled: FAIL (gcc error)
-- rs_interpreted: PASS
-- til_interpreted: PASS
-
-*** Likely Cause
-The struct scavenger is too aggressive - it removes struct definitions that appear
-unused, not realizing they're needed for global variable declarations. If not the
-scavenger, then ccodegen itself is likely to blame for not emitting the definition.
-
-*** Reproducer
-Run: ~rstil run src/test/bug139.til~
-
-Currently fails with gcc error "unknown type name 'til_TestStruct'".
-
-*** When Fixed
-In ~src/tests.til~, move bug139.til entries from rs_interpreted/til_interpreted
-to all_common (after Bug #139 is also fixed with expected_status=1).
-
 ** Bug #145: til_interpreted diverges from rs_interpreted for func in global init
 :PROPERTIES:
 :DISCOVERED: 2026-01-27
@@ -192,14 +141,16 @@ index_decl := Declaration(..., default_value=Ptr())
 #+END_SRC
 
 *** Reproducer
-Run: ~rstil interpret src/test/bug139.til~
+Run any of:
+- ~rstil interpret src/test/bug139.til~
+- ~rstil run src/test/bug139.til~
+- ~rstil_til interpret src/test/bug139.til~
+- ~rstil_til run src/test/bug139.til~
 
 Currently exits 0 (no error). Once fixed, should exit 1 with type error.
 
 *** When Fixed
-In ~src/tests.til~, update the two entries for bug139.til:
-- Add ~expected_status=1~ to both rs_interpreted and til_interpreted entries
-- Move to all_common once Bug #150 is also fixed (compiled modes currently fail)
+In ~src/tests.til~, add ~expected_status=1~ to the all_common entry for bug139.til.
 
 *** Fix Reference
 See commit 5031b866 which fixed the symptom by using Ptr() instead of NULL.
