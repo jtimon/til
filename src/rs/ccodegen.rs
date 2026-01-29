@@ -42,9 +42,6 @@ struct CodegenContext {
     hoisted_prototypes: Vec<String>,
     // Map original function name -> mangled name for nested functions
     nested_func_names: HashMap<String, String>,
-    // Map of hoisted struct default expressions ("struct_name:member_name" -> temp var name)
-    // Used to track which struct literal defaults were hoisted as temp vars
-    hoisted_struct_defaults: HashMap<String, String>,
 }
 
 impl CodegenContext {
@@ -64,7 +61,6 @@ impl CodegenContext {
             hoisted_functions: Vec::new(),
             hoisted_prototypes: Vec::new(),
             nested_func_names: HashMap::new(),
-            hoisted_struct_defaults: HashMap::new(),
         }
     }
 }
@@ -669,62 +665,6 @@ fn hoist_throwing_expr(
             ctx.hoisted_exprs.insert(ntv_expr_addr, ntv_temp_var.clone());
 
             return Ok(Some(ntv_temp_var));
-        }
-    }
-
-    // Check if this is a struct literal with throwing default values
-    if let NodeType::FCall(_) = &expr.node_type {
-        if let Some(sl_func_name) = get_func_name_string(&expr.params[0]) {
-            let has_named_args = expr.params.iter().skip(1).any(|sl_arg| matches!(&sl_arg.node_type, NodeType::NamedArg(_)));
-            if let Some(sl_struct_def) = context.scope_stack.lookup_struct(&sl_func_name).cloned() {
-                if expr.params.len() == 1 || has_named_args {
-                    // This is a struct literal - check for throwing defaults
-                    // Build map of named arg names that are provided
-                    let mut provided_names: std::collections::HashSet<String> = std::collections::HashSet::new();
-                    for sl_na_arg in expr.params.iter().skip(1) {
-                        if let NodeType::NamedArg(field_name) = &sl_na_arg.node_type {
-                            provided_names.insert(field_name.clone());
-                        }
-                    }
-
-                    // For each member with a default that's a throwing call and not overridden, emit temp var
-                    for member in &sl_struct_def.members {
-                        if !member.is_mut {
-                            continue;
-                        }
-                        if provided_names.contains(&member.name) {
-                            continue; // Named arg overrides default
-                        }
-                        if let Some(sl_default_expr) = sl_struct_def.default_values.get(&member.name) {
-                            if is_throwing_fcall(sl_default_expr, context) {
-                                // Get the function's throw types
-                                let sl_throw_types = if let Some(sl_first_param) = sl_default_expr.params.first() {
-                                    if let Some(lookup_name) = get_til_func_name_string(sl_first_param) {
-                                        context.scope_stack.lookup_func(&lookup_name)
-                                            .map(|fd| fd.throw_types.clone())
-                                            .unwrap_or_default()
-                                    } else {
-                                        Vec::new()
-                                    }
-                                } else {
-                                    Vec::new()
-                                };
-
-                                let sl_temp_name = next_mangled(ctx);
-                                // Emit the function call with out-param using emit_throwing_call_propagate
-                                emit_throwing_call_propagate(sl_default_expr, &sl_throw_types, Some(&sl_temp_name), None, output, indent, ctx, context)?;
-                                // Record that this struct default was hoisted using "struct_name:member_name" key
-                                let sl_key = format!("{}:{}", sl_func_name, member.name);
-                                ctx.hoisted_struct_defaults.insert(sl_key, sl_temp_name);
-                            } else {
-                                // Also recursively hoist any throwing expressions in the default
-                                // This handles nested struct constructors with throwing defaults
-                                hoist_throwing_expr(sl_default_expr, output, indent, ctx, context)?;
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -3207,17 +3147,6 @@ fn is_constant_declaration(expr: &Expr) -> bool {
     false
 }
 
-// Check if an expression is a function call that uses out-params (i.e., the function throws)
-// Such calls cannot be used inline in struct initializers - they need separate statements
-fn is_throwing_fcall(expr: &Expr, context: &Context) -> bool {
-    if let NodeType::FCall(_) = &expr.node_type {
-        if let Some(fd) = get_fcall_func_def(context, expr) {
-            return !fd.throw_types.is_empty();
-        }
-    }
-    false
-}
-
 // Emit a top-level constant declaration at file scope
 fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
@@ -3922,9 +3851,8 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     }
     context.scope_stack.frames.push(function_frame);
 
-    // Clear declared_vars and hoisted_struct_defaults for new function scope
+    // Clear declared_vars for new function scope
     ctx.declared_vars.clear();
-    ctx.hoisted_struct_defaults.clear();
 
     let mangled_name = format!("{}_{}", struct_name, member.name);
 
@@ -4218,9 +4146,8 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 }
                 context.scope_stack.frames.push(function_frame);
 
-                // Clear declared_vars and hoisted_struct_defaults for new function scope
+                // Clear declared_vars for new function scope
                 ctx.declared_vars.clear();
-                ctx.hoisted_struct_defaults.clear();
 
                 let func_name = til_name(&decl.name);
 
@@ -5933,45 +5860,6 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 emit_struct_literal_assign(output, &type_name, already_declared, "{0}");
             } else {
                 // Has default values or named args - emit designated initializer
-                // First check if any default value is a throwing function call
-                let mut throwing_defaults: Vec<ThrowingDefault> = Vec::new();
-                for member in &struct_def.members {
-                    if !member.is_mut {
-                        continue;
-                    }
-                    if named_values.contains_key(&member.name) {
-                        continue; // Named arg overrides default
-                    }
-                    if let Some(default_expr) = struct_def.default_values.get(&member.name) {
-                        if is_throwing_fcall(default_expr, context) {
-                            throwing_defaults.push(ThrowingDefault { member_name: &member.name, default_expr });
-                        }
-                    }
-                }
-
-                // If we have throwing defaults, emit them as separate statements first
-                for td in &throwing_defaults {
-                    // Get the function's throw types
-                    let throw_types = if let Some(first_param) = td.default_expr.params.first() {
-                        if let Some(lookup_name) = get_til_func_name_string(first_param) {
-                            context.scope_stack.lookup_func(&lookup_name)
-                                .map(|fd| fd.throw_types.clone())
-                                .unwrap_or_default()
-                        } else {
-                            Vec::new()
-                        }
-                    } else {
-                        Vec::new()
-                    };
-
-                    let temp_name = format!("_default_{}_{}", td.member_name, next_mangled(ctx));
-                    // Emit the function call with out-param using emit_throwing_call_propagate
-                    emit_throwing_call_propagate(td.default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
-                    // Record that this struct default was hoisted using "struct_name:member_name" key
-                    let key = format!("{}:{}", type_name, td.member_name);
-                    ctx.hoisted_struct_defaults.insert(key, temp_name);
-                }
-
                 output.push_str(&indent_str);
                 if !already_declared {
                     if !is_mut {
@@ -6002,16 +5890,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     if let Some(value_expr) = named_values.get(&member.name) {
                         emit_expr(value_expr, output, 0, ctx, context)?;
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
-                        // Check if this was a throwing default - use temp var instead
-                        let key = format!("{}:{}", type_name, member.name);
-                        if let Some(temp_name) = ctx.hoisted_struct_defaults.get(&key) {
-                            output.push_str(temp_name);
-                        } else if is_throwing_fcall(default_expr, context) {
-                            // Shouldn't happen - throwing defaults should be hoisted
-                            output.push_str("/* ERROR: unhoisted throwing default */");
-                        } else {
-                            emit_expr(default_expr, output, 0, ctx, context)?;
-                        }
+                        emit_expr(default_expr, output, 0, ctx, context)?;
                     } else {
                         // No default - use zero
                         output.push_str("0");
@@ -6751,12 +6630,6 @@ struct ParamTypeInfo {
     by_ref: bool,
 }
 
-// Info about a struct member with a throwing default value
-struct ThrowingDefault<'a> {
-    member_name: &'a String,
-    default_expr: &'a Expr,
-}
-
 // Info about a collected variable declaration for hoisting
 struct CollectedDeclaration {
     name: String,
@@ -7395,16 +7268,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     if let Some(value_expr) = named_values.get(&member.name) {
                         emit_expr(value_expr, output, 0, ctx, context)?;
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
-                        // Check if this was a throwing default - use temp var instead
-                        let key = format!("{}:{}", func_name, member.name);
-                        if let Some(temp_name) = ctx.hoisted_struct_defaults.get(&key) {
-                            output.push_str(temp_name);
-                        } else if is_throwing_fcall(default_expr, context) {
-                            // Shouldn't happen - throwing defaults should be hoisted
-                            output.push_str("/* ERROR: unhoisted throwing default */");
-                        } else {
-                            emit_expr(default_expr, output, 0, ctx, context)?;
-                        }
+                        emit_expr(default_expr, output, 0, ctx, context)?;
                     } else {
                         output.push_str("0");
                     }
@@ -7749,47 +7613,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         output.push_str(&func_name);
                         output.push_str("){}");
                     } else {
-                        // Check if any default value is a throwing function call
-                        // Such calls need out-params and can't be inlined in struct initializers
-                        let mut throwing_defaults: Vec<ThrowingDefault> = Vec::new();
-                        for member in &struct_def.members {
-                            if !member.is_mut {
-                                continue;
-                            }
-                            if let Some(default_expr) = struct_def.default_values.get(&member.name) {
-                                if is_throwing_fcall(default_expr, context) {
-                                    throwing_defaults.push(ThrowingDefault { member_name: &member.name, default_expr });
-                                }
-                            }
-                        }
-
-                        // If we have throwing defaults, emit them as separate statements first
-                        // Only do inline hoisting at statement level
-                        // At expression level, hoisting was already done by hoist_throwing_expr
-                        if is_stmt_level {
-                            for td in &throwing_defaults {
-                                // Get the function's throw types
-                                let throw_types = if let Some(first_param) = td.default_expr.params.first() {
-                                    if let Some(lookup_name) = get_til_func_name_string(first_param) {
-                                        context.scope_stack.lookup_func(&lookup_name)
-                                            .map(|fd| fd.throw_types.clone())
-                                            .unwrap_or_default()
-                                    } else {
-                                        Vec::new()
-                                    }
-                                } else {
-                                    Vec::new()
-                                };
-
-                                let temp_name = format!("_default_{}_{}", td.member_name, next_mangled(ctx));
-                                // Emit the function call with out-param using emit_throwing_call_propagate
-                                emit_throwing_call_propagate(td.default_expr, &throw_types, Some(&temp_name), None, output, indent, ctx, context)?;
-                                // Record that this struct default was hoisted using "struct_name:member_name" key
-                                let key = format!("{}:{}", func_name, td.member_name);
-                                ctx.hoisted_struct_defaults.insert(key, temp_name);
-                            }
-                        }
-
+                        // Has default values - emit designated initializer
                         output.push_str(&indent_str);
                         output.push_str("(");
                         output.push_str(TIL_PREFIX);
@@ -7808,16 +7632,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                             output.push_str(&member.name);
                             output.push_str(" = ");
                             if let Some(default_expr) = struct_def.default_values.get(&member.name) {
-                                // Check if this was a throwing default - use temp var instead
-                                let key = format!("{}:{}", func_name, member.name);
-                                if let Some(temp_name) = ctx.hoisted_struct_defaults.get(&key) {
-                                    output.push_str(temp_name);
-                                } else if is_throwing_fcall(default_expr, context) {
-                                    // Shouldn't happen - throwing defaults should be hoisted
-                                    output.push_str("/* ERROR: unhoisted throwing default */");
-                                } else {
-                                    emit_expr(default_expr, output, 0, ctx, context)?;
-                                }
+                                emit_expr(default_expr, output, 0, ctx, context)?;
                             } else {
                                 output.push_str("0");
                             }
