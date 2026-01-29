@@ -22,7 +22,7 @@ import("std.sys")
 // Returns ParseFileResult struct since TIL doesn't have tuples
 ParseFileResult := struct {
     mut ast: Expr = Expr()
-    mut mode_def: ModeDef = ModeDef()?
+    mut mode_def: ModeDef = ModeDef()
 }
 
 parse_file := proc(path: Str) returns ParseFileResult throws Str {

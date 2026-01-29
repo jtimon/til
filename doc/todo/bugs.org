@@ -9,6 +9,28 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #148: No typer error when ? is used on non-throwing call
+:PROPERTIES:
+:DISCOVERED: 2026-01-29
+:IMPACT: Unnecessary ? operators silently accepted, may cause unneeded hoisting code
+:STATUS: Open
+:END:
+
+*** Description
+When the ~?~ operator is used on a function call that doesn't throw, the typer
+should emit an error. Currently it silently accepts the unnecessary ~?~.
+
+*** Example
+#+BEGIN_SRC til
+// Vec.new doesn't throw, but this compiles without error:
+ModeDef := struct {
+    mut imports: Vec = Vec.new(Str)?  // Should error: Vec.new doesn't throw
+}
+#+END_SRC
+
+*** Expected Behavior
+The typer should emit an error like: "Error: ? operator used on non-throwing call"
+
 ** Bug #146: C translation non-determinism in loop variable naming
 :PROPERTIES:
 :DISCOVERED: 2026-01-28

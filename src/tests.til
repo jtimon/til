@@ -41,7 +41,7 @@ TestPhase := struct {
 // Running test - tracks a test in progress for parallel execution
 RunningTest := struct {
     mut pid: I64 = 0                // Current process ID
-    mut entry: TestEntry = TestEntry()?
+    mut entry: TestEntry = TestEntry()
     mut actual_file: Str = ""       // Unique actual output file path
     mut current_phase: I64 = 0      // Index into phases vec (0, 1, ...)
     mut phase_times: Vec = Vec.new(I64)  // Times for completed phases
