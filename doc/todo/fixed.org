@@ -7,6 +7,63 @@
 
 * Fixed Bugs
 
+** Bug #143: ccodegen hoisted_exprs uses fragile identity mechanism
+:PROPERTIES:
+:DISCOVERED: 2026-01-27
+:FIXED: 2026-01-29
+:IMPACT: TIL ccodegen fails when multiple expressions share same line/col (e.g., desugared switch)
+:STATUS: Fixed
+:END:
+
+*** Description
+The ccodegen hoisted_exprs map tracked which expressions had been "hoisted" (extracted
+to separate statements with temp variables) so that emit_expr could use the temp var
+instead of re-emitting the expression.
+
+The identity mechanism differed between Rust and TIL:
+- Rust used memory address: ~expr as *const Expr as usize~
+- TIL used line*1000000+col as workaround: ~expr.line.mul(1000000).add(expr.col)~
+
+Both approaches were fragile:
+- Memory addresses depend on how/when expressions are accessed
+- Line/col collides when expressions share locations (desugared switch statements)
+
+*** Implementation (Solution C: Single-pass hoist+emit)
+Combined hoisting and emission into a single pass via ~emit_arg_string~ function.
+When encountering an expression that needs hoisting, we hoist and emit in one step.
+
+**** What was done:
+1. Converted all call sites to use ~emit_arg_string~
+   - ~emit_fcall~: Process all args upfront, then emit call with pre-computed strings
+   - ~emit_variadic_call~, ~emit_throwing_call~, etc.
+   - Return statement variadic call handling
+   - Declaration RHS handling
+
+2. Removed old hoisting functions (now dead code)
+   - ~hoist_throwing_expr~ (-290 lines)
+   - ~hoist_throwing_args~ (-285 lines)
+   - ~hoist_for_dynamic_params~ (-160 lines)
+   - ~emit_fcall_name_and_args_for_throwing~ (-110 lines)
+   - ~emit_arg_with_param_type~ (-340 lines)
+   - ~HoistedArg~ struct, ~ThrowingDefault~ struct
+
+3. Removed ~hoisted_exprs~ HashMap entirely
+   - Removed field from ~CodegenContext~
+   - Removed all lookups in ~emit_expr~, ~emit_fcall~, etc.
+   - No more fragile identity tracking
+
+*** Files Changed
+- src/rs/ccodegen.rs: Implemented emit_arg_string, removed hoisting functions and hoisted_exprs
+- src/self/ccodegen.til: Ported same changes, adapted for TIL syntax
+
+*** Result
+~-1400 lines of code removed from each implementation. Simpler architecture,
+no identity tracking needed.
+
+*** Related
+- Bug #149: Discovered during port - scavenger was removing enum payload types
+- Issue #110: Switch desugaring was blocked by this bug
+
 ** Bug #149: Scavenger removes enum payload types
 :PROPERTIES:
 :DISCOVERED: 2026-01-29
