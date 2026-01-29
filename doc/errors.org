@@ -1,0 +1,191 @@
+#+TITLE: TIL Error Handling Design
+#+AUTHOR: TIL Development
+#+DATE: 2026-01-29
+
+* Overview
+
+TIL uses a throw/catch model with compile-time checking. Key design principle:
+**errors must be explicit at call sites**, similar to ownership transfers.
+
+* Current Implementation (Working)
+
+** Basic Throw/Catch
+#+BEGIN_SRC til
+MyError := struct { msg: Str = "error" }
+
+risky := func() throws MyError {
+    throw MyError()
+}
+
+safe := proc() {
+    risky()
+    catch (e: MyError) {
+        println("Caught: ", e.msg)
+    }
+}
+#+END_SRC
+
+** What Works Today
+- =throw= keyword for raising errors
+- =throws= declarations in function signatures
+- =catch= blocks with typed error handling
+- Multiple catch blocks for different error types
+- Type checker enforces: must declare =throws= or have matching =catch=
+
+* Design Decision: Require ? at All Throwing Call Sites
+
+** The Principle
+Just like =own= marks ownership transfer at call sites, =?= marks potential
+errors at call sites. Both make code self-documenting without looking up
+function signatures.
+
+** Proposed Syntax
+#+BEGIN_SRC til
+// ? required even when catching
+bar := proc() {
+    value := map.get("key")?   // ? marks "this can throw"
+    other := parse(input)?     // every throwing call marked
+
+    catch (e: KeyNotFoundError) {
+        println("Key missing")
+    }
+    catch (e: ParseError) {
+        println("Parse failed")
+    }
+}
+
+// Same ? when propagating
+foo := func() throws KeyNotFoundError {
+    value := map.get("key")?   // Same syntax, propagates up
+    return value
+}
+#+END_SRC
+
+** What ? Means in TIL vs Rust
+
+| Language | =expr?= means                           |
+|----------+-----------------------------------------|
+| Rust     | "propagate error if Err, unwrap if Ok"  |
+| TIL      | "this expression can throw"             |
+
+In TIL, =?= marks the call site. What happens to the error depends on:
+1. Is there a matching =catch= block? -> caught and handled
+2. Does the function declare =throws=? -> propagated to caller
+3. Neither? -> compile error
+
+** Why Require ? Everywhere
+
+*** Advantages
+1. **Self-documenting**: You see which calls can throw without signatures
+2. **Consistent with own**: Same philosophy - explicit at call site
+3. **Code review**: Spot all error points at a glance
+4. **Acknowledges risk**: Forces you to write "yes, I know this throws"
+
+*** The Cost
+- More typing (one character per throwing call)
+- If 10 throwing calls with one catch, you write =?= 10 times
+
+*** The Trade-off is Worth It
+Same reasoning as =own=: the explicitness helps when reading code,
+reviewing PRs, or debugging. You don't have to look up every function
+to know which ones can fail.
+
+** Comparison: Explicit Call Sites
+
+| Feature            | Call site syntax | What it marks          |
+|--------------------+------------------+------------------------|
+| Ownership transfer | =foo(own x)=     | x is consumed          |
+| Potential error    | =foo()?=         | call can throw         |
+
+Both follow the principle: **make important control flow visible at the
+call site, not hidden in signatures**.
+
+* Error Types
+
+** User-Defined Errors
+Any struct can be an error type:
+#+BEGIN_SRC til
+ParseError := struct {
+    msg: Str = ""
+    line: I64 = 0
+    col: I64 = 0
+}
+
+parse := func(input: Str) returns Ast throws ParseError {
+    if invalid(input) {
+        throw ParseError("bad syntax", 1, 5)
+    }
+    // ...
+}
+#+END_SRC
+
+** Built-in Error Types (Current)
+- =IndexOutOfBoundsError= - array/vec access
+- =KeyNotFoundError= - map access
+- Various others in core
+
+** PanicError (Future - Issue in post.org)
+An implicit error type that doesn't need =throws= declaration:
+#+BEGIN_SRC til
+// Proposed: panic throws implicitly catchable PanicError
+dangerous := proc() {
+    panic(loc(), "Something went wrong")
+    catch (err: PanicError) {
+        println("Caught panic: ", err.msg)
+    }
+}
+#+END_SRC
+
+* Catch Block Placement
+
+** Style Guide: Catches at End of Functions
+#+BEGIN_SRC til
+// CORRECT - catches at the end
+process := proc() {
+    a := step1()?
+    b := step2(a)?
+    c := step3(b)?
+    return c
+
+    catch (e: Error1) { handle1(e) }
+    catch (e: Error2) { handle2(e) }
+}
+
+// WRONG - don't interleave catches
+process := proc() {
+    a := step1()?
+    catch (e: Error1) { handle1(e) }
+
+    b := step2(a)?
+    catch (e: Error2) { handle2(e) }
+}
+#+END_SRC
+
+* Future Enhancements
+
+See post.org for details on:
+- =Result<T, E>= type (Rust-style alternative)
+- =rethrow= keyword
+- =finally= blocks
+- Better backtraces
+
+* Implementation Status
+
+| Feature                    | Status      |
+|----------------------------+-------------|
+| throw keyword              | Working     |
+| throws declaration         | Working     |
+| catch blocks               | Working     |
+| Type checking              | Working     |
+| ? at call sites (required) | Not yet     |
+| PanicError                 | Not yet     |
+| Result<T, E>               | Not yet     |
+
+* Relationship to Ownership Model
+
+The =?= requirement follows the same philosophy as =own= at call sites.
+See doc/ownership.org for the complete picture of TIL's explicit call-site
+design, which covers:
+- =own x= for ownership transfer
+- =expr?= for potential errors
+- Both making important control flow visible where it happens
