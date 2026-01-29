@@ -60,6 +60,28 @@ When encountering an expression that needs hoisting, we hoist and emit in one st
 ~-1400 lines of code removed from each implementation. Simpler architecture,
 no identity tracking needed.
 
+*** Additional TIL Porting Work
+After initial port, TIL-generated C differed from Rust. Required fixes:
+
+1. Switch case handling must match Rust structure exactly:
+   - Identifier/LLiteral: use ~emit_expr~ with shared ~) {\n~ after all branches
+   - FCall else branch: use ~emit_arg_string~ with compound statement (GNU extension)
+   - Generic case: use ~emit_expr~ with shared ~) {\n~
+   - TIL had incorrectly used ~emit_arg_string~ everywhere, diverging from Rust
+
+2. ~is_pure_lvalue~ struct lookup: TIL uses flag pattern since ~lookup_struct~ throws
+   on not-found (Rust returns Option). Changed to:
+   ~mut is_struct := false; _ := lookup_struct()?; is_struct = true; catch {...}~
+
+3. Variadic returns: TIL was using ~emit_variadic_array_with_strings~ but Rust uses
+   ~hoist_variadic_args~. The difference: ~hoist_variadic_args~ includes error check
+   blocks for Array.set, ~emit_variadic_array_with_strings~ doesn't. Fixed TIL to
+   call ~hoist_variadic_args~ matching Rust.
+
+Key lesson: TIL code must match Rust structure exactly (same functions called in
+same places), not just produce similar output. Even dead code (empty if blocks)
+must be identical.
+
 *** Related
 - Bug #149: Discovered during port - scavenger was removing enum payload types
 - Issue #110: Switch desugaring was blocked by this bug
