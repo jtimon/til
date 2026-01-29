@@ -3,9 +3,11 @@ mode liba
 import("self.init")
 import("self.parser")
 
-// Garbager phase: Auto-generates delete() methods for structs and (future) inserts
+// Garbager phase: Auto-generates delete() methods for structs and inserts
 // automatic delete() calls for ASAP destruction.
 // This phase runs after desugarer, before precomp.
+// NOTE: Step 4 (ASAP deletion / liveness analysis) is disabled for now.
+// Only Step 3 (auto-generating delete methods for structs) is active.
 
 /// Result of generating a delete method - contains the declaration and expression.
 /// Used instead of tuple to maintain Rust/TIL parity (TIL doesn't have tuples).
@@ -184,6 +186,9 @@ garbager_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         }
         return Expr.new_clone(e.node_type, e, decl_new_params2)
     // Recurse into FuncDef bodies
+    // NOTE: Step 4 (ASAP deletion / liveness analysis) is disabled for now.
+    // Only Step 3 (auto-generating delete methods for structs) is active.
+    // Step 4 will be enabled incrementally once we have better testing.
     case NodeType.FuncDef(func_def):
         mut new_body := Vec.new(Expr)
         for func_i in 0..func_def.body.len() {

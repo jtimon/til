@@ -691,6 +691,7 @@ til_Ptr til_Ptr_new_by_size(const til_I64* til_size) {
 til_Ptr til_Ptr_offset(const til_Ptr* til_self, const til_I64* til_offset) {
     til_Ptr til_p = {.data = til_NULL, .is_borrowed = 0};
     til_p.data = til_I64_add(&til_self->data, til_offset);
+    til_p.is_borrowed = 1;
     return til_p;
     return (til_Ptr){0};
 }

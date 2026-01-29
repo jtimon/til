@@ -375,18 +375,18 @@ fn ufcs_func_def(context: &mut Context, e: &Expr, func_def: SFuncDef) -> Result<
 /// Transform Declaration - register the declared variable in scope, then transform value
 fn ufcs_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser::Declaration) -> Result<Expr, String> {
     // Get value type for the declared variable
+    // Issue #117: Use decl.value_type (resolved by typer) if available, otherwise try to infer from value
     let inner_e = e.get(0)?;
-    let mut value_type = match get_value_type(context, &inner_e) {
-        Ok(val_type) => val_type,
-        Err(_) => ValueType::TCustom("Dynamic".to_string()), // Fallback for unresolved types
-    };
-    // Handle explicit type annotation (e.g., `mut val : U8 = 41`)
-    // When declaration has explicit type and it differs from inferred type, use the explicit type
-    if decl.value_type != ValueType::TCustom(INFER_TYPE.to_string()) {
-        if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
-            value_type = decl.value_type.clone();
+    let value_type = if decl.value_type != ValueType::TCustom(INFER_TYPE.to_string()) {
+        // Type was explicitly declared or resolved by typer - use it
+        decl.value_type.clone()
+    } else {
+        // Type not resolved yet - try to infer from value expression
+        match get_value_type(context, &inner_e) {
+            Ok(val_type) => val_type,
+            Err(_) => ValueType::TCustom("Dynamic".to_string()), // Fallback for unresolved types
         }
-    }
+    };
 
     // For struct definitions, register the struct so methods can be resolved
     if let NodeType::StructDef(struct_def) = &inner_e.node_type {

@@ -457,14 +457,22 @@ delete := proc(mut self: MyStruct) {
 
 Files: garbager.rs, garbager.til (new)
 
-**** Step 4: Liveness Analysis and Delete Insertion
+**** Step 4: Liveness Analysis and Delete Insertion (DISABLED - partial impl)
 Add liveness analysis to track when variables are last used, then insert ~var.delete()~ calls.
+
+*Status:* VarLifetime struct and helper functions are implemented in garbager.rs but
+DISABLED pending more testing. Complex interactions with:
+- Return values: Must NOT delete variables being returned (ownership transfer)
+- Control flow: Early exits need deletes inserted before return/throw
+- Ptr.offset() creates aliased pointers that can't be individually deleted
+
+The implementation is marked with ~#[allow(dead_code)]~ in Rust. Can be enabled
+incrementally once proper testing infrastructure is in place.
 
 Data structure:
 #+BEGIN_SRC rust
 struct VarLifetime {
     name: String,
-    value_type: ValueType,
     last_use_stmt_idx: Option<usize>,
     is_deleted: bool,
 }
@@ -475,9 +483,11 @@ Note: No need for ~has_delete~ field - after Step 3, every struct has ~delete()~
 Algorithm:
 1. Analysis pass: Scan statements, track last use index per variable
 2. Transform pass: Insert ~var.delete()~ statement after last_use_stmt_idx
+3. Return handling: Variables used in return expression should NOT be deleted
 
 Handle control flow:
 - Early exits (return/throw): Insert deletes for all still-live variables before exit
+  - EXCEPT variables used in the return/throw expression (ownership transfers)
 - Branches (if/else/switch): Conservative - only delete if ALL paths agree variable is dead, otherwise delete after branch
 - Loops: Most conservative - variables used in loop body deleted after loop ends
 - Scope exit: Safety net - insert deletes for any remaining live variables at function end

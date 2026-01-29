@@ -1,4 +1,4 @@
-// Garbager phase: Auto-generates delete() methods for structs and (future) inserts
+// Garbager phase: Auto-generates delete() methods for structs and inserts
 // automatic delete() calls for ASAP destruction.
 // This phase runs after desugarer, before precomp.
 
@@ -13,6 +13,137 @@ use crate::rs::parser::{
 struct DeleteMethodResult {
     decl: Declaration,
     expr: Expr,
+}
+
+/// Tracks lifetime information for a local variable.
+/// Used for liveness analysis to determine when to insert delete() calls.
+/// NOTE: Step 4 is temporarily disabled - this code is kept for future use.
+#[allow(dead_code)]
+struct VarLifetime {
+    name: String,
+    last_use_stmt_idx: Option<usize>,
+    is_deleted: bool,
+}
+
+/// Check if a type name represents a type that needs delete().
+/// All types have delete() after Step 2, but we only want to call it for types
+/// that actually have heap data to free.
+/// NOTE: Step 4 is temporarily disabled - this code is kept for future use.
+#[allow(dead_code)]
+fn type_needs_delete(type_name: &str) -> bool {
+    match type_name {
+        // Types with heap data that need delete()
+        "Str" | "Vec" | "Array" | "Set" | "Map" | "List" | "Ptr" => true,
+        // Primitive types have no-op delete() - skip calling it
+        "I64" | "U8" | "Bool" | "Type" => false,
+        // Custom structs may have heap fields, so conservatively call delete()
+        _ => true,
+    }
+}
+
+/// Build a delete() call expression for a variable: var_name.delete()
+/// NOTE: Step 4 is temporarily disabled - this code is kept for future use.
+#[allow(dead_code)]
+fn build_delete_call(var_name: &str, line: usize, col: usize) -> Expr {
+    // Build: var_name.delete()
+    // AST: Identifier(var_name) [ Identifier("delete") ] wrapped in FCall
+    let delete_access = Expr::new_explicit(
+        NodeType::Identifier(var_name.to_string()),
+        vec![
+            Expr::new_explicit(NodeType::Identifier("delete".to_string()), vec![], line, col),
+        ],
+        line,
+        col,
+    );
+
+    Expr::new_explicit(
+        NodeType::FCall(false),
+        vec![delete_access],
+        line,
+        col,
+    )
+}
+
+/// Check if a statement is a return/throw that transfers ownership of the variable.
+/// Returns true if the variable is being returned or thrown (ownership transfer to caller).
+/// NOTE: Step 4 is temporarily disabled - this code is kept for future use.
+#[allow(dead_code)]
+fn is_ownership_transfer(stmt: &Expr, var_name: &str) -> bool {
+    match &stmt.node_type {
+        NodeType::Return | NodeType::Throw => {
+            // Check if the returned/thrown value contains the variable
+            if !stmt.params.is_empty() {
+                // For simple return var_name, we don't want to delete
+                // For return expr_using(var_name), the expr consumes it, so we still don't delete
+                return expr_uses_var(&stmt.params[0], var_name);
+            }
+            false
+        },
+        _ => false,
+    }
+}
+
+/// Collect variable names used in an expression (recursively).
+/// Returns true if the given var_name is used in this expression.
+/// NOTE: Step 4 is temporarily disabled - this code is kept for future use.
+#[allow(dead_code)]
+fn expr_uses_var(e: &Expr, var_name: &str) -> bool {
+    match &e.node_type {
+        NodeType::Identifier(name) => {
+            if name == var_name {
+                return true;
+            }
+        },
+        _ => {}
+    }
+    // Recurse into params
+    for p in &e.params {
+        if expr_uses_var(p, var_name) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Analyze a function body to collect local variable declarations and their last use.
+/// NOTE: Step 4 is temporarily disabled - this code is kept for future use.
+#[allow(dead_code)]
+fn analyze_function_body(body: &[Expr]) -> Vec<VarLifetime> {
+    let mut lifetimes: Vec<VarLifetime> = Vec::new();
+
+    // First pass: collect all declarations
+    for stmt in body {
+        if let NodeType::Declaration(decl) = &stmt.node_type {
+            // Only track mutable variables (immutable ones can't be reassigned and
+            // typically don't own heap data directly)
+            if decl.is_mut {
+                // Get the type name from the value_type
+                let type_name = match &decl.value_type {
+                    ValueType::TCustom(name) => name.clone(),
+                    _ => continue, // Skip functions, types, etc.
+                };
+
+                if type_needs_delete(&type_name) {
+                    lifetimes.push(VarLifetime {
+                        name: decl.name.clone(),
+                        last_use_stmt_idx: None,
+                        is_deleted: false,
+                    });
+                }
+            }
+        }
+    }
+
+    // Second pass: find last use of each variable
+    for (stmt_idx, stmt) in body.iter().enumerate() {
+        for lifetime in lifetimes.iter_mut() {
+            if expr_uses_var(stmt, &lifetime.name) {
+                lifetime.last_use_stmt_idx = Some(stmt_idx);
+            }
+        }
+    }
+
+    lifetimes
 }
 
 /// Generate a delete() method for a struct that doesn't have one.
@@ -154,6 +285,9 @@ pub fn garbager_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             Ok(Expr::new_clone(e.node_type.clone(), e, decl_new_params))
         },
         // Recurse into FuncDef bodies
+        // NOTE: Step 4 (ASAP deletion / liveness analysis) is disabled for now.
+        // Only Step 3 (auto-generating delete methods for structs) is active.
+        // Step 4 will be enabled incrementally once the UFCS scope tracking issue is resolved.
         NodeType::FuncDef(func_def) => {
             let mut new_body = Vec::new();
             for stmt in &func_def.body {

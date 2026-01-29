@@ -43,6 +43,7 @@ Ptr := struct {
     offset := proc(self: Ptr, offset: I64) returns Ptr {
         mut p := Ptr()
         p.data = self.data.add(offset)
+        p.is_borrowed = 1  // Offset pointers don't own memory, parent does
         return p
     }
 
