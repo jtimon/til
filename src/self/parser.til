@@ -1736,238 +1736,9 @@ transform_continue_with_step := func(expr: Expr, step_expr: Expr) returns Expr t
     }
 }
 
-parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
-    initial_token := lexer.peek()?
-    lexer.advance(1)? // consume 'for'
-
-    // Expect loop variable name
-    ident_token := lexer.expect(TokenType.Identifier)?
-    // Replace _ with a unique generated name to avoid C redeclaration issues
-    mut loop_var_name := ""
-    if ident_token.token_str.eq("_") {
-        loop_var_name = next_loop_var()
-    } else {
-        loop_var_name = ident_token.token_str.clone()
-    }
-
-    // Check for type annotation: for VAR: TYPE in ...
-    // Bug #32 fix: Now we can use lexer.peek().token_type directly
-    switch lexer.peek()?.token_type {
-    case TokenType.Colon:
-        lexer.advance(1)? // consume ':'
-
-        // Get the type annotation
-        type_token := lexer.expect(TokenType.Identifier)?
-        var_type_name := type_token.token_str.clone()
-
-        _ := lexer.expect(TokenType.In)?
-
-        // Parse expression after 'in' - could be Range or collection
-        // Bug #92: Don't use parse_case_expr here because its pattern matching logic
-        // interferes with function calls like list_dir(dir)?
-        first_expr := parse_primary(lexer)?
-
-        // Check if it's a Range expression (primary followed by ..)
-        mut typed_is_range := false
-        switch lexer.peek()?.token_type {
-        case TokenType.DoubleDot:
-            typed_is_range = true
-        case:
-        }
-
-        if typed_is_range {
-            // Range-based for with type annotation: for VAR: TYPE in start..end { ... }
-            lexer.advance(1)? // consume ..
-            typed_start_expr := first_expr
-            typed_end_expr := parse_primary(lexer)?
-
-            _ := lexer.expect(TokenType.LeftBrace)?
-            typed_body_expr := parse_body(lexer, TokenType.RightBrace)?
-
-            // Same desugaring as untyped range, but with explicit type
-            // typed_is_forward: 0 = unknown (runtime), 1 = forward, 2 = reverse
-            mut typed_is_forward := 0
-            switch typed_start_expr.node_type {
-            case NodeType.LLiteral(typed_start_lit):
-                switch typed_start_lit {
-                case Literal.Number(typed_start_str):
-                    switch typed_end_expr.node_type {
-                    case NodeType.LLiteral(typed_end_lit):
-                        switch typed_end_lit {
-                        case Literal.Number(typed_end_str):
-                            typed_start_val := typed_start_str.to_i64()
-                            typed_end_val := typed_end_str.to_i64()
-                            if typed_start_val.lt(typed_end_val) {
-                                typed_is_forward = 1
-                            } else {
-                                typed_is_forward = 2
-                            }
-                        case:
-                        }
-                    case:
-                    }
-                case:
-                }
-            case:
-            }
-
-            // Declaration with explicit type
-            mut typed_decl := Declaration()
-            typed_decl.name = loop_var_name.clone()
-            typed_decl.value_type = str_to_value_type(var_type_name)
-            typed_decl.is_mut = true
-            mut typed_decl_params := Vec.new(Expr)
-            typed_decl_params.push(typed_start_expr.clone())
-            typed_decl_expr := Expr.new_parse(NodeType.Declaration(typed_decl), initial_token.clone(), typed_decl_params)
-
-            // Helper: create forward while loop
-            typed_make_fwd_while := func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr throws Str {
-                mut lt_params := Vec.new(Expr)
-                lt_ident := Expr.new_parse(NodeType.Identifier("lt"), tok.clone(), Vec.new(Expr))
-                lt_params.push(lt_ident)
-                cond_var := Expr.new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), lt_params)
-                mut cond_params := Vec.new(Expr)
-                cond_params.push(cond_var)
-                cond_params.push(end.clone())
-                cond := Expr.new_explicit(NodeType.FCall(false),cond_params, tok.line, tok.col)
-
-                mut inc_method_params := Vec.new(Expr)
-                inc_method := Expr.new_parse(NodeType.Identifier("inc"), tok.clone(), Vec.new(Expr))
-                inc_method_params.push(inc_method)
-                inc_var := Expr.new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), inc_method_params)
-                mut inc_params := Vec.new(Expr)
-                inc_params.push(inc_var)
-                inc := Expr.new_explicit(NodeType.FCall(false),inc_params, tok.line, tok.col)
-
-                // Bug #57 fix: Transform continue statements to include increment before continue
-                transformed_body := transform_continue_with_step(body, inc)?
-                mut body_params := transformed_body.params_clone()?
-                body_params.push(inc.clone())
-                while_body := Expr.new_explicit(NodeType.Body, body_params, body.line, body.col)
-
-                mut while_params := Vec.new(Expr)
-                while_params.push(cond)
-                while_params.push(while_body)
-
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
-            }
-
-            // Helper: create reverse while loop
-            typed_make_rev_while := func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr throws Str {
-                mut gt_params := Vec.new(Expr)
-                gt_ident := Expr.new_parse(NodeType.Identifier("gt"), tok.clone(), Vec.new(Expr))
-                gt_params.push(gt_ident)
-                cond_var := Expr.new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), gt_params)
-                mut cond_params := Vec.new(Expr)
-                cond_params.push(cond_var)
-                cond_params.push(end.clone())
-                cond := Expr.new_explicit(NodeType.FCall(false),cond_params, tok.line, tok.col)
-
-                mut dec_method_params := Vec.new(Expr)
-                dec_method := Expr.new_parse(NodeType.Identifier("dec"), tok.clone(), Vec.new(Expr))
-                dec_method_params.push(dec_method)
-                dec_var := Expr.new_parse(node_type_clone(NodeType.Identifier(loop_var)), tok.clone(), dec_method_params)
-                mut dec_params := Vec.new(Expr)
-                dec_params.push(dec_var)
-                dec := Expr.new_explicit(NodeType.FCall(false),dec_params, tok.line, tok.col)
-
-                // Bug #57 fix: Transform continue statements to include decrement before continue
-                transformed_body := transform_continue_with_step(body, dec)?
-                mut body_params := transformed_body.params_clone()?
-                body_params.push(dec.clone())
-                while_body := Expr.new_explicit(NodeType.Body, body_params, body.line, body.col)
-
-                mut while_params := Vec.new(Expr)
-                while_params.push(cond)
-                while_params.push(while_body)
-
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
-            }
-
-            mut typed_loop_expr := Expr()
-            if typed_is_forward.eq(1) {
-                // Compile-time: forward loop only
-                typed_loop_expr = typed_make_fwd_while(typed_body_expr, loop_var_name, typed_end_expr, initial_token)?
-            } else {
-                if typed_is_forward.eq(2) {
-                    // Compile-time: reverse loop only
-                    typed_loop_expr = typed_make_rev_while(typed_body_expr, loop_var_name, typed_end_expr, initial_token)?
-                } else {
-                    // Runtime: if start < end { forward } else { reverse }
-                    typed_fwd_while := typed_make_fwd_while(typed_body_expr, loop_var_name, typed_end_expr, initial_token)?
-                    typed_rev_while := typed_make_rev_while(typed_body_expr, loop_var_name, typed_end_expr, initial_token)?
-
-                    typed_lt_ident := Expr.new_parse(NodeType.Identifier("lt"), initial_token.clone(), Vec.new(Expr))
-                    mut typed_direction_cond_params := Vec.new(Expr)
-                    typed_direction_cond_params.push(typed_lt_ident)
-                    typed_direction_cond_params.push(typed_start_expr.clone())
-                    typed_direction_cond_params.push(typed_end_expr.clone())
-                    typed_direction_cond := Expr.new_explicit(NodeType.FCall(false), typed_direction_cond_params, initial_token.line, initial_token.col)
-
-                    mut typed_fwd_body_params := Vec.new(Expr)
-                    typed_fwd_body_params.push(typed_fwd_while)
-                    typed_fwd_body := Expr.new_explicit(NodeType.Body, typed_fwd_body_params, initial_token.line, initial_token.col)
-
-                    mut typed_rev_body_params := Vec.new(Expr)
-                    typed_rev_body_params.push(typed_rev_while)
-                    typed_rev_body := Expr.new_explicit(NodeType.Body, typed_rev_body_params, initial_token.line, initial_token.col)
-
-                    mut typed_if_params := Vec.new(Expr)
-                    typed_if_params.push(typed_direction_cond)
-                    typed_if_params.push(typed_fwd_body)
-                    typed_if_params.push(typed_rev_body)
-                    typed_loop_expr = Expr.new_explicit(NodeType.If, typed_if_params, initial_token.line, initial_token.col)
-                }
-            }
-
-            mut typed_result_params := Vec.new(Expr)
-            typed_result_params.push(typed_decl_expr)
-            typed_result_params.push(typed_loop_expr)
-            return Expr.new_explicit(NodeType.Body, typed_result_params, initial_token.line, initial_token.col)
-        }
-
-        // Collection-based for: for VAR: TYPE in COLLECTION { ... }
-        _ := lexer.expect(TokenType.LeftBrace)?
-        forin_body_expr := parse_body(lexer, TokenType.RightBrace)?
-
-        // ForIn node: params[0] = Identifier(var_name), params[1] = collection, params[2] = body
-        var_ident := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token.clone(), Vec.new(Expr))
-
-        mut forin_params := Vec.new(Expr)
-        forin_params.push(var_ident)
-        forin_params.push(first_expr)
-        forin_params.push(forin_body_expr)
-
-
-        return Expr.new_explicit(NodeType.ForIn(var_type_name), forin_params, initial_token.line, initial_token.col)
-    case:
-        // Fall through to range-based for
-    }
-
-    // Range-based for: for VAR in RANGE { ... }
-    _ := lexer.expect(TokenType.In)?
-
-    // Parse the range expression (e.g., 1..10)
-    range_expr := parse_case_expr(lexer)?
-
-    // Check if it's a Range node type
-    mut is_range := false
-    switch range_expr.node_type {
-        case NodeType.Range:
-            is_range = true
-        case:
-    }
-    if not(is_range) {
-        throw ident_token.error(lexer.path, "Expected range expression (start..end) after 'in'. For collection iteration, use 'for VAR: TYPE in COLLECTION'")
-    }
-    start_expr := range_expr.get(0)?.clone()
-    end_expr := range_expr.get(1)?.clone()
-
-    _ := lexer.expect(TokenType.LeftBrace)?
-    body_expr := parse_body(lexer, TokenType.RightBrace)?
-
+// Helper to desugar range-based for loop to while loop
+// Shared by typed (for i: I64 in 0..10) and untyped (for i in 0..10) range loops
+desugar_range_for := func(loop_var_name: Str, var_type: Str, start_expr: Expr, end_expr: Expr, body_expr: Expr, initial_token: Token) returns Expr throws Str {
     // Check if both bounds are numeric literals for compile-time direction detection
     // is_forward: 0 = unknown (runtime), 1 = forward, 2 = reverse
     mut is_forward := 0
@@ -1995,16 +1766,16 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     case:
     }
 
-    // let loop_var := <start_expr>
+    // Declaration with specified type (could be explicit or INFER_TYPE)
     mut decl := Declaration()
     decl.name = loop_var_name.clone()
-    decl.value_type = str_to_value_type(INFER_TYPE)
+    decl.value_type = str_to_value_type(var_type)
     decl.is_mut = true
     mut decl_params := Vec.new(Expr)
     decl_params.push(start_expr.clone())
     decl_expr := Expr.new_parse(NodeType.Declaration(decl), initial_token.clone(), decl_params)
 
-    // Helper: create forward while loop
+    // Helper to create forward while loop
     make_fwd_while := func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr throws Str {
         mut lt_params := Vec.new(Expr)
         lt_ident := Expr.new_parse(NodeType.Identifier("lt"), tok.clone(), Vec.new(Expr))
@@ -2037,7 +1808,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         return Expr.new_explicit(NodeType.While, while_params, tok.line, tok.col)
     }
 
-    // Helper: create reverse while loop
+    // Helper to create reverse while loop
     make_rev_while := func(body: Expr, loop_var: Str, end: Expr, tok: Token) returns Expr throws Str {
         mut gt_params := Vec.new(Expr)
         gt_ident := Expr.new_parse(NodeType.Identifier("gt"), tok.clone(), Vec.new(Expr))
@@ -2110,8 +1881,103 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     final_params.push(decl_expr)
     final_params.push(loop_expr)
 
-
     return Expr.new_explicit(NodeType.Body, final_params, initial_token.line, initial_token.col)
+}
+
+parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+    initial_token := lexer.peek()?
+    lexer.advance(1)? // consume 'for'
+
+    // Expect loop variable name
+    ident_token := lexer.expect(TokenType.Identifier)?
+    // Replace _ with a unique generated name to avoid C redeclaration issues
+    mut loop_var_name := ""
+    if ident_token.token_str.eq("_") {
+        loop_var_name = next_loop_var()
+    } else {
+        loop_var_name = ident_token.token_str.clone()
+    }
+
+    // Check for type annotation: for VAR: TYPE in ...
+    // Bug #32 fix: Now we can use lexer.peek().token_type directly
+    switch lexer.peek()?.token_type {
+    case TokenType.Colon:
+        lexer.advance(1)? // consume ':'
+
+        // Get the type annotation
+        type_token := lexer.expect(TokenType.Identifier)?
+        var_type_name := type_token.token_str.clone()
+
+        _ := lexer.expect(TokenType.In)?
+
+        // Parse expression after 'in' - could be Range or collection
+        // Bug #92: Don't use parse_case_expr here because its pattern matching logic
+        // interferes with function calls like list_dir(dir)?
+        first_expr := parse_primary(lexer)?
+
+        // Check if it's a Range expression (primary followed by ..)
+        mut typed_is_range := false
+        switch lexer.peek()?.token_type {
+        case TokenType.DoubleDot:
+            typed_is_range = true
+        case:
+        }
+
+        if typed_is_range {
+            // Range-based for with type annotation: for VAR: TYPE in start..end { ... }
+            lexer.advance(1)? // consume ..
+            typed_start_expr := first_expr
+            typed_end_expr := parse_primary(lexer)?
+
+            _ := lexer.expect(TokenType.LeftBrace)?
+            typed_body_expr := parse_body(lexer, TokenType.RightBrace)?
+
+            // Use shared helper for range desugaring with explicit type
+            return desugar_range_for(loop_var_name, var_type_name, typed_start_expr, typed_end_expr, typed_body_expr, initial_token)?
+        }
+
+        // Collection-based for: for VAR: TYPE in COLLECTION { ... }
+        _ := lexer.expect(TokenType.LeftBrace)?
+        forin_body_expr := parse_body(lexer, TokenType.RightBrace)?
+
+        // ForIn node: params[0] = Identifier(var_name), params[1] = collection, params[2] = body
+        var_ident := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token.clone(), Vec.new(Expr))
+
+        mut forin_params := Vec.new(Expr)
+        forin_params.push(var_ident)
+        forin_params.push(first_expr)
+        forin_params.push(forin_body_expr)
+
+
+        return Expr.new_explicit(NodeType.ForIn(var_type_name), forin_params, initial_token.line, initial_token.col)
+    case:
+        // Fall through to range-based for
+    }
+
+    // Range-based for: for VAR in RANGE { ... }
+    _ := lexer.expect(TokenType.In)?
+
+    // Parse the range expression (e.g., 1..10)
+    range_expr := parse_case_expr(lexer)?
+
+    // Check if it's a Range node type
+    mut is_range := false
+    switch range_expr.node_type {
+        case NodeType.Range:
+            is_range = true
+        case:
+    }
+    if not(is_range) {
+        throw ident_token.error(lexer.path, "Expected range expression (start..end) after 'in'. For collection iteration, use 'for VAR: TYPE in COLLECTION'")
+    }
+    start_expr := range_expr.get(0)?.clone()
+    end_expr := range_expr.get(1)?.clone()
+
+    _ := lexer.expect(TokenType.LeftBrace)?
+    body_expr := parse_body(lexer, TokenType.RightBrace)?
+
+    // Use shared helper for range desugaring with inferred type
+    return desugar_range_for(loop_var_name, INFER_TYPE, start_expr, end_expr, body_expr, initial_token)?
 }
 
 // Helper function to extract full identifier name from an expression

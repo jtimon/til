@@ -1305,6 +1305,132 @@ pub fn transform_continue_with_step(expr: &Expr, step_expr: &Expr) -> Expr {
     }
 }
 
+// Helper to desugar range-based for loop to while loop
+// Shared by typed (for i: I64 in 0..10) and untyped (for i in 0..10) range loops
+fn desugar_range_for(
+    loop_var_name: &str,
+    var_type: &str,
+    start_expr: &Expr,
+    end_expr: &Expr,
+    body_expr: &Expr,
+    initial_token: &Token,
+) -> Expr {
+    // Check if both bounds are numeric literals for compile-time direction detection
+    let start_literal = match &start_expr.node_type {
+        NodeType::LLiteral(Literal::Number(s)) => s.parse::<i64>().ok(),
+        _ => None,
+    };
+    let end_literal = match &end_expr.node_type {
+        NodeType::LLiteral(Literal::Number(s)) => s.parse::<i64>().ok(),
+        _ => None,
+    };
+
+    // Determine direction: Some(true) = forward, Some(false) = reverse, None = runtime check
+    let is_forward = match (start_literal, end_literal) {
+        (Some(start), Some(end)) => Some(start < end),
+        _ => None,
+    };
+
+    // Declaration with specified type (could be explicit or INFER_TYPE)
+    let decl = Declaration {
+        name: loop_var_name.to_string(),
+        value_type: str_to_value_type(var_type),
+        is_mut: true,
+        is_copy: false,
+        is_own: false,
+        default_value: None,
+    };
+    let decl_expr = Expr::new_parse(NodeType::Declaration(decl), initial_token.clone(), vec![start_expr.clone()]);
+
+    // Helper to create forward while loop
+    let make_fwd_while = |body: &Expr| {
+        let cond = Expr::new_explicit(
+            NodeType::FCall(false),  // Issue #132: lt doesn't throw
+            vec![
+                Expr::new_parse(
+                    NodeType::Identifier(loop_var_name.to_string()),
+                    initial_token.clone(),
+                    vec![Expr::new_parse(NodeType::Identifier("lt".to_string()), initial_token.clone(), vec![])],
+                ),
+                end_expr.clone(),
+            ],
+            initial_token.line, initial_token.col,
+        );
+        let inc = Expr::new_explicit(
+            NodeType::FCall(false),  // Issue #132: inc doesn't throw
+            vec![Expr::new_parse(NodeType::Identifier(loop_var_name.to_string()), initial_token.clone(), vec![
+                Expr::new_parse(NodeType::Identifier("inc".to_string()), initial_token.clone(), vec![]),
+            ])],
+            initial_token.line, initial_token.col,
+        );
+        // Bug #57 fix: Transform continue statements to include increment before continue
+        let transformed_body = transform_continue_with_step(body, &inc);
+        let mut body_params = transformed_body.params.clone();
+        body_params.push(inc.clone());
+        let while_body = Expr::new_explicit(NodeType::Body, body_params, body.line, body.col);
+        Expr::new_explicit(NodeType::While, vec![cond, while_body], initial_token.line, initial_token.col)
+    };
+
+    // Helper to create reverse while loop
+    let make_rev_while = |body: &Expr| {
+        let cond = Expr::new_explicit(
+            NodeType::FCall(false),  // Issue #132: gt doesn't throw
+            vec![
+                Expr::new_parse(
+                    NodeType::Identifier(loop_var_name.to_string()),
+                    initial_token.clone(),
+                    vec![Expr::new_parse(NodeType::Identifier("gt".to_string()), initial_token.clone(), vec![])],
+                ),
+                end_expr.clone(),
+            ],
+            initial_token.line, initial_token.col,
+        );
+        let dec = Expr::new_explicit(
+            NodeType::FCall(false),  // Issue #132: dec doesn't throw
+            vec![Expr::new_parse(NodeType::Identifier(loop_var_name.to_string()), initial_token.clone(), vec![
+                Expr::new_parse(NodeType::Identifier("dec".to_string()), initial_token.clone(), vec![]),
+            ])],
+            initial_token.line, initial_token.col,
+        );
+        // Bug #57 fix: Transform continue statements to include decrement before continue
+        let transformed_body = transform_continue_with_step(body, &dec);
+        let mut body_params = transformed_body.params.clone();
+        body_params.push(dec.clone());
+        let while_body = Expr::new_explicit(NodeType::Body, body_params, body.line, body.col);
+        Expr::new_explicit(NodeType::While, vec![cond, while_body], initial_token.line, initial_token.col)
+    };
+
+    let loop_expr = match is_forward {
+        Some(true) => {
+            // Compile-time: forward loop only
+            make_fwd_while(body_expr)
+        }
+        Some(false) => {
+            // Compile-time: reverse loop only
+            make_rev_while(body_expr)
+        }
+        None => {
+            // Runtime: if start < end { forward } else { reverse }
+            let fwd_while = make_fwd_while(body_expr);
+            let rev_while = make_rev_while(body_expr);
+            let direction_cond = Expr::new_explicit(
+                NodeType::FCall(false),  // Issue #132: lt doesn't throw
+                vec![
+                    Expr::new_parse(NodeType::Identifier("lt".to_string()), initial_token.clone(), vec![]),
+                    start_expr.clone(),
+                    end_expr.clone(),
+                ],
+                initial_token.line, initial_token.col,
+            );
+            let fwd_body = Expr::new_explicit(NodeType::Body, vec![fwd_while], initial_token.line, initial_token.col);
+            let rev_body = Expr::new_explicit(NodeType::Body, vec![rev_while], initial_token.line, initial_token.col);
+            Expr::new_explicit(NodeType::If, vec![direction_cond, fwd_body, rev_body], initial_token.line, initial_token.col)
+        }
+    };
+
+    Expr::new_explicit(NodeType::Body, vec![decl_expr, loop_expr], initial_token.line, initial_token.col)
+}
+
 fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     let initial_token = lexer.peek();
     lexer.advance(1)?; // consume 'for'
@@ -1344,109 +1470,8 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
             lexer.expect(TokenType::LeftBrace)?;
             let body_expr = parse_body(lexer, TokenType::RightBrace)?;
 
-            // Same desugaring as untyped range, but with explicit type
-            let start_literal = match &start_expr.node_type {
-                NodeType::LLiteral(Literal::Number(s)) => s.parse::<i64>().ok(),
-                _ => None,
-            };
-            let end_literal = match &end_expr.node_type {
-                NodeType::LLiteral(Literal::Number(s)) => s.parse::<i64>().ok(),
-                _ => None,
-            };
-            let is_forward = match (start_literal, end_literal) {
-                (Some(start), Some(end)) => Some(start < end),
-                _ => None,
-            };
-
-            // Declaration with explicit type
-            let decl = Declaration {
-                name: loop_var_name.clone(),
-                value_type: str_to_value_type(&var_type_name),
-                is_mut: true,
-                is_copy: false,
-                is_own: false,
-                default_value: None,
-            };
-            let decl_expr = Expr::new_parse(NodeType::Declaration(decl), initial_token.clone(), vec![start_expr.clone()]);
-
-            // Helper to create forward while loop
-            let make_fwd_while = |body: &Expr| {
-                let cond = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_parse(
-                            NodeType::Identifier(loop_var_name.clone()),
-                            initial_token.clone(),
-                            vec![Expr::new_parse(NodeType::Identifier("lt".to_string()), initial_token.clone(), vec![])],
-                        ),
-                        end_expr.clone(),
-                    ],
-                    initial_token.line, initial_token.col,
-                );
-                let inc = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![Expr::new_parse(NodeType::Identifier(loop_var_name.clone()), initial_token.clone(), vec![
-                        Expr::new_parse(NodeType::Identifier("inc".to_string()), initial_token.clone(), vec![]),
-                    ])],
-                    initial_token.line, initial_token.col,
-                );
-                let transformed_body = transform_continue_with_step(body, &inc);
-                let mut body_params = transformed_body.params.clone();
-                body_params.push(inc.clone());
-                let while_body = Expr::new_explicit(NodeType::Body, body_params, body.line, body.col);
-                Expr::new_explicit(NodeType::While, vec![cond, while_body], initial_token.line, initial_token.col)
-            };
-
-            // Helper to create reverse while loop
-            let make_rev_while = |body: &Expr| {
-                let cond = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_parse(
-                            NodeType::Identifier(loop_var_name.clone()),
-                            initial_token.clone(),
-                            vec![Expr::new_parse(NodeType::Identifier("gt".to_string()), initial_token.clone(), vec![])],
-                        ),
-                        end_expr.clone(),
-                    ],
-                    initial_token.line, initial_token.col,
-                );
-                let dec = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![Expr::new_parse(NodeType::Identifier(loop_var_name.clone()), initial_token.clone(), vec![
-                        Expr::new_parse(NodeType::Identifier("dec".to_string()), initial_token.clone(), vec![]),
-                    ])],
-                    initial_token.line, initial_token.col,
-                );
-                let transformed_body = transform_continue_with_step(body, &dec);
-                let mut body_params = transformed_body.params.clone();
-                body_params.push(dec.clone());
-                let while_body = Expr::new_explicit(NodeType::Body, body_params, body.line, body.col);
-                Expr::new_explicit(NodeType::While, vec![cond, while_body], initial_token.line, initial_token.col)
-            };
-
-            let loop_expr = match is_forward {
-                Some(true) => make_fwd_while(&body_expr),
-                Some(false) => make_rev_while(&body_expr),
-                None => {
-                    let fwd_while = make_fwd_while(&body_expr);
-                    let rev_while = make_rev_while(&body_expr);
-                    let direction_cond = Expr::new_explicit(
-                        NodeType::FCall(false),
-                        vec![
-                            Expr::new_parse(NodeType::Identifier("lt".to_string()), initial_token.clone(), vec![]),
-                            start_expr.clone(),
-                            end_expr.clone(),
-                        ],
-                        initial_token.line, initial_token.col,
-                    );
-                    let fwd_body = Expr::new_explicit(NodeType::Body, vec![fwd_while], initial_token.line, initial_token.col);
-                    let rev_body = Expr::new_explicit(NodeType::Body, vec![rev_while], initial_token.line, initial_token.col);
-                    Expr::new_explicit(NodeType::If, vec![direction_cond, fwd_body, rev_body], initial_token.line, initial_token.col)
-                }
-            };
-
-            return Ok(Expr::new_explicit(NodeType::Body, vec![decl_expr, loop_expr], initial_token.line, initial_token.col));
+            // Use shared helper for range desugaring with explicit type
+            return Ok(desugar_range_for(&loop_var_name, &var_type_name, &start_expr, &end_expr, &body_expr, &initial_token));
         }
 
         // Collection-based for: for VAR: TYPE in COLLECTION { ... }
@@ -1478,123 +1503,8 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     lexer.expect(TokenType::LeftBrace)?;
     let body_expr = parse_body(lexer, TokenType::RightBrace)?;
 
-    // Desugar range-based for to while loop with direction detection
-    // Supports both forward (0..10) and reverse (10..0) ranges
-
-    // Check if both bounds are numeric literals for compile-time direction detection
-    let start_literal = match &start_expr.node_type {
-        NodeType::LLiteral(Literal::Number(s)) => s.parse::<i64>().ok(),
-        _ => None,
-    };
-    let end_literal = match &end_expr.node_type {
-        NodeType::LLiteral(Literal::Number(s)) => s.parse::<i64>().ok(),
-        _ => None,
-    };
-
-    // Determine direction: Some(true) = forward, Some(false) = reverse, None = runtime check
-    let is_forward = match (start_literal, end_literal) {
-        (Some(start), Some(end)) => Some(start < end),
-        _ => None,
-    };
-
-    // let loop_var := <start_expr>
-    let decl = Declaration {
-        name: loop_var_name.clone(),
-        value_type: str_to_value_type(INFER_TYPE),
-        is_mut: true,
-        is_copy: false,
-        is_own: false,
-        default_value: None,
-    };
-    let decl_expr = Expr::new_parse(NodeType::Declaration(decl), initial_token.clone(), vec![start_expr.clone()]);
-
-    // Helper to create forward while loop
-    let make_fwd_while = |body: &Expr| {
-        let cond = Expr::new_explicit(
-            NodeType::FCall(false),  // Issue #132: lt doesn't throw
-            vec![
-                Expr::new_parse(
-                    NodeType::Identifier(loop_var_name.clone()),
-                    initial_token.clone(),
-                    vec![Expr::new_parse(NodeType::Identifier("lt".to_string()), initial_token.clone(), vec![])],
-                ),
-                end_expr.clone(),
-            ],
-            initial_token.line, initial_token.col,
-        );
-        let inc = Expr::new_explicit(
-            NodeType::FCall(false),  // Issue #132: inc doesn't throw
-            vec![Expr::new_parse(NodeType::Identifier(loop_var_name.clone()), initial_token.clone(), vec![
-                Expr::new_parse(NodeType::Identifier("inc".to_string()), initial_token.clone(), vec![]),
-            ])],
-            initial_token.line, initial_token.col,
-        );
-        // Bug #57 fix: Transform continue statements to include increment before continue
-        let transformed_body = transform_continue_with_step(body, &inc);
-        let mut body_params = transformed_body.params.clone();
-        body_params.push(inc.clone());
-        let while_body = Expr::new_explicit(NodeType::Body, body_params, body.line, body.col);
-        Expr::new_explicit(NodeType::While, vec![cond, while_body], initial_token.line, initial_token.col)
-    };
-
-    // Helper to create reverse while loop
-    let make_rev_while = |body: &Expr| {
-        let cond = Expr::new_explicit(
-            NodeType::FCall(false),  // Issue #132: gt doesn't throw
-            vec![
-                Expr::new_parse(
-                    NodeType::Identifier(loop_var_name.clone()),
-                    initial_token.clone(),
-                    vec![Expr::new_parse(NodeType::Identifier("gt".to_string()), initial_token.clone(), vec![])],
-                ),
-                end_expr.clone(),
-            ],
-            initial_token.line, initial_token.col,
-        );
-        let dec = Expr::new_explicit(
-            NodeType::FCall(false),  // Issue #132: dec doesn't throw
-            vec![Expr::new_parse(NodeType::Identifier(loop_var_name.clone()), initial_token.clone(), vec![
-                Expr::new_parse(NodeType::Identifier("dec".to_string()), initial_token.clone(), vec![]),
-            ])],
-            initial_token.line, initial_token.col,
-        );
-        // Bug #57 fix: Transform continue statements to include decrement before continue
-        let transformed_body = transform_continue_with_step(body, &dec);
-        let mut body_params = transformed_body.params.clone();
-        body_params.push(dec.clone());
-        let while_body = Expr::new_explicit(NodeType::Body, body_params, body.line, body.col);
-        Expr::new_explicit(NodeType::While, vec![cond, while_body], initial_token.line, initial_token.col)
-    };
-
-    let loop_expr = match is_forward {
-        Some(true) => {
-            // Compile-time: forward loop only
-            make_fwd_while(&body_expr)
-        }
-        Some(false) => {
-            // Compile-time: reverse loop only
-            make_rev_while(&body_expr)
-        }
-        None => {
-            // Runtime: if start < end { forward } else { reverse }
-            let fwd_while = make_fwd_while(&body_expr);
-            let rev_while = make_rev_while(&body_expr);
-            let direction_cond = Expr::new_explicit(
-                NodeType::FCall(false),  // Issue #132: lt doesn't throw
-                vec![
-                    Expr::new_parse(NodeType::Identifier("lt".to_string()), initial_token.clone(), vec![]),
-                    start_expr.clone(),
-                    end_expr.clone(),
-                ],
-                initial_token.line, initial_token.col,
-            );
-            let fwd_body = Expr::new_explicit(NodeType::Body, vec![fwd_while], initial_token.line, initial_token.col);
-            let rev_body = Expr::new_explicit(NodeType::Body, vec![rev_while], initial_token.line, initial_token.col);
-            Expr::new_explicit(NodeType::If, vec![direction_cond, fwd_body, rev_body], initial_token.line, initial_token.col)
-        }
-    };
-
-    Ok(Expr::new_explicit(NodeType::Body, vec![decl_expr, loop_expr], initial_token.line, initial_token.col))
+    // Use shared helper for range desugaring with inferred type
+    Ok(desugar_range_for(&loop_var_name, INFER_TYPE, &start_expr, &end_expr, &body_expr, &initial_token))
 }
 
 // Helper function to extract full identifier name from an expression
