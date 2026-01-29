@@ -7,6 +7,56 @@
 
 * Fixed Bugs
 
+** Bug #146: C translation non-determinism in loop variable naming
+:PROPERTIES:
+:DISCOVERED: 2026-01-28
+:FIXED: 2026-01-29
+:IMPACT: Generated C code differs between builds, complicating diffs and version control
+:STATUS: Fixed
+:END:
+
+*** Description
+The C code generator produces different loop variable names between builds.
+For example, the same loop may be named ~_loop_3~ in one build and ~_loop_1~
+in another.
+
+*** Root Cause
+The ~LOOP_VAR_COUNTER~ in ~src/rs/parser.rs~ (and ~src/self/parser.til~) is a
+global static counter that generates ~_loop_N~ names for ~for _ in~ loops.
+Unlike ~precomp_forin_counter~ (fixed in Issue #127), this counter was never
+reset - not per-file, not per-function.
+
+Secondary issue: HashMap iteration order in Rust is non-deterministic due to
+randomized hashing, causing different file processing orders between builds.
+
+*** Implementation
+
+**** Part 1: Reset counter per-function
+Reset ~LOOP_VAR_COUNTER~ at the start of each function definition, similar to
+how Issue #127 fixed ~precomp_forin_counter~.
+
+Files modified:
+- ~src/rs/parser.rs~: Added ~save_loop_var_counter~, ~reset_loop_var_counter~,
+  ~restore_loop_var_counter~ functions
+- ~src/self/parser.til~: Ported the same fix
+
+**** Part 2: Fix file processing order
+Implemented ~OrderedMap~ in ~src/rs/ordered_map.rs~ - a HashMap-like structure
+that maintains insertion order using Vec internally.
+
+Changed ~imported_asts~ and ~imported_modes~ in ~src/rs/init.rs~ from HashMap
+to OrderedMap. This ensures deterministic file processing order across builds.
+
+Note: TIL already uses ~Map~ which maintains sorted order (deterministic),
+so no TIL changes were needed.
+
+*** Files Changed
+- src/rs/parser.rs: Counter save/reset/restore functions
+- src/self/parser.til: Ported counter fix
+- src/rs/ordered_map.rs: New OrderedMap implementation
+- src/rs/init.rs: Use OrderedMap for imported_asts and imported_modes
+- src/rstil.rs: Added ordered_map module
+
 ** Bug #143: ccodegen hoisted_exprs uses fragile identity mechanism
 :PROPERTIES:
 :DISCOVERED: 2026-01-27

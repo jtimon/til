@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::rs::lexer::{lexer_from_source, Token, TokenType};
 use crate::rs::mode::{ModeDef, can_be_imported, parse_mode, mode_from_name};
+use crate::rs::ordered_map::OrderedMap;
 use crate::rs::parser::{
     INFER_TYPE,
     Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, PatternInfo,
@@ -1276,8 +1277,8 @@ pub struct Context {
     pub temp_enum_payload: Option<EnumPayload>,
     // Import tracking - per-phase to allow circular imports
     // Add to done at START of processing (not end) - handles both circular and re-imports
-    pub imported_asts: HashMap<String, Expr>,  // path → parsed AST (stored after init, used by typer and eval)
-    pub imported_modes: HashMap<String, ModeDef>,  // path → mode (stored after init, used by typer)
+    pub imported_asts: OrderedMap<String, Expr>,  // path → parsed AST (stored after init, used by typer and eval)
+    pub imported_modes: OrderedMap<String, ModeDef>,  // path → mode (stored after init, used by typer)
     pub imports_init_done: HashSet<String>,
     pub imports_typer_done: HashSet<String>,
     pub imports_precomp_done: HashSet<String>,
@@ -1308,8 +1309,8 @@ impl Context {
             mode_def: mode_from_name(mode_name, path, &dummy_token)?,
             scope_stack,
             temp_enum_payload: None,
-            imported_asts: HashMap::new(),
-            imported_modes: HashMap::new(),
+            imported_asts: OrderedMap::new(),
+            imported_modes: OrderedMap::new(),
             imports_init_done: HashSet::new(),
             imports_typer_done: HashSet::new(),
             imports_precomp_done: HashSet::new(),
