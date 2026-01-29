@@ -540,10 +540,19 @@ namespace MyStruct {
 :PROPERTIES:
 :DISCOVERED: 2026-01-13
 :IMPACT: Simplify interpreter and ccodegen, reduce internal complexity
-:STATUS: Ready to resume - rebase wip110final onto master
-:BRANCH: wip110final (59 commits behind master, needs rebase)
+:STATUS: FIXED (2026-01-29)
+:BRANCH: claude/fix-issue-110-9OxnI
 :RELATED: Bug #143 (FIXED), Bug #144, Issue #111 (enum_payload nicer with returns Dynamic)
 :END:
+
+*** Implementation Notes (2026-01-29)
+Switch desugaring is now implemented in ~src/rs/desugarer.rs~. Simple enum switches
+are desugared to if/else chains using ~enum_to_str()~ for comparison and
+~enum_get_payload()~ for payload extraction.
+
+Nested enum patterns (e.g., ~case ValueType.TType(TTypeDef.TEnumDef)~) are detected
+and NOT desugared - these are left for ccodegen to handle, since checking the inner
+pattern after payload extraction is complex and would require additional scope handling.
 
 *** Description
 Remove switch as an internal construct. In desugarer phase, desugar switch/case to

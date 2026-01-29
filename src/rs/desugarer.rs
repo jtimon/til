@@ -713,6 +713,10 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         return Err(e.lang_error(&context.path, "desugar", "Switch requires expression"));
     }
 
+    // Store params for potential skip-desugaring on nested patterns
+    let e_params = &e.params;
+    let e_params_len = e_params.len();
+
     let switch_expr = &e.params[0];
     let line = e.line;
     let col = e.col;
@@ -991,7 +995,7 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     let total_cases = cases.len();
     for (idx, (case_pattern, case_body)) in cases.into_iter().rev().enumerate() {
         let case_index = total_cases - 1 - idx;  // Original order index
-        let (condition, body_prefix, rename_pair) = build_case_condition(
+        let cond_result = build_case_condition(
             context,
             &case_pattern,
             &switch_var_name,
@@ -1003,7 +1007,27 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             &func_name,
             line,
             col,
-        )?;
+        );
+
+        // Check if we should skip desugaring due to nested enum patterns
+        let (condition, body_prefix, rename_pair) = match cond_result {
+            Ok(result) => result,
+            Err(err) if err == "nested_enum_pattern" => {
+                // Nested enum pattern detected - skip desugaring this switch entirely
+                // Return original switch with desugared params
+                let mut new_params = Vec::new();
+                new_params.push(desugared_switch_expr);
+                for i in (1..e_params_len).step_by(2) {
+                    // Original case patterns and bodies - desugar bodies only
+                    new_params.push(e_params[i].clone()); // case pattern unchanged
+                    if i + 1 < e_params_len {
+                        new_params.push(desugar_expr(context, &e_params[i + 1])?); // desugar body
+                    }
+                }
+                return Ok(Expr::new_clone(NodeType::Switch, e, new_params));
+            }
+            Err(err) => return Err(err),
+        };
 
         // If there's a rename pair, rename references to the original binding in the DESUGARED case body
         let renamed_case_body = if let Some((old_name, new_name)) = &rename_pair {
@@ -1257,19 +1281,34 @@ fn build_case_condition(
             }
         },
         NodeType::FCall(_) => {
-            // FCall pattern: Type.Variant() or computed value
+            // FCall pattern: Type.Variant() or Type.Variant(InnerEnum.Variant) or computed value
             let info = get_case_variant_info(case_pattern);
 
             if is_enum_switch && !info.variant_name.is_empty() {
-                // Enum variant (possibly with payload comparison, but we only check tag)
+                // Enum variant - check outer tag
                 let actual_type_name = if info.type_name.is_empty() {
                     enum_type_name.to_string()
                 } else {
                     info.type_name.clone()
                 };
                 let variant_str = format!("{}.{}", actual_type_name, info.variant_name);
-                let condition = build_str_eq_call(switch_var_name, &variant_str, line, col);
-                Ok((condition, vec![], None))
+                let outer_condition = build_str_eq_call(switch_var_name, &variant_str, line, col);
+
+                // Check for nested enum patterns - these are not desugared, return error to skip
+                // For patterns like ValueType.TType(TTypeDef.TEnumDef), the inner pattern is an enum value
+                // not a binding variable. These are too complex to desugar safely, so we let ccodegen handle them.
+                if case_pattern.params.len() > 1 {
+                    let inner_pattern = &case_pattern.params[1];
+                    // Check if the inner pattern is also an enum variant pattern (not a binding variable)
+                    let inner_info = get_case_variant_info(inner_pattern);
+                    if !inner_info.variant_name.is_empty() {
+                        // This is a nested enum pattern - skip desugaring this entire switch
+                        return Err("nested_enum_pattern".to_string());
+                    }
+                }
+
+                // No nested enum pattern - use outer condition
+                Ok((outer_condition, vec![], None))
             } else if is_enum_switch {
                 // Enum switch with computed case value (returns enum)
                 // Build: eq(_switch_variant, enum_to_str(case_val))
