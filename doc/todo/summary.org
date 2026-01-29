@@ -1,0 +1,51 @@
+#+TITLE: Open Bugs and Issues Summary
+#+AUTHOR: TIL Development
+#+DATE: 2026-01-29
+
+* Active Bugs (19)
+
+| #   | Bug                                                              | Impact                 |
+|-----+------------------------------------------------------------------+------------------------|
+| 145 | til_interpreted diverges from rs_interpreted for func in global init | Interpreter divergence |
+| 144 | for-in loops iterate by copy instead of by reference             | Performance, semantics |
+| 139 | Type checker allows assigning I64 to Ptr field                   | Type safety            |
+| 133 | Precomputed heap values have invalid pointers at runtime         | Compiled modes broken  |
+| 130 | Unify type resolution with type checking into single pass        | Architecture           |
+| 114 | ScopeStack lookup functions leak memory by copying ScopeFrame    | Memory leak            |
+| 113 | Self-hosted interpreter fails with "symbol 'msg' not found"      | Interpreter broken     |
+| 112 | Map uses O(n) linear scan instead of hash lookup                 | Performance            |
+| 100 | Get rid of rstil                                                 | Architecture goal      |
+|  99 | Eliminate all C compiler warnings and enable -Werror             | Code quality           |
+|  98 | ext_proc errors should throw specific error types                | Error handling         |
+|  97 | Disallow variable shadowing                                      | Language semantics     |
+|  96 | Unreachable code error with return before catch                  | Parser issue           |
+|  94 | gcc warnings cause bug47.til compilation failure                 | Build issue            |
+|  90 | Parser requires semicolon for bodyless func/proc                 | Partially fixed        |
+|  89 | Constant folding only works at global scope                      | Optimization           |
+|  83 | No spread/splat operator for variadic forwarding                 | Missing feature        |
+|  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence             |
+|  64 | Custom main args in mode cli don't work                          | CLI mode broken        |
+
+* Open Issues (19)
+
+| #   | Issue                                            | Category         |
+|-----+--------------------------------------------------+------------------|
+| 142 | Code Simplification - Context Error Helpers      | Cleanup          |
+| 138 | Use Bool for Ptr.is_borrowed or separate BorrowedPtr | API design   |
+| 135 | True cross-compilation via precompiled ext.o     | Build system     |
+| 122 | Add regex support to standard library            | Feature          |
+| 117 | ASAP Destruction (auto-delete on last use)       | Memory mgmt      |
+| 115 | Owned struct fields and auto-generated methods   | Memory mgmt      |
+| 111 | Support returns Dynamic                          | Feature          |
+| 110 | Desugar switch to if/else in desugarer           | Architecture     |
+| 109 | Proper Imports                                   | Language feature |
+| 108 | Implement Namespaces                             | Language feature |
+| 107 | First-Class Namespaces                           | Language feature |
+| 106 | First-Class Enums                                | Language feature |
+| 105 | First-Class Structs                              | Language feature |
+| 104 | TempleOS Support                                 | Platform         |
+| 103 | Mode GUI                                         | Feature          |
+|  91 | First-Class Functions                            | Language feature |
+|  88 | Macro Support (Compile-Time Evaluation)          | Language feature |
+|  82 | make.til - Replace Makefile with TIL             | Build system     |
+|  66 | Variable Shadowing Policy                        | Language semantics |
