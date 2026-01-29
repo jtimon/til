@@ -191,6 +191,89 @@ result := data
 
 This is just normal functions composed with UFCS - no special methods needed.
 
+* Prior Art and Comparison
+
+Before classes were, there are Abstract Data Types.
+
+** Languages with UFCS
+
+TIL is not the first language with UFCS. Notable predecessors:
+
+- **D** (2001): First mainstream language with UFCS. =foo.bar(x)= and =bar(foo, x)= are equivalent.
+- **Nim** (2008): Also has UFCS with similar semantics.
+- **Kotlin**: Has extension functions which achieve similar results.
+
+TIL follows in this tradition, with the addition of implicit polymorphism through
+type-based namespace resolution (=vec.push(x)= calls =Vec.push=, =list.push(x)=
+calls =List.push=).
+
+** Comparison with Elixir Pipes
+
+Elixir uses the =|>= pipe operator for left-to-right data flow:
+
+#+BEGIN_SRC elixir
+# Elixir
+data
+|> transform()
+|> filter(predicate)
+|> map(func)
+#+END_SRC
+
+TIL's UFCS achieves the same thing with just dots:
+
+#+BEGIN_SRC til
+// TIL
+data.transform().filter(predicate).map(func)
+#+END_SRC
+
+Advantages of UFCS over pipes:
+- No special operator needed (just dots, already familiar)
+- Works with any function that takes the type as first argument
+- Implicit polymorphism - the right function is called based on type
+
+** Comparison with Clojure Threading Macros
+
+Clojure uses threading macros =->= and =->>= to avoid nesting:
+
+#+BEGIN_SRC clojure
+;; Clojure - thread-first
+(-> data
+    transform
+    (filter predicate)
+    (map func))
+
+;; Without threading (nested, hard to read)
+(map func (filter predicate (transform data)))
+#+END_SRC
+
+TIL's UFCS is the same philosophy:
+
+#+BEGIN_SRC til
+// TIL - same left-to-right flow
+data.transform().filter(predicate).map(func)
+
+// Without UFCS (nested, hard to read)
+map(filter(transform(data), predicate), func)
+#+END_SRC
+
+Elixir pipes and Clojure threading macros are essentially workarounds for
+not having UFCS. TIL has it natively, with simpler syntax.
+
+** Boolean Chaining Example
+
+UFCS makes boolean operations readable without nesting:
+
+#+BEGIN_SRC til
+// Chained (flat, reads left-to-right)
+valid := a.gt(0).and(b.lt(10)).and(c.ne(0)).and(d.eq(5))
+
+// Without UFCS (nested, hard to read)
+valid := and(and(and(gt(a, 0), lt(b, 10)), ne(c, 0)), eq(d, 5))
+#+END_SRC
+
+This is the same transformation that Elixir/Clojure users achieve with pipes
+and threading, but with no special syntax.
+
 * Implementation Notes
 
 UFCS is a simple syntactic transformation. The parser converts =foo.bar(x)= to =bar(foo, x)= and proceeds normally. There is zero runtime overhead and minimal compiler complexity.

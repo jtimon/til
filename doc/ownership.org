@@ -102,11 +102,11 @@ with `ref` keyword. TIL's approach is arguably simpler.
 | Default param           | read (ref)     | Copy                | Phase 3: will become ref            |
 | Mutable param           | mut (ref)      | mut (ref)           | ✅ Same                             |
 | Copy param              | var (copy)     | copy                | ✅ Same concept                     |
-| Ownership transfer      | var with ^     | own (in signature)  | TIL: in sig, Mojo: at call site     |
+| Ownership transfer      | var with ^     | own (sig + call)    | Both require call-site marker       |
 | Mut local               | var x = y      | mut x := y          | ✅ Equivalent (both copy)           |
 | Immut local             | (REMOVED)      | x := y (ref)        | TIL simpler: default is ref         |
 | Explicit ref            | ref x = y      | x := y              | TIL: no keyword needed (is default) |
-| Move at call site       | foo(x^)        | foo(x) to own param | TIL: implicit, Mojo: explicit ^     |
+| Move at call site       | foo(x^)        | foo(own x)          | ✅ Both explicit (TIL more readable)|
 
 * Key Differences
 
@@ -116,9 +116,9 @@ with `ref` keyword. TIL's approach is arguably simpler.
    - Mojo: `ref x = y` (explicit)
    - TIL: `x := y` (implicit, cleaner)
 
-2. **Readable ownership keyword**: Uses `own` in signature
+2. **Readable ownership keyword**: Uses `own` (both sig and call site)
    - Mojo: `^` sigil at call site (punctuation)
-   - TIL: `own n: T` in function signature (readable)
+   - TIL: `own` keyword at call site (readable: `foo(own x)`)
 
 3. **Simpler local variables**: Only two cases
    - `mut x := y` = mutable copy
@@ -170,27 +170,29 @@ func(copy x: T)      // Explicit copy
 
 ** Ownership Transfer Design (Current)
 
-Use `own` in **signature** (declaration):
+Use `own` in **both signature and call site**:
 ```til
 consume := proc(own n: I64) returns I64 { return mul(n, 2) }
 // ...
 mut x := 42
-result := consume(x)    // x is invalidated after this call
+result := consume(own x)    // own REQUIRED at call site
 // x is now undefined - use-after-move error
 ```
 
-The function signature declares it takes ownership. Caller doesn't need special syntax.
-Variable is automatically invalidated after being passed to an `own` parameter.
+The `own` keyword is required in both places:
 
-** Call-site own syntax (Optional/Future)
+1. **Signature** (`own n: T`): Declares the function takes ownership
+   - Function can modify, consume, or transfer the value
+   - Caller's variable is invalidated after the call
+   - Works even if function also has `mut` (opt-in at call site)
 
-Call-site syntax like `func(own x)` could be added for code clarity:
-```til
-result := consume(own x)    // Explicit: reader sees ownership transfer
-```
+2. **Call site** (`foo(own x)`): Makes ownership transfer visible to readers
+   - You see the transfer without looking up the signature
+   - Compiler errors if you forget: "argument to `own` parameter must use `own`"
+   - If you still try to use the variable later: "undefined symbol" error
 
-This would be purely aesthetic - making the transfer visible at the call site.
-The mechanism works without it since the signature already declares `own`.
+This follows TIL's "explicit at call sites" principle - you shouldn't need to
+look up a function signature to know a variable is being consumed.
 
 ** Comparison with Mojo's Equivalents
 
@@ -198,7 +200,7 @@ The mechanism works without it since the signature already declares `own`.
 |--------------------+---------------------+------------------------------------|
 | x := y             | ref x = y           | **TIL's default ≡ Mojo's ref**     |
 | mut x := y         | var x = y           | Both copy                          |
-| own n: T (in sig)  | var with ^          | TIL: in signature, Mojo: at call   |
+| f(own x)           | f(x^)               | Both require call-site marker      |
 | func(mut x: T)     | func(mut x: T)      | Same (mutable reference)           |
 
 **Key Equivalence**: TIL's default (no keyword) is equivalent to Mojo's `ref`.
@@ -295,6 +297,298 @@ With ownership info, compiler could auto-generate:
 - How is a borrowed field assigned? (Must point to something that outlives struct)
 - Syntax: ~own field: T~ vs ~field: own T~ vs attribute
 
+* Complete Vision: TIL's Ownership Model
+
+This section integrates all the pieces into a coherent final design.
+
+** What's Already Solved
+
+*** Function Parameters (Complete)
+#+BEGIN_SRC til
+func(x: T)           // Immutable reference (like C++ const T&)
+func(mut x: T)       // Mutable reference (like C++ T&)
+func(copy x: T)      // Explicit copy (like C++ T by value)
+func(own x: T)       // Ownership transfer (like C++ T&& move)
+#+END_SRC
+
+No pointer/reference syntax needed here - the keywords handle it.
+
+*** Local Variable Bindings (Complete)
+#+BEGIN_SRC til
+x := original        // Immutable reference (shares memory, can't modify)
+mut x := original    // Mutable copy (independent, can modify)
+#+END_SRC
+
+** What's Missing: Explicit Reference Types (Issue #151)
+
+*** The Problem
+TIL has ~Ptr~ but it's untyped. We can't express "pointer to Vec2" in the type
+system. And ~Ptr.dereference()~ always copies - there's no way to access data
+through a pointer without copying.
+
+*** Where We Need Reference Types
+
+1. **Struct fields that borrow** (not own):
+   #+BEGIN_SRC til
+   Layer := struct {
+       mut weights: Vec       // Owned - Layer.delete() frees this
+       input: &Vec            // Borrowed - don't free, just a reference
+   }
+   #+END_SRC
+
+2. **Collections returning references**:
+   #+BEGIN_SRC til
+   vec.get_ptr(i)             // Returns &T, not copies T
+   #+END_SRC
+
+3. **Iteration by reference** (Bug #144):
+   #+BEGIN_SRC til
+   for elem: &Expr in exprs { // elem is reference, no copy
+       println(elem.line)
+   }
+   #+END_SRC
+
+4. **Storing references in variables**:
+   #+BEGIN_SRC til
+   p: &Vec2 = &my_vec         // p is a typed reference
+   #+END_SRC
+
+*** Syntax Decision (To Be Made)
+
+**** Option A: Ampersand (Recommended - Rust/C++ familiar)
+#+BEGIN_SRC til
+// Type annotation
+field: &Vec2                   // Reference to Vec2
+field: &mut Vec2               // Mutable reference to Vec2
+
+// Taking a reference
+p := &my_vec                   // p is &Vec2
+
+// Access (auto-deref for fields)
+p.x                            // Reads field through reference
+p.x = 10                       // Writes through mutable reference (if &mut)
+
+// Explicit deref (when needed)
+v := *p                        // Copy the value out
+#+END_SRC
+
+**** Option B: Caret (Unambiguous, Pascal-style)
+#+BEGIN_SRC til
+field: ^Vec2                   // Pointer to Vec2
+p := @my_vec                   // Take address
+p^.x                           // Explicit dereference
+#+END_SRC
+
+**** Option C: Keyword (Most readable)
+#+BEGIN_SRC til
+field: ref Vec2                // Reference to Vec2
+field: ref mut Vec2            // Mutable reference
+p := ref my_vec                // Take reference
+#+END_SRC
+
+*** Implementation: Desugars to Ptr
+
+Whatever syntax we choose, it desugars to existing ~Ptr~ operations:
+- ~&x~ → ~Ptr~ with type info (typed wrapper around ~to_ptr(x)~)
+- ~p.field~ → offset calculation + direct memory access (no full struct copy)
+- ~*p~ or binding to non-ref → actual copy happens here
+
+The key insight: **copy only happens at binding points**, not at dereference.
+Dereferencing gives access to a location; what you do with it determines copy.
+
+** Owned vs Borrowed Fields (Issue #115)
+
+*** Syntax Options
+#+BEGIN_SRC til
+// Option 1: own keyword (matches parameter syntax)
+Layer := struct {
+    own weights: Vec           // Owned
+    input: Vec                 // Borrowed (default? or requires &?)
+}
+
+// Option 2: Reference syntax for borrowed
+Layer := struct {
+    weights: Vec               // Owned (default)
+    input: &Vec                // Borrowed (explicit reference)
+}
+#+END_SRC
+
+*** Semantics
+- **Owned field**: Actual data stored inline; ~delete()~ cascades
+- **Borrowed field**: Stores a pointer; ~delete()~ skips it
+
+*** Default: Owned (like Rust)
+Fields own their data by default. Borrowing requires explicit ~&~ or ~ref~.
+This is safer - you must consciously decide to borrow.
+
+** ASAP Destruction (Issue #117)
+
+Automatic ~delete()~ insertion on last use:
+#+BEGIN_SRC til
+process := proc() {
+    data := Vec.new(I64)
+    data.push(1)
+    data.push(2)
+    result := sum(data)
+    // Compiler inserts: data.delete() here (last use was previous line)
+    return result
+}
+#+END_SRC
+
+*** Interaction with References
+- Owned values: ASAP destruction applies
+- References (~&T~): Don't delete - someone else owns the data
+- Borrowed fields: Parent's ~delete()~ skips them
+
+** For-In Loops with References (Bug #144)
+
+With reference syntax, for-in could iterate without copying:
+
+*** Current (copies each element)
+#+BEGIN_SRC til
+for expr: Expr in exprs {
+    // expr is a COPY - modifications don't affect exprs
+    // Performance cost for large structs
+}
+#+END_SRC
+
+*** With References
+#+BEGIN_SRC til
+for expr: &Expr in exprs {
+    // expr is a REFERENCE - no copy
+    println(expr.line)         // Reads through reference
+}
+
+for expr: &mut Expr in exprs {
+    // Mutable reference - can modify in place
+    expr.line = 0
+}
+#+END_SRC
+
+*** Desugaring
+#+BEGIN_SRC til
+// for elem: &T in collection { body }
+// becomes:
+for i in 0..collection.len() {
+    elem: &T = collection.get_ref(i)   // Returns &T, no copy
+    body
+}
+#+END_SRC
+
+Collections implement ~get_ref(i) returns &T~ for this to work.
+
+** Complete Parameter/Variable Reference
+
+| Context | Syntax | Semantics | Copy? |
+|---------+--------+-----------+-------|
+| **Parameters** | | | |
+| Default | ~f(x: T)~ | Immutable reference | No |
+| Mutable | ~f(mut x: T)~ | Mutable reference | No |
+| Copy | ~f(copy x: T)~ | Explicit copy | Yes |
+| Own | ~f(own x: T)~ | Ownership transfer | No (move) |
+| **Local Variables** | | | |
+| Default | ~x := y~ | Immutable reference | No |
+| Mutable | ~mut x := y~ | Mutable copy | Yes |
+| **Explicit References** | | | |
+| Take ref | ~p := &x~ | Create typed pointer | No |
+| Deref read | ~p.field~ | Access through pointer | No |
+| Deref copy | ~v := *p~ | Copy value out | Yes |
+| **Struct Fields** | | | |
+| Owned | ~field: T~ | Owns data, delete cascades | N/A |
+| Borrowed | ~field: &T~ | Reference, no delete | N/A |
+
+** Summary of Remaining Work
+
+1. **Issue #151**: Decide on reference syntax (~&~, ~^~, or ~ref~)
+2. **Issue #115**: Implement owned/borrowed field semantics
+3. **Issue #117**: Implement ASAP destruction
+4. **Bug #144**: Update for-in desugaring to use references
+5. **Bug #49**: Typer use-after-move tracking for ~own~ parameters
+
+* Design Principle: Explicit at Call Sites
+
+TIL follows a consistent principle: **important control flow must be visible
+at the call site**, not hidden in function signatures.
+
+** The Principle
+
+When reading code, you shouldn't need to look up every function signature to
+understand what's happening. Two key cases:
+
+1. **Ownership transfer**: Is this variable consumed?
+2. **Potential errors**: Can this call fail?
+
+Both are made explicit at the point of use.
+
+** Ownership: ~own~ at Call Sites
+
+#+BEGIN_SRC til
+// Without call-site own (bad - have to look up process() signature):
+result := process(data)
+use(data)  // Is this valid? Who knows without checking process()
+
+// With call-site own (good - self-documenting):
+result := process(own data)
+use(data)  // Obviously wrong - we just moved data
+#+END_SRC
+
+The ~own~ keyword is required both in the function signature AND at the call
+site. This makes ownership transfer visible when reading code.
+
+** Errors: ~?~ at Call Sites
+
+#+BEGIN_SRC til
+// Without ? (bad - have to look up signatures):
+value := map.get("key")
+other := parse(input)
+// Which of these can throw? Have to check each signature.
+
+// With ? (good - self-documenting):
+value := map.get("key")?
+other := parse(input)?
+// Immediately see: both can throw
+#+END_SRC
+
+The ~?~ is required on ALL throwing calls, even when catching immediately
+after. It marks "this can throw" - what happens to the error (caught or
+propagated) is determined by catch blocks and throws declarations.
+
+** TIL vs Rust
+
+| Feature   | Rust                       | TIL                          |
+|-----------+----------------------------+------------------------------|
+| Move      | Implicit (default)         | Explicit: ~own~ at call site |
+| Error     | ~?~ means "propagate"      | ~?~ means "can throw"        |
+
+TIL is more explicit in both cases. The trade-off is slightly more typing
+for significantly more readable code.
+
+** Complete Example
+
+#+BEGIN_SRC til
+process := proc(own data: Data) throws ProcessError {
+    // Caller wrote: process(own data)?
+    // They see: data consumed, call can throw
+
+    result := transform(own data)?   // data moved, can throw
+    save(result)?                    // can throw
+
+    catch (e: TransformError) {
+        throw ProcessError(e.msg)    // convert and rethrow
+    }
+}
+
+main := proc() {
+    data := load()?
+    process(own data)?
+
+    catch (e: LoadError) { println("Load failed") }
+    catch (e: ProcessError) { println("Process failed") }
+}
+#+END_SRC
+
+See also: doc/errors.org for full error handling design.
+
 * Conclusion
 
 TIL's ownership model has **remarkable convergence with Mojo**:
@@ -307,7 +601,7 @@ TIL's ownership model has **remarkable convergence with Mojo**:
 
 **Where TIL is simpler:**
 - No explicit `ref` keyword needed (default behavior)
-- Readable `own` keyword in signature instead of `^` sigil at call site
+- Readable `own` keyword (both in signature AND at call site) instead of `^` sigil
 
 **Where TIL needs work:**
 - Phase 3: Default params should be refs (currently copy)

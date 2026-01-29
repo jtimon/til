@@ -13,6 +13,122 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #151: Explicit pointer/reference syntax for the language
+:PROPERTIES:
+:DISCOVERED: 2026-01-29
+:IMPACT: Enables working with references without copying, foundational language feature
+:STATUS: Open - design phase
+:RELATED: Bug #144 (for-in copies), Issue #117 (ASAP destruction), Issue #115 (owned fields)
+:END:
+
+*** Description
+TIL currently lacks explicit pointer/reference syntax at the language level.
+The ~Ptr~ type exists internally, but users cannot express "reference to T"
+in type annotations. Every dereference (~Ptr.dereference~, ~copy_to_dynamic~)
+makes a copy - there's no way to access data through a pointer without copying.
+
+*** The Core Problem
+~Ptr.dereference(T, dest)~ copies data into ~dest~. There's no syntax to say
+"give me a reference to T that I can read/write through without copying".
+
+This affects:
+- For-in loops (Bug #144) - each iteration copies the element
+- Any code working with collections - must copy to access
+- Performance-sensitive code - unnecessary copying
+
+*** Current Workaround (Ptr directly)
+Users can work with raw Ptr and manual offset calculation, but this is:
+- Error-prone (manual size calculations)
+- Not type-safe (Ptr is untyped)
+- Verbose (explicit memcpy everywhere)
+
+*** What We Need
+A way to express "pointer to T" or "reference to T" in the type system,
+with syntax for:
+1. Taking a reference: ~&x~ or ~ptr(x)~ or similar
+2. Dereferencing for access: ~*p~ or ~p^~ or auto-deref
+3. Type annotations: ~&T~ or ~*T~ or ~Ptr(T)~ or ~ref T~
+
+*** Syntax Options
+
+**** Option A: Ampersand (Rust/C++ style)
+#+BEGIN_SRC til
+p: &Vec2 = &my_vec              // p is reference to Vec2
+println(p.x)                    // auto-deref for field access
+p.x = 10                        // write through reference (if &mut)
+#+END_SRC
+Pros: Familiar to Rust/C++ users
+Cons: If we add operator overloading (~a & b~ -> ~a.and(b)~), conflicts with ~&x~
+
+**** Option B: Asterisk (C style)
+#+BEGIN_SRC til
+p: *Vec2 = &my_vec              // p is pointer to Vec2
+println((*p).x)                 // explicit deref required
+println(p->x)                   // or arrow syntax
+#+END_SRC
+Pros: Familiar to C users
+Cons: Verbose; if we add operator overloading (~a * b~ -> ~a.mul(b)~), conflicts with ~*p~
+
+**** Option C: Caret (Pascal/Delphi style)
+#+BEGIN_SRC til
+p: ^Vec2 = @my_vec              // p is pointer to Vec2
+println(p^.x)                   // explicit deref with ^
+#+END_SRC
+Pros: Unambiguous, no conflict with existing operators
+Cons: Less familiar to modern programmers
+
+**** Option D: Keyword (ref/ptr)
+#+BEGIN_SRC til
+p: ref Vec2 = ref my_vec        // explicit keyword
+println(p.x)                    // auto-deref
+#+END_SRC
+Pros: Readable, no symbol conflicts
+Cons: More verbose
+
+*** Design Questions
+
+1. **First-class types or sugar?**
+   - First-class: ~&T~ is a distinct type from ~T~
+   - Sugar: ~&T~ desugars to ~Ptr~ with type info attached
+
+2. **Auto-deref or explicit?**
+   - Rust-style: ~p.field~ auto-derefs
+   - C-style: must write ~(*p).field~ or ~p->field~
+
+3. **Mutable vs immutable references?**
+   - Rust has ~&T~ (immutable) and ~&mut T~ (mutable)
+   - Could mirror TIL's existing ~mut~ keyword: ~&T~ vs ~mut &T~ or ~&mut T~
+
+4. **Interaction with existing parameter keywords?**
+   - TIL already has ~mut~, ~copy~, ~own~ for parameters
+   - How does ~&T~ interact? Is ~mut p: &T~ different from ~p: &mut T~?
+
+5. **Lifetime tracking?**
+   - Probably not for v1 - rely on Issue #117 (ASAP destruction)
+   - Could add later if needed
+
+*** Implementation Approach
+
+Desugars to existing Ptr operations:
+- ~&x~ → wraps ~to_ptr(x)~ with type info
+- Field access ~p.field~ → offset calculation + typed read
+- Assignment ~p.field = v~ → offset calculation + typed write
+- No actual copy until value is bound to a non-reference variable
+
+*** Relationship to Other Issues
+
+- **Bug #144** (for-in copies): Could be solved with ref syntax, but also
+  has a simpler workaround using Ptr directly in desugaring
+- **Issue #117** (ASAP destruction): Safety net for any copies that do happen
+- **Issue #115** (owned fields): ~own~ vs borrowed semantics for struct fields
+- **ownership.org**: Documents existing ~mut~/~copy~/~own~ parameter semantics
+
+*** Note on For-In Loops (Bug #144)
+
+For-in loops are the most visible symptom, but solving Bug #144 doesn't require
+this full feature. A simpler workaround using Ptr in the desugaring could work.
+This issue is about the general language feature; Bug #144 is a specific application.
+
 ** Issue #142: Code Simplification - Context Error Helpers
 :PROPERTIES:
 :DISCOVERED: 2026-01-26
