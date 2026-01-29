@@ -306,6 +306,8 @@ fn compute_reachable(
                 mark_reachable(called_func, &mut reachable, &mut worklist);
             }
         } else if let Some(struct_def) = context.scope_stack.lookup_struct(&func_name) {
+            // Bug #150: Struct constructor is called, so the struct type is used
+            used_types.insert(func_name.clone());
             // Struct constructor - collect calls from field initializers only
             // (skip FuncDef values which are methods - their bodies should only be walked if the method itself is reachable)
             let mut struct_called: HashSet<String> = HashSet::new();

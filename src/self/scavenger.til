@@ -374,6 +374,8 @@ compute_reachable := proc(context: Context, roots: Set, e: Expr) returns Compute
             }
 
             if found_struct {
+                // Bug #150: Struct constructor is called, so the struct type is used
+                _ := used_types.insert(func_name.clone())
                 // Struct constructor - collect calls from field initializers only
                 // (skip FuncDef values which are methods - their bodies should only be walked if the method itself is reachable)
                 mut struct_called := Set.new(Str)
