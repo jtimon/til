@@ -295,12 +295,7 @@ EvalArena := struct {
                     switch decl.value_type {
                     case ValueType.TCustom(type_name):
                         // Check if it's a struct (not enum)
-                        mut is_struct := true
-                        _ := ctx.scope_stack.lookup_struct(type_name)?
-                        catch (err: KeyNotFoundError) {
-                            is_struct = false
-                        }
-                        if is_struct {
+                        if ctx.scope_stack.has_struct(type_name) {
                             EvalArena.copy_fields(ctx, type_name, src_key, dest_key, e)?
                             catch (err: Str) {
                                 throw e.lang_error(ctx.path, "context", format("copy_fields: failed to recursively copy field '", dest_key, "'"))
@@ -426,70 +421,62 @@ EvalArena := struct {
                                 i64_val := I64.from_str(default_value)
                                 // Note: I64.from_str panics on invalid input, doesn't throw
                                 g_arena.set(add(offset, field_offset), to_ptr(i64_val), 8)
-                            } else {
-                                // Check if it's a struct
-                                mut is_struct := true
-                                _ := ctx.scope_stack.lookup_struct(type_name)?
-                                catch (err: KeyNotFoundError) {
-                                    is_struct = false
-                                }
+                            } else if ctx.scope_stack.has_struct(type_name) {
+                                // It's a struct
+                                nested_combined_name := format(id, ".", decl.name)
+                                nested_symbol := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true)
+                                // Must declare symbol BEFORE recursive call (needed for is_mut lookup)
+                                ctx.scope_stack.declare_symbol(nested_combined_name, nested_symbol)?
+                                mut sym_entry := SymbolEntry()
+                                sym_entry.name = nested_combined_name
+                                sym_entry.info = nested_symbol
+                                result.symbols.push(sym_entry)
 
-                                if is_struct {
-                                    nested_combined_name := format(id, ".", decl.name)
-                                    nested_symbol := SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true)
-                                    // Must declare symbol BEFORE recursive call (needed for is_mut lookup)
-                                    ctx.scope_stack.declare_symbol(nested_combined_name, nested_symbol)?
-                                    mut sym_entry := SymbolEntry()
-                                    sym_entry.name = nested_combined_name
-                                    sym_entry.info = nested_symbol
-                                    result.symbols.push(sym_entry)
-
-                                    // Special case: Str field initialization
-                                    if type_name.eq("Str") {
-                                        // Register inline offset BEFORE insert_string so it writes to the inline space
-                                        str_field_offset := add(offset, field_offset)
-                                        mut str_mapping := EvalArenaMapping()
-                                        str_mapping.name = nested_combined_name
-                                        str_mapping.offset = str_field_offset
-                                        result.arena_mappings.push(str_mapping)
-                                        // Need to temporarily insert for insert_string to work
-                                        ctx.scope_stack.insert_var(nested_combined_name, str_field_offset)?
-                                        EvalArena.insert_string(ctx, nested_combined_name, default_value, e)?
-                                    } else {
-                                        // Use existing offset for nested struct (inline allocation)
-                                        nested_field_offset := add(offset, field_offset)
-                                        mut nested_mapping := EvalArenaMapping()
-                                        nested_mapping.name = nested_combined_name
-                                        nested_mapping.offset = nested_field_offset
-                                        result.arena_mappings.push(nested_mapping)
-                                        // Need to temporarily insert for recursive call to work
-                                        ctx.scope_stack.insert_var(nested_combined_name, nested_field_offset)?
-                                        // Extract nested defaults (field.subfield -> subfield)
-                                        prefix := format(decl.name, ".")
-                                        mut nested_defaults := Map.new(Str, Str)
-                                        default_keys := defaults.keys
-                                        for dk: Str in default_keys {
-                                            if dk.starts_with(prefix) {
-                                                rest := dk.strip_prefix(prefix)
-                                                mut dv := ""
-                                                defaults.get(dk, dv)?
-                                                catch (err: KeyNotFoundError) {
-                                                    panic(loc(), "insert_struct_core: key not found in defaults")
-                                                }
-                                                nested_defaults.set(rest, dv)
-                                            }
-                                        }
-                                        nested_result := EvalArena.insert_struct_core(ctx, nested_combined_name, type_name, nested_field_offset, nested_defaults, e)?
-                                        catch (err: Str) {
-                                            throw e.lang_error(ctx.path, "context", format("insert_struct: Failed to initialize nested struct '", id, ".", decl.name, "'"))
-                                        }
-                                        // Collect nested mappings
-                                        result.arena_mappings.extend(nested_result.arena_mappings)
-                                        result.symbols.extend(nested_result.symbols)
-                                    }
+                                // Special case: Str field initialization
+                                if type_name.eq("Str") {
+                                    // Register inline offset BEFORE insert_string so it writes to the inline space
+                                    str_field_offset := add(offset, field_offset)
+                                    mut str_mapping := EvalArenaMapping()
+                                    str_mapping.name = nested_combined_name
+                                    str_mapping.offset = str_field_offset
+                                    result.arena_mappings.push(str_mapping)
+                                    // Need to temporarily insert for insert_string to work
+                                    ctx.scope_stack.insert_var(nested_combined_name, str_field_offset)?
+                                    EvalArena.insert_string(ctx, nested_combined_name, default_value, e)?
                                 } else {
-                                    throw e.lang_error(ctx.path, "context", format("insert_struct: Unknown field type '", type_name, "'"))
+                                    // Use existing offset for nested struct (inline allocation)
+                                    nested_field_offset := add(offset, field_offset)
+                                    mut nested_mapping := EvalArenaMapping()
+                                    nested_mapping.name = nested_combined_name
+                                    nested_mapping.offset = nested_field_offset
+                                    result.arena_mappings.push(nested_mapping)
+                                    // Need to temporarily insert for recursive call to work
+                                    ctx.scope_stack.insert_var(nested_combined_name, nested_field_offset)?
+                                    // Extract nested defaults (field.subfield -> subfield)
+                                    prefix := format(decl.name, ".")
+                                    mut nested_defaults := Map.new(Str, Str)
+                                    default_keys := defaults.keys
+                                    for dk: Str in default_keys {
+                                        if dk.starts_with(prefix) {
+                                            rest := dk.strip_prefix(prefix)
+                                            mut dv := ""
+                                            defaults.get(dk, dv)?
+                                            catch (err: KeyNotFoundError) {
+                                                panic(loc(), "insert_struct_core: key not found in defaults")
+                                            }
+                                            nested_defaults.set(rest, dv)
+                                        }
+                                    }
+                                    nested_result := EvalArena.insert_struct_core(ctx, nested_combined_name, type_name, nested_field_offset, nested_defaults, e)?
+                                    catch (err: Str) {
+                                        throw e.lang_error(ctx.path, "context", format("insert_struct: Failed to initialize nested struct '", id, ".", decl.name, "'"))
+                                    }
+                                    // Collect nested mappings
+                                    result.arena_mappings.extend(nested_result.arena_mappings)
+                                    result.symbols.extend(nested_result.symbols)
                                 }
+                            } else {
+                                throw e.lang_error(ctx.path, "context", format("insert_struct: Unknown field type '", type_name, "'"))
                             }
                         }
                     }
@@ -585,12 +572,7 @@ EvalArena := struct {
                 case ValueType.TCustom(type_name):
                     if not(type_name.eq("U8")) {
                         if not(type_name.eq("I64")) {
-                            mut is_struct := true
-                            _ := ctx.scope_stack.lookup_struct(type_name)?
-                            catch (err: KeyNotFoundError) {
-                                is_struct = false
-                            }
-                            if is_struct {
+                            if ctx.scope_stack.has_struct(type_name) {
                                 // Declare nested symbol first
                                 ctx.scope_stack.declare_symbol(combined_name, SymbolInfo(value_type=ValueType.TCustom(type_name), is_mut=true))?
                                 nested := EvalArena.generate_struct_mappings(ctx, combined_name, type_name, field_abs_offset, e)?

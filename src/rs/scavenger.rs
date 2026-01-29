@@ -41,7 +41,7 @@ fn collect_used_types_from_expr(context: &Context, e: &Expr, used_types: &mut Ha
                 let name = get_combined_name_from_identifier(&e.params[0]);
                 if !name.is_empty() && !name.contains('.') {
                     // Check if this is a struct constructor
-                    if context.scope_stack.lookup_struct(&name).is_some() {
+                    if context.scope_stack.has_struct(&name) {
                         used_types.insert(name);
                     }
                 }
@@ -50,8 +50,8 @@ fn collect_used_types_from_expr(context: &Context, e: &Expr, used_types: &mut Ha
         NodeType::Identifier(name) => {
             // Type references - check if this is a known struct or enum
             if !name.is_empty() && e.params.is_empty() {
-                if context.scope_stack.lookup_struct(name).is_some()
-                    || context.scope_stack.lookup_enum(name).is_some() {
+                if context.scope_stack.has_struct(name)
+                    || context.scope_stack.has_enum(name) {
                     used_types.insert(name.clone());
                 }
             }
@@ -324,12 +324,12 @@ fn compute_reachable(
         } else {
             // Check if this is an enum constructor (e.g., Color.Name) or enum type reference
             let parts: Vec<&str> = func_name.split('.').collect();
-            if parts.len() == 2 && context.scope_stack.lookup_enum(parts[0]).is_some() {
+            if parts.len() == 2 && context.scope_stack.has_enum(parts[0]) {
                 // Enum constructor - no body to walk
                 continue;
             }
             // Check if this is just an enum type name (e.g., ValueType without variant)
-            if parts.len() == 1 && context.scope_stack.lookup_enum(&func_name).is_some() {
+            if parts.len() == 1 && context.scope_stack.has_enum(&func_name) {
                 // Enum type reference - no body to walk
                 continue;
             }
@@ -355,7 +355,7 @@ fn compute_reachable(
                 let mut found = false;
                 for builtin in &builtin_types {
                     let builtin_full_method = format!("{}.{}", builtin, method_name);
-                    if context.scope_stack.lookup_func(&builtin_full_method).is_some() {
+                    if context.scope_stack.has_func(&builtin_full_method) {
                         // Found a matching method - mark it reachable instead
                         mark_reachable(builtin_full_method, &mut reachable, &mut worklist);
                         found = true;
@@ -366,7 +366,7 @@ fn compute_reachable(
                 if !found {
                     for struct_name in context.scope_stack.get_all_struct_names() {
                         let user_full_method = format!("{}.{}", struct_name, method_name);
-                        if context.scope_stack.lookup_func(&user_full_method).is_some() {
+                        if context.scope_stack.has_func(&user_full_method) {
                             mark_reachable(user_full_method, &mut reachable, &mut worklist);
                             found = true;
                             break;
@@ -392,7 +392,7 @@ fn compute_reachable(
         if let Some(method_dot_pos) = func_name.find('.') {
             let struct_name = &func_name[..method_dot_pos];
             // Only add if this is actually a struct (not an enum)
-            if context.scope_stack.lookup_struct(struct_name).is_some() {
+            if context.scope_stack.has_struct(struct_name) {
                 used_types.insert(struct_name.to_string());
             }
         }
@@ -408,9 +408,9 @@ fn compute_reachable(
             continue;
         }
         // Check if this is a struct with an eq method
-        if context.scope_stack.lookup_struct(type_name).is_some() {
+        if context.scope_stack.has_struct(type_name) {
             let eq_method_name = format!("{}.eq", type_name);
-            if context.scope_stack.lookup_func(&eq_method_name).is_some() {
+            if context.scope_stack.has_func(&eq_method_name) {
                 mark_reachable(eq_method_name, &mut reachable, &mut worklist);
             }
         }

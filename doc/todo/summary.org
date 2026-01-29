@@ -11,7 +11,7 @@
 | 139 | Type checker allows assigning I64 to Ptr field                   | Type safety            |
 | 133 | Precomputed heap values have invalid pointers at runtime         | Compiled modes broken  |
 | 130 | Unify type resolution with type checking into single pass        | Architecture           |
-| 114 | ScopeStack lookup functions leak memory by copying ScopeFrame    | Memory leak            |
+| 114 | ScopeStack lookup functions leak memory by copying ScopeFrame    | Memory leak (partial)  |
 | 113 | Self-hosted interpreter fails with "symbol 'msg' not found"      | Interpreter broken     |
 | 112 | Map uses O(n) linear scan instead of hash lookup                 | Performance            |
 | 100 | Get rid of rstil                                                 | Architecture goal      |

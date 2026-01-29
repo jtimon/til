@@ -366,7 +366,7 @@ Files: src/rs/typer.rs, src/self/typer.til
 :PROPERTIES:
 :DISCOVERED: 2026-01-15
 :IMPACT: Memory leak in self-hosted interpreter, grows with scope depth and lookup frequency
-:STATUS: Open - needs solution design
+:STATUS: Partial - Option C implemented, ScopeFrame copy remains (see Bug #144)
 :END:
 
 *** Description
@@ -495,6 +495,15 @@ and fixes ~40 call sites. For long-term, evaluate:
 - Option F (ASAP destruction) - most automatic, Mojo-proven approach
 - Option A (references) - matches Rust semantics closely
 - Option E (smart for-in) - transparent optimization
+
+*** Progress
+**** Option C implemented (2026-01-29)
+Added has_var, has_symbol, has_func, has_enum, has_struct methods to ScopeStack.
+Updated all call sites using lookup_*.is_some() pattern to use has_* instead.
+
+Note: The has_* methods still copy ScopeFrame in the for-in loop, which is
+Bug #144's problem (for-in iterates by copy). Option C avoids copying the
+*definition* objects (VarDef, FuncDef, etc.) but not the ScopeFrame itself.
 
 *** Related Work
 - Branch ~claude/detect-ccodegen-translation-diffs-A08OT~ attempted Option B
