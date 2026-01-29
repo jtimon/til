@@ -21,6 +21,7 @@ mod rs {
     pub mod ext;
     pub mod ccodegen;
     pub mod builder;
+    pub mod ordered_map;
 }
 use rs::lexer::LANG_NAME;
 use rs::interpreter::interpret_file;
