@@ -26,10 +26,11 @@
 |  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence             |
 |  64 | Custom main args in mode cli don't work                          | CLI mode broken        |
 
-* Open Issues (20)
+* Open Issues (21)
 
 | #   | Issue                                            | Category         |
 |-----+--------------------------------------------------+------------------|
+| 152 | Extract information from post_old.org            | Documentation    |
 | 151 | Explicit pointer/reference syntax                | Language feature |
 | 142 | Code Simplification - Context Error Helpers      | Cleanup          |
 | 138 | Use Bool for Ptr.is_borrowed or separate BorrowedPtr | API design   |
