@@ -49,38 +49,64 @@ encountering namespace - actual parsing not yet implemented.
 
 Tests added: test_lexer.til (keyword recognition), test_parser.til (todo_error).
 
-**** Step 1.1: Parser - recognize namespace blocks
+**** Step 1.1: Parser - recognize namespace blocks [DONE]
 
-Add parsing for =namespace TypeName { ... }= syntax. The block contains
-declarations (functions, constants) just like inside a struct.
+Added =SNamespaceDef= struct and =NamespaceDef= variant to =NodeType= enum.
+Implemented =parse_namespace_definition= function that parses =namespace TypeName { ... }=
+blocks. The block contains declarations (functions, constants) just like inside a struct.
 
-**** Step 1.2: Type checker - register AFs in type's namespace
+Init phase catches NamespaceDef with todo_error. All other phases (typer, ufcs,
+precomp, interpreter, ccodegen) have NamespaceDef cases that return todo_error.
 
-When type checking a namespace block:
-1. Verify TypeName refers to an existing type (enum, struct, or other)
-2. Register each declaration as an AF of that type
-3. Handle name collisions (error if AF already exists)
+Tests updated: test_parser.til now verifies namespace parsing succeeds and
+produces correct NamespaceDef node with type_name.
 
-**** Step 1.3: Interpreter - evaluate namespace blocks
+**** Step 1.2: Init - merge namespace into existing type
 
-Execute namespace blocks by evaluating each declaration and storing the
-results in the type's namespace.
+This is the key insight: =namespace= is just syntax sugar, like Rust's =impl= blocks.
 
-**** Step 1.4: Compiler - compile namespace blocks
+When init encounters a NamespaceDef for type =Foo=:
+1. Look up the existing StructDef/EnumDef for =Foo=
+2. Merge all members from the namespace into that type's =default_values=
+3. Remove the NamespaceDef from the AST (it's been absorbed)
 
-Compile namespace blocks the same way as struct AF declarations.
+After init, there is NO NamespaceDef in the AST. The type definition looks
+exactly as if the methods were declared inside the struct/enum originally:
 
-**** Step 1.5: Port to TIL
+#+begin_src til
+// These two are functionally identical after init:
 
-Port all changes from Rust to the self-hosted TIL implementation.
+// Option A: inline (current syntax)
+Bool := struct {
+    mut data: U8 = 0
+    eq := func(a: Bool, b: Bool) returns Bool { ... }
+}
 
-**** Step 1.6: Tests
+// Option B: namespace block (new syntax)
+Bool := struct {
+    mut data: U8 = 0
+}
+namespace Bool {
+    eq := func(a: Bool, b: Bool) returns Bool { ... }
+}
+#+end_src
+
+This means typer, ufcs, precomp, interpreter, ccodegen don't need any real
+changes for NamespaceDef - they never see it because init has already merged
+it into the existing type. The todo_error cases added in Step 1.1 are just
+safety nets that should never trigger after init is implemented.
+
+**** Step 1.3: Port to TIL
+
+Port init changes from Rust to the self-hosted TIL implementation.
+
+**** Step 1.4: Tests
 
 Add tests for:
 - Basic namespace block with functions
 - Namespace block with constants
 - UFCS calls to namespace-defined AFs
-- Multiple namespace blocks for same type (if allowed)
+- Multiple namespace blocks for same type
 - Error cases: unknown type, duplicate AFs
 
 *** Step 2: Unify AF syntax for structs
