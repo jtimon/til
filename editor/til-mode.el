@@ -22,7 +22,7 @@
   "Syntax table for `til-mode'.")
 
 (defconst til-keywords
-  '("mode" "mut" "copy" "own" "struct" "enum" "main"
+  '("mode" "mut" "copy" "own" "struct" "enum" "namespace" "main"
     "func" "proc" "ext_func" "ext_proc" "macro"
     "returns" "return" "throws" "catch"
     "if" "else" "while" "for" "in" "switch" "case" "true" "false"
@@ -89,6 +89,8 @@
     ("\\(?:^\\|[^a-zA-Z0-9_]\\)\\([0-9]+\\(?:\\.[0-9]+\\)?\\)\\_>" 1 font-lock-preprocessor-face)
     ;; Type declarations: 'enum' and 'struct'
     ("\\<\\([a-zA-Z_][a-zA-Z0-9_]*\\)\\s-*:=\\s-*\\(enum\\|struct\\)" 1 font-lock-type-face)
+    ;; Namespace blocks: 'namespace TypeName {'
+    ("\\<namespace\\s-+\\([a-zA-Z_][a-zA-Z0-9_]*\\)" 1 font-lock-type-face)
     ;; Assignments (mutable variables)
     ("\\<\\([a-zA-Z_][a-zA-Z0-9_]*\\)\\s-*=\\s-*[^:=]" 1 font-lock-variable-name-face)
     ;; Types in declarations, signatures, and enum variants
