@@ -206,6 +206,29 @@ This is a major compiler feature requiring:
 
 Current Dynamic-only approach works for self-hosting.
 
+** Issue #122: Add regex support to standard library
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:IMPACT: Essential for text processing, refactoring tools, code generators
+:STATUS: Open
+:END:
+
+*** Description
+Add regular expression support to TIL's standard library. The exact interface
+is to be decided, but should be general enough to handle common use cases
+while remaining simple to use.
+
+*** Failed attempt: branch wip_122 (2026-01-21)
+Commit b6d31a6a was merged to master but has a subtle bug:
+- After ~make clean && make benchmark~: FAILS
+- Without clean (incremental build): PASSES
+
+Branch ~wip_122~ preserved for investigation.
+
+*** Why Post-Self-Hosting
+Regex is a library feature, not needed for self-hosting. Current string methods
+(contains, starts_with, split) are sufficient.
+
 ** Issue #109: Proper Imports
 :PROPERTIES:
 :DISCOVERED: 2026-01-13
