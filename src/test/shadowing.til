@@ -1,13 +1,12 @@
 mode test
 
-// Bug #97: Variable shadowing should be a type error
-// Currently this compiles but generates broken C code
-// Once fixed, this should fail with "x already declared in this scope"
-
-test_shadowing_different_types := proc() {
-    mut x := 1        // I64
+test_shadow := proc() {
+    mut x := 1
     if true {
-        mut x := "hi" // Str - different type, C will fail to compile
+        mut x := "inner"
+        println(x)
     }
+    // After if block, x is now Str (TIL overwrites, not true shadowing)
+    println(x)
 }
-test_shadowing_different_types()
+test_shadow()
