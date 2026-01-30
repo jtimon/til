@@ -1787,12 +1787,32 @@ C. *Namespaced + selective (TIL-specific, no Python equivalent)*
    #+END_SRC
    Combines A and B: namespaced access but only selected items and their own internal dependencies, recursively, are loaded.
 
+D. *Direct member access*
+   #+BEGIN_SRC til
+   Lexer := import("src/core/lexer").Lexer
+   my_lexer := Lexer.new("file.til")
+   #+END_SRC
+   Access single member from import result without loading entire namespace.
+
+E. *Destructuring syntax (alternative to B)*
+   #+BEGIN_SRC til
+   {Lexer, Token} := import("src/core/lexer")
+   #+END_SRC
+   Similar to Python's ~from lexer import Lexer, Token~ but with destructuring.
+   Alternative to variadic syntax in B - needs decision on preferred approach.
+
 *** Future (lower priority)
 
 These Python cases still need TIL equivalents:
 - ~import os as operating_system~ - module alias
 - ~from os import getcwd as cwd~ - item alias
 - ~from . import sibling~ - relative imports (collides with current dot syntax for multiplatform, needs thought)
+
+*** Implementation Notes
+- Import result is struct-like: declarations accessed like struct fields
+- Requires Issue #108 (namespaces) to be partially complete - import returns namespace object
+- Type checker needs to handle namespace types for dot access
+- Scavenger benefits from selective imports (less to scan)
 
 *** Notes
 This is a multi-step issue. Priorities A and B are sufficient for now.
