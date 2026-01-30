@@ -9,6 +9,101 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Issue #152: Migrate doc/todo files to numbered issue system
+:PROPERTIES:
+:DISCOVERED: 2026-01-29
+:IMPACT: Documentation cleanup, better tracking
+:STATUS: Open
+:END:
+
+*** Description
+Several doc/todo files use older TODO/checklist systems instead of the numbered
+issue tracking system. These should be reviewed and migrated.
+
+*** Files Using Numbered System (done)
+- bugs.org - Bug #N format
+- future.org - Issue #N format
+- post.org - Issue #N format
+- os.org - Issue #N format
+- optimizations.org - Optimization #N format
+
+*** Files to Migrate
+
+**** post_old.org (31KB) - partial extraction done
+Remaining items to extract or delete:
+- List/Tuple support
+- Negative number literals
+- Guards for pattern matching
+- Default keyword for switch
+- Struct literals
+- Cast operations
+- Operator overloading
+- Type checking edge cases
+- safe_script mode
+- pure mode
+- Performance optimizations
+- Memory management
+- Better error messages
+- Code quality improvements
+- Memory error handling
+- More test cases
+- Improve documentation
+- Other number types
+- Unset default values in structs
+- Better import caching
+
+Likely duplicates to verify:
+- Closures -> Issue #91 (First-Class Functions)
+- Macros -> Issue #88 (Macro Support)
+- Error handling -> Bug #98 (ext_proc error types)
+- Code quality -> Issue #142 (Context Error Helpers)
+
+**** wish.org (1.6KB) - wishlist/checklist
+- Forbidden keywords with helpful error messages
+- Dynamic error messages with user identifiers
+
+**** clone.org (6.3KB) - task tracker
+- 368 missing .clone() calls to port from Rust to TIL
+- 6/14 files done
+
+**** introspection.org (6.4KB) - design doc
+- Runtime introspection system design
+- has_const/has_field implemented, more TODO
+
+**** special.org (8.6KB) - technical debt catalog
+- Catalog of Rust special cases for primitive types
+- Reference doc, may not need issues
+
+**** mandatory.org (7.8KB) - completed feature
+- clone/len/size requirements - all phases complete
+- Could be moved to doc/ as reference
+
+**** pre.org (7.7KB) - completed TODO
+- Pre-self-hosting tasks - all complete
+- Could be archived or deleted
+
+**** 108.org (11.8KB) - deep dive doc
+- Detailed design for Issue #108 (Namespaces)
+- Supplement to future.org entry
+
+**** Obsolete files (can delete)
+- pass_by_ref.org (980B) - obsolete working notes
+- shadow.org (3KB) - obsolete plan, Bug #65 already fixed
+- byref_plan.org, byref-params-plan.md - likely obsolete
+- attempt_const.org - likely obsolete attempt
+- wip_offsets.org - likely obsolete WIP
+- scope.org, scope_refactor_prep.md - likely obsolete
+- precomp_overhaul.org - likely obsolete
+
+**** Unchecked files
+- dry.org (21KB)
+- techdebt.org (22.8KB)
+- self_hosting.org (24KB)
+- self.md (15KB)
+
+*** After Migration
+Delete or archive files once content is properly tracked in numbered issues.
+
 ** Bug #145: til_interpreted diverges from rs_interpreted for func in global init
 :PROPERTIES:
 :DISCOVERED: 2026-01-27
