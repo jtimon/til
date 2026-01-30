@@ -13,6 +13,50 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #112: Add HashMap type with O(1) lookup
+:PROPERTIES:
+:DISCOVERED: 2026-01-13
+:IMPACT: Performance - self-hosted interpreter 2.7x slower than Rust
+:STATUS: Blocked - TIL HashMap implementation too slow
+:END:
+
+*** Summary
+Created HashMap type with O(1) average lookup, but it's actually slower than
+the existing Map in TIL due to implementation overhead.
+
+*** What Was Done
+- Created ~HashMap~ type in ~src/std/hashmap.til~
+- Uses ~Str.hash()~ (FNV-1a) for string keys, FNV-1a on raw bytes for others
+- Separate chaining collision handling, power-of-2 buckets, 0.75 load factor
+- Same API as Map (get, set, insert, contains_key, remove, etc.)
+- Added 15 HashMap tests to ~src/test/maps.til~
+
+*** Attempts to Use HashMap - Both Failed
+
+**** Attempt 1: default_values and named_values
+Result: 5-6% slower (small maps, overhead exceeds benefit)
+
+**** Attempt 2: ScopeFrame maps (arena_index, symbols, funcs, enums, structs)
+Result: 81% slower (TIL HashMap implementation has too much overhead)
+
+| Metric          | Before   | After    | Change       |
+|-----------------+----------+----------+--------------|
+| til interpreted | 354.153s | 641.957s | +81% slower  |
+| til compiled    | 14.441s  | 16.423s  | +14% slower  |
+
+*** Root Cause
+TIL HashMap overhead is too high:
+- Hash computation via memcpy for non-Str keys
+- Bucket indirection and chain traversal
+- Key comparison via memcpy
+- These costs exceed O(n) linear scan benefit even for larger maps
+
+*** Possible Future Approaches
+- Consider using OrderedMap instead of HashMap in Rust itself
+- Optimize TIL HashMap (inline hash functions, avoid memcpy)
+- Profile to identify actual bottleneck
+- Accept interpreted TIL is slower, focus on compiled performance
+
 ** Issue #89: Constant folding only works at global scope
 :PROPERTIES:
 :DISCOVERED: 2026-01-07
