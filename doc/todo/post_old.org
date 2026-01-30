@@ -146,37 +146,6 @@ After gaining more experience with the self-hosted codebase, we may consider:
 
 For now, requiring explicit handling is the safer and clearer default.
 
-** TODO Add Unicode Support to TIL                                    :MEDIUM:
-:PROPERTIES:
-:DISCOVERED: 2025-11-10
-:FILE: src/rs/lexer.rs
-:IMPACT: Internationalization, modern text handling
-:END:
-
-*** Problem
-TIL currently does not support Unicode characters in source code. The lexer panics when encountering multi-byte UTF-8 characters like checkmarks, emoji, or non-ASCII text.
-
-Example error:
-: byte index 368 is not a char boundary; it is inside '✓' (bytes 367..370)
-
-*** Current Limitation
-Until Unicode is supported:
-- **NO Unicode characters** should be used anywhere in the project
-- This includes: source code, documentation files, comments, test files
-- Use ASCII-only characters (e.g., [PASS] instead of ✓, [FAIL] instead of ✗)
-
-*** What Needs to be Fixed
-- Update lexer.rs to handle UTF-8 character boundaries correctly
-- Use Rust's `chars()` iterator instead of byte indexing where appropriate
-- Add comprehensive Unicode tests
-- Update documentation about supported character sets
-
-*** Action Required After Self-Hosting
-- Implement proper UTF-8 handling in lexer
-- Add Unicode test suite
-- Update all documentation to reflect Unicode support
-- Consider which Unicode features to support (identifiers, strings, etc.)
-
 ** TODO Support Namespace-Style Imports                              :MEDIUM:
 :PROPERTIES:
 :FILE: src/rs/init.rs
