@@ -199,8 +199,11 @@ that need to be reviewed and migrated:
 - Other number types
 - Unset default values in structs
 - Better import caching
-- Closures (may duplicate Issue #91)
-- Macros (may duplicate Issue #88)
+*** Likely Duplicates (verify before extracting)
+- Closures -> likely Issue #91 (First-Class Functions)
+- Macros -> likely Issue #88 (Macro Support)
+- Error handling enhancements -> may overlap Bug #98 (ext_proc error types)
+- Code quality improvements -> may overlap Issue #142 (Context Error Helpers)
 
 *** After Extraction
 Once all information is extracted and properly tracked, post_old.org can be
