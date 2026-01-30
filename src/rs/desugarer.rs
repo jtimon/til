@@ -266,8 +266,10 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
         e.col,
     );
 
-    // Build: catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    // Build: catch (_err_forin_N: IndexOutOfBoundsError) { panic(loc(), _err_forin_N.msg) }
+    // Bug #97: Use unique name to avoid shadowing loop variable if it's also named "err"
     // Catch structure: params[0]=error type identifier, params[1]=error var name, params[2]=body
+    let catch_err_var = format!("_err_forin_{}", forin_id);
     let panic_call = Expr::new_explicit(
         NodeType::FCall(false),  // Issue #132: desugared calls don't throw
         vec![
@@ -279,7 +281,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
                 e.col,
             ),
             Expr::new_explicit(
-                NodeType::Identifier("err".to_string()),
+                NodeType::Identifier(catch_err_var.clone()),
                 vec![Expr::new_explicit(NodeType::Identifier("msg".to_string()), vec![], e.line, e.col)],
                 e.line,
                 e.col,
@@ -293,7 +295,7 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     let catch_expr = Expr::new_explicit(
         NodeType::Catch,
         vec![
-            Expr::new_explicit(NodeType::Identifier("err".to_string()), vec![], e.line, e.col),
+            Expr::new_explicit(NodeType::Identifier(catch_err_var), vec![], e.line, e.col),
             Expr::new_explicit(NodeType::Identifier("IndexOutOfBoundsError".to_string()), vec![], e.line, e.col),
             catch_body,
         ],

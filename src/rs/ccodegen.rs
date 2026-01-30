@@ -84,6 +84,39 @@ fn til_name(name: &str) -> String {
     }
 }
 
+// Bug #97: Returns the C name for a TIL variable with type prefix
+// Format: til_{Type}_{name} - allows same variable name with different types (shadowing)
+fn til_var_name(name: &str, type_name: &str) -> String {
+    match name {
+        "true" | "false" => name.to_string(),
+        _ if name.starts_with('*') || name.starts_with('_') => name.to_string(),
+        _ => format!("{}{}_{}", TIL_PREFIX, type_name, name),
+    }
+}
+
+// Bug #97: Get the type-mangled C name for a variable by looking up its type
+fn til_var_name_from_context(name: &str, context: &Context) -> String {
+    if name == "true" || name == "false" || name.starts_with('*') || name.starts_with('_') {
+        return name.to_string();
+    }
+    if let Some(sym) = context.scope_stack.lookup_symbol(name) {
+        let type_str = value_type_to_c_prefix(&sym.value_type);
+        return format!("{}{}_{}", TIL_PREFIX, type_str, name);
+    }
+    // Fallback to old behavior if not a known variable (could be a type name, etc.)
+    til_name(name)
+}
+
+// Bug #97: Convert a ValueType to a short string for use in variable name mangling
+fn value_type_to_c_prefix(vt: &ValueType) -> String {
+    match vt {
+        ValueType::TCustom(name) => name.clone(),
+        ValueType::TFunction(_) => "Func".to_string(),
+        ValueType::TType(_) => "Type".to_string(),
+        ValueType::TMulti(elem_type) => format!("Multi_{}", elem_type),
+    }
+}
+
 // Emit a struct literal, using compound literal syntax if already_declared
 // e.g., " = {0}" vs " = (til_TypeName){0}"
 fn emit_struct_literal_assign(output: &mut String, type_name: &str, already_declared: bool, literal_content: &str) {
@@ -650,7 +683,8 @@ fn emit_arg_string(
                             .map(|sym| matches!(&sym.value_type, ValueType::TCustom(t) if t == "Dynamic"))
                             .unwrap_or(false);
                     if is_already_pointer {
-                        return Ok(format!("({}Dynamic*){}", TIL_PREFIX, til_name(name)));
+                        // Bug #97: Use type-mangled name
+                        return Ok(format!("({}Dynamic*){}", TIL_PREFIX, til_var_name_from_context(name, context)));
                     }
                 }
             }
@@ -697,7 +731,8 @@ fn emit_arg_string(
                     let is_already_pointer = ctx.current_ref_params.contains(name)
                         || ctx.current_variadic_params.contains_key(name);
                     if is_already_pointer {
-                        return Ok(til_name(name));
+                        // Bug #97: Use type-mangled name
+                        return Ok(til_var_name_from_context(name, context));
                     }
                 }
             }
@@ -1362,7 +1397,8 @@ fn emit_fcall_arg_string(
             };
             if is_dynamic_param {
                 if let NodeType::Identifier(name) = &inner_arg.node_type {
-                    return Ok(format!("({}I64){}", TIL_PREFIX, til_name(name)));
+                    // Bug #97: Use type-mangled name
+                    return Ok(format!("({}I64){}", TIL_PREFIX, til_var_name_from_context(name, context)));
                 }
             }
             // Process the inner arg (may need hoisting if nested)
@@ -1386,8 +1422,10 @@ fn emit_fcall_arg_string(
                     false
                 };
                 if is_type_var {
-                    result.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}{}, 1}}), strlen({}{}), 0}})",
-                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, type_name, TIL_PREFIX, type_name));
+                    // Bug #97: Use type-mangled name for Type variable reference
+                    let c_var_name = til_var_name_from_context(type_name, context);
+                    result.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1}}), strlen({}), 0}})",
+                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name
                     result.push_str(&format!("(({}Str){{(({}Ptr){{({}I64)\"{}\", 1}}), {}, 0}})",
@@ -1444,8 +1482,10 @@ fn emit_fcall_arg_string(
                 };
                 if is_type_var {
                     // Type variable - already a const char*, wrap in Str struct literal
-                    return Ok(format!("(({}Str){{(({}Ptr){{({}I64){}{}, 1}}), strlen({}{}), 0}})",
-                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, type_name, TIL_PREFIX, type_name));
+                    // Bug #97: Use type-mangled name for Type variable reference
+                    let c_var_name = til_var_name_from_context(type_name, context);
+                    return Ok(format!("(({}Str){{(({}Ptr){{({}I64){}, 1}}), strlen({}), 0}})",
+                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name - create Str compound literal
                     return Ok(format!("(({}Str){{(({}Ptr){{({}I64)\"{}\", 1}}), {}, 0}})",
@@ -1861,7 +1901,9 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         for child in &ast.params {
             if is_global_declaration(child) {
                 if let NodeType::Declaration(decl) = &child.node_type {
-                    ctx.declared_vars.insert(til_name(&decl.name));
+                    // Bug #97: Use type-mangled name
+                    let type_prefix = value_type_to_c_prefix(&decl.value_type);
+                    ctx.declared_vars.insert(til_var_name(&decl.name, &type_prefix));
                 }
             }
         }
@@ -1961,10 +2003,12 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &mut Codegen
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
+            // Bug #97: Use type-mangled names for shadowing support
             let var_name = if decl.name == "_" {
                 next_mangled(ctx)
             } else {
-                til_name(&decl.name)
+                let type_prefix = value_type_to_c_prefix(&decl.value_type);
+                til_var_name(&decl.name, &type_prefix)
             };
 
             // Handle literal constants (numbers, strings)
@@ -2053,10 +2097,12 @@ fn emit_global_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
+            // Bug #97: Use type-mangled names for shadowing support
             let var_name = if decl.name == "_" {
                 next_mangled(ctx)
             } else {
-                til_name(&decl.name)
+                let type_prefix = value_type_to_c_prefix(&decl.value_type);
+                til_var_name(&decl.name, &type_prefix)
             };
 
             // Determine the type from the initializer expression using get_value_type
@@ -2812,11 +2858,11 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, context: &Context, 
         }
         // Check for variadic arg (TMulti)
         if let ValueType::TMulti(_elem_type) = &func_def_arg.value_type {
-            // Variadic args are passed as til_Array*
+            // Variadic args are passed as til_Array* - Bug #97: use type-mangled name
             output.push_str(TIL_PREFIX);
             output.push_str("Array* ");
-            output.push_str(TIL_PREFIX);
-            output.push_str(&func_def_arg.name);
+            // Variadic params have effective type Array in scope_stack
+            output.push_str(&til_var_name(&func_def_arg.name, "Array"));
             param_count += 1;
             break; // Variadic must be last
         } else {
@@ -2854,8 +2900,9 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, context: &Context, 
                     output.push_str("* ");
                 }
             }
-            output.push_str(TIL_PREFIX);
-            output.push_str(&func_def_arg.name);
+            // Bug #97: Use type-mangled parameter name
+            let type_prefix = value_type_to_c_prefix(&func_def_arg.value_type);
+            output.push_str(&til_var_name(&func_def_arg.name, &type_prefix));
             param_count += 1;
         }
     }
@@ -3051,10 +3098,12 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
             // Regular identifier or field access (b.val -> til_b.val)
             // For ref params (which are pointers in C), use -> for field access
             let is_ref_param = ctx.current_ref_params.contains(name);
+            // Bug #97: Use type-mangled name for variables
+            let c_var_name = til_var_name_from_context(name, context);
             if is_ref_param && !expr.params.is_empty() {
                 // Ref param with field access: til_self->field1.field2.field3
                 // First field uses -> (self is a pointer), rest use . (struct values)
-                output.push_str(&til_name(name));
+                output.push_str(&c_var_name);
                 for (i, param) in expr.params.iter().enumerate() {
                     if let NodeType::Identifier(field) = &param.node_type {
                         if i == 0 {
@@ -3068,11 +3117,11 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
             } else if is_ref_param {
                 // Ref param used as value: dereference with *
                 output.push_str("(*");
-                output.push_str(&til_name(name));
+                output.push_str(&c_var_name);
                 output.push_str(")");
             } else {
                 // Regular identifier or field access
-                output.push_str(&til_name(name));
+                output.push_str(&c_var_name);
                 for param in &expr.params {
                     if let NodeType::Identifier(field) = &param.node_type {
                         output.push_str(".");
@@ -3143,10 +3192,12 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                 }
             }
 
+            // Bug #97: Use type-mangled names for shadowing support
             let catch_body = &catch_block.params[2];
             let decls = collect_declarations_in_body(catch_body, context);
             for decl in decls {
-                let c_var_name = til_name(&decl.name);
+                let type_prefix = value_type_to_c_prefix(&decl.value_type);
+                let c_var_name = til_var_name(&decl.name, &type_prefix);
                 if !ctx.declared_vars.contains(&c_var_name) {
                     if let Ok(c_type) = til_type_to_c(&decl.value_type) {
                         output.push_str(&indent_str);
@@ -3252,7 +3303,8 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                                 output.push_str(&inner_indent);
                                 output.push_str(&til_name(err_type_name));
                                 output.push_str(" ");
-                                output.push_str(&til_name(err_var_name));
+                                // Bug #97: Use type-mangled name for catch variable
+                                output.push_str(&til_var_name(err_var_name, err_type_name));
                                 output.push_str(" = ");
                                 output.push_str(&temp_var);
                                 output.push_str(";\n");
@@ -3540,15 +3592,7 @@ fn emit_variadic_call(
             emit_call(output);
             output.push_str(";\n");
         } else {
-            output.push_str(&indent_str);
-            output.push_str(&ret_type);
-            output.push_str(" ");
-            output.push_str(&til_name(var_name));
-            output.push_str(" = ");
-            emit_call(output);
-            output.push_str(";\n");
-
-            // Add variable to scope
+            // Bug #97: Register in scope FIRST so we can get the type-mangled name
             if let Some(fd) = get_fcall_func_def(context, fcall) {
                 if let Some(first_type) = fd.return_types.first() {
                     context.scope_stack.declare_symbol(
@@ -3557,30 +3601,42 @@ fn emit_variadic_call(
                     );
                 }
             }
-            ctx.declared_vars.insert(til_name(var_name));
+            let c_var_name = til_var_name_from_context(var_name, context);
+            output.push_str(&indent_str);
+            output.push_str(&ret_type);
+            output.push_str(" ");
+            output.push_str(&c_var_name);
+            output.push_str(" = ");
+            emit_call(output);
+            output.push_str(";\n");
+
+            ctx.declared_vars.insert(c_var_name);
         }
     } else if let Some(var_name) = assign_name {
         // Assignment
         output.push_str(&indent_str);
+        // Bug #97: Use type-mangled names for variables
         // Check if assignment target is a field access on a mut param (self.field)
         // If so, emit with -> instead of .
         if let Some(dot_pos) = var_name.find('.') {
             let base = &var_name[..dot_pos];
             let rest = &var_name[dot_pos + 1..];
             if ctx.current_ref_params.contains(base) {
-                // Mut param field access: til_self->field
-                output.push_str(&til_name(base));
+                // Mut param field access: til_Type_self->field
+                output.push_str(&til_var_name_from_context(base, context));
                 output.push_str("->");
                 output.push_str(rest);
             } else {
-                output.push_str(&til_name(var_name));
+                output.push_str(&til_var_name_from_context(base, context));
+                output.push_str(".");
+                output.push_str(rest);
             }
         } else if ctx.current_ref_params.contains(var_name) {
-            // Direct assignment to mut param: *til_self = value
+            // Direct assignment to mut param: *til_Type_self = value
             output.push_str("*");
-            output.push_str(&til_name(var_name));
+            output.push_str(&til_var_name_from_context(var_name, context));
         } else {
-            output.push_str(&til_name(var_name));
+            output.push_str(&til_var_name_from_context(var_name, context));
         }
         output.push_str(" = ");
         emit_call(output);
@@ -3679,13 +3735,7 @@ fn emit_throwing_call(
     // Skip for underscore _ which is just a discard
     if let Some(var_name) = decl_name {
         if var_name != "_" {
-            output.push_str(&indent_str);
-            output.push_str(&ret_type);
-            output.push_str(" ");
-            output.push_str(&til_name(var_name));
-            output.push_str(";\n");
-            ctx.declared_vars.insert(til_name(var_name));
-            // Add to scope_stack for type resolution
+            // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
             if let Some(fd) = func_def_opt.as_ref() {
                 if let Some(first_type) = fd.return_types.first() {
                     context.scope_stack.declare_symbol(
@@ -3694,6 +3744,13 @@ fn emit_throwing_call(
                     );
                 }
             }
+            let c_var_name = til_var_name_from_context(var_name, context);
+            output.push_str(&indent_str);
+            output.push_str(&ret_type);
+            output.push_str(" ");
+            output.push_str(&c_var_name);
+            output.push_str(";\n");
+            ctx.declared_vars.insert(c_var_name);
         }
     }
 
@@ -3790,12 +3847,13 @@ fn emit_throwing_call(
 
     // Success case: assign return value to target variable
     // Skip for underscore _ which is just a discard
+    // Bug #97: Use type-mangled names
     if let Some(var_name) = decl_name {
         if var_name != "_" {
             // Declaration: assign to newly declared variable (declared before if block)
             let inner_indent = "    ".repeat(indent + 1);
             output.push_str(&inner_indent);
-            output.push_str(&til_name(var_name));
+            output.push_str(&til_var_name_from_context(var_name, context));
             output.push_str(" = _ret_");
             output.push_str(&temp_suffix.to_string());
             output.push_str(";\n");
@@ -3810,19 +3868,21 @@ fn emit_throwing_call(
             let base = &var_name[..dot_pos];
             let rest = &var_name[dot_pos + 1..];
             if ctx.current_ref_params.contains(base) {
-                // Mut param field access: til_self->field
-                output.push_str(&til_name(base));
+                // Mut param field access: til_Type_self->field
+                output.push_str(&til_var_name_from_context(base, context));
                 output.push_str("->");
                 output.push_str(rest);
             } else {
-                output.push_str(&til_name(var_name));
+                output.push_str(&til_var_name_from_context(base, context));
+                output.push_str(".");
+                output.push_str(rest);
             }
         } else if ctx.current_ref_params.contains(var_name) {
-            // Direct assignment to mut param: *til_var = value
+            // Direct assignment to mut param: *til_Type_var = value
             output.push_str("*");
-            output.push_str(&til_name(var_name));
+            output.push_str(&til_var_name_from_context(var_name, context));
         } else {
-            output.push_str(&til_name(var_name));
+            output.push_str(&til_var_name_from_context(var_name, context));
         }
         output.push_str(" = _ret_");
         output.push_str(&temp_suffix.to_string());
@@ -3978,13 +4038,7 @@ fn emit_throwing_call_propagate(
     // Skip for underscore _ which is just a discard
     if let Some(var_name) = decl_name {
         if var_name != "_" {
-            output.push_str(&indent_str);
-            output.push_str(&ret_type);
-            output.push_str(" ");
-            output.push_str(&til_name(var_name));
-            output.push_str(";\n");
-            ctx.declared_vars.insert(til_name(var_name));
-            // Add to scope_stack for type resolution
+            // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
             if let Some(fd) = func_def_opt.as_ref() {
                 if let Some(first_type) = fd.return_types.first() {
                     context.scope_stack.declare_symbol(
@@ -3993,6 +4047,13 @@ fn emit_throwing_call_propagate(
                     );
                 }
             }
+            let c_var_name = til_var_name_from_context(var_name, context);
+            output.push_str(&indent_str);
+            output.push_str(&ret_type);
+            output.push_str(" ");
+            output.push_str(&c_var_name);
+            output.push_str(";\n");
+            ctx.declared_vars.insert(c_var_name);
         }
     }
 
@@ -4123,10 +4184,11 @@ fn emit_throwing_call_propagate(
 
     // Success case: assign return value to target variable if needed
     // Skip for underscore _ which is just a discard
+    // Bug #97: Use type-mangled names
     if let Some(var_name) = decl_name {
         if var_name != "_" {
             output.push_str(&indent_str);
-            output.push_str(&til_name(var_name));
+            output.push_str(&til_var_name_from_context(var_name, context));
             output.push_str(" = _ret_");
             output.push_str(&temp_suffix);
             output.push_str(";\n");
@@ -4139,19 +4201,21 @@ fn emit_throwing_call_propagate(
             let base = &var_name[..dot_pos];
             let rest = &var_name[dot_pos + 1..];
             if ctx.current_ref_params.contains(base) {
-                // Mut param field access: til_self->field
-                output.push_str(&til_name(base));
+                // Mut param field access: til_Type_self->field
+                output.push_str(&til_var_name_from_context(base, context));
                 output.push_str("->");
                 output.push_str(rest);
             } else {
-                output.push_str(&til_name(var_name));
+                output.push_str(&til_var_name_from_context(base, context));
+                output.push_str(".");
+                output.push_str(rest);
             }
         } else if ctx.current_ref_params.contains(var_name) {
-            // Direct assignment to mut param: *til_var = value
+            // Direct assignment to mut param: *til_Type_var = value
             output.push_str("*");
-            output.push_str(&til_name(var_name));
+            output.push_str(&til_var_name_from_context(var_name, context));
         } else {
-            output.push_str(&til_name(var_name));
+            output.push_str(&til_var_name_from_context(var_name, context));
         }
         output.push_str(" = _ret_");
         output.push_str(&temp_suffix);
@@ -4238,12 +4302,7 @@ fn emit_throwing_call_with_goto(
     // Skip for underscore _ which is just a discard
     if let Some(var_name) = decl_name {
         if var_name != "_" {
-            output.push_str(&indent_str);
-            output.push_str(&ret_type);
-            output.push_str(" ");
-            output.push_str(&til_name(var_name));
-            output.push_str(";\n");
-            ctx.declared_vars.insert(til_name(var_name));
+            // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
             if let Some(fd) = func_def_opt.as_ref() {
                 if let Some(first_type) = fd.return_types.first() {
                     context.scope_stack.declare_symbol(
@@ -4252,6 +4311,13 @@ fn emit_throwing_call_with_goto(
                     );
                 }
             }
+            let c_var_name = til_var_name_from_context(var_name, context);
+            output.push_str(&indent_str);
+            output.push_str(&ret_type);
+            output.push_str(" ");
+            output.push_str(&c_var_name);
+            output.push_str(";\n");
+            ctx.declared_vars.insert(c_var_name);
         }
     }
 
@@ -4396,10 +4462,11 @@ fn emit_throwing_call_with_goto(
     // Success case: assign return value to target variable if needed
     // This runs unconditionally after error checks - if we get here, status was 0
     // Skip for underscore _ which is just a discard
+    // Bug #97: Use type-mangled names
     if let Some(var_name) = decl_name {
         if var_name != "_" {
             output.push_str(&indent_str);
-            output.push_str(&til_name(var_name));
+            output.push_str(&til_var_name_from_context(var_name, context));
             output.push_str(" = _ret_");
             output.push_str(&temp_suffix);
             output.push_str(";\n");
@@ -4412,19 +4479,21 @@ fn emit_throwing_call_with_goto(
             let base = &var_name[..dot_pos];
             let rest = &var_name[dot_pos + 1..];
             if ctx.current_ref_params.contains(base) {
-                // Mut param field access: til_self->field
-                output.push_str(&til_name(base));
+                // Mut param field access: til_Type_self->field
+                output.push_str(&til_var_name_from_context(base, context));
                 output.push_str("->");
                 output.push_str(rest);
             } else {
-                output.push_str(&til_name(var_name));
+                output.push_str(&til_var_name_from_context(base, context));
+                output.push_str(".");
+                output.push_str(rest);
             }
         } else if ctx.current_ref_params.contains(var_name) {
-            // Direct assignment to mut param: *til_var = value
+            // Direct assignment to mut param: *til_Type_var = value
             output.push_str("*");
-            output.push_str(&til_name(var_name));
+            output.push_str(&til_var_name_from_context(var_name, context));
         } else {
-            output.push_str(&til_name(var_name));
+            output.push_str(&til_var_name_from_context(var_name, context));
         }
         output.push_str(" = _ret_");
         output.push_str(&temp_suffix);
@@ -4595,26 +4664,37 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     };
 
     // Track variable type for method mangling
-    // Prioritize struct/enum constructor types, then use get_value_type for other cases
+    // Bug #97: Use declared type for the variable name to match C type declaration
+    // Only fall back to RHS type inference when declared type is INFER_TYPE
     let var_type = if let Some(ref type_name) = struct_type {
         ValueType::TCustom(type_name.clone())
     } else if let Some(ref type_name) = enum_type {
         ValueType::TCustom(type_name.clone())
-    } else if !expr.params.is_empty() {
-        get_value_type(context, &expr.params[0]).ok()
-            .unwrap_or_else(|| decl.value_type.clone())
+    } else if matches!(&decl.value_type, ValueType::TCustom(s) if s == INFER_TYPE) {
+        // INFER_TYPE: need to infer from RHS
+        if !expr.params.is_empty() {
+            get_value_type(context, &expr.params[0]).ok()
+                .unwrap_or_else(|| decl.value_type.clone())
+        } else {
+            decl.value_type.clone()
+        }
     } else {
+        // Declared type is explicit - use it for consistency with C type declaration
         decl.value_type.clone()
     };
     // Add to scope_stack so get_value_type can find it
     context.scope_stack.declare_symbol(
         name.clone(),
-        SymbolInfo { value_type: var_type, is_mut: decl.is_mut, is_copy: false, is_own: false, is_comptime_const: false }
+        SymbolInfo { value_type: var_type.clone(), is_mut: decl.is_mut, is_copy: false, is_own: false, is_comptime_const: false }
     );
 
+    // Bug #97: Compute type-mangled C variable name
+    let type_prefix = value_type_to_c_prefix(&var_type);
+    let c_var_name = til_var_name(name, &type_prefix);
+
     // Check if variable already declared in this function (avoid C redefinition errors)
-    // Use til_name() since that's what hoisting code uses when inserting into declared_vars
-    let already_declared = ctx.declared_vars.contains(&til_name(name));
+    // Bug #97: Use type-mangled name so same name with different types are different variables
+    let already_declared = ctx.declared_vars.contains(&c_var_name);
 
     if let Some(type_name) = struct_type {
         // Struct variable declaration with values (defaults or named args)
@@ -4644,9 +4724,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     }
                     output.push_str(&til_name(&type_name));
                     output.push_str(" ");
-                    ctx.declared_vars.insert(til_name(name));
+                    ctx.declared_vars.insert(c_var_name.clone());
                 }
-                output.push_str(&til_name(name));
+                output.push_str(&c_var_name);
                 emit_struct_literal_assign(output, &type_name, already_declared, "{}");
             } else if struct_def.default_values.is_empty() && named_values.is_empty() {
                 // No defaults and no named args - zero initialize
@@ -4657,9 +4737,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     }
                     output.push_str(&til_name(&type_name));
                     output.push_str(" ");
-                    ctx.declared_vars.insert(til_name(name));
+                    ctx.declared_vars.insert(c_var_name.clone());
                 }
-                output.push_str(&til_name(name));
+                output.push_str(&c_var_name);
                 emit_struct_literal_assign(output, &type_name, already_declared, "{0}");
             } else {
                 // Has default values or named args - emit designated initializer
@@ -4670,9 +4750,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     }
                     output.push_str(&til_name(&type_name));
                     output.push_str(" ");
-                    ctx.declared_vars.insert(til_name(name));
+                    ctx.declared_vars.insert(c_var_name.clone());
                 }
-                output.push_str(&til_name(name));
+                output.push_str(&c_var_name);
                 emit_struct_literal_start(output, &type_name, already_declared);
                 output.push_str("{");
                 let mut first = true;
@@ -4710,9 +4790,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 }
                 output.push_str(&til_name(&type_name));
                 output.push_str(" ");
-                ctx.declared_vars.insert(til_name(name));
+                ctx.declared_vars.insert(c_var_name.clone());
             }
-            output.push_str(&til_name(name));
+            output.push_str(&c_var_name);
             emit_struct_literal_assign(output, &type_name, already_declared, "{0}");
         }
     } else if let Some(type_name) = enum_type {
@@ -4724,9 +4804,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             }
             output.push_str(&til_name(&type_name));
             output.push_str(" ");
-            ctx.declared_vars.insert(til_name(name));
+            ctx.declared_vars.insert(c_var_name.clone());
         }
-        output.push_str(&til_name(name));
+        output.push_str(&c_var_name);
         output.push_str(" = ");
         if let Some(ref call_str) = rhs_string {
             output.push_str(call_str);
@@ -4745,9 +4825,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             let c_type = til_type_to_c(&decl.value_type).map_err(|e| expr.lang_error(&context.path, "ccodegen", &e))?;
             output.push_str(&c_type);
             output.push_str(" ");
-            ctx.declared_vars.insert(til_name(name));
+            ctx.declared_vars.insert(c_var_name.clone());
         }
-        output.push_str(&til_name(name));
+        output.push_str(&c_var_name);
         if !expr.params.is_empty() {
             output.push_str(" = ");
             if let Some(ref call_str) = rhs_string {
@@ -4769,9 +4849,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             output.push_str("const ");
             output.push_str(&c_type);
             output.push_str(" ");
-            ctx.declared_vars.insert(til_name(name));
+            ctx.declared_vars.insert(c_var_name.clone());
         }
-        output.push_str(&til_name(name));
+        output.push_str(&c_var_name);
         if !expr.params.is_empty() {
             output.push_str(" = ");
             if let Some(ref call_str) = rhs_string {
@@ -4891,23 +4971,27 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
     output.push_str(&indent_str);
     // Check if assignment target is a field access on a mut param (self.field)
     // If so, emit with -> instead of .
+    // Bug #97: Use type-mangled variable names
     if let Some(dot_pos) = name.find('.') {
         let base = &name[..dot_pos];
         let rest = &name[dot_pos + 1..];
         if ctx.current_ref_params.contains(base) {
-            // Mut param field access: til_self->field
-            output.push_str(&til_name(base));
+            // Mut param field access: til_Type_self->field
+            output.push_str(&til_var_name_from_context(base, context));
             output.push_str("->");
             output.push_str(rest);
         } else {
-            output.push_str(&til_name(name));
+            // Regular field access: til_Type_var.field
+            output.push_str(&til_var_name_from_context(base, context));
+            output.push_str(".");
+            output.push_str(rest);
         }
     } else if ctx.current_ref_params.contains(name) {
-        // Direct assignment to mut param: *til_self = value
+        // Direct assignment to mut param: *til_Type_self = value
         output.push_str("*");
-        output.push_str(&til_name(name));
+        output.push_str(&til_var_name_from_context(name, context));
     } else {
-        output.push_str(&til_name(name));
+        output.push_str(&til_var_name_from_context(name, context));
     }
     output.push_str(" = ");
 
@@ -5211,9 +5295,11 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
 
     // Hoist declarations from both branches to before the if statement
     // (TIL has function-level scoping, not block-level scoping)
+    // Bug #97: Use type-mangled names for shadowing support
     let then_decls = collect_declarations_in_body(&expr.params[1], context);
     for decl in then_decls {
-        let c_var_name = til_name(&decl.name);
+        let type_prefix = value_type_to_c_prefix(&decl.value_type);
+        let c_var_name = til_var_name(&decl.name, &type_prefix);
         if !ctx.declared_vars.contains(&c_var_name) {
             if let Ok(c_type) = til_type_to_c(&decl.value_type) {
                 output.push_str(&indent_str);
@@ -5236,7 +5322,8 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
     if expr.params.len() > 2 {
         let hoist_else_decls = collect_declarations_in_body(&expr.params[2], context);
         for else_decl in hoist_else_decls {
-            let else_c_var_name = til_name(&else_decl.name);
+            let else_type_prefix = value_type_to_c_prefix(&else_decl.value_type);
+            let else_c_var_name = til_var_name(&else_decl.name, &else_type_prefix);
             if !ctx.declared_vars.contains(&else_c_var_name) {
                 if let Ok(else_c_type) = til_type_to_c(&else_decl.value_type) {
                     output.push_str(&indent_str);
@@ -5311,9 +5398,11 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     // Hoist declarations from loop body to before the while statement
     // (TIL has function-level scoping, not block-level scoping)
+    // Bug #97: Use type-mangled names for shadowing support
     let body_decls = collect_declarations_in_body(&expr.params[1], context);
     for decl in body_decls {
-        let c_var_name = til_name(&decl.name);
+        let type_prefix = value_type_to_c_prefix(&decl.value_type);
+        let c_var_name = til_var_name(&decl.name, &type_prefix);
         if !ctx.declared_vars.contains(&c_var_name) {
             if let Ok(c_type) = til_type_to_c(&decl.value_type) {
                 output.push_str(&indent_str);
@@ -5664,12 +5753,14 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     // Hoist declarations from all case bodies to before the if/else chain
     // This ensures variables declared in switch cases are visible after the switch
     // (TIL has function-level scoping, not block-level scoping)
+    // Bug #97: Use type-mangled names for shadowing support
     let mut i = 1;
     while i + 1 < expr.params.len() {
         let body = &expr.params[i + 1];
         let decls = collect_declarations_in_body(body, context);
         for decl in decls {
-            let c_var_name = til_name(&decl.name);
+            let type_prefix = value_type_to_c_prefix(&decl.value_type);
+            let c_var_name = til_var_name(&decl.name, &type_prefix);
             if !ctx.declared_vars.contains(&c_var_name) {
                 if let Ok(c_type) = til_type_to_c(&decl.value_type) {
                     output.push_str(&indent_str);
@@ -5743,10 +5834,37 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 output.push_str(&info.variant_name);
                 output.push_str(") {\n");
 
+                // Bug #97: Get payload type for mangled variable name
+                // Look up enum and get payload type for this variant
+                let payload_type = if let Some(ValueType::TCustom(enum_name)) = &switch_type {
+                    if let Some(enum_def) = context.scope_stack.lookup_enum(enum_name) {
+                        enum_def.get(&info.variant_name).cloned().flatten()
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                let payload_type_prefix = payload_type.as_ref()
+                    .map(|pt| value_type_to_c_prefix(pt))
+                    .unwrap_or_else(|| "Unknown".to_string());
+                let binding_c_name = til_var_name(&pattern_info.binding_var, &payload_type_prefix);
+
+                // Register binding variable in scope_stack for later references
+                if let Some(pt) = payload_type {
+                    context.scope_stack.declare_symbol(pattern_info.binding_var.clone(), SymbolInfo {
+                        value_type: pt,
+                        is_mut: false,
+                        is_copy: false,
+                        is_own: false,
+                        is_comptime_const: false,
+                    });
+                }
+
                 // Extract payload into binding variable
                 output.push_str(&body_indent);
                 output.push_str("__auto_type ");
-                output.push_str(&til_name(&pattern_info.binding_var));
+                output.push_str(&binding_c_name);
                 output.push_str(" = ");
                 output.push_str(&switch_var);
                 output.push_str(".payload.");
@@ -6153,9 +6271,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if is_type_var {
                     // Type variable - already a const char*, wrap in Str struct literal
                     // Bug #60: Type is special - passed by value since it's already a pointer
+                    // Bug #97: Use type-mangled name for Type variable reference
                     // Use new Str format with Ptr { data, is_borrowed=1 }, len, cap=0
-                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}{}, 1}}), strlen({}{}), 0}})",
-                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, type_name, TIL_PREFIX, type_name));
+                    let c_var_name = til_var_name_from_context(type_name, context);
+                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1}}), strlen({}), 0}})",
+                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name - create Str compound literal
                     if context.scope_stack.has_struct("Str") {
@@ -6238,9 +6358,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 };
                 if payload_is_type_var {
                     // Type variable - wrap in Str struct literal
+                    // Bug #97: Use type-mangled name for Type variable reference
                     // Use new Str format with Ptr { data, is_borrowed=1 }, len, cap=0
-                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}{}, 1}}), strlen({}{}), 0}})",
-                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, payload_type_name, TIL_PREFIX, payload_type_name));
+                    let c_var_name = til_var_name_from_context(payload_type_name, context);
+                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1}}), strlen({}), 0}})",
+                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name - create Str compound literal
                     emit_str_literal(payload_type_name, output);
@@ -6276,9 +6398,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if is_type_var {
                     // Type variable - already a const char*, wrap in Str struct literal
                     // Bug #60: Type is special - passed by value since it's already a pointer
+                    // Bug #97: Use type-mangled name for Type variable reference
                     // Use new Str format with Ptr { data, is_borrowed=1 }, len, cap=0
-                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}{}, 1}}), strlen({}{}), 0}})",
-                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, type_name, TIL_PREFIX, type_name));
+                    let c_var_name = til_var_name_from_context(type_name, context);
+                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1}}), strlen({}), 0}})",
+                        TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name - create Str compound literal
                     emit_str_literal(type_name, output);
@@ -6346,7 +6470,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             output.push_str("I64)");
             if is_dynamic_param {
                 if let NodeType::Identifier(name) = &arg.node_type {
-                    output.push_str(&til_name(name));
+                    // Bug #97: Use type-mangled name
+                    output.push_str(&til_var_name_from_context(name, context));
                 }
             } else {
                 output.push_str("&");
@@ -6522,7 +6647,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                             if let NodeType::Identifier(name) = &vexpr_arg.node_type {
                                 if vexpr_arg.params.is_empty() && (ctx.current_ref_params.contains(name) || ctx.current_variadic_params.contains_key(name)) {
                                     // Already a pointer - emit name directly without dereference
-                                    output.push_str(&til_name(name));
+                                    // Bug #97: Use type-mangled name
+                                    output.push_str(&til_var_name_from_context(name, context));
                                 } else {
                                     output.push_str("&");
                                     emit_expr(vexpr_arg, output, 0, ctx, context)?;

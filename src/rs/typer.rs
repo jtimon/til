@@ -1608,26 +1608,10 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
         },
     };
 
-    // Bug #97: Disallow variable shadowing within a function
-    // Only check when inside a function (not at global scope).
-    // Track declarations by (name, line, col) to handle AST duplication from transformations
-    // like for-in desugaring, while still catching actual shadowing.
-    if decl.name != "_" && context.scope_stack.is_inside_function() {
-        // Skip if this exact declaration was already processed (AST duplication)
-        if context.scope_stack.is_already_processed(&decl.name, e.line, e.col) {
-            // Same declaration visited again due to AST duplication - skip
-        } else if context.scope_stack.is_shadowing_in_function(&decl.name, e.line, e.col) {
-            // Same name at different location - actual shadowing
-            errors.push(e.lang_error(&context.path, "type",
-                &format!("Variable '{}' already declared in this function (shadowing not allowed)", decl.name)));
-            return errors;
-        } else {
-            // New declaration - register it
-            context.scope_stack.register_function_local(&decl.name, e.line, e.col);
-        }
-    }
-
-    if context.scope_stack.lookup_symbol(&decl.name).is_none() {
+    // Bug #97: Always register the declaration (allow shadowing/overwriting)
+    // Previous code only registered if lookup_symbol returned None, which prevented
+    // re-declaring a variable with a different type.
+    {
         let mut value_type = decl.value_type.clone();
         if value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
             value_type = match get_value_type(&context, &inner_e) {
