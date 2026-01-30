@@ -16,6 +16,56 @@ For bugs, see bugs.org. For language design decisions, see future.org.
 
 * Open Issues
 
+** Bug #90: Parser requires semicolon for bodyless func/proc definitions
+:PROPERTIES:
+:DISCOVERED: 2026-01-07
+:FIXED: 2026-01-07
+:IMPACT: Syntax ergonomics
+:STATUS: Partially Fixed - final enhancement deferred
+:END:
+
+*** Description
+The parser cannot determine where a function/proc definition ends when there
+is no body. Previously required a semicolon as a terminator.
+
+*** Initial Fix (2026-01-07)
+Semicolons are now completely optional - skipped by the lexer as whitespace.
+~ext_func~ and ~ext_proc~ require an empty body ~{}~ instead of a semicolon.
+
+*** Future Enhancement (deferred to post-self-hosting)
+Context-aware lookahead could allow:
+#+BEGIN_SRC til
+single_print := ext_proc(s: Str)  // Just works without {}
+#+END_SRC
+Parser would infer end of definition from context.
+
+** Bug #64: Custom main args in mode cli don't work properly
+:PROPERTIES:
+:DISCOVERED: 2025-12-30
+:IMPACT: CLI programs must use args: ..Str and parse manually
+:STATUS: Deferred to post-self-hosting
+:END:
+
+*** Description
+Mode cli has two issues with custom main signatures:
+
+1. I64 parameters cause a type error even when the caller provides a valid integer string (interpreted mode)
+2. Custom named parameters don't work at all in compiled mode - only ~args: ..Str~ works
+
+*** Workaround
+Use ~args: ..Str~ and parse manually:
+#+BEGIN_SRC til
+main := proc(args: ..Str) {
+    name := args.get(0)
+    count := args.get(1).to_i64()
+    println("name:", name, "count:", count.to_str())
+}
+#+END_SRC
+
+*** Fix (deferred)
+1. The interpreter should auto-convert Str args to I64 when main expects I64.
+2. The C codegen should unpack argv into individual named parameters for custom signatures.
+
 ** Issue #104: TempleOS Support
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
