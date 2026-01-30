@@ -61,14 +61,19 @@ precomp, interpreter, ccodegen) have NamespaceDef cases that return todo_error.
 Tests updated: test_parser.til now verifies namespace parsing succeeds and
 produces correct NamespaceDef node with type_name.
 
-**** Step 1.2: Init - merge namespace into existing type
+**** Step 1.2: Init - merge namespace into existing type [DONE]
 
 This is the key insight: =namespace= is just syntax sugar, like Rust's =impl= blocks.
 
 When init encounters a NamespaceDef for type =Foo=:
-1. Look up the existing StructDef/EnumDef for =Foo=
-2. Merge all members from the namespace into that type's =default_values=
-3. Remove the NamespaceDef from the AST (it's been absorbed)
+1. Look up the existing StructDef for =Foo=
+2. Merge all members from the namespace into that type's =members= and =default_values=
+3. Re-declare the struct (overwrites the old one)
+4. Register each new method as =TypeName.methodName= in scope
+
+After init, the namespace members are part of the struct - other phases never see
+NamespaceDef because init has already merged it. The todo_error cases in other
+phases are safety nets that should never trigger.
 
 After init, there is NO NamespaceDef in the AST. The type definition looks
 exactly as if the methods were declared inside the struct/enum originally:
