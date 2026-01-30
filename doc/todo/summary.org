@@ -2,7 +2,7 @@
 #+AUTHOR: TIL Development
 #+DATE: 2026-01-30
 
-* bugs.org (17 bugs/issues)
+* bugs.org (15 bugs/issues)
 
 | #   | Bug/Issue                                                        | Impact                 |
 |-----+------------------------------------------------------------------+------------------------|
@@ -18,11 +18,9 @@
 |  99 | Eliminate all C compiler warnings and enable -Werror             | Code quality           |
 |  98 | ext_proc errors should throw specific error types                | Error handling         |
 |  94 | gcc warnings cause bug47.til compilation failure                 | Build issue            |
-|  90 | Parser requires semicolon for bodyless func/proc                 | Partially fixed        |
 |  89 | Constant folding only works at global scope                      | Optimization           |
 |  83 | No spread/splat operator for variadic forwarding                 | Missing feature        |
 |  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence             |
-|  64 | Custom main args in mode cli don't work                          | CLI mode broken        |
 
 * future.org (11 issues)
 
@@ -52,7 +50,7 @@
 | 108 | Implement Namespaces                         | Language     |
 |  82 | make.til - Replace Makefile with TIL         | Build system |
 
-* post.org (9 issues)
+* post.org (11 issues)
 
 | #   | Issue                                             | Category         |
 |-----+---------------------------------------------------+------------------|
@@ -64,4 +62,6 @@
 | 109 | Proper Imports                                    | Language feature |
 | 104 | TempleOS Support                                  | Platform         |
 | 103 | Mode GUI                                          | Feature          |
+|  90 | Parser: remove {} requirement for ext_func/proc   | Syntax           |
+|  64 | Custom main args in mode cli don't work           | CLI mode         |
 |  51 | Precomp doesn't propagate constants through params | Optimization    |
