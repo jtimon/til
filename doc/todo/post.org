@@ -16,6 +16,57 @@ For bugs, see bugs.org. For language design decisions, see future.org.
 
 * Open Issues
 
+** Issue #154: Template vs Dynamic compilation mode
+:PROPERTIES:
+:DISCOVERED: 2026-01-29
+:IMPACT: Binary size vs performance trade-off, embedded device support
+:STATUS: Open
+:RELATED: Issue #153 (Dynamic field/method access), Issue #111 (returns Dynamic)
+:END:
+
+*** Description
+Currently TIL uses Dynamic internally for generic collections (Vec, Map, etc.) -
+type erasure approach with one implementation that works for all types, checked
+at runtime.
+
+The vision: offer BOTH approaches via compiler flag, transparently to the user:
+- ~--dynamic~ (or similar): Current behavior, type erasure, smaller binary
+- ~--template~ (or similar): Rust-style monomorphization, specialized code per type
+
+*** The Trade-off
+
+| Mode     | Type checking | Binary size       | Performance |
+|----------+---------------+-------------------+-------------|
+| Dynamic  | Runtime       | Smaller (1 copy)  | Slower      |
+| Template | Compile-time  | Larger (N copies) | Fast        |
+
+*** User Experience
+Same source code works either way:
+#+BEGIN_SRC til
+v := Vec.new(I64)
+v.push(42)
+#+END_SRC
+
+With ~--dynamic~: One Vec implementation, runtime type info
+With ~--template~: Specialized Vec_I64 generated, compile-time checks
+
+The user doesn't change their code - the compiler flag decides.
+
+*** Use Cases
+- **Embedded devices**: Use ~--dynamic~ for limited flash, accept slower runtime
+- **Performance-critical**: Use ~--template~ for speed, accept larger binary
+- **Development**: Use ~--dynamic~ for fast compilation
+- **Release**: Use ~--template~ for production performance
+
+*** Why Post-Self-Hosting
+This is a major compiler feature requiring:
+- Template instantiation system
+- Monomorphization pass
+- Significant ccodegen changes
+- Testing infrastructure for both modes
+
+Current Dynamic-only approach works for self-hosting.
+
 ** Issue #152: Extract information from post_old.org
 :PROPERTIES:
 :DISCOVERED: 2026-01-29
