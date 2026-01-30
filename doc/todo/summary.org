@@ -2,7 +2,7 @@
 #+AUTHOR: TIL Development
 #+DATE: 2026-01-30
 
-* bugs.org (15 bugs/issues)
+* bugs.org (13 bugs/issues)
 
 | #   | Bug/Issue                                                        | Impact                 |
 |-----+------------------------------------------------------------------+------------------------|
@@ -18,11 +18,9 @@
 |  99 | Eliminate all C compiler warnings and enable -Werror             | Code quality           |
 |  98 | ext_proc errors should throw specific error types                | Error handling         |
 |  94 | gcc warnings cause bug47.til compilation failure                 | Build issue            |
-|  89 | Constant folding only works at global scope                      | Optimization           |
-|  83 | No spread/splat operator for variadic forwarding                 | Missing feature        |
 |  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence             |
 
-* future.org (11 issues)
+* future.org (13 issues)
 
 | #   | Issue                                            | Category           |
 |-----+--------------------------------------------------+--------------------|
@@ -35,7 +33,9 @@
 | 105 | First-Class Structs                              | Language feature   |
 | 100 | Get rid of rstil                                 | Architecture goal  |
 |  91 | First-Class Functions                            | Language feature   |
+|  89 | Constant folding only works at global scope      | Optimization       |
 |  88 | Macro Support (Compile-Time Evaluation)          | Language feature   |
+|  83 | No spread/splat operator for variadic forwarding | Missing feature    |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
 * pre.org (7 issues)
