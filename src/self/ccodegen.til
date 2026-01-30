@@ -964,7 +964,8 @@ emit_arg_string_dynamic := proc(arg: Expr, mut hoist_output: Str, indent: I64, i
                     }
                 }
                 if is_ptr {
-                    return format("(", TIL_PREFIX, "Dynamic*)", til_name(name))
+                    // Bug #97: Use type-mangled name
+                    return format("(", TIL_PREFIX, "Dynamic*)", til_var_name_from_context(name, context))
                 }
             }
         case:
@@ -1024,7 +1025,8 @@ emit_arg_string_by_ref := proc(arg: Expr, mut hoist_output: Str, indent: I64, in
                     is_ptr = true
                 }
                 if is_ptr {
-                    return til_name(name)
+                    // Bug #97: Use type-mangled name
+                    return til_var_name_from_context(name, context)
                 }
             }
         case:
@@ -1789,9 +1791,10 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         case:
         }
         if is_dynamic_param {
+            // Bug #97: Use type-mangled name
             switch inner_arg.node_type {
             case NodeType.Identifier(name):
-                return format("(", TIL_PREFIX, "I64)", til_name(name))
+                return format("(", TIL_PREFIX, "I64)", til_var_name_from_context(name, context))
             case:
             }
         }
@@ -2417,7 +2420,10 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             if is_global_declaration(child) {
                 switch child.node_type {
                 case NodeType.Declaration(decl):
-                    _ := ctx.declared_vars.insert(til_name(decl.name))
+                    // Bug #97: Use type-mangled name
+                    // Note: decl.value_type should be resolved by typer (not INFER_TYPE)
+                    type_prefix := value_type_to_c_prefix(decl.value_type)
+                    _ := ctx.declared_vars.insert(til_var_name(decl.name, type_prefix))
                 case:
                 }
             }
@@ -2564,12 +2570,13 @@ emit_constant_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenC
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
+            // Bug #97: Use type-mangled name for constants
             mut var_name := ""
             if decl.name.eq("_") {
                 var_name = next_mangled(ctx)
             } else {
-                var_name = til_name(decl.name)
+                type_prefix := value_type_to_c_prefix(decl.value_type)
+                var_name = til_var_name(decl.name, type_prefix)
             }
 
             // Handle literal constants (numbers, strings)
@@ -2701,15 +2708,17 @@ emit_global_declaration := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if not(expr.params.is_empty()) {
-            // Bug #35: Use unique name for "_" declarations to avoid C redefinition errors
+            // Bug #97: Use type-mangled name for global declarations
+            // Note: decl.value_type should be resolved by typer (not INFER_TYPE)
             mut var_name := ""
             if decl.name.eq("_") {
                 var_name = next_mangled(ctx)
             } else {
-                var_name = til_name(decl.name)
+                type_prefix := value_type_to_c_prefix(decl.value_type)
+                var_name = til_var_name(decl.name, type_prefix)
             }
 
-            // Determine the type from the initializer expression using get_value_type
+            // Determine the C type from the initializer expression using get_value_type
             mut first_param := Expr()
             expr.params.get(0, first_param)?
             mut have_vt := true
@@ -3643,18 +3652,26 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, context: Context
         // Check for variadic arg (TMulti)
         switch func_def_arg.value_type {
         case ValueType.TMulti(elem_type):
-            // Variadic args are passed as til_Array*
+            // Variadic args are passed as til_Array* - Bug #97: use type-mangled name
             output.push_str(TIL_PREFIX)
             output.push_str("Array* ")
-            output.push_str(TIL_PREFIX)
-            output.push_str(func_def_arg.name)
+            // Variadic params have effective type Array in scope_stack
+            output.push_str(til_var_name(func_def_arg.name, "Array"))
             param_count.inc()
             break // Variadic must be last
-        case ValueType.TCustom(type_name):
+        case:
+            // All non-variadic types (TI64, TU8, TBool, TStr, TCustom, etc.)
             arg_type := til_type_to_c(func_def_arg.value_type)?
 
             // Bug #60: Type is already const char*, don't add extra indirection
-            is_type_param := type_name.eq("Type")
+            // is_type_param is true only for TCustom("Type")
+            mut is_type_param := false
+            switch func_def_arg.value_type {
+            case ValueType.TCustom(type_name):
+                is_type_param = type_name.eq("Type")
+            case:
+            }
+
             if func_def_arg.is_mut {
                 // mut: pass by pointer so mutations are visible to caller
                 output.push_str(arg_type)
@@ -3685,10 +3702,10 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, context: Context
                     output.push_str("* ")
                 }
             }
-            output.push_str(TIL_PREFIX)
-            output.push_str(func_def_arg.name)
+            // Bug #97: Use type-mangled parameter name
+            param_type_prefix := value_type_to_c_prefix(func_def_arg.value_type)
+            output.push_str(til_var_name(func_def_arg.name, param_type_prefix))
             param_count.inc()
-        case:
         }
     }
 
@@ -4202,7 +4219,8 @@ emit_stmts := proc(stmts: Vec, mut output: Str, indent: I64, mut ctx: CodegenCon
                                 output.push_str(emit_inner_indent)
                                 output.push_str(til_name(stmt_err_type_name))
                                 output.push_str(" ")
-                                output.push_str(til_name(emit_err_var_name))
+                                // Bug #97: Use type-mangled name for catch error variable
+                                output.push_str(til_var_name(emit_err_var_name, stmt_err_type_name))
                                 output.push_str(" = ")
                                 output.push_str(catch_entry_temp_var)
                                 output.push_str(";\n")
@@ -4990,7 +5008,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                         output.push_str(inner_indent)
                         output.push_str(til_name(err_type_name))
                         output.push_str(" ")
-                        output.push_str(til_name(err_var_name))
+                        // Bug #97: Use type-mangled name for catch error variable
+                        output.push_str(til_var_name(err_var_name, err_type_name))
                         // Issue #119: For empty struct errors, use empty initializer since _err var doesn't exist
                         catch_throw_type := ValueType.TCustom(err_type_name.clone())
                         if is_empty_error_struct(context, catch_throw_type) {
@@ -5863,19 +5882,35 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
     }
 
     // Track variable type for method mangling
-    // Prioritize struct/enum constructor types, then use get_value_type for other cases
+    // Bug #97: Use declared type for the variable name to match C type declaration
+    // Only fall back to RHS type inference when declared type is INFER_TYPE
     mut var_type := decl.value_type
     if has_struct_type {
         var_type = ValueType.TCustom(struct_type.clone())
     } else if has_enum_type {
         var_type = ValueType.TCustom(enum_type.clone())
-    } else if not(expr.params.is_empty()) {
-        mut type_first_param := Expr()
-        expr.params.get(0, type_first_param)?
-        var_type = get_value_type(context, type_first_param)?
-        catch (err: Str) {
-            var_type = decl.value_type
+    } else {
+        // Check if declared type is INFER_TYPE
+        mut is_infer := false
+        switch decl.value_type {
+        case ValueType.TCustom(type_name):
+            if type_name.eq(INFER_TYPE) {
+                is_infer = true
+            }
+        case:
         }
+        if is_infer {
+            // INFER_TYPE: need to infer from RHS
+            if not(expr.params.is_empty()) {
+                mut type_first_param := Expr()
+                expr.params.get(0, type_first_param)?
+                var_type = get_value_type(context, type_first_param)?
+                catch (err: Str) {
+                    var_type = decl.value_type
+                }
+            }
+        }
+        // Otherwise, declared type is explicit - use it (var_type already set to decl.value_type)
     }
     // Add to scope_stack so get_value_type can find it
     mut decl_symbol_info := SymbolInfo()
@@ -8128,9 +8163,10 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         output.push_str("I64)")
         if is_dynamic_param {
             // Dynamic param: just output the variable name (it's already a pointer)
+            // Bug #97: Use type-mangled name
             switch ptr_arg.node_type {
             case NodeType.Identifier(name):
-                output.push_str(til_name(name))
+                output.push_str(til_var_name_from_context(name, context))
             case:
                 // REM: should not happen
             }
@@ -8362,7 +8398,8 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     case NodeType.Identifier(name):
                         if vexpr_arg.params.is_empty().and(ctx.current_ref_params.contains(name).or(ctx.current_variadic_params.contains_key(name))) {
                             // Already a pointer - emit name directly without dereference
-                            output.push_str(til_name(name))
+                            // Bug #97: Use type-mangled name
+                            output.push_str(til_var_name_from_context(name, context))
                         } else {
                             output.push_str("&")
                             emit_expr(vexpr_arg, output, 0, ctx, context)?
