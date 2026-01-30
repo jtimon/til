@@ -26,10 +26,11 @@
 |  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence             |
 |  64 | Custom main args in mode cli don't work                          | CLI mode broken        |
 
-* Open Issues (24)
+* Open Issues (25)
 
 | #   | Issue                                            | Category         |
 |-----+--------------------------------------------------+------------------|
+| 156 | Implement match keyword (expression-based switch)| Language feature |
 | 155 | Add Unicode support to TIL                       | Lexer            |
 | 154 | Template vs Dynamic compilation mode             | Compiler feature |
 | 153 | Enable field/method access on Dynamic parameters | Language feature |
