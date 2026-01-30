@@ -26,10 +26,12 @@
 |  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence             |
 |  64 | Custom main args in mode cli don't work                          | CLI mode broken        |
 
-* Open Issues (21)
+* Open Issues (23)
 
 | #   | Issue                                            | Category         |
 |-----+--------------------------------------------------+------------------|
+| 154 | Template vs Dynamic compilation mode             | Compiler feature |
+| 153 | Enable field/method access on Dynamic parameters | Language feature |
 | 152 | Extract information from post_old.org            | Documentation    |
 | 151 | Explicit pointer/reference syntax                | Language feature |
 | 142 | Code Simplification - Context Error Helpers      | Cleanup          |
