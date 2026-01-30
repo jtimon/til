@@ -27,7 +27,7 @@
 |  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence             |
 |  64 | Custom main args in mode cli don't work                          | CLI mode broken        |
 
-* future.org (11 issues)
+* future.org (10 issues)
 
 | #   | Issue                                            | Category           |
 |-----+--------------------------------------------------+--------------------|
@@ -35,7 +35,6 @@
 | 142 | Code Simplification - Context Error Helpers      | Cleanup            |
 | 138 | Use Bool for Ptr.is_borrowed or separate BorrowedPtr | API design     |
 | 111 | Support returns Dynamic                          | Feature            |
-| 110 | Desugar switch to if/else in desugarer           | Architecture       |
 | 107 | First-Class Namespaces                           | Language feature   |
 | 106 | First-Class Enums                                | Language feature   |
 | 105 | First-Class Structs                              | Language feature   |
@@ -43,7 +42,7 @@
 |  88 | Macro Support (Compile-Time Evaluation)          | Language feature   |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
-* pre.org (6 issues)
+* pre.org (7 issues)
 
 | #   | Issue                                        | Category     |
 |-----+----------------------------------------------+--------------|
@@ -51,6 +50,7 @@
 | 117 | ASAP Destruction (auto-delete on last use)   | Memory mgmt  |
 | 115 | Owned struct fields and auto-generated methods | Memory mgmt |
 | 135 | True cross-compilation via precompiled ext.o | Build system |
+| 110 | Desugar switch to if/else in desugarer       | Architecture |
 | 108 | Implement Namespaces                         | Language     |
 |  82 | make.til - Replace Makefile with TIL         | Build system |
 
