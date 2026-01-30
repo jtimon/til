@@ -27,20 +27,16 @@
 |  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence             |
 |  64 | Custom main args in mode cli don't work                          | CLI mode broken        |
 
-* future.org (17 issues)
+* future.org (13 issues)
 
 | #   | Issue                                            | Category           |
 |-----+--------------------------------------------------+--------------------|
 | 153 | Enable field/method access on Dynamic parameters | Language feature   |
-| 151 | Explicit pointer/reference syntax                | Language feature   |
 | 142 | Code Simplification - Context Error Helpers      | Cleanup            |
 | 138 | Use Bool for Ptr.is_borrowed or separate BorrowedPtr | API design     |
 | 122 | Add regex support to standard library            | Feature            |
-| 117 | ASAP Destruction (auto-delete on last use)       | Memory mgmt        |
-| 115 | Owned struct fields and auto-generated methods   | Memory mgmt        |
 | 111 | Support returns Dynamic                          | Feature            |
 | 110 | Desugar switch to if/else in desugarer           | Architecture       |
-| 109 | Proper Imports                                   | Language feature   |
 | 108 | Implement Namespaces                             | Language feature   |
 | 107 | First-Class Namespaces                           | Language feature   |
 | 106 | First-Class Enums                                | Language feature   |
@@ -49,20 +45,24 @@
 |  88 | Macro Support (Compile-Time Evaluation)          | Language feature   |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
-* pre.org (2 issues)
+* pre.org (5 issues)
 
 | #   | Issue                                        | Category     |
 |-----+----------------------------------------------+--------------|
+| 151 | Explicit pointer/reference syntax            | Language     |
+| 117 | ASAP Destruction (auto-delete on last use)   | Memory mgmt  |
+| 115 | Owned struct fields and auto-generated methods | Memory mgmt |
 | 135 | True cross-compilation via precompiled ext.o | Build system |
 |  82 | make.til - Replace Makefile with TIL         | Build system |
 
-* post.org (5 issues)
+* post.org (6 issues)
 
 | #   | Issue                                             | Category         |
 |-----+---------------------------------------------------+------------------|
 | 156 | Implement match keyword (expression-based switch) | Language feature |
 | 155 | Add Unicode support to TIL                        | Lexer            |
 | 154 | Template vs Dynamic compilation mode              | Compiler feature |
+| 109 | Proper Imports                                    | Language feature |
 | 104 | TempleOS Support                                  | Platform         |
 | 103 | Mode GUI                                          | Feature          |
 

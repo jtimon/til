@@ -206,6 +206,93 @@ This is a major compiler feature requiring:
 
 Current Dynamic-only approach works for self-hosting.
 
+** Issue #109: Proper Imports
+:PROPERTIES:
+:DISCOVERED: 2026-01-13
+:IMPACT: Language feature, code organization, namespace control
+:STATUS: Open
+:RELATED: Issue #108 (Implement Namespaces)
+:END:
+
+*** Python Reference
+#+BEGIN_SRC python
+import os                            # import module as namespace
+import os as operating_system        # import module with alias
+
+from os import path, getcwd          # import specific items
+from os import path as p             # import specific item with alias
+
+from os import *                     # import all (discouraged)
+
+from . import sibling                # relative imports
+from .. import parent
+from ..package import module
+#+END_SRC
+
+*** Current State
+~import("module")~ imports everything into current namespace (like Python's ~from os import *~).
+
+*** Priorities
+
+A. *Namespaced imports*
+   #+BEGIN_SRC til
+   import("os")              // from os import *
+   getcwd()                  // getcwd() - directly available
+   #+END_SRC
+
+   #+BEGIN_SRC til
+   os := import("os")        // import os
+   os.getcwd()               // os.getcwd()
+   #+END_SRC
+
+B. *Selective imports*
+   Could save significant precomp/scavenger time by not loading everything.
+   #+BEGIN_SRC til
+   import("numpy", "array", "zeros")  // from numpy import array, zeros
+   array()                            // array()
+   zeros()                            // zeros()
+   #+END_SRC
+   Uses variadic arguments. Syntax may change as we cover more Python cases.
+
+C. *Namespaced + selective (TIL-specific, no Python equivalent)*
+   #+BEGIN_SRC til
+   np := import("numpy", "array", "zeros")
+   np.array()
+   np.zeros()
+   #+END_SRC
+   Combines A and B: namespaced access but only selected items and their own internal dependencies, recursively, are loaded.
+
+D. *Direct member access*
+   #+BEGIN_SRC til
+   Lexer := import("src/core/lexer").Lexer
+   my_lexer := Lexer.new("file.til")
+   #+END_SRC
+   Access single member from import result without loading entire namespace.
+
+E. *Destructuring syntax (alternative to B)*
+   #+BEGIN_SRC til
+   {Lexer, Token} := import("src/core/lexer")
+   #+END_SRC
+   Similar to Python's ~from lexer import Lexer, Token~ but with destructuring.
+   Alternative to variadic syntax in B - needs decision on preferred approach.
+
+*** Future (lower priority)
+
+These Python cases still need TIL equivalents:
+- ~import os as operating_system~ - module alias
+- ~from os import getcwd as cwd~ - item alias
+- ~from . import sibling~ - relative imports (collides with current dot syntax for multiplatform, needs thought)
+
+*** Implementation Notes
+- Import result is struct-like: declarations accessed like struct fields
+- Requires Issue #108 (namespaces) to be partially complete - import returns namespace object
+- Type checker needs to handle namespace types for dot access
+- Scavenger benefits from selective imports (less to scan)
+
+*** Why Post-Self-Hosting
+Current ~import("module")~ works for self-hosting. Advanced import features are
+syntactic conveniences that can wait.
+
 * Implemented Issues
 
 (None yet - move issues here when implemented)
