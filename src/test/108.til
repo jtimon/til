@@ -1,0 +1,23 @@
+mode script
+
+// Issue #108: Test namespace blocks
+
+Foo := struct {
+    mut x: I64 = 0
+}
+
+namespace Foo {
+    get_x := func(self: Foo) returns I64 {
+        return self.x
+    }
+}
+
+f := Foo(x=42)
+
+// UFCS call - works
+result := f.get_x()
+println(result.to_str())
+
+// Qualified call - broken
+result2 := Foo.get_x(f)
+println(result2.to_str())
