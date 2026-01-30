@@ -76,9 +76,7 @@ can finally be idiomatic Til instead of "Til that looks like Rust."
     - Accept growth if justified by performance (e.g., templates/monomorphization)
 
 *** Not Required for #100
-- Bug #97: Partial fix is sufficient. Shadowing detection is in both Rust and TIL
-  typers, all existing code renamed. Final design decision (allow vs disallow)
-  can wait until after #100.
+- Bug #97: Fixed. Variable shadowing now works via name mangling in C codegen.
 
 ** Issue #153: Enable field and method access on Dynamic parameters
 :PROPERTIES:
@@ -294,9 +292,10 @@ val: I64 = vec.get(0)  // direct return
 ** Issue #66: Variable Shadowing Policy
 :PROPERTIES:
 :DISCOVERED: 2025-12-31
+:RESOLVED: 2026-01-30
 :IMPACT: Language design, Rust/TIL parity, developer experience
-:STATUS: Open
-:RELATED: Bug #65 (specific shadowing divergence), Bug #97 (implementation attempt)
+:STATUS: Resolved - Bug #97 implemented option 1 (allow full shadowing)
+:RELATED: Bug #65 (specific shadowing divergence), Bug #97 (fix via name mangling)
 :END:
 
 *** Background

@@ -7,6 +7,58 @@
 
 * Fixed Bugs
 
+** Bug #97: Variable shadowing causes C codegen to generate broken C code
+:PROPERTIES:
+:DISCOVERED: 2026-01-10
+:FIXED: 2026-01-30
+:IMPACT: Variable shadowing with different types caused C compiler errors
+:STATUS: Fixed
+:RELATED: Issue #66 (shadowing policy - now obsolete)
+:END:
+
+*** Description
+TIL's C codegen didn't handle variable shadowing (reusing same name with different type).
+The interpreter handles it fine, but C can't shadow with different types:
+
+#+BEGIN_SRC til
+mut x := 1        // I64
+if true {
+    mut x := "hi" // Str - shadows with different type
+}
+#+END_SRC
+
+Previous ccodegen generated broken C:
+#+BEGIN_SRC c
+til_I64 til_x;           // Declared as I64
+til_x = ((til_Str){...}); // ERROR: assigning Str to I64
+#+END_SRC
+
+*** Fix
+Implemented name mangling with type prefix:
+- ~x: I64~ becomes ~til_I64_x~
+- ~x: Str~ becomes ~til_Str_x~
+
+Changes in ccodegen (both Rust and TIL):
+- Added ~til_var_name(name, type_prefix)~ helper function
+- Added ~value_type_to_c_prefix(vt)~ to convert ValueType to string prefix
+- Added ~til_var_name_from_context(name, context)~ to look up type and return mangled name
+- Updated ~emit_declaration~ to compute type-mangled ~c_var_name~
+- Updated hoisting in ~emit_if~, ~emit_while~, ~emit_switch~
+- Updated ~emit_throwing_call~, ~emit_throwing_call_propagate~, ~emit_throwing_call_with_goto~
+- Updated ~emit_variadic_call~ declaration and assignment handling
+- Updated Pattern handling in ~emit_switch~ for binding variables
+- Updated Type variable references in ~size_of~, ~type_as_str~, ~enum_get_payload~
+
+Changes in desugarer (both Rust and TIL):
+- Changed for-in catch error variable from ~err~ to unique ~_err_forin_N~ to avoid
+  shadowing when loop variable is named ~err~
+
+*** Benefits
+- Shadowing is now a valid TIL feature (like Rust)
+- Much less friction when porting Rust code (~let x = x.trim()~ patterns)
+- No need to manually rename variables during translation
+- Issue #66 policy debate is obsolete - shadowing just works
+
 ** Bug #96: Unreachable code error when return is before catch in early-return pattern
 :PROPERTIES:
 :DISCOVERED: 2026-01-09

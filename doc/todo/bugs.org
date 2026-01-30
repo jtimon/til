@@ -1505,7 +1505,7 @@ When a test passes til_compiled, remove TODO and move to all_common.
 - Correctness per rs2til.org is primary - whether a change "fixes" a test is secondary
 - If change follows rs2til.org but doesn't fix issue - there's a DIFFERENT bug elsewhere
 - NEVER filter make benchmark output - see ALL errors
-- Avoid variable shadowing - Bug #97 disallows it
+- Variable shadowing is now supported (Bug #97 fixed via name mangling)
 - Port fixes to BOTH Rust and TIL when needed
 
 **** Files Modified
