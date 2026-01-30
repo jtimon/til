@@ -149,66 +149,6 @@ This is a major compiler feature requiring:
 
 Current Dynamic-only approach works for self-hosting.
 
-** Issue #152: Extract information from post_old.org
-:PROPERTIES:
-:DISCOVERED: 2026-01-29
-:IMPACT: Documentation cleanup
-:STATUS: Open
-:END:
-
-*** Description
-The old post.org (now post_old.org) contains valuable TODOs and design notes
-that need to be reviewed and migrated:
-
-1. Items that are now DONE should be documented or removed
-2. Items that duplicate future.org issues should be consolidated
-3. Unique items should get proper issue numbers here or in future.org
-4. Outdated information should be corrected or removed
-
-*** Completed (2026-01-30)
-- [X] Dynamic field/method access -> Issue #153 (future.org)
-- [X] Template vs Dynamic mode -> Issue #154 (post.org)
-- [X] Variable shadowing -> already Issue #66 (deleted stub)
-- [X] Unicode support -> Issue #155 (post.org)
-- [X] Namespace-style imports -> merged into Issue #109
-- [X] Match keyword -> Issue #156 (post.org)
-- [X] Bug #8 -> already in fixed.org (to delete)
-- [X] Enum tag comparison -> skipped (switch is TIL way)
-
-*** Still in post_old.org
-- Bug #8 entry (DONE, needs deletion - already in fixed.org)
-- Own keyword (DONE, needs deletion - already in ownership.org)
-- Error handling enhancements (? operator done in errors.org, other parts TBD)
-- List/Tuple support
-- Negative number literals
-- Guards for pattern matching
-- Default keyword for switch
-- Struct literals
-- Cast operations
-- Operator overloading
-- Type checking edge cases
-- safe_script mode
-- pure mode
-- Performance optimizations
-- Memory management
-- Better error messages
-- Code quality improvements
-- Memory error handling
-- More test cases
-- Improve documentation
-- Other number types
-- Unset default values in structs
-- Better import caching
-*** Likely Duplicates (verify before extracting)
-- Closures -> likely Issue #91 (First-Class Functions)
-- Macros -> likely Issue #88 (Macro Support)
-- Error handling enhancements -> may overlap Bug #98 (ext_proc error types)
-- Code quality improvements -> may overlap Issue #142 (Context Error Helpers)
-
-*** After Extraction
-Once all information is extracted and properly tracked, post_old.org can be
-deleted.
-
 * Implemented Issues
 
 (None yet - move issues here when implemented)
