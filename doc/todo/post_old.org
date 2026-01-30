@@ -146,15 +146,6 @@ After gaining more experience with the self-hosted codebase, we may consider:
 
 For now, requiring explicit handling is the safer and clearer default.
 
-** MOVED Variable Shadowing Policy - See Issue #66 in future.org      :MEDIUM:
-:PROPERTIES:
-:DISCOVERED: 2025-11-10
-:MOVED: 2025-12-31
-:END:
-
-This topic has been moved to doc/todo/future.org as Issue #66.
-See also Bug #65 in bugs.org for a specific shadowing-related bug.
-
 ** TODO Add Unicode Support to TIL                                    :MEDIUM:
 :PROPERTIES:
 :DISCOVERED: 2025-11-10
