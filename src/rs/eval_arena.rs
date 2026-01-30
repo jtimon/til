@@ -40,6 +40,20 @@ pub struct EnumInsertResult {
     pub enum_val: EnumVal,
 }
 
+// Bug #133: Structs for extracting heap contents for serialization to static arrays
+/// Contents of a Vec for serialization to static C arrays
+pub struct VecContents {
+    pub element_type_name: String,
+    pub type_size: usize,
+    pub element_bytes: Vec<Vec<u8>>,
+}
+
+/// Contents of a Str for serialization
+#[allow(dead_code)]
+pub struct StrContents {
+    pub string_data: String,
+}
+
 // heap/arena memory (starts at 1 to avoid NULL confusion)
 // REM: first address 0 is reserved (invalid), malloc always >0
 impl EvalArena {
@@ -1143,6 +1157,117 @@ impl EvalArena {
                 Err(e.lang_error(&ctx.path, "arena", &format!("to_struct_literal: unsupported nested type '{}'", nested_type)))
             },
             _ => Err(e.lang_error(&ctx.path, "arena", &format!("to_struct_literal: unsupported field type '{}'", value_type_to_str(value_type)))),
+        }
+    }
+
+    // Bug #133: Extract heap contents for serialization to static arrays
+    // ============================================================
+
+    /// Extract the contents of a Vec instance from arena memory.
+    /// Returns the element type name, size, and raw bytes for each element.
+    pub fn extract_vec_contents(ctx: &Context, instance_name: &str) -> Result<VecContents, String> {
+        // Get Vec base offset
+        let vec_offset = ctx.scope_stack.lookup_var(instance_name)
+            .ok_or_else(|| format!("extract_vec_contents: instance '{}' not found", instance_name))?;
+
+        // Vec layout: type_name (Str), type_size (I64), ptr (Ptr), _len (I64), cap (I64)
+        // Get sizes
+        let str_size = ctx.get_type_size("Str")?;
+        let ptr_size = ctx.get_type_size("Ptr")?;
+
+        // Read type_name (Str) - need to extract the string value
+        let type_name_offset = vec_offset;
+        let type_name_str = Self::extract_str_at_offset(ctx, type_name_offset)?;
+
+        // Read type_size (I64) - after Str
+        let type_size_offset = vec_offset + str_size;
+        let type_size_bytes: [u8; 8] = EvalArena::g().get(type_size_offset, 8).try_into()
+            .map_err(|_| "extract_vec_contents: failed to read type_size")?;
+        let type_size = i64::from_ne_bytes(type_size_bytes) as usize;
+
+        // Read ptr.data (I64) - after type_size
+        let ptr_offset = type_size_offset + 8;
+        let ptr_bytes: [u8; 8] = EvalArena::g().get(ptr_offset, 8).try_into()
+            .map_err(|_| "extract_vec_contents: failed to read ptr")?;
+        let data_ptr = i64::from_ne_bytes(ptr_bytes) as usize;
+
+        // Read _len (I64) - after ptr (Ptr is 16 bytes: data + is_borrowed)
+        let len_offset = ptr_offset + ptr_size;
+        let len_bytes: [u8; 8] = EvalArena::g().get(len_offset, 8).try_into()
+            .map_err(|_| "extract_vec_contents: failed to read _len")?;
+        let len = i64::from_ne_bytes(len_bytes) as usize;
+
+        // Extract element bytes
+        let mut element_bytes = Vec::new();
+        for i in 0..len {
+            let elem_offset = data_ptr + (i * type_size);
+            let bytes = EvalArena::g().get(elem_offset, type_size).to_vec();
+            element_bytes.push(bytes);
+        }
+
+        Ok(VecContents {
+            element_type_name: type_name_str,
+            type_size,
+            element_bytes,
+        })
+    }
+
+    /// Extract string data from a Str at a given offset.
+    /// Used by extract_vec_contents for type_name and for Vec<Str> elements.
+    fn extract_str_at_offset(ctx: &Context, str_offset: usize) -> Result<String, String> {
+        // Str layout: c_string (Ptr), _len (I64), cap (I64)
+        let ptr_size = ctx.get_type_size("Ptr")?;
+
+        // Read c_string.data (first field of Ptr)
+        let c_string_ptr_bytes: [u8; 8] = EvalArena::g().get(str_offset, 8).try_into()
+            .map_err(|_| "extract_str_at_offset: failed to read c_string ptr")?;
+        let c_string_ptr = i64::from_ne_bytes(c_string_ptr_bytes) as usize;
+
+        // Read _len (I64) - after c_string Ptr
+        let len_offset = str_offset + ptr_size;
+        let len_bytes: [u8; 8] = EvalArena::g().get(len_offset, 8).try_into()
+            .map_err(|_| "extract_str_at_offset: failed to read _len")?;
+        let len = i64::from_ne_bytes(len_bytes) as usize;
+
+        // Read the actual string bytes
+        if c_string_ptr == 0 || len == 0 {
+            return Ok(String::new());
+        }
+        let string_bytes = EvalArena::g().get(c_string_ptr, len);
+        String::from_utf8(string_bytes.to_vec())
+            .map_err(|_| "extract_str_at_offset: invalid UTF-8 in string".to_string())
+    }
+
+    /// Extract a Str value from an instance by name.
+    #[allow(dead_code)]
+    pub fn extract_str_contents(ctx: &Context, instance_name: &str) -> Result<StrContents, String> {
+        let str_offset = ctx.scope_stack.lookup_var(instance_name)
+            .ok_or_else(|| format!("extract_str_contents: instance '{}' not found", instance_name))?;
+        let string_data = Self::extract_str_at_offset(ctx, str_offset)?;
+        Ok(StrContents { string_data })
+    }
+
+    /// Check if a type requires heap serialization (contains Ptr fields that point to heap data)
+    pub fn type_needs_heap_serialization(ctx: &Context, type_name: &str) -> bool {
+        match type_name {
+            "Vec" | "List" => true,
+            // Str doesn't need it because string literals are already static in C
+            // (the c_string pointer points to string literal data)
+            _ => {
+                // Check if this is a struct with Vec/List fields
+                if let Some(struct_def) = ctx.scope_stack.lookup_struct(type_name) {
+                    for member in &struct_def.members {
+                        if member.is_mut {
+                            if let ValueType::TCustom(field_type) = &member.value_type {
+                                if Self::type_needs_heap_serialization(ctx, field_type) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                false
+            }
         }
     }
 }
