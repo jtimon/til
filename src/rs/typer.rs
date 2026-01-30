@@ -955,11 +955,12 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
 
     for p in body.iter() {
         // Check if we're processing code after an unconditional return or throw
-        if unconditional_exit_in_sequence {
+        // Bug #96 fix: Catch blocks are reachable via the throw path, not sequential flow.
+        // A return/throw on the success path doesn't make catch unreachable.
+        let is_catch = matches!(&p.node_type, NodeType::Catch);
+        if unconditional_exit_in_sequence && !is_catch {
             errors.push(p.error(&context.path, "type",
-                "Unreachable code after unconditional return or throw.\n\
-                 Note: In TIL, catch is a statement that must be reachable, not syntax bound to a try block.\n\
-                 Suggestion: Move catch blocks (and any other code) before the return/throw."));
+                "Unreachable code after unconditional return or throw."));
         } else {
             match &p.node_type {
             NodeType::Body => {
@@ -1121,6 +1122,11 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     errors.extend(check_body_returns_throws(context, e, func_def, &catch_body_expr.params, &mut catch_thrown_types, return_found));
                     thrown_types.extend(catch_thrown_types);
                     context.scope_stack.pop().ok();
+
+                    // Bug #96: After a catch, code becomes reachable again.
+                    // The catch provides an alternative path - if it doesn't exit,
+                    // control continues to statements after the catch.
+                    unconditional_exit_in_sequence = false;
                 }
             },
 
