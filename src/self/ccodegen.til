@@ -102,6 +102,52 @@ til_name := func(name: Str) returns Str {
     return result
 }
 
+// Bug #97: Returns the type-mangled C name for a variable
+// e.g., til_var_name("x", "Str") -> "til_Str_x"
+// Exceptions: C keywords (true, false), pointer deref (*name), and generated names (_ prefix)
+til_var_name := func(name: Str, type_name: Str) returns Str {
+    switch name {
+    case "true":
+        return name
+    case "false":
+        return name
+    case:
+        if name.starts_with("*").or(name.starts_with("_")) {
+            return name
+        } else {
+            return format(TIL_PREFIX, type_name, "_", name)
+        }
+    }
+}
+
+// Bug #97: Convert a ValueType to a short string for use in variable name mangling
+value_type_to_c_prefix := func(vt: ValueType) returns Str {
+    switch vt {
+    case ValueType.TCustom(name):
+        return name
+    case ValueType.TFunction(_):
+        return "Func"
+    case ValueType.TType(_):
+        return "Type"
+    case ValueType.TMulti(elem_type):
+        return format("Multi_", elem_type)
+    }
+}
+
+// Bug #97: Get the type-mangled C name for a variable by looking up its type
+til_var_name_from_context := func(name: Str, context: Context) returns Str {
+    if name.eq("true").or(name.eq("false")).or(name.starts_with("*")).or(name.starts_with("_")) {
+        return name
+    }
+    sym := context.scope_stack.lookup_symbol(name)?
+    catch (err: KeyNotFoundError) {
+        // Fallback to old behavior if not a known variable (could be a type name, etc.)
+        return til_name(name)
+    }
+    type_str := value_type_to_c_prefix(sym.value_type)
+    return format(TIL_PREFIX, type_str, "_", name)
+}
+
 // Emit a struct literal, using compound literal syntax if already_declared
 // e.g., " = {0}" vs " = (til_TypeName){0}"
 emit_struct_literal_assign := proc(mut output: Str, type_name: Str, already_declared: Bool, literal_content: Str) {
@@ -1780,7 +1826,9 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
                 // REM: Not a Type variable
             }
             if sizeof_is_type_var {
-                sizeof_result.push_str(format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)", TIL_PREFIX, type_name, ", 1}), strlen(", TIL_PREFIX, type_name, "), 0})"))
+                // Bug #97: Use type-mangled name for Type variable reference
+                c_var_name := til_var_name_from_context(type_name, context)
+                sizeof_result.push_str(format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)", c_var_name, ", 1}), strlen(", c_var_name, "), 0})"))
             } else {
                 // Literal type name
                 sizeof_result.push_str(format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)\"", type_name, "\", 1}), ", type_name.len().to_str(), ", 0})"))
@@ -1853,7 +1901,9 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
             }
             if tas_is_type_var {
                 // Type variable - already a const char*, wrap in Str struct literal
-                return format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)", TIL_PREFIX, type_name, ", 1}), strlen(", TIL_PREFIX, type_name, "), 0})")
+                // Bug #97: Use type-mangled name for Type variable reference
+                tas_c_var_name := til_var_name_from_context(type_name, context)
+                return format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)", tas_c_var_name, ", 1}), strlen(", tas_c_var_name, "), 0})")
             } else {
                 // Literal type name - create Str compound literal
                 return format("((", TIL_PREFIX, "Str){((", TIL_PREFIX, "Ptr){(", TIL_PREFIX, "I64)\"", type_name, "\", 1}), ", type_name.len().to_str(), ", 0})")
@@ -3893,10 +3943,12 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         // Regular identifier or field access (b.val -> til_b.val)
         // For ref params (which are pointers in C), use -> for field access
         is_ref_param := ctx.current_ref_params.contains(name)
+        // Bug #97: Use type-mangled name for variables
+        c_var_name := til_var_name_from_context(name, context)
         if is_ref_param.and(not(expr.params.is_empty())) {
-            // Ref param with field access: til_self->field1.field2.field3
+            // Ref param with field access: til_Type_self->field1.field2.field3
             // First field uses -> (self is a pointer), rest use . (struct values)
-            output.push_str(til_name(name))
+            output.push_str(c_var_name)
             mut ref_field_i := 0
             for ref_field_param: Expr in expr.params {
                 switch ref_field_param.node_type {
@@ -3914,11 +3966,11 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         } else if is_ref_param {
             // Ref param used as value: dereference with *
             output.push_str("(*")
-            output.push_str(til_name(name))
+            output.push_str(c_var_name)
             output.push_str(")")
         } else {
             // Regular identifier or field access
-            output.push_str(til_name(name))
+            output.push_str(c_var_name)
             for param: Expr in expr.params {
                 switch param.node_type {
                 case NodeType.Identifier(field):
@@ -4492,10 +4544,25 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             output.push_str(variadic_arr_var)
             output.push_str(");\n")
         } else {
+            // Bug #97: Register in scope FIRST so we can get the type-mangled name
+            fd3 := get_fcall_func_def(context, fcall)?
+            if not(fd3.return_types.is_empty()) {
+                mut first_type := ValueType.TCustom(INFER_TYPE)
+                fd3.return_types.get(0, first_type)?
+                mut sym_info := SymbolInfo()
+                sym_info.value_type = first_type
+                sym_info.is_mut = true
+                sym_info.is_copy = false
+                sym_info.is_own = false
+                sym_info.is_comptime_const = false
+                context.scope_stack.declare_symbol(decl_name.clone(), sym_info)?
+            }
+            catch (err: KeyNotFoundError) { }
+            variadic_c_var_name := til_var_name_from_context(decl_name, context)
             output.push_str(indent_str)
             output.push_str(ret_type)
             output.push_str(" ")
-            output.push_str(til_name(decl_name))
+            output.push_str(variadic_c_var_name.clone())
             output.push_str(" = ")
             // Emit call inline
             output.push_str(TIL_PREFIX)
@@ -4518,25 +4585,12 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             output.push_str(variadic_arr_var)
             output.push_str(");\n")
 
-            // Add variable to scope
-            fd3 := get_fcall_func_def(context, fcall)?
-            if not(fd3.return_types.is_empty()) {
-                mut first_type := ValueType.TCustom(INFER_TYPE)
-                fd3.return_types.get(0, first_type)?
-                mut sym_info := SymbolInfo()
-                sym_info.value_type = first_type
-                sym_info.is_mut = true
-                sym_info.is_copy = false
-                sym_info.is_own = false
-                sym_info.is_comptime_const = false
-                context.scope_stack.declare_symbol(decl_name.clone(), sym_info)?
-            }
-            _ := ctx.declared_vars.insert(til_name(decl_name))
-            catch (err: KeyNotFoundError) { }
+            _ := ctx.declared_vars.insert(variadic_c_var_name)
         }
     } else if not(assign_name.eq("")) {
         // Assignment
         output.push_str(indent_str)
+        // Bug #97: Use type-mangled names for variables
         // Check if assignment target is a field access on a mut param (self.field)
         // If so, emit with -> instead of .
         dot_pos := assign_name.find(".")
@@ -4544,19 +4598,21 @@ emit_variadic_call := proc(fcall: Expr, elem_type: Str, regular_count: I64, decl
             base := assign_name.get_substr(0, dot_pos)?
             rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
             if ctx.current_ref_params.contains(base) {
-                // Mut param field access: til_self->field
-                output.push_str(til_name(base))
+                // Mut param field access: til_Type_self->field
+                output.push_str(til_var_name_from_context(base, context))
                 output.push_str("->")
                 output.push_str(rest)
             } else {
-                output.push_str(til_name(assign_name))
+                output.push_str(til_var_name_from_context(base, context))
+                output.push_str(".")
+                output.push_str(rest)
             }
         } else if ctx.current_ref_params.contains(assign_name) {
-            // Direct assignment to mut param: *til_self = value
+            // Direct assignment to mut param: *til_Type_self = value
             output.push_str("*")
-            output.push_str(til_name(assign_name))
+            output.push_str(til_var_name_from_context(assign_name, context))
         } else {
-            output.push_str(til_name(assign_name))
+            output.push_str(til_var_name_from_context(assign_name, context))
         }
         output.push_str(" = ")
         // Emit call inline
@@ -4710,13 +4766,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     // For declarations: declare the variable BEFORE the if block so it's visible after
     // Skip for underscore _ which is just a discard
     if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
-        output.push_str(indent_str)
-        output.push_str(ret_type)
-        output.push_str(" ")
-        output.push_str(til_name(decl_name))
-        output.push_str(";\n")
-        _ := ctx.declared_vars.insert(til_name(decl_name))
-        // Add to scope_stack for type resolution
+        // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
         if not(fd4.return_types.is_empty()) {
             mut first_type := ValueType.TCustom(INFER_TYPE)
@@ -4731,6 +4781,13 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         }
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
+        throw_c_var_name := til_var_name_from_context(decl_name, context)
+        output.push_str(indent_str)
+        output.push_str(ret_type)
+        output.push_str(" ")
+        output.push_str(throw_c_var_name.clone())
+        output.push_str(";\n")
+        _ := ctx.declared_vars.insert(throw_c_var_name)
     }
 
     // Declare error structs for each throw type (Issue #119: skip empty struct errors)
@@ -4850,10 +4907,11 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // Success case: assign return value to target variable
     // Skip for underscore _ which is just a discard
+    // Bug #97: Use type-mangled names for variables
     if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         decl_inner_indent := repeat("    ", indent.add(1))
         output.push_str(decl_inner_indent)
-        output.push_str(til_name(decl_name))
+        output.push_str(til_var_name_from_context(decl_name, context))
         output.push_str(" = _ret_")
         output.push_str(temp_suffix)
         output.push_str(";\n")
@@ -4867,19 +4925,21 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             base := assign_name.get_substr(0, dot_pos)?
             rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
             if ctx.current_ref_params.contains(base) {
-                // Mut param field access: til_self->field
-                output.push_str(til_name(base))
+                // Mut param field access: til_Type_self->field
+                output.push_str(til_var_name_from_context(base, context))
                 output.push_str("->")
                 output.push_str(rest)
             } else {
-                output.push_str(til_name(assign_name))
+                output.push_str(til_var_name_from_context(base, context))
+                output.push_str(".")
+                output.push_str(rest)
             }
         } else if ctx.current_ref_params.contains(assign_name) {
-            // Direct assignment to mut param: *til_var = value
+            // Direct assignment to mut param: *til_Type_var = value
             output.push_str("*")
-            output.push_str(til_name(assign_name))
+            output.push_str(til_var_name_from_context(assign_name, context))
         } else {
-            output.push_str(til_name(assign_name))
+            output.push_str(til_var_name_from_context(assign_name, context))
         }
         output.push_str(" = _ret_")
         output.push_str(temp_suffix)
@@ -5065,12 +5125,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // For declarations: declare the variable BEFORE the if block so it's visible after
     if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
-        output.push_str(indent_str)
-        output.push_str(ret_type)
-        output.push_str(" ")
-        output.push_str(til_name(decl_name))
-        output.push_str(";\n")
-        _ := ctx.declared_vars.insert(til_name(decl_name))
+        // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
         if not(fd4.return_types.is_empty()) {
             mut first_type := ValueType.TCustom("")
@@ -5085,6 +5140,13 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         }
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
+        throwing_decl_c_var := til_var_name_from_context(decl_name, context)
+        output.push_str(indent_str)
+        output.push_str(ret_type)
+        output.push_str(" ")
+        output.push_str(throwing_decl_c_var.clone())
+        output.push_str(";\n")
+        _ := ctx.declared_vars.insert(throwing_decl_c_var)
     }
 
     // Declare error structs for each throw type of the called function (Issue #119: skip empty struct errors)
@@ -5244,9 +5306,10 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Success case: assign return value to target variable if needed
+    // Bug #97: Use type-mangled names for variables
     if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         output.push_str(indent_str)
-        output.push_str(til_name(decl_name))
+        output.push_str(til_var_name_from_context(decl_name, context))
         output.push_str(" = _ret_")
         output.push_str(temp_suffix)
         output.push_str(";\n")
@@ -5257,17 +5320,19 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             base := assign_name.get_substr(0, dot_pos)?
             rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
             if ctx.current_ref_params.contains(base) {
-                output.push_str(til_name(base))
+                output.push_str(til_var_name_from_context(base, context))
                 output.push_str("->")
                 output.push_str(rest)
             } else {
-                output.push_str(til_name(assign_name))
+                output.push_str(til_var_name_from_context(base, context))
+                output.push_str(".")
+                output.push_str(rest)
             }
         } else if ctx.current_ref_params.contains(assign_name) {
             output.push_str("*")
-            output.push_str(til_name(assign_name))
+            output.push_str(til_var_name_from_context(assign_name, context))
         } else {
-            output.push_str(til_name(assign_name))
+            output.push_str(til_var_name_from_context(assign_name, context))
         }
         output.push_str(" = _ret_")
         output.push_str(temp_suffix)
@@ -5370,12 +5435,7 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // For declarations: declare the variable BEFORE the if block so it's visible after
     if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
-        output.push_str(indent_str)
-        output.push_str(ret_type)
-        output.push_str(" ")
-        output.push_str(til_name(decl_name))
-        output.push_str(";\n")
-        _ := ctx.declared_vars.insert(til_name(decl_name))
+        // Bug #97: Add to scope_stack FIRST so we can get the type-mangled name
         fd4 := get_fcall_func_def(context, fcall)?
         if not(fd4.return_types.is_empty()) {
             mut first_type := ValueType.TCustom("")
@@ -5390,6 +5450,13 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
         }
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
+        throwing_decl_c_var := til_var_name_from_context(decl_name, context)
+        output.push_str(indent_str)
+        output.push_str(ret_type)
+        output.push_str(" ")
+        output.push_str(throwing_decl_c_var.clone())
+        output.push_str(";\n")
+        _ := ctx.declared_vars.insert(throwing_decl_c_var)
     }
 
     // Declare error structs for each throw type of the called function (Issue #119: skip empty struct errors)
@@ -5572,9 +5639,10 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Success case: assign return value to target variable if needed
+    // Bug #97: Use type-mangled names for variables
     if not(decl_name.eq("")).and(not(decl_name.eq("_"))) {
         output.push_str(indent_str)
-        output.push_str(til_name(decl_name))
+        output.push_str(til_var_name_from_context(decl_name, context))
         output.push_str(" = _ret_")
         output.push_str(temp_suffix)
         output.push_str(";\n")
@@ -5585,17 +5653,19 @@ emit_throwing_call_with_goto := proc(fcall: Expr, throw_types: Vec, decl_name: S
             base := assign_name.get_substr(0, dot_pos)?
             rest := assign_name.get_substr(dot_pos.add(1), assign_name.len())?
             if ctx.current_ref_params.contains(base) {
-                output.push_str(til_name(base))
+                output.push_str(til_var_name_from_context(base, context))
                 output.push_str("->")
                 output.push_str(rest)
             } else {
-                output.push_str(til_name(assign_name))
+                output.push_str(til_var_name_from_context(base, context))
+                output.push_str(".")
+                output.push_str(rest)
             }
         } else if ctx.current_ref_params.contains(assign_name) {
             output.push_str("*")
-            output.push_str(til_name(assign_name))
+            output.push_str(til_var_name_from_context(assign_name, context))
         } else {
-            output.push_str(til_name(assign_name))
+            output.push_str(til_var_name_from_context(assign_name, context))
         }
         output.push_str(" = _ret_")
         output.push_str(temp_suffix)
@@ -5816,9 +5886,13 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
     decl_symbol_info.is_comptime_const = false
     context.scope_stack.declare_symbol(name.clone(), decl_symbol_info)?
 
+    // Bug #97: Compute type-mangled C variable name
+    type_prefix := value_type_to_c_prefix(var_type)
+    c_var_name := til_var_name(name, type_prefix)
+
     // Check if variable already declared in this function (avoid C redefinition errors)
-    // Use til_name() since that's what hoisting code uses when inserting into declared_vars
-    already_declared := ctx.declared_vars.contains(til_name(name))
+    // Bug #97: Use type-mangled name so same name with different types are different variables
+    already_declared := ctx.declared_vars.contains(c_var_name)
 
     if has_struct_type {
         // Struct variable declaration with values (defaults or named args)
@@ -5858,9 +5932,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 }
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
-                _ := ctx.declared_vars.insert(til_name(name))
+                _ := ctx.declared_vars.insert(c_var_name.clone())
             }
-            output.push_str(til_name(name))
+            output.push_str(c_var_name.clone())
             emit_struct_literal_assign(output, struct_type, already_declared, "{}")
         } else if struct_def.default_values.is_empty().and(named_values.is_empty()) {
             // No defaults and no named args - zero initialize
@@ -5871,9 +5945,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 }
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
-                _ := ctx.declared_vars.insert(til_name(name))
+                _ := ctx.declared_vars.insert(c_var_name.clone())
             }
-            output.push_str(til_name(name))
+            output.push_str(c_var_name.clone())
             emit_struct_literal_assign(output, struct_type, already_declared, "{0}")
         } else {
             // Has default values or named args - emit designated initializer
@@ -5886,9 +5960,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 }
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
-                _ := ctx.declared_vars.insert(til_name(name))
+                _ := ctx.declared_vars.insert(c_var_name.clone())
             }
-            output.push_str(til_name(name))
+            output.push_str(c_var_name.clone())
             emit_struct_literal_start(output, struct_type, already_declared)
             output.push_str("{")
             mut first := true
@@ -5939,9 +6013,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 }
                 output.push_str(til_name(struct_type))
                 output.push_str(" ")
-                _ := ctx.declared_vars.insert(til_name(name))
+                _ := ctx.declared_vars.insert(c_var_name.clone())
             }
-            output.push_str(til_name(name))
+            output.push_str(c_var_name.clone())
             emit_struct_literal_assign(output, struct_type, already_declared, "{0}")
         }
     } else if has_enum_type {
@@ -5953,9 +6027,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             }
             output.push_str(til_name(enum_type))
             output.push_str(" ")
-            _ := ctx.declared_vars.insert(til_name(name))
+            _ := ctx.declared_vars.insert(c_var_name.clone())
         }
-        output.push_str(til_name(name))
+        output.push_str(c_var_name.clone())
         output.push_str(" = ")
         mut enum_emit_first_param := Expr()
         expr.params.get(0, enum_emit_first_param)?
@@ -5979,9 +6053,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             }
             output.push_str(c_type)
             output.push_str(" ")
-            _ := ctx.declared_vars.insert(til_name(name))
+            _ := ctx.declared_vars.insert(c_var_name.clone())
         }
-        output.push_str(til_name(name))
+        output.push_str(c_var_name.clone())
         if not(expr.params.is_empty()) {
             output.push_str(" = ")
             // Bug #143: Use rhs_string if available (already hoisted args)
@@ -6013,9 +6087,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
             output.push_str("const ")
             output.push_str(const_c_type)
             output.push_str(" ")
-            _ := ctx.declared_vars.insert(til_name(name))
+            _ := ctx.declared_vars.insert(c_var_name.clone())
         }
-        output.push_str(til_name(name))
+        output.push_str(c_var_name.clone())
         if not(expr.params.is_empty()) {
             output.push_str(" = ")
             // Bug #143: Use rhs_string if available (already hoisted args)
@@ -6201,24 +6275,28 @@ emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut
     output.push_str(indent_str)
     // Check if assignment target is a field access on a mut param (self.field)
     // If so, emit with -> instead of .
+    // Bug #97: Use type-mangled variable names
     dot_pos := name.find(".")
     if dot_pos.gteq(0) {
         base := name.get_substr(0, dot_pos)?
         rest := name.get_substr(dot_pos.add(1), name.len())?
         if ctx.current_ref_params.contains(base) {
-            // Mut param field access: til_self->field
-            output.push_str(til_name(base))
+            // Mut param field access: til_Type_self->field
+            output.push_str(til_var_name_from_context(base, context))
             output.push_str("->")
             output.push_str(rest)
         } else {
-            output.push_str(til_name(name))
+            // Regular field access: til_Type_var.field
+            output.push_str(til_var_name_from_context(base, context))
+            output.push_str(".")
+            output.push_str(rest)
         }
     } else if ctx.current_ref_params.contains(name) {
-        // Direct assignment to mut param: *til_self = value
+        // Direct assignment to mut param: *til_Type_self = value
         output.push_str("*")
-        output.push_str(til_name(name))
+        output.push_str(til_var_name_from_context(name, context))
     } else {
-        output.push_str(til_name(name))
+        output.push_str(til_var_name_from_context(name, context))
     }
     output.push_str(" = ")
 
@@ -6626,11 +6704,13 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
 
     // Hoist declarations from both branches to before the if statement
     // (TIL has function-level scoping, not block-level scoping)
+    // Bug #97: Use type-mangled names for shadowing support
     mut then_body := Expr()
     expr.params.get(1, then_body)?
     then_decls := collect_declarations_in_body(then_body, context)?
     for decl: CollectedDeclaration in then_decls {
-        c_var_name := til_name(decl.name)
+        type_prefix := value_type_to_c_prefix(decl.value_type)
+        c_var_name := til_var_name(decl.name, type_prefix)
         if not(ctx.declared_vars.contains(c_var_name)) {
             c_type := til_type_to_c(decl.value_type)?
             catch (err: Str) {
@@ -6657,7 +6737,8 @@ emit_if := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenContex
         expr.params.get(2, hoist_else_body)?
         else_decls := collect_declarations_in_body(hoist_else_body, context)?
         for else_decl: CollectedDeclaration in else_decls {
-            else_c_var_name := til_name(else_decl.name)
+            else_type_prefix := value_type_to_c_prefix(else_decl.value_type)
+            else_c_var_name := til_var_name(else_decl.name, else_type_prefix)
             if not(ctx.declared_vars.contains(else_c_var_name)) {
                 else_c_type := til_type_to_c(else_decl.value_type)?
                 catch (err: Str) {
@@ -6750,11 +6831,13 @@ emit_while := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
 
     // Hoist declarations from loop body to before the while statement
     // (TIL has function-level scoping, not block-level scoping)
+    // Bug #97: Use type-mangled names for shadowing support
     mut body := Expr()
     expr.params.get(1, body)?
     body_decls := collect_declarations_in_body(body, context)?
     for decl: CollectedDeclaration in body_decls {
-        c_var_name := til_name(decl.name)
+        type_prefix := value_type_to_c_prefix(decl.value_type)
+        c_var_name := til_var_name(decl.name, type_prefix)
         if not(ctx.declared_vars.contains(c_var_name)) {
             c_type := til_type_to_c(decl.value_type)?
             catch (err: Str) {
@@ -7201,13 +7284,15 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
     // Hoist declarations from all case bodies to before the if/else chain
     // This ensures variables declared in switch cases are visible after the switch
     // (TIL has function-level scoping, not block-level scoping)
+    // Bug #97: Use type-mangled names for shadowing support
     mut j := 1
     while j.add(1).lt(expr.params.len()) {
-        mut body := Expr()
-        expr.params.get(j.add(1), body)?
-        decls := collect_declarations_in_body(body, context)?
+        mut hoist_body := Expr()
+        expr.params.get(j.add(1), hoist_body)?
+        decls := collect_declarations_in_body(hoist_body, context)?
         for decl: CollectedDeclaration in decls {
-            c_var_name := til_name(decl.name)
+            type_prefix := value_type_to_c_prefix(decl.value_type)
+            c_var_name := til_var_name(decl.name, type_prefix)
             if not(ctx.declared_vars.contains(c_var_name)) {
                 mut have_c_type := true
                 c_type := til_type_to_c(decl.value_type)?
@@ -7218,7 +7303,7 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
                     output.push_str(indent_str)
                     output.push_str(c_type)
                     output.push_str(" ")
-                    output.push_str(c_var_name)
+                    output.push_str(c_var_name.clone())
                     output.push_str(";\n")
                     _ := ctx.declared_vars.insert(c_var_name)
                     // Also register in scope_stack so get_value_type can find it
@@ -7296,10 +7381,50 @@ emit_switch := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCo
             output.push_str(info.variant_name)
             output.push_str(") {\n")
 
+            // Bug #97: Get payload type for mangled variable name
+            // Look up enum and get payload type for this variant
+            mut payload_type_prefix := "Unknown"
+            mut has_payload_type := false
+            mut payload_type := ValueType.TCustom("")
+            if has_switch_type {
+                switch switch_type {
+                case ValueType.TCustom(enum_name):
+                    enum_def := context.scope_stack.lookup_enum(enum_name)?
+                    // Find variant by name
+                    for variant: EnumVariant in enum_def.variants {
+                        if variant.name.eq(info.variant_name) {
+                            // Check if variant has a payload
+                            if not(NULL.eq(variant.payload_type.data)) {
+                                mut vt := ValueType.TCustom("")
+                                memcpy(to_ptr(vt), variant.payload_type.data, size_of(ValueType))
+                                payload_type = vt
+                                payload_type_prefix = value_type_to_c_prefix(payload_type)
+                                has_payload_type = true
+                            }
+                            break
+                        }
+                    }
+                    catch (err: KeyNotFoundError) { }
+                case:
+                }
+            }
+            binding_c_name := til_var_name(pattern_info.binding_var, payload_type_prefix)
+
+            // Register binding variable in scope_stack for later references
+            if has_payload_type {
+                mut binding_sym_info := SymbolInfo()
+                binding_sym_info.value_type = payload_type
+                binding_sym_info.is_mut = false
+                binding_sym_info.is_copy = false
+                binding_sym_info.is_own = false
+                binding_sym_info.is_comptime_const = false
+                context.scope_stack.declare_symbol(pattern_info.binding_var.clone(), binding_sym_info)?
+            }
+
             // Extract payload into binding variable
             output.push_str(body_indent)
             output.push_str("__auto_type ")
-            output.push_str(til_name(pattern_info.binding_var))
+            output.push_str(binding_c_name)
             output.push_str(" = ")
             output.push_str(switch_var)
             output.push_str(".payload.")
@@ -7787,7 +7912,9 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             }
             if is_type_var {
                 // Type variable - already a const char*, wrap in Str struct literal
+                // Bug #97: Use type-mangled name for Type variable reference
                 // Use new Str format with Ptr { data, is_borrowed=1 }
+                type_c_var_name := til_var_name_from_context(type_name, context)
                 output.push_str("((")
                 output.push_str(TIL_PREFIX)
                 output.push_str("Str){((")
@@ -7795,11 +7922,9 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str("Ptr){(")
                 output.push_str(TIL_PREFIX)
                 output.push_str("I64)")
-                output.push_str(TIL_PREFIX)
-                output.push_str(type_name)
+                output.push_str(type_c_var_name)
                 output.push_str(", 1}), strlen(")
-                output.push_str(TIL_PREFIX)
-                output.push_str(type_name)
+                output.push_str(type_c_var_name)
                 output.push_str("), 0})")
             } else {
                 // Literal type name - create Str compound literal
@@ -7881,7 +8006,9 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             }
             if payload_is_type_var {
                 // Type variable - wrap in Str struct literal
+                // Bug #97: Use type-mangled name for Type variable reference
                 // Use new Str format with Ptr { data, is_borrowed=1 }
+                payload_c_var_name := til_var_name_from_context(payload_type_name, context)
                 output.push_str("((")
                 output.push_str(TIL_PREFIX)
                 output.push_str("Str){((")
@@ -7889,11 +8016,9 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str("Ptr){(")
                 output.push_str(TIL_PREFIX)
                 output.push_str("I64)")
-                output.push_str(TIL_PREFIX)
-                output.push_str(payload_type_name)
+                output.push_str(payload_c_var_name)
                 output.push_str(", 1}), strlen(")
-                output.push_str(TIL_PREFIX)
-                output.push_str(payload_type_name)
+                output.push_str(payload_c_var_name)
                 output.push_str("), 0})")
             } else {
                 // Literal type name - create Str compound literal
@@ -7935,7 +8060,9 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
             }
             if size_is_type_var {
                 // Type variable - already a const char*, wrap in Str struct literal
+                // Bug #97: Use type-mangled name for Type variable reference
                 // Use new Str format with Ptr { data, is_borrowed=1 }
+                size_c_var_name := til_var_name_from_context(type_name, context)
                 output.push_str("((")
                 output.push_str(TIL_PREFIX)
                 output.push_str("Str){((")
@@ -7943,11 +8070,9 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                 output.push_str("Ptr){(")
                 output.push_str(TIL_PREFIX)
                 output.push_str("I64)")
-                output.push_str(TIL_PREFIX)
-                output.push_str(type_name)
+                output.push_str(size_c_var_name)
                 output.push_str(", 1}), strlen(")
-                output.push_str(TIL_PREFIX)
-                output.push_str(type_name)
+                output.push_str(size_c_var_name)
                 output.push_str("), 0})")
             } else {
                 // Literal type name - create Str compound literal
