@@ -308,3 +308,37 @@ test_lexer_get_token := proc() {
     }
 }
 test_lexer_get_token()
+
+// Test namespace keyword is recognized (Issue #108)
+test_namespace_keyword := proc() {
+    mut source := "namespace"
+    mut tokens := scan_tokens(source)?
+
+    mut tok := Token()
+    tokens.get(0, tok)?
+
+    assert_eq_str(loc(), "namespace", tok.token_str)
+    // Verify it's recognized as a keyword, not an identifier
+    switch tok.token_type {
+    case TokenType.Namespace:
+        // Good - it's the Namespace token
+    case TokenType.Identifier:
+        println("ERROR:", loc(), "namespace should be a keyword, not an identifier")
+        exit(1)
+    case:
+        println("ERROR:", loc(), "namespace has unexpected token type")
+        exit(1)
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
+}
+test_namespace_keyword()

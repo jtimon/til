@@ -1502,6 +1502,8 @@ parse_primary := func(mut lexer: Lexer) returns Expr throws Str {
         result = enum_definition(lexer)?
     case TokenType.Struct:
         result = parse_struct_definition(lexer)?
+    case TokenType.Namespace:
+        throw t.todo_error(lexer.path, "Issue #108 - namespace keyword recognized but not implemented")
     case TokenType.LeftParen:
         result = parse_args(lexer)?
     case TokenType.Identifier:
@@ -2258,6 +2260,8 @@ parse_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     case TokenType.LeftBrace:
         lexer.advance(1)? // Skip LeftBrace
         return parse_body(lexer, TokenType.RightBrace)?
+    case TokenType.Namespace:
+        throw t.todo_error(lexer.path, "Issue #108 - namespace keyword recognized but not implemented")
     case:
         throw t.error(lexer.path, format("Expected statement, found ", token_type_to_str(t.token_type), "."))
     }

@@ -41,6 +41,14 @@ After this, both =Color.to_str(my_color)= and =my_color.to_str()= work via UFCS.
 
 *** Step 1: namespace blocks for enums
 
+**** Step 1.0: Lexer - recognize namespace keyword [DONE]
+
+Added =Namespace= token type to lexer. The keyword "namespace" is now recognized
+in both Rust and TIL implementations. Parser currently returns =todo_error= when
+encountering namespace - actual parsing not yet implemented.
+
+Tests added: test_lexer.til (keyword recognition), test_parser.til (todo_error).
+
 **** Step 1.1: Parser - recognize namespace blocks
 
 Add parsing for =namespace TypeName { ... }= syntax. The block contains

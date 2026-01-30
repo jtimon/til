@@ -1110,6 +1110,7 @@ fn parse_primary(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::ProcExt => return parse_func_proc_definition(lexer, FunctionType::FTProcExt),
         TokenType::Enum => return enum_definition(lexer),
         TokenType::Struct => return parse_struct_definition(lexer),
+        TokenType::Namespace => return Err(t.todo_error(&lexer.path, "Issue #108 - namespace keyword recognized but not implemented")),
         TokenType::LeftParen => return parse_args(lexer),
         TokenType::Identifier => return parse_primary_identifier(lexer),
         _ => return Err(t.error(&lexer.path, &format!("Expected primary expression, found '{:?}'.", t.token_type))),
@@ -1718,6 +1719,9 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::LeftBrace => {
             lexer.advance(1)?; // Skip LeftBrace
             return parse_body(lexer, TokenType::RightBrace)
+        }
+        TokenType::Namespace => {
+            return Err(t.todo_error(&lexer.path, "Issue #108 - namespace keyword recognized but not implemented"))
         }
         _ => {
             Err(t.error(&lexer.path, &format!("Expected statement, found {:?}.", t.token_type)))
