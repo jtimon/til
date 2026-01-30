@@ -15,54 +15,6 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
-** Bug #97: Fix ccodegen to support variable shadowing via name mangling
-:PROPERTIES:
-:DISCOVERED: 2026-01-10
-:IMPACT: Variable shadowing causes C codegen to generate broken C code
-:STATUS: Open - new direction
-:RELATED: Issue #66 (shadowing policy - now obsolete)
-:END:
-
-*** Problem
-TIL's C codegen doesn't handle variable shadowing (reusing same name with different type).
-The interpreter handles it fine, but C can't shadow with different types:
-
-#+BEGIN_SRC til
-mut x := 1        // I64
-if true {
-    mut x := "hi" // Str - shadows with different type
-}
-#+END_SRC
-
-Current ccodegen generates broken C:
-#+BEGIN_SRC c
-til_I64 til_x;           // Declared as I64
-til_x = ((til_Str){...}); // ERROR: assigning Str to I64
-#+END_SRC
-
-*** Solution: Name mangling
-
-Mangle variable names with type prefix:
-- ~x: I64~ → ~til_I64_x~
-- ~x: Str~ → ~til_Str_x~
-
-For cross-file collisions, also add file prefix:
-- ~foo.til: my_var~ → ~til_foo_my_var~
-
-This is similar to C++ name mangling for overloading.
-
-*** Benefits
-- Shadowing becomes a valid TIL feature (like Rust)
-- Much less friction when porting Rust code (~let x = x.trim()~ patterns)
-- No need to manually rename variables during translation
-- Can remove Issue #66 policy debate - just allow shadowing
-
-*** Implementation
-1. Update ccodegen to emit type-prefixed variable names
-2. Update all variable references to use mangled names
-3. Handle both local shadowing and cross-file name collisions
-4. Remove shadowing warnings from typer (added as experiment)
-
 ** Issue #151: Explicit pointer/reference syntax for the language
 :PROPERTIES:
 :DISCOVERED: 2026-01-29
