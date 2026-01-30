@@ -788,24 +788,30 @@ pub fn proc_print_flush(context: &mut Context, e: &Expr) -> Result<EvalResult, S
     Ok(EvalResult::new(""))
 }
 
+// Bug #98: Now throws ReadError instead of panicking
 pub fn proc_input_read_line(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "input_read_line", 1, true)?;
 
-    let first_param = e.get(1)?;
-    let read_line_error_msg = match &first_param.node_type {
-        NodeType::LLiteral(Literal::Str(error_msg_)) => error_msg_.clone(),
-        _ => return Err(e.lang_error(&context.path, "eval", &format!("input_read_line() expects a literal string error message. Found '{:?}' instead.",
-                                                      first_param.node_type))),
-    };
+    let prompt_result = eval_expr(context, e.get(1)?)?;
+    if prompt_result.is_throw {
+        return Ok(prompt_result);
+    }
+    let prompt = prompt_result.value;
+
+    // Print prompt
+    if !prompt.is_empty() {
+        print!("{}", prompt);
+        io::stdout().flush().ok();
+    }
 
     let mut line = String::new();
-    io::stdin()
-        .read_line(&mut line)
-        .map_err(|_| e.lang_error(&context.path, "eval", &read_line_error_msg))?;
-
-    Ok(EvalResult::new(&line))
+    match io::stdin().read_line(&mut line) {
+        Ok(_) => Ok(EvalResult::new(&line)),
+        Err(error) => Ok(EvalResult::new_throw(&format!("Failed to read from stdin: {}", error), ValueType::TCustom("ReadError".to_string()))),
+    }
 }
 
+// Bug #98: Now throws ReadError instead of Str
 pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "readfile", 1, true)?;
 
@@ -818,14 +824,15 @@ pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, Stri
     let source = match fs::read_to_string(&path) {
         Ok(file) => file,
         Err(error) => match error.kind() {
-            ErrorKind::NotFound => return Ok(EvalResult::new_throw(&format!("File '{}' not found.", path), ValueType::TCustom("Str".to_string()))),
-            other_error => return Ok(EvalResult::new_throw(&format!("Problem reading file '{}': {}", path, other_error), ValueType::TCustom("Str".to_string()))),
+            ErrorKind::NotFound => return Ok(EvalResult::new_throw(&format!("File '{}' not found.", path), ValueType::TCustom("ReadError".to_string()))),
+            other_error => return Ok(EvalResult::new_throw(&format!("Problem reading file '{}': {}", path, other_error), ValueType::TCustom("ReadError".to_string()))),
         },
     };
 
     Ok(EvalResult::new(&source))
 }
 
+// Bug #98: Now throws WriteError instead of panicking
 pub fn proc_writefile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "writefile", 2, true)?;
 
@@ -843,7 +850,7 @@ pub fn proc_writefile(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
 
     match fs::write(&path, &contents) {
         Ok(_) => Ok(EvalResult::new("")),
-        Err(error) => Err(e.error(&context.path, "eval", &format!("Problem writing file '{}': {}", path, error))),
+        Err(error) => Ok(EvalResult::new_throw(&format!("Problem writing file '{}': {}", path, error), ValueType::TCustom("WriteError".to_string()))),
     }
 }
 
@@ -1030,7 +1037,7 @@ pub fn func_file_mtime(context: &mut Context, e: &Expr) -> Result<EvalResult, St
     }
 }
 
-// list_dir_raw: List files in a directory, returns newline-separated Str
+// Bug #98: Now throws IOError instead of returning empty string
 pub fn func_list_dir_raw(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "list_dir_raw", 1, false)?;
 
@@ -1045,7 +1052,7 @@ pub fn func_list_dir_raw(context: &mut Context, e: &Expr) -> Result<EvalResult, 
                 .collect();
             Ok(EvalResult::new(&names.join("\n")))
         }
-        Err(_) => Ok(EvalResult::new("")),
+        Err(error) => Ok(EvalResult::new_throw(&format!("Could not open directory '{}': {}", path, error), ValueType::TCustom("IOError".to_string()))),
     }
 }
 

@@ -72,6 +72,7 @@ build_rstil := proc() {
     deps.push("src/rstil.rs")
     rs_files := glob_files("src/rs/*.rs")?
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: IOError) { panic(loc(), err.msg) }
     for f: Str in rs_files { deps.push(f) }
 
     if needs_rebuild("bin/rstil", deps).not() {

@@ -7,6 +7,43 @@
 
 * Fixed Bugs
 
+** Bug #98: ext_proc errors should throw specific error types instead of panicking
+:PROPERTIES:
+:DISCOVERED: 2026-01-10
+:FIXED: 2026-01-30
+:IMPACT: I/O failures are now catchable instead of crashing
+:STATUS: Fixed
+:END:
+
+*** Description
+ext_proc functions (writefile, readfile, input_read_line, list_dir_raw) either
+panicked or returned silently on error. Now they throw proper error types.
+
+*** Error Types Added
+- ReadError: Thrown by readfile, input_read_line
+- WriteError: Thrown by writefile
+- IOError: Thrown by list_dir_raw, list_dir, glob_files
+
+*** Implementation
+- src/std/io.til: Added ReadError/WriteError structs, updated function signatures
+- src/std/sys.til: Added IOError struct, updated list_dir_raw/list_dir/glob_files
+- src/ext.c: Updated til_readfile, til_writefile, til_input_read_line, til_list_dir_raw
+  to set error message and return 1 (throw) instead of panicking or returning empty
+- src/rs/ext.rs: Updated proc_readfile, proc_writefile, proc_input_read_line,
+  func_list_dir_raw to return EvalResult.new_throw with proper error type
+- src/self/ext.til: Ported the Rust changes to TIL interpreter
+
+*** Callers Updated
+- src/self/init.til: Added ReadError catch for readfile
+- src/self/interpreter.til: Added ReadError catch for readfile
+- src/self/builder.til: Added ReadError/WriteError catches
+- src/test_runner.til: Added WriteError/ReadError catches
+- src/tests.til: Added WriteError/ReadError catches
+- src/test/syscalls.til: Updated to test IOError throwing on non-existent directory
+- src/test/extra_syscalls.til: Added IOError catches
+- src/test/test_lexer.til: Added ReadError catches
+- make.til: Added IOError catch
+
 ** Bug #97: Variable shadowing causes C codegen to generate broken C code
 :PROPERTIES:
 :DISCOVERED: 2026-01-10

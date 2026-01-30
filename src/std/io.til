@@ -2,11 +2,20 @@ mode lib
 
 // I/O operations - file reading, writing, and console input
 
-/** Read a line from stdin, using the given prompt. */
-input_read_line := ext_proc(prompt: Str) returns Str {}
+// Error types for I/O operations (Bug #98)
+ReadError := struct {
+    mut msg: Str = ""
+}
 
-/** Read entire file contents as a string. */
-readfile := ext_proc(path: Str) returns Str {}
+WriteError := struct {
+    mut msg: Str = ""
+}
 
-/** Write contents to file, creating or overwriting. Returns empty string on success. */
-writefile := ext_proc(path: Str, contents: Str) returns Str {}
+/** Read a line from stdin, using the given prompt. Throws on error. */
+input_read_line := ext_proc(prompt: Str) returns Str throws ReadError {}
+
+/** Read entire file contents as a string. Throws if file cannot be read. */
+readfile := ext_proc(path: Str) returns Str throws ReadError {}
+
+/** Write contents to file, creating or overwriting. Throws on failure. */
+writefile := ext_proc(path: Str, contents: Str) throws WriteError {}

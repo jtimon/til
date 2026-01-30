@@ -28,7 +28,7 @@ test_file_mtime_not_exists()
 
 // Test list_dir_raw on existing directory
 test_list_dir_raw_exists := proc() {
-    raw := list_dir_raw("src/test")
+    raw := list_dir_raw("src/test")?
     if raw.len().lt(1) {
         panic(loc(), "list_dir_raw returned empty for src/test which has many files")
     }
@@ -36,14 +36,19 @@ test_list_dir_raw_exists := proc() {
     if raw.find("syscalls.til").lt(0) {
         panic(loc(), "list_dir_raw did not find syscalls.til in src/test")
     }
+
+    catch (err: IOError) { panic(loc(), err.msg) }
 }
 test_list_dir_raw_exists()
 
-// Test list_dir_raw on non-existing directory
+// Test list_dir_raw on non-existing directory (should throw IOError)
 test_list_dir_raw_not_exists := proc() {
-    raw := list_dir_raw("nonexistent_directory_12345")
-    if not(raw.len().eq(0)) {
-        panic(loc(), "list_dir_raw should return empty string for non-existing directory")
+    _raw := list_dir_raw("nonexistent_directory_12345")?
+    // If we get here, no error was thrown - that's wrong
+    panic(loc(), "list_dir_raw should throw IOError for non-existing directory")
+
+    catch (err: IOError) {
+        // Expected - IOError thrown for non-existing directory
     }
 }
 test_list_dir_raw_not_exists()

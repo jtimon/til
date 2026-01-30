@@ -55,7 +55,7 @@ Remaining items to extract or delete:
 Likely duplicates to verify:
 - Closures -> Issue #91 (First-Class Functions)
 - Macros -> Issue #88 (Macro Support)
-- Error handling -> Bug #98 (ext_proc error types)
+- Error handling -> Bug #98 (ext_proc error types) - FIXED
 - Code quality -> Issue #142 (Context Error Helpers)
 
 **** wish.org (1.6KB) - wishlist/checklist
@@ -743,33 +743,6 @@ ccodegen.rs and ccodegen.til to escape null bytes as ~\0~ in C output.
 - [X] Step 5e: Remove -Wno-unused-parameter (2026-01-25) - emit unnamed C params for underscore-prefixed TIL params (e.g., ~const til_Str*~ instead of ~const til_Str* til__path~); also emit unnamed argc/argv in main() when not used
 - [X] Step 5f: Remove -Wno-missing-braces (2026-01-25) - use Ptr() instead of NULL for Declaration.default_value in desugarer.til/garbager.til; Ptr() emits ~((til_Ptr){0})~ with proper braces
 - [X] Step 5g: Remove -Wno-missing-field-initializers (2026-01-25) - add cap=0 to Str literals for Type params in ccodegen emit_main_args
-
-** Bug #98: ext_proc errors should throw specific error types instead of panicking
-:PROPERTIES:
-:DISCOVERED: 2026-01-10
-:IMPACT: ext_proc failures (writefile, readfile, etc.) panic instead of throwing catchable errors
-:STATUS: Open
-:END:
-
-*** Description
-Currently, ext_proc functions like writefile, readfile, etc. either:
-- Rust (ext.rs): Return Err() which bubbles up and crashes
-- C (ext.c): Panic with fprintf+exit
-
-Instead, they should throw specific TIL error types (like WriteError, ReadError) that
-can be caught with TIL's catch blocks, similar to how AllocError works for malloc.
-
-*** Example (future behavior)
-#+BEGIN_SRC til
-write_err := writefile(path, contents)
-catch (err: WriteError) {
-    println("Write failed: ", err.msg)
-}
-#+END_SRC
-
-*** Current Workaround
-Check return values manually (for functions that return error strings) or let the
-program crash on I/O failures.
 
 ** Bug #94: gcc warnings cause bug47.til compilation failure
 :PROPERTIES:

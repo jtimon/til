@@ -164,8 +164,13 @@ do_regen := proc(test_mode: Str, out_mode: Str, file: Str, cmd_args: Str) {
     formatted := format_expected(cmd_args, exit_code, output)
     expected_path := get_expected_path(file, out_mode, cmd_args)
     ensure_parent_dir(expected_path)
-    _ := writefile(expected_path, formatted)
+    writefile(expected_path, formatted)?
     println("Regenerated: ", expected_path)
+
+    catch (err: WriteError) {
+        println("ERROR writing ", expected_path, ": ", err.msg)
+        exit(1)
+    }
 }
 
 // Run test and compare against .out file (with timing)
@@ -243,17 +248,17 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
     // Auto-generate .out file if missing (file_mtime returns -1 if file doesn't exist)
     if file_mtime(expected_path).lt(0) {
         ensure_parent_dir(expected_path)
-        _ := writefile(expected_path, formatted)
+        writefile(expected_path, formatted)?
         // Don't print here - stdout is captured for parsing "PASS <time>"
     }
 
-    expected := readfile(expected_path)
+    expected := readfile(expected_path)?
 
     if not(formatted.eq(expected)) {
         // Write actual output for diff
         actual_path := get_actual_path(file, test_mode, cmd_args)
         ensure_parent_dir(actual_path)
-        _ := writefile(actual_path, formatted)
+        writefile(actual_path, formatted)?
 
         mut diff_output := ""
         _ := diff_output.run_cmd("diff", "-u", expected_path, actual_path)
@@ -269,6 +274,8 @@ do_test := proc(test_mode: Str, out_mode: Str, expected_status: I64, file: Str, 
     println("PASS ", time_ms.to_str())
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: ReadError) { panic(loc(), err.msg) }
+    catch (err: WriteError) { panic(loc(), err.msg) }
 }
 
 // test_mode: rs_interpreted, rs_compiled, til_interpreted, til_compiled

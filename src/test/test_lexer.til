@@ -148,7 +148,7 @@ test_unknown_escape()
 
 test_lexer_peek := proc() {
     // Create a simple test file
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
+    mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // Peek at first token (should be "mode")
     first_token := lexer.peek()?
@@ -169,11 +169,15 @@ test_lexer_peek := proc() {
         println(err.msg)
         exit(1)
     }
+    catch (err: ReadError) {
+        println("ERROR:", loc(), "ReadError:", err.msg)
+        exit(1)
+    }
 }
 test_lexer_peek()
 
 test_lexer_advance := proc() {
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
+    mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // First token should be "mode"
     t1 := lexer.peek()?
@@ -195,11 +199,15 @@ test_lexer_advance := proc() {
         println(err.msg)
         exit(1)
     }
+    catch (err: ReadError) {
+        println("ERROR:", loc(), "ReadError:", err.msg)
+        exit(1)
+    }
 }
 test_lexer_advance()
 
 test_lexer_peek_ahead := proc() {
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
+    mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // Peek ahead by 1 (should be "script" while current is still "mode")
     next_token := lexer.peek_ahead(1)?
@@ -220,11 +228,15 @@ test_lexer_peek_ahead := proc() {
         println(err.msg)
         exit(1)
     }
+    catch (err: ReadError) {
+        println("ERROR:", loc(), "ReadError:", err.msg)
+        exit(1)
+    }
 }
 test_lexer_peek_ahead()
 
 test_lexer_next := proc() {
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
+    mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // next() returns peek_ahead(1), so it returns the next token
     t1 := lexer.next()?
@@ -245,11 +257,15 @@ test_lexer_next := proc() {
         println(err.msg)
         exit(1)
     }
+    catch (err: ReadError) {
+        println("ERROR:", loc(), "ReadError:", err.msg)
+        exit(1)
+    }
 }
 test_lexer_next()
 
 test_lexer_previous := proc() {
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
+    mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // Advance to "script"
     lexer.advance(1)?
@@ -271,11 +287,15 @@ test_lexer_previous := proc() {
         println(err.msg)
         exit(1)
     }
+    catch (err: ReadError) {
+        println("ERROR:", loc(), "ReadError:", err.msg)
+        exit(1)
+    }
 }
 test_lexer_previous()
 
 test_lexer_len := proc() {
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
+    mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // empty.til should have at least 2 tokens: "mode" and "script"
     token_count := lexer.len()
@@ -287,11 +307,15 @@ test_lexer_len := proc() {
         println(err)
         exit(1)
     }
+    catch (err: ReadError) {
+        println("ERROR:", loc(), "ReadError:", err.msg)
+        exit(1)
+    }
 }
 test_lexer_len()
 
 test_lexer_get_token := proc() {
-    mut lexer := Lexer.new(readfile("src/examples/empty.til"))?
+    mut lexer := Lexer.new(readfile("src/examples/empty.til")?)?
 
     // Get token at index 0
     t0 := lexer.get_token(0)?
@@ -304,6 +328,10 @@ test_lexer_get_token := proc() {
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
+        exit(1)
+    }
+    catch (err: ReadError) {
+        println("ERROR:", loc(), "ReadError:", err.msg)
         exit(1)
     }
 }

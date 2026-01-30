@@ -228,8 +228,10 @@ static inline til_I64 til_str_to_i64(const til_Str* s)
 // I/O functions
 
 // input_read_line: read a line from stdin, displaying prompt first
-static inline til_Str til_input_read_line(const til_Str* prompt)
+// Bug #98: Now throws ReadError instead of silently failing
+static inline int til_input_read_line(til_Str* _ret, void* _err_v, const til_Str* prompt)
 {
+    struct { til_Str msg; }* _err = _err_v;
     // Print the prompt if non-empty
     if (prompt->_len > 0) {
         printf("%.*s", (int)prompt->_len, (const char*)prompt->c_string.data);
@@ -237,27 +239,38 @@ static inline til_Str til_input_read_line(const til_Str* prompt)
     }
     char* buf = (char*)malloc(4096);
     if (!buf) {
-        til_Str s = {{0, 0}, 0, 0};
-        return s;
+        _err->msg.c_string.data = (til_I64)"Failed to allocate input buffer";
+        _err->msg.c_string.is_borrowed = 1;
+        _err->msg._len = 31;
+        _err->msg.cap = 0;
+        return 1;  // throw ReadError
     }
     if (fgets(buf, 4096, stdin) == NULL) {
-        buf[0] = '\0';
+        free(buf);
+        _err->msg.c_string.data = (til_I64)"Failed to read from stdin";
+        _err->msg.c_string.is_borrowed = 1;
+        _err->msg._len = 25;
+        _err->msg.cap = 0;
+        return 1;  // throw ReadError
     }
-    til_Str s;
-    s.c_string.data = (til_I64)buf;
-    s.c_string.is_borrowed = 0;
-    s._len = strlen(buf);
-    s.cap = 4096;
-    return s;
+    _ret->c_string.data = (til_I64)buf;
+    _ret->c_string.is_borrowed = 0;
+    _ret->_len = strlen(buf);
+    _ret->cap = 4096;
+    return 0;
 }
 
-// readfile: read entire file contents
-static inline til_Str til_readfile(const til_Str* path)
+// Bug #98: Now throws ReadError instead of returning empty string
+static inline int til_readfile(til_Str* _ret, void* _err_v, const til_Str* path)
 {
+    struct { til_Str msg; }* _err = _err_v;
     FILE* f = fopen((const char*)path->c_string.data, "rb");
     if (!f) {
-        til_Str s = {{0, 0}, 0, 0};
-        return s;
+        _err->msg.c_string.data = (til_I64)"Could not open file for reading";
+        _err->msg.c_string.is_borrowed = 1;
+        _err->msg._len = 31;
+        _err->msg.cap = 0;
+        return 1;  // throw ReadError
     }
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
@@ -265,36 +278,44 @@ static inline til_Str til_readfile(const til_Str* path)
     char* buf = (char*)malloc(len + 1);
     if (!buf) {
         fclose(f);
-        til_Str s = {{0, 0}, 0, 0};
-        return s;
+        _err->msg.c_string.data = (til_I64)"Failed to allocate buffer for file";
+        _err->msg.c_string.is_borrowed = 1;
+        _err->msg._len = 34;
+        _err->msg.cap = 0;
+        return 1;  // throw ReadError
     }
     fread(buf, 1, len, f);
     buf[len] = '\0';
     fclose(f);
-    til_Str s;
-    s.c_string.data = (til_I64)buf;
-    s.c_string.is_borrowed = 0;
-    s._len = len;
-    s.cap = len + 1;
-    return s;
+    _ret->c_string.data = (til_I64)buf;
+    _ret->c_string.is_borrowed = 0;
+    _ret->_len = len;
+    _ret->cap = len + 1;
+    return 0;
 }
 
-// writefile: write string to file, returns empty string on success
-// Bug #98: Should throw WriteError instead of panicking
-static inline til_Str til_writefile(const til_Str* path, const til_Str* contents)
+// Bug #98: Now throws WriteError instead of panicking
+static inline int til_writefile(void* _err_v, const til_Str* path, const til_Str* contents)
 {
+    struct { til_Str msg; }* _err = _err_v;
     FILE* f = fopen((const char*)path->c_string.data, "wb");
     if (!f) {
-        fprintf(stderr, "PANIC: writefile: could not open file '%s'\n", (const char*)path->c_string.data);
-        exit(1);
+        _err->msg.c_string.data = (til_I64)"Could not open file for writing";
+        _err->msg.c_string.is_borrowed = 1;
+        _err->msg._len = 31;
+        _err->msg.cap = 0;
+        return 1;  // throw WriteError
     }
     size_t written = fwrite((const char*)contents->c_string.data, 1, contents->_len, f);
     fclose(f);
     if (written != (size_t)contents->_len) {
-        fprintf(stderr, "PANIC: writefile: write failed for '%s'\n", (const char*)path->c_string.data);
-        exit(1);
+        _err->msg.c_string.data = (til_I64)"Failed to write all data to file";
+        _err->msg.c_string.is_borrowed = 1;
+        _err->msg._len = 32;
+        _err->msg.cap = 0;
+        return 1;  // throw WriteError
     }
-    return (til_Str){{(til_I64)"", 1}, 0, 0};
+    return 0;
 }
 
 // run_cmd: run command with arguments, capture output and return exit code
@@ -491,14 +512,21 @@ static inline til_I64 til_file_mtime(const til_Str* path) {
     return (til_I64)((ull.QuadPart - 116444736000000000ULL) / 10000000ULL);
 }
 
-// list_dir_raw: List files in a directory, returns newline-separated Str
-static inline til_Str til_list_dir_raw(const til_Str* path) {
+// Bug #98: Now throws IOError instead of returning empty string
+static inline int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* path) {
+    struct { til_Str msg; }* _err = _err_v;
     char pattern[1024];
     snprintf(pattern, sizeof(pattern), "%s/*", (char*)path->c_string.data);
 
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pattern, &fd);
-    if (h == INVALID_HANDLE_VALUE) return (til_Str){{0, 0}, 0, 0};
+    if (h == INVALID_HANDLE_VALUE) {
+        _err->msg.c_string.data = (til_I64)"Could not open directory";
+        _err->msg.c_string.is_borrowed = 1;
+        _err->msg._len = 24;
+        _err->msg.cap = 0;
+        return 1;  // throw IOError
+    }
 
     char buf[65536];
     size_t pos = 0;
@@ -518,7 +546,11 @@ static inline til_Str til_list_dir_raw(const til_Str* path) {
     // Allocate and copy result
     char* result = (char*)malloc(pos + 1);
     memcpy(result, buf, pos + 1);
-    return (til_Str){{(til_I64)result, 0}, pos, pos + 1};
+    _ret->c_string.data = (til_I64)result;
+    _ret->c_string.is_borrowed = 0;
+    _ret->_len = pos;
+    _ret->cap = pos + 1;
+    return 0;
 }
 
 // fs_parent_dir: Get parent directory of a path (Windows version)
@@ -631,11 +663,18 @@ static inline til_I64 til_file_mtime(const til_Str* path) {
     return (til_I64)st.st_mtime;
 }
 
-// list_dir_raw: List files in a directory, returns newline-separated Str
+// Bug #98: Now throws IOError instead of returning empty string
 #include <dirent.h>
-static inline til_Str til_list_dir_raw(const til_Str* path) {
+static inline int til_list_dir_raw(til_Str* _ret, void* _err_v, const til_Str* path) {
+    struct { til_Str msg; }* _err = _err_v;
     DIR* d = opendir((char*)path->c_string.data);
-    if (!d) return (til_Str){{0, 0}, 0, 0};
+    if (!d) {
+        _err->msg.c_string.data = (til_I64)"Could not open directory";
+        _err->msg.c_string.is_borrowed = 1;
+        _err->msg._len = 24;
+        _err->msg.cap = 0;
+        return 1;  // throw IOError
+    }
 
     char buf[65536];
     size_t pos = 0;
@@ -656,7 +695,11 @@ static inline til_Str til_list_dir_raw(const til_Str* path) {
     // Allocate and copy result
     char* result = (char*)malloc(pos + 1);
     memcpy(result, buf, pos + 1);
-    return (til_Str){{(til_I64)result, 0}, pos, pos + 1};
+    _ret->c_string.data = (til_I64)result;
+    _ret->c_string.is_borrowed = 0;
+    _ret->_len = pos;
+    _ret->cap = pos + 1;
+    return 0;
 }
 
 // fs_parent_dir: Get parent directory of a path

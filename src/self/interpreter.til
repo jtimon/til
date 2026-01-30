@@ -3495,8 +3495,10 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
 interpret_file_with_context := proc(is_import: Bool, skip_init: Bool, mut context: Context, path: Str, main_args: Vec) returns EvalResult throws Str {
     mut previous_mode := context.mode_def
 
-    source := readfile(path)
-    // Note: readfile is ext_proc - if it fails, the error propagates automatically
+    source := readfile(path)?
+    catch (err: ReadError) {
+        throw format("Failed to read file '", path, "': ", err.msg)
+    }
 
     run_result := main_interpret(skip_init, context, path, source, main_args)?
 
