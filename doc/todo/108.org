@@ -114,6 +114,13 @@ Add tests for:
 - Multiple namespace blocks for same type
 - Error cases: unknown type, duplicate AFs
 
+Test file: =src/test/108.til= (not in tests.til yet - will fail until Step 1 complete)
+
+Current status: UFCS calls work (=f.get_x()=), but qualified calls fail (=Foo.get_x(f)=).
+The issue is that =get_fcall_value_type= looks up struct members directly instead of
+checking the registered functions first. The merged struct loses namespace members
+somewhere between init and precomp phases.
+
 *** Step 2: Unify AF syntax for structs
 
 After Step 1, enums use =namespace= blocks for AFs. Step 2 extends this to
