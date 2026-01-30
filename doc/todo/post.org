@@ -165,18 +165,42 @@ that need to be reviewed and migrated:
 3. Unique items should get proper issue numbers here or in future.org
 4. Outdated information should be corrected or removed
 
-*** Items to Review
-- own keyword (DONE - see ownership.org)
-- ? operator (designed - see errors.org)
-- Closures/nested functions
-- Namespace imports (may duplicate Issue #109)
-- Macros (may duplicate Issue #88)
-- Unicode support
+*** Completed (2026-01-30)
+- [X] Dynamic field/method access -> Issue #153 (future.org)
+- [X] Template vs Dynamic mode -> Issue #154 (post.org)
+- [X] Variable shadowing -> already Issue #66 (deleted stub)
+- [X] Unicode support -> Issue #155 (post.org)
+- [X] Namespace-style imports -> merged into Issue #109
+- [X] Match keyword -> Issue #156 (post.org)
+- [X] Bug #8 -> already in fixed.org (to delete)
+- [X] Enum tag comparison -> skipped (switch is TIL way)
+
+*** Still in post_old.org
+- Bug #8 entry (DONE, needs deletion - already in fixed.org)
+- Own keyword (DONE, needs deletion - already in ownership.org)
+- Error handling enhancements (? operator done in errors.org, other parts TBD)
+- List/Tuple support
+- Negative number literals
+- Guards for pattern matching
+- Default keyword for switch
+- Struct literals
+- Cast operations
 - Operator overloading
-- Various type system enhancements
-- Mode system enhancements (safe_script, pure)
+- Type checking edge cases
+- safe_script mode
+- pure mode
 - Performance optimizations
-- Error handling enhancements
+- Memory management
+- Better error messages
+- Code quality improvements
+- Memory error handling
+- More test cases
+- Improve documentation
+- Other number types
+- Unset default values in structs
+- Better import caching
+- Closures (may duplicate Issue #91)
+- Macros (may duplicate Issue #88)
 
 *** After Extraction
 Once all information is extracted and properly tracked, post_old.org can be
