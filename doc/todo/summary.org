@@ -54,7 +54,7 @@
 | 108 | Implement Namespaces                         | Language     |
 |  82 | make.til - Replace Makefile with TIL         | Build system |
 
-* post.org (7 issues)
+* post.org (9 issues)
 
 | #   | Issue                                             | Category         |
 |-----+---------------------------------------------------+------------------|
@@ -62,18 +62,8 @@
 | 155 | Add Unicode support to TIL                        | Lexer            |
 | 154 | Template vs Dynamic compilation mode              | Compiler feature |
 | 122 | Add regex support to standard library             | Feature          |
+| 121 | Directory traversal (readdir/walk)                | Feature          |
 | 109 | Proper Imports                                    | Language feature |
 | 104 | TempleOS Support                                  | Platform         |
 | 103 | Mode GUI                                          | Feature          |
-
-* os.org (1 issue)
-
-| #   | Issue                            | Category |
-|-----+----------------------------------+----------|
-| 121 | Directory traversal (readdir/walk) | Feature  |
-
-* optimizations.org (1 optimization)
-
-| #  | Optimization                                         | Category     |
-|----+------------------------------------------------------+--------------|
-| 51 | Precomp doesn't propagate constants through params   | Optimization |
+|  51 | Precomp doesn't propagate constants through params | Optimization    |

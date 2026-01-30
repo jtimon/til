@@ -229,6 +229,214 @@ Branch ~wip_122~ preserved for investigation.
 Regex is a library feature, not needed for self-hosting. Current string methods
 (contains, starts_with, split) are sufficient.
 
+** Issue #121: Directory traversal (readdir / walk)
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:IMPACT: Essential for file processing tools, build systems, code generators
+:STATUS: Open
+:END:
+
+*** Description
+Add functions to list directory contents and recursively traverse directory trees.
+This is essential for writing tools that process multiple files.
+
+*** Prior art
+
+**** POSIX C (opendir/readdir/closedir)
+#+BEGIN_SRC c
+DIR *dir = opendir("src/");
+struct dirent *entry;
+while ((entry = readdir(dir)) != NULL) {
+    printf("%s\n", entry->d_name);
+}
+closedir(dir);
+#+END_SRC
+
+**** Python os.walk
+#+BEGIN_SRC python
+for root, dirs, files in os.walk("src/"):
+    for file in files:
+        print(os.path.join(root, file))
+#+END_SRC
+
+**** Tsoding's C implementation
+Reference: Tsoding's recent video on implementing directory traversal in C
+using the POSIX API. Shows practical patterns for recursive traversal with
+proper error handling.
+
+*** Proposed API (TBD)
+#+BEGIN_SRC til
+// Option 1: Low-level POSIX-style
+DirEntry := struct {
+    mut name: Str = ""
+    mut is_dir: Bool = false
+}
+
+readdir := ext_proc(path: Str) returns Vec throws IOError {
+    // Returns Vec of DirEntry
+}
+
+// Option 2: Higher-level walk function
+walk := proc(path: Str, callback: proc(Str)) throws IOError {
+    // Recursively visits all files, calls callback with each path
+}
+
+// Option 3: Iterator-based (if TIL gets iterators)
+walk_iter := proc(path: Str) returns DirIterator throws IOError {
+    // Returns iterator over all files
+}
+#+END_SRC
+
+*** Implementation notes
+- Need ext_proc wrapping POSIX opendir/readdir/closedir
+- Must handle . and .. entries (skip them)
+- Need is_dir check (stat or d_type)
+- Consider symlink handling
+- Error handling for permission denied, not found, etc.
+
+*** Use cases
+- Build systems processing source files
+- Code generators finding all .til files
+- Test runners discovering test files
+- Refactoring tools updating multiple files
+
+*** Why Post-Self-Hosting
+Directory traversal is a library feature, not needed for self-hosting.
+
+** Optimization #51: Precomp doesn't propagate constants through function parameters
+:PROPERTIES:
+:DISCOVERED: 2025-12-19
+:IMPACT: Missed compile-time optimizations, larger generated code
+:STATUS: Open
+:END:
+
+*** Description
+When a function is called with literal arguments, the parameters inside the
+function body are not treated as compile-time constants, preventing constfolding.
+
+*** Example
+#+BEGIN_SRC til
+test_equal := proc(s1: Str, s2: Str) {
+    preffix := "\nPara "
+    for_whom := preffix.concat(s1).concat(s2)  // NOT folded
+    ...
+}
+test_equal("lo", "la")  // Called with literals
+#+END_SRC
+
+Even though ~test_equal("lo", "la")~ passes literals, inside the function:
+- ~preffix~ is a literal -> comptime
+- ~s1~, ~s2~ are parameters -> NOT comptime
+- ~preffix.concat(s1)~ cannot fold because ~s1~ isn't comptime
+
+*** Reproducing
+#+BEGIN_SRC bash
+./bin/rstil run src/examples/lolalalo.til
+# Inspect gen/c/examples/lolalalo.c line 771:
+# til_for_whom = til_concat(til_concat(til_preffix, til_s1), til_s2);
+# Should be: til_for_whom = ((til_Str){(til_I64)"\nPara lola", 10});
+#+END_SRC
+
+*** Root Cause
+In ~precomp_func_def~ (src/rs/precomp.rs:749):
+#+BEGIN_SRC rust
+is_comptime_const: false,  // Function args are not comptime constants
+#+END_SRC
+
+Function parameters are unconditionally marked as non-comptime, even when
+the function is called exclusively with literal arguments.
+
+*** Deeper Analysis (2025-12-26)
+
+The core insight: *comptime-ness of parameters should be per-call, not per-function*.
+
+#+BEGIN_SRC til
+test_equal("lo", "la")      // s1, s2 SHOULD be comptime here
+test_equal(get_input(), "la")  // s1 NOT comptime, s2 IS comptime
+#+END_SRC
+
+**** Why current design can't support this
+
+1. *Original body discarded*: ~precomp_func_def~ transforms the body once at
+   definition time. After transformation, the original untransformed body is gone.
+
+2. *Parameters marked once*: At definition time, we don't know what arguments
+   will be passed. So parameters are marked as non-comptime unconditionally.
+
+3. *No per-call mechanism*: When a call like ~test_equal("lo", "la")~ is seen,
+   we know the args are comptime, but the body was already transformed without
+   that knowledge.
+
+**** The architectural gap
+
+#+BEGIN_EXAMPLE
+Definition time:                    Call time:
+  precomp_func_def                    precomp_fcall
+    -> params: is_comptime=false        -> args are literals (comptime!)
+    -> transform body                   -> but body already transformed
+    -> discard original                 -> can't re-transform with comptime params
+#+END_EXAMPLE
+
+*** Potential Solution: Store Original Body + Per-Call Transformation
+
+**** Step 1: Modify SFuncDef to preserve original body
+
+#+BEGIN_SRC rust
+pub struct SFuncDef {
+    // ... existing fields ...
+    pub body: Vec<Expr>,
+    pub original_body: Option<Vec<Expr>>,  // NEW: preserved for per-call transform
+}
+#+END_SRC
+
+**** Step 2: Per-call body transformation
+
+When processing a function call, if any argument is comptime:
+1. Look up the ~original_body~ (untransformed)
+2. Create a scope where each param's comptime-ness matches the call arg's comptime-ness
+3. Transform the original body in this new scope
+4. Use/cache this specialized version for codegen
+
+#+BEGIN_SRC rust
+fn precomp_body_with_comptime_params(
+    context: &mut Context,
+    original_body: &[Expr],
+    args: &[Declaration],
+    call_args: &[Expr],
+) -> Result<Vec<Expr>, String> {
+    context.scope_stack.push(ScopeType::Function);
+    for (i, arg) in args.iter().enumerate() {
+        let is_comptime = is_comptime_evaluable(context, &call_args[i]);
+        context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo {
+            is_comptime_const: is_comptime,  // Per-call!
+            // ...
+        });
+    }
+    // Transform body with this call's parameter context
+    // ...
+}
+#+END_SRC
+
+**** Challenges
+
+- *Multiple versions*: Different call sites may need different specialized bodies
+- *Caching*: Need to cache by comptime pattern to avoid redundant transformation
+- *Codegen*: Need to generate unique function names for each specialized version
+- *Recursion*: Recursive functions need careful handling to avoid infinite loops
+
+*** Workaround
+None - this is an optimization issue, not a correctness bug. Code runs correctly
+but with larger generated code and more runtime computation than necessary.
+
+*** Related
+- Bug #50 (Fixed): Similar pattern - both require per-call analysis instead of once-at-definition
+- #51 is about per-call comptime-ness (precomp phase)
+- #50 was about per-call variable capture (codegen phase) - now fixed by forbidding closures
+
+*** Why Post-Self-Hosting
+This is an optimization, not a correctness bug. Code works correctly but with
+larger generated code and more runtime computation than necessary.
+
 ** Issue #109: Proper Imports
 :PROPERTIES:
 :DISCOVERED: 2026-01-13
