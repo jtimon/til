@@ -1266,7 +1266,61 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             }
         }
         NodeType::NamespaceDef(ns_def) => {
-            errors.push(e.todo_error(&context.path, "init", &format!("Issue #108 - namespace block for '{}' parsed but not implemented", ns_def.type_name)));
+            // Namespace blocks are syntax sugar - merge members into the existing type
+            // After this, the namespace is "gone" - its members are part of the struct
+
+            // Look up the existing struct
+            let existing_struct = match context.scope_stack.lookup_struct(&ns_def.type_name) {
+                Some(s) => s.clone(),
+                None => {
+                    // TODO: Also support enums - for now just error
+                    errors.push(e.error(&context.path, "init", &format!(
+                        "namespace block for '{}': type not found (must be declared before namespace block)",
+                        ns_def.type_name)));
+                    return errors;
+                }
+            };
+
+            // Clone and extend the struct with namespace members
+            let mut merged_struct = existing_struct;
+            for member_decl in &ns_def.members {
+                // Check for duplicate member names
+                if merged_struct.get_member(&member_decl.name).is_some() {
+                    errors.push(e.error(&context.path, "init", &format!(
+                        "namespace block for '{}': member '{}' already exists in struct",
+                        ns_def.type_name, member_decl.name)));
+                    continue;
+                }
+                merged_struct.members.push(member_decl.clone());
+            }
+            for (name, expr) in &ns_def.default_values {
+                merged_struct.default_values.insert(name.clone(), expr.clone());
+            }
+
+            // Re-declare the struct (overwrites the old one)
+            context.scope_stack.declare_struct(ns_def.type_name.clone(), merged_struct.clone());
+
+            // Register associated funcs and constants from namespace (same logic as StructDef)
+            for member_decl in &ns_def.members {
+                if !member_decl.is_mut {
+                    if let Some(member_expr) = ns_def.default_values.get(&member_decl.name) {
+                        let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+                        let full_name = format!("{}.{}", ns_def.type_name, member_decl.name);
+                        // Register in symbols
+                        context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo {
+                            value_type: member_value_type.clone(),
+                            is_mut: member_decl.is_mut,
+                            is_copy: member_decl.is_copy,
+                            is_own: member_decl.is_own,
+                            is_comptime_const: false
+                        });
+                        // If it's a function, also register in funcs
+                        if let NodeType::FuncDef(func_def) = &member_expr.node_type {
+                            context.scope_stack.declare_func(full_name, func_def.clone());
+                        }
+                    }
+                }
+            }
         }
         _ => {
             if !context.mode_def.allows_base_anything {

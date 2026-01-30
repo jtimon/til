@@ -1764,7 +1764,86 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
         }
 
     case NodeType.NamespaceDef(ns_def):
-        errors.push(e.todo_error(context.path, "init", format("Issue #108 - namespace block for '", ns_def.type_name, "' parsed but not implemented")))
+        // Namespace blocks are syntax sugar - merge members into the existing type
+        // After this, the namespace is "gone" - its members are part of the struct
+
+        // Look up the existing struct
+        mut existing_struct := SStructDef()
+        mut struct_found := false
+        existing_struct = context.scope_stack.lookup_struct(ns_def.type_name)?
+        struct_found = true
+        catch (err: KeyNotFoundError) {
+            // TODO: Also support enums - for now just error
+            errors.push(e.error(context.path, "init", format(
+                "namespace block for '", ns_def.type_name, "': type not found (must be declared before namespace block)")))
+            return errors
+        }
+
+        if struct_found {
+            // Clone and extend the struct with namespace members
+            mut merged_struct := existing_struct.clone()
+            for ns_member_decl: Declaration in ns_def.members {
+                // Check for duplicate member names
+                mut is_duplicate := false
+                for existing_member: Declaration in merged_struct.members {
+                    if existing_member.name.eq(ns_member_decl.name) {
+                        is_duplicate = true
+                    }
+                }
+                if is_duplicate {
+                    errors.push(e.error(context.path, "init", format(
+                        "namespace block for '", ns_def.type_name, "': member '", ns_member_decl.name, "' already exists in struct")))
+                } else {
+                    merged_struct.members.push(ns_member_decl.clone())
+                }
+            }
+            for dv_idx in 0..ns_def.default_values.keys.len() {
+                mut dv_name := ""
+                mut dv_expr := Expr()
+                ns_def.default_values.keys.get(dv_idx, dv_name)?
+                ns_def.default_values.values.get(dv_idx, dv_expr)?
+                merged_struct.default_values.set(dv_name.clone(), dv_expr.clone())
+            }
+
+            // Re-declare the struct (overwrites the old one)
+            context.scope_stack.declare_struct(ns_def.type_name.clone(), merged_struct.clone())?
+
+            // Register associated funcs and constants from namespace (same logic as StructDef)
+            for ns_member_decl: Declaration in ns_def.members {
+                if not(ns_member_decl.is_mut) {
+                    mut ns_member_expr := Expr()
+                    mut has_default := false
+                    ns_def.default_values.get(ns_member_decl.name, ns_member_expr)?
+                    has_default = true
+                    catch (err: KeyNotFoundError) {}
+
+                    if has_default {
+                        mut ns_member_vtype := get_value_type(context, ns_member_expr)?
+                        catch (err: Str) {
+                            ns_member_vtype = ValueType.TCustom(INFER_TYPE)
+                        }
+                        ns_full_name := format(ns_def.type_name, ".", ns_member_decl.name)
+                        // Register in symbols
+                        context.scope_stack.declare_symbol(ns_full_name.clone(), SymbolInfo(
+                            value_type=value_type_clone(ns_member_vtype),
+                            is_mut=ns_member_decl.is_mut,
+                            is_copy=ns_member_decl.is_copy,
+                            is_own=ns_member_decl.is_own
+                        ))?
+                        // If it's a function, also register in funcs
+                        switch ns_member_expr.node_type {
+                        case NodeType.FuncDef(ns_func_def):
+                            context.scope_stack.declare_func(ns_full_name.clone(), ns_func_def.clone())?
+                        case:
+                        }
+                    }
+                }
+            }
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            errors.push(e.lang_error(context.path, "init", format("namespace merge error: ", err.msg)))
+        }
 
     case:
         if not(context.mode_def.allows_base_anything) {
