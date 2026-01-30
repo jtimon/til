@@ -15,6 +15,323 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #151: Explicit pointer/reference syntax for the language
+:PROPERTIES:
+:DISCOVERED: 2026-01-29
+:IMPACT: Enables working with references without copying, foundational language feature
+:STATUS: Open - design phase
+:RELATED: Bug #144 (for-in copies), Issue #117 (ASAP destruction), Issue #115 (owned fields)
+:END:
+
+*** Description
+TIL currently lacks explicit pointer/reference syntax at the language level.
+The ~Ptr~ type exists internally, but users cannot express "reference to T"
+in type annotations. Every dereference (~Ptr.dereference~, ~copy_to_dynamic~)
+makes a copy - there's no way to access data through a pointer without copying.
+
+*** The Core Problem
+~Ptr.dereference(T, dest)~ copies data into ~dest~. There's no syntax to say
+"give me a reference to T that I can read/write through without copying".
+
+This affects:
+- For-in loops (Bug #144) - each iteration copies the element
+- Any code working with collections - must copy to access
+- Performance-sensitive code - unnecessary copying
+
+*** Current Workaround (Ptr directly)
+Users can work with raw Ptr and manual offset calculation, but this is:
+- Error-prone (manual size calculations)
+- Not type-safe (Ptr is untyped)
+- Verbose (explicit memcpy everywhere)
+
+*** What We Need
+A way to express "pointer to T" or "reference to T" in the type system,
+with syntax for:
+1. Taking a reference: ~&x~ or ~ptr(x)~ or similar
+2. Dereferencing for access: ~*p~ or ~p^~ or auto-deref
+3. Type annotations: ~&T~ or ~*T~ or ~Ptr(T)~ or ~ref T~
+
+*** Syntax Options
+
+**** Option A: Ampersand (Rust/C++ style)
+#+BEGIN_SRC til
+p: &Vec2 = &my_vec              // p is reference to Vec2
+println(p.x)                    // auto-deref for field access
+p.x = 10                        // write through reference (if &mut)
+#+END_SRC
+Pros: Familiar to Rust/C++ users
+Cons: If we add operator overloading (~a & b~ -> ~a.and(b)~), conflicts with ~&x~
+
+**** Option B: Asterisk (C style)
+#+BEGIN_SRC til
+p: *Vec2 = &my_vec              // p is pointer to Vec2
+println((*p).x)                 // explicit deref required
+println(p->x)                   // or arrow syntax
+#+END_SRC
+Pros: Familiar to C users
+Cons: Verbose; if we add operator overloading (~a * b~ -> ~a.mul(b)~), conflicts with ~*p~
+
+**** Option C: Caret (Pascal/Delphi style)
+#+BEGIN_SRC til
+p: ^Vec2 = @my_vec              // p is pointer to Vec2
+println(p^.x)                   // explicit deref with ^
+#+END_SRC
+Pros: Unambiguous, no conflict with existing operators
+Cons: Less familiar to modern programmers
+
+**** Option D: Keyword (ref/ptr)
+#+BEGIN_SRC til
+p: ref Vec2 = ref my_vec        // explicit keyword
+println(p.x)                    // auto-deref
+#+END_SRC
+Pros: Readable, no symbol conflicts
+Cons: More verbose
+
+*** Design Questions
+
+1. **First-class types or sugar?**
+   - First-class: ~&T~ is a distinct type from ~T~
+   - Sugar: ~&T~ desugars to ~Ptr~ with type info attached
+
+2. **Auto-deref or explicit?**
+   - Rust-style: ~p.field~ auto-derefs
+   - C-style: must write ~(*p).field~ or ~p->field~
+
+3. **Mutable vs immutable references?**
+   - Rust has ~&T~ (immutable) and ~&mut T~ (mutable)
+   - Could mirror TIL's existing ~mut~ keyword: ~&T~ vs ~mut &T~ or ~&mut T~
+
+4. **Interaction with existing parameter keywords?**
+   - TIL already has ~mut~, ~copy~, ~own~ for parameters
+   - How does ~&T~ interact? Is ~mut p: &T~ different from ~p: &mut T~?
+
+5. **Lifetime tracking?**
+   - Probably not for v1 - rely on Issue #117 (ASAP destruction)
+   - Could add later if needed
+
+*** Implementation Approach
+
+Desugars to existing Ptr operations:
+- ~&x~ -> wraps ~to_ptr(x)~ with type info
+- Field access ~p.field~ -> offset calculation + typed read
+- Assignment ~p.field = v~ -> offset calculation + typed write
+- No actual copy until value is bound to a non-reference variable
+
+*** Relationship to Other Issues
+
+- **Bug #144** (for-in copies): Could be solved with ref syntax, but also
+  has a simpler workaround using Ptr directly in desugaring
+- **Issue #117** (ASAP destruction): Safety net for any copies that do happen
+- **Issue #115** (owned fields): ~own~ vs borrowed semantics for struct fields
+- **ownership.org**: Documents existing ~mut~/~copy~/~own~ parameter semantics
+
+*** Note on For-In Loops (Bug #144)
+
+For-in loops are the most visible symptom, but solving Bug #144 doesn't require
+this full feature. A simpler workaround using Ptr in the desugaring could work.
+This issue is about the general language feature; Bug #144 is a specific application.
+
+** Issue #117: ASAP Destruction (auto-delete on last use)
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:IMPACT: Fixes memory leaks automatically, Mojo-style memory management
+:STATUS: Open
+:DEPENDS: Bug #101 (unused warnings - shared infrastructure)
+:RELATED: Bug #114 (memory leak documentation)
+:END:
+
+*** Description
+Implement Mojo-style automatic destructor calls on last use. When a variable with
+heap data is last used, the compiler automatically inserts a ~delete()~ call.
+
+*** Prerequisites
+- Bug #101: Unused variable warnings use similar liveness analysis
+
+*** Types with delete()
+
+**** Delete Hierarchy (after Ptr refactor)
+Types use Ptr internally, so delete() cascades automatically:
+
+| Type  | Internal Storage    | delete() behavior                    |
+|-------+---------------------+--------------------------------------|
+| Ptr   | raw heap pointer    | checks is_borrowed, then free()      |
+| Vec   | Ptr                 | calls ptr.delete()                   |
+| Array | raw I64 ptr         | calls free() directly (not Ptr type) |
+| Str   | Ptr                 | calls c_string.delete()              |
+| Set   | Vec                 | calls elements.delete()              |
+| Map   | Vec x2              | calls keys.delete(), values.delete() |
+| List  | Ptr + Vec x2        | calls data/type_names/type_sizes.delete() |
+
+**** Implication for ASAP destruction
+ASAP destruction only needs to track top-level variables. When we call
+~map.delete()~, it cascades: Map -> Vec -> Ptr -> free(). No need to
+separately track nested Ptr fields.
+
+*** Implementation Approach
+
+AST transformation in a new "garbager" phase. Inserts ~var.delete()~ calls directly
+into the AST after last use. Both compiler and interpreter benefit automatically.
+
+Pipeline position: typer -> desugar -> ufcs -> *garbager* -> precomp -> ...
+
+Files: garbager.rs, garbager.til (new)
+
+*** Implementation Steps
+
+**** Step 1: Add is_borrowed to Ptr (DONE)
+Add ownership tracking to Ptr:
+#+BEGIN_SRC til
+Ptr := struct {
+    mut data : I64 = 0
+    mut is_borrowed : Bool = false
+
+    new := proc(T: Type, is_borrowed: Bool = false) returns Ptr { ... }
+    new_by_size := proc(size: I64, is_borrowed: Bool = false) returns Ptr { ... }
+
+    delete := proc(mut self: Ptr) {
+        if not(self.is_borrowed) and not(self.is_null()) {
+            free(self.data)
+        }
+        self.data = 0
+    }
+}
+#+END_SRC
+
+- String literals in ccodegen set is_borrowed=true
+- Ptr.new_by_size() defaults to is_borrowed=false (owned)
+- Add Str.delete() that calls c_string.delete()
+- Files: ptr.til, ptr.rs, str.til, str.rs, ccodegen.rs, ccodegen.til
+
+**** Step 2: Add delete() to primitive types (DONE)
+Add no-op ~delete()~ to primitive types (I64, U8, Bool).
+This ensures ALL types have ~delete()~, simplifying the garbager phase.
+
+Files: i64.til, u8.til, bool.til
+
+**** Step 3: Garbager Phase - Auto-generate delete() for structs (DONE)
+New phase after ufcs that auto-generates ~delete()~ method for any struct that lacks one.
+
+Algorithm:
+1. When processing a struct definition, check if it has a ~delete~ method
+2. If not, generate one that calls ~field.delete()~ for every mutable field
+   - Fields processed in reverse declaration order (like C++/Rust destructors)
+   - Skip structs with no mutable fields (error types like BadAlloc)
+3. Insert the generated method into the struct's members and default_values
+
+Example - given:
+#+BEGIN_SRC til
+MyStruct := struct {
+    mut name: Str = ""
+    mut data: Vec = Vec.new(I64)
+    mut count: I64 = 0
+}
+#+END_SRC
+
+Auto-generate:
+#+BEGIN_SRC til
+delete := proc(mut self: MyStruct) {
+    self.count.delete()  // I64.delete() is a no-op
+    self.data.delete()   // Vec.delete() frees memory
+    self.name.delete()   // Str.delete() frees memory
+}
+#+END_SRC
+
+Files: garbager.rs, garbager.til (new)
+
+**** Step 4: Liveness Analysis and Delete Insertion
+Add liveness analysis to track when variables are last used, then insert ~var.delete()~ calls.
+
+Data structure:
+#+BEGIN_SRC rust
+struct VarLifetime {
+    name: String,
+    value_type: ValueType,
+    last_use_stmt_idx: Option<usize>,
+    is_deleted: bool,
+}
+#+END_SRC
+
+Note: No need for ~has_delete~ field - after Step 3, every struct has ~delete()~.
+
+Algorithm:
+1. Analysis pass: Scan statements, track last use index per variable
+2. Transform pass: Insert ~var.delete()~ statement after last_use_stmt_idx
+
+Handle control flow:
+- Early exits (return/throw): Insert deletes for all still-live variables before exit
+- Branches (if/else/switch): Conservative - only delete if ALL paths agree variable is dead, otherwise delete after branch
+- Loops: Most conservative - variables used in loop body deleted after loop ends
+- Scope exit: Safety net - insert deletes for any remaining live variables at function end
+
+Files: garbager.rs, garbager.til
+
+*** Design Decisions
+- Method name: Use existing ~delete()~
+- Double-free prevention: Existing delete() sets ptr/data to 0 after free
+- Destruction order: Reverse order of declaration (like C++/Rust)
+- AST transformation: Insert delete() calls in garbage phase, so both compiler and interpreter benefit
+- Cascading deletes: Only track top-level variables; nested Ptr fields handled by type's delete()
+- Borrowed vs owned: Ptr.is_borrowed distinguishes static memory (literals) from heap allocations
+
+*** Verification
+1. Run under valgrind - no leaks
+2. Double-free tests - delete() is idempotent
+3. Control flow tests - returns, throws, branches, loops
+4. ~make benchmark~ must pass
+
+** Issue #115: Owned struct fields and auto-generated methods
+:PROPERTIES:
+:DISCOVERED: 2026-01-15
+:IMPACT: Enables proper ASAP destruction for composite types
+:STATUS: Open
+:RELATED: Bug #114 (memory leaks), Issue #134 (Ptr type), ownership.org
+:END:
+
+*** Description
+Struct fields should be able to declare ownership semantics. Currently fields are
+just "mut" or not, but we need to express whether a struct OWNS its fields (and
+should delete them) vs BORROWS them (someone else deletes).
+
+*** Example Use Case
+Neural network layer:
+#+BEGIN_SRC til
+Layer := struct {
+    own weights: Vec    // Layer owns this, deletes it
+    own output: Vec     // Layer owns this, deletes it
+    input: Vec          // Borrowed from previous layer, don't delete
+}
+#+END_SRC
+
+User sees Vec in all cases. The ~own~ keyword affects:
+- Owned field: Actual data stored, delete() called when parent deleted
+- Borrowed field: Internally stored as pointer, NOT deleted when parent deleted
+
+The previous layer's ~output~ IS the next layer's ~input~ - same memory, two views.
+
+*** Auto-Generated Methods
+With ownership info, compiler could auto-generate:
+- delete(): Calls delete() on all owned fields
+- size(): Sums size of all fields
+- clone(): Deep clones owned fields, shallow copies borrowed
+
+Without auto-generation, users must write these manually (error-prone).
+
+*** Syntax Options
+1. ~own weights: Vec~ - keyword before field name
+2. ~weights: own Vec~ - keyword before type
+3. ~weights: Vec @own~ - attribute syntax
+
+*** Interaction with ASAP Destruction
+When parent struct is deleted (ASAP or explicit):
+- Owned fields: cascade delete
+- Borrowed fields: leave alone
+
+*** Open Questions
+- Default: owned or borrowed? (Probably owned, like Rust)
+- Can primitives (I64, Bool) be "owned"? (Probably no - always copy)
+- How does this interact with const/mut/copy/own function parameters?
+- How is a borrowed field assigned? (Must point to something that outlives the struct)
+
 ** Issue #135: True cross-compilation via precompiled ext.o per platform
 :PROPERTIES:
 :DISCOVERED: 2026-01-23
