@@ -320,10 +320,9 @@ if map.contains_key(key) {
 }
 #+end_src
 
-** if let Some with early return (Bug #96 workaround)
+** if let Some with early return
 
-When Rust uses ~if let Some~ to check-and-return-early, TIL needs a workaround
-because putting ~return~ before ~catch~ causes an "unreachable code" error:
+When Rust uses ~if let Some~ to check-and-return-early:
 
 Rust:
 #+begin_src rust
@@ -334,28 +333,17 @@ if let Some(temp_var) = ctx.hoisted_exprs.get(&expr_addr) {
 // continue with normal processing...
 #+end_src
 
-TIL (BROKEN):
+TIL:
 #+begin_src til
 ctx.hoisted_exprs.get(expr_addr, temp_var)?
 output.push_str(temp_var)
-return  // ERROR: makes catch unreachable
-catch (err: KeyNotFoundError) { }
-#+end_src
-
-TIL (WORKAROUND - wrap in if true):
-#+begin_src til
-ctx.hoisted_exprs.get(expr_addr, temp_var)?
-if true { // TODO Bug #96 workaround
-    output.push_str(temp_var)
-    return
-}
+return
 catch (err: KeyNotFoundError) {
     // Not found, continue with normal processing
 }
 #+end_src
 
-The ~if true { }~ wrapper makes the catch reachable because the compiler sees
-the return as conditional. See Bug #96 in bugs.org for details.
+Catch blocks are reachable via the throw path, so ~return~ before ~catch~ works correctly.
 
 ** Multiple if let Some in sequence (catch ordering)
 
