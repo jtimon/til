@@ -80,12 +80,13 @@ Likely duplicates to verify:
 
 **** pre.org - DONE (migrated to fixed.org as #pre, file deleted)
 
+**** pass_by_ref.org - DONE (content already in doc/ownership.org, file deleted)
+
 **** 108.org (11.8KB) - deep dive doc
 - Detailed design for Issue #108 (Namespaces)
 - Supplement to future.org entry
 
 **** Obsolete files (can delete)
-- pass_by_ref.org (980B) - obsolete working notes
 - shadow.org (3KB) - obsolete plan, Bug #65 already fixed
 - byref_plan.org, byref-params-plan.md - likely obsolete
 - attempt_const.org - likely obsolete attempt
