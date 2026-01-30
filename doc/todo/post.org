@@ -16,6 +16,50 @@ For bugs, see bugs.org. For language design decisions, see future.org.
 
 * Open Issues
 
+** Issue #156: Implement match keyword (expression-based switch)
+:PROPERTIES:
+:DISCOVERED: 2025-11-10
+:IMPACT: Language ergonomics, expression-based control flow
+:STATUS: Open - token recognized, not implemented
+:FILE: src/rs/lexer.rs, src/core/lexer.til
+:END:
+
+*** Description
+~match~ is like ~switch~ but returns a value (expression vs statement).
+
+*** Example
+#+BEGIN_SRC til
+// switch - statement
+switch x {
+    case 1: do_something()
+    case 2: do_other()
+}
+
+// match - expression, returns value
+result := match x {
+    case 1: "one"
+    case 2: "two"
+    case: "other"
+}
+#+END_SRC
+
+Like Rust's ~let result = match x { ... }~.
+
+*** Current State
+- Token recognized by lexer
+- Not implemented in parser/interpreter/typer
+
+*** What's Needed
+- [ ] Design match semantics (expression that returns value)
+- [ ] Implement in parser
+- [ ] Add type checking (all branches must return same type)
+- [ ] Add evaluation support
+- [ ] Add test cases
+
+*** Why Post-Self-Hosting
+Switch statements work fine. Match is syntactic convenience for when you
+want the result of a case-based decision.
+
 ** Issue #155: Add Unicode support to TIL
 :PROPERTIES:
 :DISCOVERED: 2025-11-10

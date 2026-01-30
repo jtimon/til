@@ -199,29 +199,6 @@ This is pure syntax sugar. Structs and Arrays cover all functionality needed.
 *** Why It's Not Blocking
 The workaround is functional and self-hosting code can use =sub(0, n)= just fine.
 
-** TODO Implement Match Keyword                                      :MEDIUM:
-:PROPERTIES:
-:FILE: src/core/lexer.til:155, src/rs/lexer.rs:288
-:STATUS: Token recognized, not implemented
-:END:
-
-*** Description
-Like switch but for declarations/assignments.
-
-*** Current State
-- Token is recognized by lexer
-- Not implemented in parser/interpreter/typer
-
-*** What's Needed
-- [ ] Design match semantics (switch for expressions vs statements)
-- [ ] Implement in parser
-- [ ] Add type checking
-- [ ] Add evaluation support
-- [ ] Add test cases
-
-*** Why It's Post-Self-Hosting
-Switch statements work fine for now. This is a nice language feature but not essential.
-
 ** TODO Add Guards to Pattern Matching                                  :LOW:
 :PROPERTIES:
 :FILE: N/A
