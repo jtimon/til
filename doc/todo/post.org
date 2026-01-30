@@ -16,6 +16,44 @@ For bugs, see bugs.org. For language design decisions, see future.org.
 
 * Open Issues
 
+** Issue #155: Add Unicode support to TIL
+:PROPERTIES:
+:DISCOVERED: 2025-11-10
+:IMPACT: Internationalization, modern text handling
+:STATUS: Open
+:FILE: src/rs/lexer.rs
+:END:
+
+*** Problem
+TIL currently does not support Unicode characters in source code. The lexer
+panics when encountering multi-byte UTF-8 characters like checkmarks, emoji,
+or non-ASCII text.
+
+Example error:
+: byte index 368 is not a char boundary; it is inside '...' (bytes 367..370)
+
+*** Current Limitation
+Until Unicode is supported:
+- NO Unicode characters should be used anywhere in the project
+- This includes: source code, documentation files, comments, test files
+- Use ASCII-only characters (e.g., [PASS] instead of checkmark)
+
+*** What Needs to be Fixed
+- Update lexer.rs to handle UTF-8 character boundaries correctly
+- Use Rust's ~chars()~ iterator instead of byte indexing where appropriate
+- Add comprehensive Unicode tests
+- Update documentation about supported character sets
+
+*** Implementation Notes
+- Implement proper UTF-8 handling in lexer
+- Add Unicode test suite
+- Consider which Unicode features to support (identifiers, strings, etc.)
+- Update lexer.til to match lexer.rs changes
+
+*** Why Post-Self-Hosting
+ASCII-only is sufficient for self-hosting. Unicode is a nice-to-have for
+internationalization and modern text handling.
+
 ** Issue #154: Template vs Dynamic compilation mode
 :PROPERTIES:
 :DISCOVERED: 2026-01-29
