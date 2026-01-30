@@ -1,0 +1,345 @@
+mode lib
+
+import("core.vec")
+import("std.map")  // For DuplicatedKeyError, KeyNotFoundError
+
+// Constants for HashMap (defined outside struct for visibility)
+HASHMAP_INIT_BUCKETS : I64 = 16
+HASHMAP_LOAD_FACTOR_NUM : I64 = 3   // Numerator (3/4 = 0.75)
+HASHMAP_LOAD_FACTOR_DEN : I64 = 4   // Denominator
+
+/**
+ * HashMap implementation with O(1) average lookup using hash buckets.
+ * Uses separate chaining for collision handling.
+ *
+ * Key type support:
+ *   - Str: Uses Str.hash() (FNV-1a)
+ *   - I64, U8, Bool: Uses FNV-1a on raw bytes
+ *   - Other types: Uses FNV-1a on raw bytes (not recommended for structs with padding)
+ *
+ * Value type support:
+ *   - Fully dynamic: Any type works (I64, Str, Bool, U8, Vec, Array, etc.)
+ *
+ * Unlike Map, HashMap does NOT maintain any particular order.
+ * Use Map if you need sorted order or insertion order.
+ */
+HashMap := struct {
+    mut key_type_name: Str = ""
+    mut key_type_size: I64 = 0
+    mut value_type_name: Str = ""
+    mut value_type_size: I64 = 0
+    mut keys: Vec = Vec()           // All keys (dense array)
+    mut values: Vec = Vec()         // All values (parallel to keys)
+    mut buckets: Vec = Vec()        // bucket[hash % num_buckets] = first entry index, -1 if empty
+    mut nexts: Vec = Vec()          // nexts[i] = next entry index in chain, -1 if end
+    mut _size: I64 = 0              // Number of entries
+    mut _num_buckets: I64 = 0       // Number of hash buckets (power of 2)
+
+    /** Create new empty HashMap with specified key and value types.
+     *  Example: HashMap.new(Str, I64) */
+    new := proc(KeyType: Type, ValueType: Type) returns HashMap {
+        mut m := HashMap()
+        m.key_type_name = type_as_str(KeyType)
+        m.key_type_size = size_of(KeyType)
+        m.value_type_name = type_as_str(ValueType)
+        m.value_type_size = size_of(ValueType)
+        m.keys = Vec.new_from_type_info(m.key_type_name, m.key_type_size)
+        m.values = Vec.new_from_type_info(m.value_type_name, m.value_type_size)
+        m.buckets = Vec.new(I64)
+        m.nexts = Vec.new(I64)
+        m._size = 0
+        m._num_buckets = HASHMAP_INIT_BUCKETS
+
+        // Initialize all buckets to -1 (empty)
+        for _ in 0..HASHMAP_INIT_BUCKETS {
+            m.buckets.push(sub(0, 1))
+        }
+
+        return m
+    }
+
+    /** Hash a key and return the bucket index.
+     *  For Str keys, uses Str.hash(). For others, uses FNV-1a on raw bytes. */
+    hash_key := func(self: HashMap, key_ptr: I64) returns I64 {
+        mut h : I64 = 0
+
+        if self.key_type_name.eq("Str") {
+            // For Str keys, use the built-in Str.hash()
+            mut s := ""
+            memcpy(to_ptr(s), key_ptr, self.key_type_size)
+            h = s.hash()
+        } else {
+            // For other types, use FNV-1a on raw bytes
+            FNV_OFFSET_BASIS : I64 = sub(0, 3750763034362895579)
+            FNV_PRIME : I64 = 1099511628211
+            h = FNV_OFFSET_BASIS
+            for i in 0..self.key_type_size {
+                mut byte_val : U8 = 0
+                mut key_byte_ptr := Ptr()
+                key_byte_ptr.data = key_ptr.add(i)
+                memcpy(to_ptr(byte_val), key_byte_ptr.data, 1)
+                h = I64.xor(h, U8.to_i64(byte_val))
+                h = h.mul(FNV_PRIME)
+            }
+        }
+
+        // Map hash to bucket index using bitwise AND (requires power-of-2 buckets)
+        bucket_mask := self._num_buckets.sub(1)
+        // Handle negative hash values by taking absolute then masking
+        if h.lt(0) {
+            h = sub(0, h)
+        }
+        return I64.and(h, bucket_mask)
+    }
+
+    /** Compare two keys for equality.
+     *  For Str keys, uses Str.eq(). For others, uses memcmp. */
+    keys_equal := func(self: HashMap, key_a_ptr: I64, key_b_ptr: I64) returns Bool {
+        if self.key_type_name.eq("Str") {
+            mut a := ""
+            mut b := ""
+            memcpy(to_ptr(a), key_a_ptr, self.key_type_size)
+            memcpy(to_ptr(b), key_b_ptr, self.key_type_size)
+            return a.eq(b)
+        } else {
+            result := memcmp(key_a_ptr, key_b_ptr, self.key_type_size)
+            return result.eq(0)
+        }
+    }
+
+    /** Look up a key and return its index, or -1 if not found. */
+    find_key := func(self: HashMap, key: Dynamic) returns I64 {
+        if self._size.eq(0) {
+            return sub(0, 1)
+        }
+
+        bucket_idx := self.hash_key(to_ptr(key))
+        mut entry_idx := 0
+        self.buckets.get(bucket_idx, entry_idx)?
+
+        // Walk the chain
+        while entry_idx.gteq(0) {
+            // Get key at entry_idx
+            key_ptr := self.keys.ptr.offset(entry_idx.mul(self.key_type_size))
+            if self.keys_equal(to_ptr(key), key_ptr.data) {
+                return entry_idx
+            }
+            // Move to next in chain
+            self.nexts.get(entry_idx, entry_idx)?
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            // Should not happen, but return -1 if it does
+        }
+
+        return sub(0, 1)
+    }
+
+    /** Resize the hash table when load factor exceeds threshold. */
+    resize := proc(mut self: HashMap) {
+        self._num_buckets = self._num_buckets.mul(2)
+
+        // Clear and reinitialize buckets
+        self.buckets.clear()
+        for _ in 0..self._num_buckets {
+            self.buckets.push(sub(0, 1))
+        }
+
+        // Clear nexts (will be rebuilt)
+        mut i := 0
+        while i.lt(self._size) {
+            self.nexts.set(i, sub(0, 1))?
+            i = i.add(1)
+        }
+
+        // Re-insert all entries into new buckets
+        i = 0
+        while i.lt(self._size) {
+            key_ptr := self.keys.ptr.offset(i.mul(self.key_type_size))
+            bucket_idx := self.hash_key(key_ptr.data)
+
+            // Get current head of bucket
+            mut head := 0
+            self.buckets.get(bucket_idx, head)?
+
+            // Insert at head of chain
+            self.nexts.set(i, head)?
+            self.buckets.set(bucket_idx, i)?
+
+            i = i.add(1)
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "HashMap.resize: unexpected IndexOutOfBoundsError")
+        }
+    }
+
+    /** Insert new key-value pair.
+     *  Throws DuplicatedKeyError if key already exists.
+     *  Use set() instead if you want to overwrite existing keys. */
+    insert := proc(mut self: HashMap, key: Dynamic, value: Dynamic) throws DuplicatedKeyError {
+        // Check if key already exists
+        existing_idx := self.find_key(key)
+        if existing_idx.gteq(0) {
+            throw DuplicatedKeyError(msg=format(loc(), "Key already exists in HashMap"))
+        }
+
+        // Check load factor and resize if needed
+        // load > 0.75 means size * 4 > num_buckets * 3
+        if self._size.add(1).mul(HASHMAP_LOAD_FACTOR_DEN).gt(self._num_buckets.mul(HASHMAP_LOAD_FACTOR_NUM)) {
+            self.resize()
+        }
+
+        // Add key and value to dense arrays
+        self.keys.push(key)
+        self.values.push(value)
+        new_idx := self._size
+
+        // Add to bucket chain
+        bucket_idx := self.hash_key(to_ptr(key))
+        mut head := 0
+        self.buckets.get(bucket_idx, head)?
+
+        // New entry points to old head
+        self.nexts.push(head)
+        // Bucket now points to new entry
+        self.buckets.set(bucket_idx, new_idx)?
+
+        self._size = self._size.add(1)
+
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "HashMap.insert: unexpected IndexOutOfBoundsError")
+        }
+    }
+
+    /** Set key-value pair.
+     *  Overwrites value if key already exists.
+     *  Creates new entry if key doesn't exist. */
+    set := proc(mut self: HashMap, key: Dynamic, value: Dynamic) {
+        existing_idx := self.find_key(key)
+
+        if existing_idx.gteq(0) {
+            // Key found - update value in place
+            mut value_ptr := self.values.ptr.offset(existing_idx.mul(self.value_type_size))
+            value_ptr.copy_from_dynamic(value, self.value_type_size)
+        } else {
+            // Key not found - insert new entry
+            // Check load factor and resize if needed
+            if self._size.add(1).mul(HASHMAP_LOAD_FACTOR_DEN).gt(self._num_buckets.mul(HASHMAP_LOAD_FACTOR_NUM)) {
+                self.resize()
+            }
+
+            // Add key and value to dense arrays
+            self.keys.push(key)
+            self.values.push(value)
+            new_idx := self._size
+
+            // Add to bucket chain
+            bucket_idx := self.hash_key(to_ptr(key))
+            mut head := 0
+            self.buckets.get(bucket_idx, head)?
+
+            // New entry points to old head
+            self.nexts.push(head)
+            // Bucket now points to new entry
+            self.buckets.set(bucket_idx, new_idx)?
+
+            self._size = self._size.add(1)
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "HashMap.set: unexpected IndexOutOfBoundsError")
+        }
+    }
+
+    /** Get value for given key.
+     *  Copies value into dest parameter.
+     *  Throws KeyNotFoundError if key doesn't exist. */
+    get := proc(self: HashMap, key: Dynamic, mut dest: Dynamic) throws KeyNotFoundError {
+        idx := self.find_key(key)
+
+        if idx.gteq(0) {
+            value_ptr := self.values.ptr.offset(idx.mul(self.value_type_size))
+            value_ptr.copy_to_dynamic(dest, self.value_type_size)
+            return
+        }
+
+        throw KeyNotFoundError(msg=format(loc(), "Key not found in HashMap"))
+    }
+
+    /** Check if key exists in map. */
+    contains_key := proc(self: HashMap, key: Dynamic) returns Bool {
+        idx := self.find_key(key)
+        return idx.gteq(0)
+    }
+
+    /** Get number of entries in map. */
+    len := proc(self: HashMap) returns I64 {
+        return self._size
+    }
+
+    /** Check if map is empty. */
+    is_empty := func(self: HashMap) returns Bool {
+        return self._size.eq(0)
+    }
+
+    /** Clear all entries from map (reset to empty). */
+    clear := proc(mut self: HashMap) {
+        self._size = 0
+        self.keys._len = 0
+        self.values._len = 0
+        self.nexts._len = 0
+
+        // Reset all buckets to -1
+        mut i := 0
+        while i.lt(self._num_buckets) {
+            self.buckets.set(i, sub(0, 1))?
+            i = i.add(1)
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "HashMap.clear: unexpected IndexOutOfBoundsError")
+        }
+    }
+
+    /** Get total size in bytes (keys + values). */
+    size := func(self: HashMap) returns I64 {
+        keys_size := self._size.mul(self.key_type_size)
+        values_size := self._size.mul(self.value_type_size)
+        return keys_size.add(values_size)
+    }
+
+    /** Free map memory and reset. */
+    delete := proc(mut self: HashMap) {
+        mut keys_arr := self.keys
+        keys_arr.delete()
+
+        mut values_arr := self.values
+        values_arr.delete()
+
+        mut buckets_arr := self.buckets
+        buckets_arr.delete()
+
+        mut nexts_arr := self.nexts
+        nexts_arr.delete()
+
+        self._size = 0
+        self._num_buckets = 0
+    }
+
+    /** Clone the HashMap. */
+    clone := func(self: HashMap) returns HashMap {
+        return HashMap(
+            key_type_name=self.key_type_name,
+            key_type_size=self.key_type_size,
+            value_type_name=self.value_type_name,
+            value_type_size=self.value_type_size,
+            keys=self.keys.clone(),
+            values=self.values.clone(),
+            buckets=self.buckets.clone(),
+            nexts=self.nexts.clone(),
+            _size=self._size,
+            _num_buckets=self._num_buckets
+        )
+    }
+}

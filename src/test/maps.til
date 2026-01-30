@@ -2,6 +2,7 @@ mode test
 
 import("core.vec")
 import("std.map")
+import("std.hashmap")
 
 Vec2 := struct {
     mut x : I64 = 0
@@ -416,7 +417,345 @@ test_map_keys_field := proc() {
     }
 }
 
-// Run all tests
+// ============================================================================
+// HashMap Tests (Issue #112)
+// ============================================================================
+
+// Test HashMap<Str, I64>
+test_hashmap_str_to_i64 := proc() {
+    mut ages := HashMap.new(Str, I64)
+    ages.insert("Alice", 30)?
+    ages.insert("Bob", 25)?
+    ages.insert("Charlie", 35)?
+
+    mut age := 0
+    ages.get("Alice", age)?
+    test(loc(), age.eq(30), "HashMap: Alice should be 30")
+    ages.get("Bob", age)?
+    test(loc(), age.eq(25), "HashMap: Bob should be 25")
+    ages.get("Charlie", age)?
+    test(loc(), age.eq(35), "HashMap: Charlie should be 35")
+
+    test(loc(), ages.len().eq(3), "HashMap should have 3 entries")
+
+    ages.delete()
+
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
+// Test HashMap<I64, I64>
+test_hashmap_i64_to_i64 := proc() {
+    mut ages := HashMap.new(I64, I64)
+    ages.insert(100, 30)?
+    ages.insert(200, 25)?
+
+    mut age := 0
+    ages.get(100, age)?
+    test(loc(), age.eq(30), "HashMap: ID 100 should map to 30")
+    ages.get(200, age)?
+    test(loc(), age.eq(25), "HashMap: ID 200 should map to 25")
+
+    ages.delete()
+
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
+// Test HashMap<Str, Vec2>
+test_hashmap_str_to_vec2 := proc() {
+    mut positions := HashMap.new(Str, Vec2)
+    mut player_pos := Vec2(x=10, y=20)
+    positions.insert("player", player_pos)?
+    mut enemy_pos := Vec2(x=30, y=40)
+    positions.insert("enemy", enemy_pos)?
+
+    mut pos := Vec2()
+    positions.get("player", pos)?
+    test(loc(), pos.x.eq(10), "HashMap: player.x should be 10")
+    test(loc(), pos.y.eq(20), "HashMap: player.y should be 20")
+    positions.get("enemy", pos)?
+    test(loc(), pos.x.eq(30), "HashMap: enemy.x should be 30")
+    test(loc(), pos.y.eq(40), "HashMap: enemy.y should be 40")
+
+    positions.delete()
+
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
+// Test HashMap insert() - should throw on duplicate keys
+test_hashmap_insert_duplicate := proc() {
+    mut ages := HashMap.new(Str, I64)
+    ages.insert("Alice", 30)?
+    ages.insert("Alice", 35)?
+    panic(loc(), "Expected DuplicatedKeyError when inserting duplicate key")
+    catch (err: DuplicatedKeyError) {}
+    ages.delete()
+}
+
+// Test HashMap set() - should overwrite existing keys
+test_hashmap_set := proc() {
+    mut ages := HashMap.new(Str, I64)
+    ages.set("Alice", 30)
+    ages.set("Alice", 35)
+    test(loc(), ages.len().eq(1), "HashMap: Size should still be 1 after set update")
+
+    mut age := 0
+    ages.get("Alice", age)?
+    test(loc(), age.eq(35), "HashMap: Expected age 35 after update")
+
+    ages.delete()
+
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
+// Test HashMap get() with non-existent key
+test_hashmap_get_missing := proc() {
+    mut ages := HashMap.new(Str, I64)
+    ages.insert("Alice", 30)?
+
+    mut age := 0
+    ages.get("Charlie", age)?
+    panic(loc(), "Expected KeyNotFoundError for non-existent key")
+    catch (err: KeyNotFoundError) {}
+    ages.delete()
+
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
+// Test HashMap contains_key()
+test_hashmap_contains_key := proc() {
+    mut ages := HashMap.new(Str, I64)
+    ages.insert("Alice", 30)?
+    ages.insert("Bob", 25)?
+
+    test(loc(), ages.contains_key("Alice"), "HashMap: Should contain Alice")
+    test(loc(), ages.contains_key("Bob"), "HashMap: Should contain Bob")
+    test(loc(), not(ages.contains_key("Charlie")), "HashMap: Should not contain Charlie")
+
+    ages.delete()
+
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
+// Test empty HashMap operations
+test_hashmap_empty := proc() {
+    mut m := HashMap.new(Str, I64)
+    test(loc(), m.len().eq(0), "Empty HashMap should have size 0")
+    test(loc(), m.is_empty(), "Empty HashMap is_empty() should be true")
+    test(loc(), not(m.contains_key("anything")), "Empty HashMap should not contain any key")
+
+    m.delete()
+}
+
+// Test HashMap growth/resize beyond initial capacity
+test_hashmap_growth := proc() {
+    mut ages := HashMap.new(I64, I64)
+
+    // Initial bucket count is 16, load factor 0.75 = 12 entries before resize
+    // Insert 20 elements to trigger at least one resize
+    mut i := 0
+    while i.lt(20) {
+        ages.insert(i, i.mul(100))?
+        i = i.add(1)
+    }
+
+    test(loc(), ages.len().eq(20), "HashMap should have 20 entries after growth")
+
+    // Verify all values are still correct after resize
+    mut val := 0
+    ages.get(0, val)?
+    test(loc(), val.eq(0), "HashMap: First element should still be 0")
+    ages.get(10, val)?
+    test(loc(), val.eq(1000), "HashMap: Middle element should be 1000")
+    ages.get(19, val)?
+    test(loc(), val.eq(1900), "HashMap: Last element should be 1900")
+
+    // Verify contains_key still works after resize
+    test(loc(), ages.contains_key(5), "HashMap: Should contain key 5 after growth")
+    test(loc(), ages.contains_key(15), "HashMap: Should contain key 15 after growth")
+    test(loc(), not(ages.contains_key(25)), "HashMap: Should not contain key 25")
+
+    ages.delete()
+
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
+// Test HashMap.clear()
+test_hashmap_clear := proc() {
+    mut m := HashMap.new(Str, I64)
+
+    m.insert("a", 1)?
+    m.insert("b", 2)?
+    m.insert("c", 3)?
+    test(loc(), m.len().eq(3), "HashMap should have 3 entries")
+
+    m.clear()
+    test(loc(), m.len().eq(0), "HashMap size should be 0 after clear")
+    test(loc(), m.is_empty(), "HashMap should be empty after clear")
+    test(loc(), not(m.contains_key("a")), "HashMap should not contain 'a' after clear")
+
+    // Should be able to insert again after clear
+    m.insert("d", 4)?
+    test(loc(), m.len().eq(1), "HashMap should have 1 entry after re-insert")
+
+    m.delete()
+
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
+// Test HashMap len() tracks correctly through various operations
+test_hashmap_len_tracking := proc() {
+    mut m := HashMap.new(Str, I64)
+
+    test(loc(), m.len().eq(0), "Empty HashMap should have len 0")
+
+    m.insert("a", 1)?
+    test(loc(), m.len().eq(1), "HashMap should have len 1 after first insert")
+
+    m.insert("b", 2)?
+    m.insert("c", 3)?
+    test(loc(), m.len().eq(3), "HashMap should have len 3 after three inserts")
+
+    // set() with existing key should not change len
+    m.set("a", 100)
+    test(loc(), m.len().eq(3), "HashMap len should stay 3 after set() on existing key")
+
+    // set() with new key should increase len
+    m.set("d", 4)
+    test(loc(), m.len().eq(4), "HashMap len should be 4 after set() with new key")
+
+    m.delete()
+
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
+// Test multiple set() overwrites
+test_hashmap_multiple_overwrites := proc() {
+    mut m := HashMap.new(Str, I64)
+
+    m.set("key", 1)
+    mut val := 0
+    m.get("key", val)?
+    test(loc(), val.eq(1), "HashMap: First set should store 1")
+
+    m.set("key", 2)
+    m.get("key", val)?
+    test(loc(), val.eq(2), "HashMap: Second set should overwrite to 2")
+
+    m.set("key", 3)
+    m.get("key", val)?
+    test(loc(), val.eq(3), "HashMap: Third set should overwrite to 3")
+
+    test(loc(), m.len().eq(1), "HashMap: Multiple overwrites should keep len at 1")
+
+    m.delete()
+
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
+// Test HashMap with many string keys (stress test for hash distribution)
+test_hashmap_many_strings := proc() {
+    mut m := HashMap.new(Str, I64)
+
+    // Insert 50 different string keys
+    mut i := 0
+    while i.lt(50) {
+        key := format("key_", I64.to_str(i))
+        m.insert(key, i)?
+        i = i.add(1)
+    }
+
+    test(loc(), m.len().eq(50), "HashMap should have 50 entries")
+
+    // Verify lookups work for various keys
+    mut val := 0
+    m.get("key_0", val)?
+    test(loc(), val.eq(0), "HashMap: key_0 should be 0")
+    m.get("key_25", val)?
+    test(loc(), val.eq(25), "HashMap: key_25 should be 25")
+    m.get("key_49", val)?
+    test(loc(), val.eq(49), "HashMap: key_49 should be 49")
+
+    // Verify non-existent keys
+    test(loc(), not(m.contains_key("key_50")), "HashMap: Should not contain key_50")
+    test(loc(), not(m.contains_key("nonexistent")), "HashMap: Should not contain nonexistent")
+
+    m.delete()
+
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
+// ============================================================================
+// Run all Map tests
+// ============================================================================
 test_map_i64_to_i64()
 test_map_str_to_vec2()
 test_map_str_to_vec_str()
@@ -433,4 +772,21 @@ test_map_len_tracking()
 test_map_multiple_overwrites()
 test_map_order_after_growth()
 test_map_keys_field()
+
+// ============================================================================
+// Run all HashMap tests
+// ============================================================================
+test_hashmap_str_to_i64()
+test_hashmap_i64_to_i64()
+test_hashmap_str_to_vec2()
+test_hashmap_insert_duplicate()
+test_hashmap_set()
+test_hashmap_get_missing()
+test_hashmap_contains_key()
+test_hashmap_empty()
+test_hashmap_growth()
+test_hashmap_clear()
+test_hashmap_len_tracking()
+test_hashmap_multiple_overwrites()
+test_hashmap_many_strings()
 
