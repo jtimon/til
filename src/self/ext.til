@@ -736,30 +736,25 @@ proc_print_flush := proc(mut context: Context, e: Expr) returns EvalResult throw
     return EvalResult.new("")
 }
 
+// Bug #98: Now throws ReadError instead of Str
 proc_input_read_line := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "input_read_line", 1, true)?
 
-    first_param := e.get(1)?
-    mut read_line_error_msg := ""
-    switch first_param.node_type {
-        case LLiteral(lit):
-            switch lit {
-                case Str(error_msg)?:
-                    read_line_error_msg = error_msg
-                case:
-                    throw e.lang_error(context.path, "eval", "input_read_line() expects a literal string error message.")
-            }
-        case:
-            throw e.lang_error(context.path, "eval", "input_read_line() expects a literal string error message.")
+    prompt_result := eval_expr(context, e.get(1)?)?
+    if prompt_result.is_throw {
+        return prompt_result
     }
+    prompt := prompt_result.value
 
-    line := input_read_line(read_line_error_msg)
-    catch (err: Str) {
-        throw e.lang_error(context.path, "eval", read_line_error_msg)
-    }
+    line := input_read_line(prompt)?
     return EvalResult.new(line)
+
+    catch (err: ReadError) {
+        return EvalResult.new_throw(err.msg, ValueType.TCustom("ReadError"))
+    }
 }
 
+// Bug #98: Now throws ReadError instead of returning empty string
 proc_readfile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "readfile", 1, true)?
 
@@ -770,13 +765,15 @@ proc_readfile := proc(mut context: Context, e: Expr) returns EvalResult throws S
     path := result.value
 
     // Call host-provided readfile (when running on rstil)
-    source := readfile(path)
-    catch (err: Str) {
-        throw e.error(context.path, "eval", format("Problem reading file '", path, "': ", err))
-    }
+    source := readfile(path)?
     return EvalResult.new(source)
+
+    catch (err: ReadError) {
+        return EvalResult.new_throw(err.msg, ValueType.TCustom("ReadError"))
+    }
 }
 
+// Bug #98: Now throws WriteError instead of panicking
 proc_writefile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "writefile", 2, true)?
 
@@ -793,11 +790,12 @@ proc_writefile := proc(mut context: Context, e: Expr) returns EvalResult throws 
     contents := contents_result.value
 
     // Call host-provided writefile (when running on rstil)
-    err := writefile(path, contents)
-    if not(err.is_empty()) {
-        throw e.error(context.path, "eval", format("Problem writing file '", path, "': ", err))
-    }
+    writefile(path, contents)?
     return EvalResult.new("")
+
+    catch (err: WriteError) {
+        return EvalResult.new_throw(err.msg, ValueType.TCustom("WriteError"))
+    }
 }
 
 // WARNING: run_cmd executes shell commands.
@@ -1007,6 +1005,7 @@ func_file_mtime := proc(mut context: Context, e: Expr) returns EvalResult throws
     return EvalResult.new(mtime.to_str())
 }
 
+// Bug #98: Now throws IOError instead of returning empty string
 func_list_dir_raw := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "list_dir_raw", 1, false)?
 
@@ -1015,9 +1014,12 @@ func_list_dir_raw := proc(mut context: Context, e: Expr) returns EvalResult thro
     path := path_result.value
 
     // Call host-provided list_dir_raw (when running on rstil)
-    raw := list_dir_raw(path)
-
+    raw := list_dir_raw(path)?
     return EvalResult.new(raw)
+
+    catch (err: IOError) {
+        return EvalResult.new_throw(err.msg, ValueType.TCustom("IOError"))
+    }
 }
 
 func_fs_parent_dir := proc(mut context: Context, e: Expr) returns EvalResult throws Str {

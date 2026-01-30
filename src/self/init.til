@@ -1429,7 +1429,11 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     _ := context.imports_init_done.insert(path.clone())
 
     # Read and parse the imported file
-    mut source := readfile(path)
+    mut source := readfile(path)?
+    catch (err: ReadError) {
+        context.path = original_path.clone()
+        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ": ", err.msg))
+    }
     if source.is_empty() {
         throw e.error(context.path, "import", format("File '", path, "' not found or empty"))
     }

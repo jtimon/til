@@ -235,7 +235,7 @@ test_with_cmd := proc(entry: TestEntry, cmd_prefix: Str, fail_label: Str, out_mo
     // Check output via diff
     tmp_actual := "gen/out/actual.out"
     actual_content := format_expected(entry.cmd_args, actual_exit_code, output)
-    _ := writefile(tmp_actual, actual_content)
+    writefile(tmp_actual, actual_content)?
     mut diff_u_result := ""
     _ := diff_u_result.run_cmd("diff", "-u", out_path, tmp_actual)
     mut rm_result := ""
@@ -247,6 +247,8 @@ test_with_cmd := proc(entry: TestEntry, cmd_prefix: Str, fail_label: Str, out_mo
     }
 
     return false
+
+    catch (err: WriteError) { panic(loc(), err.msg) }
 }
 
 // Wrapper functions
@@ -324,8 +326,8 @@ spawn_test := proc(entry: TestEntry, phase: TestPhase, test_id: I64) returns Run
 // On success: "PASS <time_ms>"
 // On failure: error output (and exit code was non-zero)
 // Returns true if passed, false if failed
-parse_test_result := proc(result_file: Str, exit_status: I64, mut time_ms: I64, mut error_output: Str) returns Bool throws IndexOutOfBoundsError {
-    output := readfile(result_file)
+parse_test_result := proc(result_file: Str, exit_status: I64, mut time_ms: I64, mut error_output: Str) returns Bool throws IndexOutOfBoundsError, ReadError {
+    output := readfile(result_file)?
 
     if exit_status.eq(0) {
         // Success - parse "PASS <time_ms>"
@@ -686,6 +688,7 @@ run_parallel := proc(tests: Vec, phases: Vec, parallelism: I64, mut phase_totals
     catch (err: SpawnError) { kill_running_and_panic(running, err.msg) }
     catch (err: SleepError) { kill_running_and_panic(running, err.msg) }
     catch (err: IndexOutOfBoundsError) { kill_running_and_panic(running, err.msg) }
+    catch (err: ReadError) { kill_running_and_panic(running, err.msg) }
 
     return errors
 }
@@ -866,9 +869,10 @@ run_all_tests := proc(til_interpreted: Vec, til_compiled: Vec, til_common: Vec, 
     totals = totals.concat("- Total til compiled :: ").concat(format_time(total_til_compile)).concat("\n")
     totals = totals.concat("- Total :: ").concat(format_time(total_all)).concat("\n\n")
 
-    _ := writefile("gen/benchmark.org", totals.concat(benchmark_content))
+    writefile("gen/benchmark.org", totals.concat(benchmark_content))?
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+    catch (err: WriteError) { panic(loc(), err.msg) }
 
     if errors_found.gt(0) {
         panic(loc(), errors_found.to_str().concat("/").concat(total_tests.to_str()).concat(" tests failed."))

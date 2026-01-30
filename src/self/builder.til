@@ -26,10 +26,12 @@ ParseFileResult := struct {
 }
 
 parse_file := proc(path: Str) returns ParseFileResult throws Str {
-    source := readfile(path)
-    // readfile returns empty string on error (file not found, etc.)
+    source := readfile(path)?
+    catch (err: ReadError) {
+        throw format("Failed to read file '", path, "': ", err.msg)
+    }
     if source.is_empty() {
-        throw concat("File '", path).concat("' not found or empty.")
+        throw format("File '", path, "' is empty.")
     }
 
     mut lexer := lexer_from_source(path, source)?
@@ -489,9 +491,9 @@ build := proc(path: Str, target: Target, lang: Lang, cc: Str, translate_only: Bo
     if not(parent_dir.is_empty()) {
         _ := fs_mkdir_p(parent_dir)
     }
-    write_err := writefile(source_output_path, c_code)
-    if not(write_err.is_empty()) {
-        throw concat("Failed to write '", source_output_path).concat("': ").concat(write_err)
+    writefile(source_output_path, c_code)?
+    catch (err: WriteError) {
+        throw format("Failed to write '", source_output_path, "': ", err.msg)
     }
 
     // If translate_only, return the source file path

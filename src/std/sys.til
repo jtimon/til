@@ -13,6 +13,10 @@ WaitError := struct {
     mut msg: Str = ""
 }
 
+IOError := struct {
+    mut msg: Str = ""
+}
+
 /**
  * Executes a command using exec-style semantics (not shell).
  * Args are passed directly: run_cmd("ls", "-la", "/path")
@@ -155,9 +159,9 @@ file_mtime := ext_proc(path: Str) returns I64 {}
 /**
  * Lists files in a directory (raw version returning newline-separated string).
  * Returns filenames only (not full paths), excluding "." and "..".
- * Returns empty string if directory doesn't exist.
+ * Throws IOError if directory cannot be opened.
  */
-list_dir_raw := ext_proc(path: Str) returns Str {}
+list_dir_raw := ext_proc(path: Str) returns Str throws IOError {}
 
 /**
  * Returns the parent directory of a path.
@@ -174,10 +178,10 @@ fs_mkdir_p := ext_proc(path: Str) returns I64 {}
 /**
  * Lists files in a directory.
  * Returns filenames only (not full paths), excluding "." and "..".
- * Returns empty vector (of Str) if directory doesn't exist.
+ * Throws IOError if directory cannot be opened.
  */
-list_dir := proc(path: Str) returns Vec throws IndexOutOfBoundsError {
-    raw := list_dir_raw(path)
+list_dir := proc(path: Str) returns Vec throws IndexOutOfBoundsError, IOError {
+    raw := list_dir_raw(path)?
     if raw.len().eq(0) {
         return Vec.new(Str)
     }
@@ -189,7 +193,7 @@ list_dir := proc(path: Str) returns Vec throws IndexOutOfBoundsError {
  * Only supports patterns like "path/to/dir/\*.suffix".
  * Returns full paths (dir + "/" + filename).
  */
-glob_files := proc(pattern: Str) returns Vec throws IndexOutOfBoundsError {
+glob_files := proc(pattern: Str) returns Vec throws IndexOutOfBoundsError, IOError {
     // Find last slash to split dir/pattern
     mut last_slash := 0
     for i in 0..pattern.len() {
