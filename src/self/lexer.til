@@ -31,7 +31,7 @@ TokenType := enum {
     Mut, Copy, Own,
 
     // type definition
-    Struct, Enum,
+    Struct, Enum, Namespace,
 
     // function definition
     Returns, Throws,
@@ -224,6 +224,7 @@ token_type_to_str := func(tt: TokenType) returns Str {
     case TokenType.Continue: return "continue"
     case TokenType.Struct: return "struct"
     case TokenType.Enum: return "enum"
+    case TokenType.Namespace: return "namespace"
     case TokenType.Mode: return "mode"
     case TokenType.Func: return "func"
     case TokenType.Proc: return "proc"
@@ -306,6 +307,7 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
         // core data types
     case "enum": return TokenType.Enum
     case "struct": return TokenType.Struct
+    case "namespace": return TokenType.Namespace
 
         // function declaration
     case "returns": return TokenType.Returns

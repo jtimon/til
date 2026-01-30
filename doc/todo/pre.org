@@ -446,7 +446,7 @@ File stat would need new builtins:
 :PROPERTIES:
 :DISCOVERED: 2026-01-12
 :IMPACT: Language feature, code organization
-:STATUS: Open
+:STATUS: In progress - lexer done, parser stub
 :RELATED: Issue #107 (First-Class Namespaces)
 :END:
 

@@ -28,7 +28,7 @@ pub enum TokenType {
     Mut, Copy, Own,
 
     // type definition
-    Struct, Enum,
+    Struct, Enum, Namespace,
     // function definition
     Returns, Throws,
     // flow control
@@ -178,6 +178,7 @@ fn token_type_to_str(tt: &TokenType) -> &'static str {
         TokenType::Continue => "continue",
         TokenType::Struct => "struct",
         TokenType::Enum => "enum",
+        TokenType::Namespace => "namespace",
         TokenType::Mode => "mode",
         TokenType::Func => "func",
         TokenType::Proc => "proc",
@@ -250,6 +251,7 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
         // core data types
         "enum" => TokenType::Enum,
         "struct" => TokenType::Struct,
+        "namespace" => TokenType::Namespace,
 
         // function declaration
         "returns" => TokenType::Returns,

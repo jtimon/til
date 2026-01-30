@@ -266,6 +266,35 @@ test_enums()  // FIXED - enum parsing now advances past closing brace correctly
 test_functions()  // LEXER BUG FIXED - lexer.til now correctly handles string literals
 test_switch()  // PARSER BUG FIXED - infinite loop fixed by using break flag workaround
 
+// Test namespace keyword causes todo_error (Issue #108)
+test_namespace_not_implemented := proc() {
+    mut lexer := Lexer.new("namespace Foo {}")?
+    _ast := parse_tokens(lexer)?
+
+    // If we get here, the parser didn't throw - that's wrong
+    println("ERROR:", loc(), "Parser should have thrown todo_error for namespace")
+    exit(1)
+
+    catch (err: Str) {
+        // Expected - parser should throw a todo_error
+        if err.contains("Issue #108") {
+            // Good - correct error message
+        } else if err.contains("not implemented") {
+            // Also acceptable
+        } else {
+            println("ERROR:", loc(), "Unexpected error message for namespace:")
+            println(err)
+            exit(1)
+        }
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_namespace_not_implemented()
+
 // Test parsing real TIL files
 // TODO: All hang (likely infinite loop in parser.til) - even small files like arithmetics.til hang
 // test_parse_file("src/core/lexer.til")
