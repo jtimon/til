@@ -1265,6 +1265,9 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 },
             }
         }
+        NodeType::NamespaceDef(ns_def) => {
+            errors.push(e.todo_error(&context.path, "init", &format!("Issue #108 - namespace block for '{}' parsed but not implemented", ns_def.type_name)));
+        }
         _ => {
             if !context.mode_def.allows_base_anything {
                 if context.mode_def.allows_base_calls {

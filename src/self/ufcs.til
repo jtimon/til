@@ -310,6 +310,9 @@ ufcs_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
             new_params.push(ufcs_expr(context, p)?)
         }
         return Expr.new_clone(NodeType.NamedArg(name), e, new_params)
+    // NamespaceDef should have been caught by init phase with todo_error
+    case NodeType.NamespaceDef(ns_def):
+        throw e.todo_error(context.path, "ufcs", format("Issue #108 - namespace block for '", ns_def.type_name, "' not implemented"))
     // ForIn should have been desugared in desugarer phase
     case NodeType.ForIn(_):
         panic(loc(), "ForIn should have been desugared in desugarer phase")

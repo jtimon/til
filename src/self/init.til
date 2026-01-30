@@ -1763,6 +1763,9 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
             # But needed because exhaustiveness check doesn't understand nested patterns like TType(TTypeDef.TEnumDef)
         }
 
+    case NodeType.NamespaceDef(ns_def):
+        errors.push(e.todo_error(context.path, "init", format("Issue #108 - namespace block for '", ns_def.type_name, "' parsed but not implemented")))
+
     case:
         if not(context.mode_def.allows_base_anything) {
             if context.mode_def.allows_base_calls {

@@ -3984,6 +3984,8 @@ emit_expr := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCont
         throw "ccodegen: Pattern should be handled inside emit_switch"
     case NodeType.NamedArg(na):
         throw expr.error(context.path, "ccodegen", "NamedArg should be reordered before reaching emit_expr")
+    case NodeType.NamespaceDef(ns_def):
+        throw expr.todo_error(context.path, "ccodegen", format("Issue #108 - namespace block for '", ns_def.type_name, "' not implemented"))
     case NodeType.ForIn(fi):
         throw expr.lang_error(context.path, "ccodegen", "ForIn should be desugared in precomp before reaching ccodegen")
     case:

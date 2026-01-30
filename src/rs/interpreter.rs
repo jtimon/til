@@ -866,6 +866,9 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::FuncDef(_) => Ok(EvalResult::new("")),
         NodeType::EnumDef(_) => Ok(EvalResult::new("")),
         NodeType::StructDef(_) => Ok(EvalResult::new("")),
+        NodeType::NamespaceDef(ns_def) => {
+            return Err(e.todo_error(&context.path, "eval", &format!("Issue #108 - namespace block for '{}' not implemented", ns_def.type_name)))
+        },
         // NamedArg is handled inside FCall processing
         NodeType::NamedArg(_) => {
             return Err(e.lang_error(&context.path, "eval", "NamedArg should only appear inside FCall"))

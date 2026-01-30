@@ -265,6 +265,10 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
                 errors.extend(check_types_with_context(context, p, expr_context));
             }
         },
+        NodeType::NamespaceDef(ns_def) => {
+            // NamespaceDef should be caught by init phase with todo_error
+            errors.push(e.todo_error(&context.path, "type", &format!("Issue #108 - namespace block for '{}' not implemented", ns_def.type_name)));
+        },
         NodeType::ForIn(_var_type) => {
             errors.extend(check_forin_statement(context, &e));
         },
@@ -2372,6 +2376,10 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
                 // TODO Err(lang_error) here instead
                 true
             }
+        }
+        NodeType::NamespaceDef(_) => {
+            // NamespaceDef should be caught by init phase with todo_error
+            false
         }
         NodeType::ForIn(_) => {
             // ForIn: params[0]=var, params[1]=collection, params[2]=body
