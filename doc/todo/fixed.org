@@ -7,6 +7,36 @@
 
 * Fixed Bugs
 
+** #pre: Pre-Self-Hosting Prerequisites Complete
+:PROPERTIES:
+:COMPLETED: 2025-11-12
+:STATUS: All tasks complete
+:END:
+
+*** Description
+All rstil (Rust interpreter) prerequisites for self-hosting were completed.
+This milestone enabled the self-hosted TIL interpreter to run.
+
+*** Completed Tasks
+- [X] Pass-by-reference semantics with three argument modes (const/mut/copy/own)
+- [X] Phase 1: Type checker immutability enforcement
+- [X] Phase 2: Add 'copy' keyword for explicit copy semantics
+- [X] Phase 3: Pass-by-reference for ALL struct types
+- [X] Phase 3a: Separate Type from Dynamic
+- [X] Phase 3b: Enable pass-by-ref for Dynamic and own parameters
+- [X] Bug #26: Vec/Map corruption with nested structs (FIXED)
+- [X] Phase 4: Remove Bug #24 workarounds from core library
+- [X] Standardize len/cap API across collections (fixes Bug #25)
+
+*** Implementation Notes
+- Non-copy, non-own, non-Dynamic, non-Type parameters share arena offsets (zero-copy)
+- Field offsets calculated dynamically from struct definitions
+- Pass-by-ref extended to field access parameters (e.g., o1.inner_vec)
+- Renamed internal fields: len -> _len, added uniform len()/size() methods
+
+*** Source
+Migrated from doc/todo/pre.org (now deleted)
+
 ** Bug #150: C codegen doesn't emit struct definitions for local structs used only in globals
 :PROPERTIES:
 :DISCOVERED: 2026-01-29

@@ -78,9 +78,7 @@ Likely duplicates to verify:
 - clone/len/size requirements - all phases complete
 - Could be moved to doc/ as reference
 
-**** pre.org (7.7KB) - completed TODO
-- Pre-self-hosting tasks - all complete
-- Could be archived or deleted
+**** pre.org - DONE (migrated to fixed.org as #pre, file deleted)
 
 **** 108.org (11.8KB) - deep dive doc
 - Detailed design for Issue #108 (Namespaces)
