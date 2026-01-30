@@ -1344,6 +1344,15 @@ pub struct EnumPayload {
     pub value_type: ValueType,
 }
 
+/// Bug #133: Information about a precomputed global declaration with heap data.
+/// Used by ccodegen to emit static arrays instead of invalid pointers.
+#[derive(Clone, Debug)]
+pub struct PrecomputedHeapValue {
+    pub var_name: String,      // The TIL variable name (e.g., "chromatic")
+    pub instance_name: String, // The arena instance name (e.g., "chromatic" or temp name)
+    pub type_name: String,     // The type (e.g., "Vec")
+}
+
 #[derive(Clone)]
 pub struct Context {
     pub mode_def: ModeDef, // All contexts need a mode
@@ -1367,6 +1376,8 @@ pub struct Context {
     // Bug #40 fix: Track current function name and forin counter for deterministic _for_i_ names
     pub current_precomp_func: String,  // Empty string means None/global scope
     pub precomp_forin_counter: usize,
+    // Bug #133 fix: Track precomputed heap values for static array serialization
+    pub precomputed_heap_values: Vec<PrecomputedHeapValue>,
 }
 
 impl Context {
@@ -1396,6 +1407,8 @@ impl Context {
             // Bug #40 fix: Initialize precomp tracking fields
             current_precomp_func: String::new(),
             precomp_forin_counter: 0,
+            // Bug #133 fix: Initialize precomputed heap values list
+            precomputed_heap_values: Vec::new(),
         });
     }
 

@@ -2,7 +2,7 @@
 // and performs compile-time constant folding for pure functions.
 // This phase runs after typer, before interpreter/builder.
 
-use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType};
+use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType, PrecomputedHeapValue};
 use crate::rs::typer::get_func_def_for_fcall_with_expr;
 use std::collections::HashMap;
 use crate::rs::parser::{
@@ -525,7 +525,7 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
     // For non-mut struct instance declarations (like `true := Bool.from_i64(1)`),
     // run eval_declaration to store the instance in EvalArena so ccodegen can find it.
     // Only do this at global scope (same reason as above - avoid side effects inside func bodies).
-    if at_global_scope && !decl.is_mut && !decl.is_copy && !decl.is_own && is_comptime_evaluable(context, &new_params[0]) {
+    if at_global_scope && !decl.is_mut && !decl.is_copy && !decl.is_own && !new_params.is_empty() && is_comptime_evaluable(context, &new_params[0]) {
         if let ValueType::TCustom(ref custom_type_name) = &value_type {
             // Skip primitives (I64, U8) - handled above. Skip Str - needs special handling.
             if custom_type_name != "I64" && custom_type_name != "U8" && custom_type_name != "Str" {
@@ -535,6 +535,16 @@ fn precomp_declaration(context: &mut Context, e: &Expr, decl: &crate::rs::parser
                         let saved_path = context.path.clone();
                         eval_declaration(decl, context, e)?;
                         context.path = saved_path;
+
+                        // Bug #133 fix: Track precomputed heap values for static array serialization
+                        let needs_heap = EvalArena::type_needs_heap_serialization(context, custom_type_name);
+                        if needs_heap {
+                            context.precomputed_heap_values.push(PrecomputedHeapValue {
+                                var_name: decl.name.clone(),
+                                instance_name: decl.name.clone(),
+                                type_name: custom_type_name.clone(),
+                            });
+                        }
                     }
                 }
             }
