@@ -763,8 +763,8 @@ val: I64 = vec.get(0)  // direct return
 :PROPERTIES:
 :DISCOVERED: 2026-01-13
 :IMPACT: Simplify interpreter and ccodegen, reduce internal complexity
-:STATUS: In Progress (Bug #143 FIXED, may still be blocked by #144)
-:BRANCH: wip110final
+:STATUS: Ready to resume - rebase wip110final onto master
+:BRANCH: wip110final (59 commits behind master, needs rebase)
 :RELATED: Bug #143 (FIXED), Bug #144, Issue #111 (enum_payload nicer with returns Dynamic)
 :END:
 
@@ -852,32 +852,34 @@ The Rust desugarer (~src/rs/desugarer.rs~) correctly implements switch-to-if/els
 - Range cases: ~gteq(x, start).and(lteq(x, end))~
 - Enum cases: ~enum_to_str(x).eq("Type.Variant")~ with ~enum_get_payload~ for payloads
 
-**** TIL desugarer port [BLOCKED by Bug #143 or #144]
-Cannot port to ~src/self/desugarer.til~ because:
-- Desugarer creates multiple expressions with same line/col (from switch statement)
-- TIL ccodegen uses ~line*1000000+col~ as hoisted_exprs key
-- These expressions collide, causing hoisting failures and segfaults
+**** TIL desugarer port [UNBLOCKED - Bug #143 FIXED]
+Bug #143 was fixed with single-pass hoist+emit approach that removed ~hoisted_exprs~
+entirely. The line/col collision issue no longer exists since there's no identity
+tracking map anymore.
 
-Two paths to unblock:
-1. **Bug #143**: Redesign hoisted_exprs identity mechanism (unique IDs, explicit passing,
-   or single-pass approach)
-2. **Bug #144**: Fix for-in to iterate by reference instead of copy. This would make
-   ~to_ptr(expr)~ return consistent addresses, allowing the Rust memory-address approach
-   to work in TIL too (simpler fix, also improves performance)
+The wip110final branch has a TIL port (commit d152a823) but it was made before
+the Bug #143 fix. After rebasing onto master, the port may need adjustments to
+match the new ccodegen architecture.
 
-**** Tests
-- 92/94 tests pass with Rust compiler
-- 2/94 fail with TIL compiler (til_compiled mode) due to Bug #143:
-  - ~src/test/test_lexer.til~ - segfault
-  - ~src/test/enums.til~ - segfault (via hoisting failures)
+**** Tests (needs re-verification after rebase)
+Before Bug #143 fix:
+- 92/94 tests passed with Rust compiler
+- 2/94 failed with TIL compiler (til_compiled mode) - segfaults
 
-*** Current State (2026-01-23)
+After rebase onto master (which has Bug #143 fix), these should pass.
 
-- Desugarer phase EXISTS (from Issue #127) - handles ForIn, but NO switch desugaring yet
+*** Current State (2026-01-30)
+
+- Bug #143 FIXED on master - single-pass hoist+emit removed hoisted_exprs entirely
+- Branch wip110final has Rust desugarer done + switch removal from all phases
+- Branch needs rebase onto master (59 commits behind)
+- TIL port on branch was made before Bug #143 fix, may need adjustments
+- After rebase: test each commit with ~make clean && make benchmark~ (twice)
+
+On master currently:
+- Desugarer phase handles ForIn only, NO switch desugaring yet
 - Switch still handled by: ufcs, precomp, interpreter, ccodegen
-- ccodegen's ~emit_switch()~ already generates if/else chains - reference implementation
 - enum_to_str and enum_get_payload ext_funcs ready to use
-- Scavenger has NO switch handling (only a comment mentioning switch)
 
 *** Implementation Plan
 
