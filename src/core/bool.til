@@ -10,6 +10,10 @@ Bool := struct {
         return 1
     }
 
+    eq := func(a: Bool, b: Bool) returns Bool {
+        return a.and(b).or(not(b).and(not(a)))
+    }
+
     and := func(self: Bool, other: Bool) returns Bool {
         if self {
             return other
@@ -68,12 +72,6 @@ not := func(b: Bool) returns Bool {
         return false
     }
     return true
-}
-
-namespace Bool {
-    eq := func(a: Bool, b: Bool) returns Bool {
-        return a.and(b).or(not(b).and(not(a)))
-    }
 }
 
 or := func(args: ..Bool) returns Bool {
