@@ -2,7 +2,7 @@
 #+AUTHOR: TIL Development
 #+DATE: 2026-01-30
 
-* bugs.org (18 bugs/issues)
+* bugs.org (17 bugs/issues)
 
 | #   | Bug/Issue                                                        | Impact                 |
 |-----+------------------------------------------------------------------+------------------------|
@@ -17,7 +17,6 @@
 | 112 | Map uses O(n) linear scan instead of hash lookup                 | Performance            |
 |  99 | Eliminate all C compiler warnings and enable -Werror             | Code quality           |
 |  98 | ext_proc errors should throw specific error types                | Error handling         |
-|  97 | Disallow variable shadowing                                      | Language semantics     |
 |  94 | gcc warnings cause bug47.til compilation failure                 | Build issue            |
 |  90 | Parser requires semicolon for bodyless func/proc                 | Partially fixed        |
 |  89 | Constant folding only works at global scope                      | Optimization           |
