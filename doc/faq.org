@@ -25,6 +25,29 @@ Til's generics monomorphize for zero-cost abstractions in optimized builds, but 
 
 Til's philosophy prioritizes developer freedom: choose the right tool for the task without ecosystem lock-in. By desugaring features (e.g., generics to macros, OO-style to UFCS), Til minimizes cognitive overhead and implementation complexity, making it a versatile foundation for everything from systems programming to data science.
 
+* Is Til a statement-based or expression-based language?
+
+Primarily statement-based, with expression forms where useful. Control flow constructs like ~if~, ~switch~, ~for~, and ~while~ are statements - they don't return values. This keeps the language familiar and straightforward. However, ~match~ provides an expression-based alternative to ~switch~ for when you need a value:
+
+#+BEGIN_SRC til
+// switch - statement, control flow
+switch x {
+    case 1: do_something()
+    case 2: do_other()
+}
+
+// match - expression, returns value
+result := match x {
+    case 1: "one"
+    case 2: "two"
+    case: "other"
+}
+#+END_SRC
+
+This hybrid approach avoids the cognitive overhead of fully expression-based languages (where everything returns something) while still providing concise syntax for common patterns like assigning based on a condition.
+
+So, statement based, expression based? That's for the user to decide. Except for shorts. In short: Til is a based language.
+
 * For compiling C, does it use gcc or clang?
 
 Yes, to both. On macOS, Til uses clang (Apple's default and only option). On Linux and Windows, gcc is the default but clang can be used as an alternative. The choice is transparent to the user - Til's codegen produces portable C that works with either compiler. Both toolchains receive the same warning flags (including -Werror) to ensure consistent code quality across platforms.
