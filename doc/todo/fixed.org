@@ -7,6 +7,31 @@
 
 * Fixed Bugs
 
+** Bug #96: Unreachable code error when return is before catch in early-return pattern
+:PROPERTIES:
+:DISCOVERED: 2026-01-09
+:FIXED: 2026-01-30
+:IMPACT: Cannot translate Rust's if-let-some early-return pattern directly
+:STATUS: Fixed
+:END:
+
+*** Description
+When translating Rust's ~if let Some(x) = map.get(key) { use(x); return; }~ pattern,
+the natural TIL translation puts a ~return~ before the catch block, causing an
+"unreachable code" error because the compiler didn't understand that the catch
+is reachable via the throw path.
+
+*** Fix
+Fixed typer.rs and typer.til to recognize that catch blocks are reachable via
+the throw path, not sequential control flow. A return/throw on the success path
+doesn't make catch unreachable.
+
+Changes:
+- Skip unreachable error for Catch nodes after return/throw
+- Reset unconditional_exit flag after processing catch (code after catch is reachable)
+- Removed all ~if true { }~ workarounds from ccodegen.til
+- Updated rs2til.org to show correct pattern (no workaround needed)
+
 ** #pre: Pre-Self-Hosting Prerequisites Complete
 :PROPERTIES:
 :COMPLETED: 2025-11-12
