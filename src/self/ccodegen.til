@@ -1704,9 +1704,7 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
         }
         result.push_str("}")
     }
-    if true { // TODO Bug #96 workaround
-        return result
-    }
+    return result
     catch (err: KeyNotFoundError) {
         // Not a struct constructor, continue with regular function call
     }
