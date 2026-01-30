@@ -417,6 +417,55 @@ test_map_keys_field := proc() {
     }
 }
 
+// Test Map.remove
+test_map_remove := proc() {
+    mut m := Map.new(Str, I64)
+    m.insert("alice", 30)?
+    m.insert("bob", 25)?
+    m.insert("charlie", 35)?
+
+    test(loc(), m.len().eq(3), "Map should have 3 entries before remove")
+    test(loc(), m.contains_key("bob"), "Map should contain bob before remove")
+
+    // Remove middle element
+    m.remove("bob")
+
+    test(loc(), m.len().eq(2), "Map should have 2 entries after remove")
+    test(loc(), not(m.contains_key("bob")), "Map should not contain bob after remove")
+    test(loc(), m.contains_key("alice"), "Map should still contain alice")
+    test(loc(), m.contains_key("charlie"), "Map should still contain charlie")
+
+    // Verify remaining values are correct
+    mut val := 0
+    m.get("alice", val)?
+    test(loc(), val.eq(30), "alice should still be 30")
+    m.get("charlie", val)?
+    test(loc(), val.eq(35), "charlie should still be 35")
+
+    // Remove non-existent key (should be no-op)
+    m.remove("nonexistent")
+    test(loc(), m.len().eq(2), "Map should still have 2 entries after removing non-existent")
+
+    // Remove remaining elements
+    m.remove("alice")
+    m.remove("charlie")
+    test(loc(), m.len().eq(0), "Map should be empty after removing all")
+    test(loc(), m.is_empty(), "Map.is_empty should be true")
+
+    m.delete()
+
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
 // ============================================================================
 // HashMap Tests (Issue #112)
 // ============================================================================
@@ -753,6 +802,55 @@ test_hashmap_many_strings := proc() {
     }
 }
 
+// Test HashMap.remove
+test_hashmap_remove := proc() {
+    mut m := HashMap.new(Str, I64)
+    m.insert("alice", 30)?
+    m.insert("bob", 25)?
+    m.insert("charlie", 35)?
+
+    test(loc(), m.len().eq(3), "HashMap should have 3 entries before remove")
+    test(loc(), m.contains_key("bob"), "HashMap should contain bob before remove")
+
+    // Remove middle element
+    m.remove("bob")
+
+    test(loc(), m.len().eq(2), "HashMap should have 2 entries after remove")
+    test(loc(), not(m.contains_key("bob")), "HashMap should not contain bob after remove")
+    test(loc(), m.contains_key("alice"), "HashMap should still contain alice")
+    test(loc(), m.contains_key("charlie"), "HashMap should still contain charlie")
+
+    // Verify remaining values are correct
+    mut val := 0
+    m.get("alice", val)?
+    test(loc(), val.eq(30), "HashMap alice should still be 30")
+    m.get("charlie", val)?
+    test(loc(), val.eq(35), "HashMap charlie should still be 35")
+
+    // Remove non-existent key (should be no-op)
+    m.remove("nonexistent")
+    test(loc(), m.len().eq(2), "HashMap should still have 2 entries after removing non-existent")
+
+    // Remove remaining elements
+    m.remove("alice")
+    m.remove("charlie")
+    test(loc(), m.len().eq(0), "HashMap should be empty after removing all")
+    test(loc(), m.is_empty(), "HashMap.is_empty should be true")
+
+    m.delete()
+
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
 // ============================================================================
 // Run all Map tests
 // ============================================================================
@@ -772,6 +870,7 @@ test_map_len_tracking()
 test_map_multiple_overwrites()
 test_map_order_after_growth()
 test_map_keys_field()
+test_map_remove()
 
 // ============================================================================
 // Run all HashMap tests
@@ -789,4 +888,5 @@ test_hashmap_clear()
 test_hashmap_len_tracking()
 test_hashmap_multiple_overwrites()
 test_hashmap_many_strings()
+test_hashmap_remove()
 

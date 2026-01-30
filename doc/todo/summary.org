@@ -2,7 +2,7 @@
 #+AUTHOR: TIL Development
 #+DATE: 2026-01-30
 
-* bugs.org (13 bugs/issues)
+* bugs.org (12 bugs/issues)
 
 | #   | Bug/Issue                                                        | Impact                 |
 |-----+------------------------------------------------------------------+------------------------|
@@ -14,19 +14,19 @@
 | 130 | Unify type resolution with type checking into single pass        | Architecture           |
 | 114 | ScopeStack lookup functions leak memory by copying ScopeFrame    | Memory leak (partial)  |
 | 113 | Self-hosted interpreter fails with "symbol 'msg' not found"      | Interpreter broken     |
-| 112 | Map uses O(n) linear scan instead of hash lookup                 | Performance            |
 |  99 | Eliminate all C compiler warnings and enable -Werror             | Code quality           |
 |  98 | ext_proc errors should throw specific error types                | Error handling         |
 |  94 | gcc warnings cause bug47.til compilation failure                 | Build issue            |
 |  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence             |
 
-* future.org (13 issues)
+* future.org (14 issues)
 
 | #   | Issue                                            | Category           |
 |-----+--------------------------------------------------+--------------------|
 | 153 | Enable field/method access on Dynamic parameters | Language feature   |
 | 142 | Code Simplification - Context Error Helpers      | Cleanup            |
 | 138 | Use Bool for Ptr.is_borrowed or separate BorrowedPtr | API design     |
+| 112 | HashMap type slower than Map in TIL              | Blocked            |
 | 111 | Support returns Dynamic                          | Feature            |
 | 107 | First-Class Namespaces                           | Language feature   |
 | 106 | First-Class Enums                                | Language feature   |

@@ -327,6 +327,49 @@ HashMap := struct {
         self._num_buckets = 0
     }
 
+    /** Remove key from map if it exists.
+     *  Does nothing if key doesn't exist.
+     *  Note: This is O(n) as it rebuilds hash chains after removal. */
+    remove := proc(mut self: HashMap, key: Dynamic) {
+        idx := self.find_key(key)
+        if idx.lt(0) {
+            return  // Key not found
+        }
+
+        // Remove from dense arrays (shifts everything after idx)
+        self.keys.remove(idx)?
+        self.values.remove(idx)?
+        self.nexts.remove(idx)?
+        self._size = self._size.sub(1)
+
+        // Rebuild hash chains since indices changed
+        // Reset all buckets to -1
+        mut bi := 0
+        while bi.lt(self._num_buckets) {
+            self.buckets.set(bi, sub(0, 1))?
+            bi = bi.add(1)
+        }
+
+        // Re-insert all entries into chains
+        mut i := 0
+        while i.lt(self._size) {
+            key_ptr := self.keys.ptr.offset(i.mul(self.key_type_size))
+            bucket_idx := self.hash_key(key_ptr.data)
+
+            mut head := 0
+            self.buckets.get(bucket_idx, head)?
+
+            self.nexts.set(i, head)?
+            self.buckets.set(bucket_idx, i)?
+
+            i = i.add(1)
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            panic(loc(), "HashMap.remove: unexpected IndexOutOfBoundsError")
+        }
+    }
+
     /** Clone the HashMap. */
     clone := func(self: HashMap) returns HashMap {
         return HashMap(
