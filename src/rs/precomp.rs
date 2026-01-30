@@ -82,6 +82,10 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             }
             Ok(Expr::new_clone(NodeType::NamedArg(name.clone()), e, new_params))
         },
+        // NamespaceDef should have been caught by init phase with todo_error
+        NodeType::NamespaceDef(ns_def) => {
+            Err(e.todo_error(&context.path, "precomp", &format!("Issue #108 - namespace block for '{}' not implemented", ns_def.type_name)))
+        },
         // ForIn should have been desugared in desugarer phase
         NodeType::ForIn(_) => {
             panic!("ForIn should have been desugared in desugarer phase");
