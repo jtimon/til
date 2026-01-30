@@ -220,18 +220,21 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     get_params.push(Expr.new_explicit(NodeType.Identifier(var_name), Vec.new(Expr), e.line, e.col))
     get_call := Expr.new_explicit(NodeType.FCall(false), get_params, e.line, e.col)
 
-    // Build: catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
-    // Build err.msg (identifier with field access)
+    // Build: catch (_err_forin_N: IndexOutOfBoundsError) { panic(loc(), _err_forin_N.msg) }
+    // Bug #97: Use unique name to avoid shadowing loop variable if it's also named "err"
+    catch_err_var := format("_err_forin_", I64.to_str(forin_id))
+
+    // Build _err_forin_N.msg (identifier with field access)
     mut msg_field := Vec.new(Expr)
     msg_field.push(Expr.new_explicit(NodeType.Identifier("msg"), Vec.new(Expr), e.line, e.col))
-    err_msg_expr := Expr.new_explicit(NodeType.Identifier("err"), msg_field, e.line, e.col)
+    err_msg_expr := Expr.new_explicit(NodeType.Identifier(catch_err_var), msg_field, e.line, e.col)
 
     // Build loc() call
     mut loc_params := Vec.new(Expr)
     loc_params.push(Expr.new_explicit(NodeType.Identifier("loc"), Vec.new(Expr), e.line, e.col))
     loc_call := Expr.new_explicit(NodeType.FCall(false), loc_params, e.line, e.col)
 
-    // Build panic(loc(), err.msg)
+    // Build panic(loc(), _err_forin_N.msg)
     mut panic_params := Vec.new(Expr)
     panic_params.push(Expr.new_explicit(NodeType.Identifier("panic"), Vec.new(Expr), e.line, e.col))
     panic_params.push(loc_call)
@@ -245,7 +248,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
 
     // Catch structure: [name_expr, type_expr, body_expr]
     mut catch_params := Vec.new(Expr)
-    catch_params.push(Expr.new_explicit(NodeType.Identifier("err"), Vec.new(Expr), e.line, e.col))
+    catch_params.push(Expr.new_explicit(NodeType.Identifier(catch_err_var), Vec.new(Expr), e.line, e.col))
     catch_params.push(Expr.new_explicit(NodeType.Identifier("IndexOutOfBoundsError"), Vec.new(Expr), e.line, e.col))
     catch_params.push(catch_body)
     catch_expr := Expr.new_explicit(NodeType.Catch, catch_params, e.line, e.col)
