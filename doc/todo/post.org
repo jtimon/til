@@ -16,6 +16,63 @@ For bugs, see bugs.org. For language design decisions, see future.org.
 
 * Open Issues
 
+** Issue #104: TempleOS Support
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPACT: Platform support, tiny containers
+:STATUS: Open
+:RELATED: Issue #103 (mode gui), Bug #80, Bug #100
+:END:
+
+*** Description
+Add TempleOS as a compilation target, producing HolyC instead of C.
+
+*** Dependencies
+- Bug #80: ccodegen.til must generate identical C code to ccodegen.rs
+- Bug #100: Get rid of rstil (full self-hosting)
+
+*** Implementation Options
+1. *Preferred*: Add flag/option to ccodegen for HolyC output
+   - HolyC is very similar to C, differences are minor
+   - Avoids code duplication
+2. *Alternative*: Separate holyccodegen.til
+   - More work, harder to maintain
+
+*** Motivation
+- Partly for fun/flexing and, why not? Also to honor Terry's ideal language: HolyC
+- Practical use: TempleOS is tiny, useful for minimal docker containers
+- Integration with mode gui (Issue #103) for native TempleOS graphics
+
+*** Why Post-Self-Hosting
+Requires full self-hosting (Bug #100) and ccodegen parity (Bug #80).
+
+** Issue #103: Mode GUI
+:PROPERTIES:
+:DISCOVERED: 2026-01-12
+:IMPACT: Language feature, graphical applications
+:STATUS: Open
+:RELATED: Issue #104 (TempleOS support), src/examples/hello_gui.til (untested draft)
+:END:
+
+*** Description
+Add ~mode gui~ for graphical user interface applications.
+
+*** Backend Strategy
+- *Standard platforms*: Use raylib as the graphics backend
+- *TempleOS*: Native HolyC graphics (see Issue #104)
+- *Web*: Options to explore:
+  - raylib + wasm compilation from C
+  - Separate jscodegen.til with ~mode webgui~ importing mode html files
+  - Decision deferred
+
+*** Notes
+- Draft exists in src/examples/hello_gui.til (untested, won't work yet)
+- Keep API simple to maintain portability across backends
+- TempleOS and raylib may have more features than needed; focus on common subset
+
+*** Why Post-Self-Hosting
+GUI is a nice-to-have feature that requires significant platform abstraction work.
+
 ** Issue #156: Implement match keyword (expression-based switch)
 :PROPERTIES:
 :DISCOVERED: 2025-11-10
