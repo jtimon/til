@@ -1487,6 +1487,11 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
                     val := string_from_context(context, current_name, e)?
                     return EvalResult.new(val)
                 } else {
+                    // Bug #157: Check if this is an enum type - need to read actual value from arena
+                    if context.scope_stack.has_enum(current_type) {
+                        enum_val := EvalArena.get_enum(context, current_name, e)?
+                        return EvalResult.new(format(enum_val.enum_type, ".", enum_val.enum_name))
+                    }
                     // Return the field path for struct fields
                     return EvalResult.new(current_name)
                 }

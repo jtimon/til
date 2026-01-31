@@ -307,52 +307,6 @@ fn get_payload_type_for_variant(context: &Context, enum_name: &str, variant_name
 }
 
 /// Check if an expression is a field access on a throwing FCall
-/// Returns (needs_split, base_fcall, field_names) if it needs splitting
-/// This is needed to work around ccodegen's inability to handle throwing calls
-/// with field access in declaration initializers (Bug #143 workaround)
-fn check_throwing_field_access(expr: &Expr) -> (bool, Option<Expr>, Vec<String>) {
-    // Check if this is an Identifier (field access) with params
-    if let NodeType::Identifier(name) = &expr.node_type {
-        if !expr.params.is_empty() {
-            // Handle UFCS form: Identifier("_") with params[0] = FCall, params[1..] = fields
-            // This is what typer produces for expr.field when expr is a call result
-            if name == "_" {
-                if let NodeType::FCall(throws) = &expr.params[0].node_type {
-                    if *throws {
-                        // UFCS field access on a throwing FCall - needs splitting
-                        // Field names are in params[1..]
-                        let mut field_names = Vec::new();
-                        for i in 1..expr.params.len() {
-                            if let NodeType::Identifier(field_name) = &expr.params[i].node_type {
-                                field_names.push(field_name.clone());
-                            }
-                        }
-                        if !field_names.is_empty() {
-                            return (true, Some(expr.params[0].clone()), field_names);
-                        }
-                    }
-                }
-            }
-
-            // Non-UFCS form: Identifier(field_name) with params[0] = base expression
-            // Check if the first param is a throwing FCall
-            if let NodeType::FCall(throws) = &expr.params[0].node_type {
-                if *throws {
-                    // Field access on a throwing FCall - needs splitting
-                    return (true, Some(expr.params[0].clone()), vec![name.clone()]);
-                }
-            }
-            // Check if the first param is ANOTHER field access on a throwing FCall (nested)
-            let (needs_split, base_fcall, mut field_names) = check_throwing_field_access(&expr.params[0]);
-            if needs_split {
-                field_names.push(name.clone());
-                return (true, base_fcall, field_names);
-            }
-        }
-    }
-    (false, None, vec![])
-}
-
 /// Rename all occurrences of an identifier in an expression tree
 /// Used to rename payload binding variables to unique names to avoid conflicts
 /// Stops at shadowing constructs (inner Patterns, Declarations with same name)
@@ -697,39 +651,8 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     };
 
     // First declaration: capture the switch expression
-    // Check if the expression is a field access on a throwing FCall - if so, split it
-    // This works around ccodegen's inability to handle throwing calls with field access
-    // in declaration initializers (generates invalid C code)
-    let (needs_split, base_fcall_opt, field_names) = check_throwing_field_access(&desugared_switch_expr);
-
-    if needs_split {
-        if let Some(base_fcall) = base_fcall_opt {
-            // Generate temp name for the FCall result
-            let fcall_temp_name = if !func_name.is_empty() {
-                format!("_switch_temp_{}_{}", func_name, switch_id)
-            } else {
-                format!("_switch_temp_{}", switch_id)
-            };
-
-            // Get the type of the FCall result
-            let fcall_result_type = get_value_type(context, &base_fcall)
-                .unwrap_or_else(|_| str_to_value_type("I64"));
-
-            // First declaration: _switch_temp := throwing_fcall()
-            decl_exprs.push(make_decl(&fcall_temp_name, fcall_result_type, false, base_fcall, line, col));
-
-            // Build field access: _switch_temp.field1.field2...
-            // field_names in reverse order, so reverse to get correct order
-            let fields: Vec<&str> = field_names.iter().rev().map(|s| s.as_str()).collect();
-            let field_access_expr = make_field_access(&fcall_temp_name, fields, line, col);
-
-            // Second declaration: _switch_expr := _switch_temp.field1.field2...
-            decl_exprs.push(make_decl(&switch_expr_var_name, switch_expr_var_type.clone(), false, field_access_expr, line, col));
-        }
-    } else {
-        // Normal case: directly capture the switch expression
-        decl_exprs.push(make_decl(&switch_expr_var_name, switch_expr_var_type.clone(), false, desugared_switch_expr.clone(), line, col));
-    }
+    // Bug #157 fix in ccodegen handles field access on throwing calls properly now
+    decl_exprs.push(make_decl(&switch_expr_var_name, switch_expr_var_type.clone(), false, desugared_switch_expr.clone(), line, col));
 
     // For enum switches, add second declaration: _switch_variant := enum_to_str(_switch_expr)
     if is_enum_switch {

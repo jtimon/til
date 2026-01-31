@@ -7,7 +7,7 @@
 
 * Fixed Bugs
 
-** Bug #157: ccodegen emit_declaration doesn't handle field access on throwing calls
+** Bug #157: Field access on throwing calls in declarations
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
 :FIXED: 2026-01-31
@@ -17,14 +17,21 @@
 :END:
 
 *** Description
-~emit_declaration~ in ccodegen only uses ~emit_arg_string~ when the RHS is a direct
-FCall. When the RHS is a field access on a throwing call (e.g., ~lexer.peek()?.token_type~),
-it falls through and emits invalid C code.
+Declarations with field access on throwing calls (e.g., ~val := lexer.peek()?.token_type~)
+failed in both ccodegen and interpreter:
+- ccodegen: ~emit_declaration~ only used ~emit_arg_string~ for direct FCall RHS
+- interpreter: ~eval_identifier_expr~ returned field path instead of enum value
 
 *** Fix
+**** ccodegen (emit_declaration)
 Modified ~emit_declaration~ to detect UFCS field access patterns (~Identifier("_")~)
-where ~params[0]~ is a throwing FCall. In such cases, hoist the FCall using
-~emit_arg_string~ and append the field chain to the returned temp var.
+where ~params[0]~ is a throwing FCall. Hoists the FCall using ~emit_arg_string~ and
+appends the field chain to the returned temp var.
+
+**** interpreter (eval_identifier_expr)
+When the final type in a field chain is an enum, read the actual enum value from
+arena using ~EvalArena::get_enum~ and return it in ~EnumType.VariantName~ format
+instead of just returning the field path.
 
 *** Test
 ~src/test/bug157.til~ - tests field access on throwing call in declaration.
@@ -4508,29 +4515,27 @@ Nested enum patterns use combined conditions with ~enum_get_payload_type()~.
 *** Performance Impact
 The switch desugaring causes a benchmark regression due to generating more code:
 
-| Mode | Before | After (initial) | After (optimized) |
-|------|--------|-----------------|-------------------|
-| rust interpreted | 169.7s | 221.6s (+31%) | 217.5s (+28%) |
-| rust compiled | 4.4s | 4.6s (+5%) | 4.3s (-2%) |
-| til interpreted | 380.7s | 561.7s (+48%) | 550.1s (+44%) |
-| til compiled | 15.4s | 27.0s (+75%) | 25.6s (+66%) |
-| Total | 570.3s | 814.9s (+43%) | 797.6s (+40%) |
+| Mode | Before | After (final) | Change |
+|------|--------|---------------|--------|
+| rust interpreted | 169.7s | 210.5s | +24% |
+| rust compiled | 4.4s | 4.1s | -7% |
+| til interpreted | 380.7s | 540.1s | +42% |
+| til compiled | 15.4s | 24.7s | +60% |
+| Total | 570.3s | 779.5s | +37% |
 
-After removing the match flag pattern and using combined conditions, performance improved
-slightly across all modes. Trade-off: simpler code in interpreter/ccodegen/precomp at cost
-of runtime performance. Future optimization: could add fast-path for enum switches avoiding
-string comparison.
+Trade-off: simpler code in interpreter/ccodegen/precomp at cost of runtime performance.
+Future optimization: could add fast-path for enum switches avoiding string comparison.
 
 *** Lines of Code Impact (vs master)
 
 | Language | Files | Added | Removed | Net |
 |----------|-------|-------|---------|-----|
-| Rust     | 6     | +1055 | -1280   | -225 |
-| TIL      | 6     | +1702 | -1380   | +322 |
-| C        | 1     | +42988 | -36929 | +6059 |
+| Rust     | 7     | +1018 | -1280   | -262 |
+| TIL      | 7     | +1645 | -1380   | +265 |
+| C        | 1     | +42682 | -37392 | +5290 |
 
 Note: C changes are in bootstrap/til.c (generated from TIL self-hosted compiler).
-After helper function refactoring, Rust now has net negative LOC (more code removed than added).
+Net effect: Rust has 262 fewer lines, TIL has 265 more lines (+3 source lines).
 
 *** Desugarer vs Old Ccodegen Size Analysis
 
