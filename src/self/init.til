@@ -25,7 +25,8 @@ SymbolInfo := struct {
     mut is_comptime_const: Bool = false  // true if value was comptime-evaluable at declaration
 
     clone := func(self: SymbolInfo) returns SymbolInfo {
-        return SymbolInfo(value_type=self.value_type, is_mut=self.is_mut, is_copy=self.is_copy, is_own=self.is_own, is_comptime_const=self.is_comptime_const)
+        // Uses standalone value_type_clone since ValueType enum doesn't have .clone() method
+        return SymbolInfo(value_type=value_type_clone(self.value_type), is_mut=self.is_mut, is_copy=self.is_copy, is_own=self.is_own, is_comptime_const=self.is_comptime_const)
     }
 }
 
@@ -36,15 +37,6 @@ EnumVal := struct {
     // For now, supports Bool (1 byte) and I64 (8 bytes)
     mut payload: Ptr = Ptr()  // Ptr to Vec<U8>, NULL = None
     mut payload_type: Ptr = Ptr()  // Ptr to ValueType, NULL = None
-
-    clone := func(self: EnumVal) returns EnumVal {
-        return EnumVal(
-            enum_type=self.enum_type,
-            enum_name=self.enum_name,
-            payload=self.payload,
-            payload_type=self.payload_type
-        )
-    }
 }
 
 // Bug #97: Track variable declarations by (name, line, col).
@@ -56,10 +48,6 @@ FunctionLocal := struct {
 
     eq := func(self: FunctionLocal, other: FunctionLocal) returns Bool {
         return self.name.eq(other.name).and(self.line.eq(other.line)).and(self.col.eq(other.col))
-    }
-
-    clone := func(self: FunctionLocal) returns FunctionLocal {
-        return FunctionLocal(name=self.name.clone(), line=self.line, col=self.col)
     }
 }
 
@@ -93,17 +81,6 @@ ScopeFrame := struct {
 
     // Scope type (helps with cleanup and debugging)
     mut scope_type: ScopeType = ScopeType.Global
-
-    clone := func(self: ScopeFrame) returns ScopeFrame {
-        return ScopeFrame(
-            arena_index=self.arena_index.clone(),
-            symbols=self.symbols.clone(),
-            funcs=self.funcs.clone(),
-            enums=self.enums.clone(),
-            structs=self.structs.clone(),
-            scope_type=self.scope_type
-        )
-    }
 }
 
 ScopeStack := struct {
@@ -602,10 +579,6 @@ ScopeStack := struct {
             }
         }
         return names
-    }
-
-    clone := func(self: ScopeStack) returns ScopeStack {
-        return ScopeStack(frames=self.frames.clone(), function_locals=self.function_locals.clone(), used_symbols=self.used_symbols.clone())
     }
 
     // Bug #97: Check if we're currently inside a function (not at global scope).
@@ -1895,10 +1868,6 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
 EnumPayload := struct {
     mut data: Vec = Vec.new(U8)
     mut value_type: ValueType = ValueType.TCustom("")
-
-    clone := func(self: EnumPayload) returns EnumPayload {
-        return EnumPayload(data=self.data.clone(), value_type=self.value_type)
-    }
 }
 
 /// Bug #133: Information about a precomputed global declaration with heap data.
@@ -1907,10 +1876,6 @@ PrecomputedHeapValue := struct {
     mut var_name: Str = ""       // The TIL variable name (e.g., "chromatic")
     mut instance_name: Str = ""  // The arena instance name (e.g., "chromatic" or temp name)
     mut type_name: Str = ""      // The type (e.g., "Vec")
-
-    clone := func(self: PrecomputedHeapValue) returns PrecomputedHeapValue {
-        return PrecomputedHeapValue(var_name=self.var_name.clone(), instance_name=self.instance_name.clone(), type_name=self.type_name.clone())
-    }
 }
 
 Context := struct {
@@ -2411,20 +2376,5 @@ Context := struct {
                 # Not a custom type
             }
         }
-    }
-
-    clone := func(self: Context) returns Context {
-        return Context(
-            mode_def=self.mode_def,
-            path=self.path,
-            scope_stack=self.scope_stack.clone(),
-            temp_enum_payload=self.temp_enum_payload,
-            imported_asts=self.imported_asts.clone(),
-            imported_modes=self.imported_modes.clone(),
-            imports_init_done=self.imports_init_done.clone(),
-            imports_typer_done=self.imports_typer_done.clone(),
-            imports_precomp_done=self.imports_precomp_done.clone(),
-            imports_eval_done=self.imports_eval_done.clone()
-        )
     }
 }

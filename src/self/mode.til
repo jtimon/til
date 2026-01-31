@@ -15,18 +15,6 @@ ModeDef := struct {
     mut imports: Vec = Vec.new(Str)
     mut allowed_procs_in_funcs: Vec = Vec.new(Str)
 
-    clone := func(self: ModeDef) returns ModeDef {
-        return ModeDef(
-            name = self.name.clone(),
-            allows_procs = self.allows_procs,
-            allows_base_mut = self.allows_base_mut,
-            allows_base_calls = self.allows_base_calls,
-            allows_base_anything = self.allows_base_anything,
-            needs_main_proc = self.needs_main_proc,
-            imports = self.imports.clone(),
-            allowed_procs_in_funcs = self.allowed_procs_in_funcs.clone()
-        )
-    }
 }
 
 can_be_imported := func(mode_def: ModeDef) returns Bool {

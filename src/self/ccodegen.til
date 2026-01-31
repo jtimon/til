@@ -38,10 +38,6 @@ sort_enum_variants := proc(mut v: Vec) {
 PrecomputedStaticInfo := struct {
     mut data_array_name: Str = ""       // Name of the static array (e.g., "_precomp_chromatic_data")
     mut type_name_array_name: Str = ""  // Name of the type_name string (e.g., "_precomp_chromatic_type_name")
-
-    clone := func(self: PrecomputedStaticInfo) returns PrecomputedStaticInfo {
-        return PrecomputedStaticInfo(data_array_name=self.data_array_name.clone(), type_name_array_name=self.type_name_array_name.clone())
-    }
 }
 
 // Codegen context for tracking function info

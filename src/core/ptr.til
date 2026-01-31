@@ -39,6 +39,15 @@ Ptr := struct {
         self.data = NULL
     }
 
+    clone := func(self: Ptr) returns Ptr {
+        // Shallow clone - copies the pointer value, not the pointed-to data.
+        // The clone is marked as borrowed to prevent double-free.
+        mut p := Ptr()
+        p.data = self.data
+        p.is_borrowed = 1
+        return p
+    }
+
     /** Ptr.offset is danger-ous, also known as "pointer arythmetics". */
     offset := proc(self: Ptr, offset: I64) returns Ptr {
         mut p := Ptr()

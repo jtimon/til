@@ -136,10 +136,6 @@ Declaration := struct {
 PatternInfo := struct {
     mut variant_name: Str = ""
     mut binding_var: Str = ""
-
-    clone := func(self: PatternInfo) returns PatternInfo {
-        return PatternInfo(variant_name=self.variant_name.clone(), binding_var=self.binding_var.clone())
-    }
 }
 
 FunctionType := enum {
