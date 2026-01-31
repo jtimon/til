@@ -71,22 +71,37 @@ fn generate_delete_method(struct_name: &str, struct_def: &SStructDef, line: usiz
             continue;
         }
 
-        // Build: self.field_name.delete()
-        // self.field_name.delete is: Identifier("self") [ Identifier("field_name"), Identifier("delete") ]
-        let delete_access = Expr::new_explicit(
-            NodeType::Identifier("self".to_string()),
+        // Build: FieldType.delete(self.field_name) - post-UFCS format
+        // Get field type name
+        let field_type_name = match &member.value_type {
+            ValueType::TCustom(name) => name.clone(),
+            _ => continue,  // Skip if we can't get the type name
+        };
+
+        // Build: FieldType.delete
+        let type_delete_access = Expr::new_explicit(
+            NodeType::Identifier(field_type_name),
             vec![
-                Expr::new_explicit(NodeType::Identifier(member.name.clone()), vec![], line, col),
                 Expr::new_explicit(NodeType::Identifier("delete".to_string()), vec![], line, col),
             ],
             line,
             col,
         );
 
-        // FCall for self.field_name.delete()
+        // Build: self.field_name
+        let field_access = Expr::new_explicit(
+            NodeType::Identifier("self".to_string()),
+            vec![
+                Expr::new_explicit(NodeType::Identifier(member.name.clone()), vec![], line, col),
+            ],
+            line,
+            col,
+        );
+
+        // FCall for FieldType.delete(self.field_name)
         let delete_call = Expr::new_explicit(
             NodeType::FCall(false),  // doesn't throw
-            vec![delete_access],
+            vec![type_delete_access, field_access],
             line,
             col,
         );
@@ -124,14 +139,12 @@ fn generate_delete_method(struct_name: &str, struct_def: &SStructDef, line: usiz
 
 // =============================================================================
 // Step 4: Liveness Analysis and Delete Insertion (Issue #117)
-// STATUS: DISABLED - pending UFCS integration
 // =============================================================================
-// The garbager runs after UFCS, so generated delete() calls don't get proper
-// method call transformation. To enable Step 4, need to either:
-// 1. Generate post-UFCS AST directly (understand how ccodegen expects method calls), or
-// 2. Move garbager before UFCS and let UFCS transform the calls
-// For now, only Step 3 (auto-generating struct delete methods) is active.
-// =============================================================================
+// NOTE: Step 4 is disabled due to shallow copy semantics. When a struct like
+// SFuncDef is used to construct a NodeType::FuncDef, the data is shallow-copied.
+// If we delete the original variable after its "last use", the NodeType still
+// references the now-freed memory. Enabling Step 4 requires tracking ownership
+// transfers (e.g., knowing when a variable is consumed by a constructor).
 
 /// Garbager phase entry point: Recursively process AST to auto-generate delete methods.
 pub fn garbager_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
@@ -196,23 +209,24 @@ pub fn garbager_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
             Ok(Expr::new_clone(e.node_type.clone(), e, decl_new_params))
         },
         // Recurse into FuncDef bodies
-        // NOTE: Step 4 (liveness-based delete insertion) is disabled pending UFCS integration.
-        // The garbager runs after UFCS, so generated delete() calls don't get proper
-        // method call transformation. This needs design work to either:
-        // 1. Generate post-UFCS AST directly, or
-        // 2. Move garbager before UFCS and let UFCS transform the calls
-        // For now, only Step 3 (auto-generating struct delete methods) is active.
+        // NOTE: Step 4 (liveness analysis and delete insertion) is disabled.
+        // The shallow copy semantics of structs (e.g., NodeType::FuncDef taking
+        // a copy of SFuncDef) means we can't safely delete local variables after
+        // their "last use" - the data may still be referenced by another object.
+        // Enabling Step 4 requires tracking ownership transfers.
         NodeType::FuncDef(func_def) => {
-            let mut new_body = Vec::new();
+            // Recursively process each statement
+            let mut processed_body = Vec::new();
             for stmt in &func_def.body {
-                new_body.push(garbager_expr(context, stmt)?);
+                processed_body.push(garbager_expr(context, stmt)?);
             }
+
             let new_func_def = SFuncDef {
                 function_type: func_def.function_type.clone(),
                 args: func_def.args.clone(),
                 return_types: func_def.return_types.clone(),
                 throw_types: func_def.throw_types.clone(),
-                body: new_body,
+                body: processed_body,
                 source_path: func_def.source_path.clone(),
             };
             Ok(Expr::new_clone(NodeType::FuncDef(new_func_def), e, e.params.clone()))
