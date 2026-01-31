@@ -1096,6 +1096,7 @@ main := proc(args: ..Str) {
     rs_compiled.push(TestEntry(path="src/test/memcmp_str_compiled.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
     rs_compiled.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
     rs_compiled.push(TestEntry(path="src/test/extra_syscalls.til"))  // TODO: list_dir/glob_files wrappers timeout in interpreted modes
+    rs_compiled.push(TestEntry(path="src/test/bug159.til", expected_status=1))  // Bug #159: C codegen still uses shallow copy
 
     mut rs_interpreted := Vec.new(TestEntry)
 
@@ -1103,7 +1104,7 @@ main := proc(args: ..Str) {
     rs_interpreted.push(TestEntry(path="src/test/memcmp_str_interpreted.til")) // TODO decide: compiles but runtime: memcmp on Str structs compares pointers not content
     rs_interpreted.push(TestEntry(path="src/test/precomp_throw.til", expected_status=1)) // Bug #54: should fail at precomp, currently fails at runtime
     rs_interpreted.push(TestEntry(path="src/test/introspections.til")) // TODO: Add C impl for Introspection.has_const/has_field in src/ext.c
-    // Bug #139 test moved to all_common now that Bug #150 is fixed
+    rs_interpreted.push(TestEntry(path="src/test/bug159.til"))  // Bug #159 fixed in interpreter, C codegen still uses shallow copy
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
     // run_cmd doesn't support stdin, would need bash -c wrapper or new ext_proc
@@ -1113,11 +1114,11 @@ main := proc(args: ..Str) {
     // til_interpreted: tests that pass with til interpret but NOT yet with til_compiled
     // (tests that pass all 4 modes are in all_common)
     mut til_interpreted := Vec.new(TestEntry)
-    // Bug #139 test moved to all_common now that Bug #150 is fixed
+    til_interpreted.push(TestEntry(path="src/test/bug159.til"))  // Bug #159 fixed in TIL interpreter, C codegen still uses shallow copy
 
     // til_compiled: tests run with the self-hosted TIL compiler only
     mut til_compiled := Vec.new(TestEntry)
-    // til_compiled.push(TestEntry(path="src/test/test_parser.til"))  // TODO: fails on CI, til_interpreted too slow (~23s)
+    til_compiled.push(TestEntry(path="src/test/bug159.til", expected_status=1))  // Bug #159: C codegen still uses shallow copy
 
     // til_common: tests run with BOTH self-hosted TIL interpreter and compiler
     // (for tests where output differs between rstil and til, e.g. error messages)
@@ -1136,7 +1137,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/bug57.til"))
     all_common.push(TestEntry(path="src/test/bug139.til"))  // TODO: expected_status=1 once Bug #139 is fixed
     all_common.push(TestEntry(path="src/test/bug157.til"))
-    all_common.push(TestEntry(path="src/test/bug159.til", expected_status=1))  // Shallow copy bug
+    // Bug #159: moved to rs_interpreted (interpreter fix done, C codegen TODO)
     all_common.push(TestEntry(path="src/test/c_mem.til"))
     all_common.push(TestEntry(path="src/test/cross_file_forward.til"))
     all_common.push(TestEntry(path="src/test/deterministic.til"))

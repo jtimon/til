@@ -13,7 +13,7 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
 :IMPACT: Memory corruption, shared state between clones
-:STATUS: In Progress
+:STATUS: In Progress (interpreters fixed, ccodegen pending)
 :END:
 
 *** Description
@@ -21,7 +21,7 @@ When doing =mut cloned := original=, the interpreter uses =copy_fields= which do
 a byte-level copy. For structs containing Ptr or Vec fields, this results in both
 the original and clone sharing the same underlying memory.
 
-Test case: src/test/bug159.til (currently expects failure)
+Test case: src/test/bug159.til (passes in rs_interpreted, til_interpreted)
 
 *** Root Cause
 Vec.clone copies element bytes (memcpy), not calling .clone() on each element.
@@ -36,8 +36,8 @@ To fix properly, Ptr needs to know element type/size to enable deep cloning.
 - Removed redundant manual clones that are now auto-generated
 - Kept manual clones for containers (Vec, Map, etc.) and special cases
 
-**** Step 2: TODO - Move dynamic type info to Ptr
-Add fields to Ptr to enable deep cloning:
+**** Step 2: DONE - Move dynamic type info to Ptr
+Added fields to Ptr to enable deep cloning:
 - =size: I64= - total allocation size
 - =elem_type: Str= - element type name (for arrays/vecs)
 - =elem_size: I64= - size of each element
@@ -46,11 +46,18 @@ This allows Ptr.clone to:
 - Allocate new memory of correct size
 - Call =ElemType.clone()= on each element for deep copy
 
-Vec/Map/etc can then delegate to Ptr, simplifying their implementations.
+**** Step 3: DONE (interpreters only) - Replace copy_fields with clone calls
+Changed both Rust and TIL interpreters' =mut x := y= to call =Type.clone(y)=
+instead of =copy_fields=. Key implementation details:
+- =try_call_clone= helper builds FCall AST for =Type.clone(source)=
+- After clone returns, allocate fresh memory with =insert_struct_instance=
+- Copy from clone result (handles types like Bool.clone that return self)
+- Throw error if no clone method (should never happen, preinit generates them)
 
-**** Step 3: TODO - Replace copy_fields with clone calls
-Change interpreter's =mut x := y= to call =Type.clone(y)= instead of =copy_fields=.
-Previous attempt caused stack overflows - should work after Step 2.
+**** Step 4: TODO - Fix ccodegen
+The C code generator (ccodegen.rs/til) still uses shallow copy for struct
+declarations. Need to emit clone calls instead of memcpy for =mut x := y=.
+Tests: rs_compiled and til_compiled expect failure until this is done.
 
 *** Future Optimization (post self-hosting)
 Make Ptr templated (=Ptr(T)=) instead of storing type info at runtime:
