@@ -4459,6 +4459,52 @@ src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_v
 For implementation details and self-hosting progress, see git history and commit messages.
 * Implemented Issues
 
+** Issue #110: Desugar switch to if/else in desugarer
+:PROPERTIES:
+:DISCOVERED: 2026-01-13
+:IMPLEMENTED: 2026-01-31
+:IMPACT: Simplify interpreter and ccodegen, reduce internal complexity
+:STATUS: Fixed
+:BRANCH: claude/fix-issue-110-9OxnI
+:END:
+
+*** Description
+Desugar switch/case to if/else chains in the desugarer phase. This simplifies the
+interpreter, ccodegen, and precomp by removing switch handling from those phases.
+
+*** Implementation
+- ~src/rs/desugarer.rs~ - added ~desugar_switch()~ and helper functions (~1300 lines)
+- ~src/self/desugarer.til~ - TIL port of the same logic (~1600 lines)
+- Removed switch handling from: ufcs, precomp, interpreter, ccodegen (both .rs and .til)
+
+For enum switches: uses ~enum_to_str()~ for comparison, ~enum_get_payload()~ for payloads.
+For non-enum switches: uses direct ~eq()~ method calls.
+Nested enum patterns handled with match flag pattern (flat if blocks).
+
+*** Performance Impact
+The switch desugaring causes a benchmark regression due to generating more code:
+
+| Mode | Before | After | Increase |
+|------|--------|-------|----------|
+| rust interpreted | 169.7s | 221.6s | +31% |
+| rust compiled | 4.4s | 4.5s | +1% |
+| til interpreted | 380.7s | 559.5s | +47% |
+| til compiled | 15.4s | 26.3s | +71% |
+| Total | 570.3s | 811.9s | +42% |
+
+Trade-off: simpler code in interpreter/ccodegen/precomp at cost of runtime performance.
+Future optimization: could add fast-path for enum switches avoiding string comparison.
+
+*** Lines of Code Impact (vs master)
+
+| Language | Files | Added | Removed | Net |
+|----------|-------|-------|---------|-----|
+| Rust     | 6     | +1373 | -1063   | +310 |
+| TIL      | 6     | +1646 | -1300   | +346 |
+| C        | 1     | +42988 | -36929 | +6059 |
+
+Note: C changes are in bootstrap/til.c (generated from TIL self-hosted compiler).
+
 ** Issue #147: Add Ptr.dereference method for cleaner pointer dereferencing
 :PROPERTIES:
 :DISCOVERED: 2026-01-28
