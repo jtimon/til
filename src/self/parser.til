@@ -53,6 +53,7 @@ EnumVariant := struct {
 
 SEnumDef := struct {
     mut variants: Vec = Vec.new(EnumVariant)
+    mut methods: Map = Map.new(Str, Expr)  // Auto-generated methods (delete, clone)
 
     clone := func(self: SEnumDef) returns SEnumDef {
         mut result := SEnumDef()
@@ -63,6 +64,8 @@ SEnumDef := struct {
             result.variants.push(v.clone())
         }
         catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+        // Clone methods map
+        result.methods = self.methods.clone()
         return result
     }
 

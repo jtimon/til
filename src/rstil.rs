@@ -7,6 +7,7 @@ mod rs {
     pub mod mode;
     pub mod target;
     pub mod parser;
+    pub mod preinit;
     pub mod init;
     pub mod typer;
     pub mod desugarer;

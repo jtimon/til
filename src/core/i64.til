@@ -194,6 +194,11 @@ I64 := struct {
     /** No-op delete for primitive type. Required for ASAP destruction. */
     delete := proc(mut _self: I64) {
     }
+
+    /** Clone returns self for primitive type (value semantics). */
+    clone := func(self: I64) returns I64 {
+        return self
+    }
 }
 
 // Constants defined after struct so I64.sub is available

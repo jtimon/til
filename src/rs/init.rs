@@ -10,6 +10,7 @@ use crate::rs::parser::{
     Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, PatternInfo,
     value_type_to_str, str_to_value_type, parse_tokens,
 };
+use crate::rs::preinit::preinit_expr;
 
 // Init phase: Declaration indexing and import processing
 // This module handles the "context priming" phase that runs before type checking.
@@ -1063,7 +1064,7 @@ pub fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str
     }
 
     // Parse to AST
-    let imported_ast: Expr = match parse_tokens(&mut lexer) {
+    let parsed_ast: Expr = match parse_tokens(&mut lexer) {
         Ok(expr) => expr,
         Err(error_string) => {
             context.mode_def = previous_mode;
@@ -1071,6 +1072,16 @@ pub fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str
             context.path = original_path;
             return Err(e.error(&context.path, "import", &format!("While trying to import {} from {}:\n{}",
                                                   path, orig_path_clone, error_string)));
+        },
+    };
+
+    // Preinit phase: Auto-generate delete() and clone() methods for structs
+    let imported_ast = match preinit_expr(&parsed_ast) {
+        Ok(expr) => expr,
+        Err(error_string) => {
+            context.mode_def = previous_mode;
+            context.path = original_path;
+            return Err(error_string);
         },
     };
 
@@ -1205,6 +1216,16 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                         NodeType::EnumDef(enum_def) => {
                             context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own, is_comptime_const: false });
                             context.scope_stack.declare_enum(decl.name.to_string(), enum_def.clone());
+
+                            // Register enum methods (e.g., delete, clone)
+                            for (method_name, method_expr) in &enum_def.methods {
+                                let full_name = format!("{}.{}", decl.name, method_name);
+                                if let NodeType::FuncDef(func_def) = &method_expr.node_type {
+                                    let method_value_type = get_value_type(&context, method_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+                                    context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo { value_type: method_value_type, is_mut: false, is_copy: false, is_own: false, is_comptime_const: false });
+                                    context.scope_stack.declare_func(full_name, func_def.clone());
+                                }
+                            }
                         },
                         _ => {
                             errors.push(e.lang_error(&context.path, "init", "enums should have definitions."));

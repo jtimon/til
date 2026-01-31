@@ -62,6 +62,11 @@ Bool := struct {
     /** No-op delete. Optimization to avoid calling data.delete() which is also a no-op. */
     delete := proc(mut _self: Bool) {
     }
+
+    /** Clone returns self for primitive type (value semantics). */
+    clone := func(self: Bool) returns Bool {
+        return self
+    }
 }
 
 false := Bool(data=0)

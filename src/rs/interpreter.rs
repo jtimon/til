@@ -10,6 +10,7 @@ use crate::rs::parser::{
 use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg, basic_mode_checks, type_check, check_body_returns_throws, typer_import_declarations, ThrownType};
 use crate::rs::lexer::lexer_from_source;
 use crate::rs::mode::{can_be_imported, parse_mode, DEFAULT_MODE};
+use crate::rs::preinit::preinit_expr;
 use crate::rs::desugarer::desugar_expr;
 use crate::rs::garbager::garbager_expr;
 use crate::rs::ufcs::ufcs_expr;
@@ -2627,6 +2628,10 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
             return Err(format!("{}:{}", &path, error_string));
         },
     };
+
+    // Preinit phase: Auto-generate delete() and clone() methods for structs
+    e = preinit_expr(&e)?;
+
     if !SKIP_AST {
         println!("AST: \n{}", to_ast_str(&e));
     }
@@ -2682,7 +2687,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
         // Desugarer phase: Desugar ForIn loops to while loops
         e = desugar_expr(context, &e)?;
 
-        // Garbager phase: Auto-generate delete() methods for structs
+        // Garbager phase: (future) ASAP destruction - insert automatic delete() calls
         e = garbager_expr(context, &e)?;
 
         // UFCS phase: Resolve UFCS calls and reorder named arguments

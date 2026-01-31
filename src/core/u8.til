@@ -207,4 +207,9 @@ U8 := struct {
     /** No-op delete for primitive type. Required for ASAP destruction. */
     delete := proc(mut _self: U8) {
     }
+
+    /** Clone returns self for primitive type (value semantics). */
+    clone := func(self: U8) returns U8 {
+        return self
+    }
 }

@@ -11,6 +11,7 @@ use crate::rs::mode::{parse_mode, ModeDef};
 use crate::rs::ccodegen;
 use crate::rs::init::{import_path_to_file_path, init_import_declarations, Context};
 use crate::rs::typer::{type_check, basic_mode_checks, typer_import_declarations, resolve_inferred_types};
+use crate::rs::preinit::preinit_expr;
 use crate::rs::desugarer::desugar_expr;
 use crate::rs::garbager::garbager_expr;
 use crate::rs::ufcs::ufcs_expr;
@@ -39,10 +40,15 @@ fn parse_file(path: &str) -> Result<(Expr, ModeDef), String> {
 
     let mode = parse_mode(&path.to_string(), &mut lexer)?;
 
-    match parse_tokens(&mut lexer) {
-        Ok(expr) => Ok((expr, mode)),
-        Err(error_string) => Err(format!("{}:{}", path, error_string)),
-    }
+    let expr = match parse_tokens(&mut lexer) {
+        Ok(expr) => expr,
+        Err(error_string) => return Err(format!("{}:{}", path, error_string)),
+    };
+
+    // Preinit phase: Auto-generate delete() and clone() methods for structs
+    let expr = preinit_expr(&expr)?;
+
+    Ok((expr, mode))
 }
 
 // Recursively collect all imports from an AST

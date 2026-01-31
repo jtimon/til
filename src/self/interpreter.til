@@ -2,6 +2,7 @@ mode liba
 
 import("self.init")
 import("self.parser")
+import("self.preinit")
 import("self.typer")
 import("self.desugarer")
 import("self.garbager")
@@ -2992,6 +2993,9 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
         throw format(path, ":", err.msg)
     }
 
+    // Preinit phase: auto-generate delete/clone methods
+    e = preinit_expr(e)
+
     // Skip init and type checking if this is Phase 2 of a two-phase import
     if not(skip_init_and_typecheck) {
         mut errors := init_context(context, e)?
@@ -3054,7 +3058,7 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
         e = desugar_expr(context, e)?
 
         // Garbager phase: Auto-generate delete() methods for structs
-        e = garbager_expr(context, e)?
+        e = garbager_expr(context, e)
 
         // UFCS phase: Transform UFCS calls into regular function calls
         e = ufcs_expr(context, e)?
@@ -3182,7 +3186,7 @@ proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     if not(context.imports_precomp_done.contains(path)) {
         _ := context.imports_precomp_done.insert(path.clone())
         ast = desugar_expr(context, ast)?
-        ast = garbager_expr(context, ast)?
+        ast = garbager_expr(context, ast)
         ast = ufcs_expr(context, ast)?
         ast = precomp_expr(context, ast)?
     }
