@@ -9,6 +9,26 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #158: test_runner.til compiled mode timing may include compilation
+:PROPERTIES:
+:DISCOVERED: 2026-01-31
+:IMPACT: Benchmark numbers for compiled modes may be inaccurate
+:STATUS: Open
+:END:
+
+*** Description
+The benchmark shows Rust compiled improving (-7%) while TIL compiled gets slower (+60%)
+after Issue #110 switch desugaring. This doesn't make sense since both should generate
+similar C code and run similar binaries.
+
+Suspicion: The profiling in test_runner.til may be counting compilation time in some
+cases where it should only count runtime after compilation.
+
+*** Investigation needed
+- Review test_runner.til timing logic for compiled mode
+- Verify timing only captures execution, not compilation
+- Compare what rstil vs til_interpreted actually measure
+
 ** Issue #152: Migrate doc/todo files to numbered issue system
 :PROPERTIES:
 :DISCOVERED: 2026-01-29

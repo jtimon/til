@@ -2,10 +2,11 @@
 #+AUTHOR: TIL Development
 #+DATE: 2026-01-30
 
-* bugs.org (10 bugs/issues)
+* bugs.org (11 bugs/issues)
 
 | #   | Bug/Issue                                                        | Impact                      |
 |-----+------------------------------------------------------------------+-----------------------------|
+| 158 | test_runner.til compiled mode timing may include compilation     | Benchmark accuracy          |
 | 152 | Migrate doc/todo files to numbered issue system                  | Documentation cleanup       |
 | 144 | for-in loops iterate by copy instead of by reference             | Performance, semantics      |
 | 139 | Type checker allows assigning I64 to Ptr field                   | Type safety                 |
