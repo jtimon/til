@@ -6313,6 +6313,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
 
     // Bug #143: Process RHS FCall with emit_arg_string
     // This handles builtins (to_ptr, size_of, etc.), throwing calls, by-ref params, and Dynamic params properly
+    // Bug #157: Also handle field access on throwing calls (e.g., get_wrapper()?.value)
     mut rhs_string := ""
     mut has_rhs_string := false
     if not(expr.params.is_empty()) {
@@ -6322,6 +6323,42 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         case NodeType.FCall(_):
             rhs_string = emit_arg_string(rhs, Ptr(), false, output, indent, ctx, context)?
             has_rhs_string = true
+        case NodeType.Identifier(name):
+            // Bug #157: Check for UFCS field access on throwing call
+            // Pattern: Identifier("_") with params[0] = throwing FCall, params[1..] = field chain
+            if name.eq("_").and(not(rhs.params.is_empty())) {
+                mut first_param := Expr()
+                rhs.params.get(0, first_param)?
+                switch first_param.node_type {
+                case NodeType.FCall(_):
+                    mut fd := SFuncDef()
+                    mut found_fd := false
+                    fd = get_fcall_func_def(context, first_param)?
+                    found_fd = true
+                    catch (err: KeyNotFoundError) {
+                        // Not a function call we can look up
+                    }
+                    if found_fd.and(not(fd.throw_types.is_empty())) {
+                        // Hoist the throwing call
+                        base_temp := emit_arg_string(first_param, Ptr(), false, output, indent, ctx, context)?
+                        // Append field chain: temp.field1.field2...
+                        mut result := base_temp
+                        for field_idx in 1..rhs.params.len() {
+                            mut field_expr := Expr()
+                            rhs.params.get(field_idx, field_expr)?
+                            switch field_expr.node_type {
+                            case NodeType.Identifier(field):
+                                result = result.concat(".")
+                                result = result.concat(field)
+                            case:
+                            }
+                        }
+                        rhs_string = result
+                        has_rhs_string = true
+                    }
+                case:
+                }
+            }
         case:
         }
     }

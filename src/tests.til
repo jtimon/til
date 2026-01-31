@@ -1135,6 +1135,7 @@ main := proc(args: ..Str) {
     all_common.push(TestEntry(path="src/test/bug56.til"))
     all_common.push(TestEntry(path="src/test/bug57.til"))
     all_common.push(TestEntry(path="src/test/bug139.til"))  // TODO: expected_status=1 once Bug #139 is fixed
+    all_common.push(TestEntry(path="src/test/bug157.til"))
     all_common.push(TestEntry(path="src/test/c_mem.til"))
     all_common.push(TestEntry(path="src/test/cross_file_forward.til"))
     all_common.push(TestEntry(path="src/test/deterministic.til"))

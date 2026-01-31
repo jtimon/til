@@ -20,8 +20,4 @@ test_field_access_on_throwing_call := proc() {
     val := get_wrapper(false)?.value
     assert_eq(loc(), 42, val)
 }
-
-main := proc() {
-    test_field_access_on_throwing_call()
-    println("Bug #157 test passed")
-}
+test_field_access_on_throwing_call()

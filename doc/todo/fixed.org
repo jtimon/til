@@ -7,6 +7,28 @@
 
 * Fixed Bugs
 
+** Bug #157: ccodegen emit_declaration doesn't handle field access on throwing calls
+:PROPERTIES:
+:DISCOVERED: 2026-01-31
+:FIXED: 2026-01-31
+:IMPACT: Generates invalid C for declarations like ~x := throwing_call()?.field~
+:STATUS: Fixed
+:RELATED: Issue #110, Bug #143
+:END:
+
+*** Description
+~emit_declaration~ in ccodegen only uses ~emit_arg_string~ when the RHS is a direct
+FCall. When the RHS is a field access on a throwing call (e.g., ~lexer.peek()?.token_type~),
+it falls through and emits invalid C code.
+
+*** Fix
+Modified ~emit_declaration~ to detect UFCS field access patterns (~Identifier("_")~)
+where ~params[0]~ is a throwing FCall. In such cases, hoist the FCall using
+~emit_arg_string~ and append the field chain to the returned temp var.
+
+*** Test
+~src/test/bug157.til~ - tests field access on throwing call in declaration.
+
 ** Bug #145: til_interpreted diverges from rs_interpreted for func in global init
 :PROPERTIES:
 :DISCOVERED: 2026-01-27

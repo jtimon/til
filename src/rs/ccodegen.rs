@@ -5108,10 +5108,41 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
     // Bug #143: Process RHS FCall with emit_arg_string
     // This handles builtins (to_ptr, size_of, etc.), throwing calls, by-ref params, and Dynamic params properly
+    // Bug #157: Also handle field access on throwing calls (e.g., get_wrapper()?.value)
     let rhs_string: Option<String> = if !expr.params.is_empty() {
         let rhs = &expr.params[0];
         if let NodeType::FCall(_) = &rhs.node_type {
             Some(emit_arg_string(rhs, None, false, output, indent, ctx, context)?)
+        } else if let NodeType::Identifier(name) = &rhs.node_type {
+            // Bug #157: Check for UFCS field access on throwing call
+            // Pattern: Identifier("_") with params[0] = throwing FCall, params[1..] = field chain
+            if name == "_" && !rhs.params.is_empty() {
+                if let NodeType::FCall(_) = &rhs.params[0].node_type {
+                    if let Some(fd) = get_fcall_func_def(context, &rhs.params[0]) {
+                        if !fd.throw_types.is_empty() {
+                            // Hoist the throwing call
+                            let base_temp = emit_arg_string(&rhs.params[0], None, false, output, indent, ctx, context)?;
+                            // Append field chain: temp.field1.field2...
+                            let mut result = base_temp;
+                            for field_expr in &rhs.params[1..] {
+                                if let NodeType::Identifier(field) = &field_expr.node_type {
+                                    result.push('.');
+                                    result.push_str(field);
+                                }
+                            }
+                            Some(result)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
         } else {
             None
         }

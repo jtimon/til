@@ -9,67 +9,6 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #157: ccodegen emit_declaration doesn't handle field access on throwing calls
-:PROPERTIES:
-:DISCOVERED: 2026-01-31
-:IMPACT: Generates invalid C for declarations like ~x := throwing_call()?.field~
-:STATUS: Open
-:RELATED: Issue #110, Bug #143
-:END:
-
-*** Description
-~emit_declaration~ in ccodegen only uses ~emit_arg_string~ when the RHS is a direct
-FCall. When the RHS is a field access on a throwing call (e.g., ~lexer.peek()?.token_type~),
-it falls through and emits invalid C code:
-
-#+begin_src c
-// Generated (wrong):
-const til_TokenType x = til_Lexer_peek(lexer).token_type;
-
-// Should be:
-til_Token _temp;
-if (til_Lexer_peek(&_temp, &_err, lexer)) goto _catch;
-const til_TokenType x = _temp.token_type;
-#+end_src
-
-*** How It Was Hidden
-Before Issue #110, switch statements were handled by ~emit_switch~ in ccodegen, which
-used ~emit_arg_string~ for the switch expression. This worked correctly for patterns like:
-#+begin_src til
-switch lexer.peek()?.token_type {
-    case TokenType.Colon: ...
-}
-#+end_src
-
-After Issue #110, switch is desugared to if/else, generating:
-#+begin_src til
-_switch_expr := lexer.peek()?.token_type
-if _switch_expr.eq(...) { ... }
-#+end_src
-
-Now ~emit_declaration~ handles the RHS, exposing the bug.
-
-*** Workaround
-The desugarer had a workaround (~check_throwing_field_access~) that split the declaration:
-#+begin_src til
-_switch_temp := lexer.peek()?
-_switch_expr := _switch_temp.token_type
-#+end_src
-
-This workaround is in the wrong phase - the desugarer shouldn't need to know about
-throwing calls. The fix belongs in ccodegen.
-
-*** Fix
-Modify ~emit_declaration~ to use ~emit_arg_string~ for any RHS that contains a
-throwing call, not just direct FCalls. The check at line ~5113 in ccodegen.rs:
-#+begin_src rust
-if let NodeType::FCall(_) = &rhs.node_type {
-#+end_src
-Should be expanded to also handle Identifier nodes whose children contain throwing FCalls.
-
-*** Test
-~src/test/bug157.til~ - tests field access on throwing call in declaration.
-
 ** Issue #152: Migrate doc/todo files to numbered issue system
 :PROPERTIES:
 :DISCOVERED: 2026-01-29
