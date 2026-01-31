@@ -75,6 +75,34 @@ make_field_access := func(name: Str, fields: Vec, line: I64, col: I64) returns E
     return Expr.new_explicit(NodeType.Identifier(name), field_params, line, col)
 }
 
+/// Generate a unique temp variable name with optional function prefix
+make_temp_name := func(prefix: Str, func_name: Str, id: I64) returns Str {
+    if func_name.len().gt(0) {
+        return format(prefix, "_", func_name, "_", I64.to_str(id))
+    } else {
+        return format(prefix, "_", I64.to_str(id))
+    }
+}
+
+/// Build: eq(var_name, enum_to_str(case_pattern))
+build_enum_eq_condition := func(var_name: Str, case_pattern: Expr, line: I64, col: I64) returns Expr {
+    mut args := Vec.new(Expr)
+    args.push(case_pattern.clone())
+    case_val_str := make_call("enum_to_str", args, line, col)
+    mut eq_args := Vec.new(Expr)
+    eq_args.push(make_id(var_name, line, col))
+    eq_args.push(case_val_str)
+    return make_call("eq", eq_args, line, col)
+}
+
+/// Build: eq(var_name, case_pattern)
+build_eq_condition := func(var_name: Str, case_pattern: Expr, line: I64, col: I64) returns Expr {
+    mut args := Vec.new(Expr)
+    args.push(make_id(var_name, line, col))
+    args.push(case_pattern.clone())
+    return make_call("eq", args, line, col)
+}
+
 /// Helper struct for variant info extraction
 VariantInfo := struct {
     mut type_name: Str = ""
@@ -648,33 +676,15 @@ build_case_condition := proc(
             return
         }
         if is_enum_switch {
-            // Enum switch with variable case: case some_var:
-            // Need to compare using enum_to_str on the case value too
-            // Build: eq(_switch_variant, enum_to_str(case_val))
-            mut enum_to_str_args := Vec.new(Expr)
-            enum_to_str_args.push(case_pattern.clone())
-            case_val_str := make_call("enum_to_str", enum_to_str_args, line, col)
-
-            mut eq_args := Vec.new(Expr)
-            eq_args.push(make_id(switch_var_name, line, col))
-            eq_args.push(case_val_str)
-            condition = make_call("eq", eq_args, line, col)
-            return
+            condition = build_enum_eq_condition(switch_var_name, case_pattern, line, col)
+        } else {
+            condition = build_eq_condition(switch_var_name, case_pattern, line, col)
         }
-        // Non-enum value comparison: case val:
-        // Condition: eq(_switch_val, case_val)
-        mut eq_args := Vec.new(Expr)
-        eq_args.push(make_id(switch_var_name, line, col))
-        eq_args.push(case_pattern.clone())
-        condition = make_call("eq", eq_args, line, col)
         return
 
     case NodeType.LLiteral(_):
         // Literal value case: case 1: or case "foo":
-        mut eq_args := Vec.new(Expr)
-        eq_args.push(make_id(switch_var_name, line, col))
-        eq_args.push(case_pattern.clone())
-        condition = make_call("eq", eq_args, line, col)
+        condition = build_eq_condition(switch_var_name, case_pattern, line, col)
         return
 
     case NodeType.FCall(_):
@@ -792,45 +802,18 @@ build_case_condition := proc(
             return
         }
         if is_enum_switch {
-            // Enum switch with computed case value (returns enum)
-            // Build: eq(_switch_variant, enum_to_str(case_val))
-            mut enum_to_str_args := Vec.new(Expr)
-            enum_to_str_args.push(case_pattern.clone())
-            case_val_str := make_call("enum_to_str", enum_to_str_args, line, col)
-
-            mut eq_args := Vec.new(Expr)
-            eq_args.push(make_id(switch_var_name, line, col))
-            eq_args.push(case_val_str)
-            condition = make_call("eq", eq_args, line, col)
+            condition = build_enum_eq_condition(switch_var_name, case_pattern, line, col)
             return
         }
-        // Computed case value: case func():
-        // Condition: eq(_switch_val, case_val)
-        mut eq_args := Vec.new(Expr)
-        eq_args.push(make_id(switch_var_name, line, col))
-        eq_args.push(case_pattern.clone())
-        condition = make_call("eq", eq_args, line, col)
+        condition = build_eq_condition(switch_var_name, case_pattern, line, col)
         return
 
     case:
-        // Fallback: depends on whether it's an enum switch
         if is_enum_switch {
-            // Enum switch - wrap case value in enum_to_str
-            mut enum_to_str_args := Vec.new(Expr)
-            enum_to_str_args.push(case_pattern.clone())
-            case_val_str := make_call("enum_to_str", enum_to_str_args, line, col)
-
-            mut eq_args := Vec.new(Expr)
-            eq_args.push(make_id(switch_var_name, line, col))
-            eq_args.push(case_val_str)
-            condition = make_call("eq", eq_args, line, col)
-            return
+            condition = build_enum_eq_condition(switch_var_name, case_pattern, line, col)
+        } else {
+            condition = build_eq_condition(switch_var_name, case_pattern, line, col)
         }
-        // Non-enum: simple equality comparison
-        mut eq_args := Vec.new(Expr)
-        eq_args.push(make_id(switch_var_name, line, col))
-        eq_args.push(case_pattern.clone())
-        condition = make_call("eq", eq_args, line, col)
         return
     }
 
@@ -909,24 +892,13 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         }
     }
 
-    // Generate unique temp var name
+    // Generate unique temp var names
     switch_id := context.precomp_forin_counter
     context.precomp_forin_counter.inc()
     func_name := context.current_precomp_func
-    mut switch_var_name := ""
-    if func_name.len().gt(0) {
-        if is_enum_switch {
-            switch_var_name = format("_switch_variant_", func_name, "_", I64.to_str(switch_id))
-        } else {
-            switch_var_name = format("_switch_val_", func_name, "_", I64.to_str(switch_id))
-        }
-    } else {
-        if is_enum_switch {
-            switch_var_name = format("_switch_variant_", I64.to_str(switch_id))
-        } else {
-            switch_var_name = format("_switch_val_", I64.to_str(switch_id))
-        }
-    }
+    mut switch_var_prefix := "_switch_val"
+    if is_enum_switch { switch_var_prefix = "_switch_variant" }
+    switch_var_name := make_temp_name(switch_var_prefix, func_name, switch_id)
 
     // Desugar the switch expression
     desugared_switch_expr := desugar_expr(context, switch_expr)?
@@ -939,15 +911,9 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     mut decl_exprs := Vec.new(Expr)
 
     // Name for the expression temp (for enum switches) or value temp (for non-enum)
-    mut switch_expr_var_name := ""
+    mut switch_expr_var_name := switch_var_name
     if is_enum_switch {
-        if func_name.len().gt(0) {
-            switch_expr_var_name = format("_switch_expr_", func_name, "_", I64.to_str(switch_id))
-        } else {
-            switch_expr_var_name = format("_switch_expr_", I64.to_str(switch_id))
-        }
-    } else {
-        switch_expr_var_name = switch_var_name
+        switch_expr_var_name = make_temp_name("_switch_expr", func_name, switch_id)
     }
 
     // Type for the expression temp (enum type or value type)

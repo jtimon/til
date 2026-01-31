@@ -72,6 +72,26 @@ fn make_field_access(name: &str, fields: Vec<&str>, line: usize, col: usize) -> 
     Expr::new_explicit(NodeType::Identifier(name.to_string()), field_params, line, col)
 }
 
+/// Generate a unique temp variable name with optional function prefix
+fn make_temp_name(prefix: &str, func_name: &str, id: usize) -> String {
+    if !func_name.is_empty() {
+        format!("{}_{}_{}", prefix, func_name, id)
+    } else {
+        format!("{}_{}", prefix, id)
+    }
+}
+
+/// Build: eq(var_name, enum_to_str(case_pattern))
+fn build_enum_eq_condition(var_name: &str, case_pattern: &Expr, line: usize, col: usize) -> Expr {
+    let case_val_str = make_call("enum_to_str", vec![case_pattern.clone()], line, col);
+    make_call("eq", vec![make_id(var_name, line, col), case_val_str], line, col)
+}
+
+/// Build: eq(var_name, case_pattern)
+fn build_eq_condition(var_name: &str, case_pattern: &Expr, line: usize, col: usize) -> Expr {
+    make_call("eq", vec![make_id(var_name, line, col), case_pattern.clone()], line, col)
+}
+
 /// Build a default value expression for a given ValueType.
 /// Used when generating placeholder values for enum variant payloads in for-in loops.
 /// Bug #33: for-in loops don't work with enum collections
@@ -590,23 +610,12 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         }
     }
 
-    // Generate unique temp var name
+    // Generate unique temp var names
     let switch_id = context.precomp_forin_counter;
     context.precomp_forin_counter += 1;
     let func_name = context.current_precomp_func.clone();
-    let switch_var_name = if !func_name.is_empty() {
-        if is_enum_switch {
-            format!("_switch_variant_{}_{}", func_name, switch_id)
-        } else {
-            format!("_switch_val_{}_{}", func_name, switch_id)
-        }
-    } else {
-        if is_enum_switch {
-            format!("_switch_variant_{}", switch_id)
-        } else {
-            format!("_switch_val_{}", switch_id)
-        }
-    };
+    let switch_var_prefix = if is_enum_switch { "_switch_variant" } else { "_switch_val" };
+    let switch_var_name = make_temp_name(switch_var_prefix, &func_name, switch_id);
 
     // Desugar the switch expression
     let desugared_switch_expr = desugar_expr(context, switch_expr)?;
@@ -620,11 +629,7 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
     // Name for the expression temp (for enum switches) or value temp (for non-enum)
     let switch_expr_var_name = if is_enum_switch {
-        if !func_name.is_empty() {
-            format!("_switch_expr_{}_{}", func_name, switch_id)
-        } else {
-            format!("_switch_expr_{}", switch_id)
-        }
+        make_temp_name("_switch_expr", &func_name, switch_id)
     } else {
         switch_var_name.clone()
     };
@@ -860,14 +865,12 @@ fn build_case_condition(
                 let actual_type_name = if info.type_name.is_empty() { enum_type_name.to_string() } else { info.type_name.clone() };
                 let variant_str = format!("{}.{}", actual_type_name, info.variant_name);
                 Ok((build_str_eq_call(switch_var_name, &variant_str, line, col), vec![], None, None))
-            } else if is_enum_switch {
-                // Enum switch with variable case: eq(_switch_variant, enum_to_str(case_val))
-                let case_val_str = make_call("enum_to_str", vec![case_pattern.clone()], line, col);
-                let condition = make_call("eq", vec![make_id(switch_var_name, line, col), case_val_str], line, col);
-                Ok((condition, vec![], None, None))
             } else {
-                // Non-enum: eq(_switch_val, case_val)
-                let condition = make_call("eq", vec![make_id(switch_var_name, line, col), case_pattern.clone()], line, col);
+                let condition = if is_enum_switch {
+                    build_enum_eq_condition(switch_var_name, case_pattern, line, col)
+                } else {
+                    build_eq_condition(switch_var_name, case_pattern, line, col)
+                };
                 Ok((condition, vec![], None, None))
             }
         },
@@ -915,27 +918,22 @@ fn build_case_condition(
                 }
 
                 Ok((outer_condition, vec![], None, None))
-            } else if is_enum_switch {
-                // Enum switch with computed case value: eq(_switch_variant, enum_to_str(case_val))
-                let case_val_str = make_call("enum_to_str", vec![case_pattern.clone()], line, col);
-                let condition = make_call("eq", vec![make_id(switch_var_name, line, col), case_val_str], line, col);
-                Ok((condition, vec![], None, None))
             } else {
-                // Computed case value: eq(_switch_val, case_val)
-                let condition = make_call("eq", vec![make_id(switch_var_name, line, col), case_pattern.clone()], line, col);
+                let condition = if is_enum_switch {
+                    build_enum_eq_condition(switch_var_name, case_pattern, line, col)
+                } else {
+                    build_eq_condition(switch_var_name, case_pattern, line, col)
+                };
                 Ok((condition, vec![], None, None))
             }
         },
         _ => {
-            // Fallback
-            if is_enum_switch {
-                let case_val_str = make_call("enum_to_str", vec![case_pattern.clone()], line, col);
-                let condition = make_call("eq", vec![make_id(switch_var_name, line, col), case_val_str], line, col);
-                Ok((condition, vec![], None, None))
+            let condition = if is_enum_switch {
+                build_enum_eq_condition(switch_var_name, case_pattern, line, col)
             } else {
-                let condition = make_call("eq", vec![make_id(switch_var_name, line, col), case_pattern.clone()], line, col);
-                Ok((condition, vec![], None, None))
-            }
+                build_eq_condition(switch_var_name, case_pattern, line, col)
+            };
+            Ok((condition, vec![], None, None))
         },
     }
 }

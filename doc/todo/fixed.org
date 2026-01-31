@@ -4517,11 +4517,11 @@ The switch desugaring causes a benchmark regression due to generating more code:
 
 | Mode | Before | After (final) | Change |
 |------|--------|---------------|--------|
-| rust interpreted | 169.7s | 210.5s | +24% |
-| rust compiled | 4.4s | 4.1s | -7% |
-| til interpreted | 380.7s | 540.1s | +42% |
-| til compiled | 15.4s | 24.7s | +60% |
-| Total | 570.3s | 779.5s | +37% |
+| rust interpreted | 169.7s | 214.1s | +26% |
+| rust compiled | 4.4s | 4.4s | -1% |
+| til interpreted | 380.7s | 547.2s | +44% |
+| til compiled | 15.4s | 25.4s | +65% |
+| Total | 570.3s | 791.1s | +39% |
 
 Trade-off: simpler code in interpreter/ccodegen/precomp at cost of runtime performance.
 Future optimization: could add fast-path for enum switches avoiding string comparison.
@@ -4530,12 +4530,12 @@ Future optimization: could add fast-path for enum switches avoiding string compa
 
 | Language | Files | Added | Removed | Net |
 |----------|-------|-------|---------|-----|
-| Rust     | 7     | +1018 | -1280   | -262 |
-| TIL      | 7     | +1645 | -1380   | +265 |
-| C        | 1     | +42682 | -37392 | +5290 |
+| Rust     | 7     | +1016 | -1280   | -264 |
+| TIL      | 7     | +1611 | -1380   | +231 |
+| C        | 1     | +42621 | -37392 | +5229 |
 
 Note: C changes are in bootstrap/til.c (generated from TIL self-hosted compiler).
-Net effect: Rust has 262 fewer lines, TIL has 265 more lines (+3 source lines).
+Net effect: Rust -264 lines, TIL +231 lines = -33 source lines total.
 
 *** Desugarer vs Old Ccodegen Size Analysis
 
