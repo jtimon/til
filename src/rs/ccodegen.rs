@@ -1437,11 +1437,11 @@ fn emit_fcall_arg_string(
                 if is_type_var {
                     // Bug #97: Use type-mangled name for Type variable reference
                     let c_var_name = til_var_name_from_context(type_name, context);
-                    result.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1}}), strlen({}), 0}})",
+                    result.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), strlen({}), 0}})",
                         TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name
-                    result.push_str(&format!("(({}Str){{(({}Ptr){{({}I64)\"{}\", 1}}), {}, 0}})",
+                    result.push_str(&format!("(({}Str){{(({}Ptr){{({}I64)\"{}\", 1, 0, 0, 0}}), {}, 0}})",
                         TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, type_name, type_name.len()));
                 }
             } else {
@@ -1530,15 +1530,15 @@ fn emit_fcall_arg_string(
                     // Type variable - already a const char*, wrap in Str struct literal
                     // Bug #97: Use type-mangled name for Type variable reference
                     let c_var_name = til_var_name_from_context(type_name, context);
-                    return Ok(format!("(({}Str){{(({}Ptr){{({}I64){}, 1}}), strlen({}), 0}})",
+                    return Ok(format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), strlen({}), 0}})",
                         TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name - create Str compound literal
-                    return Ok(format!("(({}Str){{(({}Ptr){{({}I64)\"{}\", 1}}), {}, 0}})",
+                    return Ok(format!("(({}Str){{(({}Ptr){{({}I64)\"{}\", 1, 0, 0, 0}}), {}, 0}})",
                         TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, type_name, type_name.len()));
                 }
             } else {
-                return Ok(format!("(({}Str){{(({}Ptr){{({}I64)\"unknown\", 1}}), 7, 0}})",
+                return Ok(format!("(({}Str){{(({}Ptr){{({}I64)\"unknown\", 1, 0, 0, 0}}), 7, 0}})",
                     TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
             }
         },
@@ -1986,7 +1986,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             // Skip argv[0] (exe path) to match interpreter behavior
             output.push_str("    til_Array _main_args = til_Array_new(\"Str\", &(til_I64){argc - 1});\n");
             output.push_str("    for (int i = 1; i < argc; i++) {\n");
-            output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1}), strlen(argv[i]), 0};\n");
+            output.push_str("        til_Str _arg = {((til_Ptr){(til_I64)argv[i], 1, 0, 0, 0}), strlen(argv[i]), 0};\n");
             output.push_str("        til_IndexOutOfBoundsError _set_err;\n");
             output.push_str("        til_Array_set(&_set_err, &_main_args, &(til_I64){i - 1}, (til_Dynamic*)&_arg);\n");
             output.push_str("    }\n");
@@ -2633,7 +2633,7 @@ fn emit_precomputed_nested_vec_static(
             output.push_str(TIL_PREFIX);
             output.push_str("I64)");
             output.push_str(&inner_type_names[idx]);
-            output.push_str(", 1}, ._len = ");
+            output.push_str(", 1, 0, 0, 0}, ._len = ");
             // Get inner type name length
             let inner_type_name = EvalArena::extract_str_from_bytes(context, elem_bytes)?;
             output.push_str(&inner_type_name.len().to_string());
@@ -2645,7 +2645,7 @@ fn emit_precomputed_nested_vec_static(
             output.push_str(TIL_PREFIX);
             output.push_str("I64)");
             output.push_str(&inner_data_names[idx]);
-            output.push_str(", 1}, ._len = ");
+            output.push_str(", 1, 0, 0, 0}, ._len = ");
             output.push_str(&len.to_string());
             output.push_str(", .cap = ");
             output.push_str(&cap.to_string());
@@ -2735,7 +2735,7 @@ fn emit_precomputed_vec_str_static(
         output.push_str(var_name);
         output.push_str("_str_");
         output.push_str(&idx.to_string());
-        output.push_str(", 1}, ._len = ");  // is_borrowed = 1 (static string)
+        output.push_str(", 1, 0, 0, 0}, ._len = ");  // is_borrowed = 1 (static string)
         output.push_str(&len.to_string());
         output.push_str(", .cap = 0}");
         if idx + 1 < elem_count {
@@ -2796,7 +2796,7 @@ fn emit_precomputed_vec_assignment(
     output.push_str(TIL_PREFIX);
     output.push_str("I64)");
     output.push_str(&static_info.type_name_array_name);
-    output.push_str(", 1}, ");  // is_borrowed = 1
+    output.push_str(", 1, 0, 0, 0}, ");  // is_borrowed = 1, alloc_size=0, elem_type=0, elem_size=0
     output.push_str(&elem_type.len().to_string());
     output.push_str(", 0},\n");
 
@@ -2814,7 +2814,7 @@ fn emit_precomputed_vec_assignment(
     output.push_str(TIL_PREFIX);
     output.push_str("I64)");
     output.push_str(&static_info.data_array_name);
-    output.push_str(", 1},\n");  // is_borrowed = 1 (static data, don't free)
+    output.push_str(", 1, 0, 0, 0},\n");  // is_borrowed = 1, alloc_size=0, elem_type=0, elem_size=0 (static data, don't free)
 
     // _len field
     output.push_str(&indent_str);
@@ -3089,20 +3089,20 @@ fn emit_enum_to_str_function(enum_name: &str, enum_def: &SEnumDef, output: &mut 
         output.push_str(enum_name);
         output.push_str("_");
         output.push_str(variant);
-        // Use new Str format with Ptr { data, is_borrowed=1 }, len, cap=0
+        // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
         output.push_str(": return ((til_Str){((til_Ptr){(til_I64)\"");
         output.push_str(&full_name);
-        output.push_str("\", 1}), ");
+        output.push_str("\", 1, 0, 0, 0}), ");
         output.push_str(&full_name.len().to_string());
         output.push_str(", 0});\n");
     }
 
     // Default case (shouldn't happen but good for safety)
     let unknown_name = format!("{}.?", original_name);
-    // Use new Str format with Ptr { data, is_borrowed=1 }, len, cap=0
+    // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
     output.push_str("    }\n    return ((til_Str){((til_Ptr){(til_I64)\"");
     output.push_str(&unknown_name);
-    output.push_str("\", 1}), ");
+    output.push_str("\", 1, 0, 0, 0}), ");
     output.push_str(&unknown_name.len().to_string());
     output.push_str(", 0});\n}\n\n");
 }
@@ -6271,9 +6271,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     // Type variable - already a const char*, wrap in Str struct literal
                     // Bug #60: Type is special - passed by value since it's already a pointer
                     // Bug #97: Use type-mangled name for Type variable reference
-                    // Use new Str format with Ptr { data, is_borrowed=1 }, len, cap=0
+                    // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
                     let c_var_name = til_var_name_from_context(type_name, context);
-                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1}}), strlen({}), 0}})",
+                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), strlen({}), 0}})",
                         TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name - create Str compound literal
@@ -6358,9 +6358,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if payload_is_type_var {
                     // Type variable - wrap in Str struct literal
                     // Bug #97: Use type-mangled name for Type variable reference
-                    // Use new Str format with Ptr { data, is_borrowed=1 }, len, cap=0
+                    // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
                     let c_var_name = til_var_name_from_context(payload_type_name, context);
-                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1}}), strlen({}), 0}})",
+                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), strlen({}), 0}})",
                         TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name - create Str compound literal
@@ -6398,9 +6398,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     // Type variable - already a const char*, wrap in Str struct literal
                     // Bug #60: Type is special - passed by value since it's already a pointer
                     // Bug #97: Use type-mangled name for Type variable reference
-                    // Use new Str format with Ptr { data, is_borrowed=1 }, len, cap=0
+                    // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
                     let c_var_name = til_var_name_from_context(type_name, context);
-                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1}}), strlen({}), 0}})",
+                    output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64){}, 1, 0, 0, 0}}), strlen({}), 0}})",
                         TIL_PREFIX, TIL_PREFIX, TIL_PREFIX, c_var_name, c_var_name));
                 } else {
                     // Literal type name - create Str compound literal
@@ -6409,10 +6409,10 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             } else {
                 // Not an identifier - emit as expression (should be Type/const char*)
                 // Bug #60: emit_expr will dereference Type params via (*til_name)
-                // Use new Str format with Ptr { data, is_borrowed=1 }, len, cap=0
+                // Use new Str format with Ptr { data, is_borrowed, alloc_size, elem_type, elem_size }, len, cap=0
                 output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64)", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
                 emit_expr(&expr.params[1], output, 0, ctx, context)?;
-                output.push_str(", 1}), strlen(");
+                output.push_str(", 1, 0, 0, 0}), strlen(");
                 emit_expr(&expr.params[1], output, 0, ctx, context)?;
                 output.push_str("), 0})");
             }
@@ -6749,7 +6749,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 // Emit a Str literal as a compound literal
 // is_borrowed=1 for string literals (they point to static .rodata, don't free)
 fn emit_str_literal(s: &str, output: &mut String) {
-    // Str { c_string: Ptr { data: I64, is_borrowed: I64 }, _len: I64, cap: I64 }
+    // Str { c_string: Ptr { data: I64, is_borrowed: I64, alloc_size: I64, elem_type: I64, elem_size: I64 }, _len: I64, cap: I64 }
     output.push_str(&format!("(({}Str){{(({}Ptr){{({}I64)\"", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
     // Escape special characters for C string literals
     for c in s.chars() {
@@ -6763,8 +6763,8 @@ fn emit_str_literal(s: &str, output: &mut String) {
             _ => output.push(c),
         }
     }
-    // Close Ptr (data, is_borrowed=1), then Str (c_string, _len, cap=0 for literals)
-    output.push_str(&format!("\", 1}}), {}, 0}})", s.len()));
+    // Close Ptr (data, is_borrowed=1, alloc_size=0, elem_type=0, elem_size=0), then Str (c_string, _len, cap=0 for literals)
+    output.push_str(&format!("\", 1, 0, 0, 0}}), {}, 0}})", s.len()));
 }
 
 fn emit_literal(lit: &Literal, output: &mut String, context: &Context) -> Result<(), String> {

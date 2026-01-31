@@ -2,10 +2,14 @@ mode lib
 
 import("core.mem")
 
-/** Ptr - Pointer type wrapping a raw memory address. */
+/** Ptr - Pointer type wrapping a raw memory address with type info for deep cloning. */
 Ptr := struct {
     mut data: I64 = NULL
     mut is_borrowed: I64 = 0  // 0 = owned, 1 = borrowed (don't free)
+    // Dynamic type info for deep cloning (Bug #159)
+    mut alloc_size: I64 = 0   // Total bytes allocated
+    mut elem_type: I64 = NULL // Ptr to null-terminated type name C string (avoids Str circular dep)
+    mut elem_size: I64 = 0    // Bytes per element (0 = single value, not array)
 
     // TODO FIX should type error because size is already declared
     size_of := func() returns I64 { return size_of(I64) }
@@ -21,11 +25,25 @@ Ptr := struct {
         mut p := Ptr()
         p.data = malloc(size)?
         catch (err: BadAlloc) { panic(loc(), "Ptr.new_by_size: malloc failed") }
+        p.alloc_size = size
         return p
     }
 
     new := proc(T: Type) returns Ptr {
-        return Ptr.new_by_size(size_of(T))
+        mut p := Ptr.new_by_size(size_of(T))
+        p.elem_size = size_of(T)
+        // elem_type must be set by caller if deep cloning is needed
+        return p
+    }
+
+    /** Create a Ptr for an array of elements. */
+    new_array := proc(T: Type, count: I64) returns Ptr {
+        elem_sz := size_of(T)
+        total := elem_sz.mul(count)
+        mut p := Ptr.new_by_size(total)
+        p.elem_size = elem_sz
+        // elem_type must be set by caller if deep cloning is needed
+        return p
     }
 
     delete := proc(mut self: Ptr) {
@@ -39,19 +57,35 @@ Ptr := struct {
         self.data = NULL
     }
 
-    clone := func(self: Ptr) returns Ptr {
-        // Shallow clone - copies the pointer value, not the pointed-to data.
-        // The clone is marked as borrowed to prevent double-free.
-        mut p := Ptr()
-        p.data = self.data
-        p.is_borrowed = 1
-        return p
+    clone := proc(self: Ptr) returns Ptr {
+        // Deep clone - allocates new memory and copies data.
+        // For element-wise deep cloning (calling elem.clone()), use clone_deep().
+        if NULL.eq(self.data) {
+            return Ptr()
+        }
+        if self.alloc_size.lteq(0) {
+            // No size info - fall back to borrowed shallow clone
+            mut borrowed := Ptr()
+            borrowed.data = self.data
+            borrowed.is_borrowed = 1
+            return borrowed
+        }
+        // Allocate new memory and copy bytes
+        mut cloned := Ptr.new_by_size(self.alloc_size)
+        cloned.elem_type = self.elem_type  // Just copy the C string pointer (static/interned)
+        cloned.elem_size = self.elem_size
+        memcpy(cloned.data, self.data, self.alloc_size)
+        return cloned
     }
 
     /** Ptr.offset is danger-ous, also known as "pointer arythmetics". */
-    offset := proc(self: Ptr, offset: I64) returns Ptr {
+    offset := proc(self: Ptr, byte_offset: I64) returns Ptr {
         mut p := Ptr()
-        p.data = self.data.add(offset)
+        p.data = self.data.add(byte_offset)
+        p.is_borrowed = 1  // Offset pointers don't own the memory
+        p.elem_type = self.elem_type  // Just copy the C string pointer
+        p.elem_size = self.elem_size
+        // alloc_size not set - offset ptr doesn't know remaining size
         return p
     }
 

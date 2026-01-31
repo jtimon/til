@@ -60,6 +60,14 @@ Vec := struct {
         return vec
     }
 
+    /** Internal: allocate a Ptr with Vec's type info for deep cloning support. */
+    _alloc_ptr := proc(mut self: Vec, capacity: I64) returns Ptr {
+        mut p := Ptr.new_by_size(capacity.mul(self.type_size))
+        p.elem_type = self.type_name.c_string.data
+        p.elem_size = self.type_size
+        return p
+    }
+
     /** Create new empty vec with pre-allocated capacity.
      *  Use when you know approximately how many elements you'll need. */
     with_capacity := proc(T: Type, capacity: I64) returns Vec {
@@ -72,7 +80,7 @@ Vec := struct {
             if capacity.gt(Vec.MAX_CAP) {
                 panic(loc(), "Vec.with_capacity: capacity exceeded Vec.MAX_CAP")
             }
-            vec.ptr = Ptr.new_by_size(capacity.mul(vec.type_size))
+            vec.ptr = vec._alloc_ptr(capacity)
         } else {
             vec.ptr = Ptr()
         }
@@ -95,7 +103,7 @@ Vec := struct {
                 panic(loc(), "Vec.push: capacity exceeded Vec.MAX_CAP")
             }
 
-            mut new_ptr := Ptr.new_by_size(new_cap.mul(self.type_size))
+            mut new_ptr := self._alloc_ptr(new_cap)
             if self._len.gt(0) {
                 new_ptr.copy_from(self.ptr, self._len.mul(self.type_size))
             }
@@ -163,15 +171,17 @@ Vec := struct {
         self.cap = 0
     }
 
-    /** Clone the vec (allocates new memory, copies elements). */
-    clone := func(self: Vec) returns Vec {
+    /** Clone the vec (allocates new memory, copies elements byte-wise).
+     *  Note: This is a shallow clone of elements - nested Ptrs will share data.
+     *  For deep cloning, use clone_deep() once interpreter support is added. */
+    clone := proc(self: Vec) returns Vec {
         mut cloned := Vec()
-        cloned.type_name = self.type_name
+        cloned.type_name = self.type_name.clone()
         cloned.type_size = self.type_size
         cloned._len = self._len
         cloned.cap = self.cap
         if self.cap.gt(0) {
-            cloned.ptr = Ptr.new_by_size(self.cap.mul(self.type_size))
+            cloned.ptr = cloned._alloc_ptr(self.cap)
             if self._len.gt(0) {
                 cloned.ptr.copy_from(self.ptr, self._len.mul(self.type_size))
             }
@@ -197,7 +207,7 @@ Vec := struct {
                 if new_cap.gt(Vec.MAX_CAP) {
                     panic(loc(), "Vec.extend: capacity exceeded Vec.MAX_CAP")
                 }
-                mut new_ptr := Ptr.new_by_size(new_cap.mul(self.type_size))
+                mut new_ptr := self._alloc_ptr(new_cap)
                 if self._len.gt(0) {
                     new_ptr.copy_from(self.ptr, self._len.mul(self.type_size))
                 }
