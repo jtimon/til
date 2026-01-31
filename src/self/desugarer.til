@@ -7,6 +7,74 @@ import("self.parser")
 // and Switch statements to if/else chains.
 // This phase runs after typer, before precomp.
 
+// ============================================================================
+// AST Construction Helpers
+// These reduce verbosity when building AST nodes during desugaring
+// ============================================================================
+
+/// Create an identifier expression
+make_id := func(name: Str, line: I64, col: I64) returns Expr {
+    return Expr.new_explicit(NodeType.Identifier(name), Vec.new(Expr), line, col)
+}
+
+/// Create a function call: name(args...)
+make_call := func(name: Str, args: Vec, line: I64, col: I64) returns Expr {
+    mut params := Vec.new(Expr)
+    params.push(make_id(name, line, col))
+    for arg: Expr in args { params.push(arg) }
+    return Expr.new_explicit(NodeType.FCall(false), params, line, col)
+}
+
+/// Create a string literal
+make_str := func(s: Str, line: I64, col: I64) returns Expr {
+    return Expr.new_explicit(NodeType.LLiteral(Literal.Str(s)), Vec.new(Expr), line, col)
+}
+
+/// Create a number literal
+make_num := func(n: Str, line: I64, col: I64) returns Expr {
+    return Expr.new_explicit(NodeType.LLiteral(Literal.Number(n)), Vec.new(Expr), line, col)
+}
+
+/// Create a body block
+make_body := func(stmts: Vec, line: I64, col: I64) returns Expr {
+    return Expr.new_explicit(NodeType.Body, stmts, line, col)
+}
+
+/// Create an if expression (with optional else via else_body_ptr)
+make_if := func(cond: Expr, then_body: Expr, else_body_ptr: Ptr, line: I64, col: I64) returns Expr {
+    mut params := Vec.new(Expr)
+    params.push(cond)
+    params.push(then_body)
+    if not(else_body_ptr.is_null()) {
+        mut else_body := Expr()
+        else_body_ptr.dereference(Expr, else_body)
+        params.push(else_body)
+    }
+    return Expr.new_explicit(NodeType.If, params, line, col)
+}
+
+/// Create a variable declaration with initializer
+make_decl := func(name: Str, value_type: ValueType, is_mut: Bool, init: Expr, line: I64, col: I64) returns Expr {
+    decl := Declaration(name=name, value_type=value_type, is_mut=is_mut, is_copy=false, is_own=false)
+    mut params := Vec.new(Expr)
+    params.push(init)
+    return Expr.new_explicit(NodeType.Declaration(decl), params, line, col)
+}
+
+/// Create an assignment statement
+make_assign := func(name: Str, value: Expr, line: I64, col: I64) returns Expr {
+    mut params := Vec.new(Expr)
+    params.push(value)
+    return Expr.new_explicit(NodeType.Assignment(name), params, line, col)
+}
+
+/// Create an identifier with nested field access: name.field1.field2...
+make_field_access := func(name: Str, fields: Vec, line: I64, col: I64) returns Expr {
+    mut field_params := Vec.new(Expr)
+    for field: Str in fields { field_params.push(make_id(field, line, col)) }
+    return Expr.new_explicit(NodeType.Identifier(name), field_params, line, col)
+}
+
 /// Helper struct for variant info extraction
 VariantInfo := struct {
     mut type_name: Str = ""
@@ -534,16 +602,12 @@ infer_switch_type_from_cases := func(e: Expr) returns Ptr throws Str {
     return Ptr() // NULL - couldn't infer
 }
 
-/// Build: Str.eq(var_name, literal_str)
-/// This is UFCS form that will be resolved to Str.eq(_switch_variant, "Type.Variant")
+/// Build: eq(var_name, "literal_str")
 build_str_eq_call := func(var_name: Str, literal_str: Str, line: I64, col: I64) returns Expr {
-    // Build: eq(_switch_variant, "Type.Variant")
-    // The UFCS phase will transform this to Str.eq if needed
-    mut fcall_params := Vec.new(Expr)
-    fcall_params.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), line, col))
-    fcall_params.push(Expr.new_explicit(NodeType.Identifier(var_name), Vec.new(Expr), line, col))
-    fcall_params.push(Expr.new_explicit(NodeType.LLiteral(Literal.Str(literal_str)), Vec.new(Expr), line, col))
-    return Expr.new_explicit(NodeType.FCall(false), fcall_params, line, col)
+    mut args := Vec.new(Expr)
+    args.push(make_id(var_name, line, col))
+    args.push(make_str(literal_str, line, col))
+    return make_call("eq", args, line, col)
 }
 
 /// Build the condition expression and any body prefix for a case pattern
@@ -645,12 +709,11 @@ build_case_condition := proc(
                 payload_type_name = name
             case:
             }
-            mut get_payload_params := Vec.new(Expr)
-            get_payload_params.push(Expr.new_explicit(NodeType.Identifier("enum_get_payload"), Vec.new(Expr), line, col))
-            get_payload_params.push(Expr.new_explicit(NodeType.Identifier(switch_expr_var_name), Vec.new(Expr), line, col))
-            get_payload_params.push(Expr.new_explicit(NodeType.Identifier(payload_type_name), Vec.new(Expr), line, col))
-            get_payload_params.push(Expr.new_explicit(NodeType.Identifier(unique_name), Vec.new(Expr), line, col))
-            get_payload_call := Expr.new_explicit(NodeType.FCall(false), get_payload_params, line, col)
+            mut get_payload_args := Vec.new(Expr)
+            get_payload_args.push(make_id(switch_expr_var_name, line, col))
+            get_payload_args.push(make_id(payload_type_name, line, col))
+            get_payload_args.push(make_id(unique_name, line, col))
+            get_payload_call := make_call("enum_get_payload", get_payload_args, line, col)
             body_prefix.push(get_payload_call)
 
             // Return rename pair so caller can rename references in the case body
@@ -671,25 +734,22 @@ build_case_condition := proc(
         case_pattern.params.get(1, high)?
 
         // Build: gteq(_switch_val, low)
-        mut gteq_params := Vec.new(Expr)
-        gteq_params.push(Expr.new_explicit(NodeType.Identifier("gteq"), Vec.new(Expr), line, col))
-        gteq_params.push(Expr.new_explicit(NodeType.Identifier(switch_var_name), Vec.new(Expr), line, col))
-        gteq_params.push(low)
-        gteq_call := Expr.new_explicit(NodeType.FCall(false), gteq_params, line, col)
+        mut gteq_args := Vec.new(Expr)
+        gteq_args.push(make_id(switch_var_name, line, col))
+        gteq_args.push(low)
+        gteq_call := make_call("gteq", gteq_args, line, col)
 
         // Build: lteq(_switch_val, high)
-        mut lteq_params := Vec.new(Expr)
-        lteq_params.push(Expr.new_explicit(NodeType.Identifier("lteq"), Vec.new(Expr), line, col))
-        lteq_params.push(Expr.new_explicit(NodeType.Identifier(switch_var_name), Vec.new(Expr), line, col))
-        lteq_params.push(high)
-        lteq_call := Expr.new_explicit(NodeType.FCall(false), lteq_params, line, col)
+        mut lteq_args := Vec.new(Expr)
+        lteq_args.push(make_id(switch_var_name, line, col))
+        lteq_args.push(high)
+        lteq_call := make_call("lteq", lteq_args, line, col)
 
         // Build: and(gteq_call, lteq_call)
-        mut and_params := Vec.new(Expr)
-        and_params.push(Expr.new_explicit(NodeType.Identifier("and"), Vec.new(Expr), line, col))
-        and_params.push(gteq_call)
-        and_params.push(lteq_call)
-        condition = Expr.new_explicit(NodeType.FCall(false), and_params, line, col)
+        mut and_args := Vec.new(Expr)
+        and_args.push(gteq_call)
+        and_args.push(lteq_call)
+        condition = make_call("and", and_args, line, col)
         return
 
     case NodeType.Identifier(_):
@@ -712,34 +772,30 @@ build_case_condition := proc(
             // Enum switch with variable case: case some_var:
             // Need to compare using enum_to_str on the case value too
             // Build: eq(_switch_variant, enum_to_str(case_val))
-            mut enum_to_str_params := Vec.new(Expr)
-            enum_to_str_params.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), line, col))
-            enum_to_str_params.push(case_pattern.clone())
-            case_val_str := Expr.new_explicit(NodeType.FCall(false), enum_to_str_params, line, col)
+            mut enum_to_str_args := Vec.new(Expr)
+            enum_to_str_args.push(case_pattern.clone())
+            case_val_str := make_call("enum_to_str", enum_to_str_args, line, col)
 
-            mut eq_params := Vec.new(Expr)
-            eq_params.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), line, col))
-            eq_params.push(Expr.new_explicit(NodeType.Identifier(switch_var_name), Vec.new(Expr), line, col))
-            eq_params.push(case_val_str)
-            condition = Expr.new_explicit(NodeType.FCall(false), eq_params, line, col)
+            mut eq_args := Vec.new(Expr)
+            eq_args.push(make_id(switch_var_name, line, col))
+            eq_args.push(case_val_str)
+            condition = make_call("eq", eq_args, line, col)
             return
         }
         // Non-enum value comparison: case val:
         // Condition: eq(_switch_val, case_val)
-        mut eq_params := Vec.new(Expr)
-        eq_params.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), line, col))
-        eq_params.push(Expr.new_explicit(NodeType.Identifier(switch_var_name), Vec.new(Expr), line, col))
-        eq_params.push(case_pattern.clone())
-        condition = Expr.new_explicit(NodeType.FCall(false), eq_params, line, col)
+        mut eq_args := Vec.new(Expr)
+        eq_args.push(make_id(switch_var_name, line, col))
+        eq_args.push(case_pattern.clone())
+        condition = make_call("eq", eq_args, line, col)
         return
 
     case NodeType.LLiteral(_):
         // Literal value case: case 1: or case "foo":
-        mut eq_params := Vec.new(Expr)
-        eq_params.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), line, col))
-        eq_params.push(Expr.new_explicit(NodeType.Identifier(switch_var_name), Vec.new(Expr), line, col))
-        eq_params.push(case_pattern.clone())
-        condition = Expr.new_explicit(NodeType.FCall(false), eq_params, line, col)
+        mut eq_args := Vec.new(Expr)
+        eq_args.push(make_id(switch_var_name, line, col))
+        eq_args.push(case_pattern.clone())
+        condition = make_call("eq", eq_args, line, col)
         return
 
     case NodeType.FCall(_):
@@ -817,12 +873,11 @@ build_case_condition := proc(
                         body_prefix.push(binding_decl_expr)
 
                         // Build: enum_get_payload(_switch_expr, Type, _inner_payload_N)
-                        mut extract_params := Vec.new(Expr)
-                        extract_params.push(Expr.new_explicit(NodeType.Identifier("enum_get_payload"), Vec.new(Expr), line, col))
-                        extract_params.push(Expr.new_explicit(NodeType.Identifier(switch_expr_var_name), Vec.new(Expr), line, col))
-                        extract_params.push(Expr.new_explicit(NodeType.Identifier(inner_type_name), Vec.new(Expr), line, col))
-                        extract_params.push(Expr.new_explicit(NodeType.Identifier(inner_var_name), Vec.new(Expr), line, col))
-                        extract_call := Expr.new_explicit(NodeType.FCall(false), extract_params, line, col)
+                        mut extract_args := Vec.new(Expr)
+                        extract_args.push(make_id(switch_expr_var_name, line, col))
+                        extract_args.push(make_id(inner_type_name, line, col))
+                        extract_args.push(make_id(inner_var_name, line, col))
+                        extract_call := make_call("enum_get_payload", extract_args, line, col)
                         body_prefix.push(extract_call)
 
                         // 3. Build inner_condition: enum_to_str(_inner_var).eq("InnerType.InnerVariant")
@@ -835,16 +890,14 @@ build_case_condition := proc(
                         inner_variant_str := format(inner_actual_type, ".", inner_info.variant_name)
 
                         // Build: eq(enum_to_str(_inner_var), "InnerType.InnerVariant")
-                        mut inner_enum_to_str_params := Vec.new(Expr)
-                        inner_enum_to_str_params.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), line, col))
-                        inner_enum_to_str_params.push(Expr.new_explicit(NodeType.Identifier(inner_var_name), Vec.new(Expr), line, col))
-                        inner_enum_to_str := Expr.new_explicit(NodeType.FCall(false), inner_enum_to_str_params, line, col)
+                        mut inner_enum_to_str_args := Vec.new(Expr)
+                        inner_enum_to_str_args.push(make_id(inner_var_name, line, col))
+                        inner_enum_to_str := make_call("enum_to_str", inner_enum_to_str_args, line, col)
 
-                        mut inner_eq_params := Vec.new(Expr)
-                        inner_eq_params.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), line, col))
-                        inner_eq_params.push(inner_enum_to_str)
-                        inner_eq_params.push(Expr.new_explicit(NodeType.LLiteral(Literal.Str(inner_variant_str)), Vec.new(Expr), line, col))
-                        inner_condition = Expr.new_explicit(NodeType.FCall(false), inner_eq_params, line, col)
+                        mut inner_eq_args := Vec.new(Expr)
+                        inner_eq_args.push(inner_enum_to_str)
+                        inner_eq_args.push(make_str(inner_variant_str, line, col))
+                        inner_condition = make_call("eq", inner_eq_args, line, col)
                         has_inner_condition = true
 
                         condition = outer_condition
@@ -862,49 +915,43 @@ build_case_condition := proc(
         if is_enum_switch {
             // Enum switch with computed case value (returns enum)
             // Build: eq(_switch_variant, enum_to_str(case_val))
-            mut enum_to_str_params := Vec.new(Expr)
-            enum_to_str_params.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), line, col))
-            enum_to_str_params.push(case_pattern.clone())
-            case_val_str := Expr.new_explicit(NodeType.FCall(false), enum_to_str_params, line, col)
+            mut enum_to_str_args := Vec.new(Expr)
+            enum_to_str_args.push(case_pattern.clone())
+            case_val_str := make_call("enum_to_str", enum_to_str_args, line, col)
 
-            mut eq_params := Vec.new(Expr)
-            eq_params.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), line, col))
-            eq_params.push(Expr.new_explicit(NodeType.Identifier(switch_var_name), Vec.new(Expr), line, col))
-            eq_params.push(case_val_str)
-            condition = Expr.new_explicit(NodeType.FCall(false), eq_params, line, col)
+            mut eq_args := Vec.new(Expr)
+            eq_args.push(make_id(switch_var_name, line, col))
+            eq_args.push(case_val_str)
+            condition = make_call("eq", eq_args, line, col)
             return
         }
         // Computed case value: case func():
         // Condition: eq(_switch_val, case_val)
-        mut eq_params := Vec.new(Expr)
-        eq_params.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), line, col))
-        eq_params.push(Expr.new_explicit(NodeType.Identifier(switch_var_name), Vec.new(Expr), line, col))
-        eq_params.push(case_pattern.clone())
-        condition = Expr.new_explicit(NodeType.FCall(false), eq_params, line, col)
+        mut eq_args := Vec.new(Expr)
+        eq_args.push(make_id(switch_var_name, line, col))
+        eq_args.push(case_pattern.clone())
+        condition = make_call("eq", eq_args, line, col)
         return
 
     case:
         // Fallback: depends on whether it's an enum switch
         if is_enum_switch {
             // Enum switch - wrap case value in enum_to_str
-            mut enum_to_str_params := Vec.new(Expr)
-            enum_to_str_params.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), line, col))
-            enum_to_str_params.push(case_pattern.clone())
-            case_val_str := Expr.new_explicit(NodeType.FCall(false), enum_to_str_params, line, col)
+            mut enum_to_str_args := Vec.new(Expr)
+            enum_to_str_args.push(case_pattern.clone())
+            case_val_str := make_call("enum_to_str", enum_to_str_args, line, col)
 
-            mut eq_params := Vec.new(Expr)
-            eq_params.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), line, col))
-            eq_params.push(Expr.new_explicit(NodeType.Identifier(switch_var_name), Vec.new(Expr), line, col))
-            eq_params.push(case_val_str)
-            condition = Expr.new_explicit(NodeType.FCall(false), eq_params, line, col)
+            mut eq_args := Vec.new(Expr)
+            eq_args.push(make_id(switch_var_name, line, col))
+            eq_args.push(case_val_str)
+            condition = make_call("eq", eq_args, line, col)
             return
         }
         // Non-enum: simple equality comparison
-        mut eq_params := Vec.new(Expr)
-        eq_params.push(Expr.new_explicit(NodeType.Identifier("eq"), Vec.new(Expr), line, col))
-        eq_params.push(Expr.new_explicit(NodeType.Identifier(switch_var_name), Vec.new(Expr), line, col))
-        eq_params.push(case_pattern.clone())
-        condition = Expr.new_explicit(NodeType.FCall(false), eq_params, line, col)
+        mut eq_args := Vec.new(Expr)
+        eq_args.push(make_id(switch_var_name, line, col))
+        eq_args.push(case_pattern.clone())
+        condition = make_call("eq", eq_args, line, col)
         return
     }
 
@@ -1158,28 +1205,11 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
     // For enum switches, add second declaration: _switch_variant := enum_to_str(_switch_expr)
     if is_enum_switch {
-        mut enum_to_str_params := Vec.new(Expr)
-        enum_to_str_params.push(Expr.new_explicit(NodeType.Identifier("enum_to_str"), Vec.new(Expr), line, col))
-        enum_to_str_params.push(Expr.new_explicit(NodeType.Identifier(switch_expr_var_name), Vec.new(Expr), line, col))
-        enum_to_str_call := Expr.new_explicit(NodeType.FCall(false), enum_to_str_params, line, col)
+        mut enum_to_str_args := Vec.new(Expr)
+        enum_to_str_args.push(make_id(switch_expr_var_name, line, col))
+        enum_to_str_call := make_call("enum_to_str", enum_to_str_args, line, col)
 
-        switch_variant_decl := Declaration(
-            name=switch_var_name,
-            value_type=str_to_value_type("Str"),
-            is_mut=false,
-            is_copy=false,
-            is_own=false,
-            default_value=Ptr()
-        )
-        mut switch_variant_decl_params := Vec.new(Expr)
-        switch_variant_decl_params.push(enum_to_str_call)
-        switch_variant_decl_expr := Expr.new_explicit(
-            NodeType.Declaration(switch_variant_decl),
-            switch_variant_decl_params,
-            line,
-            col
-        )
-        decl_exprs.push(switch_variant_decl_expr)
+        decl_exprs.push(make_decl(switch_var_name, str_to_value_type("Str"), false, enum_to_str_call, line, col))
     }
 
     // Build the if/else chain from cases
@@ -1289,7 +1319,7 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
     if has_default {
         default_expr = default_body
     } else {
-        default_expr = Expr.new_explicit(NodeType.Body, Vec.new(Expr), line, col) // Empty body if no default
+        default_expr = make_body(Vec.new(Expr), line, col) // Empty body if no default
     }
 
     // Process cases
@@ -1309,23 +1339,7 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         }
 
         // Declare match flag: mut _switch_matched := false
-        match_flag_decl := Declaration(
-            name=match_flag_name,
-            value_type=ValueType.TCustom("Bool"),
-            is_mut=true,
-            is_copy=false,
-            is_own=false,
-            default_value=Ptr()
-        )
-        mut match_flag_init_params := Vec.new(Expr)
-        match_flag_init_params.push(Expr.new_explicit(NodeType.Identifier("false"), Vec.new(Expr), line, col))
-        match_flag_init := Expr.new_explicit(
-            NodeType.Declaration(match_flag_decl),
-            match_flag_init_params,
-            line,
-            col
-        )
-        stmts.push(match_flag_init)
+        stmts.push(make_decl(match_flag_name, ValueType.TCustom("Bool"), true, make_id("false", line, col), line, col))
 
         mut case_index := 0
         while case_index.lt(total_cases) {
@@ -1367,15 +1381,12 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
             }
 
             // Build: not(_switch_matched)
-            mut not_matched_params := Vec.new(Expr)
-            not_matched_params.push(Expr.new_explicit(NodeType.Identifier("not"), Vec.new(Expr), line, col))
-            not_matched_params.push(Expr.new_explicit(NodeType.Identifier(match_flag_name), Vec.new(Expr), line, col))
-            not_matched := Expr.new_explicit(NodeType.FCall(false), not_matched_params, line, col)
+            mut not_args := Vec.new(Expr)
+            not_args.push(make_id(match_flag_name, line, col))
+            not_matched := make_call("not", not_args, line, col)
 
             // Build: _switch_matched = true
-            mut set_matched_params := Vec.new(Expr)
-            set_matched_params.push(Expr.new_explicit(NodeType.Identifier("true"), Vec.new(Expr), line, col))
-            set_matched := Expr.new_explicit(NodeType.Assignment(match_flag_name), set_matched_params, line, col)
+            set_matched := make_assign(match_flag_name, make_id("true", line, col), line, col)
 
             if has_inner_condition {
                 // Nested pattern: if !matched && outer { prefix; if inner { matched = true; body } }
@@ -1393,11 +1404,8 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 case:
                     inner_body_params.push(renamed_case_body)
                 }
-                inner_body := Expr.new_explicit(NodeType.Body, inner_body_params, line, col)
-                mut inner_if_params := Vec.new(Expr)
-                inner_if_params.push(inner_condition)
-                inner_if_params.push(inner_body)
-                inner_if := Expr.new_explicit(NodeType.If, inner_if_params, line, col)
+                inner_body := make_body(inner_body_params, line, col)
+                inner_if := make_if(inner_condition, inner_body, Ptr(), line, col)
 
                 // Build outer body: body_prefix + inner_if
                 mut outer_body_params := Vec.new(Expr)
@@ -1407,19 +1415,15 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                     outer_body_params.push(pp)
                 }
                 outer_body_params.push(inner_if)
-                outer_body := Expr.new_explicit(NodeType.Body, outer_body_params, line, col)
+                outer_body := make_body(outer_body_params, line, col)
 
                 // Build: and(not(_matched), outer_condition)
-                mut guarded_params := Vec.new(Expr)
-                guarded_params.push(Expr.new_explicit(NodeType.Identifier("and"), Vec.new(Expr), line, col))
-                guarded_params.push(not_matched)
-                guarded_params.push(condition)
-                guarded_condition := Expr.new_explicit(NodeType.FCall(false), guarded_params, line, col)
+                mut guarded_args := Vec.new(Expr)
+                guarded_args.push(not_matched)
+                guarded_args.push(condition)
+                guarded_condition := make_call("and", guarded_args, line, col)
 
-                mut outer_if_params := Vec.new(Expr)
-                outer_if_params.push(guarded_condition)
-                outer_if_params.push(outer_body)
-                outer_if := Expr.new_explicit(NodeType.If, outer_if_params, line, col)
+                outer_if := make_if(guarded_condition, outer_body, Ptr(), line, col)
                 stmts.push(outer_if)
             } else {
                 // Simple pattern: if !matched && condition { matched = true; body }
@@ -1453,19 +1457,15 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
                         full_body_params.push(renamed_case_body)
                     }
                 }
-                full_body := Expr.new_explicit(NodeType.Body, full_body_params, line, col)
+                full_body := make_body(full_body_params, line, col)
 
                 // Build: and(not(_matched), condition)
-                mut guarded_params := Vec.new(Expr)
-                guarded_params.push(Expr.new_explicit(NodeType.Identifier("and"), Vec.new(Expr), line, col))
-                guarded_params.push(not_matched)
-                guarded_params.push(condition)
-                guarded_condition := Expr.new_explicit(NodeType.FCall(false), guarded_params, line, col)
+                mut guarded_args := Vec.new(Expr)
+                guarded_args.push(not_matched)
+                guarded_args.push(condition)
+                guarded_condition := make_call("and", guarded_args, line, col)
 
-                mut case_if_params := Vec.new(Expr)
-                case_if_params.push(guarded_condition)
-                case_if_params.push(full_body)
-                case_if := Expr.new_explicit(NodeType.If, case_if_params, line, col)
+                case_if := make_if(guarded_condition, full_body, Ptr(), line, col)
                 stmts.push(case_if)
             }
 
@@ -1473,15 +1473,11 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         }
 
         // Default case: if !matched { default_body }
-        mut not_matched_final_params := Vec.new(Expr)
-        not_matched_final_params.push(Expr.new_explicit(NodeType.Identifier("not"), Vec.new(Expr), line, col))
-        not_matched_final_params.push(Expr.new_explicit(NodeType.Identifier(match_flag_name), Vec.new(Expr), line, col))
-        not_matched_final := Expr.new_explicit(NodeType.FCall(false), not_matched_final_params, line, col)
+        mut not_final_args := Vec.new(Expr)
+        not_final_args.push(make_id(match_flag_name, line, col))
+        not_matched_final := make_call("not", not_final_args, line, col)
 
-        mut default_if_params := Vec.new(Expr)
-        default_if_params.push(not_matched_final)
-        default_if_params.push(default_expr)
-        default_if := Expr.new_explicit(NodeType.If, default_if_params, line, col)
+        default_if := make_if(not_matched_final, default_expr, Ptr(), line, col)
         stmts.push(default_if)
 
         // Combine: declarations + match flag + guarded ifs + guarded default
@@ -1501,7 +1497,7 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
             throw format("desugar_switch (nested): ", err.msg)
         }
 
-        return Expr.new_explicit(NodeType.Body, body_params, line, col)
+        return make_body(body_params, line, col)
     }
 
     // No nested patterns - use else-if chains (original logic)
@@ -1552,30 +1548,29 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
 
         mut full_case_body := renamed_case_body
         if body_prefix.len().gt(0) {
-            mut body_params := Vec.new(Expr)
+            mut full_body_params := Vec.new(Expr)
             for pi in 0..body_prefix.len() {
                 mut pp := Expr()
                 body_prefix.get(pi, pp)?
-                body_params.push(pp)
+                full_body_params.push(pp)
             }
             switch renamed_case_body.node_type {
             case NodeType.Body:
                 for bi in 0..renamed_case_body.params.len() {
                     mut bp := Expr()
                     renamed_case_body.params.get(bi, bp)?
-                    body_params.push(bp.clone())
+                    full_body_params.push(bp.clone())
                 }
             case:
-                body_params.push(renamed_case_body)
+                full_body_params.push(renamed_case_body)
             }
-            full_case_body = Expr.new_explicit(NodeType.Body, body_params, line, col)
+            full_case_body = make_body(full_body_params, line, col)
         }
 
-        mut if_params := Vec.new(Expr)
-        if_params.push(condition)
-        if_params.push(full_case_body)
-        if_params.push(result_expr)
-        result_expr = Expr.new_explicit(NodeType.If, if_params, line, col)
+        // Build if/else: result_expr as else_body_ptr
+        mut else_ptr := Ptr()
+        else_ptr.data = to_ptr(result_expr)
+        result_expr = make_if(condition, full_case_body, else_ptr, line, col)
     }
 
     // Wrap in outer body with declarations and if/else chain
@@ -1591,7 +1586,7 @@ desugar_switch := proc(mut context: Context, e: Expr) returns Expr throws Str {
         throw format("desugar_switch: IndexOutOfBoundsError: ", err.msg)
     }
 
-    return Expr.new_explicit(NodeType.Body, body_params, line, col)
+    return make_body(body_params, line, col)
 }
 
 /// Build a default value expression for a given ValueType.
@@ -1602,16 +1597,16 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
     switch vt {
     case ValueType.TCustom(type_name):
         if type_name.eq("I64") {
-            return Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), line, col)
+            return make_num("0", line, col)
         }
         if type_name.eq("U8") {
-            return Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), line, col)
+            return make_num("0", line, col)
         }
         if type_name.eq("Bool") {
-            return Expr.new_explicit(NodeType.Identifier("false"), Vec.new(Expr), line, col)
+            return make_id("false", line, col)
         }
         if type_name.eq("Str") {
-            return Expr.new_explicit(NodeType.LLiteral(Literal.Str("")), Vec.new(Expr), line, col)
+            return make_str("", line, col)
         }
         // For other types (structs, other enums), check if it's an enum
         // Bug #86: Check if this type is an enum - enums need special constructor syntax
@@ -1631,38 +1626,37 @@ build_default_value := func(context: Context, vt: ValueType, line: I64, col: I64
                 catch (err: IndexOutOfBoundsError) {
                     // Shouldn't happen since we checked len > 0
                 }
-                variant_id := Expr.new_explicit(NodeType.Identifier(first_variant), Vec.new(Expr), line, col)
                 mut variant_id_params := Vec.new(Expr)
-                variant_id_params.push(variant_id)
+                variant_id_params.push(make_id(first_variant, line, col))
                 enum_id := Expr.new_explicit(NodeType.Identifier(type_name), variant_id_params, line, col)
                 if not(NULL.eq(payload_type_ptr.data)) {
                     // Variant has a payload - need FCall with default value (recursive)
                     mut payload_vt := ValueType.TCustom("")
                     memcpy(to_ptr(payload_vt), payload_type_ptr.data, size_of(ValueType))
                     default_arg := build_default_value(context, payload_vt, line, col)
-                    mut enum_payload_fcall_params := Vec.new(Expr)
-                    enum_payload_fcall_params.push(enum_id)
-                    enum_payload_fcall_params.push(default_arg)
-                    return Expr.new_explicit(NodeType.FCall(false), enum_payload_fcall_params, line, col)
+                    mut enum_call_args := Vec.new(Expr)
+                    enum_call_args.push(enum_id)
+                    enum_call_args.push(default_arg)
+                    return Expr.new_explicit(NodeType.FCall(false), enum_call_args, line, col)
                 } else {
                     // Variant has no payload - just the identifier chain
                     return enum_id
                 }
             } else {
                 // Empty enum - fall back to struct-like constructor (shouldn't happen)
-                mut empty_enum_fcall_params := Vec.new(Expr)
-                empty_enum_fcall_params.push(Expr.new_explicit(NodeType.Identifier(type_name), Vec.new(Expr), line, col))
-                return Expr.new_explicit(NodeType.FCall(false), empty_enum_fcall_params, line, col)
+                mut empty_args := Vec.new(Expr)
+                empty_args.push(make_id(type_name, line, col))
+                return Expr.new_explicit(NodeType.FCall(false), empty_args, line, col)
             }
         } else {
             // Not an enum - use struct-like constructor: TYPE()
-            mut struct_fcall_params := Vec.new(Expr)
-            struct_fcall_params.push(Expr.new_explicit(NodeType.Identifier(type_name), Vec.new(Expr), line, col))
-            return Expr.new_explicit(NodeType.FCall(false), struct_fcall_params, line, col)
+            mut struct_args := Vec.new(Expr)
+            struct_args.push(make_id(type_name, line, col))
+            return Expr.new_explicit(NodeType.FCall(false), struct_args, line, col)
         }
     case:
         // For function types and other types, use a placeholder (shouldn't typically happen)
-        return Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), Vec.new(Expr), line, col)
+        return make_num("0", line, col)
     }
 }
 
@@ -1716,25 +1710,18 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
     } else {
         index_var_name = format("_for_i_", I64.to_str(forin_id))
     }
-    index_decl := Declaration(name=index_var_name, value_type=str_to_value_type("I64"), is_mut=true, is_copy=false, is_own=false, default_value=Ptr())
-    mut zero_params := Vec.new(Expr)
-    zero_literal := Expr.new_explicit(NodeType.LLiteral(Literal.Number("0")), zero_params, e.line, e.col)
-    mut decl_params := Vec.new(Expr)
-    decl_params.push(zero_literal)
-    index_decl_expr := Expr.new_explicit(NodeType.Declaration(index_decl), decl_params, e.line, e.col)
+    index_decl_expr := make_decl(index_var_name, str_to_value_type("I64"), true, make_num("0", e.line, e.col), e.line, e.col)
 
     // Build len(collection) - already desugared form
-    mut len_params := Vec.new(Expr)
-    len_params.push(Expr.new_explicit(NodeType.Identifier("len"), Vec.new(Expr), e.line, e.col))
-    len_params.push(collection_expr.clone())
-    len_call_expr := Expr.new_explicit(NodeType.FCall(false), len_params, e.line, e.col)
+    mut len_args := Vec.new(Expr)
+    len_args.push(collection_expr.clone())
+    len_call_expr := make_call("len", len_args, e.line, e.col)
 
     // Build lt(_for_i, len_result) - already desugared form
-    mut cond_params := Vec.new(Expr)
-    cond_params.push(Expr.new_explicit(NodeType.Identifier("lt"), Vec.new(Expr), e.line, e.col))
-    cond_params.push(Expr.new_explicit(NodeType.Identifier(index_var_name), Vec.new(Expr), e.line, e.col))
-    cond_params.push(len_call_expr)
-    cond_expr := Expr.new_explicit(NodeType.FCall(false), cond_params, e.line, e.col)
+    mut cond_args := Vec.new(Expr)
+    cond_args.push(make_id(index_var_name, e.line, e.col))
+    cond_args.push(len_call_expr)
+    cond_expr := make_call("lt", cond_args, e.line, e.col)
 
     // Build: mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
     var_decl := Declaration(name=var_name, value_type=ValueType.TCustom(var_type_name), is_mut=true, is_copy=false, is_own=false, default_value=Ptr())
@@ -1765,9 +1752,8 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
             // Build the enum constructor:
             // - For variants WITHOUT payload: EnumType.Variant (just identifier chain)
             // - For variants WITH payload: EnumType.Variant(default_payload) (FCall)
-            variant_id := Expr.new_explicit(NodeType.Identifier(first_variant), Vec.new(Expr), e.line, e.col)
             mut variant_id_params := Vec.new(Expr)
-            variant_id_params.push(variant_id)
+            variant_id_params.push(make_id(first_variant, e.line, e.col))
             enum_id := Expr.new_explicit(NodeType.Identifier(var_type_name), variant_id_params, e.line, e.col)
 
             if not(NULL.eq(payload_type_ptr.data)) {
@@ -1775,84 +1761,74 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
                 mut payload_vt := ValueType.TCustom("")
                 memcpy(to_ptr(payload_vt), payload_type_ptr.data, size_of(ValueType))
                 default_arg := build_default_value(context, payload_vt, e.line, e.col)
-                mut fcall_params := Vec.new(Expr)
-                fcall_params.push(enum_id)
-                fcall_params.push(default_arg)
-                type_call = Expr.new_explicit(NodeType.FCall(false), fcall_params, e.line, e.col)
+                mut enum_fcall_args := Vec.new(Expr)
+                enum_fcall_args.push(enum_id)
+                enum_fcall_args.push(default_arg)
+                type_call = Expr.new_explicit(NodeType.FCall(false), enum_fcall_args, e.line, e.col)
             } else {
                 // Variant has no payload - just the identifier chain (NOT an FCall)
                 type_call = enum_id
             }
         } else {
             // Empty enum - shouldn't happen, fall back to struct-like constructor
-            mut empty_enum_type_call_params := Vec.new(Expr)
-            empty_enum_type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
-            type_call = Expr.new_explicit(NodeType.FCall(false), empty_enum_type_call_params, e.line, e.col)
+            mut empty_args := Vec.new(Expr)
+            empty_args.push(make_id(var_type_name, e.line, e.col))
+            type_call = Expr.new_explicit(NodeType.FCall(false), empty_args, e.line, e.col)
         }
     } else {
         // Not an enum - use struct-like constructor: TYPE()
-        mut struct_type_call_params := Vec.new(Expr)
-        struct_type_call_params.push(Expr.new_explicit(NodeType.Identifier(var_type_name), Vec.new(Expr), e.line, e.col))
-        type_call = Expr.new_explicit(NodeType.FCall(false), struct_type_call_params, e.line, e.col)
+        mut struct_args := Vec.new(Expr)
+        struct_args.push(make_id(var_type_name, e.line, e.col))
+        type_call = Expr.new_explicit(NodeType.FCall(false), struct_args, e.line, e.col)
     }
 
-    mut var_decl_params := Vec.new(Expr)
-    var_decl_params.push(type_call)
-    var_decl_expr := Expr.new_explicit(NodeType.Declaration(var_decl), var_decl_params, e.line, e.col)
+    var_decl_expr := make_decl(var_name, ValueType.TCustom(var_type_name), true, type_call, e.line, e.col)
 
     // Build: get(collection, _for_i, VAR) - already desugared form
-    mut get_params := Vec.new(Expr)
-    get_params.push(Expr.new_explicit(NodeType.Identifier("get"), Vec.new(Expr), e.line, e.col))
-    get_params.push(collection_expr.clone())
-    get_params.push(Expr.new_explicit(NodeType.Identifier(index_var_name), Vec.new(Expr), e.line, e.col))
-    get_params.push(Expr.new_explicit(NodeType.Identifier(var_name), Vec.new(Expr), e.line, e.col))
-    get_call := Expr.new_explicit(NodeType.FCall(false), get_params, e.line, e.col)
+    mut get_args := Vec.new(Expr)
+    get_args.push(collection_expr.clone())
+    get_args.push(make_id(index_var_name, e.line, e.col))
+    get_args.push(make_id(var_name, e.line, e.col))
+    get_call := make_call("get", get_args, e.line, e.col)
 
     // Build: catch (_err_forin_N: IndexOutOfBoundsError) { panic(loc(), _err_forin_N.msg) }
     // Bug #97: Use unique name to avoid shadowing loop variable if it's also named "err"
     catch_err_var := format("_err_forin_", I64.to_str(forin_id))
 
     // Build _err_forin_N.msg (identifier with field access)
-    mut msg_field := Vec.new(Expr)
-    msg_field.push(Expr.new_explicit(NodeType.Identifier("msg"), Vec.new(Expr), e.line, e.col))
-    err_msg_expr := Expr.new_explicit(NodeType.Identifier(catch_err_var), msg_field, e.line, e.col)
+    mut msg_fields := Vec.new(Str)
+    msg_fields.push("msg")
+    err_msg_expr := make_field_access(catch_err_var, msg_fields, e.line, e.col)
 
     // Build loc() call
-    mut loc_params := Vec.new(Expr)
-    loc_params.push(Expr.new_explicit(NodeType.Identifier("loc"), Vec.new(Expr), e.line, e.col))
-    loc_call := Expr.new_explicit(NodeType.FCall(false), loc_params, e.line, e.col)
+    loc_call := make_call("loc", Vec.new(Expr), e.line, e.col)
 
     // Build panic(loc(), _err_forin_N.msg)
-    mut panic_params := Vec.new(Expr)
-    panic_params.push(Expr.new_explicit(NodeType.Identifier("panic"), Vec.new(Expr), e.line, e.col))
-    panic_params.push(loc_call)
-    panic_params.push(err_msg_expr)
-    panic_call := Expr.new_explicit(NodeType.FCall(false), panic_params, e.line, e.col)
+    mut panic_args := Vec.new(Expr)
+    panic_args.push(loc_call)
+    panic_args.push(err_msg_expr)
+    panic_call := make_call("panic", panic_args, e.line, e.col)
 
     // Build catch body
-    mut catch_body_params := Vec.new(Expr)
-    catch_body_params.push(panic_call)
-    catch_body := Expr.new_explicit(NodeType.Body, catch_body_params, e.line, e.col)
+    mut catch_body_stmts := Vec.new(Expr)
+    catch_body_stmts.push(panic_call)
+    catch_body := make_body(catch_body_stmts, e.line, e.col)
 
     // Catch structure: [name_expr, type_expr, body_expr]
     mut catch_params := Vec.new(Expr)
-    catch_params.push(Expr.new_explicit(NodeType.Identifier(catch_err_var), Vec.new(Expr), e.line, e.col))
-    catch_params.push(Expr.new_explicit(NodeType.Identifier("IndexOutOfBoundsError"), Vec.new(Expr), e.line, e.col))
+    catch_params.push(make_id(catch_err_var, e.line, e.col))
+    catch_params.push(make_id("IndexOutOfBoundsError", e.line, e.col))
     catch_params.push(catch_body)
     catch_expr := Expr.new_explicit(NodeType.Catch, catch_params, e.line, e.col)
 
     // Build: _for_i = add(_for_i, 1)
     // Already desugared form - no UFCS resolution needed
-    mut add_params := Vec.new(Expr)
-    add_params.push(Expr.new_explicit(NodeType.Identifier("add"), Vec.new(Expr), e.line, e.col))
-    add_params.push(Expr.new_explicit(NodeType.Identifier(index_var_name), Vec.new(Expr), e.line, e.col))
-    mut one_params := Vec.new(Expr)
-    add_params.push(Expr.new_explicit(NodeType.LLiteral(Literal.Number("1")), one_params, e.line, e.col))
-    add_call := Expr.new_explicit(NodeType.FCall(false), add_params, e.line, e.col)
+    mut add_args := Vec.new(Expr)
+    add_args.push(make_id(index_var_name, e.line, e.col))
+    add_args.push(make_num("1", e.line, e.col))
+    add_call := make_call("add", add_args, e.line, e.col)
 
-    mut inc_params := Vec.new(Expr)
-    inc_params.push(add_call)
-    inc_stmt := Expr.new_explicit(NodeType.Assignment(index_var_name), inc_params, e.line, e.col)
+    inc_stmt := make_assign(index_var_name, add_call, e.line, e.col)
 
     // Build while body: var_decl, get_call + catch (together), original body statements, inc
     // The catch must be right after get_call so it only catches IndexOutOfBoundsError from get,
@@ -1876,7 +1852,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
         while_body_params.push(transformed_body)
     }
     while_body_params.push(inc_stmt.clone())
-    while_body := Expr.new_explicit(NodeType.Body, while_body_params, e.line, e.col)
+    while_body := make_body(while_body_params, e.line, e.col)
 
     // Build while: while _for_i.lt(collection.len()) { ... }
     mut while_params := Vec.new(Expr)
@@ -1893,7 +1869,7 @@ desugar_forin := proc(mut context: Context, e: Expr, var_type_name: Str) returns
         throw format("desugar_forin: ", err.msg)
     }
 
-    return Expr.new_explicit(NodeType.Body, outer_body_params, e.line, e.col)
+    return make_body(outer_body_params, e.line, e.col)
 }
 
 /// Desugarer phase entry point: Recursively desugar ForIn loops and Switch statements.

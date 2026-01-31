@@ -4473,8 +4473,9 @@ Desugar switch/case to if/else chains in the desugarer phase. This simplifies th
 interpreter, ccodegen, and precomp by removing switch handling from those phases.
 
 *** Implementation
-- ~src/rs/desugarer.rs~ - added ~desugar_switch()~ and helper functions (~1300 lines)
-- ~src/self/desugarer.til~ - TIL port of the same logic (~1600 lines)
+- ~src/rs/desugarer.rs~ - added ~desugar_switch()~ and helper functions (~1224 lines total)
+- ~src/self/desugarer.til~ - TIL port of the same logic (~1988 lines total)
+- Added AST construction helpers (~make_id~, ~make_call~, ~make_str~, etc.) to reduce verbosity
 - Removed switch handling from: ufcs, precomp, interpreter, ccodegen (both .rs and .til)
 
 For enum switches: uses ~enum_to_str()~ for comparison, ~enum_get_payload()~ for payloads.
@@ -4487,10 +4488,10 @@ The switch desugaring causes a benchmark regression due to generating more code:
 | Mode | Before | After | Increase |
 |------|--------|-------|----------|
 | rust interpreted | 169.7s | 221.6s | +31% |
-| rust compiled | 4.4s | 4.5s | +1% |
-| til interpreted | 380.7s | 559.5s | +47% |
-| til compiled | 15.4s | 26.3s | +71% |
-| Total | 570.3s | 811.9s | +42% |
+| rust compiled | 4.4s | 4.6s | +5% |
+| til interpreted | 380.7s | 561.7s | +48% |
+| til compiled | 15.4s | 27.0s | +75% |
+| Total | 570.3s | 814.9s | +43% |
 
 Trade-off: simpler code in interpreter/ccodegen/precomp at cost of runtime performance.
 Future optimization: could add fast-path for enum switches avoiding string comparison.
@@ -4499,11 +4500,12 @@ Future optimization: could add fast-path for enum switches avoiding string compa
 
 | Language | Files | Added | Removed | Net |
 |----------|-------|-------|---------|-----|
-| Rust     | 6     | +1373 | -1063   | +310 |
-| TIL      | 6     | +1646 | -1300   | +346 |
+| Rust     | 6     | +1055 | -1280   | -225 |
+| TIL      | 6     | +1702 | -1380   | +322 |
 | C        | 1     | +42988 | -36929 | +6059 |
 
 Note: C changes are in bootstrap/til.c (generated from TIL self-hosted compiler).
+After helper function refactoring, Rust now has net negative LOC (more code removed than added).
 
 ** Issue #147: Add Ptr.dereference method for cleaner pointer dereferencing
 :PROPERTIES:

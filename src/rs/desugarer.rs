@@ -8,6 +8,70 @@ use crate::rs::parser::{
     Declaration, str_to_value_type, transform_continue_with_step,
 };
 
+// ============================================================================
+// AST Construction Helpers
+// These reduce verbosity when building AST nodes during desugaring
+// ============================================================================
+
+/// Create an identifier expression
+fn make_id(name: &str, line: usize, col: usize) -> Expr {
+    Expr::new_explicit(NodeType::Identifier(name.to_string()), vec![], line, col)
+}
+
+/// Create a function call: name(args...)
+fn make_call(name: &str, args: Vec<Expr>, line: usize, col: usize) -> Expr {
+    let mut params = vec![make_id(name, line, col)];
+    params.extend(args);
+    Expr::new_explicit(NodeType::FCall(false), params, line, col)
+}
+
+/// Create a string literal
+fn make_str(s: &str, line: usize, col: usize) -> Expr {
+    Expr::new_explicit(NodeType::LLiteral(Literal::Str(s.to_string())), vec![], line, col)
+}
+
+/// Create a number literal
+fn make_num(n: &str, line: usize, col: usize) -> Expr {
+    Expr::new_explicit(NodeType::LLiteral(Literal::Number(n.to_string())), vec![], line, col)
+}
+
+/// Create a body block
+fn make_body(stmts: Vec<Expr>, line: usize, col: usize) -> Expr {
+    Expr::new_explicit(NodeType::Body, stmts, line, col)
+}
+
+/// Create an if expression (with optional else)
+fn make_if(cond: Expr, then_body: Expr, else_body: Option<Expr>, line: usize, col: usize) -> Expr {
+    match else_body {
+        Some(else_b) => Expr::new_explicit(NodeType::If, vec![cond, then_body, else_b], line, col),
+        None => Expr::new_explicit(NodeType::If, vec![cond, then_body], line, col),
+    }
+}
+
+/// Create a variable declaration with initializer
+fn make_decl(name: &str, value_type: ValueType, is_mut: bool, init: Expr, line: usize, col: usize) -> Expr {
+    let decl = Declaration {
+        name: name.to_string(),
+        value_type,
+        is_mut,
+        is_copy: false,
+        is_own: false,
+        default_value: None,
+    };
+    Expr::new_explicit(NodeType::Declaration(decl), vec![init], line, col)
+}
+
+/// Create an assignment statement
+fn make_assign(name: &str, value: Expr, line: usize, col: usize) -> Expr {
+    Expr::new_explicit(NodeType::Assignment(name.to_string()), vec![value], line, col)
+}
+
+/// Create an identifier with nested field access: name.field1.field2...
+fn make_field_access(name: &str, fields: Vec<&str>, line: usize, col: usize) -> Expr {
+    let field_params: Vec<Expr> = fields.iter().map(|f| make_id(f, line, col)).collect();
+    Expr::new_explicit(NodeType::Identifier(name.to_string()), field_params, line, col)
+}
+
 /// Build a default value expression for a given ValueType.
 /// Used when generating placeholder values for enum variant payloads in for-in loops.
 /// Bug #33: for-in loops don't work with enum collections
@@ -16,30 +80,9 @@ fn build_default_value(context: &Context, vt: &ValueType, line: usize, col: usiz
     match vt {
         ValueType::TCustom(type_name) => {
             match type_name.as_str() {
-                "I64" => Expr::new_explicit(
-                    NodeType::LLiteral(Literal::Number("0".to_string())),
-                    vec![],
-                    line,
-                    col,
-                ),
-                "U8" => Expr::new_explicit(
-                    NodeType::LLiteral(Literal::Number("0".to_string())),
-                    vec![],
-                    line,
-                    col,
-                ),
-                "Bool" => Expr::new_explicit(
-                    NodeType::Identifier("false".to_string()),
-                    vec![],
-                    line,
-                    col,
-                ),
-                "Str" => Expr::new_explicit(
-                    NodeType::LLiteral(Literal::Str(String::new())),
-                    vec![],
-                    line,
-                    col,
-                ),
+                "I64" | "U8" => make_num("0", line, col),
+                "Bool" => make_id("false", line, col),
+                "Str" => make_str("", line, col),
                 // For other types (structs, other enums), check if it's an enum
                 _ => {
                     // Bug #86: Check if this type is an enum - enums need special constructor syntax
@@ -48,62 +91,33 @@ fn build_default_value(context: &Context, vt: &ValueType, line: usize, col: usiz
                         if let Some(first_v) = enum_def.variants.first() {
                             let first_variant = &first_v.name;
                             let payload_type = &first_v.payload_type;
-                            let variant_id = Expr::new_explicit(
-                                NodeType::Identifier(first_variant.clone()),
-                                vec![],
-                                line,
-                                col,
-                            );
+                            // Build Type.Variant as Identifier with nested Identifier
                             let enum_id = Expr::new_explicit(
                                 NodeType::Identifier(type_name.clone()),
-                                vec![variant_id],
-                                line,
-                                col,
+                                vec![make_id(first_variant, line, col)],
+                                line, col,
                             );
                             if let Some(payload_vt) = payload_type {
                                 // Variant has a payload - need FCall with default value (recursive)
                                 let default_arg = build_default_value(context, payload_vt, line, col);
-                                let enum_payload_fcall_params = vec![enum_id, default_arg];
-                                Expr::new_explicit(
-                                    NodeType::FCall(false),  // Issue #132: desugared calls don't throw
-                                    enum_payload_fcall_params,
-                                    line,
-                                    col,
-                                )
+                                Expr::new_explicit(NodeType::FCall(false), vec![enum_id, default_arg], line, col)
                             } else {
                                 // Variant has no payload - just the identifier chain
                                 enum_id
                             }
                         } else {
                             // Empty enum - fall back to struct-like constructor (shouldn't happen)
-                            let empty_enum_fcall_params = vec![Expr::new_explicit(NodeType::Identifier(type_name.clone()), vec![], line, col)];
-                            Expr::new_explicit(
-                                NodeType::FCall(false),  // Issue #132: desugared calls don't throw
-                                empty_enum_fcall_params,
-                                line,
-                                col,
-                            )
+                            Expr::new_explicit(NodeType::FCall(false), vec![make_id(type_name, line, col)], line, col)
                         }
                     } else {
                         // Not an enum - use struct-like constructor: TYPE()
-                        let struct_fcall_params = vec![Expr::new_explicit(NodeType::Identifier(type_name.clone()), vec![], line, col)];
-                        Expr::new_explicit(
-                            NodeType::FCall(false),  // Issue #132: desugared calls don't throw
-                            struct_fcall_params,
-                            line,
-                            col,
-                        )
+                        Expr::new_explicit(NodeType::FCall(false), vec![make_id(type_name, line, col)], line, col)
                     }
                 }
             }
         }
         // For function types and other types, use a placeholder (shouldn't typically happen)
-        _ => Expr::new_explicit(
-            NodeType::LLiteral(Literal::Number("0".to_string())),
-            vec![],
-            line,
-            col,
-        ),
+        _ => make_num("0", line, col),
     }
 }
 
@@ -153,199 +167,77 @@ fn desugar_forin(context: &mut Context, e: &Expr, var_type_name: &str) -> Result
     } else {
         format!("_for_i_{}", forin_id)
     };
-    let index_decl = Declaration {
-        name: index_var_name.clone(),
-        value_type: str_to_value_type("I64"),
-        is_mut: true,
-        is_copy: false,
-        is_own: false,
-        default_value: None,
-    };
-    let zero_literal = Expr::new_explicit(NodeType::LLiteral(Literal::Number("0".to_string())), vec![], e.line, e.col);
-    let index_decl_expr = Expr::new_explicit(NodeType::Declaration(index_decl), vec![zero_literal], e.line, e.col);
+    let line = e.line;
+    let col = e.col;
 
-    // Build len(collection) - already desugared form
-    let len_call_expr = Expr::new_explicit(
-        NodeType::FCall(false),  // Issue #132: desugared calls don't throw
-        vec![
-            Expr::new_explicit(NodeType::Identifier("len".to_string()), vec![], e.line, e.col),
-            collection_expr.clone(),
-        ],
-        e.line,
-        e.col,
-    );
+    // Build: mut _for_i := 0
+    let index_decl_expr = make_decl(&index_var_name, str_to_value_type("I64"), true, make_num("0", line, col), line, col);
 
-    // Build lt(_for_i, len_result) - already desugared form
-    let cond_expr = Expr::new_explicit(
-        NodeType::FCall(false),  // Issue #132: desugared calls don't throw
-        vec![
-            Expr::new_explicit(NodeType::Identifier("lt".to_string()), vec![], e.line, e.col),
-            Expr::new_explicit(NodeType::Identifier(index_var_name.clone()), vec![], e.line, e.col),
-            len_call_expr,
-        ],
-        e.line,
-        e.col,
-    );
+    // Build: lt(_for_i, len(collection))
+    let len_call = make_call("len", vec![collection_expr.clone()], line, col);
+    let cond_expr = make_call("lt", vec![make_id(&index_var_name, line, col), len_call], line, col);
 
     // Build: mut VAR := TYPE() or EnumType.FirstVariant(...) for enums
-    let var_decl = Declaration {
-        name: var_name.clone(),
-        value_type: ValueType::TCustom(var_type_name.to_string()),
-        is_mut: true,
-        is_copy: false,
-        is_own: false,
-        default_value: None,
-    };
-
-    // Check if this is an enum type - enums need special handling since they don't have
-    // a parameterless constructor. We need to use the first variant as a placeholder.
     // Bug #33: for-in loops don't work with enum collections
     let type_call = if let Some(enum_def) = context.scope_stack.lookup_enum(var_type_name) {
-        // Get the first variant from the enum (arbitrary choice - value will be overwritten by get())
         if let Some(first_v) = enum_def.variants.first() {
-            let first_variant = &first_v.name;
-            let payload_type = &first_v.payload_type;
-            // Build the enum constructor:
-            // - For variants WITHOUT payload: EnumType.Variant (just identifier chain)
-            // - For variants WITH payload: EnumType.Variant(default_payload) (FCall)
-            let variant_id = Expr::new_explicit(
-                NodeType::Identifier(first_variant.clone()),
-                vec![],
-                e.line,
-                e.col,
-            );
             let enum_id = Expr::new_explicit(
                 NodeType::Identifier(var_type_name.to_string()),
-                vec![variant_id],
-                e.line,
-                e.col,
+                vec![make_id(&first_v.name, line, col)],
+                line, col,
             );
-
-            if let Some(payload_vt) = payload_type {
-                // Variant has a payload - need FCall with default value
-                let default_arg = build_default_value(context, payload_vt, e.line, e.col);
-                Expr::new_explicit(
-                    NodeType::FCall(false),  // Issue #132: desugared calls don't throw
-                    vec![enum_id, default_arg],
-                    e.line,
-                    e.col,
-                )
+            if let Some(payload_vt) = &first_v.payload_type {
+                let default_arg = build_default_value(context, payload_vt, line, col);
+                Expr::new_explicit(NodeType::FCall(false), vec![enum_id, default_arg], line, col)
             } else {
-                // Variant has no payload - just the identifier chain (NOT an FCall)
                 enum_id
             }
         } else {
-            // Empty enum - shouldn't happen, fall back to struct-like constructor
-            Expr::new_explicit(
-                NodeType::FCall(false),  // Issue #132: desugared calls don't throw
-                vec![Expr::new_explicit(NodeType::Identifier(var_type_name.to_string()), vec![], e.line, e.col)],
-                e.line,
-                e.col,
-            )
+            Expr::new_explicit(NodeType::FCall(false), vec![make_id(var_type_name, line, col)], line, col)
         }
     } else {
-        // Not an enum - use struct-like constructor: TYPE()
-        Expr::new_explicit(
-            NodeType::FCall(false),  // Issue #132: desugared calls don't throw
-            vec![Expr::new_explicit(NodeType::Identifier(var_type_name.to_string()), vec![], e.line, e.col)],
-            e.line,
-            e.col,
-        )
+        Expr::new_explicit(NodeType::FCall(false), vec![make_id(var_type_name, line, col)], line, col)
     };
-    let var_decl_expr = Expr::new_explicit(NodeType::Declaration(var_decl), vec![type_call], e.line, e.col);
+    let var_decl_expr = make_decl(&var_name, ValueType::TCustom(var_type_name.to_string()), true, type_call, line, col);
 
-    // Build: get(collection, _for_i, VAR) - already desugared form
-    let get_call = Expr::new_explicit(
-        NodeType::FCall(false),  // Issue #132: desugared calls don't throw
-        vec![
-            Expr::new_explicit(NodeType::Identifier("get".to_string()), vec![], e.line, e.col),
-            collection_expr.clone(),
-            Expr::new_explicit(NodeType::Identifier(index_var_name.clone()), vec![], e.line, e.col),
-            Expr::new_explicit(NodeType::Identifier(var_name.clone()), vec![], e.line, e.col),
-        ],
-        e.line,
-        e.col,
-    );
+    // Build: get(collection, _for_i, VAR)
+    let get_call = make_call("get", vec![
+        collection_expr.clone(),
+        make_id(&index_var_name, line, col),
+        make_id(&var_name, line, col),
+    ], line, col);
 
     // Build: catch (_err_forin_N: IndexOutOfBoundsError) { panic(loc(), _err_forin_N.msg) }
     // Bug #97: Use unique name to avoid shadowing loop variable if it's also named "err"
-    // Catch structure: params[0]=error type identifier, params[1]=error var name, params[2]=body
     let catch_err_var = format!("_err_forin_{}", forin_id);
-    let panic_call = Expr::new_explicit(
-        NodeType::FCall(false),  // Issue #132: desugared calls don't throw
-        vec![
-            Expr::new_explicit(NodeType::Identifier("panic".to_string()), vec![], e.line, e.col),
-            Expr::new_explicit(
-                NodeType::FCall(false),  // Issue #132: desugared calls don't throw
-                vec![Expr::new_explicit(NodeType::Identifier("loc".to_string()), vec![], e.line, e.col)],
-                e.line,
-                e.col,
-            ),
-            Expr::new_explicit(
-                NodeType::Identifier(catch_err_var.clone()),
-                vec![Expr::new_explicit(NodeType::Identifier("msg".to_string()), vec![], e.line, e.col)],
-                e.line,
-                e.col,
-            ),
-        ],
-        e.line,
-        e.col,
-    );
-    let catch_body = Expr::new_explicit(NodeType::Body, vec![panic_call], e.line, e.col);
-    // Catch structure: [name_expr, type_expr, body_expr]
+    let panic_call = make_call("panic", vec![
+        make_call("loc", vec![], line, col),
+        make_field_access(&catch_err_var, vec!["msg"], line, col),
+    ], line, col);
     let catch_expr = Expr::new_explicit(
         NodeType::Catch,
-        vec![
-            Expr::new_explicit(NodeType::Identifier(catch_err_var), vec![], e.line, e.col),
-            Expr::new_explicit(NodeType::Identifier("IndexOutOfBoundsError".to_string()), vec![], e.line, e.col),
-            catch_body,
-        ],
-        e.line,
-        e.col,
+        vec![make_id(&catch_err_var, line, col), make_id("IndexOutOfBoundsError", line, col), make_body(vec![panic_call], line, col)],
+        line, col,
     );
 
     // Build: _for_i = add(_for_i, 1)
-    // Already desugared form - no UFCS resolution needed
-    let add_call = Expr::new_explicit(
-        NodeType::FCall(false),  // Issue #132: desugared calls don't throw
-        vec![
-            Expr::new_explicit(NodeType::Identifier("add".to_string()), vec![], e.line, e.col),
-            Expr::new_explicit(NodeType::Identifier(index_var_name.clone()), vec![], e.line, e.col),
-            Expr::new_explicit(NodeType::LLiteral(Literal::Number("1".to_string())), vec![], e.line, e.col),
-        ],
-        e.line,
-        e.col,
-    );
-    let inc_stmt = Expr::new_explicit(
-        NodeType::Assignment(index_var_name.clone()),
-        vec![add_call],
-        e.line,
-        e.col,
-    );
+    let inc_stmt = make_assign(&index_var_name, make_call("add", vec![make_id(&index_var_name, line, col), make_num("1", line, col)], line, col), line, col);
 
-    // Build while body: var_decl, get_call + catch (together), original body statements, inc
-    // The catch must be right after get_call so it only catches IndexOutOfBoundsError from get,
-    // not from user code in the loop body
+    // Build while body: var_decl, get_call + catch, original body statements, inc
     let mut while_body_params = vec![var_decl_expr, get_call, catch_expr];
     // Bug #57 fix: Transform continue statements to include increment before continue
     let transformed_body = transform_continue_with_step(&body_expr, &inc_stmt);
-    // Add original body statements (transformed)
     match &transformed_body.node_type {
-        NodeType::Body => {
-            while_body_params.extend(transformed_body.params.clone());
-        },
-        _ => {
-            while_body_params.push(transformed_body);
-        }
+        NodeType::Body => while_body_params.extend(transformed_body.params.clone()),
+        _ => while_body_params.push(transformed_body),
     }
     while_body_params.push(inc_stmt.clone());
-    let while_body = Expr::new_explicit(NodeType::Body, while_body_params, e.line, e.col);
 
-    // Build while: while _for_i.lt(collection.len()) { ... }
-    let while_expr = Expr::new_explicit(NodeType::While, vec![cond_expr, while_body], e.line, e.col);
+    // Build: while cond { body }
+    let while_expr = Expr::new_explicit(NodeType::While, vec![cond_expr, make_body(while_body_params, line, col)], line, col);
 
     // Build outer body: index_decl, while
-    Ok(Expr::new_explicit(NodeType::Body, vec![index_decl_expr, while_expr], e.line, e.col))
+    Ok(make_body(vec![index_decl_expr, while_expr], line, col))
 }
 
 /// Helper struct for variant info extraction
@@ -824,104 +716,25 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 .unwrap_or_else(|_| str_to_value_type("I64"));
 
             // First declaration: _switch_temp := throwing_fcall()
-            let fcall_decl = Declaration {
-                name: fcall_temp_name.clone(),
-                value_type: fcall_result_type,
-                is_mut: false,
-                is_copy: false,
-                is_own: false,
-                default_value: None,
-            };
-            let fcall_decl_expr = Expr::new_explicit(
-                NodeType::Declaration(fcall_decl),
-                vec![base_fcall],
-                line,
-                col,
-            );
-            decl_exprs.push(fcall_decl_expr);
+            decl_exprs.push(make_decl(&fcall_temp_name, fcall_result_type, false, base_fcall, line, col));
 
-            // Build the field access chain on the temp variable
-            // TIL field access structure for variable.field: Identifier("var") with params = [Identifier("field")]
-            // So "x.field1.field2" is Identifier("x") with params[0] = Identifier("field1"), params[1] = Identifier("field2")
-            // field_names contains fields in reverse order (innermost first), so we reverse to get field1, field2, etc.
-            let mut field_params = Vec::new();
-            for field_name in field_names.into_iter().rev() {
-                field_params.push(Expr::new_explicit(
-                    NodeType::Identifier(field_name),
-                    vec![],
-                    line,
-                    col,
-                ));
-            }
-            let field_access_expr = Expr::new_explicit(
-                NodeType::Identifier(fcall_temp_name),
-                field_params,
-                line,
-                col,
-            );
+            // Build field access: _switch_temp.field1.field2...
+            // field_names in reverse order, so reverse to get correct order
+            let fields: Vec<&str> = field_names.iter().rev().map(|s| s.as_str()).collect();
+            let field_access_expr = make_field_access(&fcall_temp_name, fields, line, col);
 
             // Second declaration: _switch_expr := _switch_temp.field1.field2...
-            let switch_expr_decl = Declaration {
-                name: switch_expr_var_name.clone(),
-                value_type: switch_expr_var_type.clone(),
-                is_mut: false,
-                is_copy: false,
-                is_own: false,
-                default_value: None,
-            };
-            let switch_expr_decl_expr = Expr::new_explicit(
-                NodeType::Declaration(switch_expr_decl),
-                vec![field_access_expr],
-                line,
-                col,
-            );
-            decl_exprs.push(switch_expr_decl_expr);
+            decl_exprs.push(make_decl(&switch_expr_var_name, switch_expr_var_type.clone(), false, field_access_expr, line, col));
         }
     } else {
         // Normal case: directly capture the switch expression
-        let switch_expr_decl = Declaration {
-            name: switch_expr_var_name.clone(),
-            value_type: switch_expr_var_type.clone(),
-            is_mut: false,
-            is_copy: false,
-            is_own: false,
-            default_value: None,
-        };
-        let switch_expr_decl_expr = Expr::new_explicit(
-            NodeType::Declaration(switch_expr_decl),
-            vec![desugared_switch_expr.clone()],
-            line,
-            col,
-        );
-        decl_exprs.push(switch_expr_decl_expr);
+        decl_exprs.push(make_decl(&switch_expr_var_name, switch_expr_var_type.clone(), false, desugared_switch_expr.clone(), line, col));
     }
 
     // For enum switches, add second declaration: _switch_variant := enum_to_str(_switch_expr)
     if is_enum_switch {
-        let enum_to_str_call = Expr::new_explicit(
-            NodeType::FCall(false),
-            vec![
-                Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
-                Expr::new_explicit(NodeType::Identifier(switch_expr_var_name.clone()), vec![], line, col),
-            ],
-            line,
-            col,
-        );
-        let switch_variant_decl = Declaration {
-            name: switch_var_name.clone(),
-            value_type: str_to_value_type("Str"),
-            is_mut: false,
-            is_copy: false,
-            is_own: false,
-            default_value: None,
-        };
-        let switch_variant_decl_expr = Expr::new_explicit(
-            NodeType::Declaration(switch_variant_decl),
-            vec![enum_to_str_call],
-            line,
-            col,
-        );
-        decl_exprs.push(switch_variant_decl_expr);
+        let enum_to_str_call = make_call("enum_to_str", vec![make_id(&switch_expr_var_name, line, col)], line, col);
+        decl_exprs.push(make_decl(&switch_var_name, str_to_value_type("Str"), false, enum_to_str_call, line, col));
     }
 
     // Build the if/else chain from cases
@@ -1018,146 +831,59 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         };
 
         // Declare match flag: mut _switch_matched := false
-        let match_flag_decl = Declaration {
-            name: match_flag_name.clone(),
-            value_type: ValueType::TCustom("Bool".to_string()),
-            is_mut: true,
-            is_copy: false,
-            is_own: false,
-            default_value: None,
-        };
-        let match_flag_init = Expr::new_explicit(
-            NodeType::Declaration(match_flag_decl),
-            vec![Expr::new_explicit(NodeType::Identifier("false".to_string()), vec![], line, col)],
-            line,
-            col,
-        );
-        stmts.push(match_flag_init);
+        stmts.push(make_decl(&match_flag_name, str_to_value_type("Bool"), true, make_id("false", line, col), line, col));
 
         for (case_index, (case_pattern, case_body)) in cases.into_iter().enumerate() {
             let cond_result = build_case_condition(
-                context,
-                &case_pattern,
-                &switch_var_name,
-                is_enum_switch,
-                &enum_type_name,
-                &switch_expr_var_name,
-                switch_id,
-                case_index,
-                &func_name,
-                line,
-                col,
+                context, &case_pattern, &switch_var_name, is_enum_switch, &enum_type_name,
+                &switch_expr_var_name, switch_id, case_index, &func_name, line, col,
             )?;
 
             let (condition, body_prefix, rename_pair, inner_condition) = cond_result;
-
-            let renamed_case_body = if let Some((old_name, new_name)) = &rename_pair {
-                rename_identifier_in_expr(&case_body, old_name, new_name)
-            } else {
-                case_body
+            let renamed_case_body = match &rename_pair {
+                Some((old_name, new_name)) => rename_identifier_in_expr(&case_body, old_name, new_name),
+                None => case_body,
             };
 
-            // Build: not(_switch_matched)
-            let not_matched = Expr::new_explicit(
-                NodeType::FCall(false),
-                vec![
-                    Expr::new_explicit(NodeType::Identifier("not".to_string()), vec![], line, col),
-                    Expr::new_explicit(NodeType::Identifier(match_flag_name.clone()), vec![], line, col),
-                ],
-                line,
-                col,
-            );
-
-            // Build: _switch_matched = true
-            let set_matched = Expr::new_explicit(
-                NodeType::Assignment(match_flag_name.clone()),
-                vec![Expr::new_explicit(NodeType::Identifier("true".to_string()), vec![], line, col)],
-                line,
-                col,
-            );
+            let not_matched = make_call("not", vec![make_id(&match_flag_name, line, col)], line, col);
+            let set_matched = make_assign(&match_flag_name, make_id("true", line, col), line, col);
 
             if let Some(inner_cond) = inner_condition {
                 // Nested pattern: if !matched && outer { prefix; if inner { matched = true; body } }
-
-                // Build inner if: if inner_condition { _matched = true; body }
                 let mut inner_body_params = vec![set_matched.clone()];
                 match &renamed_case_body.node_type {
                     NodeType::Body => inner_body_params.extend(renamed_case_body.params.clone()),
                     _ => inner_body_params.push(renamed_case_body),
                 }
-                let inner_body = Expr::new_explicit(NodeType::Body, inner_body_params, line, col);
-                let inner_if = Expr::new_explicit(NodeType::If, vec![inner_cond, inner_body], line, col);
+                let inner_if = make_if(inner_cond, make_body(inner_body_params, line, col), None, line, col);
 
-                // Build outer body: body_prefix + inner_if
                 let mut outer_body_params = body_prefix;
                 outer_body_params.push(inner_if);
-                let outer_body = Expr::new_explicit(NodeType::Body, outer_body_params, line, col);
 
-                // Build: and(not(_matched), outer_condition)
-                let guarded_condition = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_explicit(NodeType::Identifier("and".to_string()), vec![], line, col),
-                        not_matched,
-                        condition,
-                    ],
-                    line,
-                    col,
-                );
-
-                let outer_if = Expr::new_explicit(NodeType::If, vec![guarded_condition, outer_body], line, col);
-                stmts.push(outer_if);
+                let guarded_condition = make_call("and", vec![not_matched, condition], line, col);
+                stmts.push(make_if(guarded_condition, make_body(outer_body_params, line, col), None, line, col));
             } else {
                 // Simple pattern: if !matched && condition { matched = true; body }
                 let mut full_body_params = vec![set_matched];
-                if body_prefix.is_empty() {
-                    match &renamed_case_body.node_type {
-                        NodeType::Body => full_body_params.extend(renamed_case_body.params.clone()),
-                        _ => full_body_params.push(renamed_case_body),
-                    }
-                } else {
-                    full_body_params.extend(body_prefix);
-                    match &renamed_case_body.node_type {
-                        NodeType::Body => full_body_params.extend(renamed_case_body.params.clone()),
-                        _ => full_body_params.push(renamed_case_body),
-                    }
+                full_body_params.extend(body_prefix);
+                match &renamed_case_body.node_type {
+                    NodeType::Body => full_body_params.extend(renamed_case_body.params.clone()),
+                    _ => full_body_params.push(renamed_case_body),
                 }
-                let full_body = Expr::new_explicit(NodeType::Body, full_body_params, line, col);
 
-                // Build: and(not(_matched), condition)
-                let guarded_condition = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_explicit(NodeType::Identifier("and".to_string()), vec![], line, col),
-                        not_matched,
-                        condition,
-                    ],
-                    line,
-                    col,
-                );
-
-                let case_if = Expr::new_explicit(NodeType::If, vec![guarded_condition, full_body], line, col);
-                stmts.push(case_if);
+                let guarded_condition = make_call("and", vec![not_matched, condition], line, col);
+                stmts.push(make_if(guarded_condition, make_body(full_body_params, line, col), None, line, col));
             }
         }
 
         // Default case: if !matched { default_body }
-        let not_matched_final = Expr::new_explicit(
-            NodeType::FCall(false),
-            vec![
-                Expr::new_explicit(NodeType::Identifier("not".to_string()), vec![], line, col),
-                Expr::new_explicit(NodeType::Identifier(match_flag_name.clone()), vec![], line, col),
-            ],
-            line,
-            col,
-        );
-        let default_if = Expr::new_explicit(NodeType::If, vec![not_matched_final, default_expr], line, col);
-        stmts.push(default_if);
+        let not_matched_final = make_call("not", vec![make_id(&match_flag_name, line, col)], line, col);
+        stmts.push(make_if(not_matched_final, default_expr, None, line, col));
 
         // Combine: declarations + match flag + guarded ifs + guarded default
         let mut body_params = decl_exprs;
         body_params.extend(stmts);
-        return Ok(Expr::new_explicit(NodeType::Body, body_params, line, col));
+        return Ok(make_body(body_params, line, col));
     }
 
     // No nested patterns - use else-if chains (original logic)
@@ -1166,25 +892,14 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
     for (idx, (case_pattern, case_body)) in cases.into_iter().rev().enumerate() {
         let case_index = total_cases - 1 - idx;
         let cond_result = build_case_condition(
-            context,
-            &case_pattern,
-            &switch_var_name,
-            is_enum_switch,
-            &enum_type_name,
-            &switch_expr_var_name,
-            switch_id,
-            case_index,
-            &func_name,
-            line,
-            col,
+            context, &case_pattern, &switch_var_name, is_enum_switch, &enum_type_name,
+            &switch_expr_var_name, switch_id, case_index, &func_name, line, col,
         )?;
 
         let (condition, body_prefix, rename_pair, _inner_condition) = cond_result;
-
-        let renamed_case_body = if let Some((old_name, new_name)) = &rename_pair {
-            rename_identifier_in_expr(&case_body, old_name, new_name)
-        } else {
-            case_body
+        let renamed_case_body = match &rename_pair {
+            Some((old_name, new_name)) => rename_identifier_in_expr(&case_body, old_name, new_name),
+            None => case_body,
         };
 
         let full_case_body = if body_prefix.is_empty() {
@@ -1195,25 +910,16 @@ fn desugar_switch(context: &mut Context, e: &Expr) -> Result<Expr, String> {
                 NodeType::Body => body_params.extend(renamed_case_body.params.clone()),
                 _ => body_params.push(renamed_case_body),
             }
-            Expr::new_explicit(NodeType::Body, body_params, line, col)
+            make_body(body_params, line, col)
         };
 
-        result_expr = Expr::new_explicit(
-            NodeType::If,
-            vec![condition, full_case_body, result_expr],
-            line,
-            col,
-        );
+        result_expr = make_if(condition, full_case_body, Some(result_expr), line, col);
     }
 
     // Wrap in outer body with declarations and if/else chain
     let mut body_params = decl_exprs;
     body_params.push(result_expr);
-    Ok(Expr::new_explicit(
-        NodeType::Body,
-        body_params,
-        line,
-        col,
+    Ok(make_body(body_params, line, col
     ))
 }
 
@@ -1267,15 +973,10 @@ fn build_case_condition(
             let condition = build_str_eq_call(switch_var_name, &variant_str, line, col);
 
             // Body prefix: extract payload
-            // Generate unique name to avoid conflicts with outer scope variables
-            // mut _payload_binding_N := default_value
-            // enum_get_payload(_switch_expr, PayloadType, _payload_binding_N)
             let mut body_prefix = Vec::new();
             let mut rename_pair: Option<(String, String)> = None;
             let payload_type = get_payload_type_for_variant(context, &actual_type_name, &info.variant_name);
             if let Some(vt) = payload_type {
-                // Generate unique payload variable name to avoid conflicts
-                // Include switch_id for global uniqueness across multiple switches
                 let original_name = pattern_info.binding_var.clone();
                 let unique_name = if !func_name.is_empty() {
                     format!("_payload_{}_{}_{}_{}", original_name, func_name, switch_id, case_index)
@@ -1283,95 +984,35 @@ fn build_case_condition(
                     format!("_payload_{}_{}_{}", original_name, switch_id, case_index)
                 };
 
-                // Build default value for the payload type
                 let default_val = build_default_value(context, &vt, line, col);
+                body_prefix.push(make_decl(&unique_name, vt.clone(), true, default_val, line, col));
 
-                // Build: mut _payload_binding_N := default_value
-                let binding_decl = Declaration {
-                    name: unique_name.clone(),
-                    value_type: vt.clone(),
-                    is_mut: true,
-                    is_copy: false,
-                    is_own: false,
-                    default_value: None,
-                };
-                let binding_decl_expr = Expr::new_explicit(
-                    NodeType::Declaration(binding_decl),
-                    vec![default_val],
-                    line,
-                    col,
-                );
-                body_prefix.push(binding_decl_expr);
-
-                // Build: enum_get_payload(_switch_expr, PayloadType, _payload_binding_N)
-                // The type argument is passed as a Type identifier
                 let payload_type_name = match &vt {
                     ValueType::TCustom(name) => name.clone(),
-                    _ => "I64".to_string(), // Shouldn't happen
+                    _ => "I64".to_string(),
                 };
-                let get_payload_call = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_explicit(NodeType::Identifier("enum_get_payload".to_string()), vec![], line, col),
-                        Expr::new_explicit(NodeType::Identifier(switch_expr_var_name.to_string()), vec![], line, col),
-                        Expr::new_explicit(NodeType::Identifier(payload_type_name), vec![], line, col),
-                        Expr::new_explicit(NodeType::Identifier(unique_name.clone()), vec![], line, col),
-                    ],
-                    line,
-                    col,
-                );
-                body_prefix.push(get_payload_call);
+                body_prefix.push(make_call("enum_get_payload", vec![
+                    make_id(switch_expr_var_name, line, col),
+                    make_id(&payload_type_name, line, col),
+                    make_id(&unique_name, line, col),
+                ], line, col));
 
-                // Return rename pair so caller can rename references in the case body
                 rename_pair = Some((original_name, unique_name));
             }
 
             Ok((condition, body_prefix, rename_pair, None))
         },
         NodeType::Range => {
-            // Range case: case low..high:
-            // Condition: and(gteq(_switch_val, low), lteq(_switch_val, high))
+            // Range case: and(gteq(_switch_val, low), lteq(_switch_val, high))
             if case_pattern.params.len() < 2 {
                 return Err("desugar: Range case requires start and end values".to_string());
             }
             let low = &case_pattern.params[0];
             let high = &case_pattern.params[1];
 
-            // Build: gteq(_switch_val, low)
-            let gteq_call = Expr::new_explicit(
-                NodeType::FCall(false),
-                vec![
-                    Expr::new_explicit(NodeType::Identifier("gteq".to_string()), vec![], line, col),
-                    Expr::new_explicit(NodeType::Identifier(switch_var_name.to_string()), vec![], line, col),
-                    low.clone(),
-                ],
-                line,
-                col,
-            );
-
-            // Build: lteq(_switch_val, high)
-            let lteq_call = Expr::new_explicit(
-                NodeType::FCall(false),
-                vec![
-                    Expr::new_explicit(NodeType::Identifier("lteq".to_string()), vec![], line, col),
-                    Expr::new_explicit(NodeType::Identifier(switch_var_name.to_string()), vec![], line, col),
-                    high.clone(),
-                ],
-                line,
-                col,
-            );
-
-            // Build: and(gteq_call, lteq_call)
-            let condition = Expr::new_explicit(
-                NodeType::FCall(false),
-                vec![
-                    Expr::new_explicit(NodeType::Identifier("and".to_string()), vec![], line, col),
-                    gteq_call,
-                    lteq_call,
-                ],
-                line,
-                col,
-            );
+            let gteq_call = make_call("gteq", vec![make_id(switch_var_name, line, col), low.clone()], line, col);
+            let lteq_call = make_call("lteq", vec![make_id(switch_var_name, line, col), high.clone()], line, col);
+            let condition = make_call("and", vec![gteq_call, lteq_call], line, col);
 
             Ok((condition, vec![], None, None))
         },
@@ -1380,52 +1021,17 @@ fn build_case_condition(
             let info = get_case_variant_info(case_pattern);
 
             if is_enum_switch && !info.variant_name.is_empty() {
-                // Enum variant without payload: case Type.Variant:
-                let actual_type_name = if info.type_name.is_empty() {
-                    enum_type_name.to_string()
-                } else {
-                    info.type_name.clone()
-                };
+                let actual_type_name = if info.type_name.is_empty() { enum_type_name.to_string() } else { info.type_name.clone() };
                 let variant_str = format!("{}.{}", actual_type_name, info.variant_name);
-                let condition = build_str_eq_call(switch_var_name, &variant_str, line, col);
-                Ok((condition, vec![], None, None))
+                Ok((build_str_eq_call(switch_var_name, &variant_str, line, col), vec![], None, None))
             } else if is_enum_switch {
-                // Enum switch with variable case: case some_var:
-                // Need to compare using enum_to_str on the case value too
-                // Build: eq(_switch_variant, enum_to_str(case_val))
-                let case_val_str = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
-                        case_pattern.clone(),
-                    ],
-                    line,
-                    col,
-                );
-                let condition = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col),
-                        Expr::new_explicit(NodeType::Identifier(switch_var_name.to_string()), vec![], line, col),
-                        case_val_str,
-                    ],
-                    line,
-                    col,
-                );
+                // Enum switch with variable case: eq(_switch_variant, enum_to_str(case_val))
+                let case_val_str = make_call("enum_to_str", vec![case_pattern.clone()], line, col);
+                let condition = make_call("eq", vec![make_id(switch_var_name, line, col), case_val_str], line, col);
                 Ok((condition, vec![], None, None))
             } else {
-                // Non-enum value comparison: case val:
-                // Condition: eq(_switch_val, case_val)
-                let condition = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col),
-                        Expr::new_explicit(NodeType::Identifier(switch_var_name.to_string()), vec![], line, col),
-                        case_pattern.clone(),
-                    ],
-                    line,
-                    col,
-                );
+                // Non-enum: eq(_switch_val, case_val)
+                let condition = make_call("eq", vec![make_id(switch_var_name, line, col), case_pattern.clone()], line, col);
                 Ok((condition, vec![], None, None))
             }
         },
@@ -1435,222 +1041,81 @@ fn build_case_condition(
 
             if is_enum_switch && !info.variant_name.is_empty() {
                 // Enum variant - check outer tag
-                let actual_type_name = if info.type_name.is_empty() {
-                    enum_type_name.to_string()
-                } else {
-                    info.type_name.clone()
-                };
+                let actual_type_name = if info.type_name.is_empty() { enum_type_name.to_string() } else { info.type_name.clone() };
                 let variant_str = format!("{}.{}", actual_type_name, info.variant_name);
                 let outer_condition = build_str_eq_call(switch_var_name, &variant_str, line, col);
 
                 // Check for nested enum patterns - e.g., ValueType.TType(TTypeDef.TEnumDef)
                 if case_pattern.params.len() > 1 {
                     let inner_pattern = &case_pattern.params[1];
-                    // Check if the inner pattern is also an enum variant pattern (not a binding variable)
                     let inner_info = get_case_variant_info(inner_pattern);
                     if !inner_info.variant_name.is_empty() {
-                        // This is a nested enum pattern - properly desugar it
-                        // 1. Get the payload type for the outer variant
+                        // Nested enum pattern
                         let payload_type = get_payload_type_for_variant(context, &actual_type_name, &info.variant_name);
 
                         if let Some(vt) = payload_type {
-                            // 2. Build body_prefix: declare temp var and extract payload
-                            let mut body_prefix = Vec::new();
-
-                            // Get payload type name
                             let inner_type_name = match &vt {
                                 ValueType::TCustom(name) => name.clone(),
                                 _ => return Err(format!("Nested pattern: unsupported payload type {:?}", vt)),
                             };
 
-                            // Generate unique name for inner payload variable
                             let inner_var_name = if !func_name.is_empty() {
                                 format!("_inner_payload_{}_{}_{}_{}", inner_type_name, func_name, switch_id, case_index)
                             } else {
                                 format!("_inner_payload_{}_{}_{}", inner_type_name, switch_id, case_index)
                             };
 
-                            // Build default value for the payload type
                             let default_val = build_default_value(context, &vt, line, col);
+                            let body_prefix = vec![
+                                make_decl(&inner_var_name, vt.clone(), true, default_val, line, col),
+                                make_call("enum_get_payload", vec![
+                                    make_id(switch_expr_var_name, line, col),
+                                    make_id(&inner_type_name, line, col),
+                                    make_id(&inner_var_name, line, col),
+                                ], line, col),
+                            ];
 
-                            // Build: mut _inner_payload_N: Type = default_value
-                            let binding_decl = Declaration {
-                                name: inner_var_name.clone(),
-                                value_type: vt.clone(),
-                                is_mut: true,
-                                is_copy: false,
-                                is_own: false,
-                                default_value: None,
-                            };
-                            let binding_decl_expr = Expr::new_explicit(
-                                NodeType::Declaration(binding_decl),
-                                vec![default_val],
-                                line,
-                                col,
-                            );
-                            body_prefix.push(binding_decl_expr);
-
-                            // Build: enum_get_payload(_switch_expr, Type, _inner_payload_N)
-                            let type_id = Expr::new_explicit(
-                                NodeType::Identifier(inner_type_name.clone()),
-                                vec![],
-                                line,
-                                col,
-                            );
-                            let inner_var_id = Expr::new_explicit(
-                                NodeType::Identifier(inner_var_name.clone()),
-                                vec![],
-                                line,
-                                col,
-                            );
-                            let extract_call = Expr::new_explicit(
-                                NodeType::FCall(false),
-                                vec![
-                                    Expr::new_explicit(NodeType::Identifier("enum_get_payload".to_string()), vec![], line, col),
-                                    Expr::new_explicit(NodeType::Identifier(switch_expr_var_name.to_string()), vec![], line, col),
-                                    type_id,
-                                    inner_var_id,
-                                ],
-                                line,
-                                col,
-                            );
-                            body_prefix.push(extract_call);
-
-                            // 3. Build inner_condition: enum_to_str(_inner_var).eq("InnerType.InnerVariant")
-                            let inner_actual_type = if inner_info.type_name.is_empty() {
-                                inner_type_name.clone()
-                            } else {
-                                inner_info.type_name.clone()
-                            };
+                            let inner_actual_type = if inner_info.type_name.is_empty() { inner_type_name.clone() } else { inner_info.type_name.clone() };
                             let inner_variant_str = format!("{}.{}", inner_actual_type, inner_info.variant_name);
-
-                            // Build: eq(enum_to_str(_inner_var), "InnerType.InnerVariant")
-                            let inner_enum_to_str = Expr::new_explicit(
-                                NodeType::FCall(false),
-                                vec![
-                                    Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
-                                    Expr::new_explicit(NodeType::Identifier(inner_var_name.clone()), vec![], line, col),
-                                ],
-                                line,
-                                col,
-                            );
-                            let inner_condition = Expr::new_explicit(
-                                NodeType::FCall(false),
-                                vec![
-                                    Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col),
-                                    inner_enum_to_str,
-                                    Expr::new_explicit(NodeType::LLiteral(Literal::Str(inner_variant_str)), vec![], line, col),
-                                ],
-                                line,
-                                col,
-                            );
+                            let inner_enum_to_str = make_call("enum_to_str", vec![make_id(&inner_var_name, line, col)], line, col);
+                            let inner_condition = make_call("eq", vec![inner_enum_to_str, make_str(&inner_variant_str, line, col)], line, col);
 
                             return Ok((outer_condition, body_prefix, None, Some(inner_condition)));
                         } else {
-                            // No payload type found - shouldn't happen for valid code
                             return Err(format!("Nested pattern: could not find payload type for {}.{}", actual_type_name, info.variant_name));
                         }
                     }
                 }
 
-                // No nested enum pattern - use outer condition
                 Ok((outer_condition, vec![], None, None))
             } else if is_enum_switch {
-                // Enum switch with computed case value (returns enum)
-                // Build: eq(_switch_variant, enum_to_str(case_val))
-                let case_val_str = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
-                        case_pattern.clone(),
-                    ],
-                    line,
-                    col,
-                );
-                let condition = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col),
-                        Expr::new_explicit(NodeType::Identifier(switch_var_name.to_string()), vec![], line, col),
-                        case_val_str,
-                    ],
-                    line,
-                    col,
-                );
+                // Enum switch with computed case value: eq(_switch_variant, enum_to_str(case_val))
+                let case_val_str = make_call("enum_to_str", vec![case_pattern.clone()], line, col);
+                let condition = make_call("eq", vec![make_id(switch_var_name, line, col), case_val_str], line, col);
                 Ok((condition, vec![], None, None))
             } else {
-                // Computed case value: case func():
-                // Condition: eq(_switch_val, case_val)
-                let condition = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col),
-                        Expr::new_explicit(NodeType::Identifier(switch_var_name.to_string()), vec![], line, col),
-                        case_pattern.clone(),
-                    ],
-                    line,
-                    col,
-                );
+                // Computed case value: eq(_switch_val, case_val)
+                let condition = make_call("eq", vec![make_id(switch_var_name, line, col), case_pattern.clone()], line, col);
                 Ok((condition, vec![], None, None))
             }
         },
         _ => {
-            // Fallback: depends on whether it's an enum switch
+            // Fallback
             if is_enum_switch {
-                // Enum switch - wrap case value in enum_to_str
-                let case_val_str = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_explicit(NodeType::Identifier("enum_to_str".to_string()), vec![], line, col),
-                        case_pattern.clone(),
-                    ],
-                    line,
-                    col,
-                );
-                let condition = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col),
-                        Expr::new_explicit(NodeType::Identifier(switch_var_name.to_string()), vec![], line, col),
-                        case_val_str,
-                    ],
-                    line,
-                    col,
-                );
+                let case_val_str = make_call("enum_to_str", vec![case_pattern.clone()], line, col);
+                let condition = make_call("eq", vec![make_id(switch_var_name, line, col), case_val_str], line, col);
                 Ok((condition, vec![], None, None))
             } else {
-                // Non-enum: simple equality comparison
-                let condition = Expr::new_explicit(
-                    NodeType::FCall(false),
-                    vec![
-                        Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col),
-                        Expr::new_explicit(NodeType::Identifier(switch_var_name.to_string()), vec![], line, col),
-                        case_pattern.clone(),
-                    ],
-                    line,
-                    col,
-                );
+                let condition = make_call("eq", vec![make_id(switch_var_name, line, col), case_pattern.clone()], line, col);
                 Ok((condition, vec![], None, None))
             }
         },
     }
 }
 
-/// Build: Str.eq(var_name, literal_str)
-/// This is UFCS form that will be resolved to Str.eq(_switch_variant, "Type.Variant")
+/// Build: eq(var_name, "literal_str")
 fn build_str_eq_call(var_name: &str, literal_str: &str, line: usize, col: usize) -> Expr {
-    // Build: eq(_switch_variant, "Type.Variant")
-    // The UFCS phase will transform this to Str.eq if needed
-    Expr::new_explicit(
-        NodeType::FCall(false),
-        vec![
-            Expr::new_explicit(NodeType::Identifier("eq".to_string()), vec![], line, col),
-            Expr::new_explicit(NodeType::Identifier(var_name.to_string()), vec![], line, col),
-            Expr::new_explicit(NodeType::LLiteral(Literal::Str(literal_str.to_string())), vec![], line, col),
-        ],
-        line,
-        col,
-    )
+    make_call("eq", vec![make_id(var_name, line, col), make_str(literal_str, line, col)], line, col)
 }
 
 /// Desugarer phase entry point: Recursively desugar ForIn loops and Switch statements.
