@@ -1941,6 +1941,23 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
     // Track declarations in scope_stack so get_value_type can find local variables
     // This is needed for switch desugaring to determine the type of expressions like var.field
     case NodeType.Declaration(decl):
+        // Issue #110: Set current_precomp_func for function declarations so switch
+        // desugaring generates variable names with proper function prefixes
+        mut is_func_decl := false
+        if e.params.len().gt(0) {
+            mut first_param := Expr()
+            e.params.get(0, first_param)?
+            switch first_param.node_type {
+            case NodeType.FuncDef(_func_def):
+                is_func_decl = true
+            case:
+            }
+        }
+        saved_func := context.current_precomp_func
+        if is_func_decl {
+            context.current_precomp_func = decl.name
+        }
+
         // First desugar the initializer expression (if any)
         mut new_params := Vec.new(Expr)
         if e.params.len().gt(0) {
@@ -1962,6 +1979,11 @@ desugar_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
                 is_comptime_const=false
             )
         )?
+
+        // Issue #110: Restore previous function context
+        if is_func_decl {
+            context.current_precomp_func = saved_func
+        }
 
         return Expr.new_clone(e.node_type, e, new_params)
     // For all other nodes, recurse into params

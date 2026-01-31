@@ -7931,6 +7931,49 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
         emit_expr(payload_out_arg, output, 0, ctx, context)?
         output.push_str(");")
         return
+    } else if orig_func_name.eq("enum_get_payload_type") {
+        // enum_get_payload_type: generates PayloadType_to_str(&enum_expr.payload.VariantName)
+        // Args: enum_get_payload_type(enum_expr, VariantName, PayloadType)
+        if expr.params.len().lt(4) {
+            throw arg.lang_error(context.path, "ccodegen", "enum_get_payload_type requires 3 arguments")
+        }
+        mut enum_arg := Expr()
+        expr.params.get(1, enum_arg)?
+        mut variant_arg := Expr()
+        expr.params.get(2, variant_arg)?
+        mut payload_type_arg := Expr()
+        expr.params.get(3, payload_type_arg)?
+
+        // Get variant name
+        mut variant_name := ""
+        switch variant_arg.node_type {
+        case NodeType.Identifier(name):
+            variant_name = name
+        case:
+            throw arg.lang_error(context.path, "ccodegen", "enum_get_payload_type: variant must be identifier")
+        }
+
+        // Get payload type name
+        mut payload_type_name := ""
+        switch payload_type_arg.node_type {
+        case NodeType.Identifier(name):
+            payload_type_name = name
+        case:
+            throw arg.lang_error(context.path, "ccodegen", "enum_get_payload_type: payload type must be identifier")
+        }
+
+        // Emit enum expression
+        mut enum_str := Str()
+        emit_expr(enum_arg, enum_str, 0, ctx, context)?
+
+        // Generate: PayloadType_to_str(&enum_expr.payload.VariantName)
+        output.push_str(til_name(payload_type_name))
+        output.push_str("_to_str(&")
+        output.push_str(enum_str)
+        output.push_str(".payload.")
+        output.push_str(variant_name)
+        output.push_str(")")
+        return
     } else if orig_func_name.eq("size_of") {
         // size_of(T) - runtime type size lookup via til_size_of function
         if expr.params.len().lt(2) {

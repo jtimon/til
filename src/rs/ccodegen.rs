@@ -1480,6 +1480,39 @@ fn emit_fcall_arg_string(
             return Ok(expr_str);
         },
 
+        // enum_get_payload_type: generates PayloadType_to_str(&enum_expr.payload.VariantName)
+        // Args: enum_get_payload_type(enum_expr, VariantName, PayloadType)
+        "enum_get_payload_type" => {
+            if arg.params.len() < 4 {
+                return Err(arg.lang_error(&context.path, "ccodegen", "enum_get_payload_type requires 3 arguments"));
+            }
+            let enum_arg = &arg.params[1];
+            let variant_arg = &arg.params[2];
+            let payload_type_arg = &arg.params[3];
+
+            // Get variant name
+            let variant_name = if let NodeType::Identifier(name) = &variant_arg.node_type {
+                name.clone()
+            } else {
+                return Err(arg.lang_error(&context.path, "ccodegen", "enum_get_payload_type: variant must be identifier"));
+            };
+
+            // Get payload type name
+            let payload_type_name = if let NodeType::Identifier(name) = &payload_type_arg.node_type {
+                name.clone()
+            } else {
+                return Err(arg.lang_error(&context.path, "ccodegen", "enum_get_payload_type: payload type must be identifier"));
+            };
+
+            // Emit enum expression
+            let mut enum_str = String::new();
+            emit_expr(enum_arg, &mut enum_str, 0, ctx, context)?;
+
+            // Generate: PayloadType_to_str(&enum_expr.payload.VariantName)
+            return Ok(format!("{}_to_str(&{}.payload.{})",
+                til_name(&payload_type_name), enum_str, variant_name));
+        },
+
         // type_as_str: generates Str literal or Str from Type variable
         "type_as_str" => {
             if arg.params.len() < 2 {

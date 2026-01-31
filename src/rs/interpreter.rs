@@ -2530,6 +2530,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "i64_to_str" => ext::func_i64_to_str(context, &e),
         "enum_to_str" => ext::func_enum_to_str(context, &e),
         "enum_get_payload" => ext::func_enum_get_payload(context, &e),
+        "enum_get_payload_type" => ext::func_enum_get_payload_type(context, &e),
         "u8_add" => ext::func_u8_add(context, &e),
         "u8_div" => ext::func_u8_div(context, &e),
         "u8_mod" => ext::func_u8_mod(context, &e),

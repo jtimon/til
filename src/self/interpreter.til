@@ -2854,6 +2854,8 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_enum_to_str(context, e)?
     } else if name.eq("enum_get_payload") {
         return func_enum_get_payload(context, e)?
+    } else if name.eq("enum_get_payload_type") {
+        return func_enum_get_payload_type(context, e)?
     } else if name.eq("u8_to_i64") {
         return func_u8_to_i64(context, e)?
     } else if name.eq("i64_to_u8") {

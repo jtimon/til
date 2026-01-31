@@ -629,6 +629,66 @@ func_enum_get_payload := proc(mut context: Context, e: Expr) returns EvalResult 
     throw e.lang_error(context.path, "eval", "enum_get_payload: enum has no payload or unsupported payload type")
 }
 
+/// Returns the payload's enum tag as a string (e.g., "TTypeDef.TEnumDef").
+/// Used for nested enum pattern matching without extracting the full payload.
+/// Args: enum_get_payload_type(enum_expr, VariantName, PayloadType)
+/// - VariantName: the variant whose payload we're accessing (e.g., TType)
+/// - PayloadType: the type of the payload (e.g., TTypeDef)
+/// In interpreter, we just use temp_enum_payload. The extra args are for ccodegen.
+func_enum_get_payload_type := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "enum_get_payload_type", 3, false)?
+    result := eval_expr(context, e.get(1)?)?
+    if result.is_throw { return result }
+
+    // Get payload type from third argument (for validation)
+    type_arg := e.get(3)?
+    mut expected_type_name := ""
+    switch type_arg.node_type {
+    case NodeType.Identifier(name):
+        expected_type_name = name
+    case:
+        throw e.lang_error(context.path, "eval", "enum_get_payload_type: type argument must be a type name")
+    }
+
+    // After eval_expr, context.temp_enum_payload should contain the payload data
+    if not(context.temp_enum_payload.is_null()) {
+        // Read EnumPayload from heap
+        mut payload := EnumPayload(data=Vec.new(U8), value_type=ValueType.TCustom(""))
+        memcpy(to_ptr(payload), context.temp_enum_payload.data, size_of(EnumPayload))
+
+        payload_bytes := payload.data
+
+        // Check if payload type is an enum
+        switch payload.value_type {
+        case ValueType.TCustom(type_name):
+            // Verify payload type matches expected
+            if not(type_name.eq(expected_type_name)) {
+                throw e.lang_error(context.path, "eval", format(
+                    "enum_get_payload_type: expected payload type '", expected_type_name, "', got '", type_name, "'"
+                ))
+            }
+            mut enum_def := context.scope_stack.lookup_enum(type_name)?
+            catch (err: KeyNotFoundError) {
+                // Not an enum, return empty string
+                return EvalResult.new("")
+            }
+            // Read the first 8 bytes as the enum tag
+            if payload_bytes.len().gteq(8) {
+                // Read tag directly from payload bytes using memcpy
+                mut tag := 0
+                memcpy(to_ptr(tag), payload_bytes.ptr.data, 8)
+                // Look up variant name from tag position
+                variant_name := Context.variant_pos_to_str(enum_def, tag, context.path, e)?
+                return EvalResult.new(format(type_name, ".", variant_name))
+            }
+        case:
+        }
+    }
+
+    // No payload or not an enum payload - return empty string
+    return EvalResult.new("")
+}
+
 func_u8_to_i64 := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "u8_to_i64", 1, false)?
     result := eval_expr(context, e.get(1)?)?

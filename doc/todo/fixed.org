@@ -4473,28 +4473,31 @@ Desugar switch/case to if/else chains in the desugarer phase. This simplifies th
 interpreter, ccodegen, and precomp by removing switch handling from those phases.
 
 *** Implementation
-- ~src/rs/desugarer.rs~ - added ~desugar_switch()~ and helper functions (~1224 lines total)
-- ~src/self/desugarer.til~ - TIL port of the same logic (~1988 lines total)
+- ~src/rs/desugarer.rs~ - added ~desugar_switch()~ and helper functions (1146 lines total)
+- ~src/self/desugarer.til~ - TIL port of the same logic (2010 lines total)
 - Added AST construction helpers (~make_id~, ~make_call~, ~make_str~, etc.) to reduce verbosity
 - Removed switch handling from: ufcs, precomp, interpreter, ccodegen (both .rs and .til)
+- Added ~enum_get_payload_type~ ext_func for nested enum pattern matching
 
 For enum switches: uses ~enum_to_str()~ for comparison, ~enum_get_payload()~ for payloads.
 For non-enum switches: uses direct ~eq()~ method calls.
-Nested enum patterns handled with match flag pattern (flat if blocks).
+Nested enum patterns use combined conditions with ~enum_get_payload_type()~.
 
 *** Performance Impact
 The switch desugaring causes a benchmark regression due to generating more code:
 
-| Mode | Before | After | Increase |
-|------|--------|-------|----------|
-| rust interpreted | 169.7s | 221.6s | +31% |
-| rust compiled | 4.4s | 4.6s | +5% |
-| til interpreted | 380.7s | 561.7s | +48% |
-| til compiled | 15.4s | 27.0s | +75% |
-| Total | 570.3s | 814.9s | +43% |
+| Mode | Before | After (initial) | After (optimized) |
+|------|--------|-----------------|-------------------|
+| rust interpreted | 169.7s | 221.6s (+31%) | 217.5s (+28%) |
+| rust compiled | 4.4s | 4.6s (+5%) | 4.3s (-2%) |
+| til interpreted | 380.7s | 561.7s (+48%) | 550.1s (+44%) |
+| til compiled | 15.4s | 27.0s (+75%) | 25.6s (+66%) |
+| Total | 570.3s | 814.9s (+43%) | 797.6s (+40%) |
 
-Trade-off: simpler code in interpreter/ccodegen/precomp at cost of runtime performance.
-Future optimization: could add fast-path for enum switches avoiding string comparison.
+After removing the match flag pattern and using combined conditions, performance improved
+slightly across all modes. Trade-off: simpler code in interpreter/ccodegen/precomp at cost
+of runtime performance. Future optimization: could add fast-path for enum switches avoiding
+string comparison.
 
 *** Lines of Code Impact (vs master)
 
@@ -4506,6 +4509,54 @@ Future optimization: could add fast-path for enum switches avoiding string compa
 
 Note: C changes are in bootstrap/til.c (generated from TIL self-hosted compiler).
 After helper function refactoring, Rust now has net negative LOC (more code removed than added).
+
+*** Desugarer vs Old Ccodegen Size Analysis
+
+Old ~emit_switch~ in ccodegen was 370 lines. After optimization, ~desugar_switch~ +
+~build_case_condition~ is ~420 lines total (+50 lines). Initial version was 506 lines
+before removing match flag bloat.
+
+| Section | OLD (lines) | INITIAL (lines) | OPTIMIZED (lines) |
+|---------|-------------|-----------------|-------------------|
+| Setup/params check | 10 | 10 | 10 |
+| Type/enum detection | 63 | 26 | 26 |
+| Temp var + declarations | 8 | 79 | 79 |
+| Hoist/scope handling | 32 | 54 | 54 |
+| Nested pattern check | 0 | 16 | 0 (removed) |
+| Match flag path | 0 | 66 | 0 (removed) |
+| Case loop/chain | 23 | 36 | 36 |
+| Pattern case | 55 | 59 | 59 |
+| Range case | 27 | 14 | 14 |
+| Identifier case | 39 | 19 | 19 |
+| LLiteral case | 25 | (combined) | (combined) |
+| FCall case | 72 | 64 | 64 |
+| Nested enum combined | 0 | 0 | ~15 (new) |
+| Fallback | 0 | 13 | 13 |
+
+*** Nested Pattern Fix (COMPLETED)
+
+Added ~enum_get_payload_type(enum_val, VariantName, PayloadType)~ ext_func that returns
+the payload's enum tag as a string without extracting. This enables combined conditions:
+
+#+begin_src til
+// For: case ValueType.TType(TTypeDef.TEnumDef)
+// Generates:
+if and(
+    _switch_variant.eq("ValueType.TType"),
+    enum_get_payload_type(_switch_expr, TType, TTypeDef).eq("TTypeDef.TEnumDef")
+) { ... }
+#+end_src
+
+Changes:
+- Added ~enum_get_payload_type~ to ext.rs/ext.til, interpreter.rs/interpreter.til, ccodegen.rs/ccodegen.til
+- Added ext_func declaration to meta.til
+- Removed match flag pattern (~66 lines)
+- Removed nested pattern detection pass (~16 lines)
+- Fixed variable naming: set ~current_precomp_func~ in desugarer's Declaration handler
+
+File sizes after fix:
+- desugarer.rs: 1146 lines
+- desugarer.til: 2010 lines
 
 ** Issue #147: Add Ptr.dereference method for cleaner pointer dereferencing
 :PROPERTIES:

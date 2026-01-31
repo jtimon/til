@@ -6,6 +6,7 @@ import("core.vec")
 
 enum_to_str := ext_func(e: Dynamic) returns Str {}
 enum_get_payload := ext_func(e: Dynamic, payload_type: Type, mut out: Dynamic) {}
+enum_get_payload_type := ext_func(e: Dynamic, variant_name: Type, payload_type: Type) returns Str {}
 
 eval_to_str     := ext_proc(a: Str) returns Str {}
 eval_to_ast_str := ext_proc(src: Str) returns Str {}  // TODO

@@ -1,6 +1,7 @@
 // External/Core functions for TIL interpreter
 // This module contains all built-in core functions and procedures.
 
+use std::convert::TryInto;
 use crate::rs::init::Context;
 use crate::rs::parser::{
     Expr, NodeType, Literal, ValueType,
@@ -645,6 +646,53 @@ pub fn func_enum_get_payload(context: &mut Context, e: &Expr) -> Result<EvalResu
         }
     }
     Err(e.lang_error(&context.path, "eval", "enum_get_payload: enum has no payload or unsupported payload type"))
+}
+
+/// Returns the payload's enum tag as a string (e.g., "TTypeDef.TEnumDef").
+/// Used for nested enum pattern matching without extracting the full payload.
+/// Args: enum_get_payload_type(enum_expr, VariantName, PayloadType)
+/// - VariantName: the variant whose payload we're accessing (e.g., TType)
+/// - PayloadType: the type of the payload (e.g., TTypeDef)
+/// In interpreter, we just use temp_enum_payload. The extra args are for ccodegen.
+pub fn func_enum_get_payload_type(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "enum_get_payload_type", 3, false)?;
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result);
+    }
+    // Get payload type from third argument (for validation)
+    let type_arg = e.get(3)?;
+    let expected_type_name = if let NodeType::Identifier(name) = &type_arg.node_type {
+        name.clone()
+    } else {
+        return Err(e.lang_error(&context.path, "eval", "enum_get_payload_type: type argument must be a type name"));
+    };
+    // After eval_expr, context.temp_enum_payload should contain the payload data
+    if let Some(payload) = &context.temp_enum_payload {
+        let payload_bytes = &payload.data;
+        // Check if payload type is an enum
+        if let ValueType::TCustom(type_name) = &payload.value_type {
+            // Verify payload type matches expected
+            if type_name != &expected_type_name {
+                return Err(e.lang_error(&context.path, "eval", &format!(
+                    "enum_get_payload_type: expected payload type '{}', got '{}'",
+                    expected_type_name, type_name
+                )));
+            }
+            if let Some(enum_def) = context.scope_stack.lookup_enum(type_name) {
+                // Read the first 8 bytes as the enum tag
+                if payload_bytes.len() >= 8 {
+                    let tag_bytes: [u8; 8] = payload_bytes[0..8].try_into().unwrap();
+                    let tag = i64::from_le_bytes(tag_bytes);
+                    // Look up variant name from tag position
+                    let variant_name = Context::variant_pos_to_str(&enum_def, tag, &context.path, e)?;
+                    return Ok(EvalResult::new(&format!("{}.{}", type_name, variant_name)));
+                }
+            }
+        }
+    }
+    // No payload or not an enum payload - return empty string
+    Ok(EvalResult::new(""))
 }
 
 pub fn func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
