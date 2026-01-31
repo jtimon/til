@@ -2397,6 +2397,22 @@ fn emit_precomputed_vec_static(
         .map_err(|e| format!("emit_precomputed_vec_static: {}", e))?;
 
     let var_name = &phv.var_name;
+
+    // Use recursive helper to emit static arrays
+    emit_precomputed_vec_recursive(output, ctx, context, var_name, &contents)?;
+
+    Ok(())
+}
+
+// Recursive helper to emit static arrays for Vec contents
+// Handles nested types by recursively emitting inner elements first
+fn emit_precomputed_vec_recursive(
+    output: &mut String,
+    ctx: &mut CodegenContext,
+    context: &Context,
+    var_name: &str,
+    contents: &VecContents,
+) -> Result<(), String> {
     let elem_type = &contents.element_type_name;
     let elem_count = contents.element_bytes.len();
 
@@ -2414,7 +2430,7 @@ fn emit_precomputed_vec_static(
     // Handle different element types
     if elem_type == "Str" {
         // Vec<Str> needs two-level serialization: string data + Str structs
-        emit_precomputed_vec_str_static(output, ctx, context, var_name, &contents)?;
+        emit_precomputed_vec_str_static(output, ctx, context, var_name, contents)?;
     } else if elem_type == "I64" {
         // Vec<I64> - emit array of I64 values
         output.push_str("static ");
@@ -2449,9 +2465,12 @@ fn emit_precomputed_vec_static(
             output.push_str(&val.to_string());
         }
         output.push_str("};\n");
+    } else if EvalArena::type_needs_heap_serialization(context, elem_type) {
+        // Nested type that needs heap serialization (Vec, List, etc.)
+        // Recursively emit inner elements first, then emit outer array
+        emit_precomputed_nested_vec_static(output, ctx, context, var_name, contents)?;
     } else {
-        // Other struct types - emit raw bytes as array
-        // This is a fallback that may need refinement for complex nested types
+        // Other struct types - emit raw bytes as array (fallback)
         let total_bytes: usize = contents.element_bytes.iter().map(|b: &Vec<u8>| b.len()).sum();
         output.push_str("static unsigned char ");
         output.push_str(&data_array_name);
@@ -2472,10 +2491,148 @@ fn emit_precomputed_vec_static(
     }
 
     // Store info for later use when emitting assignments in main()
-    ctx.precomputed_static_arrays.insert(var_name.clone(), PrecomputedStaticInfo {
+    ctx.precomputed_static_arrays.insert(var_name.to_string(), PrecomputedStaticInfo {
         data_array_name,
         type_name_array_name,
     });
+
+    Ok(())
+}
+
+// Emit static arrays for Vec containing nested types (Vec<Vec<T>>, Vec<List<T>>, etc.)
+// First recursively emits inner element data, then emits outer array with patched pointers
+fn emit_precomputed_nested_vec_static(
+    output: &mut String,
+    ctx: &mut CodegenContext,
+    context: &Context,
+    var_name: &str,
+    contents: &VecContents,
+) -> Result<(), String> {
+    let elem_type = &contents.element_type_name;
+    let elem_count = contents.element_bytes.len();
+
+    // First pass: recursively emit static arrays for each inner element
+    let mut inner_data_names: Vec<String> = Vec::new();
+    let mut inner_type_names: Vec<String> = Vec::new();
+
+    for (idx, elem_bytes) in contents.element_bytes.iter().enumerate() {
+        let inner_var_name = format!("{}_{}", var_name, idx);
+
+        if elem_type == "Vec" {
+            // Get the ptr field from the inner Vec struct bytes
+            // Vec layout: type_name (Str), type_size (I64), ptr (Ptr), _len (I64), cap (I64)
+            let str_size = context.get_type_size("Str")?;
+            let ptr_offset = str_size + 8; // after type_name and type_size
+            let ptr_bytes: [u8; 8] = elem_bytes[ptr_offset..ptr_offset+8].try_into()
+                .map_err(|_| "emit_precomputed_nested_vec_static: failed to read inner Vec ptr")?;
+            let inner_data_ptr = i64::from_ne_bytes(ptr_bytes) as usize;
+
+            // Extract inner Vec contents from its memory location
+            // We need to reconstruct VecContents from the raw bytes
+            let inner_type_name = EvalArena::extract_str_from_bytes(context, elem_bytes)?;
+            let inner_type_size_bytes: [u8; 8] = elem_bytes[str_size..str_size+8].try_into()
+                .map_err(|_| "emit_precomputed_nested_vec_static: failed to read inner type_size")?;
+            let inner_type_size = i64::from_ne_bytes(inner_type_size_bytes) as usize;
+
+            let ptr_size = context.get_type_size("Ptr")?;
+            let len_offset = ptr_offset + ptr_size;
+            let inner_len_bytes: [u8; 8] = elem_bytes[len_offset..len_offset+8].try_into()
+                .map_err(|_| "emit_precomputed_nested_vec_static: failed to read inner _len")?;
+            let inner_len = i64::from_ne_bytes(inner_len_bytes) as usize;
+
+            // Extract inner element bytes
+            let mut inner_element_bytes = Vec::new();
+            for i in 0..inner_len {
+                let elem_offset = inner_data_ptr + (i * inner_type_size);
+                let bytes = EvalArena::g().get(elem_offset, inner_type_size).to_vec();
+                inner_element_bytes.push(bytes);
+            }
+
+            let inner_contents = VecContents {
+                element_type_name: inner_type_name,
+                type_size: inner_type_size,
+                element_bytes: inner_element_bytes,
+            };
+
+            // Recursively emit static arrays for inner Vec
+            emit_precomputed_vec_recursive(output, ctx, context, &inner_var_name, &inner_contents)?;
+        }
+        // TODO: Handle List and other nested types
+
+        inner_data_names.push(format!("_precomp_{}_data", inner_var_name));
+        inner_type_names.push(format!("_precomp_{}_type_name", inner_var_name));
+    }
+
+    // Second pass: emit the outer array of structs with patched pointers
+    let data_array_name = format!("_precomp_{}_data", var_name);
+    output.push_str("static ");
+    output.push_str(TIL_PREFIX);
+    output.push_str(elem_type);
+    output.push_str(" ");
+    output.push_str(&data_array_name);
+    output.push_str("[");
+    output.push_str(&elem_count.to_string());
+    output.push_str("] = {\n");
+
+    for (idx, elem_bytes) in contents.element_bytes.iter().enumerate() {
+        if elem_type == "Vec" {
+            // Emit Vec struct with patched pointers
+            // Vec layout: type_name (Str), type_size (I64), ptr (Ptr), _len (I64), cap (I64)
+            let str_size = context.get_type_size("Str")?;
+            let ptr_size = context.get_type_size("Ptr")?;
+
+            // Extract type_size
+            let type_size_bytes: [u8; 8] = elem_bytes[str_size..str_size+8].try_into()
+                .map_err(|_| "emit_precomputed_nested_vec_static: failed to read type_size")?;
+            let type_size = i64::from_ne_bytes(type_size_bytes);
+
+            // Extract _len
+            let len_offset = str_size + 8 + ptr_size;
+            let len_bytes: [u8; 8] = elem_bytes[len_offset..len_offset+8].try_into()
+                .map_err(|_| "emit_precomputed_nested_vec_static: failed to read _len")?;
+            let len = i64::from_ne_bytes(len_bytes);
+
+            // Extract cap
+            let cap_offset = len_offset + 8;
+            let cap_bytes: [u8; 8] = elem_bytes[cap_offset..cap_offset+8].try_into()
+                .map_err(|_| "emit_precomputed_nested_vec_static: failed to read cap")?;
+            let cap = i64::from_ne_bytes(cap_bytes);
+
+            output.push_str("    {.type_name = (");
+            output.push_str(TIL_PREFIX);
+            output.push_str("Str){.c_string = (");
+            output.push_str(TIL_PREFIX);
+            output.push_str("Ptr){(");
+            output.push_str(TIL_PREFIX);
+            output.push_str("I64)");
+            output.push_str(&inner_type_names[idx]);
+            output.push_str(", 1}, ._len = ");
+            // Get inner type name length
+            let inner_type_name = EvalArena::extract_str_from_bytes(context, elem_bytes)?;
+            output.push_str(&inner_type_name.len().to_string());
+            output.push_str(", .cap = 0}, .type_size = ");
+            output.push_str(&type_size.to_string());
+            output.push_str(", .ptr = (");
+            output.push_str(TIL_PREFIX);
+            output.push_str("Ptr){(");
+            output.push_str(TIL_PREFIX);
+            output.push_str("I64)");
+            output.push_str(&inner_data_names[idx]);
+            output.push_str(", 1}, ._len = ");
+            output.push_str(&len.to_string());
+            output.push_str(", .cap = ");
+            output.push_str(&cap.to_string());
+            output.push_str("}");
+        }
+        // TODO: Handle List and other nested types
+
+        if idx + 1 < elem_count {
+            output.push_str(",");
+        }
+        output.push_str("\n");
+    }
+
+    output.push_str("};\n");
 
     Ok(())
 }

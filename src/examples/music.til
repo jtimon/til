@@ -76,11 +76,10 @@ create_base_notes := func() returns Vec {
     return create_notes_solfege()
 }
 
-// TODO: Bug #133 workaround - using proc because returns Vec<Vec<I64>> (nested Vecs not yet supported)
 // Mode intervals ordered from brightest to darkest.
 // Major tonality: lydian, ionian, mixolydian (have major 3rd)
 // Minor tonality: dorian, aeolian, phrygian, locrian (have minor 3rd)
-create_mode_intervals := proc() returns Vec {
+create_mode_intervals := func() returns Vec {
     mut all := Vec.new(Vec)
 
     // Lydian - brightest (major, raised 4th degree)

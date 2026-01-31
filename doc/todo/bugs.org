@@ -195,7 +195,7 @@ See commit 5031b866 which fixed the symptom by using Ptr() instead of NULL.
 :PROPERTIES:
 :DISCOVERED: 2026-01-22
 :IMPACT: Compiled programs crash/segfault when using precomputed collections
-:STATUS: Partial - Vec<I64>, Vec<U8>, Vec<Str> work; Vec<Vec<T>>, List, Map still broken
+:STATUS: Partial - Vec types work (including nested); List, Map still broken
 :REPRODUCER: src/test/test_bug133.til (passes for simple types)
 :RELATED: Bug #145 (FIXED - was similar issue in til_interpreted mode)
 :BRANCH: current133
@@ -242,19 +242,39 @@ Serialize heap data to static arrays: Copy the heap contents into C static
 arrays and patch the pointers to reference them. This preserves the
 optimization benefit of precomputation.
 
-*** Workaround (current)
+**** Generic approach
+The correct solution is NOT to hardcode specific types (Vec, List, Map), but to
+handle ANY struct with owned Ptr fields generically:
+
+1. For each Ptr field in the struct, check if ~is_borrowed~ is false (owned)
+2. If owned, the Ptr points to heap data that needs serialization
+3. Recursively serialize whatever that Ptr points to (could be another struct
+   with Ptr fields, requiring further recursion)
+4. Emit static arrays for the serialized data
+5. Patch the Ptr to reference the static array instead of the heap address
+
+This approach automatically handles:
+- Vec (ptr field points to element array)
+- List (node pointers)
+- Map (bucket pointers)
+- Any user-defined struct with owned Ptr fields
+- Arbitrary nesting depth
+
+Current implementation handles Vec specifically; List and Map need the same
+treatment but haven't been implemented yet.
+
+*** Workaround (for unsupported types)
 Change ~func~ to ~proc~ for functions that return unsupported heap types.
 Since precomp only evaluates ~func~ (pure functions), using ~proc~ forces runtime evaluation:
 
 #+BEGIN_SRC til
-// Works (Vec<Str> - supported):
+// Works (all Vec types now supported):
 create_chromatic := func() returns Vec { ... }
+create_mode_intervals := func() returns Vec { ... }  // Vec<Vec<I64>>
 
-// Broken (Vec<Vec<I64>> - not yet supported), use proc:
-create_mode_intervals := proc() returns Vec { ... }
+// Broken (List, Map not yet supported), use proc:
+create_items := proc() returns List { ... }
 #+END_SRC
-
-See src/examples/music.til for example usage.
 
 *** Progress (2026-01-30)
 Rust fix merged to master. Files modified:
@@ -281,14 +301,14 @@ TIL port complete (2026-01-30). Files modified:
 - ~Vec<I64>~ - emits static I64 array
 - ~Vec<U8>~ - emits static U8 array
 - ~Vec<Str>~ - emits string literals + Str struct array (two-level)
+- ~Vec<Vec<T>>~ - recursive serialization of nested Vecs
 
 **** Still broken (both rs_compiled and til_compiled):
-- ~Vec<Vec<T>>~ - inner Vecs contain invalid pointers (falls back to raw bytes)
 - ~List~ - linked node pointers not serialized
 - ~Map~ - internal structure not serialized
 
 **** Future work:
-1. Implement recursive serialization for nested Vecs (Vec<Vec<T>>)
+1. Generalize to handle any struct with owned Ptr fields (not just Vec)
 2. Add List serialization support (linked node pointers)
 3. Add Map serialization support (internal structure)
 

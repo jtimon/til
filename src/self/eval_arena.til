@@ -1499,6 +1499,52 @@ EvalArena := struct {
         return result
     }
 
+    /// Extract string data from Str raw bytes (Vec<U8>).
+    /// Used for nested types where we have the Str struct bytes directly.
+    extract_str_from_bytes := func(ctx: Context, str_bytes: Vec) returns Str throws Str {
+        ptr_size := ctx.get_type_size("Ptr")?
+
+        // Read c_string.data (first 8 bytes) - little endian
+        mut c_string_ptr := 0
+        mut multiplier := 1
+        for i in 0..8 {
+            if i.lt(str_bytes.len()) {
+                mut b : U8 = 0
+                str_bytes.get(i, b)?
+                c_string_ptr = c_string_ptr.add(b.to_i64().mul(multiplier))
+                multiplier = multiplier.mul(256)
+            }
+            catch (err: IndexOutOfBoundsError) { }
+        }
+
+        // Read _len (I64) - after c_string Ptr
+        mut len := 0
+        mut multiplier2 := 1
+        for i in 0..8 {
+            idx := ptr_size.add(i)
+            if idx.lt(str_bytes.len()) {
+                mut b : U8 = 0
+                str_bytes.get(idx, b)?
+                len = len.add(b.to_i64().mul(multiplier2))
+                multiplier2 = multiplier2.mul(256)
+            }
+            catch (err: IndexOutOfBoundsError) { }
+        }
+
+        // Read the actual string bytes from arena
+        if c_string_ptr.eq(0).or(len.eq(0)) {
+            return ""
+        }
+        mut result := ""
+        for i in 0..len {
+            byte_ptr := g_arena.get(c_string_ptr.add(i), 1)
+            mut byte_val : U8 = 0
+            Ptr(data=byte_ptr).dereference(U8, byte_val)
+            result = concat(result, Str.from_byte(byte_val))
+        }
+        return result
+    }
+
     /// Extract a Str value from an instance by name.
     extract_str_contents := func(ctx: Context, instance_name: Str) returns StrContents throws Str {
         mut str_offset := 0

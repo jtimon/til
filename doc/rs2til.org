@@ -141,8 +141,8 @@ get_flags := func() returns Vec {
 }
 #+end_src
 
-Note: Functions returning simple Vec types (Vec<I64>, Vec<U8>, Vec<Str>) can use ~func~ normally.
-For nested types (Vec<Vec<T>>, List, Map), use ~proc~ to prevent precomputation (Bug #133 partial fix).
+Note: Functions returning Vec types (Vec<I64>, Vec<U8>, Vec<Str>, Vec<Vec<T>>) can use ~func~ normally.
+For List and Map, use ~proc~ to prevent precomputation (Bug #133 partial fix - List/Map not yet supported).
 
 ** Struct literals
 

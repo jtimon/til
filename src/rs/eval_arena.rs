@@ -1212,6 +1212,74 @@ impl EvalArena {
         })
     }
 
+    /// Extract the contents of a Vec from a raw memory offset.
+    /// Used for nested Vecs where we have the offset but not an instance name.
+    #[allow(dead_code)]
+    pub fn extract_vec_contents_at_offset(ctx: &Context, vec_offset: usize) -> Result<VecContents, String> {
+        // Vec layout: type_name (Str), type_size (I64), ptr (Ptr), _len (I64), cap (I64)
+        let str_size = ctx.get_type_size("Str")?;
+        let ptr_size = ctx.get_type_size("Ptr")?;
+
+        // Read type_name (Str)
+        let type_name_str = Self::extract_str_at_offset(ctx, vec_offset)?;
+
+        // Read type_size (I64) - after Str
+        let type_size_offset = vec_offset + str_size;
+        let type_size_bytes: [u8; 8] = EvalArena::g().get(type_size_offset, 8).try_into()
+            .map_err(|_| "extract_vec_contents_at_offset: failed to read type_size")?;
+        let type_size = i64::from_ne_bytes(type_size_bytes) as usize;
+
+        // Read ptr.data (I64) - after type_size
+        let ptr_offset = type_size_offset + 8;
+        let ptr_bytes: [u8; 8] = EvalArena::g().get(ptr_offset, 8).try_into()
+            .map_err(|_| "extract_vec_contents_at_offset: failed to read ptr")?;
+        let data_ptr = i64::from_ne_bytes(ptr_bytes) as usize;
+
+        // Read _len (I64) - after ptr (Ptr is 16 bytes: data + is_borrowed)
+        let len_offset = ptr_offset + ptr_size;
+        let len_bytes: [u8; 8] = EvalArena::g().get(len_offset, 8).try_into()
+            .map_err(|_| "extract_vec_contents_at_offset: failed to read _len")?;
+        let len = i64::from_ne_bytes(len_bytes) as usize;
+
+        // Extract element bytes
+        let mut element_bytes = Vec::new();
+        for i in 0..len {
+            let elem_offset = data_ptr + (i * type_size);
+            let bytes = EvalArena::g().get(elem_offset, type_size).to_vec();
+            element_bytes.push(bytes);
+        }
+
+        Ok(VecContents {
+            element_type_name: type_name_str,
+            type_size,
+            element_bytes,
+        })
+    }
+
+    /// Extract string data from Str raw bytes.
+    /// Used for nested types where we have the Str struct bytes directly.
+    pub fn extract_str_from_bytes(ctx: &Context, str_bytes: &[u8]) -> Result<String, String> {
+        let ptr_size = ctx.get_type_size("Ptr")?;
+
+        // Read c_string.data (first 8 bytes)
+        let c_string_ptr_bytes: [u8; 8] = str_bytes[..8].try_into()
+            .map_err(|_| "extract_str_from_bytes: failed to read c_string ptr")?;
+        let c_string_ptr = i64::from_ne_bytes(c_string_ptr_bytes) as usize;
+
+        // Read _len (I64) - after c_string Ptr
+        let len_bytes: [u8; 8] = str_bytes[ptr_size..ptr_size+8].try_into()
+            .map_err(|_| "extract_str_from_bytes: failed to read _len")?;
+        let len = i64::from_ne_bytes(len_bytes) as usize;
+
+        // Read the actual string bytes from arena
+        if c_string_ptr == 0 || len == 0 {
+            return Ok(String::new());
+        }
+        let string_bytes = EvalArena::g().get(c_string_ptr, len);
+        String::from_utf8(string_bytes.to_vec())
+            .map_err(|_| "extract_str_from_bytes: invalid UTF-8 in string".to_string())
+    }
+
     /// Extract string data from a Str at a given offset.
     /// Used by extract_vec_contents for type_name and for Vec<Str> elements.
     fn extract_str_at_offset(ctx: &Context, str_offset: usize) -> Result<String, String> {
