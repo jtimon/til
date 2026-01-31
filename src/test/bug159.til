@@ -1,0 +1,40 @@
+// Bug #159: Test shallow copy semantics in struct cloning
+// When doing `mut cloned := original`, the clone should be independent.
+// Currently, copy_fields does a shallow byte copy, so Ptr fields share data.
+
+mode test
+
+Container := struct {
+    mut items: Vec = Vec.new(I64)
+}
+
+// Test shallow copy bug by modifying an existing element (not pushing)
+// This avoids reallocation which could mask the bug
+test_shallow_copy_bug := proc() {
+    mut original := Container()
+    original.items.push(10)
+    original.items.push(20)
+    original.items.push(30)
+
+    mut cloned := original
+
+    // Modify existing element in clone (no reallocation)
+    cloned.items.set(0, 999)?
+
+    // Read values
+    mut orig_val := 0
+    original.items.get(0, orig_val)?
+    mut clone_val := 0
+    cloned.items.get(0, clone_val)?
+
+    // BUG: Both are 999 because they share the pointer
+    // CORRECT: original should be 10, cloned should be 999
+    assert_eq(loc(), 10, orig_val)    // Fails until bug is fixed
+    assert_eq(loc(), 999, clone_val)
+
+    catch (err: IndexOutOfBoundsError) {
+        panic("IndexOutOfBoundsError:", err.msg)
+    }
+}
+
+test_shallow_copy_bug()
