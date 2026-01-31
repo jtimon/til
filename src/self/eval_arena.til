@@ -38,6 +38,23 @@ EnumInsertResult := struct {
     mut enum_val: EnumVal = EnumVal()
 }
 
+// Bug #133: Structs for extracting heap contents for serialization to static arrays
+/// Contents of a Vec for serialization to static C arrays
+VecContents := struct {
+    mut element_type_name: Str = ""
+    mut type_size: I64 = 0
+    mut element_bytes: Vec = Vec.new(Vec)  // Vec of Vec<U8>
+
+    clone := func(self: VecContents) returns VecContents {
+        return VecContents(element_type_name=self.element_type_name.clone(), type_size=self.type_size, element_bytes=self.element_bytes.clone())
+    }
+}
+
+/// Contents of a Str for serialization
+StrContents := struct {
+    mut string_data: Str = ""
+}
+
 EvalArena := struct {
     mut _arena: Arena = Arena()
     mut temp_id_counter: I64 = 0
@@ -1393,6 +1410,137 @@ EvalArena := struct {
         }
 
         return result
+    }
+
+    /// Extract the contents of a Vec instance from arena memory.
+    /// Returns the element type name, size, and raw bytes for each element.
+    extract_vec_contents := func(ctx: Context, instance_name: Str) returns VecContents throws Str {
+        // Get Vec base offset
+        mut vec_offset := 0
+        vec_offset = ctx.scope_stack.lookup_var(instance_name)?
+        catch (err: KeyNotFoundError) {
+            throw format("extract_vec_contents: instance '", instance_name, "' not found")
+        }
+
+        // Vec layout: type_name (Str), type_size (I64), ptr (Ptr), _len (I64), cap (I64)
+        // Get sizes
+        str_size := ctx.get_type_size("Str")?
+        ptr_size := ctx.get_type_size("Ptr")?
+
+        // Read type_name (Str) - need to extract the string value
+        type_name_offset := vec_offset
+        type_name_str := EvalArena.extract_str_at_offset(ctx, type_name_offset)?
+
+        // Read type_size (I64) - after Str
+        type_size_offset := vec_offset.add(str_size)
+        type_size_ptr := g_arena.get(type_size_offset, 8)
+        mut type_size := 0
+        Ptr(data=type_size_ptr).dereference(I64, type_size)
+
+        // Read ptr.data (I64) - after type_size
+        ptr_offset := type_size_offset.add(8)
+        ptr_data_ptr := g_arena.get(ptr_offset, 8)
+        mut data_ptr := 0
+        Ptr(data=ptr_data_ptr).dereference(I64, data_ptr)
+
+        // Read _len (I64) - after ptr (Ptr is 16 bytes: data + is_borrowed)
+        len_offset := ptr_offset.add(ptr_size)
+        len_ptr := g_arena.get(len_offset, 8)
+        mut len := 0
+        Ptr(data=len_ptr).dereference(I64, len)
+
+        // Extract element bytes
+        mut element_bytes := Vec.new(Vec)
+        for i in 0..len {
+            elem_offset := data_ptr.add(i.mul(type_size))
+            // Read bytes from arena
+            mut bytes := Vec.new(U8)
+            for j in 0..type_size {
+                byte_ptr := g_arena.get(elem_offset.add(j), 1)
+                mut byte_val : U8 = 0
+                Ptr(data=byte_ptr).dereference(U8, byte_val)
+                bytes.push(byte_val)
+            }
+            element_bytes.push(bytes)
+        }
+
+        return VecContents(element_type_name=type_name_str, type_size=type_size, element_bytes=element_bytes)
+    }
+
+    /// Extract string data from a Str at a given offset.
+    /// Used by extract_vec_contents for type_name and for Vec<Str> elements.
+    extract_str_at_offset := func(ctx: Context, str_offset: I64) returns Str throws Str {
+        // Str layout: c_string (Ptr), _len (I64), cap (I64)
+        ptr_size := ctx.get_type_size("Ptr")?
+
+        // Read c_string.data (first field of Ptr)
+        c_string_ptr_ptr := g_arena.get(str_offset, 8)
+        mut c_string_ptr := 0
+        Ptr(data=c_string_ptr_ptr).dereference(I64, c_string_ptr)
+
+        // Read _len (I64) - after c_string Ptr
+        len_offset := str_offset.add(ptr_size)
+        len_ptr := g_arena.get(len_offset, 8)
+        mut len := 0
+        Ptr(data=len_ptr).dereference(I64, len)
+
+        // Read the actual string bytes
+        if c_string_ptr.eq(0).or(len.eq(0)) {
+            return ""
+        }
+        // Create string from bytes
+        mut result := ""
+        for i in 0..len {
+            byte_ptr := g_arena.get(c_string_ptr.add(i), 1)
+            mut byte_val : U8 = 0
+            Ptr(data=byte_ptr).dereference(U8, byte_val)
+            result = concat(result, Str.from_byte(byte_val))
+        }
+        return result
+    }
+
+    /// Extract a Str value from an instance by name.
+    extract_str_contents := func(ctx: Context, instance_name: Str) returns StrContents throws Str {
+        mut str_offset := 0
+        str_offset = ctx.scope_stack.lookup_var(instance_name)?
+        catch (err: KeyNotFoundError) {
+            throw format("extract_str_contents: instance '", instance_name, "' not found")
+        }
+        string_data := EvalArena.extract_str_at_offset(ctx, str_offset)?
+        return StrContents(string_data=string_data)
+    }
+
+    /// Check if a type requires heap serialization (contains Ptr fields that point to heap data)
+    type_needs_heap_serialization := func(ctx: Context, type_name: Str) returns Bool {
+        if type_name.eq("Vec").or(type_name.eq("List")) {
+            return true
+        }
+        // Str doesn't need it because string literals are already static in C
+        // (the c_string pointer points to string literal data)
+
+        // Check if this is a struct with Vec/List fields
+        mut struct_def := SStructDef()
+        struct_def = ctx.scope_stack.lookup_struct(type_name)?
+        catch (err: KeyNotFoundError) {
+            return false
+        }
+        for member_idx in 0..struct_def.members.len() {
+            mut member := Declaration()
+            struct_def.members.get(member_idx, member)?
+            catch (err: IndexOutOfBoundsError) {
+                return false
+            }
+            if member.is_mut {
+                switch member.value_type {
+                case ValueType.TCustom(field_type):
+                    if EvalArena.type_needs_heap_serialization(ctx, field_type) {
+                        return true
+                    }
+                case:
+                }
+            }
+        }
+        return false
     }
 }
 

@@ -6,6 +6,7 @@ mode liba
 import("self.parser")
 import("self.init")
 import("self.typer")
+import("self.eval_arena")  // For EvalArena.extract_vec_contents, g_arena
 
 // Prefix for all TIL-generated names in C code (structs, functions, types)
 TIL_PREFIX := "til_"
@@ -30,6 +31,16 @@ sort_enum_variants := proc(mut v: Vec) {
             }
         }
         n = new_n
+    }
+}
+
+// Bug #133: Info about a precomputed Vec's static array serialization
+PrecomputedStaticInfo := struct {
+    mut data_array_name: Str = ""       // Name of the static array (e.g., "_precomp_chromatic_data")
+    mut type_name_array_name: Str = ""  // Name of the type_name string (e.g., "_precomp_chromatic_type_name")
+
+    clone := func(self: PrecomputedStaticInfo) returns PrecomputedStaticInfo {
+        return PrecomputedStaticInfo(data_array_name=self.data_array_name.clone(), type_name_array_name=self.type_name_array_name.clone())
     }
 }
 
@@ -63,6 +74,9 @@ CodegenContext := struct {
     mut hoisted_prototypes: Vec = Vec.new(Str)
     // Map original function name -> mangled name for nested functions
     mut nested_func_names: Map = Map.new(Str, Str)
+    // Bug #133 fix: Map var_name -> static array name for precomputed heap values
+    // When emitting assignments in main(), Ptr fields will use these static pointers
+    mut precomputed_static_arrays: Map = Map.new(Str, PrecomputedStaticInfo)
 
     new := func() returns CodegenContext {
         return CodegenContext()
@@ -2356,6 +2370,9 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // Pass 4d: emit til_size_of function (runtime type size lookup)
     emit_size_of_function(output, ctx)
 
+    // Bug #133 fix: Emit static arrays for precomputed heap values
+    emit_precomputed_static_arrays(output, ctx, context)?
+
     output.push_str("\n")
 
     // Pass 5: emit function definitions
@@ -3074,6 +3091,340 @@ emit_size_of_function := proc(mut output: Str, ctx: CodegenContext) {
     output.push_str("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name->c_string.data);\n")
     output.push_str("    exit(1);\n")
     output.push_str("}\n")
+}
+
+// Bug #133 fix: Emit static arrays for precomputed heap values (Vec, List, etc.)
+// This serializes interpreter heap contents to static C arrays so Ptr fields can reference them
+emit_precomputed_static_arrays := proc(mut output: Str, mut ctx: CodegenContext, context: Context) throws Str {
+    if context.precomputed_heap_values.is_empty() {
+        return
+    }
+
+    output.push_str("\n// Bug #133: Static arrays for precomputed heap values\n")
+
+    for phv: PrecomputedHeapValue in context.precomputed_heap_values {
+        if phv.type_name.eq("Vec") {
+            emit_precomputed_vec_static(output, ctx, context, phv)?
+        }
+        // TODO: Add List, Map support as needed
+    }
+}
+
+// Emit static arrays for a single precomputed Vec
+emit_precomputed_vec_static := proc(mut output: Str, mut ctx: CodegenContext, context: Context, phv: PrecomputedHeapValue) throws Str {
+    // Extract Vec contents from EvalArena
+    contents := EvalArena.extract_vec_contents(context, phv.instance_name)?
+
+    var_name := phv.var_name
+    elem_type := contents.element_type_name
+    elem_count := contents.element_bytes.len()
+
+    // Generate static array names
+    data_array_name := format("_precomp_", var_name, "_data")
+    type_name_array_name := format("_precomp_", var_name, "_type_name")
+
+    // Emit type_name string literal
+    output.push_str("static const char ")
+    output.push_str(type_name_array_name)
+    output.push_str("[] = \"")
+    output.push_str(elem_type)
+    output.push_str("\";\n")
+
+    // Handle different element types
+    if elem_type.eq("Str") {
+        // Vec<Str> needs two-level serialization: string data + Str structs
+        emit_precomputed_vec_str_static(output, ctx, context, var_name, contents)?
+    } else if elem_type.eq("I64") {
+        // Vec<I64> - emit array of I64 values
+        output.push_str("static ")
+        output.push_str(TIL_PREFIX)
+        output.push_str("I64 ")
+        output.push_str(data_array_name)
+        output.push_str("[")
+        output.push_str(elem_count.to_str())
+        output.push_str("] = {")
+        for i in 0..elem_count {
+            if i.gt(0) {
+                output.push_str(", ")
+            }
+            mut bytes := Vec.new(U8)
+            contents.element_bytes.get(i, bytes)?
+            // Read I64 from 8 bytes (little endian)
+            val := bytes_to_i64(bytes)
+            output.push_str(val.to_str())
+        }
+        output.push_str("};\n")
+    } else if elem_type.eq("U8") {
+        // Vec<U8> - emit array of U8 values
+        output.push_str("static ")
+        output.push_str(TIL_PREFIX)
+        output.push_str("U8 ")
+        output.push_str(data_array_name)
+        output.push_str("[")
+        output.push_str(elem_count.to_str())
+        output.push_str("] = {")
+        for i in 0..elem_count {
+            if i.gt(0) {
+                output.push_str(", ")
+            }
+            mut bytes := Vec.new(U8)
+            contents.element_bytes.get(i, bytes)?
+            mut byte_val : U8 = 0
+            bytes.get(0, byte_val)?
+            output.push_str(byte_val.to_str())
+        }
+        output.push_str("};\n")
+    } else {
+        // Other struct types - emit raw bytes as array
+        // This is a fallback that may need refinement for complex nested types
+        mut total_bytes := 0
+        for bytes_vec: Vec in contents.element_bytes {
+            total_bytes = total_bytes.add(bytes_vec.len())
+        }
+        output.push_str("static unsigned char ")
+        output.push_str(data_array_name)
+        output.push_str("[")
+        output.push_str(total_bytes.to_str())
+        output.push_str("] = {")
+        mut first := true
+        for bytes_vec: Vec in contents.element_bytes {
+            for b: U8 in bytes_vec {
+                if not(first) {
+                    output.push_str(", ")
+                }
+                first = false
+                output.push_str(b.to_str())
+            }
+        }
+        output.push_str("};\n")
+    }
+
+    // Store info for later use when emitting assignments in main()
+    ctx.precomputed_static_arrays.set(var_name.clone(), PrecomputedStaticInfo(
+        data_array_name=data_array_name,
+        type_name_array_name=type_name_array_name
+    ))
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("emit_precomputed_vec_static: ", err.msg)
+    }
+}
+
+// Helper to convert 8 bytes to I64 (little endian)
+bytes_to_i64 := func(bytes: Vec) returns I64 {
+    mut result := 0
+    mut multiplier := 1  // 256^0 = 1
+    for i in 0..8 {
+        if i.lt(bytes.len()) {
+            mut b : U8 = 0
+            bytes.get(i, b)?
+            // Add byte value * position multiplier (256^i)
+            result = result.add(b.to_i64().mul(multiplier))
+            multiplier = multiplier.mul(256)
+        }
+        catch (err: IndexOutOfBoundsError) { }
+    }
+    return result
+}
+
+// Emit static arrays for Vec<Str> - two-level: string literals + Str structs
+emit_precomputed_vec_str_static := proc(mut output: Str, mut _ctx: CodegenContext, context: Context, var_name: Str, contents: VecContents) throws Str {
+    elem_count := contents.element_bytes.len()
+    ptr_size := context.get_type_size("Ptr")?
+
+    // First, emit the individual string literals
+    for idx in 0..elem_count {
+        mut bytes := Vec.new(U8)
+        contents.element_bytes.get(idx, bytes)?
+
+        // Extract string data from Str struct bytes
+        // Str layout: c_string (Ptr with data+is_borrowed), _len (I64), cap (I64)
+        // We need to read c_string.data (ptr to string) and _len
+        c_string_ptr := bytes_to_i64_from_offset(bytes, 0)
+        len := bytes_to_i64_from_offset(bytes, ptr_size)
+
+        // Read the actual string bytes from arena
+        mut string_data := ""
+        if c_string_ptr.gt(0).and(len.gt(0)) {
+            for si in 0..len {
+                byte_ptr := g_arena.get(c_string_ptr.add(si), 1)
+                mut byte_val : U8 = 0
+                Ptr(data=byte_ptr).dereference(U8, byte_val)
+                string_data = concat(string_data, Str.from_byte(byte_val))
+            }
+        }
+
+        output.push_str("static const char _precomp_")
+        output.push_str(var_name)
+        output.push_str("_str_")
+        output.push_str(idx.to_str())
+        output.push_str("[] = \"")
+        // Escape special characters in the string
+        for ci in 0..string_data.len() {
+            ch := string_data.char_at(ci)
+            // Compare using I64 to avoid type mismatch with U8
+            ch_i64 := ch.to_i64()
+            if ch_i64.eq(34) {  // '"'
+                output.push_str("\\\"")
+            } else if ch_i64.eq(92) {  // '\\'
+                output.push_str("\\\\")
+            } else if ch_i64.eq(10) {  // '\n'
+                output.push_str("\\n")
+            } else if ch_i64.eq(13) {  // '\r'
+                output.push_str("\\r")
+            } else if ch_i64.eq(9) {  // '\t'
+                output.push_str("\\t")
+            } else if ch_i64.lt(32) {  // control character
+                output.push_str("\\x")
+                output.push_str(hex_byte(ch))
+            } else {
+                output = concat(output, Str.from_byte(ch))
+            }
+        }
+        output.push_str("\";\n")
+    }
+
+    // Now emit the Str struct array
+    data_array_name := format("_precomp_", var_name, "_data")
+    output.push_str("static ")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str ")
+    output.push_str(data_array_name)
+    output.push_str("[")
+    output.push_str(elem_count.to_str())
+    output.push_str("] = {\n")
+
+    for idx in 0..elem_count {
+        mut bytes := Vec.new(U8)
+        contents.element_bytes.get(idx, bytes)?
+
+        // Extract _len from Str struct bytes
+        len := bytes_to_i64_from_offset(bytes, ptr_size)
+
+        output.push_str("    {.c_string = (")
+        output.push_str(TIL_PREFIX)
+        output.push_str("Ptr){(")
+        output.push_str(TIL_PREFIX)
+        output.push_str("I64)_precomp_")
+        output.push_str(var_name)
+        output.push_str("_str_")
+        output.push_str(idx.to_str())
+        output.push_str(", 1}, ._len = ")  // is_borrowed = 1 (static string)
+        output.push_str(len.to_str())
+        output.push_str(", .cap = 0}")
+        if idx.add(1).lt(elem_count) {
+            output.push_str(",")
+        }
+        output.push_str("\n")
+    }
+
+    output.push_str("};\n")
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("emit_precomputed_vec_str_static: ", err.msg)
+    }
+}
+
+// Helper to read I64 from bytes at an offset
+bytes_to_i64_from_offset := func(bytes: Vec, offset: I64) returns I64 {
+    mut result := 0
+    mut multiplier := 1  // 256^0 = 1
+    for i in 0..8 {
+        idx := offset.add(i)
+        if idx.lt(bytes.len()) {
+            mut b : U8 = 0
+            bytes.get(idx, b)?
+            result = result.add(b.to_i64().mul(multiplier))
+            multiplier = multiplier.mul(256)
+        }
+        catch (err: IndexOutOfBoundsError) { }
+    }
+    return result
+}
+
+// Convert a byte to a 2-digit hex string
+hex_byte := func(b: U8) returns Str {
+    hex_chars := "0123456789abcdef"
+    high := b.to_i64().div(16)  // equivalent to >> 4
+    low := I64.and(b.to_i64(), 15)  // mask low 4 bits
+    mut result := ""
+    result = concat(result, Str.from_byte(hex_chars.char_at(high)))
+    result = concat(result, Str.from_byte(hex_chars.char_at(low)))
+    return result
+}
+
+// Bug #133 fix: Emit assignment for a precomputed Vec with patched Ptr fields
+emit_precomputed_vec_assignment := proc(var_name: Str, is_mut: Bool, static_info: PrecomputedStaticInfo, mut output: Str, indent: I64, mut ctx: CodegenContext, context: Context) throws Str {
+    indent_str := repeat("    ", indent)
+    // Bug #133: Use type-mangled name (til_Vec_data, not til_data)
+    c_var_name := til_var_name(var_name, "Vec")
+    already_declared := ctx.declared_vars.contains(c_var_name)
+
+    // Extract Vec contents to get element count and type info
+    contents := EvalArena.extract_vec_contents(context, var_name)?
+
+    elem_count := contents.element_bytes.len()
+    type_size := contents.type_size
+    elem_type := contents.element_type_name
+
+    output.push_str(indent_str)
+    if not(already_declared) {
+        if not(is_mut) {
+            output.push_str("const ")
+        }
+        output.push_str(TIL_PREFIX)
+        output.push_str("Vec ")
+        _ := ctx.declared_vars.insert(c_var_name.clone())
+    }
+    output.push_str(c_var_name)
+    output.push_str(" = (")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Vec){\n")
+
+    // type_name field - point to static string
+    output.push_str(indent_str)
+    output.push_str("    .type_name = (")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Str){(")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Ptr){(")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64)")
+    output.push_str(static_info.type_name_array_name)
+    output.push_str(", 1}, ")  // is_borrowed = 1
+    output.push_str(elem_type.len().to_str())
+    output.push_str(", 0},\n")
+
+    // type_size field
+    output.push_str(indent_str)
+    output.push_str("    .type_size = ")
+    output.push_str(type_size.to_str())
+    output.push_str(",\n")
+
+    // ptr field - point to static data array
+    output.push_str(indent_str)
+    output.push_str("    .ptr = (")
+    output.push_str(TIL_PREFIX)
+    output.push_str("Ptr){(")
+    output.push_str(TIL_PREFIX)
+    output.push_str("I64)")
+    output.push_str(static_info.data_array_name)
+    output.push_str(", 1},\n")  // is_borrowed = 1 (static data, don't free)
+
+    // _len field
+    output.push_str(indent_str)
+    output.push_str("    ._len = ")
+    output.push_str(elem_count.to_str())
+    output.push_str(",\n")
+
+    // cap field
+    output.push_str(indent_str)
+    output.push_str("    .cap = ")
+    output.push_str(elem_count.to_str())
+    output.push_str("\n")
+
+    output.push_str(indent_str)
+    output.push_str("};\n")
 }
 
 // Check if an enum has any payloads
@@ -5854,6 +6205,18 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         return
     }
 
+    // Bug #133 fix: Check if this is a precomputed heap value that needs patching
+    mut have_static_info := true
+    mut static_info := PrecomputedStaticInfo()
+    ctx.precomputed_static_arrays.get(decl.name, static_info)?
+    catch (err: KeyNotFoundError) {
+        have_static_info = false
+    }
+    if have_static_info {
+        emit_precomputed_vec_assignment(decl.name, decl.is_mut, static_info, output, indent, ctx, context)?
+        return
+    }
+
     name := decl.name.clone()
     is_mut := decl.is_mut
 
@@ -6070,73 +6433,75 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
         expr.params.get(0, enum_emit_first_param)?
         emit_expr(enum_emit_first_param, output, 0, ctx, context)?
         output.push_str(";\n")
-    } else if is_mut {
-        // Bug #143: emit_fcall handles hoisting via emit_arg_string
-        output.push_str(indent_str)
-        if not(already_declared) {
-            // INFER_TYPE should have been resolved by typer
-            switch decl.value_type {
-            case ValueType.TCustom(s):
-                if s.eq(INFER_TYPE) {
-                    throw expr.lang_error(context.path, "ccodegen", format("Declaration '", decl.name, "' has INFER_TYPE - should have been resolved by typer"))
-                }
-            case:
-            }
-            c_type := til_type_to_c(decl.value_type)?
-            catch (err: Str) {
-                throw expr.lang_error(context.path, "ccodegen", err)
-            }
-            output.push_str(c_type)
-            output.push_str(" ")
-            _ := ctx.declared_vars.insert(c_var_name.clone())
-        }
-        output.push_str(c_var_name.clone())
-        if not(expr.params.is_empty()) {
-            output.push_str(" = ")
-            // Bug #143: Use rhs_string if available (already hoisted args)
-            if has_rhs_string {
-                output.push_str(rhs_string)
-            } else {
-                mut mut_emit_first_param := Expr()
-                expr.params.get(0, mut_emit_first_param)?
-                emit_expr(mut_emit_first_param, output, 0, ctx, context)?
-            }
-        }
-        output.push_str(";\n")
     } else {
-        // const declaration - Bug #143: Use rhs_string if available (already hoisted args)
-        output.push_str(indent_str)
-        if not(already_declared) {
-            // INFER_TYPE should have been resolved by typer
-            switch decl.value_type {
-            case ValueType.TCustom(s):
-                if s.eq(INFER_TYPE) {
-                    throw expr.lang_error(context.path, "ccodegen", format("Declaration '", decl.name, "' has INFER_TYPE - should have been resolved by typer"))
+        if is_mut {
+            // Bug #143: emit_fcall handles hoisting via emit_arg_string
+            output.push_str(indent_str)
+            if not(already_declared) {
+                // INFER_TYPE should have been resolved by typer
+                switch decl.value_type {
+                case ValueType.TCustom(s):
+                    if s.eq(INFER_TYPE) {
+                        throw expr.lang_error(context.path, "ccodegen", format("Declaration '", decl.name, "' has INFER_TYPE - should have been resolved by typer"))
+                    }
+                case:
                 }
-            case:
+                c_type := til_type_to_c(decl.value_type)?
+                catch (err: Str) {
+                    throw expr.lang_error(context.path, "ccodegen", err)
+                }
+                output.push_str(c_type)
+                output.push_str(" ")
+                _ := ctx.declared_vars.insert(c_var_name.clone())
             }
-            const_c_type := til_type_to_c(decl.value_type)?
-            catch (err: Str) {
-                throw expr.lang_error(context.path, "ccodegen", err)
+            output.push_str(c_var_name.clone())
+            if not(expr.params.is_empty()) {
+                output.push_str(" = ")
+                // Bug #143: Use rhs_string if available (already hoisted args)
+                if has_rhs_string {
+                    output.push_str(rhs_string)
+                } else {
+                    mut mut_emit_first_param := Expr()
+                    expr.params.get(0, mut_emit_first_param)?
+                    emit_expr(mut_emit_first_param, output, 0, ctx, context)?
+                }
             }
-            output.push_str("const ")
-            output.push_str(const_c_type)
-            output.push_str(" ")
-            _ := ctx.declared_vars.insert(c_var_name.clone())
+            output.push_str(";\n")
+        } else {
+            // const declaration - Bug #143: Use rhs_string if available (already hoisted args)
+            output.push_str(indent_str)
+            if not(already_declared) {
+                // INFER_TYPE should have been resolved by typer
+                switch decl.value_type {
+                case ValueType.TCustom(s):
+                    if s.eq(INFER_TYPE) {
+                        throw expr.lang_error(context.path, "ccodegen", format("Declaration '", decl.name, "' has INFER_TYPE - should have been resolved by typer"))
+                    }
+                case:
+                }
+                const_c_type := til_type_to_c(decl.value_type)?
+                catch (err: Str) {
+                    throw expr.lang_error(context.path, "ccodegen", err)
+                }
+                output.push_str("const ")
+                output.push_str(const_c_type)
+                output.push_str(" ")
+                _ := ctx.declared_vars.insert(c_var_name.clone())
+            }
+            output.push_str(c_var_name.clone())
+            if not(expr.params.is_empty()) {
+                output.push_str(" = ")
+                // Bug #143: Use rhs_string if available (already hoisted args)
+                if has_rhs_string {
+                    output.push_str(rhs_string)
+                } else {
+                    mut const_emit_first_param := Expr()
+                    expr.params.get(0, const_emit_first_param)?
+                    emit_expr(const_emit_first_param, output, 0, ctx, context)?
+                }
+            }
+            output.push_str(";\n")
         }
-        output.push_str(c_var_name.clone())
-        if not(expr.params.is_empty()) {
-            output.push_str(" = ")
-            // Bug #143: Use rhs_string if available (already hoisted args)
-            if has_rhs_string {
-                output.push_str(rhs_string)
-            } else {
-                mut const_emit_first_param := Expr()
-                expr.params.get(0, const_emit_first_param)?
-                emit_expr(const_emit_first_param, output, 0, ctx, context)?
-            }
-        }
-        output.push_str(";\n")
     }
 
     catch (err: IndexOutOfBoundsError) {

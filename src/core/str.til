@@ -56,6 +56,19 @@ Str := struct {
         return cloned
     }
 
+    /// Convert a single byte to a 1-character string
+    from_byte := func(byte: U8) returns Str {
+        mut s := Str()
+        s.c_string = Ptr.new_by_size(2)  // 1 byte + null terminator
+        s.c_string.is_borrowed = 0
+        s._len = 1
+        s.cap = 2
+        memcpy(s.c_string.data, to_ptr(byte), 1)
+        mut zero : U8 = 0
+        memcpy(s.c_string.offset(1).data, to_ptr(zero), 1)
+        return s
+    }
+
     /** Append a string to self (mutates self). Equivalent to Rust's push_str. */
     push_str := proc(mut self: Str, s: Str) {
         self = self.concat(s)

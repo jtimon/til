@@ -103,52 +103,6 @@ Likely duplicates to verify:
 *** After Migration
 Delete or archive files once content is properly tracked in numbered issues.
 
-** Bug #145: til_interpreted diverges from rs_interpreted for func in global init
-:PROPERTIES:
-:DISCOVERED: 2026-01-27
-:IMPACT: til_interpreted crashes when func returns Vec used in global initialization
-:STATUS: Resolved - no longer occurs after Bug #133 fix merged
-:REPRODUCER: See tmp/test_145.til
-:RELATED: Bug #133 (similar workaround, different root cause)
-:END:
-
-*** Description
-When a ~func~ returns a Vec and is used in global initialization, til_interpreted
-was reported to fail with "Ptr.new_by_size: invalid size" while rs_interpreted
-works correctly.
-
-*** Resolution (2026-01-30)
-After merging the Bug #133 fix to master, this bug no longer manifests.
-The til_interpreted mode now passes the test case.
-
-*** Current test results:
-#+BEGIN_SRC
-create_data := func() returns Vec { ... }
-data := create_data()  // Global initialization
-
-rs_interpreted:  PASS
-rs_compiled:     PASS (Bug #133 fix)
-til_interpreted: PASS (Bug #145 resolved)
-til_compiled:    SEGFAULT (needs TIL port of Bug #133)
-#+END_SRC
-
-*** Previous workaround (no longer needed for til_interpreted)
-Use ~proc~ instead of ~func~ for functions that return Vec and are called during
-global initialization:
-
-#+BEGIN_SRC til
-// FAILS in til_interpreted:
-create_data := func() returns Vec { ... }
-data := create_data()  // Global init
-
-// WORKS:
-create_data := proc() returns Vec { ... }
-data := create_data()  // Global init
-#+END_SRC
-
-*** Affected Files
-- src/examples/music.til (create_chromatic, create_notes_solfege, create_base_notes)
-
 ** Bug #144: for-in loops iterate by copy instead of by reference
 :PROPERTIES:
 :DISCOVERED: 2026-01-27
@@ -241,9 +195,9 @@ See commit 5031b866 which fixed the symptom by using Ptr() instead of NULL.
 :PROPERTIES:
 :DISCOVERED: 2026-01-22
 :IMPACT: Compiled programs crash/segfault when using precomputed collections
-:STATUS: Partial - Steps 1-4 done for simple types; Vec<Vec<T>>, List, Map still broken
-:REPRODUCER: src/test/test_bug133.til (segfaults in compiled modes on master)
-:RELATED: Bug #145 (similar issue in til_interpreted mode)
+:STATUS: Partial - Vec<I64>, Vec<U8>, Vec<Str> work; Vec<Vec<T>>, List, Map still broken
+:REPRODUCER: src/test/test_bug133.til (passes for simple types)
+:RELATED: Bug #145 (FIXED - was similar issue in til_interpreted mode)
 :BRANCH: current133
 :END:
 
@@ -309,32 +263,34 @@ Rust fix merged to master. Files modified:
 - ~src/rs/precomp.rs~ - track precomputed heap values
 - ~src/rs/ccodegen.rs~ - emit static arrays and patched assignments
 
-TIL port NOT complete - requires low-level arena memory access that TIL doesn't
-have equivalent functions for. The rs_compiled mode is fixed, til_compiled still
-needs the port.
+TIL port complete (2026-01-30). Files modified:
+- ~src/self/eval_arena.til~ - VecContents, extract_vec_contents, extract_str_at_offset, type_needs_heap_serialization
+- ~src/self/init.til~ - PrecomputedHeapValue struct
+- ~src/self/precomp.til~ - track precomputed heap values
+- ~src/self/ccodegen.til~ - PrecomputedStaticInfo, emit_precomputed_static_arrays, hex_byte, bytes_to_i64
+- ~src/core/str.til~ - Str.from_byte (consolidation)
+- ~src/test/strings.til~ - tests for char_at and from_byte
 
-**** Current test results (simple Vec<I64>):
+**** Current test results (simple Vec<I64>, Vec<U8>, Vec<Str>):
 - rs_interpreted: PASS
 - rs_compiled: PASS (Bug #133 fix works)
 - til_interpreted: PASS (Bug #145 resolved)
-- til_compiled: SEGFAULT (needs TIL port)
+- til_compiled: PASS (TIL port complete)
 
-**** What works now (rs_compiled only):
+**** What works now (both rs_compiled and til_compiled):
 - ~Vec<I64>~ - emits static I64 array
 - ~Vec<U8>~ - emits static U8 array
 - ~Vec<Str>~ - emits string literals + Str struct array (two-level)
 
-**** Still broken:
+**** Still broken (both rs_compiled and til_compiled):
 - ~Vec<Vec<T>>~ - inner Vecs contain invalid pointers (falls back to raw bytes)
 - ~List~ - linked node pointers not serialized
 - ~Map~ - internal structure not serialized
-- til_compiled mode (needs TIL port)
 
 **** Future work:
-1. Port Bug #133 fix to TIL (ccodegen.til, etc.) - requires adding low-level
-   arena byte access functions to TIL's EvalArena
-2. Implement recursive serialization for nested Vecs
-3. Add List/Map serialization support
+1. Implement recursive serialization for nested Vecs (Vec<Vec<T>>)
+2. Add List serialization support (linked node pointers)
+3. Add Map serialization support (internal structure)
 
 *** Implementation Plan
 Serialize heap contents to static C arrays and patch pointers to reference them.
