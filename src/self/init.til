@@ -1871,6 +1871,18 @@ EnumPayload := struct {
     }
 }
 
+/// Bug #133: Information about a precomputed global declaration with heap data.
+/// Used by ccodegen to emit static arrays instead of invalid pointers.
+PrecomputedHeapValue := struct {
+    mut var_name: Str = ""       // The TIL variable name (e.g., "chromatic")
+    mut instance_name: Str = ""  // The arena instance name (e.g., "chromatic" or temp name)
+    mut type_name: Str = ""      // The type (e.g., "Vec")
+
+    clone := func(self: PrecomputedHeapValue) returns PrecomputedHeapValue {
+        return PrecomputedHeapValue(var_name=self.var_name.clone(), instance_name=self.instance_name.clone(), type_name=self.type_name.clone())
+    }
+}
+
 Context := struct {
     mut mode_def: ModeDef = ModeDef()  # All contexts need a mode
     # TODO use Context.path to properly report eval errors, or...no, don't refactor the whole eval phase to return Result<String, String>
@@ -1894,6 +1906,8 @@ Context := struct {
     # Bug #40 fix: Track current function name and forin counter for deterministic _for_i_ names
     mut current_precomp_func: Str = ""  # Empty string means None/global scope
     mut precomp_forin_counter: I64 = 0
+    # Bug #133 fix: Track precomputed heap values for static array serialization
+    mut precomputed_heap_values: Vec = Vec.new(PrecomputedHeapValue)
 
     # Context methods (insert/get/copy methods moved to EvalArena in interpreter.til)
     new := func(path: Str, mode_name: Str) returns Context throws Str {
@@ -1915,7 +1929,9 @@ Context := struct {
             imports_init_done=Set.new(Str),
             imports_typer_done=Set.new(Str),
             imports_precomp_done=Set.new(Str),
-            imports_eval_done=Set.new(Str)
+            imports_eval_done=Set.new(Str),
+            // Bug #133 fix: Initialize precomputed heap values list
+            precomputed_heap_values=Vec.new(PrecomputedHeapValue)
         )
         return result
     }

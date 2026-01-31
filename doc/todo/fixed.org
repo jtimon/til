@@ -7,6 +7,35 @@
 
 * Fixed Bugs
 
+** Bug #145: til_interpreted diverges from rs_interpreted for func in global init
+:PROPERTIES:
+:DISCOVERED: 2026-01-27
+:FIXED: 2026-01-30
+:IMPACT: til_interpreted crashed when func returns Vec used in global initialization
+:STATUS: Fixed
+:RELATED: Bug #133 (similar workaround, different root cause)
+:END:
+
+*** Description
+When a ~func~ returns a Vec and is used in global initialization, til_interpreted
+was reported to fail with "Ptr.new_by_size: invalid size" while rs_interpreted
+works correctly.
+
+*** Resolution (2026-01-30)
+After merging the Bug #133 fix to master and completing the TIL port, this bug
+no longer manifests. All 4 modes now pass the test case.
+
+*** Final test results:
+#+BEGIN_SRC
+create_data := func() returns Vec { ... }
+data := create_data()  // Global initialization
+
+rs_interpreted:  PASS
+rs_compiled:     PASS (Bug #133 fix)
+til_interpreted: PASS (Bug #145 resolved)
+til_compiled:    PASS (TIL port of Bug #133 complete)
+#+END_SRC
+
 ** Bug #98: ext_proc errors should throw specific error types instead of panicking
 :PROPERTIES:
 :DISCOVERED: 2026-01-10

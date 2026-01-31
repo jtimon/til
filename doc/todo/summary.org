@@ -2,21 +2,20 @@
 #+AUTHOR: TIL Development
 #+DATE: 2026-01-30
 
-* bugs.org (11 bugs/issues)
+* bugs.org (10 bugs/issues)
 
-| #   | Bug/Issue                                                        | Impact                 |
-|-----+------------------------------------------------------------------+------------------------|
-| 152 | Migrate doc/todo files to numbered issue system                  | Documentation cleanup  |
-| 145 | til_interpreted diverges from rs_interpreted for func in global init | Interpreter divergence |
-| 144 | for-in loops iterate by copy instead of by reference             | Performance, semantics |
-| 139 | Type checker allows assigning I64 to Ptr field                   | Type safety            |
-| 133 | Precomputed heap values have invalid pointers at runtime         | Compiled modes broken  |
-| 130 | Unify type resolution with type checking into single pass        | Architecture           |
-| 114 | ScopeStack lookup functions leak memory by copying ScopeFrame    | Memory leak (partial)  |
-| 113 | Self-hosted interpreter fails with "symbol 'msg' not found"      | Interpreter broken     |
-|  99 | Eliminate all C compiler warnings and enable -Werror             | Code quality           |
-|  94 | gcc warnings cause bug47.til compilation failure                 | Build issue            |
-|  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence             |
+| #   | Bug/Issue                                                        | Impact                      |
+|-----+------------------------------------------------------------------+-----------------------------|
+| 152 | Migrate doc/todo files to numbered issue system                  | Documentation cleanup       |
+| 144 | for-in loops iterate by copy instead of by reference             | Performance, semantics      |
+| 139 | Type checker allows assigning I64 to Ptr field                   | Type safety                 |
+| 133 | Precomputed heap values have invalid pointers at runtime         | Partial fix (nested broken) |
+| 130 | Unify type resolution with type checking into single pass        | Architecture                |
+| 114 | ScopeStack lookup functions leak memory by copying ScopeFrame    | Memory leak (partial)       |
+| 113 | Self-hosted interpreter fails with "symbol 'msg' not found"      | Interpreter broken          |
+|  99 | Eliminate all C compiler warnings and enable -Werror             | Code quality                |
+|  94 | gcc warnings cause bug47.til compilation failure                 | Build issue                 |
+|  80 | ccodegen.til generates different C code than ccodegen.rs         | Divergence                  |
 
 * future.org (14 issues)
 

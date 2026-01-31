@@ -131,9 +131,7 @@ push_extra := proc(mut result: Vec) {
     result.push("-Wno-unused")
 }
 
-// TODO: Bug #133 workaround - using proc instead of func to prevent precomputation
-// of heap values. The returned Vec has pointers that are invalid at compile time.
-get_flags := proc() returns Vec {
+get_flags := func() returns Vec {
     mut result := Vec.new(Str)
     result.push("-target")
     result.push("arm64")
@@ -143,8 +141,8 @@ get_flags := proc() returns Vec {
 }
 #+end_src
 
-Note: Functions returning Vec with heap data must use ~proc~ instead of ~func~ due to Bug #133.
-Add a TODO comment referencing Bug #133 to track this workaround.
+Note: Functions returning simple Vec types (Vec<I64>, Vec<U8>, Vec<Str>) can use ~func~ normally.
+For nested types (Vec<Vec<T>>, List, Map), use ~proc~ to prevent precomputation (Bug #133 partial fix).
 
 ** Struct literals
 

@@ -7,9 +7,7 @@
 
 mode cli
 
-// TODO: Bug #133 workaround - using proc instead of func to prevent precomputation
-// of heap values. The returned Vec has pointers that are invalid at compile time.
-create_chromatic := proc() returns Vec {
+create_chromatic := func() returns Vec {
     mut v := Vec.new(Str)
     v.push("do")
     v.push("do#")
@@ -26,9 +24,8 @@ create_chromatic := proc() returns Vec {
     return v
 }
 
-// TODO: Bug #133 workaround - using proc instead of func
 // Solfege notation: do, re, mi, fa, sol, la, si
-create_notes_solfege := proc() returns Vec {
+create_notes_solfege := func() returns Vec {
     mut v := Vec.new(Str)
     v.push("do")
     v.push("re")
@@ -40,9 +37,8 @@ create_notes_solfege := proc() returns Vec {
     return v
 }
 
-// TODO: Bug #133 workaround - using proc instead of func
 // American notation: C, D, E, F, G, A, B
-create_notes_american := proc() returns Vec {
+create_notes_american := func() returns Vec {
     mut v := Vec.new(Str)
     v.push("C")
     v.push("D")
@@ -63,7 +59,7 @@ get_notes_for_notation := proc(notation: Str) returns Vec {
 }
 
 // Base notes for American input parsing (lowercase)
-create_base_notes_american := proc() returns Vec {
+create_base_notes_american := func() returns Vec {
     mut v := Vec.new(Str)
     v.push("c")
     v.push("d")
@@ -76,11 +72,11 @@ create_base_notes_american := proc() returns Vec {
 }
 
 // Input always uses solfege (user types do, re, mi, etc.)
-create_base_notes := proc() returns Vec {
+create_base_notes := func() returns Vec {
     return create_notes_solfege()
 }
 
-// TODO: Bug #133 workaround - using proc instead of func
+// TODO: Bug #133 workaround - using proc because returns Vec<Vec<I64>> (nested Vecs not yet supported)
 // Mode intervals ordered from brightest to darkest.
 // Major tonality: lydian, ionian, mixolydian (have major 3rd)
 // Minor tonality: dorian, aeolian, phrygian, locrian (have minor 3rd)

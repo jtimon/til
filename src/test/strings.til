@@ -34,6 +34,25 @@ test_strings := proc() {
     assert_eq_str(loc(), "\r",  get_char(",,\r", 2)?)
     // assert_eq_str(loc(), "\0",  get_char(",,\0", 2))
 
+    // char_at tests (returns U8)
+    abc := "ABC"
+    assert_eq(loc(), 65, abc.char_at(0).to_i64())  // 'A' = 65
+    assert_eq(loc(), 66, abc.char_at(1).to_i64())  // 'B' = 66
+    assert_eq(loc(), 67, abc.char_at(2).to_i64())  // 'C' = 67
+
+    // from_byte tests
+    byte_a := U8.from_i64(65)?
+    byte_z := U8.from_i64(90)?
+    byte_0 := U8.from_i64(48)?
+    assert_eq_str(loc(), "A", Str.from_byte(byte_a))
+    assert_eq_str(loc(), "Z", Str.from_byte(byte_z))
+    assert_eq_str(loc(), "0", Str.from_byte(byte_0))
+
+    catch (err: U8_Overflow) {
+        println("ERROR:", loc(), "U8_Overflow:", err.msg)
+        exit(1)
+    }
+
     // starts_with tests
     hello := "hello"
     test(loc(), hello.starts_with("he"), "starts_with: 'hello'.starts_with('he') = true")
