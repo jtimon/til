@@ -15,6 +15,182 @@ For bugs, see bugs.org. For post-self-hosting features, see post.org.
 
 * Open Issues
 
+** Issue #159: copy keyword does shallow copies (byte copy, not clone)
+:PROPERTIES:
+:DISCOVERED: 2026-01-31
+:IMPACT: Affects ASAP destruction safety, copy semantics clarity
+:STATUS: Open - implementation plan ready
+:RELATED: Issue #117 (ASAP destruction), Issue #115 (owned fields)
+:END:
+
+*** Analysis Summary
+
+The ~copy~ keyword and ~mut x := y~ declarations use ~EvalArena::copy_fields()~
+which performs a **shallow byte copy**, not a deep clone.
+
+*** What copy_fields Does (eval_arena.rs:239-307)
+
+1. Iterates through struct fields
+2. For each mutable field:
+   - Reads raw bytes from source offset
+   - Writes raw bytes to destination offset
+   - Recursively copies nested struct fields
+
+*** The Problem: Shared Heap Pointers
+
+For structs containing ~Ptr~ fields (Vec, Str, Map, etc.), copying creates two
+structs pointing to the **same heap allocation**:
+
+#+BEGIN_SRC til
+original := Vec.new(I64)
+original.push(42)
+mut copy := original  // shallow copy - copy.ptr = original.ptr
+
+copy.push(100)        // modifies shared heap data!
+println(original.len())  // Also shows 2 - they share the same buffer
+#+END_SRC
+
+*** Implications for ASAP Destruction (Issue #117)
+
+This is why Step 4 (liveness analysis) in the garbager was disabled:
+
+#+BEGIN_SRC til
+process := proc() {
+    data := Vec.new(I64)
+    mut backup := data    // shallow copy - both point to same heap
+    use(data)             // "last use" of data
+    // ASAP would insert: data.delete() here - WRONG!
+    // backup.ptr is now dangling
+    use(backup)           // CRASH or corruption
+}
+#+END_SRC
+
+*** Current Behavior vs Expected
+
+| Operation | Current | Expected | Notes |
+|-----------+---------+----------+-------|
+| ~x := y~ (const) | Reference (alias) | Reference | Safe - can't modify |
+| ~mut x := y~ | Shallow byte copy | Deep copy? | Problematic for Ptr |
+| ~copy param~ | Shallow byte copy | Deep copy? | Problematic for Ptr |
+
+*** Why This Hasn't Broken Tests
+
+1. **Const bindings are safe**: ~x := y~ creates an alias, no copy
+2. **Tests don't share then modify**: Most tests don't copy-then-mutate-both
+3. **No ASAP destruction yet**: We manually delete at scope end
+
+*** What Doesn't Need Changing
+
+1. **const bindings** (~x := y~): Already safe - just an alias
+2. **Function params** (default): Already pass-by-reference
+3. **Primitive copies** (I64, U8, Bool): No heap data, shallow = deep
+
+*** Solution: Auto-generate clone() and use it for copies
+
+Instead of shallow byte copies, we'll use ~clone()~ methods for all copies.
+This ensures deep copies that don't share heap allocations.
+
+*** Implementation Plan
+
+**** Step 1: Auto-generate clone() methods
+
+Add to garbager phase (which already auto-generates ~delete()~):
+
+1. For any struct without a ~clone()~ method, generate one
+2. Generated clone creates a new instance and clones each field:
+   #+BEGIN_SRC til
+   // Auto-generated for:
+   // MyStruct := struct { mut name: Str, mut data: Vec, mut count: I64 }
+
+   clone := func(self: MyStruct) returns MyStruct {
+       return MyStruct(
+           name = self.name.clone(),
+           data = self.data.clone(),
+           count = self.count.clone()  // I64.clone() returns self
+       )
+   }
+   #+END_SRC
+
+3. **Exception for borrowed Ptr fields**: If a field is a borrowed Ptr
+   (is_borrowed = true or marked as borrowed in Issue #115), just copy the
+   pointer value, don't clone the pointed-to data.
+
+4. **Primitives**: I64, U8, Bool get trivial ~clone()~ that returns self.
+   (May already exist or can be added.)
+
+5. **Validation**: Remove manually-written clone() methods that would be
+   identical to auto-generated ones. This tests that auto-generation works
+   correctly and reduces code duplication.
+
+Files: garbager.rs, garbager.til
+
+**** Step 2: Replace copy_fields() with clone()
+
+**Current copy_fields call sites (interpreter.rs):**
+
+| Line | Context | Pattern |
+|------|---------|---------|
+| 602 | Struct literal field | ~MyStruct(field = nested_struct)~ |
+| 952 | Struct member default | Nested struct in struct definition |
+| 1056 | mut declaration | ~mut x := struct_expr~ (Bug #25 fix) |
+| 1143 | Assignment | ~x = struct_expr~ |
+| 2102 | copy param (saved offsets) | Complex case with name collision |
+| 2132 | copy param (identifier) | ~func(copy p: T)~ with variable |
+| 2157 | copy param (expression) | ~func(copy p: T)~ with expr |
+
+**Current pattern (complex):**
+#+BEGIN_SRC rust
+// 1. Allocate destination space
+insert_struct_instance(context, &dest, type_name, e)?;
+// 2. [lots of temp key setup for arena lookups]
+// 3. Copy bytes from source to destination
+EvalArena::copy_fields(context, type_name, &src, &dest, e)?;
+// 4. [lots of temp key cleanup]
+#+END_SRC
+
+**New pattern (simpler):**
+#+BEGIN_SRC rust
+// 1. Call clone which allocates + returns new instance
+let result = call_clone_method(context, type_name, &src, e)?;
+// 2. Bind dest name to the cloned instance's offset
+context.scope_stack.insert_var(dest, result.offset);
+#+END_SRC
+
+**Implementation approach:**
+
+Add helper function in interpreter.rs:
+#+BEGIN_SRC rust
+/// Call Type.clone(source) and return the cloned instance
+fn call_clone_method(ctx: &mut Context, type_name: &str, src: &str, e: &Expr) -> Result<EvalResult, String> {
+    // Build AST: Type.clone(src)
+    let clone_call = make_ufcs_call(type_name, "clone", vec![make_id(src, e.line, e.col)], e.line, e.col);
+    eval_expr(ctx, &clone_call)
+}
+#+END_SRC
+
+This simplifies the function parameter binding code significantly - no more:
+- Temporary frame pushing/popping
+- Saved offset management for name collisions
+- Temporary key registration and cleanup
+
+When ~copy_fields()~ becomes dead code, Rust warnings will force removal.
+
+Files: interpreter.rs, interpreter.til, eval_arena.rs, eval_arena.til
+
+*** Interaction with Other Issues
+
+- **Issue #117 (ASAP destruction)**: With proper deep copies, Step 4 (liveness
+  analysis) becomes safe. No more shared heap pointers from copies.
+- **Issue #115 (owned fields)**: Borrowed fields need special handling in
+  clone() - copy pointer, don't clone pointed-to data.
+
+*** Testing
+
+1. Write test that copies a Vec, modifies copy, verifies original unchanged
+2. Write test that copies nested struct with Vec fields
+3. Remove manual clone() methods and verify auto-generated ones work
+4. Run ~make benchmark~ - all tests must pass
+
 ** Issue #151: Explicit pointer/reference syntax for the language
 :PROPERTIES:
 :DISCOVERED: 2026-01-29
