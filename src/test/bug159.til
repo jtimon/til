@@ -1,6 +1,11 @@
-// Bug #159 (FIXED): Test deep copy semantics in struct cloning
-// When doing `mut cloned := original`, the clone should be independent.
-// Fixed: Now calls Type.clone() which properly clones nested Ptr/Vec fields.
+// Bug #159: Test deep copy semantics in struct cloning
+// All struct operations should produce independent copies, not shared memory.
+//
+// FIXED: Declarations (mut x := y) - calls Type.clone()
+// FIXED: Reassignments (x = y) - now uses clone (interpreter + ccodegen)
+// FIXED: Field assignments (obj.field = x) - now uses clone (interpreter + ccodegen)
+// SKIPPED: Named struct args (Foo(bar: x)) - interpreter fixed, ccodegen TODO
+// SKIPPED: copy param passing - interpreter fixed, can't test (type system limitation)
 
 mode test
 
@@ -8,9 +13,12 @@ Container := struct {
     mut items: Vec = Vec.new(I64)
 }
 
-// Test shallow copy bug by modifying an existing element (not pushing)
-// This avoids reallocation which could mask the bug
-test_shallow_copy_bug := proc() {
+Holder := struct {
+    mut data: Container = Container()
+}
+
+// Test 1: Declaration (mut x := y) - FIXED
+test_declaration := proc() {
     mut original := Container()
     original.items.push(10)
     original.items.push(20)
@@ -28,7 +36,6 @@ test_shallow_copy_bug := proc() {
     cloned.items.get(0, clone_val)?
 
     // FIXED: With clone(), they have independent memory
-    // original should be 10, cloned should be 999
     assert_eq(loc(), 10, orig_val)
     assert_eq(loc(), 999, clone_val)
 
@@ -37,4 +44,65 @@ test_shallow_copy_bug := proc() {
     }
 }
 
-test_shallow_copy_bug()
+// Test 2: Reassignment (x = y) - FIXED
+test_reassignment := proc() {
+    mut original := Container()
+    original.items.push(10)
+    original.items.push(20)
+
+    mut other := Container()
+    other.items.push(100)
+
+    other = original  // Reassignment - now clones
+
+    // Modify through other
+    other.items.set(0, 999)?
+
+    mut orig_val := 0
+    original.items.get(0, orig_val)?
+
+    // Original should still be 10 (independent copy)
+    assert_eq(loc(), 10, orig_val)
+
+    catch (err: IndexOutOfBoundsError) {
+        panic("IndexOutOfBoundsError:", err.msg)
+    }
+}
+
+// Test 3: Named struct args (Foo(bar: x)) - SKIPPED (ccodegen TODO)
+// Skipped for now - needs complex ccodegen changes to emit clone in struct literals
+// test_named_struct_arg := proc() { ... }
+
+// Test 4: copy param passing - SKIPPED
+// Cannot test directly because copy params can't call methods with mut self.
+// The copy param clone fix is in the interpreter but can't be verified here.
+// TODO: Add a test when we can mutate through copy params (e.g., via own transfer)
+
+// Test 5: Field assignment (obj.field = x) - FIXED
+test_field_assignment := proc() {
+    mut c := Container()
+    c.items.push(10)
+    c.items.push(20)
+
+    mut h := Holder()
+    h.data = c  // Field assignment - now clones
+
+    // Modify through h
+    h.data.items.set(0, 999)?
+
+    mut orig_val := 0
+    c.items.get(0, orig_val)?
+
+    // c should still be 10 (independent copy)
+    assert_eq(loc(), 10, orig_val)
+
+    catch (err: IndexOutOfBoundsError) {
+        panic("IndexOutOfBoundsError:", err.msg)
+    }
+}
+
+test_declaration()
+test_reassignment()
+// test_named_struct_arg() - skipped, ccodegen needs work
+// test_copy_param() - skipped, type system limitation
+test_field_assignment()

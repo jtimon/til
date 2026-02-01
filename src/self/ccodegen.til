@@ -7008,8 +7008,82 @@ emit_assignment := proc(name: Str, expr: Expr, mut output: Str, indent: I64, mut
             output.push_str("(")
             output.push_str(TIL_PREFIX)
             output.push_str("Dynamic)")
+            output.push_str(rhs_str)
+        } else {
+            // Bug #159: Check if RHS is an identifier of a struct/enum type with a clone method
+            // If so, emit TypeName_clone(&source) for deep copy
+            mut rhs_expr := Expr()
+            expr.params.get(0, rhs_expr)?
+            // Only clone if RHS is a simple identifier (no params = variable, with params = method call)
+            mut needs_clone := ""
+            switch rhs_expr.node_type {
+            case NodeType.Identifier(_):
+                if rhs_expr.params.is_empty() {
+                    // Get the type of the target variable
+                    // For field access like "h.data", we need to look up the base variable
+                    mut lookup_name := name
+                    if name.contains(".") {
+                        parts := name.split(".")?
+                        parts.get(0, lookup_name)?
+                    }
+                    sym2 := context.scope_stack.lookup_symbol(lookup_name)?
+                    // For field access, we need to get the field type, not the base type
+                    mut target_type := ValueType.TCustom("")
+                    mut target_type_found := false
+                    if name.contains(".") {
+                        // Get field type from struct definition
+                        switch sym2.value_type {
+                        case ValueType.TCustom(base_type):
+                            struct_def := context.scope_stack.lookup_struct(base_type)?
+                            parts2 := name.split(".")?
+                            mut field_name := ""
+                            parts2.get(parts2.len().sub(1), field_name)?
+                            for member: Declaration in struct_def.members {
+                                if member.name.eq(field_name) {
+                                    target_type = member.value_type.clone()
+                                    target_type_found = true
+                                }
+                            }
+                            catch (err: KeyNotFoundError) {
+                            }
+                        case:
+                        }
+                    } else {
+                        target_type = sym2.value_type.clone()
+                        target_type_found = true
+                    }
+                    if target_type_found {
+                        switch target_type {
+                        case ValueType.TCustom(type_name):
+                            // Skip primitive-like types
+                            skip_prim := type_name.eq("I64").or(type_name.eq("U8")).or(type_name.eq("Str")).or(type_name.eq("Bool")).or(type_name.eq("Ptr")).or(type_name.eq("Type"))
+                            if not(skip_prim) {
+                                has_struct_or_enum := context.scope_stack.has_struct(type_name).or(context.scope_stack.has_enum(type_name))
+                                if has_struct_or_enum {
+                                    clone_method := concat(type_name, ".clone")
+                                    if context.scope_stack.has_func(clone_method) {
+                                        needs_clone = type_name
+                                    }
+                                }
+                            }
+                        case:
+                        }
+                    }
+                    catch (err: KeyNotFoundError) {
+                    }
+                }
+            case:
+            }
+
+            if not(needs_clone.is_empty()) {
+                output.push_str(til_name(needs_clone))
+                output.push_str("_clone(&")
+                output.push_str(rhs_str)
+                output.push_str(")")
+            } else {
+                output.push_str(rhs_str)
+            }
         }
-        output.push_str(rhs_str)
     }
     output.push_str(";\n")
 

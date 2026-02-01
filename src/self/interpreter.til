@@ -1270,7 +1270,20 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                     return assign_struct_result
                 }
                 assign_struct_expr_result_str := assign_struct_result.value
-                EvalArena.copy_fields(context, assign_custom_type_name, assign_struct_expr_result_str, var_name, inner_e)?
+
+                // Bug #159 fix: Use clone() for deep copy instead of copy_fields
+                // Skip primitive-like types that don't need deep cloning
+                skip_clone := assign_custom_type_name.eq("Ptr").or(assign_custom_type_name.eq("Bool")).or(assign_custom_type_name.eq("Type"))
+                if not(skip_clone) {
+                    clone_result := try_call_clone(context, assign_custom_type_name, assign_struct_expr_result_str, inner_e)?
+                    if clone_result.is_throw {
+                        return clone_result
+                    }
+                    EvalArena.copy_fields(context, assign_custom_type_name, clone_result.value, var_name, inner_e)?
+                } else {
+                    // Primitive types - shallow copy is fine
+                    EvalArena.copy_fields(context, assign_custom_type_name, assign_struct_expr_result_str, var_name, inner_e)?
+                }
             case:
                 throw inner_e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of custom type '", assign_custom_type_name, "' of value type '", value_type_to_str(assign_custom_symbol_info.value_type), "'."))
             }

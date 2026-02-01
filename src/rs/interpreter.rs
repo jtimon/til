@@ -600,7 +600,23 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                                 EvalArena::insert_enum(context, &field_id, &field_type_name, &named_value_result.value, named_arg)?;
                                             },
                                             ValueType::TType(TTypeDef::TStructDef) => {
-                                                EvalArena::copy_fields(context, &field_type_name, &named_value_result.value, &field_id, named_arg)?;
+                                                // Bug #159 fix: Use clone() for deep copy
+                                                // Skip primitive-like types that don't need deep cloning
+                                                let skip_clone = matches!(field_type_name.as_str(), "Ptr" | "Bool" | "Type");
+                                                if !skip_clone {
+                                                    if let Some(clone_result) = try_call_clone(context, &field_type_name, &named_value_result.value, named_arg)? {
+                                                        if clone_result.is_throw {
+                                                            return Ok(clone_result);
+                                                        }
+                                                        EvalArena::copy_fields(context, &field_type_name, &clone_result.value, &field_id, named_arg)?;
+                                                    } else {
+                                                        // No clone method - fall back to shallow copy
+                                                        EvalArena::copy_fields(context, &field_type_name, &named_value_result.value, &field_id, named_arg)?;
+                                                    }
+                                                } else {
+                                                    // Primitive types - shallow copy is fine
+                                                    EvalArena::copy_fields(context, &field_type_name, &named_value_result.value, &field_id, named_arg)?;
+                                                }
                                             },
                                             _ => {
                                                 return Err(named_arg.error(&context.path, "eval",
@@ -1220,9 +1236,23 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                             }
                             let expr_result_str = result.value;
 
-                            // TODO Bug #159: Add clone support for assignments
-                            // For now, keep using copy_fields (shallow copy)
-                            EvalArena::copy_fields(context, custom_type_name, &expr_result_str, var_name, inner_e)?;
+                            // Bug #159 fix: Use clone() for deep copy instead of copy_fields
+                            // Skip primitive-like types that don't need deep cloning
+                            let skip_clone = matches!(custom_type_name.as_str(), "Ptr" | "Bool" | "Type");
+                            if !skip_clone {
+                                if let Some(clone_result) = try_call_clone(context, custom_type_name, &expr_result_str, inner_e)? {
+                                    if clone_result.is_throw {
+                                        return Ok(clone_result);
+                                    }
+                                    EvalArena::copy_fields(context, custom_type_name, &clone_result.value, var_name, inner_e)?;
+                                } else {
+                                    // No clone method - fall back to shallow copy
+                                    EvalArena::copy_fields(context, custom_type_name, &expr_result_str, var_name, inner_e)?;
+                                }
+                            } else {
+                                // Primitive types - shallow copy is fine
+                                EvalArena::copy_fields(context, custom_type_name, &expr_result_str, var_name, inner_e)?;
+                            }
                         },
                         other_value_type => {
                             return Err(inner_e.lang_error(&context.path, "eval", &format!("Cannot assign '{}' of custom type '{}' of value type '{}'.",
@@ -2162,14 +2192,38 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             // Track that this was passed by reference
                                             pass_by_ref_params.insert(arg.name.clone());
                                         } else {
-                                            // For copy parameters, allocate and copy
+                                            // For copy/own parameters, allocate and copy
+                                            // Bug #159 fix: For copy params, call clone() for deep copy
+                                            // Skip primitive-like types that don't need deep cloning
+                                            let skip_clone = matches!(resolved_type_name.as_str(), "Ptr" | "Bool" | "Type");
+                                            let copy_source = if arg.is_copy && !skip_clone {
+                                                // Clone BEFORE frame manipulation while source is accessible
+                                                if let Some(clone_result) = try_call_clone(context, &resolved_type_name, id_, e)? {
+                                                    if clone_result.is_throw {
+                                                        return Ok(clone_result);
+                                                    }
+                                                    clone_result.value
+                                                } else {
+                                                    // No clone method - fall back to original
+                                                    id_.clone()
+                                                }
+                                            } else {
+                                                // For own params or primitive types, use original
+                                                id_.clone()
+                                            };
+
                                             insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
 
                                             // Push frame temporarily for copy_fields (needs dest accessible)
                                             context.scope_stack.frames.push(function_frame);
 
-                                            // If we saved offsets, restore them with temp keys for copy_fields
-                                            if let Some(saved) = saved_offsets {
+                                            // Use copy_source (either clone result or original for own)
+                                            // The clone result is already in the current frame, so no offset manipulation needed for copy params
+                                            if arg.is_copy {
+                                                // Clone result is accessible, just copy from it
+                                                EvalArena::copy_fields(context, &resolved_type_name, &copy_source, &arg.name, e)?;
+                                            } else if let Some(saved) = saved_offsets {
+                                                // For own params with same name, restore saved offsets
                                                 for mapping in saved.offsets.iter() {
                                                     let new_key = if &mapping.name == id_ {
                                                         saved.temp_src_key.clone()
@@ -2195,7 +2249,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                     context.scope_stack.remove_var(&new_key);
                                                 }
                                             } else {
-                                                // Temporarily register source struct's base offset and symbol
+                                                // For own params, temporarily register source struct's base offset and symbol
                                                 // so that copy_fields() can calculate field offsets dynamically
                                                 let src_offset = if let Some(offset) = context.scope_stack.lookup_var(id_) {
                                                     offset
@@ -2223,22 +2277,31 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     _ => {
                                         // For expression arguments (like Vec.new(Expr)), the struct is already
                                         // allocated and evaluated in result_str. We need to copy it to the parameter.
+
+                                        // Bug #159 fix: For copy params, call clone() for deep copy
+                                        // Skip primitive-like types that don't need deep cloning
+                                        let skip_clone = matches!(resolved_type_name.as_str(), "Ptr" | "Bool" | "Type");
+                                        let copy_source = if arg.is_copy && !skip_clone {
+                                            if let Some(clone_result) = try_call_clone(context, &resolved_type_name, &source_id, e)? {
+                                                if clone_result.is_throw {
+                                                    return Ok(clone_result);
+                                                }
+                                                clone_result.value
+                                            } else {
+                                                // No clone method - fall back to original
+                                                source_id.clone()
+                                            }
+                                        } else {
+                                            source_id.clone()
+                                        };
+
                                         insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
 
                                         // Push frame temporarily for copy_fields
                                         context.scope_stack.frames.push(function_frame);
 
-                                        // Temporarily register source for copy_fields
-                                        let src_offset = context.scope_stack.lookup_var(&source_id)
-                                            .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source '{}' not found in caller context", source_id)))?;
-                                        let src_symbol = context.scope_stack.lookup_symbol(&source_id).cloned()
-                                            .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source symbol '{}' not found", source_id)))?;
-
-                                        context.scope_stack.frames.last_mut().unwrap().arena_index.insert(source_id.clone(), src_offset);
-                                        context.scope_stack.declare_symbol(source_id.clone(), src_symbol);
-                                        EvalArena::copy_fields(context, &resolved_type_name, &source_id, &arg.name, e)?;
-                                        context.scope_stack.remove_var(&source_id);
-                                        context.scope_stack.remove_symbol(&source_id);
+                                        // Use copy_source (clone result for copy params, original for own)
+                                        EvalArena::copy_fields(context, &resolved_type_name, &copy_source, &arg.name, e)?;
 
                                         // Pop frame back for remaining arg processing
                                         function_frame = context.scope_stack.frames.pop().unwrap();

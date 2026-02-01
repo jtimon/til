@@ -5606,8 +5606,81 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
             output.push_str("(");
             output.push_str(TIL_PREFIX);
             output.push_str("Dynamic)");
+            output.push_str(rhs);
+        } else {
+            // Bug #159: Check if RHS is an identifier of a struct/enum type with a clone method
+            // If so, emit TypeName_clone(&source) for deep copy
+            // Returns Some(type_name) if clone is needed, None otherwise
+            let rhs_expr = &expr.params[0];
+            // Only clone if RHS is a simple identifier (no params = variable, with params = method call)
+            let needs_clone: Option<String> = if let NodeType::Identifier(_) = &rhs_expr.node_type {
+                if !rhs_expr.params.is_empty() {
+                    // Method call or field access - don't clone, emit as-is
+                    None
+                } else {
+                // Get the type of the target variable
+                // For field access like "h.data", we need to look up the base variable
+                let lookup_name = if name.contains('.') {
+                    name.split('.').next().unwrap()
+                } else {
+                    name
+                };
+                if let Some(sym) = context.scope_stack.lookup_symbol(lookup_name) {
+                    // For field access, we need to get the field type, not the base type
+                    let target_type = if name.contains('.') {
+                        // Get field type from struct definition
+                        if let ValueType::TCustom(base_type) = &sym.value_type {
+                            if let Some(struct_def) = context.scope_stack.lookup_struct(base_type) {
+                                let field_name = name.split('.').last().unwrap();
+                                struct_def.members.iter()
+                                    .find(|m| m.name == field_name)
+                                    .map(|m| m.value_type.clone())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        Some(sym.value_type.clone())
+                    };
+
+                    if let Some(ValueType::TCustom(type_name)) = target_type {
+                        // Skip primitive-like types
+                        if !matches!(type_name.as_str(), "I64" | "U8" | "Str" | "Bool" | "Ptr" | "Type") {
+                            if context.scope_stack.has_struct(&type_name) || context.scope_stack.has_enum(&type_name) {
+                                let clone_method = format!("{}.clone", type_name);
+                                if context.scope_stack.has_func(&clone_method) {
+                                    Some(type_name)
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+                }
+            } else {
+                None
+            };
+
+            if let Some(clone_type) = needs_clone {
+                output.push_str(&til_name(&clone_type));
+                output.push_str("_clone(&");
+                output.push_str(rhs);
+                output.push_str(")");
+            } else {
+                output.push_str(rhs);
+            }
         }
-        output.push_str(rhs);
     }
     output.push_str(";\n");
     Ok(())
