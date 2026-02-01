@@ -10,9 +10,9 @@
 ** Bug #159: Shallow copy semantics for structs with Ptr/Vec fields
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
-:FIXED: 2026-02-01
+:FIXED: 2026-02-01 (partial - Step 4 remaining)
 :IMPACT: Memory corruption, shared state between what should be independent copies
-:STATUS: Fixed
+:STATUS: Partial fix - see Step 4 TODO
 :END:
 
 *** Description
@@ -28,15 +28,35 @@ All struct copy operations now call =Type.clone()= for deep copy:
 - Added dynamic type info to Ptr (=size=, =elem_type=, =elem_size=) for deep cloning
 
 **** Step 2: Interpreter fixes (interpreter.rs + interpreter.til)
-- Declarations (=mut x := y=): calls =Type.clone(y)= instead of =copy_fields=
+- Declarations (=mut x := y=): calls =Type.clone(y)=, transfers offset
 - Reassignments (=x = y=): calls clone via =try_call_clone=
 - Field assignments (=obj.field = y=): calls clone
-- =copy= param passing: calls clone (regular/mut params are borrowed, don't clone)
+- Param passing semantics:
+  - =copy= params: calls clone (creates independent copy for callee)
+  - =own= params: NO clone (ownership transfer - caller loses access, callee owns)
+  - regular/=mut= params: NO clone (borrowed reference, caller retains ownership)
 
 **** Step 3: ccodegen fixes (ccodegen.rs + ccodegen.til)
 - Declarations: emits =TypeName_clone(&source)=
 - Assignments: emits =TypeName_clone(&source)= for simple identifiers
-- Skip primitives (I64, U8, Str, Bool, Ptr, Type) - they're C value types
+
+**** Step 4: Eliminate copy_fields entirely (TODO)
+With clone() for deep copies and offset transfer for ownership, =copy_fields= (shallow copy) is obsolete:
+- =clone()= → deep copy, returns temp → transfer offset to destination
+- =own= params → transfer offset (no copy needed)
+- =borrow= (regular/mut params) → share offset (reference)
+
+No special cases for "primitives" (Ptr, Bool, Type) - just call clone() for all types.
+preinit generates clone() for everything, and each type's clone() does the right thing.
+
+Tasks:
+- [ ] After clone(), transfer offset directly instead of =insert_struct_instance= + =copy_fields=
+- [ ] Remove =skip_clone= special cases - call clone() for all types
+- [ ] Struct member default values: use clone() + offset transfer
+- [ ] Struct literal fields: use clone() + offset transfer
+- [ ] Remove =copy_fields= fallbacks (error if clone missing - preinit generates for all)
+- [ ] Remove =copy_fields= function from eval_arena.rs/til
+- [ ] Port all fixes to TIL
 
 *** Test
 =src/test/bug159.til= - tests declarations, reassignments, and field assignments.
