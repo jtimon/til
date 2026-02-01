@@ -2,7 +2,7 @@
 #+AUTHOR: TIL Development
 #+DATE: 2026-01-31
 
-* bugs.org (11 bugs/issues)
+* bugs.org (10 bugs/issues)
 
 | #   | Bug/Issue                                                        | Impact                      |
 |-----+------------------------------------------------------------------+-----------------------------|
@@ -37,11 +37,10 @@
 |  83 | No spread/splat operator for variadic forwarding | Missing feature    |
 |  66 | Variable Shadowing Policy                        | Language semantics |
 
-* pre.org (7 issues)
+* pre.org (6 issues)
 
 | #   | Issue                                        | Category     |
 |-----+----------------------------------------------+--------------|
-| 159 | copy keyword does shallow copies (not clone) | Memory mgmt  |
 | 151 | Explicit pointer/reference syntax            | Language     |
 | 117 | ASAP Destruction (auto-delete on last use)   | Memory mgmt  |
 | 115 | Owned struct fields and auto-generated methods | Memory mgmt |

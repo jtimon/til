@@ -2291,6 +2291,16 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         }
     case:
     }
+    // 2b2: Bug #159 - enum functions (with mangled names)
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            if is_enum_declaration(child) {
+                emit_enum_func_prototypes(child, context, output)?
+            }
+        }
+    case:
+    }
     // 2c: hoisted nested function prototypes (collected in Pass 0a)
     if not(ctx.hoisted_prototypes.is_empty()) {
         output.push_str("\n// Nested function prototypes (hoisted)\n")
@@ -2388,6 +2398,16 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         for child: Expr in ast.params {
             if is_struct_declaration(child) {
                 emit_struct_func_bodies(child, output, ctx, context)?
+            }
+        }
+    case:
+    }
+    // 5b2: Bug #159 - enum functions (with mangled names)
+    switch ast.node_type {
+    case NodeType.Body:
+        for child: Expr in ast.params {
+            if is_enum_declaration(child) {
+                emit_enum_func_bodies(child, output, ctx, context)?
             }
         }
     case:
@@ -3901,7 +3921,7 @@ emit_struct_func_prototypes := proc(expr: Expr, context: Context, mut output: St
 }
 
 // Emit a struct function body with mangled name: StructName_funcname
-emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: SFuncDef, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
+emit_struct_func_body := proc(type_name: Str, method_name: Str, func_def: SFuncDef, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
     // Skip external functions
     if func_def.is_ext() {
         return
@@ -3945,7 +3965,7 @@ emit_struct_func_body := proc(struct_name: Str, member: Declaration, func_def: S
     // Clear declared_vars for new function scope
     ctx.declared_vars.clear()
 
-    mangled_name := struct_name.concat("_").concat(member.name)
+    mangled_name := type_name.concat("_").concat(method_name)
 
     // Save and set current function name for deterministic temp naming (Bug #42 fix)
     prev_function_name := ctx.current_function_name.clone()
@@ -4012,7 +4032,75 @@ emit_struct_func_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenCon
                     }
                     switch func_expr.node_type {
                     case NodeType.FuncDef(func_def):
-                        emit_struct_func_body(struct_name, member, func_def, output, ctx, context)?
+                        emit_struct_func_body(struct_name, member.name, func_def, output, ctx, context)?
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+}
+
+// Bug #159: Emit enum function prototypes for all methods in an enum
+emit_enum_func_prototypes := proc(expr: Expr, context: Context, mut output: Str) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            mut first_param := Expr()
+            expr.params.get(0, first_param)?
+            switch first_param.node_type {
+            case NodeType.EnumDef(enum_def):
+                enum_name := til_name(decl.name)
+                for method_name: Str in enum_def.methods.keys {
+                    mut method_expr := Expr()
+                    enum_def.methods.get(method_name, method_expr)?
+                    catch (err: KeyNotFoundError) {
+                        panic(loc(), "KeyNotFoundError iterating methods.keys: ", err.msg)
+                    }
+                    switch method_expr.node_type {
+                    case NodeType.FuncDef(func_def):
+                        mangled_name := enum_name.concat("_").concat(method_name)
+                        emit_func_signature(mangled_name, func_def, context, output)?
+                        output.push_str(";\n")
+                    case:
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+}
+
+// Bug #159: Emit enum function bodies for all methods in an enum
+emit_enum_func_bodies := proc(expr: Expr, mut output: Str, mut ctx: CodegenContext, mut context: Context) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if not(expr.params.is_empty()) {
+            mut first_param := Expr()
+            expr.params.get(0, first_param)?
+            switch first_param.node_type {
+            case NodeType.EnumDef(enum_def):
+                enum_name := til_name(decl.name)
+                for method_name: Str in enum_def.methods.keys {
+                    mut method_expr := Expr()
+                    enum_def.methods.get(method_name, method_expr)?
+                    catch (err: KeyNotFoundError) {
+                        panic(loc(), "KeyNotFoundError iterating methods.keys: ", err.msg)
+                    }
+                    switch method_expr.node_type {
+                    case NodeType.FuncDef(func_def):
+                        emit_struct_func_body(enum_name, method_name, func_def, output, ctx, context)?
                     case:
                     }
                 }
@@ -6635,9 +6723,36 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 if has_rhs_string {
                     output.push_str(rhs_string)
                 } else {
-                    mut mut_emit_first_param := Expr()
-                    expr.params.get(0, mut_emit_first_param)?
-                    emit_expr(mut_emit_first_param, output, 0, ctx, context)?
+                    // Bug #159: Check if RHS is an identifier of a struct/enum type with a clone method
+                    // If so, emit TypeName_clone(&source) for deep copy instead of shallow copy
+                    mut rhs := Expr()
+                    expr.params.get(0, rhs)?
+                    mut needs_clone := false
+                    switch rhs.node_type {
+                    case NodeType.Identifier(_):
+                        switch decl.value_type {
+                        case ValueType.TCustom(type_name):
+                            if context.scope_stack.has_struct(type_name).or(context.scope_stack.has_enum(type_name)) {
+                                clone_method := type_name.concat(".clone")
+                                needs_clone = context.scope_stack.has_func(clone_method)
+                            }
+                        case:
+                        }
+                    case:
+                    }
+
+                    if needs_clone {
+                        switch decl.value_type {
+                        case ValueType.TCustom(type_name):
+                            output.push_str(til_name(type_name))
+                            output.push_str("_clone(&")
+                            emit_expr(rhs, output, 0, ctx, context)?
+                            output.push_str(")")
+                        case:
+                        }
+                    } else {
+                        emit_expr(rhs, output, 0, ctx, context)?
+                    }
                 }
             }
             output.push_str(";\n")

@@ -1830,6 +1830,14 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             }
         }
     }
+    // 2b2: Bug #159 - enum functions (with mangled names)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_enum_declaration(child) {
+                emit_enum_func_prototypes(child, context, &mut output)?;
+            }
+        }
+    }
     // 2c: hoisted nested function prototypes (collected in Pass 0a)
     if !ctx.hoisted_prototypes.is_empty() {
         output.push_str("\n// Nested function prototypes (hoisted)\n");
@@ -1915,6 +1923,14 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         for child in &ast.params {
             if is_struct_declaration(child) {
                 emit_struct_func_bodies(child, &mut output, &mut ctx, context)?;
+            }
+        }
+    }
+    // 5b2: Bug #159 - enum functions (with mangled names)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_enum_declaration(child) {
+                emit_enum_func_bodies(child, &mut output, &mut ctx, context)?;
             }
         }
     }
@@ -3146,8 +3162,8 @@ fn emit_struct_func_prototypes(expr: &Expr, context: &Context, output: &mut Stri
     Ok(())
 }
 
-// Emit a struct function body with mangled name: StructName_funcname
-fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declaration, func_def: &SFuncDef, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+// Emit a struct/enum function body with mangled name: TypeName_funcname
+fn emit_struct_func_body(type_name: &str, method_name: &str, func_def: &SFuncDef, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // Skip external functions
     if func_def.is_ext() {
         return Ok(());
@@ -3195,7 +3211,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     // Clear declared_vars for new function scope
     ctx.declared_vars.clear();
 
-    let mangled_name = format!("{}_{}", struct_name, member.name);
+    let mangled_name = format!("{}_{}", type_name, method_name);
 
     // Save and set current function name for deterministic temp naming (Bug #42 fix)
     let prev_function_name = ctx.current_function_name.clone();
@@ -3246,8 +3262,44 @@ fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
                     // Check if default_value is a function definition
                     if let Some(func_expr) = struct_def.default_values.get(&member.name) {
                         if let NodeType::FuncDef(func_def) = &func_expr.node_type {
-                            emit_struct_func_body(&struct_name, member, func_def, output, ctx, context)?;
+                            emit_struct_func_body(&struct_name, &member.name, func_def, output, ctx, context)?;
                         }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// Bug #159: Emit enum function prototypes for all methods in an enum
+fn emit_enum_func_prototypes(expr: &Expr, context: &Context, output: &mut String) -> Result<(), String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
+                let enum_name = til_name(&decl.name);
+                for (method_name, method_expr) in &enum_def.methods {
+                    if let NodeType::FuncDef(func_def) = &method_expr.node_type {
+                        let mangled_name = format!("{}_{}", enum_name, method_name);
+                        emit_func_signature(&mangled_name, func_def, context, output)?;
+                        output.push_str(";\n");
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// Bug #159: Emit enum function bodies for all methods in an enum
+fn emit_enum_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
+                let enum_name = til_name(&decl.name);
+                for (method_name, method_expr) in &enum_def.methods {
+                    if let NodeType::FuncDef(func_def) = &method_expr.node_type {
+                        emit_struct_func_body(&enum_name, method_name, func_def, output, ctx, context)?;
                     }
                 }
             }
@@ -5355,7 +5407,34 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             if let Some(ref call_str) = rhs_string {
                 output.push_str(call_str);
             } else {
-                emit_expr(&expr.params[0], output, 0, ctx, context)?;
+                // Bug #159: Check if RHS is an identifier of a struct/enum type with a clone method
+                // If so, emit TypeName_clone(&source) for deep copy instead of shallow copy
+                let rhs = &expr.params[0];
+                let needs_clone = if let NodeType::Identifier(_) = &rhs.node_type {
+                    if let ValueType::TCustom(type_name) = &decl.value_type {
+                        if context.scope_stack.has_struct(type_name) || context.scope_stack.has_enum(type_name) {
+                            let clone_method = format!("{}.clone", type_name);
+                            context.scope_stack.has_func(&clone_method)
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+
+                if needs_clone {
+                    if let ValueType::TCustom(type_name) = &decl.value_type {
+                        output.push_str(&til_name(type_name));
+                        output.push_str("_clone(&");
+                        emit_expr(rhs, output, 0, ctx, context)?;
+                        output.push_str(")");
+                    }
+                } else {
+                    emit_expr(rhs, output, 0, ctx, context)?;
+                }
             }
         }
         output.push_str(";\n");

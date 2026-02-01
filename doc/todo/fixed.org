@@ -7,6 +7,32 @@
 
 * Fixed Bugs
 
+** Bug #159: Shallow copy semantics for structs with Ptr/Vec fields
+:PROPERTIES:
+:DISCOVERED: 2026-01-31
+:FIXED: 2026-02-01
+:IMPACT: Memory corruption, shared state between clones
+:STATUS: Fixed
+:END:
+
+*** Description
+When doing =mut cloned := original=, the code used shallow copy (=copy_fields=/memcpy)
+which for structs containing Ptr or Vec fields resulted in both the original and
+clone sharing the same underlying memory.
+
+*** Fix (4 steps)
+1. preinit phase auto-generates =clone()= and =delete()= methods for structs/enums
+2. Added dynamic type info to Ptr (=size=, =elem_type=, =elem_size=) for deep cloning
+3. Interpreters: =mut x := y= now calls =Type.clone(y)= instead of =copy_fields=
+4. ccodegen: Emits =TypeName_clone(&source)= for struct/enum variable declarations
+   - Added =emit_enum_func_prototypes= and =emit_enum_func_bodies= functions
+   - Changed =emit_struct_func_body= to take =method_name= instead of =member=
+   - Scavenger marks =clone/delete= methods as reachable when type is used
+
+*** Test
+=src/test/bug159.til= - tests that cloned structs have independent memory.
+Now passes in all 4 modes (rs_interpreted, rs_compiled, til_interpreted, til_compiled).
+
 ** Bug #157: Field access on throwing calls in declarations
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
