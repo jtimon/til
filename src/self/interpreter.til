@@ -3127,7 +3127,7 @@ main_interpret := proc(skip_init_and_typecheck: Bool, mut context: Context, path
         // Desugarer phase: Transform ForIn to while loops
         e = desugar_expr(context, e)?
 
-        // Garbager phase: Auto-generate delete() methods for structs
+        // Garbager phase: Insert automatic delete() calls
         e = garbager_expr(context, e)
 
         // UFCS phase: Transform UFCS calls into regular function calls

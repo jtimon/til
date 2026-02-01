@@ -269,7 +269,7 @@ ufcs_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         return ufcs_params(context, e)
     // Switch should have been desugared in desugarer phase
     case NodeType.Switch:
-        panic(loc(), "Switch should have been desugared in desugarer phase")
+        throw e.lang_error(context.path, "ufcs", "Switch should have been desugared before ufcs phase")
     case NodeType.FuncDef(func_def):
         return ufcs_func_def(context, e, func_def)?
     case NodeType.Declaration(decl):

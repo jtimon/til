@@ -2831,7 +2831,7 @@ pub fn main_interpret(skip_init_and_typecheck: bool, context: &mut Context, path
         // Desugarer phase: Desugar ForIn loops to while loops
         e = desugar_expr(context, &e)?;
 
-        // Garbager phase: (future) ASAP destruction - insert automatic delete() calls
+        // Garbager phase: Insert automatic delete() calls
         e = garbager_expr(context, &e)?;
 
         // UFCS phase: Resolve UFCS calls and reorder named arguments

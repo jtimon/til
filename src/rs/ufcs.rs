@@ -196,7 +196,7 @@ pub fn ufcs_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::While => ufcs_params(context, e),
         // Switch should have been desugared in desugarer phase
         NodeType::Switch => {
-            panic!("Switch should have been desugared in desugarer phase");
+            Err(e.lang_error(&context.path, "ufcs", "Switch should have been desugared before ufcs phase"))
         },
         NodeType::FuncDef(func_def) => ufcs_func_def(context, e, func_def.clone()),
         NodeType::Declaration(decl) => ufcs_declaration(context, e, decl),

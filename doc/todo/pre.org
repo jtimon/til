@@ -414,28 +414,37 @@ delete := proc(mut self: MyStruct) {
 
 Files: garbager.rs, garbager.til (new)
 
-**** Step 4: Liveness Analysis and Delete Insertion
-Add liveness analysis to track when variables are last used, then insert ~var.delete()~ calls.
+**** Step 4: Liveness Analysis and Delete Insertion (IN PROGRESS)
+Insert ~var.delete()~ call after last use of each owned variable.
 
-Data structure:
-#+BEGIN_SRC rust
-struct VarLifetime {
-    name: String,
-    value_type: ValueType,
-    last_use_stmt_idx: Option<usize>,
-    is_deleted: bool,
-}
-#+END_SRC
+**What to delete** (variables we own):
+- Local variables (~mut x := ...~)
+- ~own~ parameters (ownership transferred to us)
+- ~copy~ parameters (we own the copy)
 
-Note: No need for ~has_delete~ field - after Step 3, every struct has ~delete()~.
+**What NOT to delete** (caller owns):
+- Regular parameters (immutable reference)
+- ~mut~ parameters (mutable reference, caller still owns)
+
+**When to delete**: After last use, not at function end.
+
+**Simplification**: Switch desugared to if/else before garbager - can ~lang_error~ on Switch.
+
+**Prerequisites satisfied**:
+- Bug #159: Deep copy semantics - passing to functions creates independent copies
+- preinit: All types have ~delete()~ method auto-generated
 
 Algorithm:
-1. Analysis pass: Scan statements, track last use index per variable
-2. Transform pass: Insert ~var.delete()~ statement after last_use_stmt_idx
+1. Collect owned variables (locals + own params + copy params) with their types
+2. Scan statements to find last use index for each variable
+3. Insert ~var.delete()~ after the statement containing last use (UFCS transforms to ~Type.delete(var)~)
 
 Handle control flow:
-- Early exits (return/throw): Insert deletes for all still-live variables before exit
-- Branches (if/else/switch): Conservative - only delete if ALL paths agree variable is dead, otherwise delete after branch
+- Linear code: Insert delete right after last use statement
+- Early exits (return/throw): Insert deletes for live owned variables before exit (skip returned/thrown var)
+- Branches (if/else): Conservative - delete after branch if used in any path
+- Loops: Delete after loop (variable may be used across iterations)
+- Switch: lang_error (should be desugared)
 - Loops: Most conservative - variables used in loop body deleted after loop ends
 - Scope exit: Safety net - insert deletes for any remaining live variables at function end
 
