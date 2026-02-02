@@ -2185,35 +2185,35 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                 }
                                             }
                                         } else {
-                                            // For copy parameters, allocate and clone
-                                            // Bug #159 fix: call clone() for deep copy of all structs
+                                            // For copy parameters, clone for deep copy
+                                            // Bug #159 fix: reuse clone result offset directly instead of copy_fields
                                             // Skip cloning when calling clone methods to avoid infinite recursion
                                             let is_clone_method = name.ends_with(".clone");
-                                            let copy_source = if !is_clone_method {
+                                            let mut used_clone = false;
+                                            if !is_clone_method {
                                                 // Clone BEFORE frame manipulation while source is accessible
                                                 if let Some(clone_result) = try_call_clone(context, &resolved_type_name, id_, e)? {
                                                     if clone_result.is_throw {
                                                         return Ok(clone_result);
                                                     }
-                                                    clone_result.value
-                                                } else {
-                                                    // No clone method - fall back to original
-                                                    id_.clone()
+                                                    // Reuse clone result's offset directly
+                                                    if let Some(clone_offset) = context.scope_stack.lookup_var(&clone_result.value) {
+                                                        function_frame.arena_index.insert(arg.name.to_string(), clone_offset);
+                                                        // Push frame temporarily for map_instance_fields
+                                                        context.scope_stack.frames.push(function_frame);
+                                                        context.map_instance_fields(&resolved_type_name, &arg.name, e)?;
+                                                        function_frame = context.scope_stack.frames.pop().unwrap();
+                                                        used_clone = true;
+                                                    }
                                                 }
-                                            } else {
-                                                id_.clone()
-                                            };
-
-                                            insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
-
-                                            // Push frame temporarily for copy_fields (needs dest accessible)
-                                            context.scope_stack.frames.push(function_frame);
-
-                                            // Clone result is accessible, just copy from it
-                                            EvalArena::copy_fields(context, &resolved_type_name, &copy_source, &arg.name, e)?;
-
-                                            // Pop frame back for remaining arg processing
-                                            function_frame = context.scope_stack.frames.pop().unwrap();
+                                            }
+                                            if !used_clone {
+                                                // No clone method or clone method call - fall back to shallow copy
+                                                insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
+                                                context.scope_stack.frames.push(function_frame);
+                                                EvalArena::copy_fields(context, &resolved_type_name, id_, &arg.name, e)?;
+                                                function_frame = context.scope_stack.frames.pop().unwrap();
+                                            }
                                         }
                                     },
                                     _ => {
