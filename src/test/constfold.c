@@ -79,7 +79,7 @@ int til_Array_get(til_IndexOutOfBoundsError* _err1, const til_Array* til_Array_s
 int til_Array_set(til_IndexOutOfBoundsError* _err1, til_Array* til_Array_self, const til_I64* til_I64_index, const til_Dynamic* til_Dynamic_value);
 void til_Array_delete(til_Array* til_Array_self);
 til_Array til_Array_clone(const til_Array* til_Array_self);
-void til_Bool_delete(til_Bool* _self);
+void til_Bool_delete(til_Bool* til_Bool_self);
 til_Bool til_Bool_clone(const til_Bool* til_Bool_self);
 til_I64 til_I64_sub(const til_I64* til_I64_a, const til_I64* til_I64_b);
 til_I64 til_I64_mul(const til_I64* til_I64_a, const til_I64* til_I64_b);
@@ -633,11 +633,12 @@ til_Array til_Array_clone(const til_Array* til_Array_self) {
     return (til_Array){0};
 }
 
-void til_Bool_delete(til_Bool* _self) {
+void til_Bool_delete(til_Bool* til_Bool_self) {
+    til_U8_delete(&til_Bool_self->data);
 }
 
 til_Bool til_Bool_clone(const til_Bool* til_Bool_self) {
-    return (*til_Bool_self);
+    return (til_Bool){.data = til_U8_clone(&til_Bool_self->data)};
     return (til_Bool){0};
 }
 

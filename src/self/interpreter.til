@@ -1070,17 +1070,23 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
 
                 if declaration.is_mut {
                     if not(is_temp_return_val) {
-                        // Bug #159 fix: Use clone() for deep copy instead of copy_fields
+                        // Bug #159 fix: Use clone() for deep copy
                         // Call Type.clone(source) - this properly clones Ptr/Vec fields
                         clone_result := try_call_clone(context, custom_type_name, struct_expr_result_str, e)?
                         if clone_result.is_throw {
                             return clone_result // Propagate throw
                         }
-                        // Clone returns a temp with properly cloned nested fields (Ptr, Vec, etc.)
-                        // We still need to allocate our own memory and copy from the clone result
-                        // because some clone() implementations just return self (like Bool.clone)
-                        insert_struct_instance(context, declaration.name, custom_type_name, e)?
-                        EvalArena.copy_fields(context, custom_type_name, clone_result.value, declaration.name, e)?
+                        // Clone returns a temp with fresh memory - reuse it directly
+                        clone_offset := context.scope_stack.lookup_var(clone_result.value)?
+                        catch (err: KeyNotFoundError) {
+                            throw e.lang_error(context.path, "eval", format("Could not find arena index for clone result '", clone_result.value, "'"))
+                        }
+                        mut clone_last_idx := context.scope_stack.frames.len().sub(1)
+                        mut clone_last_frame := ScopeFrame()
+                        context.scope_stack.frames.get(clone_last_idx, clone_last_frame)?
+                        clone_last_frame.arena_index.set(declaration.name, clone_offset)
+                        context.scope_stack.frames.set(clone_last_idx, clone_last_frame)?
+                        context.map_instance_fields(custom_type_name, declaration.name, e)?
                     } else {
                         // Share offset for temp return value (zero-copy transfer)
                         struct_offset := context.scope_stack.lookup_var(struct_expr_result_str)?
