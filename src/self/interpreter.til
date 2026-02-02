@@ -557,7 +557,19 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                 case ValueType.TType(TTypeDef.TEnumDef):
                                     _ := EvalArena.insert_enum(context, field_id.clone(), field_type_name.clone(), named_value_result.value.clone(), named_arg)?
                                 case ValueType.TType(TTypeDef.TStructDef):
-                                    EvalArena.copy_fields(context, field_type_name.clone(), named_value_result.value.clone(), field_id.clone(), named_arg)?
+                                    // Bug #159 fix: Use clone() for deep copy
+                                    // Skip primitive-like types that don't need deep cloning
+                                    skip_clone := field_type_name.eq("Ptr").or(field_type_name.eq("Bool")).or(field_type_name.eq("Type"))
+                                    if not(skip_clone) {
+                                        clone_result := try_call_clone(context, field_type_name.clone(), named_value_result.value.clone(), named_arg)?
+                                        if clone_result.is_throw {
+                                            return clone_result
+                                        }
+                                        EvalArena.copy_fields(context, field_type_name.clone(), clone_result.value.clone(), field_id.clone(), named_arg)?
+                                    } else {
+                                        // Primitive types - shallow copy is fine
+                                        EvalArena.copy_fields(context, field_type_name.clone(), named_value_result.value.clone(), field_id.clone(), named_arg)?
+                                    }
                                 case:
                                     throw named_arg.error(context.path, "eval", format("Unsupported field type '", field_type_name, "' for field '", field_name, "'"))
                                 }

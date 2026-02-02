@@ -69,9 +69,28 @@ test_reassignment := proc() {
     }
 }
 
-// Test 3: Named struct args (Foo(bar: x)) - SKIPPED (ccodegen TODO)
-// Skipped for now - needs complex ccodegen changes to emit clone in struct literals
-// test_named_struct_arg := proc() { ... }
+// Test 3: Named struct args (Foo(bar: x)) - TODO (ccodegen)
+test_named_struct_arg := proc() {
+    mut c := Container()
+    c.items.push(10)
+    c.items.push(20)
+
+    // Named struct arg - should clone c, not shallow copy
+    mut h := Holder(data=c)
+
+    // Modify through h
+    h.data.items.set(0, 999)?
+
+    mut orig_val := 0
+    c.items.get(0, orig_val)?
+
+    // c should still be 10 (independent copy)
+    assert_eq(loc(), 10, orig_val)
+
+    catch (err: IndexOutOfBoundsError) {
+        panic("IndexOutOfBoundsError:", err.msg)
+    }
+}
 
 // Test 4: copy param passing - SKIPPED
 // Cannot test directly because copy params can't call methods with mut self.
@@ -103,6 +122,6 @@ test_field_assignment := proc() {
 
 test_declaration()
 test_reassignment()
-// test_named_struct_arg() - skipped, ccodegen needs work
+test_named_struct_arg()
 // test_copy_param() - skipped, type system limitation
 test_field_assignment()

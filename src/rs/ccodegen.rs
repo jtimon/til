@@ -1345,7 +1345,17 @@ fn emit_fcall_arg_string(
                         .map(|m| &m.value_type);
                     // Process the value with emit_arg_string
                     let value_str = emit_arg_string(value_expr, field_type, false, hoist_output, indent, ctx, context)?;
-                    field_values.insert(field_name.clone(), value_str);
+                    // Bug #159: Clone struct fields when value is an identifier
+                    let final_value = if let Some(ValueType::TCustom(ft)) = field_type {
+                        if ft != "I64" && ft != "U8" && ft != "Str" && ft != "Ptr" && ft != "Bool" && ft != "Type" {
+                            if let NodeType::Identifier(_) = &value_expr.node_type {
+                                if context.scope_stack.has_struct(ft) {
+                                    format!("{}{}_clone(&{})", TIL_PREFIX, ft, value_str)
+                                } else { value_str }
+                            } else { value_str }
+                        } else { value_str }
+                    } else { value_str };
+                    field_values.insert(field_name.clone(), final_value);
                 }
             }
         }
@@ -5345,7 +5355,24 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                     output.push_str(" = ");
                     // Use named arg value if provided, otherwise use default
                     if let Some(value_expr) = named_values.get(&member.name) {
-                        emit_expr(value_expr, output, 0, ctx, context)?;
+                        // Bug #159: Clone struct fields when value is an identifier
+                        let mut cloned = false;
+                        if let ValueType::TCustom(ft) = &member.value_type {
+                            if ft != "I64" && ft != "U8" && ft != "Str" && ft != "Ptr" && ft != "Bool" && ft != "Type" {
+                                if let NodeType::Identifier(_) = &value_expr.node_type {
+                                    if context.scope_stack.has_struct(ft) {
+                                        output.push_str(&til_name(ft));
+                                        output.push_str("_clone(&");
+                                        emit_expr(value_expr, output, 0, ctx, context)?;
+                                        output.push_str(")");
+                                        cloned = true;
+                                    }
+                                }
+                            }
+                        }
+                        if !cloned {
+                            emit_expr(value_expr, output, 0, ctx, context)?;
+                        }
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
                         emit_expr(default_expr, output, 0, ctx, context)?;
                     } else {
@@ -6336,7 +6363,24 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     output.push_str(" = ");
                     // Use named arg value if provided, otherwise use default
                     if let Some(value_expr) = named_values.get(&member.name) {
-                        emit_expr(value_expr, output, 0, ctx, context)?;
+                        // Bug #159: Clone struct fields when value is an identifier
+                        let mut cloned = false;
+                        if let ValueType::TCustom(ft) = &member.value_type {
+                            if ft != "I64" && ft != "U8" && ft != "Str" && ft != "Ptr" && ft != "Bool" && ft != "Type" {
+                                if let NodeType::Identifier(_) = &value_expr.node_type {
+                                    if context.scope_stack.has_struct(ft) {
+                                        output.push_str(&til_name(ft));
+                                        output.push_str("_clone(&");
+                                        emit_expr(value_expr, output, 0, ctx, context)?;
+                                        output.push_str(")");
+                                        cloned = true;
+                                    }
+                                }
+                            }
+                        }
+                        if !cloned {
+                            emit_expr(value_expr, output, 0, ctx, context)?;
+                        }
                     } else if let Some(default_expr) = struct_def.default_values.get(&member.name) {
                         emit_expr(default_expr, output, 0, ctx, context)?;
                     } else {
