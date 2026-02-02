@@ -1,0 +1,20 @@
+// Test if own args invalidate the source variable
+mode test
+
+Container := struct {
+    mut value: I64 = 0
+}
+
+take_ownership := proc(own c: Container) returns I64 {
+    return c.value
+}
+
+test_use_after_own := proc() {
+    mut c := Container(value=42)
+    _result := take_ownership(c)
+
+    // This should fail if own semantics work - c was moved
+    println("c.value after own:", c.value)
+}
+
+test_use_after_own()

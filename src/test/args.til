@@ -444,9 +444,8 @@ test_declaration_creates_copy := proc() {
 }
 test_declaration_creates_copy()
 
-// === Test own keyword for ownership transfer ===
-// NOTE: Own keyword implementation has bugs - tests disabled for now
-// TODO: Fix infinite loop and field access issues
+// === Test own keyword ===
+// NOTE: own currently works the same as mut - ownership semantics not implemented
 
 // Test 1: own parameter with primitive (I64)
 consume_i64 := proc(own n: I64) returns I64 {
@@ -457,8 +456,6 @@ test_own_primitive := proc() {
     mut x := 42
     result := consume_i64(x)
     assert_eq(loc(), 84, result)
-    // x should still exist in this context (own parameters don't remove from caller yet)
-    // This will be implemented later when we add use-after-move checking
 }
 test_own_primitive()
 
