@@ -158,6 +158,23 @@ til_var_name_from_context := func(name: Str, context: Context) returns Str {
     return format(TIL_PREFIX, type_str, "_", name)
 }
 
+// Bug #159: Wrap a field value with clone() if it's a struct identifier
+// This centralizes the clone-on-copy logic for compound literal field assignments
+wrap_clone_if_needed := func(value_str: Str, value_expr: Expr, field_type: ValueType, context: Context) returns Str {
+    switch field_type {
+    case ValueType.TCustom(ft):
+        switch value_expr.node_type {
+        case NodeType.Identifier:
+            if context.scope_stack.has_struct(ft) {
+                return format(TIL_PREFIX, ft, "_clone(&", value_str, ")")
+            }
+        case:
+        }
+    case:
+    }
+    return value_str
+}
+
 // Emit a struct literal, using compound literal syntax if already_declared
 // e.g., " = {0}" vs " = (til_TypeName){0}"
 emit_struct_literal_assign := proc(mut output: Str, type_name: Str, already_declared: Bool, literal_content: Str) {
@@ -1710,31 +1727,18 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
                 named_arg.params.get(0, value_expr)?
                 // Find the field's expected type
                 mut field_type := Ptr()
-                mut field_type_name := ""
+                mut member_value_type := ValueType.TCustom("")
                 for m: Declaration in struct_def.members {
                     if m.name.eq(field_name) {
                         field_type.data = to_ptr(m.value_type)
-                        switch m.value_type {
-                        case ValueType.TCustom(ft):
-                            field_type_name = ft
-                        case:
-                        }
+                        member_value_type = m.value_type.clone()
                         break
                     }
                 }
                 // Process the value with emit_arg_string
                 value_str := emit_arg_string(value_expr, field_type, false, hoist_output, indent, ctx, context)?
                 // Bug #159: Clone struct fields when value is an identifier
-                mut final_value := value_str
-                if not(field_type_name.is_empty()) {
-                    switch value_expr.node_type {
-                    case NodeType.Identifier:
-                        if context.scope_stack.has_struct(field_type_name) {
-                            final_value = format(TIL_PREFIX, field_type_name, "_clone(&", value_str, ")")
-                        }
-                    case:
-                    }
-                }
+                final_value := wrap_clone_if_needed(value_str, value_expr, member_value_type, context)
                 field_values.set(field_name, final_value)
             }
         case:
@@ -6661,29 +6665,9 @@ emit_declaration := proc(decl: Declaration, expr: Expr, mut output: Str, indent:
                 if named_values.contains_key(member.name) {
                     mut value_expr := Expr()
                     named_values.get(member.name, value_expr)?
-                    // Bug #159: Clone struct fields when value is an identifier
-                    mut cloned := false
-                    switch member.value_type {
-                    case ValueType.TCustom(ft):
-                        switch value_expr.node_type {
-                        case NodeType.Identifier:
-                            if context.scope_stack.has_struct(ft) {
-                                output.push_str(til_name(ft))
-                                output.push_str("_clone(&")
-                                emit_expr(value_expr, output, 0, ctx, context)?
-                                output.push_str(")")
-                                cloned = true
-                            }
-                        case:
-                        }
-                    case:
-                    }
-                    if not(cloned) {
-                        mut member_type_ptr := Ptr()
-                        member_type_ptr.data = to_ptr(member.value_type)
-                        value_str := emit_arg_string(value_expr, member_type_ptr, false, output, indent, ctx, context)?
-                        output.push_str(value_str)
-                    }
+                    mut value_str := ""
+                    emit_expr(value_expr, value_str, 0, ctx, context)?
+                    output.push_str(wrap_clone_if_needed(value_str, value_expr, member.value_type, context))
                 } else {
                     mut member_default_expr := Expr()
                     struct_def.default_values.get(member.name, member_default_expr)?
@@ -7955,26 +7939,9 @@ emit_fcall := proc(expr: Expr, mut output: Str, indent: I64, mut ctx: CodegenCon
                     if named_values.contains_key(member.name) {
                         mut member_value_expr := Expr()
                         named_values.get(member.name, member_value_expr)?
-                        // Bug #159: Clone struct fields when value is an identifier
-                        mut cloned := false
-                        switch member.value_type {
-                        case ValueType.TCustom(ft):
-                            switch member_value_expr.node_type {
-                            case NodeType.Identifier:
-                                if context.scope_stack.has_struct(ft) {
-                                    output.push_str(til_name(ft))
-                                    output.push_str("_clone(&")
-                                    emit_expr(member_value_expr, output, 0, ctx, context)?
-                                    output.push_str(")")
-                                    cloned = true
-                                }
-                            case:
-                            }
-                        case:
-                        }
-                        if not(cloned) {
-                            emit_expr(member_value_expr, output, 0, ctx, context)?
-                        }
+                        mut value_str := ""
+                        emit_expr(member_value_expr, value_str, 0, ctx, context)?
+                        output.push_str(wrap_clone_if_needed(value_str, member_value_expr, member.value_type, context))
                     } else {
                         mut default_expr := Expr()
                         struct_def.default_values.get(member.name, default_expr)?
