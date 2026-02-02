@@ -2369,11 +2369,19 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             }
                                         }
                                         if not(used_clone) {
-                                            // No clone method or clone method call - fall back to shallow copy
-                                            insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)?
-                                            context.scope_stack.frames.push(function_frame)
-                                            EvalArena.copy_fields(context, resolved_type_name, id_, arg.name, e)?
-                                            function_frame = context.scope_stack.pop()?
+                                            if is_clone_method {
+                                                // Clone method - share offset directly, self is read-only
+                                                // The clone method will read from source and create the deep copy
+                                                source_offset := context.scope_stack.lookup_var(id_)?
+                                                function_frame.arena_index.set(arg.name.clone(), source_offset)
+                                                context.scope_stack.frames.push(function_frame)
+                                                context.map_instance_fields(resolved_type_name, arg.name, e)?
+                                                function_frame = context.scope_stack.pop()?
+                                            } else {
+                                                // No clone method for non-clone-method call
+                                                // This means empty struct (no mutable fields) - just allocate, nothing to copy
+                                                insert_struct_instance_into_frame(context, function_frame, arg.name, resolved_type_name, e)?
+                                            }
                                         }
                                     }
                                 } else {

@@ -2208,11 +2208,20 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                 }
                                             }
                                             if !used_clone {
-                                                // No clone method or clone method call - fall back to shallow copy
-                                                insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
-                                                context.scope_stack.frames.push(function_frame);
-                                                EvalArena::copy_fields(context, &resolved_type_name, id_, &arg.name, e)?;
-                                                function_frame = context.scope_stack.frames.pop().unwrap();
+                                                if is_clone_method {
+                                                    // Clone method - share offset directly, self is read-only
+                                                    // The clone method will read from source and create the deep copy
+                                                    let source_offset = context.scope_stack.lookup_var(id_)
+                                                        .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Clone method source '{}' not found", id_)))?;
+                                                    function_frame.arena_index.insert(arg.name.to_string(), source_offset);
+                                                    context.scope_stack.frames.push(function_frame);
+                                                    context.map_instance_fields(&resolved_type_name, &arg.name, e)?;
+                                                    function_frame = context.scope_stack.frames.pop().unwrap();
+                                                } else {
+                                                    // No clone method for non-clone-method call
+                                                    // This means empty struct (no mutable fields) - just allocate, nothing to copy
+                                                    insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &resolved_type_name, e)?;
+                                                }
                                             }
                                         }
                                     },
