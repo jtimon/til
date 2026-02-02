@@ -92,19 +92,13 @@ test_named_struct_arg := proc() {
     }
 }
 
-// Test 4: copy param passing - FIXED
-// Copy params create a deep copy. Since copy params are const, we test by
-// declaring a local from the copy param and mutating that. If copy param
-// cloning is broken (shallow), the local would share memory with original.
-copy_param_helper := proc(copy c: Container) {
-    // Declare from copy param - this creates another clone
-    mut local := c
-    // Mutate the local
-    local.items.set(0, 999)?
-
-    catch (err: IndexOutOfBoundsError) {
-        panic("IndexOutOfBoundsError:", err.msg)
-    }
+// Test 4: copy param passing - TODO (ccodegen)
+// Copy params should create a deep copy. We test by comparing the raw pointer
+// values - if shallow copy, the Vec's internal ptr matches original; if deep
+// copy, they're different. This avoids relying on declaration cloning.
+get_items_ptr := func(copy c: Container) returns I64 {
+    // Return the raw pointer value of c's Vec internal buffer
+    return c.items.ptr.data
 }
 
 test_copy_param := proc() {
@@ -112,17 +106,13 @@ test_copy_param := proc() {
     original.items.push(10)
     original.items.push(20)
 
-    // Pass to copy param - should deep clone
-    copy_param_helper(original)
+    // Get the copy param's Vec ptr
+    copy_ptr := get_items_ptr(original)
+    original_ptr := original.items.ptr.data
 
-    // Original should still be 10 (copy was independent)
-    mut orig_val := 0
-    original.items.get(0, orig_val)?
-    assert_eq(loc(), 10, orig_val)
-
-    catch (err: IndexOutOfBoundsError) {
-        panic("IndexOutOfBoundsError:", err.msg)
-    }
+    // With shallow copy: copy_ptr == original_ptr (FAIL - shared memory)
+    // With deep copy: copy_ptr != original_ptr (PASS - independent memory)
+    test(loc(), not(original_ptr.eq(copy_ptr)), "copy param should have independent Vec ptr")
 }
 
 // Test 5: Field assignment (obj.field = x) - FIXED

@@ -138,6 +138,7 @@ fn wrap_clone_if_needed(
     field_type: &ValueType,
     context: &Context,
 ) -> String {
+    // Bug #159: Clone struct identifiers to ensure deep copy semantics
     if let ValueType::TCustom(ft) = field_type {
         if let NodeType::Identifier(_) = &value_expr.node_type {
             if context.scope_stack.has_struct(ft) {
@@ -1579,7 +1580,14 @@ fn emit_fcall_arg_string(
         for (i, nested_arg) in arg.params[1..].iter().enumerate() {
             let nested_param_type = fd_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| &a.value_type));
             let nested_by_ref = fd_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| param_needs_by_ref(a))).unwrap_or(false);
-            let nested_str = emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?;
+            let nested_is_copy = fd_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| a.is_copy)).unwrap_or(false);
+            let mut nested_str = emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?;
+            // Bug #159: Clone when passing to copy params
+            if nested_is_copy {
+                if let Some(vt) = nested_param_type {
+                    nested_str = wrap_clone_if_needed(nested_str, nested_arg, vt, context);
+                }
+            }
             nested_arg_strings.push(nested_str);
         }
     }
@@ -4104,7 +4112,14 @@ fn emit_variadic_call(
             } else {
                 func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| param_needs_by_ref(a))).unwrap_or(false)
             };
-            let arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            let is_copy = func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| a.is_copy)).unwrap_or(false);
+            let mut arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            // Bug #159: Clone when passing to copy params
+            if is_copy {
+                if let Some(vt) = param_type {
+                    arg_str = wrap_clone_if_needed(arg_str, arg, vt, context);
+                }
+            }
             arg_strings.push(arg_str);
         }
     }
@@ -4267,7 +4282,14 @@ fn emit_throwing_call(
             } else {
                 func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| param_needs_by_ref(a))).unwrap_or(false)
             };
-            let arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            let is_copy = func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| a.is_copy)).unwrap_or(false);
+            let mut arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            // Bug #159: Clone when passing to copy params
+            if is_copy {
+                if let Some(vt) = param_type {
+                    arg_str = wrap_clone_if_needed(arg_str, arg, vt, context);
+                }
+            }
             arg_strings.push(arg_str);
         }
     }
@@ -4570,7 +4592,14 @@ fn emit_throwing_call_propagate(
             } else {
                 func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| param_needs_by_ref(a))).unwrap_or(false)
             };
-            let arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            let is_copy = func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| a.is_copy)).unwrap_or(false);
+            let mut arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            // Bug #159: Clone when passing to copy params
+            if is_copy {
+                if let Some(vt) = param_type {
+                    arg_str = wrap_clone_if_needed(arg_str, arg, vt, context);
+                }
+            }
             arg_strings.push(arg_str);
         }
     }
@@ -4834,7 +4863,14 @@ fn emit_throwing_call_with_goto(
             } else {
                 func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| param_needs_by_ref(a))).unwrap_or(false)
             };
-            let arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            let is_copy = func_def_opt.as_ref().and_then(|fd| fd.args.get(i).map(|a| a.is_copy)).unwrap_or(false);
+            let mut arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            // Bug #159: Clone when passing to copy params
+            if is_copy {
+                if let Some(vt) = param_type {
+                    arg_str = wrap_clone_if_needed(arg_str, arg, vt, context);
+                }
+            }
             arg_strings.push(arg_str);
         }
     }
@@ -5759,16 +5795,23 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     // Bug #143: Get regular arg strings using emit_arg_string
                     let regular_args: Vec<_> = return_expr.params.iter().skip(1).take(variadic_fcall_info.regular_count).collect();
                     let param_info: Vec<ParamTypeInfo> = if let Some(fd) = get_fcall_func_def(context, return_expr) {
-                        fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg) }).collect()
+                        fd.args.iter().map(|fd_arg| ParamTypeInfo { value_type: Some(fd_arg.value_type.clone()), by_ref: param_needs_by_ref(fd_arg), is_copy: fd_arg.is_copy }).collect()
                     } else {
                         Vec::new()
                     };
                     let mut regular_arg_strings: Vec<String> = Vec::new();
                     for (i, arg) in regular_args.iter().enumerate() {
-                        let (param_type, by_ref) = param_info.get(i)
-                            .map(|info| (info.value_type.as_ref(), info.by_ref))
-                            .unwrap_or((None, true));
-                        regular_arg_strings.push(emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?);
+                        let (param_type, by_ref, is_copy) = param_info.get(i)
+                            .map(|info| (info.value_type.as_ref(), info.by_ref, info.is_copy))
+                            .unwrap_or((None, true, false));
+                        let mut arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+                        // Bug #159: Clone when passing to copy params
+                        if is_copy {
+                            if let Some(vt) = param_type {
+                                arg_str = wrap_clone_if_needed(arg_str, arg, vt, context);
+                            }
+                        }
+                        regular_arg_strings.push(arg_str);
                     }
 
                     // Emit the function call storing result
@@ -6210,6 +6253,7 @@ struct CatchLabelInfoEntry {
 struct ParamTypeInfo {
     value_type: Option<ValueType>,
     by_ref: bool,
+    is_copy: bool,  // Bug #159: copy params need clone() for deep copy
 }
 
 // Info about a collected variable declaration for hoisting
@@ -6392,7 +6436,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         let param_info: Vec<ParamTypeInfo> = if let Some(fd) = get_fcall_func_def(context, expr) {
             fd.args.iter().map(|fd_arg| ParamTypeInfo {
                 value_type: Some(fd_arg.value_type.clone()),
-                by_ref: param_needs_by_ref(fd_arg)
+                by_ref: param_needs_by_ref(fd_arg),
+                is_copy: fd_arg.is_copy,
             }).collect()
         } else {
             // Handle builtins that don't have function definitions
@@ -6402,6 +6447,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     vec![ParamTypeInfo {
                         value_type: Some(ValueType::TCustom("Dynamic".to_string())),
                         by_ref: false,
+                        is_copy: false,
                     }]
                 }
                 _ => Vec::new()
@@ -6413,10 +6459,16 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // they get stored in temp vars, not passed directly to the function.
             // The temp vars are then passed via &temp_var to Array.set.
             let is_variadic_arg = i >= variadic_regular_count;
-            let (param_type, by_ref) = param_info.get(i)
-                .map(|info| (info.value_type.as_ref(), if is_variadic_arg { false } else { info.by_ref }))
-                .unwrap_or((None, false));
-            let arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            let (param_type, by_ref, is_copy) = param_info.get(i)
+                .map(|info| (info.value_type.as_ref(), if is_variadic_arg { false } else { info.by_ref }, info.is_copy))
+                .unwrap_or((None, false, false));
+            let mut arg_str = emit_arg_string(arg, param_type, by_ref, output, indent, ctx, context)?;
+            // Bug #159: Clone when passing to copy params
+            if is_copy {
+                if let Some(vt) = param_type {
+                    arg_str = wrap_clone_if_needed(arg_str, arg, vt, context);
+                }
+            }
             strings.push(arg_str);
         }
         strings
@@ -6862,8 +6914,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     // Expression-level call: emit args with by-ref handling
                     // Bug #143: Need to hoist non-lvalue args that require by-ref
                     // Look up function to get param info for by-ref handling
-                    let param_info: Vec<(Option<ValueType>, bool)> = if let Some(fd) = get_fcall_func_def(context, expr) {
-                        fd.args.iter().map(|fd_arg| (Some(fd_arg.value_type.clone()), param_needs_by_ref(fd_arg))).collect()
+                    let param_info: Vec<(Option<ValueType>, bool, bool)> = if let Some(fd) = get_fcall_func_def(context, expr) {
+                        fd.args.iter().map(|fd_arg| (Some(fd_arg.value_type.clone()), param_needs_by_ref(fd_arg), fd_arg.is_copy)).collect()
                     } else {
                         Vec::new()
                     };
@@ -6876,9 +6928,16 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         if let Some(nexpr_type_name) = get_type_arg_name(nexpr_arg, context) {
                             nexpr_arg_strings.push(format!("\"{}\"", nexpr_type_name));
                         } else {
-                            let nexpr_param_type = param_info.get(nexpr_arg_i).and_then(|(t, _)| t.as_ref());
-                            let nexpr_by_ref = param_info.get(nexpr_arg_i).map(|(_, b)| *b).unwrap_or(false);
-                            let nexpr_arg_str = emit_arg_string(nexpr_arg, nexpr_param_type, nexpr_by_ref, &mut nexpr_arg_hoist, indent, ctx, context)?;
+                            let nexpr_param_type = param_info.get(nexpr_arg_i).and_then(|(t, _, _)| t.as_ref());
+                            let nexpr_by_ref = param_info.get(nexpr_arg_i).map(|(_, b, _)| *b).unwrap_or(false);
+                            let nexpr_is_copy = param_info.get(nexpr_arg_i).map(|(_, _, c)| *c).unwrap_or(false);
+                            let mut nexpr_arg_str = emit_arg_string(nexpr_arg, nexpr_param_type, nexpr_by_ref, &mut nexpr_arg_hoist, indent, ctx, context)?;
+                            // Bug #159: Clone when passing to copy params
+                            if nexpr_is_copy {
+                                if let Some(vt) = nexpr_param_type {
+                                    nexpr_arg_str = wrap_clone_if_needed(nexpr_arg_str, nexpr_arg, vt, context);
+                                }
+                            }
                             nexpr_arg_strings.push(nexpr_arg_str);
                         }
                     }

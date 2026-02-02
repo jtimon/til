@@ -1159,6 +1159,8 @@ emit_throwing_arg_string := proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param
             is_variadic_arg := not(i.lt(variadic_regular_count))
             mut nested_param_type := Ptr()
             mut nested_by_ref := false
+            mut nested_is_copy := false
+            mut nested_value_type := ValueType.TCustom("")
             if i.lt(fd.args.len()) {
                 mut param_decl := Declaration()
                 fd.args.get(i, param_decl)?
@@ -1166,8 +1168,14 @@ emit_throwing_arg_string := proc(arg: Expr, fd: SFuncDef, param_type: Ptr, param
                 if not(is_variadic_arg) {
                     nested_by_ref = param_needs_by_ref(param_decl)
                 }
+                nested_is_copy = param_decl.is_copy
+                nested_value_type = param_decl.value_type.clone()
             }
-            nested_str := emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?
+            mut nested_str := emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?
+            // Bug #159: Clone when passing to copy params
+            if nested_is_copy {
+                nested_str = wrap_clone_if_needed(nested_str, nested_arg, nested_value_type, context)
+            }
             nested_arg_strings.push(nested_str)
             i.inc()
             arg_idx.inc()
@@ -1472,6 +1480,8 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
             is_variadic_arg := not(i.lt(vi.regular_count))
             mut nested_param_type := Ptr()
             mut nested_by_ref := false
+            mut nested_is_copy := false
+            mut nested_value_type := ValueType.TCustom("")
             if i.lt(fd.args.len()) {
                 mut param_decl := Declaration()
                 fd.args.get(i, param_decl)?
@@ -1479,8 +1489,14 @@ emit_variadic_arg_string := proc(arg: Expr, vi: VariadicFCallInfo, param_type: P
                 if not(is_variadic_arg) {
                     nested_by_ref = param_needs_by_ref(param_decl)
                 }
+                nested_is_copy = param_decl.is_copy
+                nested_value_type = param_decl.value_type.clone()
             }
-            nested_str := emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?
+            mut nested_str := emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?
+            // Bug #159: Clone when passing to copy params
+            if nested_is_copy {
+                nested_str = wrap_clone_if_needed(nested_str, nested_arg, nested_value_type, context)
+            }
             nested_arg_strings.push(nested_str)
             i.inc()
             arg_idx.inc()
@@ -1968,13 +1984,21 @@ emit_fcall_arg_string := proc(arg: Expr, mut hoist_output: Str, indent: I64, mut
             arg.params.get(arg_idx, nested_arg)?
             mut nested_param_type := Ptr()
             mut nested_by_ref := false
+            mut nested_is_copy := false
+            mut nested_value_type := ValueType.TCustom("")
             if fd_found.and(i.lt(fd_opt.args.len())) {
                 mut param_decl := Declaration()
                 fd_opt.args.get(i, param_decl)?
                 nested_param_type.data = to_ptr(param_decl.value_type)
                 nested_by_ref = param_needs_by_ref(param_decl)
+                nested_is_copy = param_decl.is_copy
+                nested_value_type = param_decl.value_type.clone()
             }
-            nested_str := emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?
+            mut nested_str := emit_arg_string(nested_arg, nested_param_type, nested_by_ref, hoist_output, indent, ctx, context)?
+            // Bug #159: Clone when passing to copy params
+            if nested_is_copy {
+                nested_str = wrap_clone_if_needed(nested_str, nested_arg, nested_value_type, context)
+            }
             nested_arg_strings.push(nested_str)
             i.inc()
             arg_idx.inc()
