@@ -3279,7 +3279,7 @@ fn emit_enum_func_prototypes(expr: &Expr, context: &Context, output: &mut String
             if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
                 let enum_name = til_name(&decl.name);
                 for (method_name, method_expr) in &enum_def.methods {
-                    if let NodeType::FuncDef(func_def) = &method_expr.node_type {
+                    if let NodeType::FuncDef(ref func_def) = method_expr.node_type {
                         let mangled_name = format!("{}_{}", enum_name, method_name);
                         emit_func_signature(&mangled_name, func_def, context, output)?;
                         output.push_str(";\n");
@@ -3298,7 +3298,7 @@ fn emit_enum_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
             if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
                 let enum_name = til_name(&decl.name);
                 for (method_name, method_expr) in &enum_def.methods {
-                    if let NodeType::FuncDef(func_def) = &method_expr.node_type {
+                    if let NodeType::FuncDef(ref func_def) = method_expr.node_type {
                         emit_struct_func_body(&enum_name, method_name, func_def, output, ctx, context)?;
                     }
                 }

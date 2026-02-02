@@ -335,8 +335,8 @@ pub fn preinit_expr(e: &Expr) -> Result<Expr, String> {
                 // Check if this is an enum definition
                 if let NodeType::EnumDef(enum_def) = &value_expr.node_type {
                     // Check if enum already has delete/clone methods
-                    let has_delete = enum_def.methods.contains_key("delete");
-                    let has_clone = enum_def.methods.contains_key("clone");
+                    let has_delete = enum_def.methods.contains_key(&"delete".to_string());
+                    let has_clone = enum_def.methods.contains_key(&"clone".to_string());
 
                     if !has_delete || !has_clone {
                         let mut new_methods = enum_def.methods.clone();

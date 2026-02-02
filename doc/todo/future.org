@@ -13,6 +13,29 @@ are open questions about language direction.
 
 * Open Issues
 
+** Issue #160: Remove PartialEq from AST types, use pattern matching instead
+:PROPERTIES:
+:DISCOVERED: 2026-02-02
+:IMPACT: Code quality - unused derive, prevents efficient OrderedMap
+:STATUS: Open
+:END:
+
+*** Summary
+NodeType, SEnumDef, and related AST types derive PartialEq but grep shows no
+actual equality comparisons (no `== NodeType::` or `node_type ==` patterns).
+This forces OrderedMap to implement PartialEq (O(n) Vec comparison), which is
+inefficient even though it's likely never called.
+
+*** Proposed Solution
+1. Remove PartialEq derive from NodeType, SEnumDef, SStructDef, etc.
+2. If compilation fails, replace any `==` comparisons with `match`/`switch`
+3. Remove PartialEq from OrderedMap (or keep it but mark as inefficient)
+
+*** Benefits
+- Cleaner code - don't derive traits that aren't used
+- Pattern matching is more explicit and easier to port to TIL's switch
+- Prevents accidental O(n) comparisons
+
 ** Issue #112: Add HashMap type with O(1) lookup
 :PROPERTIES:
 :DISCOVERED: 2026-01-13

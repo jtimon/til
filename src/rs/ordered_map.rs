@@ -8,9 +8,19 @@
 
 use std::hash::Hash;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OrderedMap<K, V> {
     entries: Vec<(K, V)>,
+}
+
+// Implement IntoIterator for &OrderedMap to allow `for (k, v) in &map` syntax
+impl<'a, K, V> IntoIterator for &'a OrderedMap<K, V> {
+    type Item = (&'a K, &'a V);
+    type IntoIter = std::iter::Map<std::slice::Iter<'a, (K, V)>, fn(&'a (K, V)) -> (&'a K, &'a V)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.entries.iter().map(|(k, v)| (k, v))
+    }
 }
 
 impl<K: Eq + Hash + Clone, V: Clone> OrderedMap<K, V> {

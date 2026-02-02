@@ -4,6 +4,7 @@ use std::io;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rs::lexer::{LANG_NAME, TokenType, Token, Lexer};
+use rs::ordered_map::OrderedMap;
 
 // Counter for generating unique loop variable names when _ is used
 // Bug #146: Reset per-function for deterministic output (like Issue #127 fix for precomp_forin_counter)
@@ -38,7 +39,7 @@ pub struct EnumVariant {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SEnumDef {
     pub variants: Vec<EnumVariant>,
-    pub methods: std::collections::HashMap<String, Expr>,  // Auto-generated methods (delete, clone)
+    pub methods: OrderedMap<String, Expr>,  // Auto-generated methods (delete, clone)
 }
 
 impl SEnumDef {
@@ -796,7 +797,7 @@ fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
         return Err(t.error(&lexer.path, "Expected '}}' to end enum."));
     }
     let params : Vec<Expr> = Vec::new();
-    return Ok(Expr::new_parse(NodeType::EnumDef(SEnumDef{variants, methods: std::collections::HashMap::new()}), lexer.get_token(initial_current)?.clone(), params));
+    return Ok(Expr::new_parse(NodeType::EnumDef(SEnumDef{variants, methods: OrderedMap::new()}), lexer.get_token(initial_current)?.clone(), params));
 }
 
 fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
