@@ -4,8 +4,8 @@
 // FIXED: Declarations (mut x := y) - calls Type.clone()
 // FIXED: Reassignments (x = y) - now uses clone (interpreter + ccodegen)
 // FIXED: Field assignments (obj.field = x) - now uses clone (interpreter + ccodegen)
-// SKIPPED: Named struct args (Foo(bar: x)) - interpreter fixed, ccodegen TODO
-// SKIPPED: copy param passing - interpreter fixed, can't test (type system limitation)
+// FIXED: Named struct args (Foo(bar: x)) - calls Type.clone() on identifier args
+// FIXED: copy param passing - calls Type.clone() for deep copy
 
 mode test
 
@@ -92,10 +92,38 @@ test_named_struct_arg := proc() {
     }
 }
 
-// Test 4: copy param passing - SKIPPED
-// Cannot test directly because copy params can't call methods with mut self.
-// The copy param clone fix is in the interpreter but can't be verified here.
-// TODO: Add a test when we can mutate through copy params (e.g., via own transfer)
+// Test 4: copy param passing - FIXED
+// Copy params create a deep copy. Since copy params are const, we test by
+// declaring a local from the copy param and mutating that. If copy param
+// cloning is broken (shallow), the local would share memory with original.
+copy_param_helper := proc(copy c: Container) {
+    // Declare from copy param - this creates another clone
+    mut local := c
+    // Mutate the local
+    local.items.set(0, 999)?
+
+    catch (err: IndexOutOfBoundsError) {
+        panic("IndexOutOfBoundsError:", err.msg)
+    }
+}
+
+test_copy_param := proc() {
+    mut original := Container()
+    original.items.push(10)
+    original.items.push(20)
+
+    // Pass to copy param - should deep clone
+    copy_param_helper(original)
+
+    // Original should still be 10 (copy was independent)
+    mut orig_val := 0
+    original.items.get(0, orig_val)?
+    assert_eq(loc(), 10, orig_val)
+
+    catch (err: IndexOutOfBoundsError) {
+        panic("IndexOutOfBoundsError:", err.msg)
+    }
+}
 
 // Test 5: Field assignment (obj.field = x) - FIXED
 test_field_assignment := proc() {
@@ -123,5 +151,5 @@ test_field_assignment := proc() {
 test_declaration()
 test_reassignment()
 test_named_struct_arg()
-// test_copy_param() - skipped, type system limitation
+test_copy_param()
 test_field_assignment()

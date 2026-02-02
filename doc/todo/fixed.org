@@ -10,7 +10,7 @@
 ** Bug #159: Shallow copy semantics for structs with Ptr/Vec fields
 :PROPERTIES:
 :DISCOVERED: 2026-01-31
-:FIXED: 2026-02-01 (partial - Step 4 remaining)
+:FIXED: 2026-02-02 (partial - Step 4 remaining)
 :IMPACT: Memory corruption, shared state between what should be independent copies
 :STATUS: Partial fix - see Step 4 TODO
 :END:
@@ -31,6 +31,8 @@ All struct copy operations now call =Type.clone()= for deep copy:
 - Declarations (=mut x := y=): calls =Type.clone(y)=, transfers offset
 - Reassignments (=x = y=): calls clone via =try_call_clone=
 - Field assignments (=obj.field = y=): calls clone
+- Named struct args (=Foo(bar: x)=): calls clone for identifier args in compound literals
+- Copy params: calls clone before frame manipulation (with =is_clone_method= check to avoid recursion)
 - Param passing semantics:
   - =copy= params: calls clone (creates independent copy for callee)
   - =own= params: NO clone (ownership transfer - caller loses access, callee owns)
@@ -59,7 +61,7 @@ Tasks:
 - [ ] Port all fixes to TIL
 
 *** Test
-=src/test/bug159.til= - tests declarations, reassignments, and field assignments.
+=src/test/bug159.til= - tests declarations, reassignments, named struct args, copy params, and field assignments.
 
 ** Bug #157: Field access on throwing calls in declarations
 :PROPERTIES:
